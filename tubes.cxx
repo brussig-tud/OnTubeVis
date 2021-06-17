@@ -331,7 +331,7 @@ public:
 		add_decorator("Dataset", "heading", "level=1");
 		//add_member_control(this, "data file/path", datapath);
 		add_gui("datapath", datapath, "file_name", "title='Open Trajectory Data';"
-			"filter='Trajectory Files (bezdat, csv) :*.bezdat; *.csv | All Files : *.*'");
+			"filter='Trajectory Files (bezdat, csv):*.bezdat;*.csv|All Files:*.*'");
 
 		// rendering settings
 		add_decorator("Rendering", "heading", "level=1");
