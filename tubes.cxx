@@ -13,6 +13,7 @@
 // CGV OpenGL lib
 #include <cgv_gl/rounded_cone_renderer.h>
 #include <cgv_gl/spline_tube_renderer.h>
+#include "textured_spline_tube_renderer.h"
 
 // fltk_gl_view for controlling instant redraw
 #include <plugins/cg_fltk/fltk_gl_view.h>
@@ -42,10 +43,13 @@ public:
 	typedef float real;
 
 	/// renderer type
-	enum Renderer { ROUNDED_CONE=0, SPLINE_TUBE=1 };
+	enum Renderer { ROUNDED_CONE=0, SPLINE_TUBE=1, TEXTURED_SPLINE_TUBE=2 };
 
 
 protected:
+
+	/// store a pointer to the view for fast access
+	cgv::render::view* view_ptr = nullptr;
 
 	/// path of the dataset to load - can be either a directory or a single file
 	std::string datapath;
@@ -78,6 +82,11 @@ protected:
 
 		/// style for the spline tube renderer
 		cgv::render::spline_tube_render_style spline_tube_rstyle;
+
+		/// style for the textured spline tube renderer
+		cgv::render::textured_spline_tube_render_style textured_spline_tube_rstyle;
+
+		bool use_conservative_depth = false;
 
 		/// shared attribute array manager used by both renderers
 		cgv::render::attribute_array_manager aam;
@@ -165,13 +174,20 @@ public:
 
 	bool init (cgv::render::context &ctx)
 	{
-		// increase reference count of both renderers by one
+		// increase reference count of the renderers by one
 		auto &rcr = cgv::render::ref_rounded_cone_renderer(ctx, 1);
 		auto &str = cgv::render::ref_spline_tube_renderer(ctx, 1);
+		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx, 1);
 		bool success = rcr.ref_prog().is_linked() && str.ref_prog().is_linked();
 
 		// init shared attribute array manager
 		success = success && render.aam.init(ctx);
+		
+		if(traj_mgr.has_data()) {
+			const traj_dataset<float>& ds = traj_mgr.dataset(0);
+			const std::vector<traj_dataset<float>::trajectory>& trajs = ds.trajectories();
+
+		}
 
 		// done
 		return success;
@@ -179,7 +195,8 @@ public:
 
 	void clear (cgv::render::context &ctx)
 	{
-		// decrease reference count of both renderers by one
+		// decrease reference count of the renderers by one
+		cgv::render::ref_textured_spline_tube_renderer(ctx, -1);
 		cgv::render::ref_spline_tube_renderer(ctx, -1);
 		cgv::render::ref_rounded_cone_renderer(ctx, -1);
 	}
@@ -248,6 +265,13 @@ public:
 
 	void init_frame (cgv::render::context &ctx)
 	{
+		if(!view_ptr) {
+			view_ptr = find_view_as_node();
+			if(view_ptr) {
+				// do one-time initialization needing the view if necessary
+			}
+		}
+
 		if (misc_cfg.fix_view_up_dir_proxy)
 			// ToDo: make stereo view interactors reflect this property
 			/*dynamic_cast<stereo_view_interactor*>(find_view_as_node())->set(
@@ -258,6 +282,8 @@ public:
 
 	void draw (cgv::render::context &ctx)
 	{
+		if(!view_ptr) return;
+
 		// display drag-n-drop information, if a dnd operation is in progress
 		if (!dnd.text.empty())
 		{
@@ -310,9 +336,8 @@ public:
 					rcr.enable_attribute_array_manager(ctx, render.aam);
 					rcr.render(ctx, 0, render.data->indices.size());
 					rcr.disable_attribute_array_manager(ctx, render.aam);
-					return;
+					break;
 				}
-
 				case SPLINE_TUBE:
 				{
 					auto &str = cgv::render::ref_spline_tube_renderer(ctx);
@@ -320,6 +345,23 @@ public:
 					str.enable_attribute_array_manager(ctx, render.aam);
 					str.render(ctx, 0, render.data->indices.size());
 					str.disable_attribute_array_manager(ctx, render.aam);
+					break;
+				}
+				case TEXTURED_SPLINE_TUBE:
+				{
+					GLint vp[4]; glGetIntegerv(GL_VIEWPORT, vp);
+					vec4 viewport(vp[0], vp[1], vp[2], vp[3]);
+
+					auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+					tstr.set_eye_pos(view_ptr->get_eye());
+					tstr.set_view_dir(view_ptr->get_view_dir());
+					tstr.set_viewport(viewport);
+					tstr.enable_conservative_depth(render.use_conservative_depth);
+					tstr.set_render_style(render.textured_spline_tube_rstyle);
+					tstr.enable_attribute_array_manager(ctx, render.aam);
+					tstr.render(ctx, 0, render.data->indices.size());
+					tstr.disable_attribute_array_manager(ctx, render.aam);
+					break;
 				}
 			}
 		}
@@ -337,7 +379,7 @@ public:
 		add_decorator("Rendering", "heading", "level=1");
 		add_member_control(
 			this, "renderer", render_cfg.renderer, "dropdown",
-			"enums='ROUNDED_CONE=0,SPLINE_TUBE=1';tooltip='The built-in renderer to use for drawing the tubes.'"
+			"enums='Rounded Cones=0,Spline Tubes=1,Textured Spline Tubes=2';tooltip='The built-in renderer to use for drawing the tubes.'"
 		);
 		if (begin_tree_node("tube surface material", render_cfg, false))
 		{
@@ -346,6 +388,8 @@ public:
 			align("\b");
 			end_tree_node(render_cfg);
 		}
+
+		add_member_control(this, "conservative depth test", render.use_conservative_depth, "check");
 
 		// Misc settings contractable section
 		add_decorator("Miscellaneous", "heading", "level=1");
@@ -379,7 +423,7 @@ public:
 				rcr.set_color_array(ctx, render.data->colors);
 				rcr.set_indices(ctx, render.data->indices);
 				rcr.disable_attribute_array_manager(ctx, render.aam);
-				return;
+				break;
 			}
 			case SPLINE_TUBE:
 			{
@@ -391,6 +435,19 @@ public:
 				str.set_color_array(ctx, render.data->colors);
 				str.set_indices(ctx, render.data->indices);
 				str.disable_attribute_array_manager(ctx, render.aam);
+				break;
+			}
+			case TEXTURED_SPLINE_TUBE:
+			{
+				auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+				tstr.enable_attribute_array_manager(ctx, render.aam);
+				tstr.set_position_array(ctx, render.data->positions);
+				tstr.set_tangent_array(ctx, render.data->tangents);
+				tstr.set_radius_array(ctx, render.data->radii);
+				tstr.set_color_array(ctx, render.data->colors);
+				tstr.set_indices(ctx, render.data->indices);
+				tstr.disable_attribute_array_manager(ctx, render.aam);
+				break;
 			}
 		}
 	}
@@ -455,6 +512,7 @@ public:
 		// - dirty hack to catch GUI changes to render_cfg.render_style
 		*dynamic_cast<cgv::render::surface_render_style*>(&render.rounded_cone_rstyle) = render_cfg.render_style;
 		*dynamic_cast<cgv::render::surface_render_style*>(&render.spline_tube_rstyle) = render_cfg.render_style;
+		*dynamic_cast<cgv::render::surface_render_style*>(&render.textured_spline_tube_rstyle) = render_cfg.render_style;
 		// - remaining logic
 		update_member(member_ptr);
 		post_redraw();

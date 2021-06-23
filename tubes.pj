@@ -11,5 +11,5 @@ addProjectDeps=[
 addSharedDefines=["TUBES_EXPORTS"];
 addCommandLineArguments=[
 	'config:"'.INPUT_DIR.'/config.def"',
-	after("type(shader_config):shader_path='".CGV_DIR."/libs/cgv_gl/glsl'","cg_fltk")
+	after("type(shader_config):shader_path='".INPUT_DIR."/glsl;".CGV_DIR."/libs/cgv_gl/glsl'","cg_fltk")
 ];

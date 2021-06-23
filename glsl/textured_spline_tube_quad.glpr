@@ -1,0 +1,12 @@
+vertex_file:textured_spline_tube_quad.glvs
+vertex_file:group.glsl
+vertex_file:view.glsl
+geometry_file:textured_spline_tube_quad.glgs
+geometry_file:view.glsl
+fragment_file:textured_spline_tube.glfs
+fragment_file:view.glsl
+fragment_file:side.glsl
+fragment_file:lights.glsl
+fragment_file:brdf.glsl
+fragment_file:bump_map.glfs
+fragment_file:surface.glsl
