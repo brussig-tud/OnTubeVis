@@ -787,14 +787,28 @@ public:
 
 /// converts (1-based) 3-vectors to float RGB colors
 template <class vec_type>
-typename cgv::media::color<float, cgv::media::RGB, cgv::media::NO_ALPHA> vec3_to_rgb (const vec_type &v)
+inline typename cgv::media::color<float, cgv::media::RGB, cgv::media::NO_ALPHA> vec3_to_rgb (const vec_type &v)
 {
 	return traj_format_handler<float>::Color((float)v.x(), (float)v.y(), (float)v.z());
 }
 
 /// constructs a 4-vector from a 3-vector and a scalar
 template <class vec3_type, class scalar_type>
-cgv::math::fvec<typename vec3_type::value_type, 4> vec4_from_vec3s (const vec3_type& v, scalar_type s)
+inline cgv::math::fvec<typename vec3_type::value_type, 4> vec4_from_vec3s (const vec3_type& v, scalar_type s)
 {
 	return cgv::math::fvec<typename vec3_type::value_type, 4>(v.x(), v.y(), v.z(), vec3_type::value_type(s));
+}
+
+/// truncates the last component from a 4-vector to create a 3-vector
+template <class vec4_type>
+inline cgv::math::fvec<typename vec4_type::value_type, 3> vec3_from_vec4(const vec4_type& v)
+{
+	return cgv::math::fvec<typename vec4_type::value_type, 3>(v.x(), v.y(), v.z());
+}
+
+/// dehomogenizes a 4-vector to obtain an equivalent 3-vector
+template <class vec4_type>
+inline cgv::math::fvec<typename vec4_type::value_type, 3> vec3_from_vec4h(const vec4_type& v)
+{
+	return cgv::math::fvec<typename vec4_type::value_type, 3>(v.x()/v.w(), v.y()/v.w(), v.z()/v.w());
 }

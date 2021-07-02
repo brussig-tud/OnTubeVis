@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <cgv/math/fvec.h>
 
 template <typename FLOAT_TYPE> struct v3 {
   FLOAT_TYPE x = 0.0F;
@@ -9,6 +10,7 @@ template <typename FLOAT_TYPE> struct v3 {
 
   v3() : x(0.0), y(0.0), z(0.0) {}
   v3(FLOAT_TYPE x, FLOAT_TYPE y, FLOAT_TYPE z) : x(x), y(y), z(z) {}
+  v3(const cgv::math::fvec<FLOAT_TYPE, 3>& cgv_vec) : x(cgv_vec.x()), y(cgv_vec.y()), z(cgv_vec.z()) {}
 
   FLOAT_TYPE length() const { return std::sqrt(x * x + y * y + z * z); }
 
