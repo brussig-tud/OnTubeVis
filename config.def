@@ -2,8 +2,8 @@
 // dataset to load
 type(tubes):dataset_fn=""
 
-// renderer to use (0=rounded_cone, 1=spline_tube)
-type(tubes):renderer=1
+// renderer to use (0=rounded_cone, 1=spline_tube, 2=textured_spline_tube)
+type(tubes):renderer=2
 
 // make the following persistent in your local .cfg:
 type(tubes):instant_redraw_proxy=false
