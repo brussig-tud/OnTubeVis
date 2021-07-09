@@ -927,7 +927,7 @@ struct traj_dataset<flt_type>::Impl
 	std::vector<Vec3> *positions;
 	attribute_map<flt_type> attribs;
 	std::vector<unsigned> indices;
-	std::vector<traj_dataset::trajectory> trajs;
+	std::vector<range> trajs;
 	visual_attribute_mapping<flt_type> attrmap;
 	real avg_seg_len;
 
@@ -1055,7 +1055,7 @@ void traj_dataset<flt_type>::set_avg_segment_length (real length)
 }
 
 template <class flt_type>
-std::vector<typename traj_dataset<flt_type>::trajectory>& traj_dataset<flt_type>::trajectories (void)
+std::vector<range>& traj_dataset<flt_type>::trajectories (void)
 {
 	return pimpl->trajs;
 }
@@ -1097,7 +1097,7 @@ flt_type traj_dataset<flt_type>::avg_segment_length (void) const
 }
 
 template <class flt_type>
-const std::vector<typename traj_dataset<flt_type>::trajectory>& traj_dataset<flt_type>::trajectories (void) const
+const std::vector<range>& traj_dataset<flt_type>::trajectories (void) const
 {
 	return pimpl->trajs;
 }
@@ -1175,7 +1175,7 @@ void traj_format_handler<flt_type>::set_avg_segment_length (traj_dataset<real> &
 }
 
 template <class flt_type>
-std::vector<typename traj_dataset<flt_type>::trajectory>& traj_format_handler<flt_type>::trajectories (traj_dataset<real> &dataset)
+std::vector<range>& traj_format_handler<flt_type>::trajectories (traj_dataset<real> &dataset)
 {
 	return dataset.trajectories();
 }
@@ -1310,7 +1310,7 @@ struct traj_manager<flt_type>::Impl
 				const auto &I = dataset.indices();
 				const auto &trajs = dataset.trajectories();
 
-				// generate tangents on per-trajectory basis (currently hard-coded as radius and segment length
+				// generate tangents on per-trajectory basis (currently hard-coded as radius- and segment length-
 				// adaptive variant of central differences)
 				out->resize(idx_offset + dataset.positions().size());
 				auto *o = ((std::vector<Vec4>*)out)->data() + idx_offset;
@@ -1565,7 +1565,7 @@ unsigned traj_manager<flt_type>::load (const std::string &path)
 }
 
 template <class flt_type>
-traj_dataset<flt_type>& traj_manager<flt_type>::dataset (unsigned index)
+const traj_dataset<flt_type>& traj_manager<flt_type>::dataset (unsigned index) const
 {
 	return *(pimpl->datasets[index].get());
 }
@@ -1592,6 +1592,7 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 	// check if the render data needs to be rebuild
 	if (impl.dirty)
 	{
+		impl.rd.dataset_ranges.clear();
 		impl.rd.positions.clear();
 		impl.rd.tangents.clear();
 		impl.rd.radii.clear();
@@ -1603,11 +1604,14 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 			const auto &dataset = *d_ptr;
 
 			// process indices
-			unsigned idx_offset = (unsigned)impl.rd.positions.size();
+			const unsigned idx_offset = (unsigned)impl.rd.positions.size();
 			std::transform(
 				dataset.indices().begin(), dataset.indices().end(), std::back_inserter(impl.rd.indices),
 				[idx_offset] (unsigned index) -> unsigned { return index + idx_offset; }
 			);
+			impl.rd.dataset_ranges.emplace_back(range{
+				/* first index */idx_offset, /* num indices */(unsigned)dataset.indices().size()
+			});
 
 			// copy mapped attributes, applying the desired transformations (if any)
 			impl.transform_attrib_old(&impl.rd.positions, VisualAttrib::POSITION, dataset);
@@ -1629,6 +1633,16 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 
 	// done
 	return impl.rd;
+}
+
+template <class flt_type>
+const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_render_data (void) const
+{
+	// default return value representing dirty state situations
+	static const render_data ood;
+
+	// return actual render data if current, and empty dummy if dirty / out-of-date
+	return pimpl->dirty ? ood : pimpl->rd;
 }
 
 

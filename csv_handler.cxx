@@ -638,7 +638,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 	auto &ds_trajs = trajectories(ret);
 	for (auto &traj : trajs)
 	{
-		ds_trajs.emplace_back(typename traj_dataset<real>::trajectory{
+		ds_trajs.emplace_back(range{
 			/* 1st index */ (unsigned)I.size(),  /* num indices */ (unsigned)traj.second.size()-1
 		});
 		I.insert(I.end(), traj.second.begin(), traj.second.end()-1);

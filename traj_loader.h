@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <map>
 #include <unordered_map>
 #include <utility>
 #include <functional>
@@ -516,6 +517,18 @@ public:
 };
 
 
+/// struct encapsulating a range of samples (single trajectory, whole dataset) via the first index of the
+/// range and the number of sampels spanned by the range
+struct range
+{
+	/// start index
+	unsigned i0;
+
+	/// number of samples in the trajectory
+	unsigned n;
+};
+
+
 /// trajectory data storage
 template <class flt_type>
 class traj_dataset
@@ -540,16 +553,6 @@ public:
 
 	/// color type
 	typedef typename traj_attribute<real>::Color Color;
-
-	/// struct encapsulating the start attribute index and sample count of an individual trajectory
-	struct trajectory
-	{
-		/// start index
-		unsigned i0;
-
-		/// number of samples in the trajectory
-		unsigned n;
-	};
 
 
 private:
@@ -580,7 +583,7 @@ protected:
 	void set_avg_segment_length (real length);
 
 	/// write-access the list of individual trajectories in the dataset
-	std::vector<trajectory>& trajectories (void);
+	std::vector<range>& trajectories (void);
 
 
 public:
@@ -631,7 +634,7 @@ public:
 	real avg_segment_length (void) const;
 
 	/// access the list of individual trajectories in the dataset
-	const std::vector<trajectory>& trajectories (void) const;
+	const std::vector<range>& trajectories (void) const;
 
 	/// set the visual attribute mapping, reporting whether the crucial position mapping could be resolved. In case it couldn't, the
 	/// method will return false and the current mapping will remain unchanged.
@@ -684,7 +687,7 @@ protected:
 	static void set_avg_segment_length (traj_dataset<real> &dataset, real length);
 
 	/// Proxy for derived classes to gain write-access the list of individual trajectories in the dataset.
-	static std::vector<typename traj_dataset<real>::trajectory>& trajectories (traj_dataset<real> &dataset);
+	static std::vector<range>& trajectories (traj_dataset<real> &dataset);
 
 
 public:
@@ -741,6 +744,7 @@ public:
 		std::vector<real> radii;
 		std::vector<Color> colors;
 		std::vector<unsigned> indices;
+		std::vector<range> dataset_ranges;
 	};
 
 
@@ -768,8 +772,8 @@ public:
 	/// if successfull, and -1 otherwise.
 	unsigned load (const std::string &path);
 
-	// reference the dataset of the given index
-	traj_dataset<real>& dataset (unsigned index);
+	// read-only reference the dataset of the given index
+	const traj_dataset<real>& dataset (unsigned index) const;
 
 	/// reset internal trajectory database (e.g. for loading a new, unrelated set of trajectories into this existing instance)
 	void clear (void);
@@ -782,6 +786,10 @@ public:
 	///		whether to auto-derive tangents from curve geometry when they don't have a mapped data attribute
 	/// ToDo: make auto-tangent generation configurable and preset-able (e.g. simple forward diff, catmul-rom, etc.)
 	const render_data& get_render_data (bool auto_tangents=true);
+
+	/// returns the visual attributes of all dataset laid out in a way suitable for rendering. since this is for read-only access,
+	/// the method will fail if the render data is out-of-date!
+	const render_data& get_render_data (void) const;
 };
 
 

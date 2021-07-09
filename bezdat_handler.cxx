@@ -348,7 +348,7 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (std::istream &contents)
 	unsigned num_segs = 0;
 	for (const auto &traj : trajs)
 	{
-		ds_trajs.emplace_back(typename traj_dataset<real>::trajectory{
+		ds_trajs.emplace_back(range{
 			/* 1st index */ (unsigned)I.size(),  /* num indices */ (unsigned)traj.size()*2
 		});
 		for (const auto& seg : traj)

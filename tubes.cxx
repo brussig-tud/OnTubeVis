@@ -21,12 +21,9 @@
 // stereo_view_interactor for controlling fix_view_up_dir
 #include <plugins/crg_stereo_view/stereo_view_interactor.h>
 
-// Arclength parametrization lib
-#include "arclength/bezier.h"
-#include "arclength/hermite.h"
-
 // local includes
 #include "traj_loader.h"
+#include "arclen_helper.h"
 
 
 ////
@@ -48,13 +45,6 @@ public:
 
 	/// renderer type
 	enum Renderer { ROUNDED_CONE=0, SPLINE_TUBE=1, TEXTURED_SPLINE_TUBE=2 };
-
-	/// ToDo: integrate into trajectory manager
-	struct curve_segment
-	{
-		unsigned i0, i1;
-		ParameterizationSubdivisionBezierApproximation<real> parameterization = {};
-	};
 
 
 protected:
@@ -196,7 +186,7 @@ public:
 		
 		if(traj_mgr.has_data()) {
 			const traj_dataset<float>& ds = traj_mgr.dataset(0);
-			const std::vector<traj_dataset<float>::trajectory>& trajs = ds.trajectories();
+			const std::vector<range>& trajs = ds.trajectories();
 
 		}
 
@@ -295,6 +285,9 @@ public:
 	{
 		if(!view_ptr) return;
 
+		// query viewport
+		GLint vp[4]; glGetIntegerv(GL_VIEWPORT, vp);
+
 		// display drag-n-drop information, if a dnd operation is in progress
 		if (!dnd.text.empty())
 		{
@@ -313,8 +306,6 @@ public:
 				}
 			}
 			float h = dnd.filenames.size()*s + s;
-			// gather our available screen estate
-			GLint vp[4]; glGetIntegerv(GL_VIEWPORT, vp);
 			// calculate actual position at which to place the text
 			ivec2 pos = dnd.pos,
 			      overflow(vp[0]+vp[2] - dnd.pos.x()-int(std::ceil(w)),
@@ -360,9 +351,7 @@ public:
 				}
 				case TEXTURED_SPLINE_TUBE:
 				{
-					GLint vp[4]; glGetIntegerv(GL_VIEWPORT, vp);
-					vec4 viewport(vp[0], vp[1], vp[2], vp[3]);
-
+					vec4 viewport((float)vp[0], (float)vp[1], (float)vp[2], (float)vp[3]);
 					auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 					tstr.set_eye_pos(view_ptr->get_eye());
 					tstr.set_view_dir(view_ptr->get_view_dir());
@@ -450,41 +439,14 @@ public:
 			}
 			case TEXTURED_SPLINE_TUBE:
 			{
-				//// [BEGIN] TESTCODE - ToDo: INTEGRATE THIS PROPERLY!!! ///////
-				std::vector<curve_segment> segs; segs.reserve(render.data->indices.size()/2);
-				const auto &positions = render.data->positions;
-				const auto &tangents = render.data->tangents;
-				const auto &indices = render.data->indices;
-				for (unsigned i=0; i< indices.size(); i+=2)
-				{
-					// segment init
-					segs.emplace_back();
-					auto &seg = segs.back();
-					seg.i0 = indices[i];
-					seg.i1 = indices[i+1];
-					// segment geometry
-					Hermite<real> h(
-						positions[seg.i0], positions[seg.i1],
-						vec3_from_vec4(tangents[seg.i0]), vec3_from_vec4(tangents[seg.i1])
-					);
-					Bezier<real> b = h.to_bezier();
-					// arc length
-					seg.parameterization = b.parameterization_subdivision_bezier_approximation(1024);
-					real l0 = seg.parameterization.arcLength.evaluate(0);
-					real l1 = seg.parameterization.arcLength.evaluate(0.25);
-					real l2 = seg.parameterization.arcLength.evaluate(0.5);
-					real l3 = seg.parameterization.arcLength.evaluate(0.75);
-					real l4 = seg.parameterization.arcLength.evaluate(1);
-					std::cout.flush(); // <-- IDE breakpoint hook
-				}
-				//// [END] TESTCODE //////////////////////////////////////////
+				arclen::compile_render_data(traj_mgr);
 				auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 				tstr.enable_attribute_array_manager(ctx, render.aam);
-				tstr.set_position_array(ctx, positions);
-				tstr.set_tangent_array(ctx, tangents);
+				tstr.set_position_array(ctx, render.data->positions);
+				tstr.set_tangent_array(ctx, render.data->tangents);
 				tstr.set_radius_array(ctx, render.data->radii);
 				tstr.set_color_array(ctx, render.data->colors);
-				tstr.set_indices(ctx, indices);
+				tstr.set_indices(ctx, render.data->indices);
 				tstr.disable_attribute_array_manager(ctx, render.aam);
 				break;
 			}
