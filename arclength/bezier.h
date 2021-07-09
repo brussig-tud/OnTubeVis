@@ -7,6 +7,8 @@
 
 #include "v3.h"
 
+template <typename FLOAT_TYPE> struct Bezier;
+
 template <typename FLOAT_TYPE> struct aabb {
     v3<FLOAT_TYPE> min = {};
     v3<FLOAT_TYPE> max = {};
@@ -26,29 +28,64 @@ template <typename FLOAT_TYPE> struct ArcLengthBezierApproximation {
     bool isTwoSpan = false;
 
     FLOAT_TYPE evaluate(FLOAT_TYPE t) const;
+    Bezier<FLOAT_TYPE> get_curve() const;
 };
 
-template <typename FLOAT_TYPE> struct ParameterizationRegression {
-    std::array<FLOAT_TYPE, 4> coefficients = {};
-    FLOAT_TYPE evaluate(FLOAT_TYPE d) const {
-        return coefficients[0] +         //
-               coefficients[1] * d +     //
-               coefficients[2] * d * d + //
-               coefficients[3] * d * d * d;
-    }
+template <typename FLOAT_TYPE> struct Parameterization {
+    virtual FLOAT_TYPE evaluate(FLOAT_TYPE d) const = 0;
+    virtual FLOAT_TYPE length() const = 0;
 };
 
-template <typename FLOAT_TYPE> struct Bezier;
-template <typename FLOAT_TYPE> struct ParameterizationSubdivisionLegendreGauss {
+template <typename FLOAT_TYPE> struct ParameterizationSubdivisionLegendreGauss : public Parameterization<FLOAT_TYPE> {
     Bezier<FLOAT_TYPE> b;
     int depth;
-    FLOAT_TYPE evaluate(FLOAT_TYPE d) const;
+    FLOAT_TYPE evaluate(FLOAT_TYPE d) const override;
+    FLOAT_TYPE length() const override;
 };
 
-template <typename FLOAT_TYPE> struct ParameterizationSubdivisionBezierApproximation {
+template <typename FLOAT_TYPE> struct ParameterizationAdaptive : public Parameterization<FLOAT_TYPE> {
+    Bezier<FLOAT_TYPE> b;
+    int depth;
+    FLOAT_TYPE evaluate(FLOAT_TYPE d) const override;
+    FLOAT_TYPE length() const override;
+};
+
+template <typename FLOAT_TYPE>
+struct ParameterizationSubdivisionBezierApproximation : public Parameterization<FLOAT_TYPE> {
     ArcLengthBezierApproximation<FLOAT_TYPE> arcLength;
     int depth;
-    FLOAT_TYPE evaluate(FLOAT_TYPE d) const;
+    FLOAT_TYPE evaluate(FLOAT_TYPE d) const override;
+    FLOAT_TYPE length() const override;
+};
+
+template <typename FLOAT_TYPE> struct ParameterizationBezierApproximation : public Parameterization<FLOAT_TYPE> {
+    FLOAT_TYPE s0y1;
+    FLOAT_TYPE s0y2;
+    FLOAT_TYPE s1y1;
+    FLOAT_TYPE s1y2;
+    FLOAT_TYPE totalLength0 = 0.0;
+    FLOAT_TYPE totalLength1 = 0.0;
+    FLOAT_TYPE tMid = 0.0;
+    bool isTwoSpan = false;
+
+    FLOAT_TYPE evaluate(FLOAT_TYPE d) const override;
+    FLOAT_TYPE length() const override { return totalLength0; }
+    Bezier<FLOAT_TYPE> get_curve() const;
+};
+
+template <typename FLOAT_TYPE> struct ParameterizationRegression : public Parameterization<FLOAT_TYPE> {
+    std::vector<FLOAT_TYPE> coefficients = {};
+    FLOAT_TYPE _length = 0.0;
+    FLOAT_TYPE evaluate(FLOAT_TYPE d) const {
+        FLOAT_TYPE value = 0;
+        FLOAT_TYPE x = 1;
+        for (int i = 0; i < coefficients.size(); i++) {
+            value += coefficients[i] * x;
+            x *= d;
+        }
+        return value;
+    }
+    FLOAT_TYPE length() const override { return _length; }
 };
 
 template <typename FLOAT_TYPE> struct Hermite;
@@ -83,6 +120,16 @@ template <typename FLOAT_TYPE> struct Bezier {
     std::pair<Bezier<FLOAT_TYPE>, Bezier<FLOAT_TYPE>> split(FLOAT_TYPE t) const;
 
     /**
+     * Length of the chord of this curve.
+     */
+    FLOAT_TYPE length_chord() const;
+
+    /**
+     * Length of the control polygon of this curve.
+     */
+    FLOAT_TYPE length_control_polygon() const;
+
+    /**
      * Calculate the inflection points of this curve. Returns the t values of the
      * inflection points.
      */
@@ -102,7 +149,13 @@ template <typename FLOAT_TYPE> struct Bezier {
      * Divide the curve into evenly spaced segments and sum up the straight line
      * distance of those segments.
      */
-    FLOAT_TYPE arc_length_even_segments(FLOAT_TYPE t = 1.0, int numSegments = 100) const;
+    FLOAT_TYPE arc_length_even_subdivision(FLOAT_TYPE t = 1.0, int numSegments = 100) const;
+
+    /**
+     * Divide the curve into evenly spaced segments and sum up the straight line
+     * distance of those segments.
+     */
+    FLOAT_TYPE arc_length_adaptive_subdivision(FLOAT_TYPE t = 1.0, FLOAT_TYPE epsilon = 0.0001F) const;
 
     /**
      * Calculates a bezier curve that approximates the arc length of the original
@@ -119,19 +172,26 @@ template <typename FLOAT_TYPE> struct Bezier {
      * NOTE: This is very inaccurate, use
      * parameterization_subdivision_bezier_approximation instead.
      */
-    ParameterizationRegression<FLOAT_TYPE> parameterization_regression(int order = 3, int numSamples = 100,
-                                                                       int numLegendreSamples = 100) const;
+    ParameterizationRegression<FLOAT_TYPE> *parameterization_regression(int order = 3, int numSamples = 100,
+                                                                        int numLegendreSamples = 100) const;
+
+    Parameterization<FLOAT_TYPE> *parameterization_subdivision_adaptive(int depth = 100) const {
+        auto result = new ParameterizationAdaptive<FLOAT_TYPE>();
+        result->depth = depth;
+        result->b = *this;
+        return result;
+    }
 
     /**
      * Creates an arc length parameterization that does a binary search to find the correct parameter t for a given
      * arc length.
      * Uses the Legendre-Gauss algorithm to calculate the length at each point.
      */
-    ParameterizationSubdivisionLegendreGauss<FLOAT_TYPE>
+    ParameterizationSubdivisionLegendreGauss<FLOAT_TYPE> *
     parameterization_subdivision_legendre_gauss(int depth = 100) const {
-        auto result = ParameterizationSubdivisionLegendreGauss<FLOAT_TYPE>();
-        result.depth = depth;
-        result.b = *this;
+        auto result = new ParameterizationSubdivisionLegendreGauss<FLOAT_TYPE>();
+        result->depth = depth;
+        result->b = *this;
         return result;
     }
 
@@ -140,13 +200,15 @@ template <typename FLOAT_TYPE> struct Bezier {
      * arc length.
      * Uses the Bezier-Approximation algorithm to calculate the length at each point.
      */
-    ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>
+    ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE> *
     parameterization_subdivision_bezier_approximation(int depth = 100) const {
-        auto result = ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>();
-        result.depth = depth;
-        result.arcLength = arc_length_bezier_approximation();
+        auto result = new ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>();
+        result->depth = depth;
+        result->arcLength = arc_length_bezier_approximation();
         return result;
     }
+
+    ParameterizationBezierApproximation<FLOAT_TYPE> *parameterization_bezier_approximation(int numSamples = 100) const;
 
     void to_csv(const std::string &fileName, int numTestPoints = 100, bool evenPointDistribution = false) const;
     Hermite<FLOAT_TYPE> to_hermite() const;

@@ -10,11 +10,11 @@ template <typename FLOAT_TYPE> struct v3 {
 
   v3() : x(0.0), y(0.0), z(0.0) {}
   v3(FLOAT_TYPE x, FLOAT_TYPE y, FLOAT_TYPE z) : x(x), y(y), z(z) {}
-  v3(const cgv::math::fvec<FLOAT_TYPE, 3>& cgv_vec) : x(cgv_vec.x()), y(cgv_vec.y()), z(cgv_vec.z()) {}
+  v3(const cgv::math::fvec<FLOAT_TYPE, 3> &vec) : x(vec.x()), y(vec.y()), z(vec.z()) {}
 
   FLOAT_TYPE length() const { return std::sqrt(x * x + y * y + z * z); }
 
-  FLOAT_TYPE distance(v3<FLOAT_TYPE> &other) const {
+  FLOAT_TYPE distance(const v3<FLOAT_TYPE> &other) const {
     // TODO remove this method
     FLOAT_TYPE dx = x - other.x;
     FLOAT_TYPE dy = y - other.y;
