@@ -41,11 +41,11 @@ struct curve_segment
 namespace arclen {
 
 template <class flt_type>
-std::vector<cgv::math::fvec<flt_type, 4>> compile_render_data<flt_type> (const traj_manager<flt_type> &mgr)
+std::vector<cgv::render::render_types::vec4> compile_renderdata<flt_type> (const traj_manager<flt_type> &mgr)
 {
 	typedef flt_type real;
-	typedef cgv::math::fvec<real, 4> Vec4;
-	std::vector<Vec4> result;
+	typedef cgv::math::fvec<real, 4> rvec4;
+	std::vector<cgv::render::render_types::vec4> result;
 
 	// obtain render attributes and dataset topology
 	const auto &rd = mgr.get_render_data();
@@ -95,8 +95,8 @@ std::vector<cgv::math::fvec<flt_type, 4>> compile_render_data<flt_type> (const t
 
 				// output control points
 				result.emplace_back(
-					seg.param.t_to_s.points[0].y, seg.param.t_to_s.points[1].y,
-					seg.param.t_to_s.points[2].y, seg.param.t_to_s.points[3].y
+					(float)seg.param.t_to_s.points[0].y, (float)seg.param.t_to_s.points[1].y,
+					(float)seg.param.t_to_s.points[2].y, (float)seg.param.t_to_s.points[3].y
 				);
 			}
 		}
@@ -106,6 +106,19 @@ std::vector<cgv::math::fvec<flt_type, 4>> compile_render_data<flt_type> (const t
 	return std::move(result);
 }
 
+cgv::render::vertex_buffer upload_renderdata (
+	cgv::render::context& ctx, const std::vector<cgv::render::render_types::vec4> &approximations
+)
+{
+	// init new buffer object
+	cgv::render::vertex_buffer new_sbo(cgv::render::VBT_STORAGE, cgv::render::VBU_STATIC_READ);
+	if (!new_sbo.create(ctx, approximations))
+		std::cerr << "[arclen::upload_renderdata] !!! unable to create Storage Buffer Object !!!" <<std::endl<<std::endl;
+
+	// done
+	return std::move(new_sbo);
+}
+
 
 //////
 //
@@ -113,8 +126,8 @@ std::vector<cgv::math::fvec<flt_type, 4>> compile_render_data<flt_type> (const t
 //
 
 // Only float and double variants are intended
-template std::vector<cgv::math::fvec<float, 4>> compile_render_data<float>(const traj_manager<float> &mgr);
-template std::vector<cgv::math::fvec<double, 4>> compile_render_data<double>(const traj_manager<double> &mgr);
+template std::vector<cgv::render::render_types::vec4> compile_renderdata<float>(const traj_manager<float> &mgr);
+template std::vector<cgv::render::render_types::vec4> compile_renderdata<double>(const traj_manager<double> &mgr);
 
 // namespace close
 };
