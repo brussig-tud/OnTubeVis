@@ -59,24 +59,19 @@ struct ParameterizationSubdivisionBezierApproximation : public Parameterization<
 };
 
 template <typename FLOAT_TYPE> struct ParameterizationBezierApproximation : public Parameterization<FLOAT_TYPE> {
-    FLOAT_TYPE s0y1;
-    FLOAT_TYPE s0y2;
-    FLOAT_TYPE s1y1;
-    FLOAT_TYPE s1y2;
-    FLOAT_TYPE totalLength0 = 0.0;
-    FLOAT_TYPE totalLength1 = 0.0;
-    FLOAT_TYPE tMid = 0.0;
-    bool isTwoSpan = false;
+    std::vector<FLOAT_TYPE> y1 = {};
+    std::vector<FLOAT_TYPE> y2 = {};
+    std::vector<FLOAT_TYPE> t = {};
+    FLOAT_TYPE totalLength = 0.0;
 
     FLOAT_TYPE evaluate(FLOAT_TYPE d) const override;
-    FLOAT_TYPE length() const override { return totalLength0; }
-    Bezier<FLOAT_TYPE> get_curve() const;
+    FLOAT_TYPE length() const override;
 };
 
 template <typename FLOAT_TYPE> struct ParameterizationRegression : public Parameterization<FLOAT_TYPE> {
     std::vector<FLOAT_TYPE> coefficients = {};
     FLOAT_TYPE _length = 0.0;
-    FLOAT_TYPE evaluate(FLOAT_TYPE d) const {
+    FLOAT_TYPE evaluate(FLOAT_TYPE d) const override {
         FLOAT_TYPE value = 0;
         FLOAT_TYPE x = 1;
         for (int i = 0; i < coefficients.size(); i++) {
@@ -158,8 +153,7 @@ template <typename FLOAT_TYPE> struct Bezier {
     FLOAT_TYPE arc_length_adaptive_subdivision(FLOAT_TYPE t = 1.0, FLOAT_TYPE epsilon = 0.0001F) const;
 
     /**
-     * Calculates a bezier curve that approximates the arc length of the original
-     * bezier curve.
+     * Calculates a bezier curve that approximates the arc length of the original curve.
      * https://www.visgraf.impa.br/sibgrapi96/trabs/pdf/a14.pdf
      */
     ArcLengthBezierApproximation<FLOAT_TYPE> arc_length_bezier_approximation(int numSamples = 100) const;
@@ -208,7 +202,8 @@ template <typename FLOAT_TYPE> struct Bezier {
         return result;
     }
 
-    ParameterizationBezierApproximation<FLOAT_TYPE> *parameterization_bezier_approximation(int numSamples = 100) const;
+    [[nodiscard]] ParameterizationBezierApproximation<FLOAT_TYPE> *
+    parameterization_bezier_approximation(int numSegments, int numSamples = 100) const;
 
     void to_csv(const std::string &fileName, int numTestPoints = 100, bool evenPointDistribution = false) const;
     Hermite<FLOAT_TYPE> to_hermite() const;

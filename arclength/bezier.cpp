@@ -427,6 +427,7 @@ template <typename FLOAT_TYPE>
 FLOAT_TYPE ParameterizationSubdivisionLegendreGauss<FLOAT_TYPE>::evaluate(const FLOAT_TYPE d) const {
     FLOAT_TYPE t0 = 0.0;
     FLOAT_TYPE t1 = 1.0;
+
     for (int i = 0; i < depth; i++) {
         FLOAT_TYPE t = (t0 + t1) / 2.0;
         auto l = b.arc_length_legendre_gauss(t, 100);
@@ -438,6 +439,7 @@ FLOAT_TYPE ParameterizationSubdivisionLegendreGauss<FLOAT_TYPE>::evaluate(const 
             break;
         }
     }
+
     return (t0 + t1) / 2.0;
 }
 template <typename FLOAT_TYPE> FLOAT_TYPE ParameterizationSubdivisionLegendreGauss<FLOAT_TYPE>::length() const {
@@ -595,7 +597,7 @@ ArcLengthBezierApproximation<FLOAT_TYPE> Bezier<FLOAT_TYPE>::arc_length_bezier_a
 
     auto result = ArcLengthBezierApproximation<FLOAT_TYPE>();
 
-    result.isTwoSpan = false; //inflectionPoints.size() >= 2;
+    result.isTwoSpan = false /*inflectionPoints.size() >= 2*/;
     if (!result.isTwoSpan) {
         result.totalLength0 = arc_length_legendre_gauss(1.0, numSamples);
         const auto s1over3 = arc_length_legendre_gauss(1.0 / 3.0, numSamples) / result.totalLength0;
@@ -693,46 +695,85 @@ template <typename FLOAT_TYPE> FLOAT_TYPE ArcLengthBezierApproximation<FLOAT_TYP
     }
 }
 
-template <typename FLOAT_TYPE> Bezier<FLOAT_TYPE> ParameterizationBezierApproximation<FLOAT_TYPE>::get_curve() const {
-    return {
-          v3<FLOAT_TYPE>(0.0, 0.0, 0.0),
-          v3<FLOAT_TYPE>(1.0 / 3.0, s0y1, 0.0),
-          v3<FLOAT_TYPE>(2.0 / 3.0, s0y2, 0.0),
-          v3<FLOAT_TYPE>(1.0, 1.0, 0.0),
-    };
+template <typename FLOAT_TYPE>
+FLOAT_TYPE ParameterizationBezierApproximation<FLOAT_TYPE>::evaluate(FLOAT_TYPE d) const {
+    if (d <= 0.0) {
+        return 0.0;
+    }
+    if (d >= totalLength) {
+        return 1.0;
+    }
+
+    auto dNormalized = d / totalLength;
+    size_t segmentCount = y1.size();
+    auto dStep = 1.0 / static_cast<FLOAT_TYPE>(segmentCount);
+    for (int i = 0; i < segmentCount; i++) {
+        auto dPrev = static_cast<FLOAT_TYPE>(i) * dStep;
+        auto dCur = static_cast<FLOAT_TYPE>(i + 1) * dStep;
+        if (dNormalized > dCur) {
+            continue;
+        }
+        auto dDiff = dCur - dPrev;
+
+        auto x = (dNormalized - dPrev) / dDiff;
+        auto t1 = 3.0 * (1.0 - x) * (1.0 - x) * x * y1[i];
+        auto t2 = 3.0 * (1.0 - x) * x * x * y2[i];
+        auto t3 = x * x * x;
+        auto y = t1 + t2 + t3;
+
+        auto tPrev = t[i];
+        auto tCur = t[i + 1];
+        auto tDiff = tCur - tPrev;
+        return (y * tDiff) + tPrev;
+    }
+
+    return 0.0;
+}
+
+template <typename FLOAT_TYPE> FLOAT_TYPE ParameterizationBezierApproximation<FLOAT_TYPE>::length() const {
+    return totalLength;
 }
 
 template <typename FLOAT_TYPE>
-FLOAT_TYPE ParameterizationBezierApproximation<FLOAT_TYPE>::evaluate(FLOAT_TYPE d) const {
-    if (!isTwoSpan) {
-        const auto b = get_curve();
-        const auto v = b.evaluate(d / totalLength0);
-        return v.y;
+ParameterizationBezierApproximation<FLOAT_TYPE> *
+Bezier<FLOAT_TYPE>::parameterization_bezier_approximation(int numSegments, int numSamples) const {
+    if (numSegments < 1) {
+        return nullptr;
     }
 
-    if (d < tMid) {
-        FLOAT_TYPE x1 = tMid * (1.0 / 3.0);
-        FLOAT_TYPE x2 = tMid * (2.0 / 3.0);
-        Bezier<FLOAT_TYPE> b = {
-              v3<FLOAT_TYPE>(0.0, 0.0, 0.0),
-              v3<FLOAT_TYPE>(x1, s0y1, 0.0),
-              v3<FLOAT_TYPE>(x2, s0y2, 0.0),
-              v3<FLOAT_TYPE>(1.0, 1.0, 0.0),
-        };
-        const v3<FLOAT_TYPE> v = b.evaluate(d);
-        return v.y * totalLength0;
-    } else {
-        FLOAT_TYPE x1 = tMid + ((1.0 - tMid) * (1.0 / 3.0));
-        FLOAT_TYPE x2 = tMid + ((1.0 - tMid) * (2.0 / 3.0));
-        Bezier<FLOAT_TYPE> b = {
-              v3<FLOAT_TYPE>(0.0, 0.0, 0.0),
-              v3<FLOAT_TYPE>(x1, s1y1, 0.0),
-              v3<FLOAT_TYPE>(x2, s1y2, 0.0),
-              v3<FLOAT_TYPE>(1.0, 1.0, 0.0),
-        };
-        const v3<FLOAT_TYPE> v = b.evaluate(d - tMid);
-        return (v.y * totalLength1) + totalLength0;
+    auto result = new ParameterizationBezierApproximation<FLOAT_TYPE>();
+    result->totalLength = arc_length_legendre_gauss(1.0, numSamples);
+    result->t.push_back(0.0);
+
+    auto *legendreGauss = parameterization_subdivision_legendre_gauss(numSamples);
+
+    auto dStep = 1.0 / static_cast<FLOAT_TYPE>(numSegments);
+    for (int i = 0; i < numSegments; i++) {
+        auto dPrev = static_cast<FLOAT_TYPE>(i) * dStep;
+        auto dCur = static_cast<FLOAT_TYPE>(i + 1) * dStep;
+        auto dDiff = dCur - dPrev;
+
+        auto tPrev = result->t.back();
+        auto tCur = legendreGauss->evaluate(dCur * result->totalLength);
+        auto tDiff = tCur - tPrev;
+
+        FLOAT_TYPE sample1 = (dPrev + dDiff * (1.0 / 3.0)) * result->totalLength;
+        auto s1over3 = legendreGauss->evaluate(sample1);
+        auto s1over3Scaled = (s1over3 - tPrev) / tDiff;
+
+        FLOAT_TYPE sample2 = (dPrev + dDiff * (2.0 / 3.0)) * result->totalLength;
+        auto s2over3 = legendreGauss->evaluate(sample2);
+        auto s2over3Scaled = (s2over3 - tPrev) / tDiff;
+
+        auto y1 = (18.0 * s1over3Scaled - 9.0 * s2over3Scaled + 2.0) / 6.0;
+        auto y2 = (-9.0 * s1over3Scaled + 18.0 * s2over3Scaled - 5.0) / 6.0;
+
+        result->y1.push_back(y1);
+        result->y2.push_back(y2);
+        result->t.push_back(tCur);
     }
+
+    return result;
 }
 
 template <typename FLOAT_TYPE>
@@ -810,71 +851,6 @@ Bezier<FLOAT_TYPE> Bezier<FLOAT_TYPE>::fit_to_points(v3<FLOAT_TYPE> p0, v3<FLOAT
     v3<FLOAT_TYPE> b2 = p2 - p0 * tt2 * tt2 * tt2 - p3 * t2 * t2 * t2;
     result.points[1] = (b1 * a22 - b2 * a12) / Det;
     result.points[2] = (-1 * b1 * a21 + b2 * a11) / Det;
-
-    return result;
-}
-
-template <typename FLOAT_TYPE>
-ParameterizationBezierApproximation<FLOAT_TYPE> *
-Bezier<FLOAT_TYPE>::parameterization_bezier_approximation(int numSamples) const {
-    std::vector<FLOAT_TYPE> inflectionPoints = get_inflection_points_of_length_function();
-
-    auto result = new ParameterizationBezierApproximation<FLOAT_TYPE>();
-
-    result->isTwoSpan = inflectionPoints.size() >= 2;
-    if (!result->isTwoSpan) {
-        result->totalLength0 = arc_length_legendre_gauss(1.0, numSamples);
-        const auto s1over3 =
-              parameterization_subdivision_legendre_gauss(numSamples)->evaluate(1.0 / 3.0 * result->totalLength0);
-        const auto s2over3 =
-              parameterization_subdivision_legendre_gauss(numSamples)->evaluate(2.0 / 3.0 * result->totalLength0);
-
-        result->s0y1 = (18.0 * s1over3 - 9.0 * s2over3 + 2.0) / 6.0;
-        result->s0y2 = (-9.0 * s1over3 + 18.0 * s2over3 - 5.0) / 6.0;
-        return result;
-    }
-
-#define DEBUG_BEZIER_APPROXIMATION 0
-#if DEBUG_BEZIER_APPROXIMATION
-    std::cout << "We have more than one inflection point on the length curve." << std::endl;
-    std::cout << "Curve:" << std::endl;
-    for (const auto &p : points) {
-        std::cout << p.x << " " << p.y << std::endl;
-    }
-    std::cout << "Inflection points given as parameter t:" << std::endl;
-    for (const auto &t : inflectionPoints) {
-        std::cout << t << std::endl;
-    }
-#endif
-
-    // TODO not sure about the next part. we have not encountered such a case yet
-    FLOAT_TYPE t1 = inflectionPoints[0];
-    FLOAT_TYPE t2 = inflectionPoints[1];
-    result->tMid = (t1 + t2) / 2.0;
-
-    {
-        result->totalLength0 = arc_length_legendre_gauss(result->tMid, numSamples);
-        const auto s1over3 = arc_length_legendre_gauss((1.0 / 3.0) * result->tMid, numSamples) / result->totalLength0;
-        const auto s2over3 = arc_length_legendre_gauss((2.0 / 3.0) * result->tMid, numSamples) / result->totalLength0;
-
-        result->s0y1 = (18.0 * s1over3 - 9.0 * s2over3 + 2.0) / 6.0;
-        result->s0y2 = (-9.0 * s1over3 + 18.0 * s2over3 - 5.0) / 6.0;
-    }
-
-    {
-        result->totalLength1 = arc_length_legendre_gauss(1.0, numSamples) - result->totalLength0;
-
-        FLOAT_TYPE sample1 = result->tMid + ((1.0 - result->tMid) * (1.0 / 3.0));
-        const auto t1over3 =
-              (arc_length_legendre_gauss(sample1, numSamples) - result->totalLength0) / result->totalLength1;
-
-        FLOAT_TYPE sample2 = result->tMid + ((1.0 - result->tMid) * (2.0 / 3.0));
-        const auto t2over3 =
-              (arc_length_legendre_gauss(sample2, numSamples) - result->totalLength0) / result->totalLength1;
-
-        result->s1y1 = (18.0 * t1over3 - 9.0 * t2over3 + 2.0) / 6.0;
-        result->s1y2 = (-9.0 * t1over3 + 18.0 * t2over3 - 5.0) / 6.0;
-    }
 
     return result;
 }
