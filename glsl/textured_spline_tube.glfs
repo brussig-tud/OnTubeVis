@@ -57,8 +57,13 @@ in flat vec3 color0_fs;
 in flat vec3 color1_fs;
 in flat QTube qTube_fs;
 
-out vec4 frag_color;
+//out vec4 frag_color;
 //layout (depth_greater) out float gl_FragDepth;
+
+layout (location = 0) out vec3 frag_albedo;
+layout (location = 1) out vec3 frag_position;
+layout (location = 2) out vec3 frag_normal;
+layout (location = 3) out vec2 frag_texcoord;
 
 float Pow2(float x) { return x * x; }
 float Pow3(float x) { return x * x * x; }
@@ -520,7 +525,7 @@ void main()
 
 		//finish_fragment(compute_reflected_appearance(hit_pos_eye, hit.normal, col, 1));
 		col = compute_reflected_appearance(hit_pos_eye, hit.normal, col, 1);
-		frag_color = vec4(pow(col.rgb, vec3(2.2)), 1.0);
+		vec4 frag_color = vec4(pow(col.rgb, vec3(2.2)), 1.0);
 		//finish_fragment(col);
 		//frag_color = col;
 
@@ -531,6 +536,12 @@ void main()
 		vec4 v_eye = vec4(hit_pos_eye, 1.0);
 		vec4 depth = get_projection_matrix() * v_eye;
 		gl_FragDepth = 0.5*(depth.z / depth.w) + 0.5;
+
+
+		frag_albedo = col.rgb;
+		frag_position = hit_pos_eye;
+		frag_normal = hit.normal;
+		frag_texcoord = vec2(0.5, 1.0);
 	}
 #endif
 }

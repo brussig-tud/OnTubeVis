@@ -28,7 +28,10 @@ tubes::tubes() : node("tubes_instance")
 
 	// add frame buffer attachments needed for deferred rendering
 	fbc.add_attachment("depth", "[D]");
-	fbc.add_attachment("color", "flt32[R,G,B,A]");
+	fbc.add_attachment("albedo", "flt32[R,G,B]");
+	fbc.add_attachment("position", "flt32[R,G,B]");
+	fbc.add_attachment("normal", "flt32[R,G,B]");
+	fbc.add_attachment("texcoord", "flt32[R,G]");
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -416,13 +419,15 @@ void tubes::draw_trajectories(context& ctx) {
 	shader_program& prog = shaders.get("screen");
 	prog.enable(ctx);
 
-	fbc.enable_attachment(ctx, "color", 0);
-	fbc.enable_attachment(ctx, "depth", 1);
+	fbc.enable_attachment(ctx, "albedo", 0);
+	fbc.enable_attachment(ctx, "position", 1);
+	fbc.enable_attachment(ctx, "normal", 2);
+	fbc.enable_attachment(ctx, "texcoord", 3);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-	fbc.disable_attachment(ctx, "color");
-	fbc.disable_attachment(ctx, "depth");
+	fbc.disable_attachment(ctx, "albedo");
+	fbc.disable_attachment(ctx, "position");
 
 	prog.disable(ctx);
 }
