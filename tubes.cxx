@@ -1,5 +1,10 @@
 #include "tubes.h"
 
+// CGV framework core
+//#include <cgv/media/image/image.h>
+#include <cgv/media/image/image_reader.h>
+#include <cgv/utils/advanced_scan.h>
+
 // fltk_gl_view for controlling instant redraw
 #include <plugins/cg_fltk/fltk_gl_view.h>
 
@@ -232,6 +237,23 @@ bool tubes::init (cgv::render::context &ctx)
 
 	render.sorter->set_key_definition_override(key_definition);
 
+	cgv::data::data_format tex_format;
+	cgv::media::image::image_reader image(tex_format);
+	cgv::data::data_view tex_data;
+
+	std::string file_name = "res://plus.png";
+	if(!image.read_image(file_name, tex_data)) {
+		std::cout << "Error: Could not read image file " << file_name << std::endl;
+		return false;
+	} else {
+		tex.create(ctx, tex_data, 0);
+		tex.set_min_filter(cgv::render::TextureFilter::TF_LINEAR);
+		tex.set_mag_filter(cgv::render::TextureFilter::TF_LINEAR);
+		tex.set_wrap_s(cgv::render::TextureWrap::TW_REPEAT);
+		tex.set_wrap_t(cgv::render::TextureWrap::TW_REPEAT);
+	}
+	image.close();
+
 	// done
 	return success;
 }
@@ -242,6 +264,7 @@ void tubes::init_frame (cgv::render::context &ctx)
 		view_ptr = find_view_as_node();
 		if(view_ptr) {
 			// do one-time initialization that needs the view if necessary
+			set_view();
 		}
 	}
 
@@ -313,8 +336,28 @@ void tubes::create_gui (void)
 	}
 }
 
+void tubes::set_view(void)
+{
+	if(!view_ptr) return;
+
+	// get a crude approximation of the bounding box
+	auto& positions = render.data->positions;
+
+	box3 bbox;
+
+	for(unsigned i = 0; i < positions.size(); ++i) {
+		bbox.add_point(positions[i]);
+	}
+
+	view_ptr->set_focus(bbox.get_center());
+	double extent_factor = 0.8;
+	view_ptr->set_y_extent_at_focus(extent_factor * (double)length(bbox.get_extent()));
+}
+
 void tubes::update_attribute_bindings (void)
 {
+	set_view();
+
 	auto &ctx = *get_context();
 	if (traj_mgr.has_data())
 	{
@@ -379,8 +422,8 @@ void tubes::draw_trajectories(context& ctx) {
 
 
 	fbc.enable(ctx);
-	ctx.push_modelview_matrix();
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//ctx.push_modelview_matrix();
 
 	
 
@@ -409,25 +452,47 @@ void tubes::draw_trajectories(context& ctx) {
 	tstr.disable_attribute_array_manager(ctx, render.aam);
 
 
-	ctx.pop_modelview_matrix();
+	//ctx.pop_modelview_matrix();
 	fbc.disable(ctx);
 
 
 
+	/*
+	fragment_file:fragment.glfs
+	fragment_file:side.glsl
+	fragment_file:lights.glsl
+	fragment_file:brdf.glsl
+	fragment_file:bump_map.glfs
+	fragment_file:surface.glsl
+	*/
 
-
+	
 	shader_program& prog = shaders.get("screen");
 	prog.enable(ctx);
+	prog.set_uniform(ctx, "use_gamma", true);
+
+	const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
+	
+	prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
+	prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
+	prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
+
 
 	fbc.enable_attachment(ctx, "albedo", 0);
 	fbc.enable_attachment(ctx, "position", 1);
 	fbc.enable_attachment(ctx, "normal", 2);
 	fbc.enable_attachment(ctx, "texcoord", 3);
+	fbc.enable_attachment(ctx, "depth", 4);
+	tex.enable(ctx, 5);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 	fbc.disable_attachment(ctx, "albedo");
 	fbc.disable_attachment(ctx, "position");
+	fbc.disable_attachment(ctx, "normal");
+	fbc.disable_attachment(ctx, "texcoord");
+	fbc.disable_attachment(ctx, "depth");
+	tex.disable(ctx);
 
 	prog.disable(ctx);
 }

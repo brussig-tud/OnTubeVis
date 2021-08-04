@@ -9,7 +9,8 @@
 #include <cgv/gui/event_handler.h>
 #include <cgv/gui/provider.h>
 #include <cgv/render/drawable.h>
-#include <cgv/utils/advanced_scan.h>
+
+// CGV framework graphics utility
 #include <cgv_glutil/frame_buffer_container.h>
 #include <cgv_glutil/radix_sort_4way.h>
 #include <cgv_glutil/shader_library.h>
@@ -17,17 +18,6 @@
 // CGV OpenGL lib
 #include <cgv_gl/rounded_cone_renderer.h>
 #include <cgv_gl/spline_tube_renderer.h>
-
-/*#include <cgv/base/node.h>
-#include <cgv/gui/event_handler.h>
-#include <cgv/gui/provider.h>
-#include <cgv/render/drawable.h>
-#include <cgv/render/texture.h>
-#include <cgv_gl/sphere_renderer.h>
-#include <cgv_glutil/frame_buffer_container.h>
-#include <cgv_glutil/shader_library.h>
-#include <cgv_glutil/cone_render_data.h>
-#include <cgv_glutil/sphere_render_data.h>*/
 
 // local includes
 #include "traj_loader.h"
@@ -124,6 +114,10 @@ protected:
 	/// trajectory manager
 	traj_manager<float> traj_mgr;
 	
+	/// test texture
+	texture tex;
+
+	void set_view(void);
 	void update_attribute_bindings(void);
 
 	/// draw methods

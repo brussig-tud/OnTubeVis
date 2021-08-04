@@ -1,1 +1,6 @@
 files:screen_quad
+fragment_file:side.glsl
+fragment_file:lights.glsl
+fragment_file:brdf.glsl
+fragment_file:bump_map.glfs
+fragment_file:surface.glsl
