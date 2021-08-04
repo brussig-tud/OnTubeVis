@@ -35,7 +35,9 @@ void main()
 		vec3 background_color = vec3(0.0);
 		frag_color = vec4(background_color, 1.0);
 	} else {
-		frag_color = vec4(tex_color, 1.0);//compute_reflected_appearance(pos_eye, normal_eye, color, 1);
+		//frag_color = compute_reflected_appearance(pos_eye, normal_eye, color, 1);
+		//frag_color = vec4(texcoord.s, texcoord.t, 0.0, 1.0);
+		frag_color = vec4(tex_color, 1.0);
 	}
 
 	//frag_color = texture(albedo_tex, texcoord_fs);

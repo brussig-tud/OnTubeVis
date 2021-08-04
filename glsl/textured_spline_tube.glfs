@@ -47,6 +47,7 @@ in flat float l_offset_fs;
 in flat vec3 color0_fs;
 in flat vec3 color1_fs;
 in flat QTube qTube_fs;
+in flat mat4 mg_fs;
 
 //out vec4 frag_color;
 //layout (depth_greater) out float gl_FragDepth;
@@ -474,6 +475,25 @@ Hit EvalSplineISect(vec3 dir, vec3 s, vec3 h, vec3 t, float rs, float rh, float 
 	return hit;
 }
 
+vec3 Spline_EvaluateTangent(float t)
+{
+	vec4 tvec = vec4(3.*t*t, 2.*t, 1, 0.);
+	vec3 p = (mg_fs * tvec).xyz;
+	return p;
+}
+
+vec3 Spline_EvaluateBinormal(float t)
+{
+	vec4 tvec = vec4(6.*t, 2., 0., 0.);
+	vec3 p = (mg_fs*tvec).xyz;
+	return p;
+}
+
+vec3 SplineOrtho(float t)
+{
+	return normalize(cross(Spline_EvaluateTangent(t),Spline_EvaluateBinormal(t)));
+}
+
 void main()
 {
 #if MODE == 0
@@ -515,12 +535,19 @@ void main()
 		vec4 depth = get_projection_matrix() * v_eye;
 		gl_FragDepth = 0.5*(depth.z / depth.w) + 0.5;
 
-		float fac = dot(normalize(-hit_pos_eye), hit.normal);
+
+		vec3 normal_object = get_inverse_normal_matrix() * hit.normal;
+	
+		vec3 b = SplineOrtho(hit.l);
+		float v = acos(dot(b, normal_object));
+		//c *= 0.1 + pow(texture(iChannel1,vec2(t_close,v/16.)*4.).xyz,vec3(2.2));
+
+		//float fac = dot(normalize(-hit_pos_eye), hit.normal);
 
 		frag_albedo = col.rgb;
 		frag_position = hit_pos_eye;
 		frag_normal = 0.5 * hit.normal + 0.5;
-		frag_texcoord = vec2(hit.l, fac);
+		frag_texcoord = vec2(hit.l, v/6.0);
 	}
 #endif
 }

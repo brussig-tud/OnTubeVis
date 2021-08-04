@@ -254,6 +254,72 @@ bool tubes::init (cgv::render::context &ctx)
 	}
 	image.close();
 
+
+	/*
+	Is this of interest?
+	https://www.shadertoy.com/view/XtdyDn
+	*/
+
+	/*
+	Calculation of the v texture coordinate (around the tube) is taken from:
+	Works for varying radii.
+	Produces twisting under certein circumstances.
+	Problem with bulge data set.
+	https://www.shadertoy.com/view/XssGWl
+
+	// geometrymatrix
+	geometrymatrix[0] = vec4(endpoint0,0.);
+	geometrymatrix[1] = vec4(endpoint1,0.);
+	geometrymatrix[2] = vec4(tangent0,0.);
+	geometrymatrix[3] = vec4(tangent1,0.);
+
+	// MG
+	mat4 Mh;
+	Mh[0] = vec4( 2, -2,  1,  1);
+	Mh[1] = vec4(-3,  3, -2, -1);
+	Mh[2] = vec4( 0,  0,  1,  0);
+	Mh[3] = vec4( 1,  0,  0,  0);
+	sp.MG = geometrymatrix * Mh;
+
+
+
+	// ORTHO
+	vec3 Spline_EvaluateTangent(mat4 MG, float t )
+{
+	vec4 tvec = vec4(3.*t*t, 2.*t, 1, 0.);
+	vec3 p = (MG*tvec).xyz;
+	return p;
+}
+
+vec3 Spline_EvaluateBinormal(mat4 MG, float t )
+{
+	vec4 tvec = vec4(6.*t, 2., 0., 0.);
+	vec3 p = (MG*tvec).xyz;
+	return p;
+}
+
+vec3 SplineOrtho(float t)
+{
+//	return normalize( Spline_EvaluateBinormal(spline.MG,t));
+	return normalize(cross(Spline_EvaluateTangent(spline.MG,t),Spline_EvaluateBinormal(spline.MG,t)));
+}
+
+
+	// TEXTURING
+	vec3 n = normalize(X-C);
+			//	vec3 n = C;
+				//c = vec3(n*0.5+0.5);
+				c = 0.5*n+0.5;//vec3(max(dot(n,L),0.));
+#if 1
+				vec3 b = SplineOrtho(t_close);
+				float v = acos(dot(b,n));
+				//c *= 0.1 + pow(texture(iChannel1,vec2(t_close,v/16.)*4.).xyz,vec3(2.2));
+
+	*/
+
+
+
+
 	// done
 	return success;
 }
@@ -418,7 +484,7 @@ void tubes::draw_dnd(context& ctx) {
 void tubes::draw_trajectories(context& ctx) {
 
 	vec3 eye_pos = view_ptr->get_eye();
-	vec3 view_dir = view_ptr->get_view_dir();
+	const vec3& view_dir = view_ptr->get_view_dir();
 
 
 	fbc.enable(ctx);
