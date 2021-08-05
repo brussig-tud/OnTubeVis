@@ -10,14 +10,14 @@
 #include <cgv/gui/provider.h>
 #include <cgv/render/drawable.h>
 
+// CGV OpenGL lib
+//#include <cgv_gl/rounded_cone_renderer.h>
+//#include <cgv_gl/spline_tube_renderer.h>
+
 // CGV framework graphics utility
 #include <cgv_glutil/frame_buffer_container.h>
 #include <cgv_glutil/radix_sort_4way.h>
 #include <cgv_glutil/shader_library.h>
-
-// CGV OpenGL lib
-#include <cgv_gl/rounded_cone_renderer.h>
-#include <cgv_gl/spline_tube_renderer.h>
 
 // local includes
 #include "traj_loader.h"
@@ -94,13 +94,10 @@ protected:
 		std::vector<vec4> arclen_data;
 
 		/// GPU-side storage buffer mirroring the \ref #arclen_data .
-		cgv::render::vertex_buffer arclen_sbo;
+		vertex_buffer arclen_sbo;
 
 		/// shared attribute array manager used by both renderers
-		cgv::render::attribute_array_manager aam;
-
-		/// whether to use conservative depth extension to re-enable early depth testing
-		bool use_conservative_depth = false;
+		attribute_array_manager aam;
 
 		/// the gpu sorter used to reorder the indices according to their corresponding segment visibility order
 		cgv::glutil::gpu_sorter* sorter = nullptr;
@@ -113,12 +110,20 @@ protected:
 
 	/// trajectory manager
 	traj_manager<float> traj_mgr;
+
+	box3 bbox;
 	
 	/// test texture
 	texture tex;
+	texture density_tex;
 
 	void set_view(void);
 	void update_attribute_bindings(void);
+	void calculate_bounding_box(void);
+	std::vector<std::pair<int, float>> traverse_line(vec3& a, vec3& b, vec3& vbox_min, float vsize, ivec3& res);
+	void create_density_volume(context& ctx, unsigned resolution);
+
+	void set_ao_uniforms(context& ctx, const box3& volume_bbox, const uvec3 volume_resolution);
 
 	/// draw methods
 	void draw_dnd(context& ctx);

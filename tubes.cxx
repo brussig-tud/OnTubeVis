@@ -4,6 +4,10 @@
 //#include <cgv/media/image/image.h>
 #include <cgv/media/image/image_reader.h>
 #include <cgv/utils/advanced_scan.h>
+#include <cgv/utils/stopwatch.h>
+
+// CGV OpenGL lib
+#include <cgv_gl/box_renderer.h>
 
 // fltk_gl_view for controlling instant redraw
 #include <plugins/cg_fltk/fltk_gl_view.h>
@@ -13,6 +17,7 @@
 
 // local includes
 #include "arclen_helper.h"
+#include "hermite_spline_tube.h"
 
 
 
@@ -64,9 +69,10 @@ void tubes::handle_args (std::vector<std::string> &args)
 
 void tubes::clear(cgv::render::context &ctx) {
 	// decrease reference count of the renderers by one
-	cgv::render::ref_textured_spline_tube_renderer(ctx, -1);
-	cgv::render::ref_spline_tube_renderer(ctx, -1);
-	cgv::render::ref_rounded_cone_renderer(ctx, -1);
+	ref_textured_spline_tube_renderer(ctx, -1);
+	//ref_spline_tube_renderer(ctx, -1);
+	//ref_rounded_cone_renderer(ctx, -1);
+	ref_box_renderer(ctx, -1);
 
 	shaders.clear(ctx);
 	fbc.clear(ctx);
@@ -202,16 +208,17 @@ void tubes::on_set(void *member_ptr) {
 bool tubes::init (cgv::render::context &ctx)
 {
 	// increase reference count of the renderers by one
-	auto &rcr = cgv::render::ref_rounded_cone_renderer(ctx, 1);
-	auto &str = cgv::render::ref_spline_tube_renderer(ctx, 1);
-	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx, 1);
-	bool success = rcr.ref_prog().is_linked() && str.ref_prog().is_linked();
+	//auto &rcr = cgv::render::ref_rounded_cone_renderer(ctx, 1);
+	//auto &str = cgv::render::ref_spline_tube_renderer(ctx, 1);
+	auto &tstr = ref_textured_spline_tube_renderer(ctx, 1);
+	auto &br = ref_box_renderer(ctx, 1);
+	bool success = tstr.ref_prog().is_linked() && br.ref_prog().is_linked();
 
 	// load all shaders in the library
 	success &= shaders.load_shaders(ctx);
 
 	// init shared attribute array manager
-	success = success && render.aam.init(ctx);
+	success &= render.aam.init(ctx);
 
 	// TODO: test some stuff
 	/*if(traj_mgr.has_data()) {
@@ -253,7 +260,6 @@ bool tubes::init (cgv::render::context &ctx)
 		tex.set_wrap_t(cgv::render::TextureWrap::TW_REPEAT);
 	}
 	image.close();
-
 
 	/*
 	Is this of interest?
@@ -359,6 +365,16 @@ void tubes::draw (cgv::render::context &ctx)
 	// draw dataset using selected renderer
 	if(traj_mgr.has_data())
 		draw_trajectories(ctx);
+
+	/*std::vector<box3> boxes = { bbox };
+	auto& br = ref_box_renderer(ctx);
+	br.set_box_array(ctx, boxes);
+
+	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+	br.render(ctx, 0, 1);
+
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);*/
 }
 
 void tubes::create_gui (void)
@@ -380,7 +396,6 @@ void tubes::create_gui (void)
 		end_tree_node(render.style);
 	}
 
-	add_member_control(this, "Conservative Depth Test", render.use_conservative_depth, "check");
 	add_member_control(this, "Render Percentage", render.percentage, "value_slider", "min=0.0;step=0.001;max=1.0;ticks=true");
 	add_member_control(this, "Sort by Distance", render.sort, "check");
 
@@ -422,9 +437,12 @@ void tubes::set_view(void)
 
 void tubes::update_attribute_bindings (void)
 {
-	set_view();
-
 	auto &ctx = *get_context();
+
+	set_view();
+	calculate_bounding_box();
+	create_density_volume(ctx, 256);
+
 	if (traj_mgr.has_data())
 	{
 		render.arclen_sbo.destruct(ctx);
@@ -443,6 +461,238 @@ void tubes::update_attribute_bindings (void)
 		if(!render.sorter->init(ctx, render.data->indices.size() / 2))
 			std::cout << "Could not initialize gpu sorter" << std::endl;
 	}
+}
+
+void tubes::calculate_bounding_box(void) {
+
+	cgv::utils::stopwatch s(true);
+	std::cout << "Calculating bounding box... ";
+
+	bbox.invalidate();
+	
+	if(traj_mgr.has_data()) {
+		auto& positions = render.data->positions;
+		auto& tangents = render.data->tangents;
+		auto& radii = render.data->radii;
+		auto& indices = render.data->indices;
+
+		for(unsigned i = 0; i < indices.size(); i += 2) {
+			unsigned idx_a = indices[i + 0];
+			unsigned idx_b = indices[i + 1];
+
+			vec3 p0 = positions[idx_a];
+			vec3 p1 = positions[idx_b];
+			float r0 = radii[idx_a];
+			float r1 = radii[idx_b];
+			vec4 t0 = tangents[idx_a];
+			vec4 t1 = tangents[idx_b];
+
+			bbox.add_axis_aligned_box(hermite_spline_tube::calculate_bounding_box(
+				p0, p1,
+				vec3(t0), vec3(t1),
+				r0, r1,
+				t0.w(), t1.w(),
+				true
+			));
+		}
+	}
+
+	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+}
+
+std::vector<std::pair<int, float>> tubes::traverse_line(vec3& a, vec3& b, vec3& vbox_min, float vsize, ivec3& res) {
+	
+	std::vector<std::pair<int, float>> intervals;
+
+	// Amanatides Woo line traversal algorithm
+	vec3 dir = normalize(vec3(b - a));
+	vec3 dt;
+	ivec3 step;
+	vec3 orig_grid = a - vbox_min;
+	vec3 dest_grid = b - vbox_min;
+	vec3 t(0.0f);
+	float ct = 0.0f;
+
+	for(unsigned i = 0; i < 3; ++i) {
+		float delta = vsize / dir[i];
+		if(dir[i] < 0.0f) {
+			dt[i] = -delta;
+			t[i] = (floor(orig_grid[i] / vsize) * vsize - orig_grid[i]) / dir[i];
+			step[i] = -1;
+		} else {
+			dt[i] = delta;
+			t[i] = ((floor(orig_grid[i] / vsize) + 1) * vsize - orig_grid[i]) / dir[i];
+			step[i] = 1;
+		}
+	}
+
+	ivec3 cell_idx(
+		(int)(floor(orig_grid.x() / vsize)),
+		(int)(floor(orig_grid.y() / vsize)),
+		(int)(floor(orig_grid.z() / vsize))
+	);
+
+	ivec3 end_idx(
+		(int)(floor(dest_grid.x() / vsize)),
+		(int)(floor(dest_grid.y() / vsize)),
+		(int)(floor(dest_grid.z() / vsize))
+	);
+
+	intervals.push_back(std::make_pair<int, float>(cell_idx[0] + res[0] * cell_idx[1] + res[0] * res[1] * cell_idx[2], 0.0f));
+
+	vec3 p = orig_grid;
+	size_t idx = 0;
+
+	while(cell_idx != end_idx) {
+		unsigned mi = cgv::math::min_index(t);
+
+		cell_idx[mi] += step[mi];
+		if(cell_idx[mi] < 0 || cell_idx[mi] >= res[mi])
+			break;
+		p = orig_grid + t[mi] * dir;
+		t[mi] += dt[mi];
+
+		float l = (orig_grid - p).length() - ct;
+		ct += l;
+		intervals[idx].second = l;
+
+		intervals.push_back(std::make_pair<int, float>(cell_idx[0] + res[0] * cell_idx[1] + res[0] * res[1] * cell_idx[2], 0.0f));
+		++idx;
+	}
+
+	float l = (p - dest_grid).length();
+	intervals[idx].second = l;
+
+	return intervals;
+}
+
+void tubes::create_density_volume(context& ctx, unsigned resolution) {
+
+	cgv::utils::stopwatch s(true);
+
+	vec3 ext = bbox.get_extent();
+
+	// Calculate the cube voxel size and the resolution in each dimension
+	int max_ext_axis = cgv::math::max_index(ext);
+	float max_ext = ext[max_ext_axis];
+	float vsize = max_ext / static_cast<float>(resolution);
+
+	float vvol = vsize * vsize*vsize; // Volume per voxel
+
+	// Calculate the number of voxels in each dimension
+	unsigned resx = static_cast<unsigned>(ceilf(ext.x() / vsize));
+	unsigned resy = static_cast<unsigned>(ceilf(ext.y() / vsize));
+	unsigned resz = static_cast<unsigned>(ceilf(ext.z() / vsize));
+
+	vec3 vres = vec3(resx, resy, resz);
+	vec3 vbox_ext = vsize * vres;
+	vec3 vbox_min = bbox.get_min_pnt() - 0.5f*(vbox_ext - ext);
+
+	box3 voxel_bbox(vbox_min, vbox_min + vbox_ext);
+
+	//std::cout << "(" << vres.x() << ", " << vres.y() << ", " << vres.z() << ") ";
+
+	std::cout << "Generating density volume with resolution (" << vres.x() << ", " << vres.y() << ", " << vres.z() << ")... ";
+
+	std::vector<float> voxels(resx*resy*resz, 0.0f);
+
+//#pragma omp parallel for
+	auto& positions = render.data->positions;
+	auto& tangents = render.data->tangents;
+	auto& radii = render.data->radii;
+	auto& indices = render.data->indices;
+
+	for(unsigned i = 0; i < indices.size(); i += 2) {
+		unsigned idx_a = indices[i + 0];
+		unsigned idx_b = indices[i + 1];
+
+		vec3 p0 = positions[idx_a];
+		vec3 p1 = positions[idx_b];
+		float r0 = radii[idx_a];
+		float r1 = radii[idx_b];
+		vec4 t0 = tangents[idx_a];
+		vec4 t1 = tangents[idx_b];
+
+		std::vector<std::pair<int, float>> intervals = traverse_line(p0, p1, vbox_min, vsize, ivec3(vres));
+
+		float total_length = (p1 - p0).length();
+		float accum_length = 0.0f;
+
+		for(size_t k = 0; k < intervals.size(); ++k) {
+			float length = intervals[k].second;
+
+			float alpha0 = accum_length / total_length;
+			float alpha1 = (accum_length + length) / total_length;
+
+			float radius0 = (1.0f - alpha0) * r0 + alpha0 * r1;
+			float radius1 = (1.0f - alpha1) * r0 + alpha1 * r1;
+
+			float vol = (3.1415f / 3.0f) * (r0*r0 + r0 * r1 + r1 * r1) * length;
+			float vol_rel = vol / vvol;
+
+			accum_length += length;
+			voxels[intervals[k].first] += vol_rel;
+		}
+	}
+
+	for(unsigned i = 0; i < voxels.size(); ++i)
+		voxels[i] = cgv::math::clamp(voxels[i], 0.0f, 1.0f);
+
+	if(density_tex.is_created())
+		density_tex.destruct(ctx);
+
+	cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(resx, resy, resz, TI_FLT32, cgv::data::CF_R), voxels.data());
+	density_tex = texture("flt32[R,G,B]", TF_LINEAR, TF_LINEAR_MIPMAP_LINEAR, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER);
+	density_tex.create(ctx, dv, 0);
+	density_tex.set_border_color(0.0f, 0.0f, 0.0f, 0.0f);
+	density_tex.generate_mipmaps(ctx);
+
+	// Set style attributes of volume rendering
+	//mat4 vol_transformation = cgv::math::translate4(vbox_min) * cgv::math::scale4(vbox_ext);
+	//vstyle.transformation_matrix = vol_transformation;
+
+	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+
+	set_ao_uniforms(ctx, voxel_bbox, vres);
+}
+
+void tubes::set_ao_uniforms(context& ctx, const box3& volume_bbox, const uvec3 volume_resolution) {
+	
+	auto& prog = shaders.get("screen");
+	prog.enable(ctx);
+	prog.set_uniform(ctx, "ambient_occlusion.enable", false);
+	prog.set_uniform(ctx, "ambient_occlusion.sample_offset", 0.04f);
+	prog.set_uniform(ctx, "ambient_occlusion.distance", 0.8f);
+	prog.set_uniform(ctx, "ambient_occlusion.strength_scale", 10.0f);
+
+	unsigned max_extent_axis = cgv::math::max_index(volume_bbox.get_extent());
+
+	prog.set_uniform(ctx, "ambient_occlusion.tex_offset", volume_bbox.get_min_pnt());
+	prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", vec3(1.0f) / volume_bbox.get_extent());
+	prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", vec3(volume_resolution[max_extent_axis]) / vec3(volume_resolution));
+	prog.set_uniform(ctx, "ambient_occlusion.texel_size", 1.0f / volume_resolution[max_extent_axis]);
+
+	// generate 3 cone sample directions
+	std::vector<vec3> sample_dirs(3);
+	float cone_angle = 50.0f;
+
+	float alpha2 = cgv::math::deg2rad(cone_angle / 2.0f);
+	float beta = cgv::math::deg2rad(90.0f - (cone_angle / 2.0f));
+
+	float a = sinf(alpha2);
+	float dh = tanf(cgv::math::deg2rad(30.0f)) * a;
+
+	float c = length(vec2(a, dh));
+
+	float b = sqrtf(1 - c * c);
+
+	sample_dirs[0] = vec3(0.0f, b, c);
+	sample_dirs[1] = vec3(a, b, -dh);
+	sample_dirs[2] = vec3(-a, b, -dh);
+
+	prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", 2.0f * sinf(alpha2) / sinf(beta));
+	prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", sample_dirs);
+	prog.disable(ctx);
 }
 
 void tubes::draw_dnd(context& ctx) {
@@ -505,7 +755,7 @@ void tubes::draw_trajectories(context& ctx) {
 	tstr.set_eye_pos(eye_pos);
 	tstr.set_view_dir(view_dir);
 	tstr.set_viewport(vec4(2.0f) / vec4(viewport[0], viewport[1], viewport[2], viewport[3]));
-	tstr.enable_conservative_depth(render.use_conservative_depth);
+	//tstr.enable_conservative_depth(render.use_conservative_depth);
 	tstr.set_render_style(render.style);
 	tstr.enable_attribute_array_manager(ctx, render.aam);
 	//tstr.render(ctx, 0, render.data->indices.size());
@@ -550,6 +800,7 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.enable_attachment(ctx, "texcoord", 3);
 	fbc.enable_attachment(ctx, "depth", 4);
 	tex.enable(ctx, 5);
+	density_tex.enable(ctx, 6);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
@@ -559,6 +810,7 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.disable_attachment(ctx, "texcoord");
 	fbc.disable_attachment(ctx, "depth");
 	tex.disable(ctx);
+	density_tex.disable(ctx);
 
 	prog.disable(ctx);
 }

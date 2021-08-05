@@ -23,6 +23,8 @@ namespace cgv { // @<
 			float radius_scale;
 			/// default tube radius, initialized to 1
 			float radius;
+			/// whether to use conservative depth extension to re-enable early depth testing
+			bool use_conservative_depth;
 			/// construct with default values
 			textured_spline_tube_render_style();
 		};
@@ -36,6 +38,8 @@ namespace cgv { // @<
 			/// whether tangents are specified
 			bool has_tangents;
 
+
+
 			///
 			vec3 eye_pos;
 			///
@@ -43,11 +47,11 @@ namespace cgv { // @<
 			///
 			vec4 viewport;
 
-			///
-			shader_program alt_prog;
-			///
-			bool use_conservative_depth;
 
+
+
+			/// the shader defines used to build the shader, used to comapre against new defines to determine if the shader needs to be rebuilt
+			shader_define_map shader_defines;
 			/// overload to allow instantiation of box_renderer
 			render_style* create_render_style() const;
 		public:
@@ -60,13 +64,15 @@ namespace cgv { // @<
 			/// construct shader programs and return whether this was successful, call inside of init method of drawable
 			bool init(context& ctx);
 			///
+			shader_define_map build_define_map();
+			///
+			bool build_shader(context& ctx, const shader_define_map& defines = shader_define_map());
+			///
 			void set_eye_pos(const vec3& eye_pos) { this->eye_pos = eye_pos; }
 			///
 			void set_view_dir(const vec3& view_dir) { this->view_dir = view_dir; }
 			///
 			void set_viewport(const vec4& viewport) { this->viewport = viewport; }
-			///
-			void enable_conservative_depth(bool flag) { use_conservative_depth = flag; }
 			///
 			template <typename T = float>
 			void set_radius_array(const context& ctx, const std::vector<T>& radii) { has_radii = true; set_attribute_array(ctx, ref_prog().get_attribute_location(ctx, "radius"), radii); }

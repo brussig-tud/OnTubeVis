@@ -1,5 +1,9 @@
 #version 460
-//#extension GL_ARB_conservative_depth : enable
+#define USE_CONSERVATIVE_DEPTH 0
+
+#if USE_CONSERVATIVE_DEPTH == 1
+#extension GL_ARB_conservative_depth : enable
+#endif
 
 /*
 	0: NO_OP
@@ -49,8 +53,9 @@ in flat vec3 color1_fs;
 in flat QTube qTube_fs;
 in flat mat4 mg_fs;
 
-//out vec4 frag_color;
-//layout (depth_greater) out float gl_FragDepth;
+#if USE_CONSERVATIVE_DEPTH == 1
+layout (depth_greater) out float gl_FragDepth;
+#endif
 
 layout (location = 0) out vec3 frag_albedo;
 layout (location = 1) out vec3 frag_position;

@@ -1,5 +1,7 @@
 #version 460
 
+#define USE_CONSERVATIVE_DEPTH 0
+
 #define ONE_OVER_THREE 1.0 / 3.0
 
 //***** begin interface of view.glsl ***********************************
@@ -418,6 +420,14 @@ void emit_quad(int segment_idx, QTube qTube) {
 	ep.w = r;
 
 	mat4x3 ps = quad(sp, ep);
+
+#if USE_CONSERVATIVE_DEPTH == 1
+	float dist = sd_rounded_cone(eye_pos, sp, ep);
+	ps[0] = eye_pos + dist*normalize(ps[0] - eye_pos);
+	ps[1] = eye_pos + dist*normalize(ps[1] - eye_pos);
+	ps[2] = eye_pos + dist*normalize(ps[2] - eye_pos);
+	ps[3] = eye_pos + dist*normalize(ps[3] - eye_pos);
+#endif
 
 	/*float dist = sd_rounded_cone(camera.eye, sp, ep);
 	ps[0] = camera.eye + dist*normalize(ps[0] - camera.eye);

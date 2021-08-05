@@ -21,6 +21,7 @@ namespace cgv {
 		{
 			radius_scale = 1.0f;
 			radius = 1.0f;
+			use_conservative_depth = false;
 		}
 
 		textured_spline_tube_renderer::textured_spline_tube_renderer()
@@ -56,27 +57,44 @@ namespace cgv {
 		{
 			bool res = renderer::init(ctx);
 			if (!ref_prog().is_created()) {
-				if (!ref_prog().build_program(ctx, "textured_spline_tube_quad.glpr", true)) {
+				res = res && build_shader(ctx, build_define_map());
+			}
+			return res;
+		}
+		///
+		shader_define_map textured_spline_tube_renderer::build_define_map()
+		{
+			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
+
+			shader_define_map defines;
+			defines["USE_CONSERVATIVE_DEPTH"] = rs.use_conservative_depth ? "1" : "0";
+			return defines;
+		}
+		///
+		bool textured_spline_tube_renderer::build_shader(context& ctx, const shader_define_map& defines)
+		{
+			shader_defines = defines;
+			if(ref_prog().is_created())
+				ref_prog().destruct(ctx);
+
+			if(!ref_prog().is_created()) {
+				if(!ref_prog().build_program(ctx, "textured_spline_tube_quad.glpr", true, defines)) {
 					std::cerr << "ERROR in textured_spline_tube_renderer::init() ... could not build program textured_spline_tube_quad.glpr" << std::endl;
 					return false;
 				}
 			}
-
-			if(!alt_prog.is_created()) {
-				if(!alt_prog.build_program(ctx, "textured_spline_tube_quad_cd.glpr", true)) {
-					std::cerr << "ERROR in textured_spline_tube_renderer::init() ... could not build program textured_spline_tube_quad_cd.glpr" << std::endl;
-					return false;
-				}
-			}
-			return res;
+			return true;
 		}
 		/// 
 		bool textured_spline_tube_renderer::enable(context& ctx)
 		{
 			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
 
-			if(use_conservative_depth)
-				set_prog(alt_prog);
+			shader_define_map defines = build_define_map();
+			if(defines != shader_defines) {
+				if(!build_shader(ctx, defines))
+					return false;
+			}
 
 			if (!surface_renderer::enable(ctx))
 				return false;
@@ -143,8 +161,9 @@ namespace cgv {
 			cgv::render::textured_spline_tube_render_style* rs_ptr = reinterpret_cast<cgv::render::textured_spline_tube_render_style*>(value_ptr);
 			cgv::base::base* b = dynamic_cast<cgv::base::base*>(p);
 
-			p->add_member_control(b, "default radius", rs_ptr->radius, "value_slider", "min=0.001;step=0.0001;max=10.0;log=true;ticks=true");
-			p->add_member_control(b, "radius scale", rs_ptr->radius_scale, "value_slider", "min=0.01;step=0.0001;max=100.0;log=true;ticks=true");
+			p->add_member_control(b, "Conservative Depth", rs_ptr->use_conservative_depth, "check");
+			p->add_member_control(b, "Default Radius", rs_ptr->radius, "value_slider", "min=0.001;step=0.0001;max=10.0;log=true;ticks=true");
+			p->add_member_control(b, "Radius Scale", rs_ptr->radius_scale, "value_slider", "min=0.01;step=0.0001;max=100.0;log=true;ticks=true");
 			
 			p->add_gui("surface_render_style", *static_cast<cgv::render::surface_render_style*>(rs_ptr));
 			return true;
