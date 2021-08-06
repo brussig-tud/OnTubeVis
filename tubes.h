@@ -120,6 +120,8 @@ protected:
 	void set_view(void);
 	void update_attribute_bindings(void);
 	void calculate_bounding_box(void);
+
+	float sd_quadratic_bezier(const vec3& A, const vec3& B, const vec3& C, const vec3& pos);
 	std::vector<std::pair<int, float>> traverse_line(vec3& a, vec3& b, vec3& vbox_min, float vsize, ivec3& res);
 	void create_density_volume(context& ctx, unsigned resolution);
 
