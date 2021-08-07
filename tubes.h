@@ -18,6 +18,8 @@
 #include <cgv_glutil/frame_buffer_container.h>
 #include <cgv_glutil/radix_sort_4way.h>
 #include <cgv_glutil/shader_library.h>
+#include <cgv_glutil/box_render_data.h>
+#include <cgv_glutil/sphere_render_data.h>
 
 // local includes
 #include "traj_loader.h"
@@ -42,6 +44,13 @@ public:
 	//typedef float real;
 
 protected:
+
+
+	cgv::glutil::box_render_data<> brd;
+	cgv::glutil::sphere_render_data<> srd;
+
+
+
 	/// store a pointer to the view for fast access
 	view* view_ptr = nullptr;
 	
@@ -121,7 +130,8 @@ protected:
 	void update_attribute_bindings(void);
 	void calculate_bounding_box(void);
 
-	float sd_quadratic_bezier(const vec3& A, const vec3& B, const vec3& C, const vec3& pos);
+	float dot2(vec3 v) { return dot(v, v); }
+	vec2 sd_quadratic_bezier(const vec3& A, const vec3& B, const vec3& C, const vec3& pos);
 	std::vector<std::pair<int, float>> traverse_line(vec3& a, vec3& b, vec3& vbox_min, float vsize, ivec3& res);
 	void create_density_volume(context& ctx, unsigned resolution);
 

@@ -42,6 +42,9 @@ tubes::tubes() : node("tubes_instance")
 	fbc.add_attachment("position", "flt32[R,G,B]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("texcoord", "flt32[R,G]");
+
+	brd = cgv::glutil::box_render_data<>(true);
+	srd = cgv::glutil::sphere_render_data<>(true);
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -73,9 +76,13 @@ void tubes::clear(cgv::render::context &ctx) {
 	//ref_spline_tube_renderer(ctx, -1);
 	//ref_rounded_cone_renderer(ctx, -1);
 	ref_box_renderer(ctx, -1);
+	ref_sphere_renderer(ctx, -1);
 
 	shaders.clear(ctx);
 	fbc.clear(ctx);
+
+	brd.destruct(ctx);
+	srd.destruct(ctx);
 
 	delete render.sorter;
 	render.sorter = nullptr;
@@ -220,6 +227,11 @@ bool tubes::init (cgv::render::context &ctx)
 	// init shared attribute array manager
 	success &= render.aam.init(ctx);
 
+	ref_sphere_renderer(ctx, 1);
+
+	brd.init(ctx);
+	srd.init(ctx);
+
 	// TODO: test some stuff
 	/*if(traj_mgr.has_data()) {
 		const traj_dataset<float>& ds = traj_mgr.dataset(0);
@@ -363,8 +375,18 @@ void tubes::draw (cgv::render::context &ctx)
 		draw_dnd(ctx);
 
 	// draw dataset using selected renderer
-	if(traj_mgr.has_data())
-		draw_trajectories(ctx);
+	//if(traj_mgr.has_data())
+	//	draw_trajectories(ctx);
+
+	/*auto& br = ref_box_renderer(ctx);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+	brd.render(ctx, br, box_render_style());
+	
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);*/
+
+	auto& sr = ref_sphere_renderer(ctx);
+	srd.render(ctx, sr, sphere_render_style());
 
 	/*std::vector<box3> boxes = { bbox };
 	auto& br = ref_box_renderer(ctx);
@@ -419,7 +441,7 @@ void tubes::create_gui (void)
 
 void tubes::set_view(void)
 {
-	if(!view_ptr) return;
+	if(!view_ptr || !traj_mgr.has_data()) return;
 
 	// get a crude approximation of the bounding box
 	auto& positions = render.data->positions;
@@ -497,7 +519,7 @@ void tubes::update_attribute_bindings (void)
 		return res;
 	}
 	*/
-	create_density_volume(ctx, 256);
+	create_density_volume(ctx, 16);
 
 
 
@@ -558,49 +580,49 @@ void tubes::calculate_bounding_box(void) {
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 }
 
-float tubes::sd_quadratic_bezier(const vec3& A, const vec3& B, const vec3& C, const vec3& pos) {
+tubes::vec2 tubes::sd_quadratic_bezier(const vec3& A, const vec3& B, const vec3& C, const vec3& pos) {
 
 	vec3 a = B - A;
-	vec3 b = A - 2.0*B + C;
-	vec3 c = a * 2.0;
+	vec3 b = A - 2.0f*B + C;
+	vec3 c = a * 2.0f;
 	vec3 d = A - pos;
 
 	float kk = 1.0 / dot(b, b);
 	float kx = kk * dot(a, b);
-	float ky = kk * (2.0*dot(a, a) + dot(d, b)) / 3.0;
+	float ky = kk * (2.0f*dot(a, a) + dot(d, b)) / 3.0f;
 	float kz = kk * dot(d, a);
 
 	vec2 res;
 
 	float p = ky - kx * kx;
 	float p3 = p * p*p;
-	float q = kx * (2.0*kx*kx - 3.0*ky) + kz;
-	float h = q * q + 4.0*p3;
+	float q = kx * (2.0f*kx*kx - 3.0f*ky) + kz;
+	float h = q * q + 4.0f*p3;
 
 	if(h >= 0.0) {
 		h = sqrt(h);
 		vec2 x = (vec2(h, -h) - q) / 2.0;
-		vec2 uv = sign(x)*cgv::math::pow(abs(x), vec2(1.0 / 3.0));
-		float t = cgv::math::clamp(uv.x + uv.y - kx, 0.0f, 1.0f);
+		vec2 uv = sign(x)*cgv::math::pow(abs(x), vec2(1.0f / 3.0f));
+		float t = cgv::math::clamp(uv.x() + uv.y() - kx, 0.0f, 1.0f);
 
 		// 1 root
 		res = vec2(dot2(d + (c + b * t)*t), t);
 	} else {
 		float z = sqrt(-p);
-		float v = acos(q / (p*z*2.0)) / 3.0;
+		float v = acos(q / (p*z*2.0f)) / 3.0f;
 		float m = cos(v);
-		float n = sin(v)*1.732050808;
-		vec3 t = clamp(vec3(m + m, -n - m, n - m)*z - kx, 0.0, 1.0);
+		float n = sin(v)*1.732050808f;
+		vec3 t = cgv::math::clamp(vec3(m + m, -n - m, n - m) * z - kx, 0.0f, 1.0f);
 
 		// 3 roots, but only need two
-		float dis = dot2(d + (c + b * t.x)*t.x);
-		res = vec2(dis, t.x);
+		float dis = dot2(d + (c + b * t.x())*t.x());
+		res = vec2(dis, t.x());
 
-		dis = dot2(d + (c + b * t.y)*t.y);
-		if(dis < res.x) res = vec2(dis, t.y);
+		dis = dot2(d + (c + b * t.y())*t.y());
+		if(dis < res.x()) res = vec2(dis, t.y());
 	}
 
-	res.x = sqrt(res.x);
+	res.x() = sqrt(res.x());
 	return res;
 }
 
@@ -681,7 +703,7 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 	float max_ext = ext[max_ext_axis];
 	float vsize = max_ext / static_cast<float>(resolution);
 
-	float vvol = vsize * vsize*vsize; // Volume per voxel
+	float vvol = vsize * vsize * vsize; // Volume per voxel
 
 	// Calculate the number of voxels in each dimension
 	unsigned resx = static_cast<unsigned>(ceilf(ext.x() / vsize));
@@ -758,6 +780,80 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
 	set_ao_uniforms(ctx, voxel_bbox, vres);
+
+	brd.clear();
+	srd.clear();
+
+	brd.add(vbox_min + 0.5f * vbox_ext, vbox_ext);
+	brd.add(rgb(1.0f));
+
+	unsigned samples = 5;
+
+	float vs = vsize / static_cast<float>(samples);
+	float vo = 0.5f * vs;
+
+	for(unsigned z = 0; z < vres.z(); ++z) {
+		for(unsigned y = 0; y < vres.y(); ++y) {
+			for(unsigned x = 0; x < vres.x(); ++x) {
+				vec3 voxel_min = vbox_min + vec3(x, y, z)*vsize;
+				brd.add(voxel_min + 0.5f * vsize, vec3(vsize));
+				brd.add(rgb(0.5f, 1.0f, 0.0f));
+
+				for(unsigned k = 0; k < samples; ++k) {
+					for(unsigned j = 0; j < samples; ++j) {
+						for(unsigned i = 0; i < samples; ++i) {
+							vec3 idx(i, j, k);
+							vec3 spos = voxel_min + vo + idx * vs;
+							srd.add(spos);
+
+							bool inside = false;
+							for(unsigned idx = 0; idx < indices.size(); idx += 2) {
+								unsigned idx_a = indices[idx + 0];
+								unsigned idx_b = indices[idx + 1];
+
+								vec3 p0 = positions[idx_a];
+								vec3 p1 = positions[idx_b];
+								float r0 = radii[idx_a];
+								float r1 = radii[idx_b];
+								vec4 t0 = tangents[idx_a];
+								vec4 t1 = tangents[idx_b];
+
+								std::vector<vec3> qtn;
+								hermite_spline_tube::split_to_qtubes(
+									p0, p1,
+									vec3(t0), vec3(t1),
+									r0, r1,
+									t0.w(), t1.w(),
+									qtn
+								);
+
+								vec2 dist0 = sd_quadratic_bezier(qtn[0], qtn[1], qtn[2], spos);
+								vec2 dist1 = sd_quadratic_bezier(qtn[3], qtn[4], qtn[5], spos);
+								
+								if(dist0.x() <= r0 || dist1.x() <= r0) {
+									inside = true;
+									break;
+								}
+							}
+
+							if(inside) {
+								srd.add(rgb(1.0f, 0.0f, 0.0f));
+								srd.add(0.05f * vsize);
+							} else {
+								srd.add(rgb(0.5f));
+								srd.add(0.01f * vsize);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	//srd.fill(0.05f*vsize);
+
+	brd.set_out_of_date();
+	srd.set_out_of_date();
 }
 
 void tubes::set_ao_uniforms(context& ctx, const box3& volume_bbox, const uvec3 volume_resolution) {

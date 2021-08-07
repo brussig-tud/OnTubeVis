@@ -74,7 +74,7 @@ private:
 	//	QTUBE.s.MEM_V, QTUBE.h.MEM_V, QTUBE.e.MEM_V				\
 	//)
 
-	static void SplitTube(unsigned segment_id, Tube tube, QTube& qTube) {
+	static void split_tube(unsigned segment_id, Tube tube, QTube& qTube) {
 		
 		SplitCurve(segment_id,
 			tube.s.pos, tube.s.pos_tan, tube.e.pos, tube.e.pos_tan,
@@ -298,8 +298,8 @@ public:
 		tube.e.rad_tan = rt1;
 
 		QTube qTube0, qTube1;
-		SplitTube(0, tube, qTube0);
-		SplitTube(1, tube, qTube1);
+		split_tube(0, tube, qTube0);
+		split_tube(1, tube, qTube1);
 
 		if(exact) {
 			bbox.add_axis_aligned_box(q_spline_exact_bbox(qTube0));
@@ -311,6 +311,31 @@ public:
 
 		return bbox;
 	}
+
+	static void split_to_qtubes(vec3 p0, vec3 p1, vec3 pt0, vec3 pt1, float r0, float r1, float rt0, float rt1, std::vector<vec3>& q_tube_nodes) {
+		
+		Tube tube;
+		tube.s.pos = p0;
+		tube.s.rad = r0;
+		tube.s.pos_tan = pt0;
+		tube.s.rad_tan = rt0;
+
+		tube.e.pos = p1;
+		tube.e.rad = r1;
+		tube.e.pos_tan = pt1;
+		tube.e.rad_tan = rt1;
+
+		QTube qTube0, qTube1;
+		split_tube(0, tube, qTube0);
+		split_tube(1, tube, qTube1);
+
+		q_tube_nodes.push_back(vec3(qTube0.s.pos));//, qTube0.s.rad));
+		q_tube_nodes.push_back(vec3(qTube0.h.pos));//, qTube0.h.rad));
+		q_tube_nodes.push_back(vec3(qTube0.e.pos));//, qTube0.e.rad));
+		q_tube_nodes.push_back(vec3(qTube1.s.pos));//, qTube1.s.rad));
+		q_tube_nodes.push_back(vec3(qTube1.h.pos));//, qTube1.h.rad));
+		q_tube_nodes.push_back(vec3(qTube1.e.pos));//, qTube1.e.rad));
+	}	
 
 	// TODO: remove later?
 	static mat4 matrix(vec4 s, vec4 h, vec4 e) {

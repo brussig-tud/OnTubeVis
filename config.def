@@ -1,6 +1,6 @@
 
 // dataset to load
-type(tubes):dataset_fn=""
+type(tubes):datapath=""
 
 // renderer to use (0=rounded_cone, 1=spline_tube, 2=textured_spline_tube)
 type(tubes):renderer=2
