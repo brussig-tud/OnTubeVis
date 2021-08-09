@@ -17,7 +17,6 @@
 
 // local includes
 #include "arclen_helper.h"
-#include "hermite_spline_tube.h"
 
 
 
@@ -375,8 +374,8 @@ void tubes::draw (cgv::render::context &ctx)
 		draw_dnd(ctx);
 
 	// draw dataset using selected renderer
-	//if(traj_mgr.has_data())
-	//	draw_trajectories(ctx);
+	if(traj_mgr.has_data())
+		draw_trajectories(ctx);
 
 	/*auto& br = ref_box_renderer(ctx);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -385,8 +384,8 @@ void tubes::draw (cgv::render::context &ctx)
 	
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);*/
 
-	auto& sr = ref_sphere_renderer(ctx);
-	srd.render(ctx, sr, sphere_render_style());
+	//auto& sr = ref_sphere_renderer(ctx);
+	//srd.render(ctx, sr, sphere_render_style());
 
 	/*std::vector<box3> boxes = { bbox };
 	auto& br = ref_box_renderer(ctx);
@@ -519,9 +518,7 @@ void tubes::update_attribute_bindings (void)
 		return res;
 	}
 	*/
-	create_density_volume(ctx, 16);
-
-
+	create_density_volume(ctx, 128);
 
 	if (traj_mgr.has_data())
 	{
@@ -691,44 +688,129 @@ std::vector<std::pair<int, float>> tubes::traverse_line(vec3& a, vec3& b, vec3& 
 
 	return intervals;
 }
+int tubes::sample_voxel(const ivec3& vidx, const hermite_spline_tube::q_tube& qt) {
+
+	const unsigned num_samples_per_dim = 3;
+	const float vs = density_volume.voxel_size / static_cast<float>(num_samples_per_dim);
+	const vec3 vo(0.5f * vs);
+
+	const vec3 sample_position_offsets[27] = {
+		vo + vec3(1,1,1) * vs,
+		
+		vo + vec3(0,0,0) * vs,
+		vo + vec3(0,0,1) * vs,
+		vo + vec3(0,0,2) * vs,
+		vo + vec3(0,1,0) * vs,
+		vo + vec3(0,1,1) * vs,
+		vo + vec3(0,1,2) * vs,
+		vo + vec3(0,2,0) * vs,
+		vo + vec3(0,2,1) * vs,
+		vo + vec3(0,2,2) * vs,
+		vo + vec3(1,0,0) * vs,
+		vo + vec3(1,0,1) * vs,
+		vo + vec3(1,0,2) * vs,
+		vo + vec3(1,1,0) * vs,
+
+		vo + vec3(1,1,2) * vs,
+		vo + vec3(1,2,0) * vs,
+		vo + vec3(1,2,1) * vs,
+		vo + vec3(1,2,2) * vs,
+		vo + vec3(2,0,0) * vs,
+		vo + vec3(2,0,1) * vs,
+		vo + vec3(2,0,2) * vs,
+		vo + vec3(2,1,0) * vs,
+		vo + vec3(2,1,1) * vs,
+		vo + vec3(2,1,2) * vs,
+		vo + vec3(2,2,0) * vs,
+		vo + vec3(2,2,1) * vs,
+		vo + vec3(2,2,2) * vs
+	};
+
+	float half_voxel_diag = 0.5f * sqrt(3.0f) * density_volume.voxel_size;
+
+	vec3 voxel_min = density_volume.bounds.ref_min_pnt() + vec3(vidx) * density_volume.voxel_size;
+
+	int count = 1;
+
+	vec3 spos = voxel_min + sample_position_offsets[0];
+	vec2 dist = sd_quadratic_bezier(qt.s.pos, qt.h.pos, qt.e.pos, spos);
+	if(dist.x() - qt.s.rad > half_voxel_diag) {
+		return 0;
+	}
+
+	for(unsigned k = 1; k < 27; ++k) {
+	//for(unsigned k = 0; k < num_samples_per_dim; ++k) {
+	//	for(unsigned j = 0; j < num_samples_per_dim; ++j) {
+	//		for(unsigned i = 0; i < num_samples_per_dim; ++i) {
+				//vec3 idx = sample_position_offsets[k];// (i, j, k);
+		vec3 spos = voxel_min + sample_position_offsets[k];// vo + idx * vs;
+
+				// TODO: move to own quadratic tube class
+				vec2 dist = sd_quadratic_bezier(qt.s.pos, qt.h.pos, qt.e.pos, spos);
+
+				// TODO: currentyl a constant radius per segment is assumed
+				if(dist.x() <= qt.s.rad) {
+					++count;
+					//srd.add(spos);
+					//srd.add(0.05f * density_volume.voxel_size);
+					//srd.add(rgb(1.0f, 0.0f, 0.0f));
+				}// else {
+				//	srd.add(spos);
+				//	srd.add(0.01f * density_volume.voxel_size);
+				//	srd.add(rgb(0.5f, 0.5f, 0.5f));
+				//}
+			}
+	//	}
+	//}
+
+	return count;
+}
+
+void tubes::voxelize_q_tube(const hermite_spline_tube::q_tube& qt) {
+
+	box3 box = hermite_spline_tube::q_spline_exact_bbox(qt);
+
+	// TODO: look at particle voxelizer from master thesis for correct formulas
+	ivec3 sidx((box.get_min_pnt() - density_volume.bounds.ref_min_pnt()) / density_volume.voxel_size);
+	ivec3 eidx((box.get_max_pnt() - density_volume.bounds.ref_min_pnt()) / density_volume.voxel_size);
+
+	sidx = cgv::math::clamp(sidx, ivec3(0), density_volume.resolution - 1);
+	eidx = cgv::math::clamp(eidx, ivec3(0), density_volume.resolution - 1);
+
+	ivec3 res = density_volume.resolution;
+
+	for(unsigned z = sidx.z(); z <= eidx.z(); ++z) {
+		for(unsigned y = sidx.y(); y <= eidx.y(); ++y) {
+			for(unsigned x = sidx.x(); x <= eidx.x(); ++x) {
+				int count = sample_voxel(ivec3(x, y, z), qt);
+				float occupancy = static_cast<float>(count) * 1.0f / 27.0f;
+
+				int idx = x + res.x() * y + res.x() * res.y() * z;
+
+				density_volume.data[idx] += occupancy;
+			}
+		}
+	}
+}
 
 void tubes::create_density_volume(context& ctx, unsigned resolution) {
 
 	cgv::utils::stopwatch s(true);
 
-	vec3 ext = bbox.get_extent();
+	density_volume.data.clear();
+	density_volume.compute_bounding_box(bbox, resolution);
 
-	// Calculate the cube voxel size and the resolution in each dimension
-	int max_ext_axis = cgv::math::max_index(ext);
-	float max_ext = ext[max_ext_axis];
-	float vsize = max_ext / static_cast<float>(resolution);
+	density_volume.data.resize(density_volume.resolution.x() * density_volume.resolution.y() * density_volume.resolution.z(), 0.0f);
 
-	float vvol = vsize * vsize * vsize; // Volume per voxel
-
-	// Calculate the number of voxels in each dimension
-	unsigned resx = static_cast<unsigned>(ceilf(ext.x() / vsize));
-	unsigned resy = static_cast<unsigned>(ceilf(ext.y() / vsize));
-	unsigned resz = static_cast<unsigned>(ceilf(ext.z() / vsize));
-
-	vec3 vres = vec3(resx, resy, resz);
-	vec3 vbox_ext = vsize * vres;
-	vec3 vbox_min = bbox.get_min_pnt() - 0.5f*(vbox_ext - ext);
-
-	box3 voxel_bbox(vbox_min, vbox_min + vbox_ext);
-
-	//std::cout << "(" << vres.x() << ", " << vres.y() << ", " << vres.z() << ") ";
-
-	std::cout << "Generating density volume with resolution (" << vres.x() << ", " << vres.y() << ", " << vres.z() << ")... ";
-
-	std::vector<float> voxels(resx*resy*resz, 0.0f);
-
-//#pragma omp parallel for
+	std::cout << "Generating density volume with resolution (" << density_volume.resolution.x() << ", " << density_volume.resolution.y() << ", " << density_volume.resolution.z() << ")... ";
+	
 	auto& positions = render.data->positions;
 	auto& tangents = render.data->tangents;
 	auto& radii = render.data->radii;
 	auto& indices = render.data->indices;
 
-	for(unsigned i = 0; i < indices.size(); i += 2) {
+//#pragma omp parallel for
+	/*for(int i = 0; i < indices.size(); i += 2) {
 		unsigned idx_a = indices[i + 0];
 		unsigned idx_b = indices[i + 1];
 
@@ -759,15 +841,68 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 			accum_length += length;
 			voxels[intervals[k].first] += vol_rel;
 		}
+	}*/
+
+
+	srd.clear();
+
+#pragma omp parallel for
+	for(int i = 0; i < indices.size(); i += 2) {
+		unsigned idx_a = indices[i + 0];
+		unsigned idx_b = indices[i + 1];
+
+		vec3 p0 = positions[idx_a];
+		vec3 p1 = positions[idx_b];
+		float r0 = radii[idx_a];
+		float r1 = radii[idx_b];
+		vec4 t0 = tangents[idx_a];
+		vec4 t1 = tangents[idx_b];
+
+		hermite_spline_tube::q_tube qt0, qt1;
+		hermite_spline_tube::split_to_qtubes(
+			p0, p1,
+			vec3(t0), vec3(t1),
+			r0, r1,
+			t0.w(), t1.w(),
+			qt0, qt1
+		);
+
+		voxelize_q_tube(qt0);
+		voxelize_q_tube(qt1);
+
+		/*float total_length = (p1 - p0).length();
+		float accum_length = 0.0f;
+
+		for(size_t k = 0; k < intervals.size(); ++k) {
+			float length = intervals[k].second;
+
+			float alpha0 = accum_length / total_length;
+			float alpha1 = (accum_length + length) / total_length;
+
+			float radius0 = (1.0f - alpha0) * r0 + alpha0 * r1;
+			float radius1 = (1.0f - alpha1) * r0 + alpha1 * r1;
+
+			float vol = (3.1415f / 3.0f) * (r0 * r0 + r0 * r1 + r1 * r1) * length;
+			float vol_rel = vol / vvol;
+
+			accum_length += length;
+			voxels[intervals[k].first] += vol_rel;
+		}*/
 	}
 
-	for(unsigned i = 0; i < voxels.size(); ++i)
-		voxels[i] = cgv::math::clamp(voxels[i], 0.0f, 1.0f);
+
+
+
+
+
+
+	for(unsigned i = 0; i < density_volume.data.size(); ++i)
+		density_volume.data[i] = cgv::math::clamp(density_volume.data[i], 0.0f, 1.0f);
 
 	if(density_tex.is_created())
 		density_tex.destruct(ctx);
 
-	cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(resx, resy, resz, TI_FLT32, cgv::data::CF_R), voxels.data());
+	cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(density_volume.resolution.x(), density_volume.resolution.y(), density_volume.resolution.z(), TI_FLT32, cgv::data::CF_R), density_volume.data.data());
 	density_tex = texture("flt32[R,G,B]", TF_LINEAR, TF_LINEAR_MIPMAP_LINEAR, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER);
 	density_tex.create(ctx, dv, 0);
 	density_tex.set_border_color(0.0f, 0.0f, 0.0f, 0.0f);
@@ -779,18 +914,26 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
-	set_ao_uniforms(ctx, voxel_bbox, vres);
+	set_ao_uniforms(ctx);
 
 	brd.clear();
-	srd.clear();
+	//srd.clear();
 
-	brd.add(vbox_min + 0.5f * vbox_ext, vbox_ext);
+	brd.add(density_volume.bounds.get_center(), density_volume.bounds.get_extent());
 	brd.add(rgb(1.0f));
 
-	unsigned samples = 5;
+	std::vector<rgb> cols = {
+		rgb(0.5f),
+		rgb(0.0f, 0.0f, 1.0f),
+		rgb(0.0f, 0.5f, 0.5f),
+		rgb(0.0f, 1.0f, 0.0f),
+		rgb(0.5f, 0.5f, 0.0f),
+		rgb(1.0f, 0.0f, 0.0f)
+	};
 
-	float vs = vsize / static_cast<float>(samples);
-	float vo = 0.5f * vs;
+	const ivec3& vres = density_volume.resolution;
+	const float vsize = density_volume.voxel_size;
+	const vec3& vbox_min = density_volume.bounds.ref_min_pnt();
 
 	for(unsigned z = 0; z < vres.z(); ++z) {
 		for(unsigned y = 0; y < vres.y(); ++y) {
@@ -799,14 +942,14 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 				brd.add(voxel_min + 0.5f * vsize, vec3(vsize));
 				brd.add(rgb(0.5f, 1.0f, 0.0f));
 
-				for(unsigned k = 0; k < samples; ++k) {
+				/*for(unsigned k = 0; k < samples; ++k) {
 					for(unsigned j = 0; j < samples; ++j) {
 						for(unsigned i = 0; i < samples; ++i) {
 							vec3 idx(i, j, k);
 							vec3 spos = voxel_min + vo + idx * vs;
 							srd.add(spos);
 
-							bool inside = false;
+							int inside = 0;
 							for(unsigned idx = 0; idx < indices.size(); idx += 2) {
 								unsigned idx_a = indices[idx + 0];
 								unsigned idx_b = indices[idx + 1];
@@ -818,7 +961,7 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 								vec4 t0 = tangents[idx_a];
 								vec4 t1 = tangents[idx_b];
 
-								std::vector<vec3> qtn;
+								std::vector<vec4> qtn;
 								hermite_spline_tube::split_to_qtubes(
 									p0, p1,
 									vec3(t0), vec3(t1),
@@ -830,22 +973,22 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 								vec2 dist0 = sd_quadratic_bezier(qtn[0], qtn[1], qtn[2], spos);
 								vec2 dist1 = sd_quadratic_bezier(qtn[3], qtn[4], qtn[5], spos);
 								
-								if(dist0.x() <= r0 || dist1.x() <= r0) {
-									inside = true;
-									break;
-								}
+								if(dist0.x() <= r0)
+									++inside;;
+								if(dist1.x() <= r0)
+									++inside;
 							}
 
-							if(inside) {
-								srd.add(rgb(1.0f, 0.0f, 0.0f));
-								srd.add(0.05f * vsize);
-							} else {
-								srd.add(rgb(0.5f));
+							srd.add(cols[inside]);
+
+							if(inside == 0) {
 								srd.add(0.01f * vsize);
+							} else {
+								srd.add(0.05f * vsize);
 							}
 						}
 					}
-				}
+				}*/
 			}
 		}
 	}
@@ -856,14 +999,18 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 	srd.set_out_of_date();
 }
 
-void tubes::set_ao_uniforms(context& ctx, const box3& volume_bbox, const uvec3 volume_resolution) {
+void tubes::set_ao_uniforms(context& ctx) {
 	
+	const box3& volume_bbox = density_volume.bounds;
+	const ivec3& volume_resolution = density_volume.resolution;
+
 	auto& prog = shaders.get("screen");
 	prog.enable(ctx);
-	prog.set_uniform(ctx, "ambient_occlusion.enable", false);
+	prog.set_uniform(ctx, "ambient_occlusion.enable", true);
 	prog.set_uniform(ctx, "ambient_occlusion.sample_offset", 0.04f);
 	prog.set_uniform(ctx, "ambient_occlusion.distance", 0.8f);
-	prog.set_uniform(ctx, "ambient_occlusion.strength_scale", 10.0f);
+	//prog.set_uniform(ctx, "ambient_occlusion.strength_scale", 10.0f);
+	prog.set_uniform(ctx, "ambient_occlusion.strength_scale", 1.0f);
 
 	unsigned max_extent_axis = cgv::math::max_index(volume_bbox.get_extent());
 

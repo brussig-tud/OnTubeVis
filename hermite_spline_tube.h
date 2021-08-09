@@ -4,39 +4,39 @@
 #include <cgv/math/functions.h>
 
 class hermite_spline_tube : public cgv::render::render_types {
-private:
-	struct TubeNode {
+public:
+	struct tube_node {
 		vec3 pos;
 		float rad;
-
 		vec3 pos_tan;
 		float rad_tan;
 	};
 
 	struct Tube {
-		TubeNode s;
-		TubeNode e;
+		tube_node s;
+		tube_node e;
 	};
 
-	struct QTubeNode {
+	struct q_tube_node {
 		vec3 pos;
 		float rad;
 	};
 
-	struct QTube {
-		QTubeNode s;
-		QTubeNode h;
-		QTubeNode e;
+	struct q_tube {
+		q_tube_node s;
+		q_tube_node h;
+		q_tube_node e;
 	};
 
+private:
 	static float saturate(float x) { return std::min(std::max(x, 0.0f), 1.0f); }
 
-	static vec3 ProjToPlane(vec3 vec, vec3 n) {
+	static vec3 proj_to_plane(vec3 vec, vec3 n) {
 		return vec - n * dot(vec, n) / dot(n, n);
 	}
 
 	template<typename T>
-	void EvalCSplineMidPoint(T p1, T t1, T p2, T t2, T out_p, T out_t) {
+	void eval_c_spline_mid_point(T p1, T t1, T p2, T t2, T out_p, T out_t) {
 
 		T h1 = p1 + t1 * 1.0f/3.0f;
 		T h2 = p2 - t2 * 1.0f/3.0f;
@@ -53,7 +53,7 @@ private:
 	}
 
 	template<typename T>
-	static void SplitCurve(unsigned segment_idx, T v0, T d0, T v1, T d1, T& v0_out, T& h_out, T& v1_out) {
+	static void split_curve(unsigned segment_idx, T v0, T d0, T v1, T d1, T& v0_out, T& h_out, T& v1_out) {
 
 		v0_out = v0;
 		h_out = v0 + d0 * 0.25f;
@@ -67,29 +67,19 @@ private:
 		}
 	}
 
-	//#define SPLIT_CURVE(SEGMENT_IDX, TUBE, MEM_V, MEM_D, QTUBE)	\
-	//SplitCurve(													\
-	//	SEGMENT_IDX,											\
-	//	TUBE.s.MEM_V, TUBE.s.MEM_D, TUBE.e.MEM_V, TUBE.e.MEM_D,	\
-	//	QTUBE.s.MEM_V, QTUBE.h.MEM_V, QTUBE.e.MEM_V				\
-	//)
-
-	static void split_tube(unsigned segment_id, Tube tube, QTube& qTube) {
+	static void split_tube(unsigned segment_id, Tube tube, q_tube& qTube) {
 		
-		SplitCurve(segment_id,
+		split_curve(segment_id,
 			tube.s.pos, tube.s.pos_tan, tube.e.pos, tube.e.pos_tan,
 			qTube.s.pos, qTube.h.pos, qTube.e.pos
 		);
-		SplitCurve(segment_id,
+		split_curve(segment_id,
 			tube.s.rad, tube.s.rad_tan, tube.e.rad, tube.e.rad_tan,
 			qTube.s.rad, qTube.h.rad, qTube.e.rad
 		);
-
-		//SPLIT_CURVE(segment_id, tube.s.pos, pos, pos_tan, qTube);
-		//SPLIT_CURVE(segment_id, tube, rad, rad_tan, qTube);
 	}
 
-	static void SplinePointsToPolyCoeffs(float p0, float h, float p1, float o_c[3]) {
+	static void spline_points_to_poly_coeffs(float p0, float h, float p1, float o_c[3]) {
 
 		o_c[0] = p0;
 		o_c[1] = -2.0f * p0 + 2.0f * h;
@@ -101,12 +91,12 @@ private:
 		return abs(v.x()) > abs(v.z()) ? vec3(-v.y(), v.x(), 0.0f) : vec3(0.0f, -v.z(), v.y());
 	}
 
-	static float EvalPolyD0(float x, float c[3]) {
+	static float eval_poly_d0(float x, float c[3]) {
 
 		return x * (x * c[2] + c[1]) + c[0];
 	}
 
-	static mat4 calculate_transformation_matrix(QTube qTube) {
+	static mat4 calculate_transformation_matrix(q_tube qTube) {
 
 		vec3 x, y, z;
 		float xl, yl;
@@ -134,7 +124,7 @@ private:
 					z = cross(x, y);
 				}
 			} else {
-				y = ProjToPlane(qTube.h.pos - qTube.s.pos, x);
+				y = proj_to_plane(qTube.h.pos - qTube.s.pos, x);
 				yl = length(y);
 
 				if(yl < 0.0001f) {
@@ -155,13 +145,13 @@ private:
 			float xyl = dot(qTube.h.pos - qTube.s.pos, xd);
 
 			float cx[3];
-			SplinePointsToPolyCoeffs(0.0f, xyl, xl, cx);
+			spline_points_to_poly_coeffs(0.0f, xyl, xl, cx);
 
 			float cy[3];
-			SplinePointsToPolyCoeffs(0.0f, yl, 0.0f, cy);
+			spline_points_to_poly_coeffs(0.0f, yl, 0.0f, cy);
 
 			float rc[3];
-			SplinePointsToPolyCoeffs(qTube.s.rad, qTube.h.rad, qTube.e.rad, rc);
+			spline_points_to_poly_coeffs(qTube.s.rad, qTube.h.rad, qTube.e.rad, rc);
 
 			float c_xm[3];
 			c_xm[0] = cx[0] - rc[0]; c_xm[1] = cx[1] - rc[1]; c_xm[2] = cx[2] - rc[2];
@@ -169,8 +159,8 @@ private:
 			float c_xp[3];
 			c_xp[0] = cx[0] + rc[0]; c_xp[1] = cx[1] + rc[1]; c_xp[2] = cx[2] + rc[2];
 
-			xm = std::min(-qTube.s.rad, std::min(xl - qTube.e.rad, EvalPolyD0(saturate(-c_xm[1] / c_xm[2] * 0.5f), c_xm)));
-			xp = std::max(+qTube.s.rad, std::max(xl + qTube.e.rad, EvalPolyD0(saturate(-c_xp[1] / c_xp[2] * 0.5f), c_xp)));
+			xm = std::min(-qTube.s.rad, std::min(xl - qTube.e.rad, eval_poly_d0(saturate(-c_xm[1] / c_xm[2] * 0.5f), c_xm)));
+			xp = std::max(+qTube.s.rad, std::max(xl + qTube.e.rad, eval_poly_d0(saturate(-c_xp[1] / c_xp[2] * 0.5f), c_xp)));
 
 			float c_ym[3];
 			c_ym[0] = cy[0] - rc[0]; c_ym[1] = cy[1] - rc[1]; c_ym[2] = cy[2] - rc[2];
@@ -178,10 +168,10 @@ private:
 			float c_yp[3];
 			c_yp[0] = cy[0] + rc[0]; c_yp[1] = cy[1] + rc[1]; c_yp[2] = cy[2] + rc[2];
 
-			ym = std::min(-qTube.s.rad, std::min(-qTube.e.rad, EvalPolyD0(saturate(-c_ym[1] / c_ym[2] * 0.5f), c_ym)));
-			yp = std::max(+qTube.s.rad, std::max(+qTube.e.rad, EvalPolyD0(saturate(-c_yp[1] / c_yp[2] * 0.5f), c_yp)));
+			ym = std::min(-qTube.s.rad, std::min(-qTube.e.rad, eval_poly_d0(saturate(-c_ym[1] / c_ym[2] * 0.5f), c_ym)));
+			yp = std::max(+qTube.s.rad, std::max(+qTube.e.rad, eval_poly_d0(saturate(-c_yp[1] / c_yp[2] * 0.5f), c_yp)));
 
-			zm = std::max(qTube.s.rad, std::max(qTube.e.rad, EvalPolyD0(saturate(-rc[1] / rc[2] * 0.5f), rc)));
+			zm = std::max(qTube.s.rad, std::max(qTube.e.rad, eval_poly_d0(saturate(-rc[1] / rc[2] * 0.5f), rc)));
 
 			if(xq) { xm = -zm; xp = zm; }
 			if(yq) { ym = -zm; yp = zm; }
@@ -199,7 +189,7 @@ private:
 	}
 
 	// calculates an axis aligned bounding box from the minimal oriented bounding box of a quadratic bezier tube segment
-	static box3 q_spline_bbox(QTube qTube) {
+	static box3 q_spline_bbox(q_tube qTube) {
 
 		box3 bbox;
 
@@ -237,10 +227,12 @@ private:
 		return bbox;
 	}
 
-	// calculates the exact axis aligned bounding box for a quadratic bezier tube segment
-	static box3 q_spline_exact_bbox(QTube qTube) {
+public:
+	hermite_spline_tube() = delete;
+	~hermite_spline_tube() = delete;
 
-		//box3 bbox;
+	// calculates the exact axis aligned bounding box for a quadratic bezier tube segment
+	static box3 q_spline_exact_bbox(q_tube qTube) {
 
 		vec3 p0 = qTube.s.pos;
 		vec3 p1 = qTube.h.pos;
@@ -257,9 +249,9 @@ private:
 		vec3 p1r = p1 - r1;
 		vec3 p2r = p2 - r2;
 
-		vec3 t = cgv::math::clamp((p0r - p1r) / (p0r - 2.0f*p1r + p2r), 0.0f, 1.0f);
+		vec3 t = cgv::math::clamp((p0r - p1r) / (p0r - 2.0f * p1r + p2r), 0.0f, 1.0f);
 		vec3 s = vec3(1.0f) - t;
-		vec3 q = s * s*p0r + 2.0f*s*t*p1r + t * t*p2r;
+		vec3 q = s * s * p0r + 2.0f * s * t * p1r + t * t * p2r;
 
 		mi = cgv::math::min(mi, q);
 		ma = cgv::math::max(ma, q);
@@ -268,19 +260,15 @@ private:
 		p1r = p1 + r1;
 		p2r = p2 + r2;
 
-		t = cgv::math::clamp((p0r - p1r) / (p0r - 2.0f*p1r + p2r), 0.0f, 1.0f);
+		t = cgv::math::clamp((p0r - p1r) / (p0r - 2.0f * p1r + p2r), 0.0f, 1.0f);
 		s = vec3(1.0f) - t;
-		q = s * s*p0r + 2.0f*s*t*p1r + t * t*p2r;
+		q = s * s * p0r + 2.0f * s * t * p1r + t * t * p2r;
 
 		mi = cgv::math::min(mi, q);
 		ma = cgv::math::max(ma, q);
-		
+
 		return box3(mi, ma);
 	}
-
-public:
-	hermite_spline_tube() = delete;
-	~hermite_spline_tube() = delete;
 
 	static box3 calculate_bounding_box(vec3 p0, vec3 p1, vec3 pt0, vec3 pt1, float r0, float r1, float rt0, float rt1, bool exact = false) {
 
@@ -297,7 +285,7 @@ public:
 		tube.e.pos_tan = pt1;
 		tube.e.rad_tan = rt1;
 
-		QTube qTube0, qTube1;
+		q_tube qTube0, qTube1;
 		split_tube(0, tube, qTube0);
 		split_tube(1, tube, qTube1);
 
@@ -312,7 +300,7 @@ public:
 		return bbox;
 	}
 
-	static void split_to_qtubes(vec3 p0, vec3 p1, vec3 pt0, vec3 pt1, float r0, float r1, float rt0, float rt1, std::vector<vec3>& q_tube_nodes) {
+	static void split_to_qtubes(vec3 p0, vec3 p1, vec3 pt0, vec3 pt1, float r0, float r1, float rt0, float rt1, q_tube& q_tube0, q_tube& q_tube1) {
 		
 		Tube tube;
 		tube.s.pos = p0;
@@ -325,22 +313,14 @@ public:
 		tube.e.pos_tan = pt1;
 		tube.e.rad_tan = rt1;
 
-		QTube qTube0, qTube1;
-		split_tube(0, tube, qTube0);
-		split_tube(1, tube, qTube1);
-
-		q_tube_nodes.push_back(vec3(qTube0.s.pos));//, qTube0.s.rad));
-		q_tube_nodes.push_back(vec3(qTube0.h.pos));//, qTube0.h.rad));
-		q_tube_nodes.push_back(vec3(qTube0.e.pos));//, qTube0.e.rad));
-		q_tube_nodes.push_back(vec3(qTube1.s.pos));//, qTube1.s.rad));
-		q_tube_nodes.push_back(vec3(qTube1.h.pos));//, qTube1.h.rad));
-		q_tube_nodes.push_back(vec3(qTube1.e.pos));//, qTube1.e.rad));
+		split_tube(0, tube, q_tube0);
+		split_tube(1, tube, q_tube1);
 	}	
 
 	// TODO: remove later?
 	static mat4 matrix(vec4 s, vec4 h, vec4 e) {
 
-		QTube qTube;
+		q_tube qTube;
 		qTube.s.pos = vec3(s);
 		qTube.s.rad = s.w();
 		qTube.h.pos = vec3(h);

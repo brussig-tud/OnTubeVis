@@ -22,6 +22,7 @@
 #include <cgv_glutil/sphere_render_data.h>
 
 // local includes
+#include "hermite_spline_tube.h"
 #include "traj_loader.h"
 #include "textured_spline_tube_renderer.h"
 
@@ -126,6 +127,35 @@ protected:
 	texture tex;
 	texture density_tex;
 
+	struct voxel_grid {
+		float voxel_size;
+		ivec3 resolution;
+		box3 bounds;
+		std::vector<float> data;
+
+		void compute_bounding_box(const box3& bbox, unsigned request_resolution) {
+
+			vec3 ext = bbox.get_extent();
+
+			// calculate the cube voxel size and the resolution in each dimension
+			int max_ext_axis = cgv::math::max_index(ext);
+			float max_ext = ext[max_ext_axis];
+			voxel_size = max_ext / static_cast<float>(request_resolution);
+
+			// calculate the number of voxels in each dimension
+			unsigned resx = static_cast<unsigned>(ceilf(ext.x() / voxel_size));
+			unsigned resy = static_cast<unsigned>(ceilf(ext.y() / voxel_size));
+			unsigned resz = static_cast<unsigned>(ceilf(ext.z() / voxel_size));
+
+			resolution = vec3(resx, resy, resz);
+			vec3 grid_ext = vec3(voxel_size) * resolution;
+			vec3 grid_min = bbox.get_min_pnt() - 0.5f * (grid_ext - ext);
+			
+			bounds.ref_min_pnt() = grid_min;
+			bounds.ref_max_pnt() = grid_min + grid_ext;
+		}
+	} density_volume;
+
 	void set_view(void);
 	void update_attribute_bindings(void);
 	void calculate_bounding_box(void);
@@ -133,9 +163,12 @@ protected:
 	float dot2(vec3 v) { return dot(v, v); }
 	vec2 sd_quadratic_bezier(const vec3& A, const vec3& B, const vec3& C, const vec3& pos);
 	std::vector<std::pair<int, float>> traverse_line(vec3& a, vec3& b, vec3& vbox_min, float vsize, ivec3& res);
+
+	int sample_voxel(const ivec3& vidx, const hermite_spline_tube::q_tube& qt);
+	void voxelize_q_tube(const hermite_spline_tube::q_tube& qt);
 	void create_density_volume(context& ctx, unsigned resolution);
 
-	void set_ao_uniforms(context& ctx, const box3& volume_bbox, const uvec3 volume_resolution);
+	void set_ao_uniforms(context& ctx);
 
 	/// draw methods
 	void draw_dnd(context& ctx);
