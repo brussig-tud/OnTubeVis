@@ -1006,7 +1006,7 @@ void tubes::set_ao_uniforms(context& ctx) {
 
 	auto& prog = shaders.get("screen");
 	prog.enable(ctx);
-	prog.set_uniform(ctx, "ambient_occlusion.enable", true);
+	prog.set_uniform(ctx, "ambient_occlusion.enable", false);
 	prog.set_uniform(ctx, "ambient_occlusion.sample_offset", 0.04f);
 	prog.set_uniform(ctx, "ambient_occlusion.distance", 0.8f);
 	//prog.set_uniform(ctx, "ambient_occlusion.strength_scale", 10.0f);

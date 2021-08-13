@@ -53,48 +53,22 @@ namespace cgv {
 			bool res = surface_renderer::validate_attributes(ctx);
 			return res;
 		}
-		bool textured_spline_tube_renderer::init(cgv::render::context& ctx)
-		{
-			bool res = renderer::init(ctx);
-			if (!ref_prog().is_created()) {
-				res = res && build_shader(ctx, build_define_map());
-			}
-			return res;
-		}
-		///
-		shader_define_map textured_spline_tube_renderer::build_define_map()
+		void textured_spline_tube_renderer::update_defines(shader_define_map& defines)
 		{
 			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
 
-			shader_define_map defines;
-			defines["USE_CONSERVATIVE_DEPTH"] = rs.use_conservative_depth ? "1" : "0";
-			return defines;
+			if(rs.use_conservative_depth)
+				defines["USE_CONSERVATIVE_DEPTH"] = "1";
+			else
+				defines.erase("USE_CONSERVATIVE_DEPTH");
 		}
-		///
-		bool textured_spline_tube_renderer::build_shader(context& ctx, const shader_define_map& defines)
+		bool textured_spline_tube_renderer::build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines)
 		{
-			shader_defines = defines;
-			if(ref_prog().is_created())
-				ref_prog().destruct(ctx);
-
-			if(!ref_prog().is_created()) {
-				if(!ref_prog().build_program(ctx, "textured_spline_tube_quad.glpr", true, defines)) {
-					std::cerr << "ERROR in textured_spline_tube_renderer::init() ... could not build program textured_spline_tube_quad.glpr" << std::endl;
-					return false;
-				}
-			}
-			return true;
+			return prog.build_program(ctx, "textured_spline_tube_quad.glpr", true, defines);
 		}
-		/// 
 		bool textured_spline_tube_renderer::enable(context& ctx)
 		{
 			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
-
-			shader_define_map defines = build_define_map();
-			if(defines != shader_defines) {
-				if(!build_shader(ctx, defines))
-					return false;
-			}
 
 			if (!surface_renderer::enable(ctx))
 				return false;

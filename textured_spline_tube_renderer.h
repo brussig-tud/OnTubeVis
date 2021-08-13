@@ -48,12 +48,12 @@ namespace cgv { // @<
 			vec4 viewport;
 
 
-
-
-			/// the shader defines used to build the shader, used to comapre against new defines to determine if the shader needs to be rebuilt
-			shader_define_map shader_defines;
 			/// overload to allow instantiation of box_renderer
 			render_style* create_render_style() const;
+			/// update shader defines based on render style
+			void update_defines(shader_define_map& defines);
+			/// build rounded cone program
+			bool build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines);
 		public:
 			/// initializes position_is_center to true 
 			textured_spline_tube_renderer();
@@ -61,12 +61,6 @@ namespace cgv { // @<
 			void enable_attribute_array_manager(const context& ctx, attribute_array_manager& aam);
 			/// call this after last render/draw call to ensure that no other users of renderer change attribute arrays of given manager
 			void disable_attribute_array_manager(const context& ctx, attribute_array_manager& aam);
-			/// construct shader programs and return whether this was successful, call inside of init method of drawable
-			bool init(context& ctx);
-			///
-			shader_define_map build_define_map();
-			///
-			bool build_shader(context& ctx, const shader_define_map& defines = shader_define_map());
 			///
 			void set_eye_pos(const vec3& eye_pos) { this->eye_pos = eye_pos; }
 			///
