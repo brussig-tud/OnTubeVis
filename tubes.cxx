@@ -32,6 +32,10 @@ tubes::tubes() : node("tubes_instance")
 	render.style.material.set_ambient_occlusion(0.75);
 	render.style.material.set_emission({ 0.125f, 0.125f, 0.125f });
 	render.style.material.set_specular_reflectance({ 0.05f, 0.05f, 0.05f });
+	render.style.use_conservative_depth = true;
+
+	ao_style.sample_distance = 0.5f;
+	ao_style.cone_angle = 40.0f;
 
 	shaders.add("screen", "screen_quad.glpr");
 
@@ -72,8 +76,6 @@ void tubes::handle_args (std::vector<std::string> &args)
 void tubes::clear(cgv::render::context &ctx) {
 	// decrease reference count of the renderers by one
 	ref_textured_spline_tube_renderer(ctx, -1);
-	//ref_spline_tube_renderer(ctx, -1);
-	//ref_rounded_cone_renderer(ctx, -1);
 	ref_box_renderer(ctx, -1);
 	ref_sphere_renderer(ctx, -1);
 
@@ -202,10 +204,6 @@ void tubes::on_set(void *member_ptr) {
 			find_view_as_node()->set_view_up_dir(0, 1, 0);
 
 	// default implementation for all members
-	// - dirty hack to catch GUI changes to render_cfg.render_style
-	//*dynamic_cast<cgv::render::surface_render_style*>(&render.rounded_cone_rstyle) = render_cfg.render_style;
-	//*dynamic_cast<cgv::render::surface_render_style*>(&render.spline_tube_rstyle) = render_cfg.render_style;
-	//*dynamic_cast<cgv::render::surface_render_style*>(&render.textured_spline_tube_rstyle) = render_cfg.render_style;
 	// - remaining logic
 	update_member(member_ptr);
 	post_redraw();
@@ -214,8 +212,6 @@ void tubes::on_set(void *member_ptr) {
 bool tubes::init (cgv::render::context &ctx)
 {
 	// increase reference count of the renderers by one
-	//auto &rcr = cgv::render::ref_rounded_cone_renderer(ctx, 1);
-	//auto &str = cgv::render::ref_spline_tube_renderer(ctx, 1);
 	auto &tstr = ref_textured_spline_tube_renderer(ctx, 1);
 	auto &br = ref_box_renderer(ctx, 1);
 	bool success = tstr.ref_prog().is_linked() && br.ref_prog().is_linked();
@@ -412,14 +408,21 @@ void tubes::create_gui (void)
 	if (begin_tree_node("Tube Style", render.style, false))
 	{
 		align("\a");
-		add_gui("style", render.style);
+		add_gui("tube_style", render.style);
 		align("\b");
 		end_tree_node(render.style);
 	}
 
+	if(begin_tree_node("AO Style", ao_style, false)) {
+		align("\a");
+		add_gui("ao_style", ao_style);
+		align("\b");
+		end_tree_node(ao_style);
+	}
+
 	add_member_control(this, "Render Percentage", render.percentage, "value_slider", "min=0.0;step=0.001;max=1.0;ticks=true");
 	add_member_control(this, "Sort by Distance", render.sort, "check");
-
+	
 	// Misc settings contractable section
 	add_decorator("Miscellaneous", "heading", "level=1");
 	if (begin_tree_node("Tools (Persistent by Default)", misc_cfg, false))
@@ -442,6 +445,7 @@ void tubes::set_view(void)
 {
 	if(!view_ptr || !traj_mgr.has_data()) return;
 
+	// TODO: is an accurate bounding box necessary?
 	// get a crude approximation of the bounding box
 	auto& positions = render.data->positions;
 
@@ -603,7 +607,7 @@ tubes::vec2 tubes::sd_quadratic_bezier(const vec3& A, const vec3& B, const vec3&
 		float t = cgv::math::clamp(uv.x() + uv.y() - kx, 0.0f, 1.0f);
 
 		// 1 root
-		res = vec2(dot2(d + (c + b * t)*t), t);
+		res = vec2(cgv::math::sqr_length(d + (c + b * t)*t), t);
 	} else {
 		float z = sqrt(-p);
 		float v = acos(q / (p*z*2.0f)) / 3.0f;
@@ -612,10 +616,10 @@ tubes::vec2 tubes::sd_quadratic_bezier(const vec3& A, const vec3& B, const vec3&
 		vec3 t = cgv::math::clamp(vec3(m + m, -n - m, n - m) * z - kx, 0.0f, 1.0f);
 
 		// 3 roots, but only need two
-		float dis = dot2(d + (c + b * t.x())*t.x());
+		float dis = cgv::math::sqr_length(d + (c + b * t.x())*t.x());
 		res = vec2(dis, t.x());
 
-		dis = dot2(d + (c + b * t.y())*t.y());
+		dis = cgv::math::sqr_length(d + (c + b * t.y())*t.y());
 		if(dis < res.x()) res = vec2(dis, t.y());
 	}
 
@@ -623,71 +627,6 @@ tubes::vec2 tubes::sd_quadratic_bezier(const vec3& A, const vec3& B, const vec3&
 	return res;
 }
 
-std::vector<std::pair<int, float>> tubes::traverse_line(vec3& a, vec3& b, vec3& vbox_min, float vsize, ivec3& res) {
-	
-	std::vector<std::pair<int, float>> intervals;
-
-	// Amanatides Woo line traversal algorithm
-	vec3 dir = normalize(vec3(b - a));
-	vec3 dt;
-	ivec3 step;
-	vec3 orig_grid = a - vbox_min;
-	vec3 dest_grid = b - vbox_min;
-	vec3 t(0.0f);
-	float ct = 0.0f;
-
-	for(unsigned i = 0; i < 3; ++i) {
-		float delta = vsize / dir[i];
-		if(dir[i] < 0.0f) {
-			dt[i] = -delta;
-			t[i] = (floor(orig_grid[i] / vsize) * vsize - orig_grid[i]) / dir[i];
-			step[i] = -1;
-		} else {
-			dt[i] = delta;
-			t[i] = ((floor(orig_grid[i] / vsize) + 1) * vsize - orig_grid[i]) / dir[i];
-			step[i] = 1;
-		}
-	}
-
-	ivec3 cell_idx(
-		(int)(floor(orig_grid.x() / vsize)),
-		(int)(floor(orig_grid.y() / vsize)),
-		(int)(floor(orig_grid.z() / vsize))
-	);
-
-	ivec3 end_idx(
-		(int)(floor(dest_grid.x() / vsize)),
-		(int)(floor(dest_grid.y() / vsize)),
-		(int)(floor(dest_grid.z() / vsize))
-	);
-
-	intervals.push_back(std::make_pair<int, float>(cell_idx[0] + res[0] * cell_idx[1] + res[0] * res[1] * cell_idx[2], 0.0f));
-
-	vec3 p = orig_grid;
-	size_t idx = 0;
-
-	while(cell_idx != end_idx) {
-		unsigned mi = cgv::math::min_index(t);
-
-		cell_idx[mi] += step[mi];
-		if(cell_idx[mi] < 0 || cell_idx[mi] >= res[mi])
-			break;
-		p = orig_grid + t[mi] * dir;
-		t[mi] += dt[mi];
-
-		float l = (orig_grid - p).length() - ct;
-		ct += l;
-		intervals[idx].second = l;
-
-		intervals.push_back(std::make_pair<int, float>(cell_idx[0] + res[0] * cell_idx[1] + res[0] * res[1] * cell_idx[2], 0.0f));
-		++idx;
-	}
-
-	float l = (p - dest_grid).length();
-	intervals[idx].second = l;
-
-	return intervals;
-}
 int tubes::sample_voxel(const ivec3& vidx, const hermite_spline_tube::q_tube& qt) {
 
 	const unsigned num_samples_per_dim = 3;
@@ -734,35 +673,21 @@ int tubes::sample_voxel(const ivec3& vidx, const hermite_spline_tube::q_tube& qt
 
 	vec3 spos = voxel_min + sample_position_offsets[0];
 	vec2 dist = sd_quadratic_bezier(qt.s.pos, qt.h.pos, qt.e.pos, spos);
-	if(dist.x() - qt.s.rad > half_voxel_diag) {
+	if(dist.x() - qt.s.rad > half_voxel_diag)
 		return 0;
-	}
 
 	for(unsigned k = 1; k < 27; ++k) {
-	//for(unsigned k = 0; k < num_samples_per_dim; ++k) {
-	//	for(unsigned j = 0; j < num_samples_per_dim; ++j) {
-	//		for(unsigned i = 0; i < num_samples_per_dim; ++i) {
-				//vec3 idx = sample_position_offsets[k];// (i, j, k);
+		//vec3 idx = sample_position_offsets[k];// (i, j, k);
 		vec3 spos = voxel_min + sample_position_offsets[k];// vo + idx * vs;
 
-				// TODO: move to own quadratic tube class
-				vec2 dist = sd_quadratic_bezier(qt.s.pos, qt.h.pos, qt.e.pos, spos);
+		// TODO: move to own quadratic tube class
+		vec2 dist = sd_quadratic_bezier(qt.s.pos, qt.h.pos, qt.e.pos, spos);
 
-				// TODO: currentyl a constant radius per segment is assumed
-				if(dist.x() <= qt.s.rad) {
-					++count;
-					//srd.add(spos);
-					//srd.add(0.05f * density_volume.voxel_size);
-					//srd.add(rgb(1.0f, 0.0f, 0.0f));
-				}// else {
-				//	srd.add(spos);
-				//	srd.add(0.01f * density_volume.voxel_size);
-				//	srd.add(rgb(0.5f, 0.5f, 0.5f));
-				//}
-			}
-	//	}
-	//}
-
+		// TODO: currently a constant radius per segment is assumed
+		if(dist.x() <= qt.s.rad)
+			++count;
+	}
+	
 	return count;
 }
 
@@ -770,10 +695,8 @@ void tubes::voxelize_q_tube(const hermite_spline_tube::q_tube& qt) {
 
 	box3 box = hermite_spline_tube::q_spline_exact_bbox(qt);
 
-	// TODO: look at particle voxelizer from master thesis for correct formulas
 	ivec3 sidx((box.get_min_pnt() - density_volume.bounds.ref_min_pnt()) / density_volume.voxel_size);
 	ivec3 eidx((box.get_max_pnt() - density_volume.bounds.ref_min_pnt()) / density_volume.voxel_size);
-
 	sidx = cgv::math::clamp(sidx, ivec3(0), density_volume.resolution - 1);
 	eidx = cgv::math::clamp(eidx, ivec3(0), density_volume.resolution - 1);
 
@@ -809,41 +732,6 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 	auto& radii = render.data->radii;
 	auto& indices = render.data->indices;
 
-//#pragma omp parallel for
-	/*for(int i = 0; i < indices.size(); i += 2) {
-		unsigned idx_a = indices[i + 0];
-		unsigned idx_b = indices[i + 1];
-
-		vec3 p0 = positions[idx_a];
-		vec3 p1 = positions[idx_b];
-		float r0 = radii[idx_a];
-		float r1 = radii[idx_b];
-		vec4 t0 = tangents[idx_a];
-		vec4 t1 = tangents[idx_b];
-
-		std::vector<std::pair<int, float>> intervals = traverse_line(p0, p1, vbox_min, vsize, ivec3(vres));
-
-		float total_length = (p1 - p0).length();
-		float accum_length = 0.0f;
-
-		for(size_t k = 0; k < intervals.size(); ++k) {
-			float length = intervals[k].second;
-
-			float alpha0 = accum_length / total_length;
-			float alpha1 = (accum_length + length) / total_length;
-
-			float radius0 = (1.0f - alpha0) * r0 + alpha0 * r1;
-			float radius1 = (1.0f - alpha1) * r0 + alpha1 * r1;
-
-			float vol = (3.1415f / 3.0f) * (r0*r0 + r0 * r1 + r1 * r1) * length;
-			float vol_rel = vol / vvol;
-
-			accum_length += length;
-			voxels[intervals[k].first] += vol_rel;
-		}
-	}*/
-
-
 	srd.clear();
 
 #pragma omp parallel for
@@ -869,32 +757,7 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 
 		voxelize_q_tube(qt0);
 		voxelize_q_tube(qt1);
-
-		/*float total_length = (p1 - p0).length();
-		float accum_length = 0.0f;
-
-		for(size_t k = 0; k < intervals.size(); ++k) {
-			float length = intervals[k].second;
-
-			float alpha0 = accum_length / total_length;
-			float alpha1 = (accum_length + length) / total_length;
-
-			float radius0 = (1.0f - alpha0) * r0 + alpha0 * r1;
-			float radius1 = (1.0f - alpha1) * r0 + alpha1 * r1;
-
-			float vol = (3.1415f / 3.0f) * (r0 * r0 + r0 * r1 + r1 * r1) * length;
-			float vol_rel = vol / vvol;
-
-			accum_length += length;
-			voxels[intervals[k].first] += vol_rel;
-		}*/
 	}
-
-
-
-
-
-
 
 	for(unsigned i = 0; i < density_volume.data.size(); ++i)
 		density_volume.data[i] = cgv::math::clamp(density_volume.data[i], 0.0f, 1.0f);
@@ -914,7 +777,7 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
-	set_ao_uniforms(ctx);
+	ao_style.derive_voxel_grid_parameters(density_volume);
 
 	brd.clear();
 	//srd.clear();
@@ -999,49 +862,6 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 	srd.set_out_of_date();
 }
 
-void tubes::set_ao_uniforms(context& ctx) {
-	
-	const box3& volume_bbox = density_volume.bounds;
-	const ivec3& volume_resolution = density_volume.resolution;
-
-	auto& prog = shaders.get("screen");
-	prog.enable(ctx);
-	prog.set_uniform(ctx, "ambient_occlusion.enable", false);
-	prog.set_uniform(ctx, "ambient_occlusion.sample_offset", 0.04f);
-	prog.set_uniform(ctx, "ambient_occlusion.distance", 0.8f);
-	//prog.set_uniform(ctx, "ambient_occlusion.strength_scale", 10.0f);
-	prog.set_uniform(ctx, "ambient_occlusion.strength_scale", 1.0f);
-
-	unsigned max_extent_axis = cgv::math::max_index(volume_bbox.get_extent());
-
-	prog.set_uniform(ctx, "ambient_occlusion.tex_offset", volume_bbox.get_min_pnt());
-	prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", vec3(1.0f) / volume_bbox.get_extent());
-	prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", vec3(volume_resolution[max_extent_axis]) / vec3(volume_resolution));
-	prog.set_uniform(ctx, "ambient_occlusion.texel_size", 1.0f / volume_resolution[max_extent_axis]);
-
-	// generate 3 cone sample directions
-	std::vector<vec3> sample_dirs(3);
-	float cone_angle = 50.0f;
-
-	float alpha2 = cgv::math::deg2rad(cone_angle / 2.0f);
-	float beta = cgv::math::deg2rad(90.0f - (cone_angle / 2.0f));
-
-	float a = sinf(alpha2);
-	float dh = tanf(cgv::math::deg2rad(30.0f)) * a;
-
-	float c = length(vec2(a, dh));
-
-	float b = sqrtf(1 - c * c);
-
-	sample_dirs[0] = vec3(0.0f, b, c);
-	sample_dirs[1] = vec3(a, b, -dh);
-	sample_dirs[2] = vec3(-a, b, -dh);
-
-	prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", 2.0f * sinf(alpha2) / sinf(beta));
-	prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", sample_dirs);
-	prog.disable(ctx);
-}
-
 void tubes::draw_dnd(context& ctx) {
 
 	static const rgb dnd_col(1, 0.5f, 0.5f);
@@ -1083,13 +903,9 @@ void tubes::draw_trajectories(context& ctx) {
 	vec3 eye_pos = view_ptr->get_eye();
 	const vec3& view_dir = view_ptr->get_view_dir();
 
-
 	fbc.enable(ctx);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//ctx.push_modelview_matrix();
-
 	
-
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 
 	// sort the indices
@@ -1102,7 +918,6 @@ void tubes::draw_trajectories(context& ctx) {
 	tstr.set_eye_pos(eye_pos);
 	tstr.set_view_dir(view_dir);
 	tstr.set_viewport(vec4(2.0f) / vec4(viewport[0], viewport[1], viewport[2], viewport[3]));
-	//tstr.enable_conservative_depth(render.use_conservative_depth);
 	tstr.set_render_style(render.style);
 	tstr.enable_attribute_array_manager(ctx, render.aam);
 	//tstr.render(ctx, 0, render.data->indices.size());
@@ -1114,25 +929,23 @@ void tubes::draw_trajectories(context& ctx) {
 
 	tstr.disable_attribute_array_manager(ctx, render.aam);
 
-
-	//ctx.pop_modelview_matrix();
 	fbc.disable(ctx);
 
-
-
-	/*
-	fragment_file:fragment.glfs
-	fragment_file:side.glsl
-	fragment_file:lights.glsl
-	fragment_file:brdf.glsl
-	fragment_file:bump_map.glfs
-	fragment_file:surface.glsl
-	*/
-
-	
 	shader_program& prog = shaders.get("screen");
 	prog.enable(ctx);
 	prog.set_uniform(ctx, "use_gamma", true);
+	prog.set_uniform(ctx, "ambient_occlusion.enable", ao_style.enable);
+	prog.set_uniform(ctx, "ambient_occlusion.sample_offset", ao_style.sample_offset);
+	prog.set_uniform(ctx, "ambient_occlusion.sample_distance", ao_style.sample_distance);
+	prog.set_uniform(ctx, "ambient_occlusion.strength_scale", ao_style.strength_scale);
+
+	prog.set_uniform(ctx, "ambient_occlusion.tex_offset", ao_style.texture_offset);
+	prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", ao_style.texture_scaling);
+	prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", ao_style.texcoord_scaling);
+	prog.set_uniform(ctx, "ambient_occlusion.texel_size", ao_style.texel_size);
+
+	prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
+	prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
 
 	const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
 	
@@ -1170,3 +983,41 @@ cgv::base::object_registration<tubes> reg_tubes("");
 #ifdef CGV_FORCE_STATIC
 	cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
 #endif
+
+
+
+
+
+#include <cgv/gui/provider.h>
+
+namespace cgv {
+	namespace gui {
+
+	struct ambient_occlusion_style_gui_creator : public gui_creator {
+		/// attempt to create a gui and return whether this was successful
+		bool create(provider* p, const std::string& label, void* value_ptr, const std::string& value_type, const std::string& gui_type, const std::string& options, bool*)
+		{
+			if(value_type != cgv::type::info::type_name<tubes::ambient_occlusion_style>::get_name())
+				return false;
+
+			tubes::ambient_occlusion_style* s_ptr = reinterpret_cast<tubes::ambient_occlusion_style*>(value_ptr);
+			cgv::base::base* b = dynamic_cast<cgv::base::base*>(p);
+
+			p->add_member_control(b, "Enable", s_ptr->enable, "check");
+			p->add_member_control(b, "Sample Offset", s_ptr->sample_offset, "value_slider", "min=0.0;step=0.0001;max=0.2;log=true;ticks=true");
+			p->add_member_control(b, "Sample Distance", s_ptr->sample_distance, "value_slider", "min=0.0;step=0.0001;max=1.0;log=true;ticks=true");
+			p->add_member_control(b, "Strength Scale", s_ptr->strength_scale, "value_slider", "min=0.0;step=0.0001;max=10.0;log=true;ticks=true");
+			
+			connect_copy(
+				p->add_member_control(b, "Cone Angle", s_ptr->cone_angle, "value_slider", "min=10.0;step=0.0001;max=90.0;ticks=true")->value_change,
+				cgv::signal::rebind(s_ptr, &tubes::ambient_occlusion_style::generate_sample_dirctions));
+
+			return true;
+		}
+	};
+
+#include <cgv_gl/gl/lib_begin.h>
+
+	cgv::gui::gui_creator_registration<ambient_occlusion_style_gui_creator> ambient_occlusion_s_gc_reg("ambient_occlusion_style_gui_creator");
+	}
+}

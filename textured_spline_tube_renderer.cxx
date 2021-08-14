@@ -45,7 +45,6 @@ namespace cgv {
 			has_radii = false;
 			has_tangents = false;
 		}
-
 		bool textured_spline_tube_renderer::validate_attributes(const context& ctx) const
 		{
 			// validate set attributes
