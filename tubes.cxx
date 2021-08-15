@@ -1,7 +1,7 @@
 #include "tubes.h"
 
 // CGV framework core
-//#include <cgv/media/image/image.h>
+#include <cgv/math/ftransform.h>
 #include <cgv/media/image/image_reader.h>
 #include <cgv/utils/advanced_scan.h>
 #include <cgv/utils/stopwatch.h>
@@ -78,6 +78,7 @@ void tubes::clear(cgv::render::context &ctx) {
 	ref_textured_spline_tube_renderer(ctx, -1);
 	ref_box_renderer(ctx, -1);
 	ref_sphere_renderer(ctx, -1);
+	ref_volume_renderer(ctx, -1);
 
 	shaders.clear(ctx);
 	fbc.clear(ctx);
@@ -223,6 +224,7 @@ bool tubes::init (cgv::render::context &ctx)
 	success &= render.aam.init(ctx);
 
 	ref_sphere_renderer(ctx, 1);
+	ref_volume_renderer(ctx, 1);
 
 	brd.init(ctx);
 	srd.init(ctx);
@@ -267,6 +269,56 @@ bool tubes::init (cgv::render::context &ctx)
 		tex.set_wrap_t(cgv::render::TextureWrap::TW_REPEAT);
 	}
 	image.close();
+
+
+
+
+	{
+		cgv::data::data_format tex_format;
+		cgv::media::image::image_reader image(tex_format);
+		cgv::data::data_view tex_data;
+
+		std::string file_name = "res://inferno.bmp";
+		if(!image.read_image(file_name, tex_data)) {
+			std::cout << "Error: Could not read image file " << file_name << std::endl;
+			return false;
+		} else {
+			// TODO: make data_view reduce operations change format or make texture create get dims from view and not format (ask Stefan)
+			cgv::data::data_view tex_data_1d = tex_data(0);
+
+			unsigned w = tex_data_1d.get_format()->get_width();
+			std::vector<unsigned char> data(4 * w, 0u);
+
+			unsigned char* src_ptr = tex_data_1d.get_ptr<unsigned char>();
+			//memcpy(data.data(), src_ptr, 3 * w);
+
+			auto gamma = [](const unsigned char& v) {
+				float fv = static_cast<float>(v) / 255.0f;
+				fv = pow(fv, 2.2f);
+				return static_cast<unsigned char>(255.0f * fv);
+			};
+
+			for(int i = 0; i < w; ++i) {
+				float alpha = static_cast<float>(i/4) / static_cast<float>(w);
+				data[4*i + 0] = gamma(src_ptr[3*i + 0]);
+				data[4*i + 1] = gamma(src_ptr[3*i + 1]);
+				data[4*i + 2] = gamma(src_ptr[3*i + 2]);
+				data[4*i + 3] = static_cast<unsigned char>(255.0f * alpha);
+			}
+
+			tex_data_1d.set_format(new cgv::data::data_format(w, cgv::type::info::TypeId::TI_UINT8, cgv::data::ComponentFormat::CF_RGBA));
+			tex_data_1d.set_ptr((void*)data.data());
+
+			tf_tex.create(ctx, tex_data_1d, 0);
+			tf_tex.set_min_filter(cgv::render::TextureFilter::TF_LINEAR);
+			tf_tex.set_mag_filter(cgv::render::TextureFilter::TF_LINEAR);
+			tf_tex.set_wrap_s(cgv::render::TextureWrap::TW_CLAMP_TO_EDGE);
+		}
+		image.close();
+	}
+
+
+
 
 	/*
 	Is this of interest?
@@ -370,8 +422,12 @@ void tubes::draw (cgv::render::context &ctx)
 		draw_dnd(ctx);
 
 	// draw dataset using selected renderer
-	if(traj_mgr.has_data())
-		draw_trajectories(ctx);
+	if(show_volume) {
+		draw_density_volume(ctx);
+	} else {
+		if(traj_mgr.has_data())
+			draw_trajectories(ctx);
+	}
 
 	/*auto& br = ref_box_renderer(ctx);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -420,8 +476,17 @@ void tubes::create_gui (void)
 		end_tree_node(ao_style);
 	}
 
+	if(begin_tree_node("Volume Style", vstyle, false)) {
+		align("\a");
+		add_gui("vstyle", vstyle);
+		align("\b");
+		end_tree_node(vstyle);
+	}
+
 	add_member_control(this, "Render Percentage", render.percentage, "value_slider", "min=0.0;step=0.001;max=1.0;ticks=true");
 	add_member_control(this, "Sort by Distance", render.sort, "check");
+
+	add_member_control(this, "Show Volume", show_volume, "check");
 	
 	// Misc settings contractable section
 	add_decorator("Miscellaneous", "heading", "level=1");
@@ -973,6 +1038,22 @@ void tubes::draw_trajectories(context& ctx) {
 	density_tex.disable(ctx);
 
 	prog.disable(ctx);
+}
+
+void tubes::draw_density_volume(context& ctx) {
+
+	auto& vr = ref_volume_renderer(ctx);
+	vr.set_render_style(vstyle);
+	vr.set_volume_texture(&density_tex);
+	//vr.set_transfer_function_texture(&tf_editor_ptr->ref_tex());
+	vr.set_transfer_function_texture(&tf_tex);
+	//vr.set_gradient_texture(&dataset.gradient_tex);
+	//vr.set_depth_texture(fbc.attachment_texture_ptr("depth"));
+
+	vr.set_bounding_box(density_volume.bounds);
+	vr.transform_to_bounding_box(true);
+
+	vr.render(ctx, 0, 0);
 }
 
 ////

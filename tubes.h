@@ -10,6 +10,9 @@
 #include <cgv/gui/provider.h>
 #include <cgv/render/drawable.h>
 
+// CGV OpenGL lib
+#include <cgv_gl/volume_renderer.h>
+
 // CGV framework graphics utility
 #include <cgv_glutil/frame_buffer_container.h>
 #include <cgv_glutil/radix_sort_4way.h>
@@ -127,7 +130,7 @@ protected:
 	cgv::glutil::sphere_render_data<> srd;
 
 
-	
+	volume_render_style vstyle;
 
 	/// store a pointer to the view for fast access
 	view* view_ptr = nullptr;
@@ -200,9 +203,12 @@ protected:
 
 	box3 bbox;
 	
+	bool show_volume = false;
+
 	/// test texture
 	texture tex;
 	texture density_tex;
+	texture tf_tex;
 
 	voxel_grid density_volume;
 	ambient_occlusion_style ao_style;
@@ -220,6 +226,7 @@ protected:
 	/// draw methods
 	void draw_dnd(context& ctx);
 	void draw_trajectories(context& ctx);
+	void draw_density_volume(context& ctx);
 
 public:
 	tubes();
