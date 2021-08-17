@@ -6,9 +6,6 @@
 #include <cgv/utils/advanced_scan.h>
 #include <cgv/utils/stopwatch.h>
 
-// CGV OpenGL lib
-#include <cgv_gl/box_renderer.h>
-
 // fltk_gl_view for controlling instant redraw
 #include <plugins/cg_fltk/fltk_gl_view.h>
 
@@ -45,9 +42,6 @@ tubes::tubes() : node("tubes_instance")
 	fbc.add_attachment("position", "flt32[R,G,B]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("texcoord", "flt32[R,G]");
-
-	brd = cgv::glutil::box_render_data<>(true);
-	srd = cgv::glutil::sphere_render_data<>(true);
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -82,9 +76,6 @@ void tubes::clear(cgv::render::context &ctx) {
 
 	shaders.clear(ctx);
 	fbc.clear(ctx);
-
-	brd.destruct(ctx);
-	srd.destruct(ctx);
 
 	delete render.sorter;
 	render.sorter = nullptr;
@@ -214,26 +205,14 @@ bool tubes::init (cgv::render::context &ctx)
 {
 	// increase reference count of the renderers by one
 	auto &tstr = ref_textured_spline_tube_renderer(ctx, 1);
-	auto &br = ref_box_renderer(ctx, 1);
-	bool success = tstr.ref_prog().is_linked() && br.ref_prog().is_linked();
+	auto &vr = ref_volume_renderer(ctx, 1);
+	bool success = tstr.ref_prog().is_linked() && vr.ref_prog().is_linked();
 
 	// load all shaders in the library
 	success &= shaders.load_shaders(ctx);
 
 	// init shared attribute array manager
 	success &= render.aam.init(ctx);
-
-	ref_sphere_renderer(ctx, 1);
-	ref_volume_renderer(ctx, 1);
-
-	brd.init(ctx);
-	srd.init(ctx);
-
-	// TODO: test some stuff
-	/*if(traj_mgr.has_data()) {
-		const traj_dataset<float>& ds = traj_mgr.dataset(0);
-		const std::vector<traj_dataset<float>::trajectory>& trajs = ds.trajectories();
-	}*/
 
 	render.sorter = new cgv::glutil::radix_sort_4way();
 	render.sorter->set_value_format(TI_UINT32, 2);
@@ -270,120 +249,7 @@ bool tubes::init (cgv::render::context &ctx)
 	}
 	image.close();
 
-
-
-
-	{
-		cgv::data::data_format tex_format;
-		cgv::media::image::image_reader image(tex_format);
-		cgv::data::data_view tex_data;
-
-		std::string file_name = "res://inferno.bmp";
-		if(!image.read_image(file_name, tex_data)) {
-			std::cout << "Error: Could not read image file " << file_name << std::endl;
-			return false;
-		} else {
-			// TODO: make data_view reduce operations change format or make texture create get dims from view and not format (ask Stefan)
-			cgv::data::data_view tex_data_1d = tex_data(0);
-
-			unsigned w = tex_data_1d.get_format()->get_width();
-			std::vector<unsigned char> data(4 * w, 0u);
-
-			unsigned char* src_ptr = tex_data_1d.get_ptr<unsigned char>();
-			//memcpy(data.data(), src_ptr, 3 * w);
-
-			auto gamma = [](const unsigned char& v) {
-				float fv = static_cast<float>(v) / 255.0f;
-				fv = pow(fv, 2.2f);
-				return static_cast<unsigned char>(255.0f * fv);
-			};
-
-			for(int i = 0; i < w; ++i) {
-				float alpha = static_cast<float>(i/4) / static_cast<float>(w);
-				data[4*i + 0] = gamma(src_ptr[3*i + 0]);
-				data[4*i + 1] = gamma(src_ptr[3*i + 1]);
-				data[4*i + 2] = gamma(src_ptr[3*i + 2]);
-				data[4*i + 3] = static_cast<unsigned char>(255.0f * alpha);
-			}
-
-			tex_data_1d.set_format(new cgv::data::data_format(w, cgv::type::info::TypeId::TI_UINT8, cgv::data::ComponentFormat::CF_RGBA));
-			tex_data_1d.set_ptr((void*)data.data());
-
-			tf_tex.create(ctx, tex_data_1d, 0);
-			tf_tex.set_min_filter(cgv::render::TextureFilter::TF_LINEAR);
-			tf_tex.set_mag_filter(cgv::render::TextureFilter::TF_LINEAR);
-			tf_tex.set_wrap_s(cgv::render::TextureWrap::TW_CLAMP_TO_EDGE);
-		}
-		image.close();
-	}
-
-
-
-
-	/*
-	Is this of interest?
-	https://www.shadertoy.com/view/XtdyDn
-	*/
-
-	/*
-	Calculation of the v texture coordinate (around the tube) is taken from:
-	Works for varying radii.
-	Produces twisting under certein circumstances.
-	Problem with bulge data set.
-	https://www.shadertoy.com/view/XssGWl
-
-	// geometrymatrix
-	geometrymatrix[0] = vec4(endpoint0,0.);
-	geometrymatrix[1] = vec4(endpoint1,0.);
-	geometrymatrix[2] = vec4(tangent0,0.);
-	geometrymatrix[3] = vec4(tangent1,0.);
-
-	// MG
-	mat4 Mh;
-	Mh[0] = vec4( 2, -2,  1,  1);
-	Mh[1] = vec4(-3,  3, -2, -1);
-	Mh[2] = vec4( 0,  0,  1,  0);
-	Mh[3] = vec4( 1,  0,  0,  0);
-	sp.MG = geometrymatrix * Mh;
-
-
-
-	// ORTHO
-	vec3 Spline_EvaluateTangent(mat4 MG, float t )
-{
-	vec4 tvec = vec4(3.*t*t, 2.*t, 1, 0.);
-	vec3 p = (MG*tvec).xyz;
-	return p;
-}
-
-vec3 Spline_EvaluateBinormal(mat4 MG, float t )
-{
-	vec4 tvec = vec4(6.*t, 2., 0., 0.);
-	vec3 p = (MG*tvec).xyz;
-	return p;
-}
-
-vec3 SplineOrtho(float t)
-{
-//	return normalize( Spline_EvaluateBinormal(spline.MG,t));
-	return normalize(cross(Spline_EvaluateTangent(spline.MG,t),Spline_EvaluateBinormal(spline.MG,t)));
-}
-
-
-	// TEXTURING
-	vec3 n = normalize(X-C);
-			//	vec3 n = C;
-				//c = vec3(n*0.5+0.5);
-				c = 0.5*n+0.5;//vec3(max(dot(n,L),0.));
-#if 1
-				vec3 b = SplineOrtho(t_close);
-				float v = acos(dot(b,n));
-				//c *= 0.1 + pow(texture(iChannel1,vec2(t_close,v/16.)*4.).xyz,vec3(2.2));
-
-	*/
-
-
-
+	success &= load_transfer_function(ctx);
 
 	// done
 	return success;
@@ -428,26 +294,6 @@ void tubes::draw (cgv::render::context &ctx)
 		if(traj_mgr.has_data())
 			draw_trajectories(ctx);
 	}
-
-	/*auto& br = ref_box_renderer(ctx);
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-	brd.render(ctx, br, box_render_style());
-	
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);*/
-
-	//auto& sr = ref_sphere_renderer(ctx);
-	//srd.render(ctx, sr, sphere_render_style());
-
-	/*std::vector<box3> boxes = { bbox };
-	auto& br = ref_box_renderer(ctx);
-	br.set_box_array(ctx, boxes);
-
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-	br.render(ctx, 0, 1);
-
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);*/
 }
 
 void tubes::create_gui (void)
@@ -532,61 +378,6 @@ void tubes::update_attribute_bindings (void)
 	set_view();
 	calculate_bounding_box();
 	
-	
-	/*
-	3D Quadratic Bezier SDF
-	https://www.shadertoy.com/view/ldj3Wh
-
-	float dot2( in vec3 v ) { return dot(v,v); }
-	vec2 sdBezier(vec3 pos, vec3 A, vec3 B, vec3 C)
-	{
-		vec3 a = B - A;
-		vec3 b = A - 2.0*B + C;
-		vec3 c = a * 2.0;
-		vec3 d = A - pos;
-
-		float kk = 1.0 / dot(b,b);
-		float kx = kk * dot(a,b);
-		float ky = kk * (2.0*dot(a,a)+dot(d,b)) / 3.0;
-		float kz = kk * dot(d,a);
-
-		vec2 res;
-
-		float p = ky - kx*kx;
-		float p3 = p*p*p;
-		float q = kx*(2.0*kx*kx - 3.0*ky) + kz;
-		float h = q*q + 4.0*p3;
-
-		if(h >= 0.0)
-		{
-			h = sqrt(h);
-			vec2 x = (vec2(h, -h) - q) / 2.0;
-			vec2 uv = sign(x)*pow(abs(x), vec2(1.0/3.0));
-			float t = clamp(uv.x+uv.y-kx, 0.0, 1.0);
-
-			// 1 root
-			res = vec2(dot2(d+(c+b*t)*t),t);
-		}
-		else
-		{
-			float z = sqrt(-p);
-			float v = acos( q/(p*z*2.0) ) / 3.0;
-			float m = cos(v);
-			float n = sin(v)*1.732050808;
-			vec3 t = clamp( vec3(m+m,-n-m,n-m)*z-kx, 0.0, 1.0);
-
-			// 3 roots, but only need two
-			float dis = dot2(d+(c+b*t.x)*t.x);
-			res = vec2(dis,t.x);
-
-			dis = dot2(d+(c+b*t.y)*t.y);
-			if( dis<res.x ) res = vec2(dis,t.y );
-		}
-
-		res.x = sqrt(res.x);
-		return res;
-	}
-	*/
 	create_density_volume(ctx, 128);
 
 	if (traj_mgr.has_data())
@@ -646,6 +437,9 @@ void tubes::calculate_bounding_box(void) {
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 }
 
+/** 3D Quadratic Bezier SDF
+	https://www.shadertoy.com/view/ldj3Wh
+*/
 tubes::vec2 tubes::sd_quadratic_bezier(const vec3& A, const vec3& B, const vec3& C, const vec3& pos) {
 
 	vec3 a = B - A;
@@ -797,8 +591,6 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 	auto& radii = render.data->radii;
 	auto& indices = render.data->indices;
 
-	srd.clear();
-
 #pragma omp parallel for
 	for(int i = 0; i < indices.size(); i += 2) {
 		unsigned idx_a = indices[i + 0];
@@ -836,95 +628,9 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 	density_tex.set_border_color(0.0f, 0.0f, 0.0f, 0.0f);
 	density_tex.generate_mipmaps(ctx);
 
-	// Set style attributes of volume rendering
-	//mat4 vol_transformation = cgv::math::translate4(vbox_min) * cgv::math::scale4(vbox_ext);
-	//vstyle.transformation_matrix = vol_transformation;
-
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
 	ao_style.derive_voxel_grid_parameters(density_volume);
-
-	brd.clear();
-	//srd.clear();
-
-	brd.add(density_volume.bounds.get_center(), density_volume.bounds.get_extent());
-	brd.add(rgb(1.0f));
-
-	std::vector<rgb> cols = {
-		rgb(0.5f),
-		rgb(0.0f, 0.0f, 1.0f),
-		rgb(0.0f, 0.5f, 0.5f),
-		rgb(0.0f, 1.0f, 0.0f),
-		rgb(0.5f, 0.5f, 0.0f),
-		rgb(1.0f, 0.0f, 0.0f)
-	};
-
-	const ivec3& vres = density_volume.resolution;
-	const float vsize = density_volume.voxel_size;
-	const vec3& vbox_min = density_volume.bounds.ref_min_pnt();
-
-	for(unsigned z = 0; z < vres.z(); ++z) {
-		for(unsigned y = 0; y < vres.y(); ++y) {
-			for(unsigned x = 0; x < vres.x(); ++x) {
-				vec3 voxel_min = vbox_min + vec3(x, y, z)*vsize;
-				brd.add(voxel_min + 0.5f * vsize, vec3(vsize));
-				brd.add(rgb(0.5f, 1.0f, 0.0f));
-
-				/*for(unsigned k = 0; k < samples; ++k) {
-					for(unsigned j = 0; j < samples; ++j) {
-						for(unsigned i = 0; i < samples; ++i) {
-							vec3 idx(i, j, k);
-							vec3 spos = voxel_min + vo + idx * vs;
-							srd.add(spos);
-
-							int inside = 0;
-							for(unsigned idx = 0; idx < indices.size(); idx += 2) {
-								unsigned idx_a = indices[idx + 0];
-								unsigned idx_b = indices[idx + 1];
-
-								vec3 p0 = positions[idx_a];
-								vec3 p1 = positions[idx_b];
-								float r0 = radii[idx_a];
-								float r1 = radii[idx_b];
-								vec4 t0 = tangents[idx_a];
-								vec4 t1 = tangents[idx_b];
-
-								std::vector<vec4> qtn;
-								hermite_spline_tube::split_to_qtubes(
-									p0, p1,
-									vec3(t0), vec3(t1),
-									r0, r1,
-									t0.w(), t1.w(),
-									qtn
-								);
-
-								vec2 dist0 = sd_quadratic_bezier(qtn[0], qtn[1], qtn[2], spos);
-								vec2 dist1 = sd_quadratic_bezier(qtn[3], qtn[4], qtn[5], spos);
-								
-								if(dist0.x() <= r0)
-									++inside;;
-								if(dist1.x() <= r0)
-									++inside;
-							}
-
-							srd.add(cols[inside]);
-
-							if(inside == 0) {
-								srd.add(0.01f * vsize);
-							} else {
-								srd.add(0.05f * vsize);
-							}
-						}
-					}
-				}*/
-			}
-		}
-	}
-
-	//srd.fill(0.05f*vsize);
-
-	brd.set_out_of_date();
-	srd.set_out_of_date();
 }
 
 void tubes::draw_dnd(context& ctx) {
@@ -1045,15 +751,60 @@ void tubes::draw_density_volume(context& ctx) {
 	auto& vr = ref_volume_renderer(ctx);
 	vr.set_render_style(vstyle);
 	vr.set_volume_texture(&density_tex);
-	//vr.set_transfer_function_texture(&tf_editor_ptr->ref_tex());
 	vr.set_transfer_function_texture(&tf_tex);
-	//vr.set_gradient_texture(&dataset.gradient_tex);
-	//vr.set_depth_texture(fbc.attachment_texture_ptr("depth"));
-
+	
 	vr.set_bounding_box(density_volume.bounds);
 	vr.transform_to_bounding_box(true);
 
 	vr.render(ctx, 0, 0);
+}
+
+bool tubes::load_transfer_function(context& ctx)
+{
+	// attempt to load a transfer function from an image file
+	cgv::data::data_format format;
+	cgv::media::image::image_reader image(format);
+	cgv::data::data_view image_data;
+
+	bool success = false;
+
+	std::string file_name = "res://inferno.bmp";
+	if(!image.read_image(file_name, image_data)) {
+		std::cout << "Error: Could not read image file " << file_name << std::endl;
+	} else {
+		// the image shall be given with a resolution of (width x 1)
+		// yet this still results in a 2d data view
+		// reduce the data to a 1d view and add an alpha channel
+
+		// TODO: make data_view reduce operations change format or make texture create get dims from view and not format (ask Stefan)
+		cgv::data::data_view tex_data_1d = image_data(0);
+
+		unsigned w = tex_data_1d.get_format()->get_width();
+		std::vector<unsigned char> data(4 * w, 0u);
+
+		unsigned char* src_ptr = tex_data_1d.get_ptr<unsigned char>();
+		
+		for(int i = 0; i < w; ++i) {
+			float alpha = static_cast<float>(i / 4) / static_cast<float>(w);
+			data[4 * i + 0] = src_ptr[3 * i + 0];
+			data[4 * i + 1] = src_ptr[3 * i + 1];
+			data[4 * i + 2] = src_ptr[3 * i + 2];
+			data[4 * i + 3] = static_cast<unsigned char>(255.0f * alpha);
+		}
+
+		tex_data_1d.set_format(new cgv::data::data_format(w, cgv::type::info::TypeId::TI_UINT8, cgv::data::ComponentFormat::CF_RGBA));
+		tex_data_1d.set_ptr((void*)data.data());
+
+		tf_tex.create(ctx, tex_data_1d, 0);
+		tf_tex.set_min_filter(cgv::render::TextureFilter::TF_LINEAR);
+		tf_tex.set_mag_filter(cgv::render::TextureFilter::TF_LINEAR);
+		tf_tex.set_wrap_s(cgv::render::TextureWrap::TW_CLAMP_TO_EDGE);
+		
+		success = true;
+	}
+
+	image.close();
+	return success;
 }
 
 ////
@@ -1067,13 +818,12 @@ cgv::base::object_registration<tubes> reg_tubes("");
 
 
 
-
-
 #include <cgv/gui/provider.h>
 
 namespace cgv {
 	namespace gui {
 
+	/// define a gui creator for the ambient occlusion style struct
 	struct ambient_occlusion_style_gui_creator : public gui_creator {
 		/// attempt to create a gui and return whether this was successful
 		bool create(provider* p, const std::string& label, void* value_ptr, const std::string& value_type, const std::string& gui_type, const std::string& options, bool*)

@@ -124,14 +124,6 @@ public:
 	};
 
 protected:
-
-
-	cgv::glutil::box_render_data<> brd;
-	cgv::glutil::sphere_render_data<> srd;
-
-
-	volume_render_style vstyle;
-
 	/// store a pointer to the view for fast access
 	view* view_ptr = nullptr;
 	
@@ -168,8 +160,10 @@ protected:
 		std::set<std::string> files;
 	} dataset;
 
+	// TODO: comment and cleanup members
 	cgv::glutil::frame_buffer_container fbc;
 	cgv::glutil::shader_library shaders;
+	volume_render_style vstyle;
 
 	/// rendering state fields
 	struct {
@@ -227,6 +221,9 @@ protected:
 	void draw_dnd(context& ctx);
 	void draw_trajectories(context& ctx);
 	void draw_density_volume(context& ctx);
+
+	/// helper methods
+	bool load_transfer_function(context& ctx);
 
 public:
 	tubes();
