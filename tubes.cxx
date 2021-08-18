@@ -17,7 +17,7 @@
 
 
 
-tubes::tubes() : node("tubes_instance")
+tubes::tubes() : application_plugin("tubes_instance")
 {
 	// adjust render style defaults
 	render.style.material.set_brdf_type(
@@ -42,6 +42,8 @@ tubes::tubes() : node("tubes_instance")
 	fbc.add_attachment("position", "flt32[R,G,B]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("texcoord", "flt32[R,G]");
+
+	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>();
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -95,7 +97,7 @@ void tubes::stream_help (std::ostream &os)
 	os << "tubes" << std::endl;
 }
 
-bool tubes::handle(cgv::gui::event &e) {
+bool tubes::handle_all(cgv::gui::event &e) {
 	if(e.get_kind() == cgv::gui::EID_MOUSE) {
 		cgv::gui::mouse_event &me = static_cast<cgv::gui::mouse_event&>(e);
 		// select drag and drop events only
@@ -334,6 +336,13 @@ void tubes::create_gui (void)
 
 	add_member_control(this, "Show Volume", show_volume, "check");
 	
+	if(begin_tree_node("Transfer Function Editor", tf_editor_ptr, false)) {
+		align("\a");
+		tf_editor_ptr->create_gui(*this);
+		align("\b");
+		end_tree_node(tf_editor_ptr);
+	}
+
 	// Misc settings contractable section
 	add_decorator("Miscellaneous", "heading", "level=1");
 	if (begin_tree_node("Tools (Persistent by Default)", misc_cfg, false))
@@ -378,7 +387,7 @@ void tubes::update_attribute_bindings (void)
 	set_view();
 	calculate_bounding_box();
 	
-	create_density_volume(ctx, 128);
+	create_density_volume(ctx, 32);
 
 	if (traj_mgr.has_data())
 	{
@@ -630,6 +639,27 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
+
+
+
+
+	// create histogram
+	// TODO: remove later. We dont need this or the transfer function editor for the paper.
+	unsigned n_bins = 256;
+	std::vector<unsigned> hist(n_bins, 0u);
+
+	float x = 0.0f;
+	for(int i = 0; i < density_volume.data.size(); ++i) {
+		// don't count 0
+		unsigned bin = static_cast<unsigned>(density_volume.data[i] * n_bins + 0.5f);
+		if(bin != 0)
+			hist[bin] += 1;
+	}
+
+	tf_editor_ptr->set_histogram(hist);
+
+
+
 	ao_style.derive_voxel_grid_parameters(density_volume);
 }
 
@@ -751,7 +781,8 @@ void tubes::draw_density_volume(context& ctx) {
 	auto& vr = ref_volume_renderer(ctx);
 	vr.set_render_style(vstyle);
 	vr.set_volume_texture(&density_tex);
-	vr.set_transfer_function_texture(&tf_tex);
+	//vr.set_transfer_function_texture(&tf_tex);
+	vr.set_transfer_function_texture(&tf_editor_ptr->ref_tex());
 	
 	vr.set_bounding_box(density_volume.bounds);
 	vr.transform_to_bounding_box(true);

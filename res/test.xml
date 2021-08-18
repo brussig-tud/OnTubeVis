@@ -1,0 +1,5 @@
+<TransferFunction>
+  <Point position="0.000000" r="255" g="255" b="0" opacity="0.000000"/>
+  <Point position="0.499411" r="167" g="143" b="127" opacity="0.496644"/>
+  <Point position="1.000000" r="78" g="30" b="255" opacity="1.000000"/>
+</TransferFunction>

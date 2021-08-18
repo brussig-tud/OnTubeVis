@@ -19,6 +19,7 @@
 #include <cgv_glutil/shader_library.h>
 #include <cgv_glutil/box_render_data.h>
 #include <cgv_glutil/sphere_render_data.h>
+#include <cgv_glutil/transfer_function_editor.h>
 
 // local includes
 #include "hermite_spline_tube.h"
@@ -27,17 +28,88 @@
 
 using namespace cgv::render;
 
+
+
+#include <cgv/gui/mouse_event.h>
+
+class application_plugin :
+	public cgv::base::node,
+	public cgv::render::drawable,
+	public cgv::gui::provider,
+	public cgv::gui::event_handler
+{
+protected:
+	std::vector<cgv::glutil::overlay*> overlays;
+	cgv::glutil::overlay* blocking_overlay_ptr;
+
+public:
+	application_plugin(const std::string& name) : node(name) {
+
+		blocking_overlay_ptr = nullptr;
+	}
+
+	template<class T>
+	T* register_overlay() {
+		static_assert(std::is_base_of<cgv::glutil::overlay, T>::value, "T must inherit from overlay");
+		T* ptr = new T();
+		cgv::base::register_object(base_ptr(ptr));
+		overlays.push_back(ptr);
+		return ptr;
+	}
+
+	bool handle(cgv::gui::event& e) {
+
+		if(e.get_kind() == cgv::gui::EID_MOUSE) {
+			cgv::gui::mouse_event& me = (cgv::gui::mouse_event&) e;
+			cgv::gui::MouseAction ma = me.get_action();
+
+			if(ma == cgv::gui::MA_PRESS) {
+				ivec2 mpos(me.get_x(), me.get_y());
+
+				for(auto overlay_ptr : overlays) {
+					if(overlay_ptr->is_hit(mpos)) {
+						blocking_overlay_ptr = overlay_ptr;
+						break;
+					}
+				}
+			}
+
+			bool was_handled = false;
+
+			if(blocking_overlay_ptr) {
+				blocking_overlay_ptr->handle(e);
+				was_handled = true;
+			}
+
+			if(ma == cgv::gui::MA_RELEASE)
+				blocking_overlay_ptr = nullptr;
+
+			if(was_handled)
+				return true;
+			else
+				return handle_all(e);
+		}
+	}
+	
+	virtual bool handle_all(cgv::gui::event& e) = 0;
+};
+
+
+
+
+
 ////
 // Plugin definition
 
 /// baseline visualization plugin for arbitrary trajectory data as tubes using the framework tube renderers and
 /// trajectory loading facilities
 class tubes :
-	public cgv::base::node,             // derive from node to integrate into global tree structure and to store a name
+	//public cgv::base::node,             // derive from node to integrate into global tree structure and to store a name
 	public cgv::base::argument_handler, // derive from argument handler to be able to process custom arguments
-	public cgv::gui::provider,          // derive from provider to obtain a GUI tab
-	public cgv::gui::event_handler,     // derive from event handler to be able to directly react to user interaction
-	public cgv::render::drawable        // derive from drawable for being able to render
+	//public cgv::gui::provider,          // derive from provider to obtain a GUI tab
+	//public cgv::gui::event_handler,     // derive from event handler to be able to directly react to user interaction
+	//public cgv::render::drawable        // derive from drawable for being able to render
+	public application_plugin
 {
 public:
 	/// real number type
@@ -124,6 +196,18 @@ public:
 	};
 
 protected:
+
+
+	cgv::glutil::transfer_function_editor* tf_editor_ptr;
+
+
+
+
+
+
+
+
+
 	/// store a pointer to the view for fast access
 	view* view_ptr = nullptr;
 	
@@ -236,7 +320,7 @@ public:
 	void stream_help(std::ostream& os);
 	void stream_stats(std::ostream& os) {}
 
-	bool handle(cgv::gui::event& e);
+	bool handle_all(cgv::gui::event& e);
 	void on_set(void* member_ptr);
 
 	bool init(context& ctx);
