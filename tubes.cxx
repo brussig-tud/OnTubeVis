@@ -97,7 +97,13 @@ void tubes::stream_help (std::ostream &os)
 	os << "tubes" << std::endl;
 }
 
-bool tubes::handle_all(cgv::gui::event &e) {
+bool tubes::handle_event(cgv::gui::event &e) {
+
+	if(e.get_kind() == cgv::gui::EID_KEY) {
+		cgv::gui::key_event& ke = (cgv::gui::key_event&) e;
+		std::cout << "tubes:: " << ke.get_key() << std::endl;
+	}
+
 	if(e.get_kind() == cgv::gui::EID_MOUSE) {
 		cgv::gui::mouse_event &me = static_cast<cgv::gui::mouse_event&>(e);
 		// select drag and drop events only
@@ -651,7 +657,7 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 	float x = 0.0f;
 	for(int i = 0; i < density_volume.data.size(); ++i) {
 		// don't count 0
-		unsigned bin = static_cast<unsigned>(density_volume.data[i] * n_bins + 0.5f);
+		unsigned bin = static_cast<unsigned>(density_volume.data[i] * (n_bins - 1));
 		if(bin != 0)
 			hist[bin] += 1;
 	}

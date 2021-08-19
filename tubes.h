@@ -30,6 +30,7 @@ using namespace cgv::render;
 
 
 
+#include <cgv/gui/key_event.h>
 #include <cgv/gui/mouse_event.h>
 
 class application_plugin :
@@ -52,12 +53,13 @@ public:
 	T* register_overlay() {
 		static_assert(std::is_base_of<cgv::glutil::overlay, T>::value, "T must inherit from overlay");
 		T* ptr = new T();
+		ptr->set_parent_handler(this);
 		cgv::base::register_object(base_ptr(ptr));
 		overlays.push_back(ptr);
 		return ptr;
 	}
 
-	bool handle(cgv::gui::event& e) {
+	virtual bool handle(cgv::gui::event& e) final {
 
 		if(e.get_kind() == cgv::gui::EID_MOUSE) {
 			cgv::gui::mouse_event& me = (cgv::gui::mouse_event&) e;
@@ -77,21 +79,29 @@ public:
 			bool was_handled = false;
 
 			if(blocking_overlay_ptr) {
-				blocking_overlay_ptr->handle(e);
+				blocking_overlay_ptr->handle_event(e);
 				was_handled = true;
 			}
 
-			if(ma == cgv::gui::MA_RELEASE)
+			if(ma == cgv::gui::MA_RELEASE) {
 				blocking_overlay_ptr = nullptr;
+			}
 
 			if(was_handled)
 				return true;
 			else
-				return handle_all(e);
+				return handle_event(e);
+		} else {
+			// TODO: handle last registered one first?
+			// TODO: make the overlay have a handles keys flag?
+			// TODO: habv a flag that enables blocking the event from further processing when returnign true or false?
+			for(auto overlay_ptr : overlays)
+				overlay_ptr->handle_event(e);
+			return handle_event(e);
 		}
 	}
 	
-	virtual bool handle_all(cgv::gui::event& e) = 0;
+	virtual bool handle_event(cgv::gui::event& e) = 0;
 };
 
 
@@ -320,7 +330,7 @@ public:
 	void stream_help(std::ostream& os);
 	void stream_stats(std::ostream& os) {}
 
-	bool handle_all(cgv::gui::event& e);
+	bool handle_event(cgv::gui::event& e);
 	void on_set(void* member_ptr);
 
 	bool init(context& ctx);
@@ -328,6 +338,4 @@ public:
 	void draw(context& ctx);
 
 	void create_gui();
-
-	//bool on_exit_request();
 };
