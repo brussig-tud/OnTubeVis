@@ -43,7 +43,7 @@ tubes::tubes() : application_plugin("tubes_instance")
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("texcoord", "flt32[R,G]");
 
-	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>();
+	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -100,8 +100,7 @@ void tubes::stream_help (std::ostream &os)
 bool tubes::handle_event(cgv::gui::event &e) {
 
 	if(e.get_kind() == cgv::gui::EID_KEY) {
-		cgv::gui::key_event& ke = (cgv::gui::key_event&) e;
-		std::cout << "tubes:: " << ke.get_key() << std::endl;
+		// do nothing for now
 	}
 
 	if(e.get_kind() == cgv::gui::EID_MOUSE) {

@@ -50,9 +50,10 @@ public:
 	}
 
 	template<class T>
-	T* register_overlay() {
+	T* register_overlay(const std::string& name) {
 		static_assert(std::is_base_of<cgv::glutil::overlay, T>::value, "T must inherit from overlay");
 		T* ptr = new T();
+		ptr->set_name(name);
 		ptr->set_parent_handler(this);
 		cgv::base::register_object(base_ptr(ptr));
 		overlays.push_back(ptr);
@@ -65,7 +66,7 @@ public:
 			cgv::gui::mouse_event& me = (cgv::gui::mouse_event&) e;
 			cgv::gui::MouseAction ma = me.get_action();
 
-			if(ma == cgv::gui::MA_PRESS) {
+			if(ma == cgv::gui::MA_PRESS || ma == cgv::gui::MA_MOVE) {
 				ivec2 mpos(me.get_x(), me.get_y());
 
 				for(auto overlay_ptr : overlays) {
@@ -94,7 +95,7 @@ public:
 		} else {
 			// TODO: handle last registered one first?
 			// TODO: make the overlay have a handles keys flag?
-			// TODO: habv a flag that enables blocking the event from further processing when returnign true or false?
+			// TODO: habv a flag that enables blocking the event from further processing when returning true or false?
 			for(auto overlay_ptr : overlays)
 				overlay_ptr->handle_event(e);
 			return handle_event(e);
