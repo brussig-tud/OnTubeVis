@@ -14,6 +14,7 @@
 #include <cgv_gl/volume_renderer.h>
 
 // CGV framework graphics utility
+#include <cgv_glutil/application_plugin.h>
 #include <cgv_glutil/frame_buffer_container.h>
 #include <cgv_glutil/radix_sort_4way.h>
 #include <cgv_glutil/shader_library.h>
@@ -28,117 +29,14 @@
 
 using namespace cgv::render;
 
-
-
-#include <cgv/gui/key_event.h>
-#include <cgv/gui/mouse_event.h>
-
-class application_plugin :
-	public cgv::base::node,
-	public cgv::render::drawable,
-	public cgv::gui::provider,
-	public cgv::gui::event_handler
-{
-protected:
-	std::vector<cgv::glutil::overlay*> overlays;
-	cgv::glutil::overlay* last_blocking_overlay_ptr;
-	cgv::glutil::overlay* blocking_overlay_ptr;
-
-public:
-	application_plugin(const std::string& name) : node(name) {
-
-		last_blocking_overlay_ptr = nullptr;
-		blocking_overlay_ptr = nullptr;
-	}
-
-	template<class T>
-	T* register_overlay(const std::string& name) {
-		static_assert(std::is_base_of<cgv::glutil::overlay, T>::value, "T must inherit from overlay");
-		T* ptr = new T();
-		ptr->set_name(name);
-		ptr->set_parent_handler(this);
-		cgv::base::register_object(base_ptr(ptr));
-		overlays.push_back(ptr);
-		return ptr;
-	}
-
-	virtual bool handle(cgv::gui::event& e) final {
-
-		if(e.get_kind() == cgv::gui::EID_MOUSE) {
-			cgv::gui::mouse_event& me = (cgv::gui::mouse_event&) e;
-			cgv::gui::MouseAction ma = me.get_action();
-
-			if(ma == cgv::gui::MA_PRESS || ma == cgv::gui::MA_MOVE || ma == cgv::gui::MA_WHEEL) {
-				ivec2 mpos(me.get_x(), me.get_y());
-
-				blocking_overlay_ptr = nullptr;
-				for(auto overlay_ptr : overlays) {
-					if(overlay_ptr->is_hit(mpos)) {
-						blocking_overlay_ptr = overlay_ptr;
-						break;
-					}
-				}
-
-				if(ma == cgv::gui::MA_MOVE) {
-					if(!last_blocking_overlay_ptr && blocking_overlay_ptr) {
-						me.set_action(cgv::gui::MA_ENTER);
-					}
-					if(last_blocking_overlay_ptr && !blocking_overlay_ptr) {
-						me.set_action(cgv::gui::MA_LEAVE);
-						last_blocking_overlay_ptr->handle_event(e);
-					}
-				}
-			}
-
-			bool was_handled = false;
-			bool result = false;
-
-			if(blocking_overlay_ptr) {
-				result = blocking_overlay_ptr->handle_event(e);
-				was_handled = true;
-			}
-
-			if(ma == cgv::gui::MA_RELEASE) {
-				blocking_overlay_ptr = nullptr;
-			}
-
-			last_blocking_overlay_ptr = blocking_overlay_ptr;
-
-			if(was_handled)
-				// TODO: if overlay is blocking events always return true. But return result if overlay is not fully blocking events.
-				return true;
-				//return result;
-			else
-				return handle_event(e);
-		} else {
-			// TODO: handle last registered one first?
-			// TODO: make the overlay have a handles keys flag?
-			// TODO: have a flag that enables blocking the event from further processing when returning true or false?
-			for(auto overlay_ptr : overlays)
-				overlay_ptr->handle_event(e);
-			return handle_event(e);
-		}
-	}
-	
-	virtual bool handle_event(cgv::gui::event& e) = 0;
-};
-
-
-
-
-
 ////
 // Plugin definition
 
 /// baseline visualization plugin for arbitrary trajectory data as tubes using the framework tube renderers and
 /// trajectory loading facilities
 class tubes :
-	//public cgv::base::node,             // derive from node to integrate into global tree structure and to store a name
 	public cgv::base::argument_handler, // derive from argument handler to be able to process custom arguments
-	//public cgv::gui::provider,          // derive from provider to obtain a GUI tab
-	//public cgv::gui::event_handler,     // derive from event handler to be able to directly react to user interaction
-	//public cgv::render::drawable        // derive from drawable for being able to render
-	public application_plugin
+	public cgv::glutil::application_plugin	// derive from application plugin, which is a node, drawable, gui provider and event handler and can handle overlays
 {
 public:
 	/// real number type
