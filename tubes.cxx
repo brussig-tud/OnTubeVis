@@ -31,6 +31,8 @@ tubes::tubes() : application_plugin("tubes_instance")
 	render.style.material.set_specular_reflectance({ 0.05f, 0.05f, 0.05f });
 	render.style.use_conservative_depth = true;
 
+	vstyle.enable_depth_test = false;
+
 	ao_style.sample_distance = 0.5f;
 	ao_style.cone_angle = 40.0f;
 
@@ -392,7 +394,7 @@ void tubes::update_attribute_bindings (void)
 	set_view();
 	calculate_bounding_box();
 	
-	create_density_volume(ctx, 32);
+	create_density_volume(ctx, 128);
 
 	if (traj_mgr.has_data())
 	{
@@ -583,6 +585,7 @@ void tubes::voxelize_q_tube(const hermite_spline_tube::q_tube& qt) {
 
 				int idx = x + res.x() * y + res.x() * res.y() * z;
 
+#pragma omp atomic
 				density_volume.data[idx] += occupancy;
 			}
 		}
