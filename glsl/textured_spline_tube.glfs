@@ -556,7 +556,8 @@ void main()
 		vec3 tang = Spline_EvaluateTangent(spline_t);
 		vec3 b = normalize(cross(tang, hit_pos_object - eye_pos));
 
-		float v = acos(dot(b, normal_object)) * M_INV_PI * 0.5 + 0.25;
+		float v = acos(dot(b, normal_object)) * M_INV_PI * 0.5;
+		
 
 
 		

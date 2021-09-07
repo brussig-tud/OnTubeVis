@@ -1,4 +1,5 @@
 #version 430
+#define M_PI 3.14159265359
 
 //***** begin interface of view.glsl ***********************************
 mat4 get_modelview_matrix();
@@ -22,10 +23,11 @@ layout (binding = 4) uniform sampler2D depth_tex;
 layout (binding = 5) uniform sampler2D test_tex;
 layout (binding = 6) uniform sampler3D density_tex;
 
+// basic rendering parameters
 //uniform vec3 background_color;
-
 uniform bool use_gamma = false;
 
+// ambient occlusion parameters
 uniform struct {
 	bool enable;
 	float sample_offset;
@@ -39,9 +41,203 @@ uniform struct {
 	vec3 sample_directions[3];
 } ambient_occlusion;
 
+// grid parameters
+struct grid_parameters {
+	vec2 scaling;
+	float thickness;
+	float blend_factor;
+};
+uniform int grid_mode;
+uniform float bump_scale = 1.0;
+uniform grid_parameters grids[2];
+
+// attribute mapping parameters
+uniform struct {
+	int glyph_type;
+	bool curvature_correction;
+	float radius0;
+	float radius1;
+	float angle0;
+	float angle1;
+	// only for testign purposes
+	float length_scale;
+} attribute_mapping;
+
 in vec2 texcoord_fs;
 
 out vec4 frag_color;
+
+float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
+	vec3 pos = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
+	vec3 normal = normalize(get_inverse_normal_matrix() * normal_eye);
+
+	// do voxel cone tracing to determine occlusion of ambient light
+	float ao = 0.0;
+
+	mat3 R;
+	R[1] = normal;
+	R[0] = cross(R[1], normalize(pos));
+	R[2] = cross(R[0], R[1]);
+
+	for(int i = 0; i < 3; ++i) {
+		vec3 sd = R * ambient_occlusion.sample_directions[i];
+
+		float sample_distance = ambient_occlusion.sample_offset + 0.001;
+		vec3 normalized_pos = (pos - ambient_occlusion.tex_offset) * ambient_occlusion.tex_scaling;
+		float lod_texel_size = 0.0f;
+			
+		float illumination = 1.0;
+
+		do {
+			// get cone base radius at current distance and then the according mipmap sample level
+			float cone_radius = sample_distance * ambient_occlusion.cone_angle_factor;
+			float sample_level = clamp(log2(cone_radius / ambient_occlusion.texel_size), 0.0, 7.0);
+
+			lod_texel_size = pow(2.0, sample_level) * ambient_occlusion.texel_size;
+
+			vec3 sample_pos = normalized_pos + sample_distance * sd * ambient_occlusion.texcoord_scaling;
+			float density = textureLod(density_tex, sample_pos, sample_level).r;
+			// apply the compositing function
+			illumination *= 1.0 - density * illumination;
+
+			// get the next sample distance and position
+			sample_distance += cone_radius;
+		} while(sample_distance < ambient_occlusion.sample_distance - lod_texel_size && illumination > 0.02);
+
+		ao += (1.0 - illumination);
+	}
+
+	return 1.0 - clamp(ambient_occlusion.strength_scale * ao / 3.0, 0.0, 1.0);
+}
+
+// SDFs from https://iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
+float sd_circle(in vec2 p, in float r) {
+    return length(p) - r;
+}
+
+float sd_rect(in vec2 p, in vec2 b) {
+    vec2 d = abs(p)-b;
+    return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
+}
+
+// c is the sin/cos of the aperture
+float sd_pie(in vec2 p, in vec2 c, in float r) {
+    p.x = abs(p.x);
+    float l = length(p) - r;
+    float m = length(p-c*clamp(dot(p,c),0.0,r));
+    return max(l,m*sign(c.y*p.x-c.x*p.y));
+}
+
+// sca is the sin/cos of the orientation
+// scb is the sin/cos of the aperture
+float sd_arc(in vec2 p, in vec2 sca, in vec2 scb, in float ra, in float rb) {
+    p *= mat2(sca.x,sca.y,-sca.y,sca.x);
+    p.x = abs(p.x);
+    float k = (scb.y*p.x>scb.x*p.y) ? dot(p,scb) : length(p);
+    return sqrt( dot(p,p) + ra*ra - 2.0*ra*k ) - rb;
+}
+
+// q is the base width/height of the triangle
+float sd_triangle_isosceles(in vec2 p, in vec2 q) {
+    p.x = abs(p.x);
+    vec2 a = p - q*clamp( dot(p,q)/dot(q,q), 0.0, 1.0 );
+    vec2 b = p - q*vec2( clamp( p.x/q.x, 0.0, 1.0 ), 1.0 );
+    float s = -sign( q.y );
+    vec2 d = min( vec2( dot(a,a), s*(p.x*q.y-p.y*q.x) ),
+                  vec2( dot(b,b), s*(p.y-q.y) ));
+    return -sqrt(d.x)*sign(d.y);
+}
+
+const float N = 20.0;
+
+// https://www.shadertoy.com/view/XtBfzz
+float grid_texture(in vec2 p, in float n) {
+    // coordinates
+    //vec2 i = step( fract(p), vec2(1.0/N) );
+    vec2 i = step( fract(p + 0.5*n), vec2(n) );
+    //pattern
+    return 1.0 - (1.0-i.x)*(1.0-i.y);   // grid (N=10)
+    
+    // other possible patterns are these
+    //return 1.0-i.x*i.y;           // squares (N=4)
+    //return 1.0-i.x-i.y+2.0*i.x*i.y; // checker (N=2)
+}
+
+// https://www.shadertoy.com/view/XtBfzz
+float grid_texture_grad_box(in vec2 p, in vec2 ddx, in vec2 ddy) {
+	// filter kernel
+	float filter_width = 0.01;
+    vec2 w = max(abs(ddx), abs(ddy)) + filter_width;
+
+	// analytic (box) filtering
+    vec2 a = p + 0.5*w;
+    vec2 b = p - 0.5*w;
+    vec2 i = (floor(a)+min(fract(a)*N,1.0)-
+              floor(b)-min(fract(b)*N,1.0))/(N*w);
+    //pattern
+    return (1.0-i.x)*(1.0-i.y);
+}
+
+float compute_grid_factor(vec2 uv) {
+	float l = attribute_mapping.length_scale;
+	if(uv.s <= -l || uv.s >= l || uv.t <= -1.0 || uv.t >= 1.0)
+		return 1.0;
+	float grid_factor = 0.0;
+	grid_factor = grids[0].blend_factor * grid_texture(grids[0].scaling*uv, grids[0].thickness);
+	grid_factor = max(grid_factor, grids[1].blend_factor * grid_texture(grids[1].scaling*uv, grids[1].thickness));
+	return 1.0 - min(grid_factor, 1.0);
+}
+
+
+
+
+// bump mapping
+void update_normal_from_height(in vec3 s, inout vec3 N, in vec2 tc) {
+	// lookup height value
+	//float h_0 = lookup_texture(bump_index, tc, false).x;
+	
+	// derivatives in image space
+	mat2 tc_i = mat2(dFdx(tc), dFdy(tc));
+
+	float h_0 = compute_grid_factor(tc);
+
+	//vec2 h_i = vec2(lookup_texture(bump_index, tc + tc_i[0], false).x - h_0,
+		//lookup_texture(bump_index, tc + tc_i[1], false).x - h_0);
+	vec2 h_i = vec2(
+		compute_grid_factor(tc + tc_i[0]).x - h_0,
+		compute_grid_factor(tc + tc_i[1]).x - h_0
+	);
+	vec3 s_x = dFdx(s);
+	vec3 s_y = dFdy(s);
+
+	// compute T_i^(-1)
+	float det_tc_i = tc_i[0][0] * tc_i[1][1] - tc_i[1][0] * tc_i[0][1];
+	mat2  i_tc = mat2(tc_i[1][1], -tc_i[1][0],
+		-tc_i[0][1], tc_i[0][0]) / det_tc_i;
+
+	// transform derivatives to texture space
+	vec2 h_tc = i_tc * h_i;
+	vec2 s_tc0 = i_tc * vec2(s_x[0], s_y[0]);
+	vec2 s_tc1 = i_tc * vec2(s_x[1], s_y[1]);
+	vec2 s_tc2 = i_tc * vec2(s_x[2], s_y[2]);
+	vec3 s_u = vec3(s_tc0.x, s_tc1.x, s_tc2.x);
+	vec3 s_v = vec3(s_tc0.y, s_tc1.y, s_tc2.y);
+
+	// compute scaling factor for original normal
+	float f = length(cross(s_u, s_v));
+
+	// compute bump mapped normal
+	vec3 n = normalize(N);
+	float height_scale = bump_scale;
+	n = f * n + cross(height_scale*(h_tc[1] * s_u - h_tc[0] * s_v), n);
+	N = normalize(n);
+}
+
+
+
+
+
+
 
 void main()
 {
@@ -59,58 +255,113 @@ void main()
 		vec3 background_color = vec3(0.0);
 		frag_color = vec4(background_color, 1.0);
 	} else {
-		frag_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(tex_color, 1.0), 1);
+		vec3 color = vec3(1.0);
+		
+
+		// Transform the texture coordinate v to go around the tube twice, i.e. from [0,1] to [0,2].
+		// That way the front side of the tube (half the radius), that is always visible to the camera,
+		// has coordinates in [0,1], while the back side lies in [1,2].
+		vec2 uv = texcoord; 
+		uv.t *= 2.0;
+		// Move the origin (0,0) to the center of the front side and scale the coordinates to [-1,1]
+		uv = 2.0 * uv - 1.0;
+		uv.s *= attribute_mapping.length_scale;
+
+		// Correct the perspective shift caused by the curved tube surface by rescaling the v coordinate around the tube.
+		if(attribute_mapping.curvature_correction)
+			uv.t = sin(uv.t*M_PI*0.5);
+
+		//frag_color = vec4(uv.s, uv.t, 0.0, 1.0);
+
+		//frag_color = vec4(10*length(dFdx(uv)), 10*length(dFdy(uv)), 0.0, 1.0);
+		
+		float sd = 1e20;
+		switch(attribute_mapping.glyph_type) {
+		case 0:
+			// circle with radius
+			sd = sd_circle(uv, attribute_mapping.radius0);
+			break;
+		case 1:
+			// rectangle (ring) with (width, length)
+			sd = sd_rect(uv, vec2(attribute_mapping.radius0, attribute_mapping.radius1));
+			break;
+		case 2:
+		{
+			// pie (circle wedge) with aperture angle and radius
+			float aperture_angle = radians(attribute_mapping.angle0);
+			sd = sd_pie(
+				uv,
+				vec2(sin(aperture_angle), cos(aperture_angle)),
+				attribute_mapping.radius0
+			);
+		}
+			break;
+		case 3:
+		{
+			// arc (donut wedge) with orientation, aperture angle and two radii
+			float orientation_angle = radians(attribute_mapping.angle1);
+			float aperture_angle = radians(attribute_mapping.angle0);
+			sd = sd_arc(
+				uv,
+				vec2(sin(orientation_angle), cos(orientation_angle)),
+				vec2(sin(aperture_angle), cos(aperture_angle)),
+				attribute_mapping.radius0,
+				attribute_mapping.radius1
+			);
+		}
+			break;
+		case 4:
+		{
+			// isosceles triangle (arrow tip) with base width and height
+			float angle = radians(attribute_mapping.angle0);
+			float as = sin(angle);
+			float ac = cos(angle);
+			mat2 rot = mat2(ac, -as, as, ac);
+
+			sd = sd_triangle_isosceles((rot * uv) - vec2(0.0, 0.5*attribute_mapping.radius1), vec2(attribute_mapping.radius0, -attribute_mapping.radius1));
+		}
+			break;
+		}
+
+		if(sd <= 0.0)
+			color = vec3(1.0, 0.0, 0.0);
+
+		//vec2 ddx_uv = dFdx(uv);
+		//vec2 ddy_uv = dFdy(uv);
+
+		//vec2 grid_scaling0 = vec2(1.0, 1.0);
+
+		float grid_factor = compute_grid_factor(uv);
+
+		switch(grid_mode) {
+		case 0:
+			// color only
+			color *= grid_factor;
+			break;
+		case 1:
+			// bump only
+			update_normal_from_height(pos_eye, normal_eye, uv);
+			break;
+		case 2:
+			// color + bump
+			color *= grid_factor;
+			update_normal_from_height(pos_eye, normal_eye, uv);
+			break;
+		}
+		
+
+		//update_normal_from_height(pos_eye, normal_eye, uv);
+
+		frag_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(color, 1.0), 1);
+
 		//frag_color = vec4(texcoord.s, texcoord.t, 0.0, 1.0);
 		//frag_color = vec4(tex_color, 1.0);
 		//frag_color = vec4(1.0);
 		//frag_color = vec4(normal_value, 1.0);
 	
+		// TODO: make this flag a define
 		if(ambient_occlusion.enable) {
-			vec3 pos = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
-			vec3 normal = normalize(get_inverse_normal_matrix() * normal_eye);
-
-			// do voxel cone tracing to determine occlusion of ambient light
-			float ao = 0.0;
-
-			mat3 R;
-			R[1] = normal;
-			R[0] = cross(R[1], normalize(pos));
-			R[2] = cross(R[0], R[1]);
-
-			//vec3 new_y = normal;
-			//vec3 new_x = cross(new_y, normalize(pos));
-			//vec3 new_z = cross(new_x, new_y);
-
-			for(int i = 0; i < 3; ++i) {
-				vec3 sd = R * ambient_occlusion.sample_directions[i];
-
-				float sample_distance = ambient_occlusion.sample_offset + 0.001;
-				vec3 normalized_pos = (pos - ambient_occlusion.tex_offset) * ambient_occlusion.tex_scaling;
-				float lod_texel_size = 0.0f;
-			
-				float illumination = 1.0;
-
-				do {
-					// get cone base radius at current distance and then the according mipmap sample level
-					float cone_radius = sample_distance * ambient_occlusion.cone_angle_factor;
-					float sample_level = clamp(log2(cone_radius / ambient_occlusion.texel_size), 0.0, 7.0);
-
-					lod_texel_size = pow(2.0, sample_level) * ambient_occlusion.texel_size;
-
-					vec3 sample_pos = normalized_pos + sample_distance * sd * ambient_occlusion.texcoord_scaling;
-					float density = textureLod(density_tex, sample_pos, sample_level).r;
-					// apply the compositing function
-					illumination *= 1.0 - density * illumination;
-
-					// get the next sample distance and position
-					sample_distance += cone_radius;
-				} while(sample_distance < ambient_occlusion.sample_distance - lod_texel_size && illumination > 0.02);
-
-				ao += (1.0 - illumination);
-			}
-
-			float ao_factor = 1.0 - clamp(ambient_occlusion.strength_scale * ao / 3.0, 0.0, 1.0);
-			frag_color.rgb *= ao_factor;
+			frag_color.rgb *= compute_ambient_occlusion_factor(pos_eye, normal_eye);
 		}
 	}
 

@@ -128,9 +128,41 @@ protected:
 	cgv::glutil::transfer_function_editor* tf_editor_ptr;
 
 
+	enum GridMode {
+		GM_COLOR = 0,
+		GM_BUMP = 1,
+		GM_COLOR_BUMP = 2
+	};
 
+	struct grid_parameters {
+		vec2 scaling;
+		float thickness;
+		float blend_factor;
+	};
 
+	GridMode grid_mode = GM_COLOR;
+	float bump_scale = 0.002;
+	std::vector<grid_parameters> grids;
 
+	enum GlyphType {
+		GT_CIRCLE = 0,
+		GT_RING = 1,
+		GT_WEDGE = 2,
+		GT_ARC = 3,
+		GT_TRIANGLE = 4,
+	};
+
+	struct attribute_mapping_parameters {
+		GlyphType glyph_type = GT_CIRCLE;
+		bool curvature_correction = false;
+		float radius0 = 0.5f;
+		float radius1 = 0.5f;
+		float angle0 = 90.0f;
+		float angle1 = 90.0f;
+		float length_scale = 1.0;
+	} am_parameters;
+
+	
 
 
 

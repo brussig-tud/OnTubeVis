@@ -46,6 +46,15 @@ tubes::tubes() : application_plugin("tubes_instance")
 	fbc.add_attachment("texcoord", "flt32[R,G]");
 
 	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
+	tf_editor_ptr->set_visibility(false);
+
+	grids.resize(2);
+	grids[0].scaling = vec2(5.0, 1.0);
+	grids[0].thickness = 0.05;
+	grids[0].blend_factor = 0.75;
+	grids[1].scaling = vec2(50.0, 10.0);
+	grids[1].thickness = 0.1;
+	grids[1].blend_factor = 0.5;
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -271,6 +280,7 @@ void tubes::init_frame (cgv::render::context &ctx)
 		if(view_ptr) {
 			// do one-time initialization that needs the view if necessary
 			set_view();
+			ensure_selected_in_tab_group_parent();
 		}
 	}
 
@@ -320,6 +330,9 @@ void tubes::create_gui (void)
 	{
 		align("\a");
 		add_gui("tube_style", render.style);
+		// render percentage exists for debug reasons only and can be removed at some point
+		add_member_control(this, "Render Percentage", render.percentage, "value_slider", "min=0.0;step=0.001;max=1.0;ticks=true");
+		add_member_control(this, "Sort by Distance", render.sort, "check");
 		align("\b");
 		end_tree_node(render.style);
 	}
@@ -333,15 +346,42 @@ void tubes::create_gui (void)
 
 	if(begin_tree_node("Volume Style", vstyle, false)) {
 		align("\a");
+		add_member_control(this, "Show Volume", show_volume, "check");
 		add_gui("vstyle", vstyle);
 		align("\b");
 		end_tree_node(vstyle);
 	}
 
-	add_member_control(this, "Render Percentage", render.percentage, "value_slider", "min=0.0;step=0.001;max=1.0;ticks=true");
-	add_member_control(this, "Sort by Distance", render.sort, "check");
+	// attribute mapping settings
+	add_decorator("Attribute Mapping", "heading", "level=1");
+	if(begin_tree_node("Grid", grids, false)) {
+		align("\a");
+		add_member_control(this, "Mode", grid_mode, "dropdown", "enums='Color, Bump, Color + Bump'");
+		add_member_control(this, "Bump Scale", bump_scale, "value_slider", "min=0;max=0.2;step=0.001;log=true;ticks=true");
+		for(size_t i = 0; i < grids.size(); ++i) {
+			add_decorator("Grid " + std::to_string(i), "heading", "level=3");
+			add_member_control(this, "Scaling U", grids[i].scaling[0], "value_slider", "min=1;max=50;step=0.5;ticks=true");
+			add_member_control(this, "Scaling V", grids[i].scaling[1], "value_slider", "min=1;max=50;step=0.5;ticks=true");
+			add_member_control(this, "Thickness", grids[i].thickness, "value_slider", "min=0;max=1;step=0.01;ticks=true");
+			add_member_control(this, "Blend Factor", grids[i].blend_factor, "value_slider", "min=0;max=1;step=0.01;ticks=true");
+		}
+		align("\b");
+		end_tree_node(am_parameters);
+	}
 
-	add_member_control(this, "Show Volume", show_volume, "check");
+	if(begin_tree_node("Parameters", am_parameters, true)) {
+		align("\a");
+		add_member_control(this, "Gylph Type", am_parameters.glyph_type, "dropdown", "enums='Circle,Ring,Wedge,Arc,Triangle'");
+		add_member_control(this, "Curvature Correction", am_parameters.curvature_correction, "check");
+		add_member_control(this, "Radius 0", am_parameters.radius0, "value_slider", "min=0;max=1;step=0.01;ticks=true");
+		add_member_control(this, "Radius 1", am_parameters.radius1, "value_slider", "min=0;max=1;step=0.01;ticks=true");
+		add_member_control(this, "Angle 0", am_parameters.angle0, "value_slider", "min=0;max=360;step=0.01;ticks=true");
+		add_member_control(this, "Angle 1", am_parameters.angle1, "value_slider", "min=0;max=360;step=0.01;ticks=true");
+		// only for teting purposes
+		add_member_control(this, "Length Scale", am_parameters.length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xff0000");
+		align("\b");
+		end_tree_node(am_parameters);
+	}
 	
 	if(begin_tree_node("Transfer Function Editor", tf_editor_ptr, false)) {
 		align("\a");
@@ -742,7 +782,10 @@ void tubes::draw_trajectories(context& ctx) {
 
 	shader_program& prog = shaders.get("screen");
 	prog.enable(ctx);
+	// set render parameters
 	prog.set_uniform(ctx, "use_gamma", true);
+	
+	// set ambient occlusion parameters
 	prog.set_uniform(ctx, "ambient_occlusion.enable", ao_style.enable);
 	prog.set_uniform(ctx, "ambient_occlusion.sample_offset", ao_style.sample_offset);
 	prog.set_uniform(ctx, "ambient_occlusion.sample_distance", ao_style.sample_distance);
@@ -755,6 +798,26 @@ void tubes::draw_trajectories(context& ctx) {
 
 	prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
 	prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
+
+	// set grid parameters
+	prog.set_uniform(ctx, "grid_mode", (int)grid_mode);
+	prog.set_uniform(ctx, "bump_scale", bump_scale);
+	for(size_t i = 0; i < grids.size(); ++i) {
+		std::string base_name = "grids[" + std::to_string(i) + "].";
+		prog.set_uniform(ctx, base_name + "scaling", grids[i].scaling);
+		prog.set_uniform(ctx, base_name + "thickness", grids[i].thickness);
+		prog.set_uniform(ctx, base_name + "blend_factor", grids[i].blend_factor);
+	}
+
+	// set attribute mapping parameters
+	prog.set_uniform(ctx, "attribute_mapping.glyph_type", (int)am_parameters.glyph_type);
+	prog.set_uniform(ctx, "attribute_mapping.curvature_correction", am_parameters.curvature_correction);
+	prog.set_uniform(ctx, "attribute_mapping.radius0", am_parameters.radius0);
+	prog.set_uniform(ctx, "attribute_mapping.radius1", am_parameters.radius1);
+	prog.set_uniform(ctx, "attribute_mapping.angle0", am_parameters.angle0);
+	prog.set_uniform(ctx, "attribute_mapping.angle1", am_parameters.angle1);
+
+	prog.set_uniform(ctx, "attribute_mapping.length_scale", am_parameters.length_scale);
 
 	const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
 	
