@@ -36,7 +36,7 @@ tubes::tubes() : application_plugin("tubes_instance")
 	ao_style.sample_distance = 0.5f;
 	ao_style.cone_angle = 40.0f;
 
-	shaders.add("screen", "screen_quad.glpr");
+	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
 
 	// add frame buffer attachments needed for deferred rendering
 	fbc.add_attachment("depth", "[D]");
@@ -584,12 +584,12 @@ int tubes::sample_voxel(const ivec3& vidx, const hermite_spline_tube::q_tube& qt
 
 	vec3 voxel_min = density_volume.bounds.ref_min_pnt() + vec3(vidx) * density_volume.voxel_size;
 
-	int count = 1;
-
 	vec3 spos = voxel_min + sample_position_offsets[0];
 	vec2 dist = sd_quadratic_bezier(qt.s.pos, qt.h.pos, qt.e.pos, spos);
-	if(dist.x() - qt.s.rad > half_voxel_diag)
+	if((dist.x() - qt.s.rad) > half_voxel_diag)
 		return 0;
+
+	int count = dist.x() <= 0.0f ? 1 : 0;
 
 	for(unsigned k = 1; k < 27; ++k) {
 		//vec3 idx = sample_position_offsets[k];// (i, j, k);
@@ -780,7 +780,7 @@ void tubes::draw_trajectories(context& ctx) {
 
 	fbc.disable(ctx);
 
-	shader_program& prog = shaders.get("screen");
+	shader_program& prog = shaders.get("tube_shading");
 	prog.enable(ctx);
 	// set render parameters
 	prog.set_uniform(ctx, "use_gamma", true);
