@@ -235,7 +235,10 @@ void update_normal_from_height(in vec3 s, inout vec3 N, in vec2 tc) {
 
 
 
-
+// a pseudo-random noise function for testing purposes
+float random(float t) {
+	return fract(sin(dot(vec2(t), vec2(12.9898, 78.233))) * 43758.5453);
+}
 
 
 
@@ -245,7 +248,11 @@ void main()
 	vec3 pos_eye = texture(position_tex, texcoord_fs).xyz;
 	vec3 normal_value = texture(normal_tex, texcoord_fs).xyz;
 	vec3 normal_eye = 2.0 * normal_value - 1.0;
-	vec2 texcoord = texture(texcoord_tex, texcoord_fs).rg;
+	vec3 texcoord_seg_id = texture(texcoord_tex, texcoord_fs).rgb;
+	vec2 texcoord = texcoord_seg_id.xy;
+	int segment_id = floatBitsToInt(texcoord_seg_id.z);
+	//float segment_id = texcoord_seg_id.z;
+	// TODO: remove test texture
 	vec3 tex_color = texture(test_tex, texcoord).rgb;
 	
 	//frag_color = vec4(vec3(color.rgb), 1.0);
@@ -255,7 +262,8 @@ void main()
 		vec3 background_color = vec3(0.0);
 		frag_color = vec4(background_color, 1.0);
 	} else {
-		color = vec3(1.0);
+		//color = vec3(1.0);
+		color = vec3(random(segment_id + 50));
 		
 		// Transform the texture coordinate v to go around the tube twice, i.e. from [0,1] to [0,2].
 		// That way the front side of the tube (half the radius), that is always visible to the camera,

@@ -53,6 +53,7 @@ uniform vec3 view_dir;
 
 in flat vec4 tangent_gs[];
 in flat vec4 color_gs[];
+in flat int vertex_id_gs[];
 
 out vec3 position_fs;
 out flat float l_offset_fs;
@@ -60,6 +61,7 @@ out flat vec3 color0_fs;
 out flat vec3 color1_fs;
 out flat QTube qTube_fs;
 out flat mat4 mg_fs;
+out flat int segment_id_fs;
 
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 
@@ -68,14 +70,12 @@ vec3 project_to_plane(vec3 vec, vec3 n) {
 	return vec - n * dot(vec, n) / dot(n, n);
 }
 
+// returns a non-normalized vector orthogonal to the input v
+// source: http://lolengine.net/blog/2013/09/21/picking-orthogonal-vector-combing-coconuts
+vec3 ortho_vec(vec3 v) {
 
-
-
-
-
-
-
-
+    return abs(v.x) > abs(v.z) ? vec3(-v.y, v.x, 0.0) : vec3(0.0, -v.z, v.y);
+}
 
 #define DEF_EvalCSplineMidPoint(T)					\
 void EvalCSplineMidPoint(T p1, T t1, T p2, T t2,	\
@@ -97,43 +97,6 @@ void EvalCSplineMidPoint(T p1, T t1, T p2, T t2,	\
 
 DEF_EvalCSplineMidPoint(float)
 DEF_EvalCSplineMidPoint(vec3)
-
-/*#define DEF_SplitCurve(T)					\
-void SplitCurve(uint segment_idx,			\
-	T v0, T d0, T v1, T d1,					\
-	out T v0_out, out T h_out, out T v1_out)\
-{											\
-	v0_out = v0;							\
-	h_out = v0 + d0 * 0.25;					\
-	T h1 = v1 - d1 * 0.25;					\
-	v1_out = (h_out + h1) * 0.5;			\
-											\
-	if(segment_idx == 1) {					\
-		v0_out = v1_out;					\
-		h_out = h1;							\
-		v1_out = v1;						\
-	}										\
-}
-
-DEF_SplitCurve(float)
-DEF_SplitCurve(vec3)
-
-//#define SPLIT_CURVE(SEGMENT_IDX, TUBE, MEM_V, MEM_D, QTUBE)	\
-SplitCurve(													\
-	SEGMENT_IDX,											\
-	TUBE.s.MEM_V, TUBE.s.MEM_D, TUBE.e.MEM_V, TUBE.e.MEM_D,	\
-	QTUBE.s.MEM_V, QTUBE.h.MEM_V, QTUBE.e.MEM_V				\
-)
-
-void SplitTube(uint segment_id, Tube tube, out QTube qTube)
-{
-	SPLIT_CURVE(segment_id, tube, pos, pos_tan, qTube);
-	SPLIT_CURVE(segment_id, tube, rad, rad_tan, qTube);
-}*/
-
-
-
-
 
 #define DEF_SplitCurve(T)						\
 void SplitCurve(T v0, T d0, T v1, T d1,			\
@@ -166,13 +129,6 @@ void SplitTube(Tube tube, out QTube qTube0, out QTube qTube1)
 	SPLIT_CURVE(tube, rad, rad_tan, qTube0, qTube1);
 }
 
-
-
-
-
-
-
-
 void SplinePointsToPolyCoeffs(float p0, float h, float p1, out float o_c[3])
 {
 	o_c[0] = p0;
@@ -184,26 +140,6 @@ float EvalPolyD0(float x, float c[3]) {
 
 	return x * (x * c[2] + c[1]) + c[0];
 }
-
-// returns a non-normalized vector orthogonal to the input v
-// source: http://lolengine.net/blog/2013/09/21/picking-orthogonal-vector-combing-coconuts
-vec3 ortho_vec(vec3 v) {
-
-    return abs(v.x) > abs(v.z) ? vec3(-v.y, v.x, 0.0) : vec3(0.0, -v.z, v.y);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 mat4 calculate_transformation_matrix(QTube qTube) {
 
@@ -357,14 +293,6 @@ mat4x3 quad(vec4 start, vec4 end) {
 	return ret;
 }
 
-
-
-
-
-
-
-
-
 /*
 	Rounded cone signed distance function from:
 	https://iquilezles.org/www/articles/distfunctions/distfunctions.htm
@@ -397,10 +325,6 @@ float sd_rounded_cone(vec3 p, vec4 a, vec4 b) {
 	return (sqrt(x2*a2*il2) + y*rr) * il2 - a.w;
 }
 
-
-
-
-
 void emit_quad(int segment_idx, QTube qTube) {
 
 	mat4 M = calculate_transformation_matrix(qTube);
@@ -429,18 +353,6 @@ void emit_quad(int segment_idx, QTube qTube) {
 	ps[3] = eye_pos + dist*normalize(ps[3] - eye_pos);
 #endif
 
-	/*float dist = sd_rounded_cone(camera.eye, sp, ep);
-	ps[0] = camera.eye + dist*normalize(ps[0] - camera.eye);
-	ps[1] = camera.eye + dist*normalize(ps[1] - camera.eye);
-	ps[2] = camera.eye + dist*normalize(ps[2] - camera.eye);
-	ps[3] = camera.eye + dist*normalize(ps[3] - camera.eye);
-
-	p10_gs = matrices.modelViewProjection * vec4(ps[1], 1.0);
-	p01_gs = matrices.modelViewProjection * vec4(ps[2], 1.0);
-	
-	// store p00 in gl_Position
-	gl_Position = matrices.modelViewProjection * vec4(ps[0], 1.0);*/
-
 	qTube.s.pos = (get_modelview_matrix() * vec4(qTube.s.pos, 1.0)).xyz;
 	qTube.h.pos = (get_modelview_matrix() * vec4(qTube.h.pos, 1.0)).xyz;
 	qTube.e.pos = (get_modelview_matrix() * vec4(qTube.e.pos, 1.0)).xyz;
@@ -452,11 +364,6 @@ void emit_quad(int segment_idx, QTube qTube) {
 	vec4 p10 = get_modelview_matrix() * vec4(ps[1], 1.0);
 	vec4 p01 = get_modelview_matrix() * vec4(ps[2], 1.0);
 	vec4 p11 = get_modelview_matrix() * vec4(ps[3], 1.0);
-
-	//vec4 p00 = gl_in[0].gl_Position;
-	//vec4 p10 = p10_gs[0];
-	//vec4 p01 = p01_gs[0];
-	//vec4 p11 = p10 + p01 - p00;
 
 	mat4 PM = get_projection_matrix();
 
@@ -470,17 +377,6 @@ void emit_quad(int segment_idx, QTube qTube) {
 	gl_Position = PM * p11; EmitVertex();
 	EndPrimitive();
 }
-
-
-
-
-
-
-
-
-
-
-
 
 void main()
 {
@@ -503,7 +399,7 @@ void main()
 	
 
 
-
+	
 
 
 	mat4 geometrymatrix;
@@ -521,6 +417,10 @@ void main()
 	mg_fs = geometrymatrix * Mh;
 
 	
+	
+	// gl_PrimitiveIDIn cannot be used since it changes depending on the primitve order, which is influenced by visibility sorting
+	segment_id_fs = gl_PrimitiveIDIn;
+	segment_id_fs = vertex_id_gs[0];
 
 
 

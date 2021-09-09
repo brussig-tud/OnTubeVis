@@ -56,15 +56,17 @@ in flat vec3 color0_fs;
 in flat vec3 color1_fs;
 in flat QTube qTube_fs;
 in flat mat4 mg_fs;
+in flat int segment_id_fs;
 
 #if USE_CONSERVATIVE_DEPTH == 1
 layout (depth_greater) out float gl_FragDepth;
 #endif
 
+// try writing to 3 vec4 buffers
 layout (location = 0) out vec3 frag_albedo;
 layout (location = 1) out vec3 frag_position;
 layout (location = 2) out vec3 frag_normal;
-layout (location = 3) out vec2 frag_texcoord;
+layout (location = 3) out vec3 frag_texcoord;
 
 float Pow2(float x) { return x * x; }
 float Pow3(float x) { return x * x * x; }
@@ -554,7 +556,8 @@ void main()
 		frag_albedo = col.rgb;
 		frag_position = hit_pos_eye;
 		frag_normal = 0.5 * hit.normal + 0.5;
-		frag_texcoord = vec2(spline_t, v);
+		frag_texcoord = vec3(spline_t, v, intBitsToFloat(segment_id_fs));
+		//frag_texcoord = vec3(spline_t, v, 0.5);
 	}
 #endif
 }

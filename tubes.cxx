@@ -43,7 +43,7 @@ tubes::tubes() : application_plugin("tubes_instance")
 	fbc.add_attachment("albedo", "flt32[R,G,B]");
 	fbc.add_attachment("position", "flt32[R,G,B]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
-	fbc.add_attachment("texcoord", "flt32[R,G]");
+	fbc.add_attachment("texcoord", "flt32[R,G,B]");
 
 	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
 	tf_editor_ptr->set_visibility(false);
