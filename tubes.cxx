@@ -502,24 +502,17 @@ void tubes::update_attribute_bindings(void) {
 		render.render_sbo.destruct(ctx);
 		// - compile data
 		const size_t num_nodes = render.data->positions.size();
-		struct node_attribs { vec4 pos_rad, color, tangent; };
 		std::vector<node_attribs> render_attribs; render_attribs.reserve(num_nodes);
 		for (size_t i=0; i<num_nodes; i++)
 		{
-			// convenience shortcuts
-			const auto &data = *render.data;
-			const auto &pos = data.positions[i];
-			const auto &tan = data.tangents[i];
-			const auto &rad = data.radii[i];
-			const auto &col = data.colors[i];
-			// interleave
-			node_attribs new_node{
-				vec4(pos, rad),
-				vec4(col.R(), col.G(), col.B(), 1),
-				tan     // <- tan does already contain radius deriv. in w-component
-			};
-			// commit
-			render_attribs.emplace_back(std::move(new_node));
+			// convenience shortcut
+			const auto &col = render.data->colors[i];
+			// interleave and commit
+			render_attribs.emplace_back(node_attribs{
+				/* .pos_rad */  vec4(render.data->positions[i], render.data->radii[i]),
+				/* .color */    vec4(col.R(), col.G(), col.B(), 1),
+				/* .tangent */  render.data->tangents[i]  // <- does already contain radius deriv. in w-component
+			});
 		}
 		// - upload
 		cgv::render::vertex_buffer new_sbo(cgv::render::VBT_STORAGE, cgv::render::VBU_STATIC_READ);
