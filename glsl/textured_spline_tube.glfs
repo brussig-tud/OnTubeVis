@@ -556,8 +556,12 @@ void main()
 		frag_albedo = col.rgb;
 		frag_position = hit_pos_eye;
 		frag_normal = 0.5 * hit.normal + 0.5;
+		//frag_texcoord = vec2(spline_t, v);
 		frag_texcoord = vec3(spline_t, v, intBitsToFloat(segment_id_fs));
-		//frag_texcoord = vec3(spline_t, v, 0.5);
+
+		//frag_albedo = vec4(col.rgb, spline_t);
+		//frag_position = vec4(hit_pos_eye, v);
+		//frag_normal = vec4(0.5 * hit.normal + 0.5, intBitsToFloat(segment_id_fs));
 	}
 #endif
 }

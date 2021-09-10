@@ -419,10 +419,10 @@ void main()
 	
 	
 	// gl_PrimitiveIDIn cannot be used since it changes depending on the primitve order, which is influenced by visibility sorting
-	segment_id_fs = gl_PrimitiveIDIn;
-	segment_id_fs = vertex_id_gs[0];
+	//segment_id_fs = gl_PrimitiveIDIn;
+	segment_id_fs = vertex_id_gs[0] + vertex_id_gs[1];
 
-
+	
 
 
 	emit_quad(0, qTube0);

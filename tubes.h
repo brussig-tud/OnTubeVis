@@ -9,6 +9,7 @@
 #include <cgv/gui/event_handler.h>
 #include <cgv/gui/provider.h>
 #include <cgv/render/drawable.h>
+#include <cgv/utils/stopwatch.h>
 
 // CGV OpenGL lib
 #include <cgv_gl/volume_renderer.h>
@@ -44,6 +45,7 @@ public:
 
 	struct voxel_grid {
 		float voxel_size;
+		float voxel_half_diag;
 		ivec3 resolution;
 		box3 bounds;
 		std::vector<float> data;
@@ -56,6 +58,7 @@ public:
 			int max_ext_axis = cgv::math::max_index(ext);
 			float max_ext = ext[max_ext_axis];
 			voxel_size = max_ext / static_cast<float>(request_resolution);
+			voxel_half_diag = 0.5f * sqrt(3.0f) * voxel_size;
 
 			// calculate the number of voxels in each dimension
 			unsigned resx = static_cast<unsigned>(ceilf(ext.x() / voxel_size));
@@ -70,6 +73,8 @@ public:
 			bounds.ref_max_pnt() = grid_min + grid_ext;
 		}
 	};
+
+	std::vector<vec3> sample_position_offsets;
 
 	struct ambient_occlusion_style {
 		bool enable = false;
@@ -167,6 +172,26 @@ protected:
 
 
 
+
+
+
+
+
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	/// store a pointer to the view for fast access
 	view* view_ptr = nullptr;
 	
@@ -180,6 +205,9 @@ protected:
 	struct {
 		/// proxy for controlling fltk_gl_view::instant_redraw
 		bool instant_redraw_proxy = false;
+
+		/// proxy for controlling context::enable_vsynch through fltk_gl_view
+		bool vsync_proxy = true;
 
 		/// proxy for controlling stereo_view_interactor::fix_view_up_dir
 		bool fix_view_up_dir_proxy = false;
@@ -238,12 +266,19 @@ protected:
 	/// trajectory manager
 	traj_manager<float> traj_mgr;
 
+	// Benchmark members
+	bool do_benchmark;
+	bool benchmark_running;
+	cgv::utils::stopwatch benchmark_timer;
+	unsigned total_frames;
+	vec3 initial_eye_pos;
+	vec3 initial_focus;
+	double last_seconds_since_start;
+
 	box3 bbox;
 	
 	bool show_volume = false;
 
-	/// test texture
-	texture tex;
 	texture density_tex;
 	texture tf_tex;
 
@@ -256,8 +291,8 @@ protected:
 
 	vec2 sd_quadratic_bezier(const vec3& A, const vec3& B, const vec3& C, const vec3& pos);
 
-	int sample_voxel(const ivec3& vidx, const hermite_spline_tube::q_tube& qt);
-	void voxelize_q_tube(const hermite_spline_tube::q_tube& qt);
+	int sample_voxel(const ivec3& vidx, const quadratic_bezier_tube& qt);
+	void voxelize_q_tube(const quadratic_bezier_tube& qt);
 	void create_density_volume(context& ctx, unsigned resolution);
 
 	/// draw methods

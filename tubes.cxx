@@ -4,7 +4,6 @@
 #include <cgv/math/ftransform.h>
 #include <cgv/media/image/image_reader.h>
 #include <cgv/utils/advanced_scan.h>
-#include <cgv/utils/stopwatch.h>
 
 // fltk_gl_view for controlling instant redraw
 #include <plugins/cg_fltk/fltk_gl_view.h>
@@ -55,6 +54,9 @@ tubes::tubes() : application_plugin("tubes_instance")
 	grids[1].scaling = vec2(50.0, 10.0);
 	grids[1].thickness = 0.1;
 	grids[1].blend_factor = 0.5;
+
+	do_benchmark = false;
+	benchmark_running = false;
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -100,6 +102,7 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("datapath", datapath) &&
 		rh.reflect_member("render_style", render.style) &&
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
+		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy);
 }
 
@@ -203,6 +206,10 @@ void tubes::on_set(void *member_ptr) {
 	if(member_ptr == &misc_cfg.instant_redraw_proxy)
 		// ToDo: handle the (virtually impossible) case that some other plugin than cg_fltk provides the gl_context
 		dynamic_cast<fltk_gl_view*>(get_context())->set_void("instant_redraw", "bool", member_ptr);
+	// - vsync
+	if(member_ptr == &misc_cfg.vsync_proxy)
+		// ToDo: handle the (virtually impossible) case that some other plugin than cg_fltk provides the gl_context
+		dynamic_cast<fltk_gl_view*>(get_context())->set_void("enable_vsynch", "bool", member_ptr);
 	// - fix view up dir
 	else if(member_ptr == &misc_cfg.fix_view_up_dir_proxy)
 		// ToDo: make stereo view interactors reflect this property, and handle the case that some other plugin that
@@ -250,23 +257,6 @@ bool tubes::init (cgv::render::context &ctx)
 
 	render.sorter->set_key_definition_override(key_definition);
 
-	cgv::data::data_format tex_format;
-	cgv::media::image::image_reader image(tex_format);
-	cgv::data::data_view tex_data;
-
-	std::string file_name = "res://plus.png";
-	if(!image.read_image(file_name, tex_data)) {
-		std::cout << "Error: Could not read image file " << file_name << std::endl;
-		return false;
-	} else {
-		tex.create(ctx, tex_data, 0);
-		tex.set_min_filter(cgv::render::TextureFilter::TF_LINEAR);
-		tex.set_mag_filter(cgv::render::TextureFilter::TF_LINEAR);
-		tex.set_wrap_s(cgv::render::TextureWrap::TW_REPEAT);
-		tex.set_wrap_t(cgv::render::TextureWrap::TW_REPEAT);
-	}
-	image.close();
-
 	success &= load_transfer_function(ctx);
 
 	// done
@@ -296,6 +286,66 @@ void tubes::init_frame (cgv::render::context &ctx)
 
 	// query the current viewport dimensions as this is needed for multiple draw methods
 	glGetIntegerv(GL_VIEWPORT, viewport);
+
+
+
+
+
+
+	/*
+	HotRoom:
+	4 Buffers
+	Average FPS: 428.40 | 2.33ms (without segment_id)
+	Average FPS: 430.76 | 2.32ms (with segment_id)
+	3 Buffers
+	Average FPS: 466.77 | 2.14ms
+	*/
+
+	if(benchmark_running) {
+		++total_frames;
+		double benchmark_time = 10.0;
+
+		double seconds_since_start = benchmark_timer.get_elapsed_time();
+		double alpha = (seconds_since_start - last_seconds_since_start) / benchmark_time;
+		last_seconds_since_start = seconds_since_start;
+
+		double depth = cgv::math::length(view_ptr->get_eye() - view_ptr->get_focus());
+
+		view_ptr->rotate(0.0, cgv::math::deg2rad(360.0 * alpha), depth);
+
+		if(seconds_since_start >= benchmark_time) {
+			benchmark_running = false;
+
+			double avg_fps = (double)total_frames / seconds_since_start;
+
+			std::stringstream ss;
+			ss.precision(2);
+			ss << std::fixed;
+			ss << "Average FPS: " << avg_fps << " | " << (1000.0f / avg_fps) << "ms";
+
+			std::cout << ss.str() << std::endl;
+		}
+	}
+
+	if(do_benchmark) {
+		do_benchmark = false;
+		update_member(&do_benchmark);
+
+		misc_cfg.instant_redraw_proxy = true;
+		misc_cfg.vsync_proxy = false;
+		on_set(&misc_cfg.instant_redraw_proxy);
+		on_set(&misc_cfg.vsync_proxy);
+
+		if(!benchmark_running) {
+			benchmark_running = true;
+			benchmark_timer.restart();
+
+			total_frames = 0u;
+			initial_eye_pos = view_ptr->get_eye();
+			initial_focus = view_ptr->get_focus();
+			last_seconds_since_start = 0.0;
+		}
+	}
 }
 
 void tubes::draw (cgv::render::context &ctx)
@@ -400,12 +450,18 @@ void tubes::create_gui (void)
 			"tooltip='Controls the instant redraw state of the FLTK GL window.'"
 		);
 		add_member_control(
+			this, "vsync_redraw_proxy", misc_cfg.vsync_proxy, "toggle",
+			"tooltip='Controls the vsync state of the FLTK GL window.'"
+		);
+		add_member_control(
 			this, "fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy, "toggle",
 			"tooltip='Controls the \"fix_view_up_dir\" state of the view interactor.'"
 		);
 		align("\b");
 		end_tree_node(misc_cfg);
 	}
+
+	add_member_control(this, "Start Benchmark", do_benchmark, "toggle", "");
 }
 
 void tubes::set_view(void)
@@ -427,14 +483,21 @@ void tubes::set_view(void)
 	view_ptr->set_y_extent_at_focus(extent_factor * (double)length(bbox.get_extent()));
 }
 
-void tubes::update_attribute_bindings (void)
-{
+void tubes::update_attribute_bindings(void) {
 	auto &ctx = *get_context();
 
 	set_view();
 	calculate_bounding_box();
-	
+
 	create_density_volume(ctx, 128);
+
+	// create ssbo
+	/* struct data {
+		vec4 pos_rad
+		vec4 color
+		vec4 tangent
+	};
+	*/
 
 	if (traj_mgr.has_data())
 	{
@@ -480,135 +543,39 @@ void tubes::calculate_bounding_box(void) {
 			vec4 t0 = tangents[idx_a];
 			vec4 t1 = tangents[idx_b];
 
-			bbox.add_axis_aligned_box(hermite_spline_tube::calculate_bounding_box(
-				p0, p1,
-				vec3(t0), vec3(t1),
-				r0, r1,
-				t0.w(), t1.w(),
-				true
-			));
+			hermite_spline_tube hst = hermite_spline_tube(p0, p1, r0, r1, vec3(t0), vec3(t1), t0.w(), t1.w());
+			bbox.add_axis_aligned_box(hst.bounding_box(true));
 		}
 	}
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 }
 
-/** 3D Quadratic Bezier SDF
-	https://www.shadertoy.com/view/ldj3Wh
-*/
-tubes::vec2 tubes::sd_quadratic_bezier(const vec3& A, const vec3& B, const vec3& C, const vec3& pos) {
-
-	vec3 a = B - A;
-	vec3 b = A - 2.0f*B + C;
-	vec3 c = a * 2.0f;
-	vec3 d = A - pos;
-
-	float kk = 1.0 / dot(b, b);
-	float kx = kk * dot(a, b);
-	float ky = kk * (2.0f*dot(a, a) + dot(d, b)) / 3.0f;
-	float kz = kk * dot(d, a);
-
-	vec2 res;
-
-	float p = ky - kx * kx;
-	float p3 = p * p*p;
-	float q = kx * (2.0f*kx*kx - 3.0f*ky) + kz;
-	float h = q * q + 4.0f*p3;
-
-	if(h >= 0.0) {
-		h = sqrt(h);
-		vec2 x = (vec2(h, -h) - q) / 2.0;
-		vec2 uv = sign(x)*cgv::math::pow(abs(x), vec2(1.0f / 3.0f));
-		float t = cgv::math::clamp(uv.x() + uv.y() - kx, 0.0f, 1.0f);
-
-		// 1 root
-		res = vec2(cgv::math::sqr_length(d + (c + b * t)*t), t);
-	} else {
-		float z = sqrt(-p);
-		float v = acos(q / (p*z*2.0f)) / 3.0f;
-		float m = cos(v);
-		float n = sin(v)*1.732050808f;
-		vec3 t = cgv::math::clamp(vec3(m + m, -n - m, n - m) * z - kx, 0.0f, 1.0f);
-
-		// 3 roots, but only need two
-		float dis = cgv::math::sqr_length(d + (c + b * t.x())*t.x());
-		res = vec2(dis, t.x());
-
-		dis = cgv::math::sqr_length(d + (c + b * t.y())*t.y());
-		if(dis < res.x()) res = vec2(dis, t.y());
-	}
-
-	res.x() = sqrt(res.x());
-	return res;
-}
-
-int tubes::sample_voxel(const ivec3& vidx, const hermite_spline_tube::q_tube& qt) {
-
-	const unsigned num_samples_per_dim = 3;
-	const float vs = density_volume.voxel_size / static_cast<float>(num_samples_per_dim);
-	const vec3 vo(0.5f * vs);
-
-	const vec3 sample_position_offsets[27] = {
-		vo + vec3(1,1,1) * vs,
-		
-		vo + vec3(0,0,0) * vs,
-		vo + vec3(0,0,1) * vs,
-		vo + vec3(0,0,2) * vs,
-		vo + vec3(0,1,0) * vs,
-		vo + vec3(0,1,1) * vs,
-		vo + vec3(0,1,2) * vs,
-		vo + vec3(0,2,0) * vs,
-		vo + vec3(0,2,1) * vs,
-		vo + vec3(0,2,2) * vs,
-		vo + vec3(1,0,0) * vs,
-		vo + vec3(1,0,1) * vs,
-		vo + vec3(1,0,2) * vs,
-		vo + vec3(1,1,0) * vs,
-
-		vo + vec3(1,1,2) * vs,
-		vo + vec3(1,2,0) * vs,
-		vo + vec3(1,2,1) * vs,
-		vo + vec3(1,2,2) * vs,
-		vo + vec3(2,0,0) * vs,
-		vo + vec3(2,0,1) * vs,
-		vo + vec3(2,0,2) * vs,
-		vo + vec3(2,1,0) * vs,
-		vo + vec3(2,1,1) * vs,
-		vo + vec3(2,1,2) * vs,
-		vo + vec3(2,2,0) * vs,
-		vo + vec3(2,2,1) * vs,
-		vo + vec3(2,2,2) * vs
-	};
-
-	float half_voxel_diag = 0.5f * sqrt(3.0f) * density_volume.voxel_size;
+int tubes::sample_voxel(const ivec3& vidx, const quadratic_bezier_tube& qt) {
 
 	vec3 voxel_min = density_volume.bounds.ref_min_pnt() + vec3(vidx) * density_volume.voxel_size;
 
-	vec3 spos = voxel_min + sample_position_offsets[0];
-	vec2 dist = sd_quadratic_bezier(qt.s.pos, qt.h.pos, qt.e.pos, spos);
-	if((dist.x() - qt.s.rad) > half_voxel_diag)
+	vec3 spos = voxel_min + 0.5f * density_volume.voxel_size;
+	float dist = qt.signed_distance(spos);
+	if(dist > density_volume.voxel_half_diag)
 		return 0;
+	
+	int count = 0;
 
-	int count = dist.x() <= 0.0f ? 1 : 0;
+	for(unsigned k = 0; k < 27; ++k) {
+		vec3 spos = voxel_min + sample_position_offsets[k];
+		float dist = qt.signed_distance(spos);
 
-	for(unsigned k = 1; k < 27; ++k) {
-		//vec3 idx = sample_position_offsets[k];// (i, j, k);
-		vec3 spos = voxel_min + sample_position_offsets[k];// vo + idx * vs;
-
-		// TODO: move to own quadratic tube class
-		vec2 dist = sd_quadratic_bezier(qt.s.pos, qt.h.pos, qt.e.pos, spos);
-
-		// TODO: currently a constant radius per segment is assumed
-		if(dist.x() <= qt.s.rad)
+		if(dist <= 0.0f)
 			++count;
 	}
 	
 	return count;
 }
 
-void tubes::voxelize_q_tube(const hermite_spline_tube::q_tube& qt) {
+void tubes::voxelize_q_tube(const quadratic_bezier_tube& qt) {
 
-	box3 box = hermite_spline_tube::q_spline_exact_bbox(qt);
+	box3 box = qt.bounding_box(true);
 
 	ivec3 sidx((box.get_min_pnt() - density_volume.bounds.ref_min_pnt()) / density_volume.voxel_size);
 	ivec3 eidx((box.get_max_pnt() - density_volume.bounds.ref_min_pnt()) / density_volume.voxel_size);
@@ -643,6 +610,21 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 
 	std::cout << "Generating density volume with resolution (" << density_volume.resolution.x() << ", " << density_volume.resolution.y() << ", " << density_volume.resolution.z() << ")... ";
 	
+	const unsigned num_samples_per_dim = 3;
+	const float step = density_volume.voxel_size / static_cast<float>(num_samples_per_dim);
+	const vec3 offset(0.5f * step);
+
+	sample_position_offsets.resize(num_samples_per_dim*num_samples_per_dim*num_samples_per_dim);
+
+	unsigned idx = 0;
+	for(unsigned z = 0; z < num_samples_per_dim; ++z) {
+		for(unsigned y = 0; y < num_samples_per_dim; ++y) {
+			for(unsigned x = 0; x < num_samples_per_dim; ++x) {
+				sample_position_offsets[idx++] = offset + vec3(x, y, z) * step;
+			}
+		}
+	}
+
 	auto& positions = render.data->positions;
 	auto& tangents = render.data->tangents;
 	auto& radii = render.data->radii;
@@ -660,17 +642,13 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 		vec4 t0 = tangents[idx_a];
 		vec4 t1 = tangents[idx_b];
 
-		hermite_spline_tube::q_tube qt0, qt1;
-		hermite_spline_tube::split_to_qtubes(
-			p0, p1,
-			vec3(t0), vec3(t1),
-			r0, r1,
-			t0.w(), t1.w(),
-			qt0, qt1
-		);
+		hermite_spline_tube hst = hermite_spline_tube(p0, p1, r0, r1, vec3(t0), vec3(t1), t0.w(), t1.w());
 
-		voxelize_q_tube(qt0);
-		voxelize_q_tube(qt1);
+		quadratic_bezier_tube qbt0 = hst.split_to_quadratic_bezier_tube(0);
+		quadratic_bezier_tube qbt1 = hst.split_to_quadratic_bezier_tube(1);
+		
+		voxelize_q_tube(qbt0);
+		voxelize_q_tube(qbt1);
 	}
 
 	for(unsigned i = 0; i < density_volume.data.size(); ++i)
@@ -831,8 +809,7 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.enable_attachment(ctx, "normal", 2);
 	fbc.enable_attachment(ctx, "texcoord", 3);
 	fbc.enable_attachment(ctx, "depth", 4);
-	tex.enable(ctx, 5);
-	density_tex.enable(ctx, 6);
+	density_tex.enable(ctx, 5);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
@@ -841,7 +818,6 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.disable_attachment(ctx, "normal");
 	fbc.disable_attachment(ctx, "texcoord");
 	fbc.disable_attachment(ctx, "depth");
-	tex.disable(ctx);
 	density_tex.disable(ctx);
 
 	prog.disable(ctx);
