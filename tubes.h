@@ -146,7 +146,7 @@ protected:
 	};
 
 	GridMode grid_mode = GM_COLOR;
-	float bump_scale = 0.002;
+	float bump_scale = 0.002f;
 	std::vector<grid_parameters> grids;
 
 	enum GlyphType {
@@ -250,6 +250,9 @@ protected:
 
 		/// GPU-side storage buffer mirroring the \ref #arclen_data .
 		vertex_buffer arclen_sbo;
+
+		/// GPU-side render attribute buffer.
+		vertex_buffer render_sbo;
 
 		/// shared attribute array manager used by both renderers
 		attribute_array_manager aam;

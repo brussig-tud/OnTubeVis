@@ -48,12 +48,12 @@ tubes::tubes() : application_plugin("tubes_instance")
 	tf_editor_ptr->set_visibility(false);
 
 	grids.resize(2);
-	grids[0].scaling = vec2(5.0, 1.0);
-	grids[0].thickness = 0.05;
-	grids[0].blend_factor = 0.75;
-	grids[1].scaling = vec2(50.0, 10.0);
-	grids[1].thickness = 0.1;
-	grids[1].blend_factor = 0.5;
+	grids[0].scaling = vec2(5.0f, 1.0f);
+	grids[0].thickness = 0.05f;
+	grids[0].blend_factor = 0.75f;
+	grids[1].scaling = vec2(50.0f, 10.0f);
+	grids[1].thickness = 0.1f;
+	grids[1].blend_factor = 0.5f;
 
 	do_benchmark = false;
 	benchmark_running = false;
@@ -491,20 +491,43 @@ void tubes::update_attribute_bindings(void) {
 
 	create_density_volume(ctx, 128);
 
-	// create ssbo
-	/* struct data {
-		vec4 pos_rad
-		vec4 color
-		vec4 tangent
-	};
-	*/
-
 	if (traj_mgr.has_data())
 	{
+		// Recompute arclength parametrization
 		render.arclen_sbo.destruct(ctx);
 		render.arclen_data = arclen::compile_renderdata(traj_mgr);
 		render.arclen_sbo = arclen::upload_renderdata(ctx, render.arclen_data);
 
+		// Upload render attributes
+		render.render_sbo.destruct(ctx);
+		// - compile data
+		const size_t num_nodes = render.data->positions.size();
+		struct node_attribs { vec4 pos_rad, color, tangent; };
+		std::vector<node_attribs> render_attribs; render_attribs.reserve(num_nodes);
+		for (size_t i=0; i<num_nodes; i++)
+		{
+			// convenience shortcuts
+			const auto &data = *render.data;
+			const auto &pos = data.positions[i];
+			const auto &tan = data.tangents[i];
+			const auto &rad = data.radii[i];
+			const auto &col = data.colors[i];
+			// interleave
+			node_attribs new_node{
+				vec4(pos, rad),
+				vec4(col.R(), col.G(), col.B(), 1),
+				tan     // <- tan does already contain radius deriv. in w-component
+			};
+			// commit
+			render_attribs.emplace_back(std::move(new_node));
+		}
+		// - upload
+		cgv::render::vertex_buffer new_sbo(cgv::render::VBT_STORAGE, cgv::render::VBU_STATIC_READ);
+		if (!new_sbo.create(ctx, render_attribs))
+			std::cerr << "!!! unable to create render attribute Storage Buffer Object !!!" << std::endl << std::endl;
+		render.render_sbo = std::move(new_sbo);
+
+		// Upload render attributes to legacy buffers
 		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 		tstr.set_position_array(ctx, render.data->positions);
