@@ -179,7 +179,8 @@ FLOAT_TYPE Bezier<FLOAT_TYPE>::arc_length_even_subdivision(FLOAT_TYPE t, int num
     return result;
 }
 
-template <typename FLOAT_TYPE> FLOAT_TYPE arc_length_adaptive_subdivision(Bezier<FLOAT_TYPE> b, FLOAT_TYPE epsilon) {
+template <typename FLOAT_TYPE>
+FLOAT_TYPE arc_length_adaptive_subdivision(const Bezier<FLOAT_TYPE> &b, FLOAT_TYPE epsilon) {
     auto lengthControlPolygon = b.length_control_polygon();
     auto lengthChord = b.length_chord();
     auto degree = 3.0;
@@ -205,8 +206,11 @@ FLOAT_TYPE Bezier<FLOAT_TYPE>::arc_length_adaptive_subdivision(FLOAT_TYPE t, FLO
 
 template <typename FLOAT_TYPE>
 ParameterizationRegression<FLOAT_TYPE> *
-Bezier<FLOAT_TYPE>::parameterization_regression(const int order, const int numSamples,
-                                                const int numLegendreSamples) const {
+Bezier<FLOAT_TYPE>::parameterization_regression(const int order, int numSamples, const int numLegendreSamples) const {
+    if (numSamples == -1) {
+        numSamples = order * 10;
+    }
+
     std::vector<FLOAT_TYPE> lengths = {};
     std::vector<FLOAT_TYPE> ts = {};
     for (int i = 0; i < numSamples; i++) {
@@ -244,156 +248,6 @@ template <typename FLOAT_TYPE> v3<bool> is_equal(v3<FLOAT_TYPE> a, v3<FLOAT_TYPE
           is_equal(a.y, b.y, epsilon),
           is_equal(a.z, b.z, epsilon),
     };
-}
-
-template <typename FLOAT_TYPE> std::vector<FLOAT_TYPE> Bezier<FLOAT_TYPE>::get_inflection_points() const {
-    auto P1 = points[0];
-    auto C1 = points[1];
-    auto C2 = points[2];
-    auto P2 = points[3];
-    v3<FLOAT_TYPE> a = C1 - P1;
-    v3<FLOAT_TYPE> b = C2 - C1 - a;
-    v3<FLOAT_TYPE> c = P2 - C2 - a - (2.0 * b);
-
-    v3<FLOAT_TYPE> i = {};
-    i.x = b.y * c.z - b.z * c.y;
-    i.y = b.z * c.x - b.x * c.z;
-    i.z = b.x * c.y - b.y * c.x;
-
-    v3<FLOAT_TYPE> j = {};
-    j.x = a.y * c.z - a.z * c.y;
-    j.y = a.z * c.x - a.x * c.z;
-    j.z = a.x * c.y - a.y * c.x;
-
-    v3<FLOAT_TYPE> k = {};
-    k.x = a.y * b.z - a.z * b.y;
-    k.y = a.z * b.x - a.x * b.z;
-    k.z = a.x * b.y - a.y * b.x;
-
-    auto result = std::vector<FLOAT_TYPE>();
-    FLOAT_TYPE t0;
-    FLOAT_TYPE t1;
-    bool useT0T1 = true;
-    if (is_equal(i.x, static_cast<FLOAT_TYPE>(0.0))) {
-        if (is_equal(j.x, static_cast<FLOAT_TYPE>(0.0)) && !is_equal(k.x, static_cast<FLOAT_TYPE>(0.0))) {
-            return result;
-        } else if (is_equal(j.x, static_cast<FLOAT_TYPE>(0.0)) && is_equal(k.x, static_cast<FLOAT_TYPE>(0.0))) {
-            useT0T1 = false;
-        } else {
-            t0 = -k.x / j.x;
-            t1 = t0;
-        }
-    } else {
-        t0 = (-j.x + std::sqrt(j.x * j.x - 4.0 * i.x * k.x)) / (2.0 * i.x);
-        t1 = (-j.x - std::sqrt(j.x * j.x - 4.0 * i.x * k.x)) / (2.0 * i.x);
-    }
-
-    FLOAT_TYPE t2;
-    FLOAT_TYPE t3;
-    bool useT2T3 = true;
-    if (is_equal(i.y, static_cast<FLOAT_TYPE>(0.0))) {
-        if (is_equal(j.y, static_cast<FLOAT_TYPE>(0.0)) && !is_equal(k.y, static_cast<FLOAT_TYPE>(0.0))) {
-            return result;
-        } else if (is_equal(j.y, static_cast<FLOAT_TYPE>(0.0)) && is_equal(k.y, static_cast<FLOAT_TYPE>(0.0))) {
-            useT2T3 = false;
-        } else {
-            t2 = -k.y / j.y;
-            t3 = t2;
-        }
-    } else {
-        t2 = (-j.y + std::sqrt(j.y * j.y - 4.0 * i.y * k.y)) / (2.0 * i.y);
-        t3 = (-j.y - std::sqrt(j.y * j.y - 4.0 * i.y * k.y)) / (2.0 * i.y);
-    }
-
-    FLOAT_TYPE t4;
-    FLOAT_TYPE t5;
-    bool useT4T5 = true;
-    if (is_equal(i.z, 0.0)) {
-        if (is_equal(j.z, 0.0) && !is_equal(k.z, 0.0)) {
-            return result;
-        } else if (is_equal(j.z, 0.0) && is_equal(k.z, 0.0)) {
-            useT4T5 = false;
-        } else {
-            t4 = -k.z / j.z;
-            t5 = t4;
-        }
-    } else {
-        t4 = (-j.z + std::sqrt(j.z * j.z - 4.0 * i.z * k.z)) / (2.0 * i.z);
-        t5 = (-j.z - std::sqrt(j.z * j.z - 4.0 * i.z * k.z)) / (2.0 * i.z);
-    }
-
-    if (!useT0T1 && !useT2T3 && useT4T5) {
-        result.push_back(t4);
-        result.push_back(t5);
-    } else if (!useT0T1 && useT2T3 && !useT4T5) {
-        result.push_back(t2);
-        result.push_back(t3);
-    } else if (useT0T1 && !useT2T3 && !useT4T5) {
-        result.push_back(t0);
-        result.push_back(t1);
-    } else {
-
-        if (is_equal(t0, t2) || !useT0T1 || !useT2T3) {
-            if (!useT0T1) {
-                t0 = t2;
-            }
-            if (is_equal(t0, t4) || is_equal(t0, t5) || !useT4T5) {
-                if (t0 > 0.0 && t0 < 1.0) {
-                    result.push_back(t0);
-                }
-            }
-        }
-        if (is_equal(t0, t3) || !useT0T1 || !useT2T3) {
-            if (!useT0T1) {
-                t0 = t3;
-            }
-            if (is_equal(t0, t4) || is_equal(t0, t5) || !useT4T5) {
-                if (t0 > 0.0 && t0 < 1.0) {
-                    result.push_back(t0);
-                }
-            }
-        }
-
-        if (is_equal(t1, t2) || !useT0T1 || !useT2T3) {
-            if (!useT0T1) {
-                t1 = t2;
-            }
-            if (is_equal(t1, t4) || is_equal(t1, t5) || !useT4T5) {
-                if (t1 > 0.0 && t1 < 1.0) {
-                    result.push_back(t1);
-                }
-            }
-        }
-        if (is_equal(t1, t3) || !useT0T1 || !useT2T3) {
-            if (!useT0T1) {
-                t1 = t3;
-            }
-            if (is_equal(t1, t4) || is_equal(t1, t5) || !useT4T5) {
-                if (t1 > 0.0 && t1 < 1.0) {
-                    result.push_back(t1);
-                }
-            }
-        }
-    }
-
-    // removing duplicates
-    for (int i = result.size() - 1; i >= 0; i--) {
-        bool should_remove = false;
-        for (int j = 0; j < result.size(); j++) {
-            if (i != j && is_equal(result[i], result[j])) {
-                should_remove = true;
-                break;
-            }
-        }
-        if (should_remove) {
-            result.erase(result.begin() + i);
-        }
-    }
-
-    for (const auto &t : result) {
-        std::cout << t << std::endl;
-    }
-    return result;
 }
 
 template <typename FLOAT_TYPE>
@@ -489,210 +343,70 @@ template <typename FLOAT_TYPE> void unique(std::vector<FLOAT_TYPE> &v) {
 }
 
 template <typename FLOAT_TYPE>
-std::vector<FLOAT_TYPE> Bezier<FLOAT_TYPE>::get_inflection_points_of_length_function() const {
-    // TODO this function seems correct, but has not been tested extensively
-
-    auto a = 9.0 * points[1] - 3.0 * points[0] - 9.0 * points[2] + 3.0 * points[3];
-    auto b = -12.0 * points[1] + 6.0 * points[0] + 6.0 * points[2];
-    auto c = 3.0 * points[1] - 3.0 * points[0];
-
-    auto t0 = (b * -1.0 + std::sqrt(b * b - 4.0 * a * c)) / (2.0 * a);
-    auto t1 = (b * -1.0 - std::sqrt(b * b - 4.0 * a * c)) / (2.0 * a);
-    auto t2 = (-1.0 * c) / b;
-
-    auto n = 6.0 * points[2] - 12.0 * points[1] + 6.0 * points[0];
-    auto m = -18.0 * points[2] + 18.0 * points[1] - 6.0 * points[0] + 6.0 * points[3];
-    auto t3 = (-1.0 * n) / m;
-
-    const v3<FLOAT_TYPE> zero = v3<FLOAT_TYPE>(0.0, 0.0, 0.0);
-    auto m_equal_zero = is_equal(m, zero);
-    auto n_equal_zero = is_equal(n, zero);
-    auto a_equal_zero = is_equal(a, zero);
-    auto b_equal_zero = is_equal(b, zero);
-    auto c_equal_zero = is_equal(c, zero);
-
-    std::vector<FLOAT_TYPE> x_roots = {};
-    bool x_has_infinite_roots = false;
-    if (!m_equal_zero.x) {
-        x_roots.push_back(t3.x);
-    } else if (m_equal_zero.x && n_equal_zero.x) {
-        x_has_infinite_roots = true;
-    }
-    if (a_equal_zero.x && b_equal_zero.x && c_equal_zero.x) {
-        x_has_infinite_roots = true;
-    } else if (a_equal_zero.x && !b_equal_zero.x) {
-        x_roots.push_back(t2.x);
-    } else if (!a_equal_zero.x) {
-        FLOAT_TYPE d = b.x * b.x - 4.0 * a.x * c.x;
-        if (d >= 0.0) {
-            x_roots.push_back(t0.x);
-            x_roots.push_back(t1.x);
-        }
-    }
-
-    std::vector<FLOAT_TYPE> y_roots = {};
-    bool y_has_infinite_roots = false;
-    if (!m_equal_zero.y) {
-        y_roots.push_back(t3.y);
-    } else if (m_equal_zero.y && n_equal_zero.y) {
-        y_has_infinite_roots = true;
-    }
-    if (a_equal_zero.y && b_equal_zero.y && c_equal_zero.y) {
-        y_has_infinite_roots = true;
-    } else if (a_equal_zero.y && !b_equal_zero.y) {
-        y_roots.push_back(t2.y);
-    } else if (!a_equal_zero.y && b.y * b.y - 4.0 * a.y * c.y >= 0.0) {
-        y_roots.push_back(t0.y);
-        y_roots.push_back(t1.y);
-    }
-
-    std::vector<FLOAT_TYPE> z_roots = {};
-    bool z_has_infinite_roots = false;
-    if (!m_equal_zero.z) {
-        z_roots.push_back(t3.z);
-    } else if (m_equal_zero.z && n_equal_zero.z) {
-        z_has_infinite_roots = true;
-    }
-    if (a_equal_zero.z && b_equal_zero.z && c_equal_zero.z) {
-        z_has_infinite_roots = true;
-    } else if (a_equal_zero.z && !b_equal_zero.z) {
-        z_roots.push_back(t2.z);
-    } else if (!a_equal_zero.z && b.z * b.z - 4.0 * a.z * c.z >= 0.0) {
-        z_roots.push_back(t0.z);
-        z_roots.push_back(t1.z);
-    }
-
-    if (x_has_infinite_roots && y_has_infinite_roots && z_has_infinite_roots) {
-        // TODO what should we do in this case? Is this even possible?
+ArcLengthBezierApproximation<FLOAT_TYPE> Bezier<FLOAT_TYPE>::arc_length_bezier_approximation(int numSegments,
+                                                                                             int numSamples) const {
+    if (numSegments < 1) {
         return {};
-    } else if (x_has_infinite_roots && y_has_infinite_roots) {
-        return z_roots;
-    } else if (x_has_infinite_roots && z_has_infinite_roots) {
-        return y_roots;
-    } else if (y_has_infinite_roots && z_has_infinite_roots) {
-        return x_roots;
-    } else if (x_has_infinite_roots) {
-        std::vector<FLOAT_TYPE> result = intersection(y_roots, z_roots);
-        unique(result);
-        return result;
-    } else if (y_has_infinite_roots) {
-        std::vector<FLOAT_TYPE> result = intersection(x_roots, z_roots);
-        unique(result);
-        return result;
-    } else if (z_has_infinite_roots) {
-        std::vector<FLOAT_TYPE> result = intersection(x_roots, y_roots);
-        unique(result);
-        return result;
     }
-
-    auto tmp = intersection(x_roots, y_roots);
-    auto result = intersection(tmp, z_roots);
-    unique(result);
-    return result;
-}
-
-template <typename FLOAT_TYPE>
-ArcLengthBezierApproximation<FLOAT_TYPE> Bezier<FLOAT_TYPE>::arc_length_bezier_approximation(int numSamples) const {
-    std::vector<FLOAT_TYPE> inflectionPoints = get_inflection_points_of_length_function();
 
     auto result = ArcLengthBezierApproximation<FLOAT_TYPE>();
+    result.totalLength = arc_length_legendre_gauss(1.0, numSamples);
+    result.lengths.push_back(0.0);
 
-    result.isTwoSpan = false /*inflectionPoints.size() >= 2*/;
-    if (!result.isTwoSpan) {
-        result.totalLength0 = arc_length_legendre_gauss(1.0, numSamples);
-        const auto s1over3 = arc_length_legendre_gauss(1.0 / 3.0, numSamples) / result.totalLength0;
-        const auto s2over3 = arc_length_legendre_gauss(2.0 / 3.0, numSamples) / result.totalLength0;
+    auto dStep = 1.0 / static_cast<FLOAT_TYPE>(numSegments);
+    for (int i = 0; i < numSegments; i++) {
+        auto tPrev = static_cast<FLOAT_TYPE>(i) * dStep;
+        auto tCur = static_cast<FLOAT_TYPE>(i + 1) * dStep;
+        auto tDiff = tCur - tPrev;
 
-        result.s0y1 = (18.0 * s1over3 - 9.0 * s2over3 + 2.0) / 6.0;
-        result.s0y2 = (-9.0 * s1over3 + 18.0 * s2over3 - 5.0) / 6.0;
-        return result;
-    }
+        auto dPrev = result.lengths.back();
+        auto dCur = arc_length_legendre_gauss(tCur, numSamples);
+        auto dDiff = dCur - dPrev;
 
-#define DEBUG_BEZIER_APPROXIMATION 0
-#if DEBUG_BEZIER_APPROXIMATION
-    std::cout << "We have more than one inflection point on the length curve." << std::endl;
-    std::cout << "Curve:" << std::endl;
-    for (const auto &p : points) {
-        std::cout << p.x << " " << p.y << std::endl;
-    }
-    std::cout << "Inflection points given as parameter t:" << std::endl;
-    for (const auto &t : inflectionPoints) {
-        std::cout << t << std::endl;
-    }
-#endif
+        FLOAT_TYPE sample1 = (tPrev + tDiff * (1.0 / 3.0));
+        auto s1over3 = arc_length_legendre_gauss(sample1);
+        auto s1over3Scaled = (s1over3 - dPrev) / dDiff;
 
-    // TODO not sure about the next part. we have not encountered such a case
-    //  yet
-    FLOAT_TYPE t1 = inflectionPoints[0];
-    FLOAT_TYPE t2 = inflectionPoints[1];
-    result.tMid = (t1 + t2) / 2.0;
+        FLOAT_TYPE sample2 = (tPrev + tDiff * (2.0 / 3.0));
+        auto s2over3 = arc_length_legendre_gauss(sample2);
+        auto s2over3Scaled = (s2over3 - dPrev) / dDiff;
 
-    {
-        result.totalLength0 = arc_length_legendre_gauss(result.tMid, numSamples);
-        const auto s1over3 = arc_length_legendre_gauss((1.0 / 3.0) * result.tMid, numSamples) / result.totalLength0;
-        const auto s2over3 = arc_length_legendre_gauss((2.0 / 3.0) * result.tMid, numSamples) / result.totalLength0;
+        auto y1 = (18.0 * s1over3Scaled - 9.0 * s2over3Scaled + 2.0) / 6.0;
+        auto y2 = (-9.0 * s1over3Scaled + 18.0 * s2over3Scaled - 5.0) / 6.0;
 
-        result.s0y1 = (18.0 * s1over3 - 9.0 * s2over3 + 2.0) / 6.0;
-        result.s0y2 = (-9.0 * s1over3 + 18.0 * s2over3 - 5.0) / 6.0;
-    }
-
-    {
-        result.totalLength1 = arc_length_legendre_gauss(1.0, numSamples) - result.totalLength0;
-
-        FLOAT_TYPE sample1 = result.tMid + ((1.0 - result.tMid) * (1.0 / 3.0));
-        const auto t1over3 =
-              (arc_length_legendre_gauss(sample1, numSamples) - result.totalLength0) / result.totalLength1;
-
-        FLOAT_TYPE sample2 = result.tMid + ((1.0 - result.tMid) * (2.0 / 3.0));
-        const auto t2over3 =
-              (arc_length_legendre_gauss(sample2, numSamples) - result.totalLength0) / result.totalLength1;
-
-        result.s1y1 = (18.0 * t1over3 - 9.0 * t2over3 + 2.0) / 6.0;
-        result.s1y2 = (-9.0 * t1over3 + 18.0 * t2over3 - 5.0) / 6.0;
+        result.y1.push_back(y1);
+        result.y2.push_back(y2);
+        result.lengths.push_back(dCur);
     }
 
     return result;
-}
-
-template <typename FLOAT_TYPE> Bezier<FLOAT_TYPE> ArcLengthBezierApproximation<FLOAT_TYPE>::get_curve() const {
-    return {
-          v3<FLOAT_TYPE>(0.0, 0.0, 0.0),
-          v3<FLOAT_TYPE>(1.0 / 3.0, s0y1, 0.0),
-          v3<FLOAT_TYPE>(2.0 / 3.0, s0y2, 0.0),
-          v3<FLOAT_TYPE>(1.0, 1.0, 0.0),
-    };
 }
 
 template <typename FLOAT_TYPE> FLOAT_TYPE ArcLengthBezierApproximation<FLOAT_TYPE>::evaluate(FLOAT_TYPE t) const {
-    if (!isTwoSpan) {
-        auto b = get_curve();
-        const v3<FLOAT_TYPE> v = b.evaluate(t);
-        return v.y * totalLength0;
+    if (t <= 0.0) {
+        return 0.0;
+    }
+    if (t >= 1.0) {
+        return totalLength;
     }
 
-    if (t < tMid) {
-        FLOAT_TYPE x1 = tMid * (1.0 / 3.0);
-        FLOAT_TYPE x2 = tMid * (2.0 / 3.0);
-        Bezier<FLOAT_TYPE> b = {
-              v3<FLOAT_TYPE>(0.0, 0.0, 0.0),
-              v3<FLOAT_TYPE>(x1, s0y1, 0.0),
-              v3<FLOAT_TYPE>(x2, s0y2, 0.0),
-              v3<FLOAT_TYPE>(1.0, 1.0, 0.0),
-        };
-        const v3<FLOAT_TYPE> v = b.evaluate(t);
-        return v.y * totalLength0;
-    } else {
-        FLOAT_TYPE x1 = tMid + ((1.0 - tMid) * (1.0 / 3.0));
-        FLOAT_TYPE x2 = tMid + ((1.0 - tMid) * (2.0 / 3.0));
-        Bezier<FLOAT_TYPE> b = {
-              v3<FLOAT_TYPE>(0.0, 0.0, 0.0),
-              v3<FLOAT_TYPE>(x1, s1y1, 0.0),
-              v3<FLOAT_TYPE>(x2, s1y2, 0.0),
-              v3<FLOAT_TYPE>(1.0, 1.0, 0.0),
-        };
-        const v3<FLOAT_TYPE> v = b.evaluate(t - tMid);
-        return (v.y * totalLength1) + totalLength0;
-    }
+    size_t segmentCount = y1.size();
+    size_t index = segmentCount * t;
+    auto tStep = 1.0 / static_cast<FLOAT_TYPE>(segmentCount);
+    auto tPrev = static_cast<FLOAT_TYPE>(index) * tStep;
+    auto tCur = static_cast<FLOAT_TYPE>(index + 1) * tStep;
+    auto tDiff = tCur - tPrev;
+
+    auto x = (t - tPrev) / tDiff;
+    auto t1 = 3.0 * (1.0 - x) * (1.0 - x) * x * y1[index];
+    auto t2 = 3.0 * (1.0 - x) * x * x * y2[index];
+    auto t3 = x * x * x;
+    auto y = t1 + t2 + t3;
+
+    auto dPrev = lengths[index];
+    auto dCur = lengths[index + 1];
+    auto dDiff = dCur - dPrev;
+    return (y * dDiff) + dPrev;
 }
 
 template <typename FLOAT_TYPE>
@@ -706,28 +420,22 @@ FLOAT_TYPE ParameterizationBezierApproximation<FLOAT_TYPE>::evaluate(FLOAT_TYPE 
 
     auto dNormalized = d / totalLength;
     size_t segmentCount = y1.size();
+    size_t index = segmentCount * dNormalized;
     auto dStep = 1.0 / static_cast<FLOAT_TYPE>(segmentCount);
-    for (int i = 0; i < segmentCount; i++) {
-        auto dPrev = static_cast<FLOAT_TYPE>(i) * dStep;
-        auto dCur = static_cast<FLOAT_TYPE>(i + 1) * dStep;
-        if (dNormalized > dCur) {
-            continue;
-        }
-        auto dDiff = dCur - dPrev;
+    auto dPrev = static_cast<FLOAT_TYPE>(index) * dStep;
+    auto dCur = static_cast<FLOAT_TYPE>(index + 1) * dStep;
+    auto dDiff = dCur - dPrev;
 
-        auto x = (dNormalized - dPrev) / dDiff;
-        auto t1 = 3.0 * (1.0 - x) * (1.0 - x) * x * y1[i];
-        auto t2 = 3.0 * (1.0 - x) * x * x * y2[i];
-        auto t3 = x * x * x;
-        auto y = t1 + t2 + t3;
+    auto x = (dNormalized - dPrev) / dDiff;
+    auto t1 = 3.0 * (1.0 - x) * (1.0 - x) * x * y1[index];
+    auto t2 = 3.0 * (1.0 - x) * x * x * y2[index];
+    auto t3 = x * x * x;
+    auto y = t1 + t2 + t3;
 
-        auto tPrev = t[i];
-        auto tCur = t[i + 1];
-        auto tDiff = tCur - tPrev;
-        return (y * tDiff) + tPrev;
-    }
-
-    return 0.0;
+    auto tPrev = t[index];
+    auto tCur = t[index + 1];
+    auto tDiff = tCur - tPrev;
+    return (y * tDiff) + tPrev;
 }
 
 template <typename FLOAT_TYPE> FLOAT_TYPE ParameterizationBezierApproximation<FLOAT_TYPE>::length() const {
@@ -795,7 +503,7 @@ FLOAT_TYPE ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>::evaluate(
 }
 
 template <typename FLOAT_TYPE> FLOAT_TYPE ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>::length() const {
-    return arcLength.totalLength0 + arcLength.totalLength1;
+    return arcLength.totalLength;
 }
 
 template <typename FLOAT_TYPE> FLOAT_TYPE ParameterizationAdaptive<FLOAT_TYPE>::evaluate(FLOAT_TYPE d) const {

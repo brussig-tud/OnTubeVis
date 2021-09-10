@@ -18,22 +18,23 @@ template <typename FLOAT_TYPE> struct aabb {
 };
 
 template <typename FLOAT_TYPE> struct ArcLengthBezierApproximation {
-    FLOAT_TYPE s0y1;
-    FLOAT_TYPE s0y2;
-    FLOAT_TYPE s1y1;
-    FLOAT_TYPE s1y2;
-    FLOAT_TYPE totalLength0 = 0.0;
-    FLOAT_TYPE totalLength1 = 0.0;
-    FLOAT_TYPE tMid = 0.0;
-    bool isTwoSpan = false;
+    std::vector<FLOAT_TYPE> y1 = {};
+    std::vector<FLOAT_TYPE> y2 = {};
+    std::vector<FLOAT_TYPE> lengths = {};
+    FLOAT_TYPE totalLength = 0.0;
 
     FLOAT_TYPE evaluate(FLOAT_TYPE t) const;
-    Bezier<FLOAT_TYPE> get_curve() const;
 };
 
 template <typename FLOAT_TYPE> struct Parameterization {
     virtual FLOAT_TYPE evaluate(FLOAT_TYPE d) const = 0;
     virtual FLOAT_TYPE length() const = 0;
+};
+
+template <typename FLOAT_TYPE> struct ParameterizationNone : public Parameterization<FLOAT_TYPE> {
+    FLOAT_TYPE totalLength = 0.0;
+    FLOAT_TYPE evaluate(FLOAT_TYPE d) const override { return d / totalLength; }
+    FLOAT_TYPE length() const override { return totalLength; }
 };
 
 template <typename FLOAT_TYPE> struct ParameterizationSubdivisionLegendreGauss : public Parameterization<FLOAT_TYPE> {
@@ -124,14 +125,6 @@ template <typename FLOAT_TYPE> struct Bezier {
      */
     FLOAT_TYPE length_control_polygon() const;
 
-    /**
-     * Calculate the inflection points of this curve. Returns the t values of the
-     * inflection points.
-     */
-    std::vector<FLOAT_TYPE> get_inflection_points() const;
-
-    std::vector<FLOAT_TYPE> get_inflection_points_of_length_function() const;
-
     /** --------------------------------------------------------------------- */
 
     /**
@@ -156,9 +149,19 @@ template <typename FLOAT_TYPE> struct Bezier {
      * Calculates a bezier curve that approximates the arc length of the original curve.
      * https://www.visgraf.impa.br/sibgrapi96/trabs/pdf/a14.pdf
      */
-    ArcLengthBezierApproximation<FLOAT_TYPE> arc_length_bezier_approximation(int numSamples = 100) const;
+    ArcLengthBezierApproximation<FLOAT_TYPE> arc_length_bezier_approximation(int numSegments,
+                                                                             int numSamples = 100) const;
 
     /** --------------------------------------------------------------------- */
+
+    /**
+     * Calculates the length of the curve and creates a no-op parameterization.
+     */
+    ParameterizationNone<FLOAT_TYPE> *parameterization_none() const {
+        auto result = new ParameterizationNone<FLOAT_TYPE>();
+        result->totalLength = arc_length_legendre_gauss(1.0, 100);
+        return result;
+    }
 
     /**
      * Calculates an arc length parameterization for this curve by sampling the
@@ -166,7 +169,7 @@ template <typename FLOAT_TYPE> struct Bezier {
      * NOTE: This is very inaccurate, use
      * parameterization_subdivision_bezier_approximation instead.
      */
-    ParameterizationRegression<FLOAT_TYPE> *parameterization_regression(int order = 3, int numSamples = 100,
+    ParameterizationRegression<FLOAT_TYPE> *parameterization_regression(int order = 3, int numSamples = -1,
                                                                         int numLegendreSamples = 100) const;
 
     Parameterization<FLOAT_TYPE> *parameterization_subdivision_adaptive(int depth = 100) const {
@@ -192,13 +195,13 @@ template <typename FLOAT_TYPE> struct Bezier {
     /**
      * Creates an arc length parameterization that does a binary search to find the correct parameter t for a given
      * arc length.
-     * Uses the Bezier-Approximation algorithm to calculate the length at each point.
+     * Uses the Bézier-Approximation algorithm to calculate the length at each point.
      */
     ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE> *
-    parameterization_subdivision_bezier_approximation(int depth = 100) const {
+    parameterization_subdivision_bezier_approximation(int depth = 100, int numSegments = 3) const {
         auto result = new ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>();
         result->depth = depth;
-        result->arcLength = arc_length_bezier_approximation();
+        result->arcLength = arc_length_bezier_approximation(numSegments);
         return result;
     }
 

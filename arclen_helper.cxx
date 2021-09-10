@@ -78,11 +78,12 @@ std::vector<cgv::render::render_types::vec4> compile_renderdata<flt_type> (const
 
 				// arc length
 				// - fit bezier
-				const auto alen_approx = b.arc_length_bezier_approximation();
-				seg.param.t_to_s = alen_approx.get_curve();
+				const auto alen_approx = b.arc_length_bezier_approximation(1);
+				seg.param.t_to_s.points[0].y = 0;
+				seg.param.t_to_s.points[1].y = alen_approx.y1[0]*alen_approx.totalLength;
 				// - offset by current global trajectory length
-				seg.param.t_to_s.points[2].y *= alen_approx.totalLength0;
-				seg.param.t_to_s.points[3].y *= alen_approx.totalLength0;
+				seg.param.t_to_s.points[2].y = alen_approx.y2[0]*alen_approx.totalLength;
+				seg.param.t_to_s.points[3].y = alen_approx.totalLength;
 				for (unsigned j=0; j<4; j++)
 					seg.param.t_to_s.points[j].y += length_sum;
 				/*const real l0 = seg.param.t_to_s.evaluate(0.f).y,
@@ -91,7 +92,7 @@ std::vector<cgv::render::render_types::vec4> compile_renderdata<flt_type> (const
 				           l3 = seg.param.t_to_s.evaluate(seg.param.t_to_s.points[2].x).y,
 				           l4 = seg.param.t_to_s.evaluate(1.f).y;*/
 				// - update global trajectory length
-				length_sum += alen_approx.totalLength0;
+				length_sum += alen_approx.totalLength;
 
 				// output control points
 				result.emplace_back(
