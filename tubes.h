@@ -261,6 +261,9 @@ protected:
 		/// GPU-side render attribute buffer.
 		vertex_buffer render_sbo;
 
+		/// GPU-side node index buffer as a shader storage buffer.
+		vertex_buffer node_index_sbo;
+
 		/// shared attribute array manager used by both renderers
 		attribute_array_manager aam;
 

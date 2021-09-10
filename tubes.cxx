@@ -239,7 +239,7 @@ bool tubes::init (cgv::render::context &ctx)
 	// init shared attribute array manager
 	success &= render.aam.init(ctx);
 
-	render.sorter = new cgv::glutil::radix_sort_4way();
+	/*render.sorter = new cgv::glutil::radix_sort_4way();
 	render.sorter->set_value_format(TI_UINT32, 2);
 	render.sorter->initialize_values_on_sort(false);
 	render.sorter->set_data_type_override("float x, y, z;");
@@ -250,6 +250,23 @@ bool tubes::init (cgv::render::context &ctx)
 		data_type b = data[indices.y]; \
 		vec3 pa = vec3(a.x, a.y, a.z); \
 		vec3 pb = vec3(b.x, b.y, b.z); \
+		\
+		vec3 x = 0.5*(pa + pb); \
+		vec3 eye_to_pos = x - eye_pos; \
+		float key = dot(eye_to_pos, eye_to_pos);)";
+
+	render.sorter->set_key_definition_override(key_definition);*/
+
+	render.sorter = new cgv::glutil::radix_sort_4way();
+	render.sorter->set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent;");
+	render.sorter->set_auxiliary_type_override("uint a_idx; uint b_idx;");
+
+	std::string key_definition =
+		R"(aux_type indices = aux_values[idx]; \
+		data_type a = data[indices.a_idx]; \
+		data_type b = data[indices.b_idx]; \
+		vec3 pa = a.pos_rad.xyz; \
+		vec3 pb = b.pos_rad.xyz; \
 		\
 		vec3 x = 0.5*(pa + pb); \
 		vec3 eye_to_pos = x - eye_pos; \
@@ -520,14 +537,32 @@ void tubes::update_attribute_bindings(void) {
 			std::cerr << "!!! unable to create render attribute Storage Buffer Object !!!" << std::endl << std::endl;
 		render.render_sbo = std::move(new_sbo);
 
+
+
+
+
+		std::vector<unsigned> segment_indices(render.data->indices.size() / 2);
+		for(unsigned i = 0; i < segment_indices.size(); ++i)
+			segment_indices[i] = i;
+
+
+
+		cgv::render::vertex_buffer index_sbo(cgv::render::VBT_STORAGE, cgv::render::VBU_STATIC_READ);
+		if(!index_sbo.create(ctx, render.data->indices))
+			std::cerr << "!!! unable to create node index Storage Buffer Object !!!" << std::endl << std::endl;
+		render.node_index_sbo = std::move(index_sbo);
+
+
+
 		// Upload render attributes to legacy buffers
 		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
-		tstr.set_position_array(ctx, render.data->positions);
-		tstr.set_tangent_array(ctx, render.data->tangents);
-		tstr.set_radius_array(ctx, render.data->radii);
-		tstr.set_color_array(ctx, render.data->colors);
-		tstr.set_indices(ctx, render.data->indices);
+		//tstr.set_position_array(ctx, render.data->positions);
+		//tstr.set_tangent_array(ctx, render.data->tangents);
+		//tstr.set_radius_array(ctx, render.data->radii);
+		//tstr.set_color_array(ctx, render.data->colors);
+		//tstr.set_indices(ctx, render.data->indices);
+		tstr.set_indices(ctx, segment_indices);
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
 		if(!render.sorter->init(ctx, render.data->indices.size() / 2))
@@ -752,11 +787,27 @@ void tubes::draw_trajectories(context& ctx) {
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 
 	// sort the indices
-	int pos_handle = tstr.get_vbo_handle(ctx, render.aam, "position");
-	int idx_handle = tstr.get_index_buffer_handle(render.aam);
+	//int pos_handle = tstr.get_vbo_handle(ctx, render.aam, "position");
+	//int idx_handle = tstr.get_index_buffer_handle(render.aam);
+	
+	
+	
+	
+	int data_handle = 0;
+	if(render.render_sbo.handle)
+		data_handle = (const int&)render.render_sbo.handle - 1;
+	
+	if(!data_handle)
+		return;
 
-	if(pos_handle > 0 && idx_handle > 0 && render.sort)
-		render.sorter->sort(ctx, pos_handle, idx_handle, eye_pos);
+	int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
+
+	int node_idx_handle = 0;
+	if(render.node_index_sbo.handle)
+		node_idx_handle = (const int&)render.node_index_sbo.handle - 1;
+
+	if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && render.sort)
+		render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, node_idx_handle);
 
 	tstr.set_eye_pos(eye_pos);
 	tstr.set_view_dir(view_dir);
@@ -768,7 +819,14 @@ void tubes::draw_trajectories(context& ctx) {
 	int count = render.percentage * render.data->indices.size();
 	if(count & 1) count += 1;
 	count = std::min(count, (int)render.data->indices.size());
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, node_idx_handle);
+
 	tstr.render(ctx, 0, count);
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
 
 	tstr.disable_attribute_array_manager(ctx, render.aam);
 

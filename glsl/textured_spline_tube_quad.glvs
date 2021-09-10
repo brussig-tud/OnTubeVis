@@ -1,22 +1,41 @@
 #version 460
 
-in vec4 position;
-in float radius;
-in vec4 color;
-in vec4 tangent;
+struct node {
+	vec4 pos_rad;
+	vec4 color;
+	vec4 tangent;
+};
 
-out flat vec4 tangent_gs;
-out flat vec4 color_gs;
-out flat int vertex_id_gs;
+layout(std430, binding = 0) readonly buffer data_buffer {
+    node nodes[];
+};
+
+layout(std430, binding = 1) readonly buffer node_index_buffer {
+    uvec2 node_indices[];
+};
+
+out flat vec4 tangent0_gs;
+out flat vec4 color0_gs;
+out flat vec4 pos_rad1_gs;
+out flat vec4 tangent1_gs;
+out flat vec4 color1_gs;
+out flat int segment_id_gs;
 
 uniform float radius_scale;
 
 void main()
 {
-	// TODO: group color and transformations not yet supported
-	//color_gs = group_color(color, group_index);
-	color_gs = color;
-	tangent_gs = tangent;
-	vertex_id_gs = gl_VertexID;
-	gl_Position = vec4(position.xyz, radius * radius_scale);
+	segment_id_gs = gl_VertexID;
+
+	uvec2 node_idx = node_indices[segment_id_gs];
+
+	node n0 = nodes[node_idx.x];
+	color0_gs = n0.color;
+	tangent0_gs = n0.tangent;
+	gl_Position = vec4(n0.pos_rad.xyz, n0.pos_rad.w * radius_scale);
+
+	node n1 = nodes[node_idx.y];
+	pos_rad1_gs = vec4(n1.pos_rad.xyz, n1.pos_rad.w * radius_scale);
+	color1_gs = n1.color;
+	tangent1_gs = n1.tangent;
 }
