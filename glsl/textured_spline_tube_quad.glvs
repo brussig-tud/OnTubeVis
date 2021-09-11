@@ -14,6 +14,8 @@ layout(std430, binding = 1) readonly buffer node_index_buffer {
     uvec2 node_indices[];
 };
 
+//in uvec2 position;
+
 out flat vec4 tangent0_gs;
 out flat vec4 color0_gs;
 out flat vec4 pos_rad1_gs;
@@ -28,14 +30,36 @@ void main()
 	segment_id_gs = gl_VertexID;
 
 	uvec2 node_idx = node_indices[segment_id_gs];
+	//uvec2 node_idx = position;
+
+	vec4 colors[6];
+	colors[0] = vec4(0,0,0,1);
+	colors[1] = vec4(0,0,1,1);
+	colors[2] = vec4(0,1,0,1);
+	colors[3] = vec4(0,1,1,1);
+	colors[4] = vec4(1,0,0,1);
+	colors[5] = vec4(1,0,1,1);
 
 	node n0 = nodes[node_idx.x];
 	color0_gs = n0.color;
 	tangent0_gs = n0.tangent;
 	gl_Position = vec4(n0.pos_rad.xyz, n0.pos_rad.w * radius_scale);
+	
 
 	node n1 = nodes[node_idx.y];
-	pos_rad1_gs = vec4(n1.pos_rad.xyz, n1.pos_rad.w * radius_scale);
 	color1_gs = n1.color;
 	tangent1_gs = n1.tangent;
+	pos_rad1_gs = vec4(n1.pos_rad.xyz, n1.pos_rad.w * radius_scale);
+
+	// for debugging:
+
+	//color0_gs = colors[node_idx.x];
+	//tangent0_gs = vec4(0);
+	//gl_Position = vec4(node_idx.x, 0.0, node_idx.y, n0.pos_rad.w * radius_scale);
+
+	//pos_rad1_gs = vec4(node_idx.x, 1.0, node_idx.y, n1.pos_rad.w * radius_scale);
+	//color1_gs = colors[node_idx.y];
+	//tangent1_gs = vec4(0);
+
+	//segment_id_gs = int(node_idx.x);
 }

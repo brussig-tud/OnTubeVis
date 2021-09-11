@@ -273,9 +273,9 @@ void main()
 		frag_color = vec4(background_color, 1.0);
 	} else {
 		//color = vec3(1.0);
-		//color = vec3(random(segment_id));
+		color = vec3(random(segment_id + 50));
 
-		//color = mix(color, vec3(segment_id/1000), 0.5);
+		//color = mix(color, vec3(segment_id/2 + 0.5), 0.5);
 		
 		// Transform the texture coordinate v to go around the tube twice, i.e. from [0,1] to [0,2].
 		// That way the front side of the tube (half the radius), that is always visible to the camera,

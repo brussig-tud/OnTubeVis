@@ -541,9 +541,18 @@ void tubes::update_attribute_bindings(void) {
 
 
 
-		std::vector<unsigned> segment_indices(render.data->indices.size() / 2);
-		for(unsigned i = 0; i < segment_indices.size(); ++i)
+		unsigned node_indices_count = render.data->indices.size();
+		unsigned segment_count = node_indices_count / 2;
+
+		std::vector<unsigned> segment_indices(segment_count);
+		//std::vector<uvec2> node_indices(segment_count);
+		
+		//const auto& indices = render.data->indices;
+
+		for(unsigned i = 0; i < segment_indices.size(); ++i) {
 			segment_indices[i] = i;
+			//node_indices[i] = uvec2(indices[2*i + 0], indices[2*i + 1]);
+		}
 
 
 
@@ -552,6 +561,8 @@ void tubes::update_attribute_bindings(void) {
 			std::cerr << "!!! unable to create node index Storage Buffer Object !!!" << std::endl << std::endl;
 		render.node_index_sbo = std::move(index_sbo);
 
+
+		
 
 
 		// Upload render attributes to legacy buffers
@@ -562,6 +573,8 @@ void tubes::update_attribute_bindings(void) {
 		//tstr.set_radius_array(ctx, render.data->radii);
 		//tstr.set_color_array(ctx, render.data->colors);
 		//tstr.set_indices(ctx, render.data->indices);
+		//tstr.set_position_array(ctx, node_indices);
+		//tstr.set_position_array(ctx, reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count, sizeof(uvec2));
 		tstr.set_indices(ctx, segment_indices);
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
@@ -802,12 +815,17 @@ void tubes::draw_trajectories(context& ctx) {
 
 	int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
 
+	//int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "position");
 	int node_idx_handle = 0;
 	if(render.node_index_sbo.handle)
 		node_idx_handle = (const int&)render.node_index_sbo.handle - 1;
 
-	if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && render.sort)
+	
+
+	if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && render.sort) {
+		//std::cout << "Sorting" << std::endl;
 		render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, node_idx_handle);
+	}
 
 	tstr.set_eye_pos(eye_pos);
 	tstr.set_view_dir(view_dir);
@@ -816,9 +834,9 @@ void tubes::draw_trajectories(context& ctx) {
 	tstr.enable_attribute_array_manager(ctx, render.aam);
 	//tstr.render(ctx, 0, render.data->indices.size());
 
-	int count = render.percentage * render.data->indices.size();
-	if(count & 1) count += 1;
-	count = std::min(count, (int)render.data->indices.size());
+	int count = render.percentage * (render.data->indices.size() / 2);
+	//if(count & 1) count += 1;
+	//count = std::min(count, (int)render.data->indices.size());
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, node_idx_handle);
