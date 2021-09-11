@@ -48,18 +48,21 @@ struct QTube {
 layout(points) in;
 layout(triangle_strip, max_vertices = 8) out;
 
+struct node_data_type {
+	vec4 pos_rad;
+	vec4 color;
+	vec4 tangent;
+};
+
+layout(std430, binding = 0) readonly buffer data_buffer {
+    node_data_type nodes[];
+};
+
+uniform float radius_scale;
 uniform vec3 eye_pos;
 uniform vec3 view_dir;
 
-//in flat vec4 tangent_gs[];
-//in flat vec4 color_gs[];
-//in flat int vertex_id_gs[];
-
-in flat vec4 tangent0_gs[];
-in flat vec4 color0_gs[];
-in flat vec4 pos_rad1_gs[];
-in flat vec4 tangent1_gs[];
-in flat vec4 color1_gs[];
+in flat uvec2 node_ids_gs[];
 in flat int segment_id_gs[];
 
 out vec3 position_fs;
@@ -388,19 +391,24 @@ void emit_quad(int segment_idx, QTube qTube) {
 void main()
 {
 	Tube tube;
-	tube.s.pos = gl_in[0].gl_Position.xyz;
-	tube.s.rad = gl_in[0].gl_Position.w;
-	tube.s.pos_tan = tangent0_gs[0].xyz;
-	tube.s.rad_tan = tangent0_gs[0].w;
+	
+	node_data_type n0 = nodes[node_ids_gs[0].x];
+	
+	tube.s.pos = n0.pos_rad.xyz;
+	tube.s.rad = n0.pos_rad.w * radius_scale;
+	tube.s.pos_tan = n0.tangent.xyz;
+	tube.s.rad_tan = n0.tangent.w;
 
-	tube.e.pos = pos_rad1_gs[0].xyz;
-	tube.e.rad = pos_rad1_gs[0].w;
-	tube.e.pos_tan = tangent1_gs[0].xyz;
-	tube.e.rad_tan = tangent1_gs[0].w;
+	node_data_type n1 = nodes[node_ids_gs[0].y];
+	
+	tube.e.pos = n1.pos_rad.xyz;
+	tube.e.rad = n1.pos_rad.w * radius_scale;
+	tube.e.pos_tan = n1.tangent.xyz;
+	tube.e.rad_tan = n1.tangent.w;
 
-	color0_fs = color0_gs[0].rgb;
-	color1_fs = color1_gs[0].rgb;
-
+	color0_fs = n0.color.rgb;
+	color1_fs = n1.color.rgb;
+	
 	QTube qTube0, qTube1;
 	SplitTube(tube, qTube0, qTube1);
 	
@@ -424,10 +432,7 @@ void main()
 	mg_fs = geometrymatrix * Mh;
 
 	
-	
-	// gl_PrimitiveIDIn cannot be used since it changes depending on the primitve order, which is influenced by visibility sorting
-	//segment_id_fs = gl_PrimitiveIDIn;
-	segment_id_fs = segment_id_gs[0];//vertex_id_gs[0] + vertex_id_gs[1];
+	segment_id_fs = segment_id_gs[0];
 
 	
 

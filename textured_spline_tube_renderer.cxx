@@ -26,6 +26,7 @@ namespace cgv {
 
 		textured_spline_tube_renderer::textured_spline_tube_renderer()
 		{
+			has_node_ids = false;
 			has_radii = false;
 			has_tangents = false;
 		}
@@ -48,9 +49,14 @@ namespace cgv {
 		bool textured_spline_tube_renderer::validate_attributes(const context& ctx) const
 		{
 			// validate set attributes
-			//const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
 			//bool res = surface_renderer::validate_attributes(ctx);
-			return true;// res;
+			//return res;
+
+			if(!has_node_ids) {
+				ctx.error("renderer::enable() node id attribute not set");
+				return false;
+			}
+			return true;
 		}
 		void textured_spline_tube_renderer::update_defines(shader_define_map& defines)
 		{
@@ -75,12 +81,6 @@ namespace cgv {
 			if(!ref_prog().is_linked())
 				return false;
 
-			//if(!has_radii)
-			//	ref_prog().set_attribute(ctx, "radius", rs.radius);
-			//
-			//if(!has_tangents)
-			//	ref_prog().set_attribute(ctx, "tangent", vec4(0.0));
-
 			ref_prog().set_uniform(ctx, "radius_scale", rs.radius_scale);
 			ref_prog().set_uniform(ctx, "eye_pos", eye_pos);
 			ref_prog().set_uniform(ctx, "view_dir", view_dir);
@@ -101,7 +101,6 @@ namespace cgv {
 
 		void textured_spline_tube_renderer::draw(context& ctx, size_t start, size_t count, bool use_strips, bool use_adjacency, uint32_t strip_restart_index)
 		{
-			//draw_impl(ctx, PT_LINES, start, count, use_strips, use_adjacency, strip_restart_index);
 			draw_impl(ctx, PT_POINTS, start, count, use_strips, use_adjacency, strip_restart_index);
 		}
 

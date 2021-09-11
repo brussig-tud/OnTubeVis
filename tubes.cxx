@@ -537,44 +537,18 @@ void tubes::update_attribute_bindings(void) {
 			std::cerr << "!!! unable to create render attribute Storage Buffer Object !!!" << std::endl << std::endl;
 		render.render_sbo = std::move(new_sbo);
 
-
-
-
-
 		unsigned node_indices_count = render.data->indices.size();
 		unsigned segment_count = node_indices_count / 2;
 
 		std::vector<unsigned> segment_indices(segment_count);
-		//std::vector<uvec2> node_indices(segment_count);
 		
-		//const auto& indices = render.data->indices;
-
-		for(unsigned i = 0; i < segment_indices.size(); ++i) {
+		for(unsigned i = 0; i < segment_indices.size(); ++i)
 			segment_indices[i] = i;
-			//node_indices[i] = uvec2(indices[2*i + 0], indices[2*i + 1]);
-		}
-
-
-
-		cgv::render::vertex_buffer index_sbo(cgv::render::VBT_STORAGE, cgv::render::VBU_STATIC_READ);
-		if(!index_sbo.create(ctx, render.data->indices))
-			std::cerr << "!!! unable to create node index Storage Buffer Object !!!" << std::endl << std::endl;
-		render.node_index_sbo = std::move(index_sbo);
-
-
-		
-
 
 		// Upload render attributes to legacy buffers
 		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
-		//tstr.set_position_array(ctx, render.data->positions);
-		//tstr.set_tangent_array(ctx, render.data->tangents);
-		//tstr.set_radius_array(ctx, render.data->radii);
-		//tstr.set_color_array(ctx, render.data->colors);
-		//tstr.set_indices(ctx, render.data->indices);
-		//tstr.set_position_array(ctx, node_indices);
-		//tstr.set_position_array(ctx, reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count, sizeof(uvec2));
+		tstr.set_node_id_array(ctx, reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count, sizeof(uvec2));
 		tstr.set_indices(ctx, segment_indices);
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
@@ -799,13 +773,7 @@ void tubes::draw_trajectories(context& ctx) {
 	
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 
-	// sort the indices
-	//int pos_handle = tstr.get_vbo_handle(ctx, render.aam, "position");
-	//int idx_handle = tstr.get_index_buffer_handle(render.aam);
-	
-	
-	
-	
+	// sort the sgment indices
 	int data_handle = 0;
 	if(render.render_sbo.handle)
 		data_handle = (const int&)render.render_sbo.handle - 1;
@@ -815,36 +783,22 @@ void tubes::draw_trajectories(context& ctx) {
 
 	int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
 
-	//int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "position");
-	int node_idx_handle = 0;
-	if(render.node_index_sbo.handle)
-		node_idx_handle = (const int&)render.node_index_sbo.handle - 1;
-
+	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
 	
-
-	if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && render.sort) {
-		//std::cout << "Sorting" << std::endl;
+	if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && render.sort)
 		render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, node_idx_handle);
-	}
 
 	tstr.set_eye_pos(eye_pos);
 	tstr.set_view_dir(view_dir);
 	tstr.set_viewport(vec4(2.0f) / vec4(viewport[0], viewport[1], viewport[2], viewport[3]));
 	tstr.set_render_style(render.style);
 	tstr.enable_attribute_array_manager(ctx, render.aam);
-	//tstr.render(ctx, 0, render.data->indices.size());
 
 	int count = render.percentage * (render.data->indices.size() / 2);
-	//if(count & 1) count += 1;
-	//count = std::min(count, (int)render.data->indices.size());
-
+	
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, node_idx_handle);
-
 	tstr.render(ctx, 0, count);
-
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
 
 	tstr.disable_attribute_array_manager(ctx, render.aam);
 

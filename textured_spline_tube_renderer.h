@@ -33,6 +33,8 @@ namespace cgv { // @<
 		class textured_spline_tube_renderer : public surface_renderer
 		{
 		protected:
+			/// whether node ids are specified
+			bool has_node_ids;
 			/// whether radii are specified
 			bool has_radii;
 			/// whether tangents are specified
@@ -69,16 +71,22 @@ namespace cgv { // @<
 			void set_viewport(const vec4& viewport) { this->viewport = viewport; }
 			///
 			template <typename T = float>
+			void set_node_id_array(const context& ctx, const std::vector<T>& node_ids) { has_node_ids = true; set_attribute_array(ctx, ref_prog().get_attribute_location(ctx, "node_ids"), node_ids); }
+			/// 
+			template <typename T = float>
+			void set_node_id_array(const context& ctx, const T* node_ids, size_t nr_elements, unsigned stride_in_bytes = 0) { has_node_ids = true; set_attribute_array(ctx, ref_prog().get_attribute_location(ctx, "node_ids"), node_ids, nr_elements, stride_in_bytes); }
+			///
+			template <typename T = float>
 			void set_radius_array(const context& ctx, const std::vector<T>& radii) { has_radii = true; set_attribute_array(ctx, ref_prog().get_attribute_location(ctx, "radius"), radii); }
 			/// 
 			template <typename T = float>
-			void set_radius_array(const context& ctx, const T* radii, size_t nr_elements, unsigned stride_in_bytes = 0) { has_radii = true;  set_attribute_array(ctx, ref_prog().get_attribute_location(ctx, "radius"), radii, nr_elements, stride_in_bytes); }
+			void set_radius_array(const context& ctx, const T* radii, size_t nr_elements, unsigned stride_in_bytes = 0) { has_radii = true; set_attribute_array(ctx, ref_prog().get_attribute_location(ctx, "radius"), radii, nr_elements, stride_in_bytes); }
 			///
 			template <typename T = float>
 			void set_tangent_array(const context& ctx, const std::vector<T>& tangents) { has_tangents = true; set_attribute_array(ctx, ref_prog().get_attribute_location(ctx, "tangent"), tangents); }
 			/// 
 			template <typename T = float>
-			void set_tangent_array(const context& ctx, const T* tangents, size_t nr_elements, unsigned stride_in_bytes = 0) { has_tangents = true;  set_attribute_array(ctx, ref_prog().get_attribute_location(ctx, "tangent"), tangents, nr_elements, stride_in_bytes); }
+			void set_tangent_array(const context& ctx, const T* tangents, size_t nr_elements, unsigned stride_in_bytes = 0) { has_tangents = true; set_attribute_array(ctx, ref_prog().get_attribute_location(ctx, "tangent"), tangents, nr_elements, stride_in_bytes); }
 			///
 			bool validate_attributes(const context& ctx) const;
 			/// 

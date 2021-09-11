@@ -273,7 +273,7 @@ void main()
 		frag_color = vec4(background_color, 1.0);
 	} else {
 		//color = vec3(1.0);
-		color = vec3(random(segment_id + 50));
+		color = mix(color, vec3(random(segment_id)), 0.5);
 
 		//color = mix(color, vec3(segment_id/2 + 0.5), 0.5);
 		
