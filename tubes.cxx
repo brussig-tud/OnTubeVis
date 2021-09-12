@@ -16,6 +16,7 @@
 
 
 
+
 tubes::tubes() : application_plugin("tubes_instance")
 {
 	// adjust render style defaults
@@ -29,7 +30,7 @@ tubes::tubes() : application_plugin("tubes_instance")
 	render.style.material.set_emission({ 0.125f, 0.125f, 0.125f });
 	render.style.material.set_specular_reflectance({ 0.05f, 0.05f, 0.05f });
 	render.style.use_conservative_depth = true;
-
+	
 	vstyle.enable_depth_test = false;
 
 	ao_style.sample_distance = 0.5f;
@@ -39,10 +40,10 @@ tubes::tubes() : application_plugin("tubes_instance")
 
 	// add frame buffer attachments needed for deferred rendering
 	fbc.add_attachment("depth", "[D]");
-	fbc.add_attachment("albedo", "flt32[R,G,B]");
-	fbc.add_attachment("position", "flt32[R,G,B]");
-	fbc.add_attachment("normal", "flt32[R,G,B]");
-	fbc.add_attachment("texcoord", "flt32[R,G,B]");
+	fbc.add_attachment("albedo", "flt32[R,G,B,A]");
+	fbc.add_attachment("position", "flt32[R,G,B,A]");
+	fbc.add_attachment("normal", "flt32[R,G,B,A]");
+	//fbc.add_attachment("texcoord", "flt32[R,G,B]");
 
 	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
 	tf_editor_ptr->set_visibility(false);
@@ -201,6 +202,15 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 
+	if(member_ptr == &enable_grid_smoothing) {
+		shader_define_map defines = build_tube_shading_defines();
+		if(defines != tube_shading_defines) {
+			context& ctx = *get_context();
+			tube_shading_defines = defines;
+			shaders.reload(ctx, "tube_shading", tube_shading_defines);
+		}
+	}
+
 	// misc settings
 	// - instant redraw
 	if(member_ptr == &misc_cfg.instant_redraw_proxy)
@@ -235,6 +245,9 @@ bool tubes::init (cgv::render::context &ctx)
 
 	// load all shaders in the library
 	success &= shaders.load_shaders(ctx);
+
+	tube_shading_defines = build_tube_shading_defines();
+	shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
 	// init shared attribute array manager
 	success &= render.aam.init(ctx);
@@ -424,6 +437,7 @@ void tubes::create_gui (void)
 	if(begin_tree_node("Grid", grids, false)) {
 		align("\a");
 		add_member_control(this, "Mode", grid_mode, "dropdown", "enums='Color, Bump, Color + Bump'");
+		add_member_control(this, "Smooth", enable_grid_smoothing, "check");
 		add_member_control(this, "Bump Scale", bump_scale, "value_slider", "min=0;max=0.2;step=0.001;log=true;ticks=true");
 		for(size_t i = 0; i < grids.size(); ++i) {
 			add_decorator("Grid " + std::to_string(i), "heading", "level=3");
@@ -929,6 +943,12 @@ bool tubes::load_transfer_function(context& ctx)
 
 	image.close();
 	return success;
+}
+
+shader_define_map tubes::build_tube_shading_defines() {
+	shader_define_map defines;
+	shader_code::set_define(defines, "ENABLE_GRID_SMOOTHING", enable_grid_smoothing, false);
+	return defines;
 }
 
 ////

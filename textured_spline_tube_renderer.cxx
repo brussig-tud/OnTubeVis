@@ -22,6 +22,7 @@ namespace cgv {
 			radius_scale = 1.0f;
 			radius = 1.0f;
 			use_conservative_depth = false;
+			use_cubic_tangents = true;
 		}
 
 		textured_spline_tube_renderer::textured_spline_tube_renderer()
@@ -62,10 +63,13 @@ namespace cgv {
 		{
 			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
 
-			if(rs.use_conservative_depth)
-				defines["USE_CONSERVATIVE_DEPTH"] = "1";
-			else
-				defines.erase("USE_CONSERVATIVE_DEPTH");
+			shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
+			shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
+
+			//if(rs.use_conservative_depth)
+			//	defines["USE_CONSERVATIVE_DEPTH"] = "1";
+			//else
+			//	defines.erase("USE_CONSERVATIVE_DEPTH");
 		}
 		bool textured_spline_tube_renderer::build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines)
 		{
@@ -134,9 +138,11 @@ namespace cgv {
 			cgv::render::textured_spline_tube_render_style* rs_ptr = reinterpret_cast<cgv::render::textured_spline_tube_render_style*>(value_ptr);
 			cgv::base::base* b = dynamic_cast<cgv::base::base*>(p);
 
-			p->add_member_control(b, "Conservative Depth", rs_ptr->use_conservative_depth, "check");
 			p->add_member_control(b, "Default Radius", rs_ptr->radius, "value_slider", "min=0.001;step=0.0001;max=10.0;log=true;ticks=true");
 			p->add_member_control(b, "Radius Scale", rs_ptr->radius_scale, "value_slider", "min=0.01;step=0.0001;max=100.0;log=true;ticks=true");
+
+			p->add_member_control(b, "Conservative Depth", rs_ptr->use_conservative_depth, "check");
+			p->add_member_control(b, "Cubic Tangents", rs_ptr->use_cubic_tangents, "check");
 			
 			p->add_gui("surface_render_style", *static_cast<cgv::render::surface_render_style*>(rs_ptr));
 			return true;

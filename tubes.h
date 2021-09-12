@@ -155,6 +155,7 @@ protected:
 	GridMode grid_mode = GM_COLOR;
 	float bump_scale = 0.002f;
 	std::vector<grid_parameters> grids;
+	bool enable_grid_smoothing = false;
 
 	enum GlyphType {
 		GT_CIRCLE = 0,
@@ -174,6 +175,8 @@ protected:
 		float length_scale = 1.0;
 	} am_parameters;
 
+	shader_define_map tube_shading_defines;
+	
 	
 
 
@@ -315,6 +318,7 @@ protected:
 
 	/// helper methods
 	bool load_transfer_function(context& ctx);
+	shader_define_map build_tube_shading_defines();
 
 public:
 	tubes();

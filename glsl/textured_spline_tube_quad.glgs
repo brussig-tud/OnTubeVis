@@ -1,6 +1,7 @@
 #version 460
 
 #define USE_CONSERVATIVE_DEPTH 0
+#define USE_CUBIC_TANGENTS 1
 
 #define ONE_OVER_THREE 1.0 / 3.0
 
@@ -70,8 +71,10 @@ out flat float l_offset_fs;
 out flat vec3 color0_fs;
 out flat vec3 color1_fs;
 out flat QTube qTube_fs;
-out flat mat4 mg_fs;
 out flat int segment_id_fs;
+#if USE_CUBIC_TANGENTS == 1
+out flat mat4 SM_fs; // spline matrix
+#endif
 
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 
@@ -412,31 +415,23 @@ void main()
 	QTube qTube0, qTube1;
 	SplitTube(tube, qTube0, qTube1);
 	
+	segment_id_fs = segment_id_gs[0];
 
+#if USE_CUBIC_TANGENTS == 1
+	mat4 Bk; // matrix of control points and tangents
+	Bk[0] = vec4(tube.s.pos, 0.0);
+	Bk[1] = vec4(tube.e.pos, 0.0);
+	Bk[2] = vec4(tube.s.pos_tan, 0.0);
+	Bk[3] = vec4(tube.e.pos_tan, 0.0);
 
-	
-
-
-	mat4 geometrymatrix;
-	geometrymatrix[0] = vec4(tube.s.pos, 0.0);
-	geometrymatrix[1] = vec4(tube.e.pos, 0.0);
-	geometrymatrix[2] = vec4(tube.s.pos_tan, 0.0);
-	geometrymatrix[3] = vec4(tube.e.pos_tan, 0.0);
-
-
-	mat4 Mh;
+	mat4 Mh; // hermite matrix
 	Mh[0] = vec4( 2, -2,  1,  1);
 	Mh[1] = vec4(-3,  3, -2, -1);
 	Mh[2] = vec4( 0,  0,  1,  0);
 	Mh[3] = vec4( 1,  0,  0,  0);
-	mg_fs = geometrymatrix * Mh;
-
-	
-	segment_id_fs = segment_id_gs[0];
-
-	
-
+	SM_fs = Bk * Mh;
+#endif
 
 	emit_quad(0, qTube0);
-	emit_quad(1, qTube1);
+	emit_quad(1, qTube1);	
 }

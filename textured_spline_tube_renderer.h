@@ -25,6 +25,8 @@ namespace cgv { // @<
 			float radius;
 			/// whether to use conservative depth extension to re-enable early depth testing
 			bool use_conservative_depth;
+			/// whether to calculate tangents from the cubic hermite definition or from the two quadratic bezier segments
+			bool use_cubic_tangents;
 			/// construct with default values
 			textured_spline_tube_render_style();
 		};

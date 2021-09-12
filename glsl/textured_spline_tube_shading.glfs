@@ -1,6 +1,10 @@
 #version 430
 #define M_PI 3.14159265359
 
+#define ENABLE_GRID_SMOOTHING 0
+#define SHOW_GLYPHS 1
+#define SHOW_GRID 1
+
 //***** begin interface of view.glsl ***********************************
 mat4 get_modelview_matrix();
 mat4 get_projection_matrix();
@@ -18,7 +22,7 @@ vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color
 layout (binding = 0) uniform sampler2D albedo_tex;
 layout (binding = 1) uniform sampler2D position_tex;
 layout (binding = 2) uniform sampler2D normal_tex;
-layout (binding = 3) uniform sampler2D texcoord_tex;
+//layout (binding = 3) uniform sampler2D texcoord_tex;
 layout (binding = 4) uniform sampler2D depth_tex;
 layout (binding = 5) uniform sampler3D density_tex;
 
@@ -58,7 +62,7 @@ uniform struct {
 	float radius1;
 	float angle0;
 	float angle1;
-	// only for testign purposes
+	// only for testing purposes
 	float length_scale;
 } attribute_mapping;
 
@@ -147,23 +151,32 @@ float sd_triangle_isosceles(in vec2 p, in vec2 q) {
     return -sqrt(d.x)*sign(d.y);
 }
 
-const float N = 20.0;
-
+#if ENABLE_GRID_SMOOTHING == 0
 // https://www.shadertoy.com/view/XtBfzz
 float grid_texture(in vec2 p, in float n) {
     // coordinates
-    //vec2 i = step( fract(p), vec2(1.0/N) );
-    vec2 i = step( fract(p + 0.5*n), vec2(n) );
+	vec2 i = step(fract(p + 0.5*n), vec2(n));
+
     //pattern
-    return 1.0 - (1.0-i.x)*(1.0-i.y);   // grid (N=10)
-    
-    // other possible patterns are these
-    //return 1.0-i.x*i.y;           // squares (N=4)
-    //return 1.0-i.x-i.y+2.0*i.x*i.y; // checker (N=2)
+    return 1.0 - (1.0-i.x)*(1.0-i.y);	// grid
+    //return 1.0-i.x*i.y;				// squares
+    //return 1.0-i.x-i.y+2.0*i.x*i.y;	// checker
 }
+#else
+float grid_texture(in vec2 p, in float n) {
+    // coordinates
+	vec2 s = fract(p + 0.5*n);
+	vec2 t = clamp(s / n, 0.0, 1.0);
+
+	vec2 i = 1.0 - (sin(t*M_PI));
+
+    //pattern
+    return min(max(1.0-i.x, 1.0-i.y), 1.0);	// grid
+}
+#endif
 
 // https://www.shadertoy.com/view/XtBfzz
-float grid_texture_grad_box(in vec2 p, in vec2 ddx, in vec2 ddy) {
+/*float grid_texture_grad_box(in vec2 p, in vec2 ddx, in vec2 ddy) {
 	// filter kernel
 	float filter_width = 0.01;
     vec2 w = max(abs(ddx), abs(ddy)) + filter_width;
@@ -175,7 +188,7 @@ float grid_texture_grad_box(in vec2 p, in vec2 ddx, in vec2 ddy) {
               floor(b)-min(fract(b)*N,1.0))/(N*w);
     //pattern
     return (1.0-i.x)*(1.0-i.y);
-}
+}*/
 
 float compute_grid_factor(vec2 uv) {
 	float l = attribute_mapping.length_scale;
@@ -226,7 +239,7 @@ void update_normal_from_height(in vec3 s, inout vec3 N, in vec2 tc) {
 	float f = length(cross(s_u, s_v));
 
 	// compute bump mapped normal
-	vec3 n = normalize(N);
+	vec3 n = N;
 	float height_scale = bump_scale;
 	n = f * n + cross(height_scale*(h_tc[1] * s_u - h_tc[0] * s_v), n);
 	N = normalize(n);
@@ -243,6 +256,7 @@ float random(float t) {
 
 void main()
 {
+	/*
 	vec3 color = texture(albedo_tex, texcoord_fs).rgb;
 	vec3 pos_eye = texture(position_tex, texcoord_fs).xyz;
 	vec3 normal_value = texture(normal_tex, texcoord_fs).xyz;
@@ -252,8 +266,8 @@ void main()
 	vec3 texcoord_seg_id = texture(texcoord_tex, texcoord_fs).xyz;
 	vec2 texcoord = texcoord_seg_id.xy;
 	int segment_id = floatBitsToInt(texcoord_seg_id.z);
+	*/
 
-	/*
 	vec4 a = texture(albedo_tex, texcoord_fs);
 	vec4 b = texture(position_tex, texcoord_fs);
 	vec4 c = texture(normal_tex, texcoord_fs);
@@ -265,7 +279,6 @@ void main()
 	
 	vec2 texcoord = vec2(a.w, b.w);
 	int segment_id = floatBitsToInt(c.w);
-	*/
 
 	if(normal_value.x + normal_value.y + normal_value.z < 0.00001f) {
 		//finish_fragment(vec4(background_color, 1.0));
@@ -273,14 +286,13 @@ void main()
 		frag_color = vec4(background_color, 1.0);
 	} else {
 		//color = vec3(1.0);
-		color = mix(color, vec3(random(segment_id)), 0.5);
-
-		//color = mix(color, vec3(segment_id/2 + 0.5), 0.5);
+		//color = mix(color, vec3(random(segment_id)), 0.5);
 		
+		vec2 uv = texcoord;
+
 		// Transform the texture coordinate v to go around the tube twice, i.e. from [0,1] to [0,2].
 		// That way the front side of the tube (half the radius), that is always visible to the camera,
 		// has coordinates in [0,1], while the back side lies in [1,2].
-		vec2 uv = texcoord;
 		uv.t *= 2.0;
 		// Move the origin (0,0) to the center of the front side and scale the coordinates to [-1,1]
 		uv = 2.0 * uv - 1.0;
@@ -294,7 +306,8 @@ void main()
 
 		//frag_color = vec4(10*length(dFdx(uv)), 10*length(dFdy(uv)), 0.0, 1.0);
 		
-		/*float sd = 1e20;
+#if SHOW_GLYPHS == 1
+		float sd = 1e20;
 		switch(attribute_mapping.glyph_type) {
 		case 0:
 			// circle with radius
@@ -332,25 +345,23 @@ void main()
 		case 4:
 		{
 			// isosceles triangle (arrow tip) with base width and height
-			float angle = radians(attribute_mapping.angle0);
+			// compute a rotation matrix to rotate the uv coordinates
+			float angle = radians(attribute_mapping.angle0 + 90.0); // add 90 degree to make triangle point in direction of segment per default
 			float as = sin(angle);
 			float ac = cos(angle);
-			mat2 rot = mat2(ac, -as, as, ac);
+			mat2 rot = mat2(ac, as, -as, ac);
 
-			sd = sd_triangle_isosceles((rot * uv) - vec2(0.0, 0.5*attribute_mapping.radius1), vec2(attribute_mapping.radius0, -attribute_mapping.radius1));
+			sd = sd_triangle_isosceles(rot * uv - vec2(0.0, attribute_mapping.radius1), vec2(attribute_mapping.radius0, -2.0 * attribute_mapping.radius1));
 		}
 			break;
 		}
 
 		if(sd <= 0.0)
-			color = vec3(1.0, 0.0, 0.0);*/
+			color = vec3(1.0, 0.0, 0.0);
+#endif
 
-		//vec2 ddx_uv = dFdx(uv);
-		//vec2 ddy_uv = dFdy(uv);
-
-		//vec2 grid_scaling0 = vec2(1.0, 1.0);
-
-		/*float grid_factor = compute_grid_factor(uv);
+#if SHOW_GRID == 1
+		float grid_factor = compute_grid_factor(uv);
 
 		switch(grid_mode) {
 		case 0:
@@ -366,7 +377,11 @@ void main()
 			color *= grid_factor;
 			update_normal_from_height(pos_eye, normal_eye, uv);
 			break;
-		}*/
+		}
+#endif
+
+
+
 		
 
 		//update_normal_from_height(pos_eye, normal_eye, uv);
