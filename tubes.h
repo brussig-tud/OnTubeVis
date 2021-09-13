@@ -82,6 +82,7 @@ public:
 	};
 
 	std::vector<vec3> sample_position_offsets;
+	float subsampling_normalization_factor;
 
 	struct ambient_occlusion_style {
 		bool enable = false;

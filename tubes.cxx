@@ -604,7 +604,7 @@ void tubes::voxelize_q_tube(const quadratic_bezier_tube& qt) {
 		for(unsigned y = sidx.y(); y <= eidx.y(); ++y) {
 			for(unsigned x = sidx.x(); x <= eidx.x(); ++x) {
 				int count = sample_voxel(ivec3(x, y, z), qt);
-				float occupancy = static_cast<float>(count) * 1.0f / 27.0f;
+				float occupancy = static_cast<float>(count) * subsampling_normalization_factor;
 
 				int idx = x + res.x() * y + res.x() * res.y() * z;
 
@@ -640,6 +640,8 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 			}
 		}
 	}
+
+	subsampling_normalization_factor = 1.0f / static_cast<float>(num_samples_per_dim);
 
 	auto& positions = render.data->positions;
 	auto& tangents = render.data->tangents;
