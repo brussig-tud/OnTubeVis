@@ -9,8 +9,9 @@
 
 /*
 	0: NO_OP
-	1: FRAGMENT_DEBUG
-	2: RAYCAST
+	1: RASTERIZE_DEBUG
+	2: RAYCAST_DEBUG
+	3: RAYCAST
 */
 #define MODE 2
 
@@ -509,7 +510,7 @@ void main()
 	frag_albedo = vec3(1.0, 0.0, 0.0);
 	frag_position = vec3(0.0, 0.0, 0.0);
 	frag_normal = vec3(1.0, 0.0, 0.0);
-	frag_texcoord = vec2(0.5, 0.5);
+	frag_texcoord = vec3(0.5, 0.5, uintBitsToFloat(0));
 	return;
 #else
 	vec3 direction = normalize(position_fs);
@@ -519,10 +520,20 @@ void main()
 		qTube_fs.s.rad, qTube_fs.h.rad, qTube_fs.e.rad
 	);
 
+#if MODE == 3
 	gl_FragDepth = 1.0;
+#endif
 
 	if(hit.t == POS_INF) {
+#if MODE == 2
+		frag_albedo = vec3(1.0, 0.0, 0.0);
+		frag_position = vec3(0.0, 0.0, 0.0);
+		frag_normal = vec3(1.0, 0.0, 0.0);
+		frag_texcoord = vec3(0.5, 0.5, uintBitsToFloat(0));
+		return;
+#else
 		discard;
+#endif
 	} else {
 		//vec3 col = EvalCSpline(color0.rgb, vec3(0.0), unpackUnorm4x8(color1_fs).rgb, vec3(0.0), hit.l * 0.5 + 0.5*color0.a);
 		// with zero tangents the cubic hermite interpolation is reduced to a linear problem
