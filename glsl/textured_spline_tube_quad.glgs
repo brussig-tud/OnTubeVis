@@ -1,6 +1,7 @@
 #version 460
 
 #define USE_CONSERVATIVE_DEPTH 0
+#define USE_CUBIC_TANGENTS 1
 
 #define ONE_OVER_THREE 1.0 / 3.0
 
@@ -45,23 +46,35 @@ struct QTube {
 	QTubeNode e;
 };
 
-layout(lines) in;
+layout(points) in;
 layout(triangle_strip, max_vertices = 8) out;
 
+struct node_data_type {
+	vec4 pos_rad;
+	vec4 color;
+	vec4 tangent;
+};
+
+layout(std430, binding = 0) readonly buffer data_buffer {
+    node_data_type nodes[];
+};
+
+uniform float radius_scale;
 uniform vec3 eye_pos;
 uniform vec3 view_dir;
 
-in flat vec4 tangent_gs[];
-in flat vec4 color_gs[];
-in flat int vertex_id_gs[];
+in flat uvec2 node_ids_gs[];
+in flat int segment_id_gs[];
 
 out vec3 position_fs;
 out flat float l_offset_fs;
 out flat vec3 color0_fs;
 out flat vec3 color1_fs;
 out flat QTube qTube_fs;
-out flat mat4 mg_fs;
 out flat int segment_id_fs;
+#if USE_CUBIC_TANGENTS == 1
+out flat mat4 SM_fs; // spline matrix
+#endif
 
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 
@@ -381,50 +394,44 @@ void emit_quad(int segment_idx, QTube qTube) {
 void main()
 {
 	Tube tube;
-	tube.s.pos = gl_in[0].gl_Position.xyz;
-	tube.s.rad = gl_in[0].gl_Position.w;
-	tube.s.pos_tan = tangent_gs[0].xyz;
-	tube.s.rad_tan = tangent_gs[0].w;
+	
+	node_data_type n0 = nodes[node_ids_gs[0].x];
+	
+	tube.s.pos = n0.pos_rad.xyz;
+	tube.s.rad = n0.pos_rad.w * radius_scale;
+	tube.s.pos_tan = n0.tangent.xyz;
+	tube.s.rad_tan = n0.tangent.w;
 
-	tube.e.pos = gl_in[1].gl_Position.xyz;
-	tube.e.rad = gl_in[1].gl_Position.w;
-	tube.e.pos_tan = tangent_gs[1].xyz;
-	tube.e.rad_tan = tangent_gs[1].w;
+	node_data_type n1 = nodes[node_ids_gs[0].y];
+	
+	tube.e.pos = n1.pos_rad.xyz;
+	tube.e.rad = n1.pos_rad.w * radius_scale;
+	tube.e.pos_tan = n1.tangent.xyz;
+	tube.e.rad_tan = n1.tangent.w;
 
-	color0_fs = color_gs[0].rgb;
-	color1_fs = color_gs[1].rgb;
-
+	color0_fs = n0.color.rgb;
+	color1_fs = n1.color.rgb;
+	
 	QTube qTube0, qTube1;
 	SplitTube(tube, qTube0, qTube1);
 	
+	segment_id_fs = segment_id_gs[0];
 
+#if USE_CUBIC_TANGENTS == 1
+	mat4 Bk; // matrix of control points and tangents
+	Bk[0] = vec4(tube.s.pos, 0.0);
+	Bk[1] = vec4(tube.e.pos, 0.0);
+	Bk[2] = vec4(tube.s.pos_tan, 0.0);
+	Bk[3] = vec4(tube.e.pos_tan, 0.0);
 
-	
-
-
-	mat4 geometrymatrix;
-	geometrymatrix[0] = vec4(tube.s.pos, 0.0);
-	geometrymatrix[1] = vec4(tube.e.pos, 0.0);
-	geometrymatrix[2] = vec4(tube.s.pos_tan, 0.0);
-	geometrymatrix[3] = vec4(tube.e.pos_tan, 0.0);
-
-
-	mat4 Mh;
+	mat4 Mh; // hermite matrix
 	Mh[0] = vec4( 2, -2,  1,  1);
 	Mh[1] = vec4(-3,  3, -2, -1);
 	Mh[2] = vec4( 0,  0,  1,  0);
 	Mh[3] = vec4( 1,  0,  0,  0);
-	mg_fs = geometrymatrix * Mh;
-
-	
-	
-	// gl_PrimitiveIDIn cannot be used since it changes depending on the primitve order, which is influenced by visibility sorting
-	//segment_id_fs = gl_PrimitiveIDIn;
-	segment_id_fs = vertex_id_gs[0] + vertex_id_gs[1];
-
-	
-
+	SM_fs = Bk * Mh;
+#endif
 
 	emit_quad(0, qTube0);
-	emit_quad(1, qTube1);
+	emit_quad(1, qTube1);	
 }

@@ -1,22 +1,12 @@
 #version 460
 
-in vec4 position;
-in float radius;
-in vec4 color;
-in vec4 tangent;
+in uvec2 node_ids;
 
-out flat vec4 tangent_gs;
-out flat vec4 color_gs;
-out flat int vertex_id_gs;
-
-uniform float radius_scale;
+out flat uvec2 node_ids_gs;
+out flat int segment_id_gs;
 
 void main()
 {
-	// TODO: group color and transformations not yet supported
-	//color_gs = group_color(color, group_index);
-	color_gs = color;
-	tangent_gs = tangent;
-	vertex_id_gs = gl_VertexID;
-	gl_Position = vec4(position.xyz, radius * radius_scale);
+	segment_id_gs = gl_VertexID;
+	node_ids_gs = node_ids;
 }

@@ -16,6 +16,7 @@
 
 
 
+
 tubes::tubes() : application_plugin("tubes_instance")
 {
 	// adjust render style defaults
@@ -29,7 +30,7 @@ tubes::tubes() : application_plugin("tubes_instance")
 	render.style.material.set_emission({ 0.125f, 0.125f, 0.125f });
 	render.style.material.set_specular_reflectance({ 0.05f, 0.05f, 0.05f });
 	render.style.use_conservative_depth = true;
-
+	
 	vstyle.enable_depth_test = false;
 
 	ao_style.sample_distance = 0.5f;
@@ -39,10 +40,10 @@ tubes::tubes() : application_plugin("tubes_instance")
 
 	// add frame buffer attachments needed for deferred rendering
 	fbc.add_attachment("depth", "[D]");
-	fbc.add_attachment("albedo", "flt32[R,G,B]");
-	fbc.add_attachment("position", "flt32[R,G,B]");
-	fbc.add_attachment("normal", "flt32[R,G,B]");
-	fbc.add_attachment("texcoord", "flt32[R,G,B]");
+	fbc.add_attachment("albedo", "flt32[R,G,B,A]");
+	fbc.add_attachment("position", "flt32[R,G,B,A]");
+	fbc.add_attachment("normal", "flt32[R,G,B,A]");
+	//fbc.add_attachment("texcoord", "flt32[R,G,B]");
 
 	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
 	tf_editor_ptr->set_visibility(false);
@@ -201,6 +202,15 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 
+	if(member_ptr == &enable_grid_smoothing) {
+		shader_define_map defines = build_tube_shading_defines();
+		if(defines != tube_shading_defines) {
+			context& ctx = *get_context();
+			tube_shading_defines = defines;
+			shaders.reload(ctx, "tube_shading", tube_shading_defines);
+		}
+	}
+
 	// misc settings
 	// - instant redraw
 	if(member_ptr == &misc_cfg.instant_redraw_proxy)
@@ -236,10 +246,13 @@ bool tubes::init (cgv::render::context &ctx)
 	// load all shaders in the library
 	success &= shaders.load_shaders(ctx);
 
+	tube_shading_defines = build_tube_shading_defines();
+	shaders.reload(ctx, "tube_shading", tube_shading_defines);
+
 	// init shared attribute array manager
 	success &= render.aam.init(ctx);
 
-	render.sorter = new cgv::glutil::radix_sort_4way();
+	/*render.sorter = new cgv::glutil::radix_sort_4way();
 	render.sorter->set_value_format(TI_UINT32, 2);
 	render.sorter->initialize_values_on_sort(false);
 	render.sorter->set_data_type_override("float x, y, z;");
@@ -250,6 +263,23 @@ bool tubes::init (cgv::render::context &ctx)
 		data_type b = data[indices.y]; \
 		vec3 pa = vec3(a.x, a.y, a.z); \
 		vec3 pb = vec3(b.x, b.y, b.z); \
+		\
+		vec3 x = 0.5*(pa + pb); \
+		vec3 eye_to_pos = x - eye_pos; \
+		float key = dot(eye_to_pos, eye_to_pos);)";
+
+	render.sorter->set_key_definition_override(key_definition);*/
+
+	render.sorter = new cgv::glutil::radix_sort_4way();
+	render.sorter->set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent;");
+	render.sorter->set_auxiliary_type_override("uint a_idx; uint b_idx;");
+
+	std::string key_definition =
+		R"(aux_type indices = aux_values[idx]; \
+		data_type a = data[indices.a_idx]; \
+		data_type b = data[indices.b_idx]; \
+		vec3 pa = a.pos_rad.xyz; \
+		vec3 pb = b.pos_rad.xyz; \
 		\
 		vec3 x = 0.5*(pa + pb); \
 		vec3 eye_to_pos = x - eye_pos; \
@@ -407,6 +437,7 @@ void tubes::create_gui (void)
 	if(begin_tree_node("Grid", grids, false)) {
 		align("\a");
 		add_member_control(this, "Mode", grid_mode, "dropdown", "enums='Color, Bump, Color + Bump'");
+		add_member_control(this, "Smooth", enable_grid_smoothing, "check");
 		add_member_control(this, "Bump Scale", bump_scale, "value_slider", "min=0;max=0.2;step=0.001;log=true;ticks=true");
 		for(size_t i = 0; i < grids.size(); ++i) {
 			add_decorator("Grid " + std::to_string(i), "heading", "level=3");
@@ -520,14 +551,19 @@ void tubes::update_attribute_bindings(void) {
 			std::cerr << "!!! unable to create render attribute Storage Buffer Object !!!" << std::endl << std::endl;
 		render.render_sbo = std::move(new_sbo);
 
+		unsigned node_indices_count = render.data->indices.size();
+		unsigned segment_count = node_indices_count / 2;
+
+		std::vector<unsigned> segment_indices(segment_count);
+		
+		for(unsigned i = 0; i < segment_indices.size(); ++i)
+			segment_indices[i] = i;
+
 		// Upload render attributes to legacy buffers
 		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
-		tstr.set_position_array(ctx, render.data->positions);
-		tstr.set_tangent_array(ctx, render.data->tangents);
-		tstr.set_radius_array(ctx, render.data->radii);
-		tstr.set_color_array(ctx, render.data->colors);
-		tstr.set_indices(ctx, render.data->indices);
+		tstr.set_node_id_array(ctx, reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count, sizeof(uvec2));
+		tstr.set_indices(ctx, segment_indices);
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
 		if(!render.sorter->init(ctx, render.data->indices.size() / 2))
@@ -753,24 +789,32 @@ void tubes::draw_trajectories(context& ctx) {
 	
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 
-	// sort the indices
-	int pos_handle = tstr.get_vbo_handle(ctx, render.aam, "position");
-	int idx_handle = tstr.get_index_buffer_handle(render.aam);
+	// sort the sgment indices
+	int data_handle = 0;
+	if(render.render_sbo.handle)
+		data_handle = (const int&)render.render_sbo.handle - 1;
+	
+	if(!data_handle)
+		return;
 
-	if(pos_handle > 0 && idx_handle > 0 && render.sort)
-		render.sorter->sort(ctx, pos_handle, idx_handle, eye_pos);
+	int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
+
+	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
+	
+	if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && render.sort)
+		render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, node_idx_handle);
 
 	tstr.set_eye_pos(eye_pos);
 	tstr.set_view_dir(view_dir);
 	tstr.set_viewport(vec4(2.0f) / vec4(viewport[0], viewport[1], viewport[2], viewport[3]));
 	tstr.set_render_style(render.style);
 	tstr.enable_attribute_array_manager(ctx, render.aam);
-	//tstr.render(ctx, 0, render.data->indices.size());
 
-	int count = render.percentage * render.data->indices.size();
-	if(count & 1) count += 1;
-	count = std::min(count, (int)render.data->indices.size());
+	int count = render.percentage * (render.data->indices.size() / 2);
+	
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
 	tstr.render(ctx, 0, count);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
 
 	tstr.disable_attribute_array_manager(ctx, render.aam);
 
@@ -901,6 +945,12 @@ bool tubes::load_transfer_function(context& ctx)
 
 	image.close();
 	return success;
+}
+
+shader_define_map tubes::build_tube_shading_defines() {
+	shader_define_map defines;
+	shader_code::set_define(defines, "ENABLE_GRID_SMOOTHING", enable_grid_smoothing, false);
+	return defines;
 }
 
 ////
