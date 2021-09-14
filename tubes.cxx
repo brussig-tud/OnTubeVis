@@ -458,7 +458,7 @@ void tubes::create_gui (void)
 		add_member_control(this, "Radius 1", am_parameters.radius1, "value_slider", "min=0;max=1;step=0.01;ticks=true");
 		add_member_control(this, "Angle 0", am_parameters.angle0, "value_slider", "min=0;max=360;step=0.01;ticks=true");
 		add_member_control(this, "Angle 1", am_parameters.angle1, "value_slider", "min=0;max=360;step=0.01;ticks=true");
-		// only for teting purposes
+		// only for testing purposes
 		add_member_control(this, "Length Scale", am_parameters.length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xff0000");
 		align("\b");
 		end_tree_node(am_parameters);
