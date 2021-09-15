@@ -23,6 +23,15 @@ namespace cgv { // @<
 			float radius_scale;
 			/// default tube radius, initialized to 1
 			float radius;
+			/// specifies the calculation routinbe and output of the fragment shader for debug purposes
+			enum FragmentMode {
+				FM_NO_OP = 0,
+				FM_RASTERIZE_DEBUG = 1,
+				FM_RAY_CAST_DEBUG = 2,
+				FM_RAY_CAST = 3
+			} fragment_mode;
+			/// whether to use a billboard as ray cast bounding geometry approximated from a rounded cone encapsulating the quadratic segment bounding box
+			bool use_approximate_billboards;
 			/// whether to use conservative depth extension to re-enable early depth testing
 			bool use_conservative_depth;
 			/// whether to calculate tangents from the cubic hermite definition or from the two quadratic bezier segments

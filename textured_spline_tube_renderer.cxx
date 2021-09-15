@@ -21,6 +21,8 @@ namespace cgv {
 		{
 			radius_scale = 1.0f;
 			radius = 1.0f;
+			fragment_mode = FM_RAY_CAST;
+			use_approximate_billboards = true;
 			use_conservative_depth = false;
 			use_cubic_tangents = true;
 		}
@@ -65,11 +67,8 @@ namespace cgv {
 
 			shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
 			shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
-
-			//if(rs.use_conservative_depth)
-			//	defines["USE_CONSERVATIVE_DEPTH"] = "1";
-			//else
-			//	defines.erase("USE_CONSERVATIVE_DEPTH");
+			shader_code::set_define(defines, "USE_APPROXIMATE_BILLBOARDS", rs.use_approximate_billboards, true);
+			shader_code::set_define(defines, "MODE", rs.fragment_mode, textured_spline_tube_render_style::FM_RAY_CAST);
 		}
 		bool textured_spline_tube_renderer::build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines)
 		{
@@ -105,7 +104,9 @@ namespace cgv {
 
 		void textured_spline_tube_renderer::draw(context& ctx, size_t start, size_t count, bool use_strips, bool use_adjacency, uint32_t strip_restart_index)
 		{
+			glDisable(GL_CULL_FACE);
 			draw_impl(ctx, PT_POINTS, start, count, use_strips, use_adjacency, strip_restart_index);
+			glEnable(GL_CULL_FACE);
 		}
 
 		bool textured_spline_tube_render_style_reflect::self_reflect(cgv::reflect::reflection_handler& rh)
@@ -145,6 +146,14 @@ namespace cgv {
 			p->add_member_control(b, "Cubic Tangents", rs_ptr->use_cubic_tangents, "check");
 			
 			p->add_gui("surface_render_style", *static_cast<cgv::render::surface_render_style*>(rs_ptr));
+
+			if(p->begin_tree_node("Debug Options", rs_ptr->fragment_mode)) {
+				p->align("\a");
+				p->add_member_control(b, "Use Approximate Billboards", rs_ptr->use_approximate_billboards, "check");
+				p->add_member_control(b, "Fragment Mode", rs_ptr->fragment_mode, "dropdown", "enums='No-Op, Rasterize Debug, Ray Cast Debug, Ray Cast'");
+				p->align("\b");
+				p->end_tree_node(rs_ptr->fragment_mode);
+			}
 			return true;
 		}
 	};
