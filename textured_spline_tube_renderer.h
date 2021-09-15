@@ -25,13 +25,18 @@ namespace cgv { // @<
 			float radius;
 			/// specifies the calculation routinbe and output of the fragment shader for debug purposes
 			enum FragmentMode {
-				FM_NO_OP = 0,
-				FM_RASTERIZE_DEBUG = 1,
-				FM_RAY_CAST_DEBUG = 2,
-				FM_RAY_CAST = 3
+				FM_NO_OP = 0, // discards all fragments
+				FM_RASTERIZE_DEBUG = 1, // show rasterized fragments but don't perform ray cast
+				FM_RAY_CAST_DEBUG = 2, // do ray cast but don't discard fragments with no hit
+				FM_RAY_CAST = 3 // full ray cast only keeping the intersected fragments
 			} fragment_mode;
-			/// whether to use a billboard as ray cast bounding geometry approximated from a rounded cone encapsulating the quadratic segment bounding box
-			bool use_approximate_billboards;
+			/// specifies the type of bounding geometry to use for ray casting
+			enum BoundingGeometry {
+				BG_BOX = 0, // not implemented yet
+				BG_APPROXIMATE_BILLBOARD = 1, // quadrilateral billboard built from encapsulating the bounding box in a rounded cone and using the rounded cone billboard
+				BG_EXACT_POLYGON = 2, // a single polygon with 4 or 6 corners covering exactly the bounding box silhouette in screen space
+				BG_BOX_BILLBOARD = 3 // a single quadrilateral covering the full bounding box
+			} bounding_geometry;
 			/// whether to use conservative depth extension to re-enable early depth testing
 			bool use_conservative_depth;
 			/// whether to calculate tangents from the cubic hermite definition or from the two quadratic bezier segments
