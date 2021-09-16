@@ -636,9 +636,9 @@ void tubes::voxelize_q_tube(const quadratic_bezier_tube& qt) {
 
 	ivec3 res = density_volume.resolution;
 
-	for(unsigned z = sidx.z(); z <= eidx.z(); ++z) {
-		for(unsigned y = sidx.y(); y <= eidx.y(); ++y) {
-			for(unsigned x = sidx.x(); x <= eidx.x(); ++x) {
+	for(int z = sidx.z(); z <= eidx.z(); ++z) {
+		for(int y = sidx.y(); y <= eidx.y(); ++y) {
+			for(int x = sidx.x(); x <= eidx.x(); ++x) {
 				int count = sample_voxel(ivec3(x, y, z), qt);
 				float occupancy = static_cast<float>(count) * subsampling_normalization_factor;
 
@@ -672,7 +672,7 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 	for(unsigned z = 0; z < num_samples_per_dim; ++z) {
 		for(unsigned y = 0; y < num_samples_per_dim; ++y) {
 			for(unsigned x = 0; x < num_samples_per_dim; ++x) {
-				sample_position_offsets[idx++] = offset + vec3(x, y, z) * step;
+				sample_position_offsets[idx++] = offset + vec3((float)x, (float)y, (float)z) * step;
 			}
 		}
 	}
@@ -806,11 +806,11 @@ void tubes::draw_trajectories(context& ctx) {
 
 	tstr.set_eye_pos(eye_pos);
 	tstr.set_view_dir(view_dir);
-	tstr.set_viewport(vec4(2.0f) / vec4(viewport[0], viewport[1], viewport[2], viewport[3]));
+	tstr.set_viewport(vec4(2.0f) / vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
 	tstr.set_render_style(render.style);
 	tstr.enable_attribute_array_manager(ctx, render.aam);
 
-	int count = render.percentage * (render.data->indices.size() / 2);
+	int count = int(render.percentage * (render.data->indices.size()/2));
 	
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
 	tstr.render(ctx, 0, count);
@@ -924,7 +924,7 @@ bool tubes::load_transfer_function(context& ctx)
 
 		unsigned char* src_ptr = tex_data_1d.get_ptr<unsigned char>();
 		
-		for(int i = 0; i < w; ++i) {
+		for(unsigned i = 0; i < w; ++i) {
 			float alpha = static_cast<float>(i / 4) / static_cast<float>(w);
 			data[4 * i + 0] = src_ptr[3 * i + 0];
 			data[4 * i + 1] = src_ptr[3 * i + 1];
