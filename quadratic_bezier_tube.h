@@ -218,7 +218,7 @@ public:
 		vec3 c = a * 2.0f;
 		vec3 d = this->a.pos - pos;
 
-		float kk = 1.0 / dot(b, b);
+		float kk = 1.0f / dot(b, b);
 		float kx = kk * dot(a, b);
 		float ky = kk * (2.0f*dot(a, a) + dot(d, b)) / 3.0f;
 		float kz = kk * dot(d, a);

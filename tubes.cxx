@@ -551,7 +551,7 @@ void tubes::update_attribute_bindings(void) {
 			std::cerr << "!!! unable to create render attribute Storage Buffer Object !!!" << std::endl << std::endl;
 		render.render_sbo = std::move(new_sbo);
 
-		unsigned node_indices_count = render.data->indices.size();
+		unsigned node_indices_count = (unsigned)render.data->indices.size();
 		unsigned segment_count = node_indices_count / 2;
 
 		std::vector<unsigned> segment_indices(segment_count);

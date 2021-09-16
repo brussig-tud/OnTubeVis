@@ -111,7 +111,7 @@ public:
 
 			texture_offset = volume_bbox.get_min_pnt();
 			texture_scaling = vec3(1.0f) / volume_bbox.get_extent();
-			texcoord_scaling = vec3(volume_resolution[max_extent_axis]) / vec3(volume_resolution);
+			texcoord_scaling = vec3((float)volume_resolution[max_extent_axis]) / vec3(volume_resolution);
 			texel_size = 1.0f / volume_resolution[max_extent_axis];
 		}
 

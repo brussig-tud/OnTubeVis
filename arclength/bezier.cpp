@@ -28,12 +28,12 @@ template <typename FLOAT_TYPE>
 std::vector<FLOAT_TYPE> extrema(FLOAT_TYPE p0, FLOAT_TYPE p1, FLOAT_TYPE p2, FLOAT_TYPE p3) {
     std::vector<FLOAT_TYPE> result = {};
 
-    FLOAT_TYPE a = 3.0 * (-p0 + 3.0 * p1 - 3.0 * p2 + p3);
-    FLOAT_TYPE b = 6.0 * (p0 - 2.0 * p1 + p2);
-    FLOAT_TYPE c = 3.0 * (p1 - p0);
+    FLOAT_TYPE a = FLOAT_TYPE(3) * (-p0 + FLOAT_TYPE(3) * p1 - FLOAT_TYPE(3) * p2 + p3);
+    FLOAT_TYPE b = FLOAT_TYPE(6) * (p0 - FLOAT_TYPE(2) * p1 + p2);
+    FLOAT_TYPE c = FLOAT_TYPE(3) * (p1 - p0);
 
-    if (a == 0.0) {
-        if (b == 0.0) {
+    if (a == 0) {
+        if (b == 0) {
             return result;
         }
         FLOAT_TYPE t = -c / b;
@@ -41,13 +41,13 @@ std::vector<FLOAT_TYPE> extrema(FLOAT_TYPE p0, FLOAT_TYPE p1, FLOAT_TYPE p2, FLO
         return result;
     }
 
-    FLOAT_TYPE t0 = (-b + sqrt(b * b - 4.0 * a * c)) / (2.0 * a);
-    if (t0 >= 0.0 && t0 <= 1.0) {
+    FLOAT_TYPE t0 = (-b + sqrt(b * b - FLOAT_TYPE(4) * a * c)) / (FLOAT_TYPE(2) * a);
+    if (t0 >= 0 && t0 <= 1) {
         result.push_back(t0);
     }
 
-    FLOAT_TYPE t1 = (-b - sqrt(b * b - 4.0 * a * c)) / (2.0 * a);
-    if (t1 >= 0.0 && t1 <= 1.0) {
+    FLOAT_TYPE t1 = (-b - sqrt(b * b - FLOAT_TYPE(4) * a * c)) / (FLOAT_TYPE(2) * a);
+    if (t1 >= 0 && t1 <= 1) {
         result.push_back(t1);
     }
 
@@ -56,8 +56,8 @@ std::vector<FLOAT_TYPE> extrema(FLOAT_TYPE p0, FLOAT_TYPE p1, FLOAT_TYPE p2, FLO
 
 template <typename FLOAT_TYPE> aabb<FLOAT_TYPE> Bezier<FLOAT_TYPE>::bounding_box() const {
     auto extremaX = extrema(points[0].x, points[1].x, points[2].x, points[3].x);
-    extremaX.push_back(0.0F);
-    extremaX.push_back(1.0F);
+    extremaX.push_back(0.0f);
+    extremaX.push_back(1.0f);
 
     auto extremaY = extrema(points[0].y, points[1].y, points[2].y, points[3].y);
     extremaY.push_back(0.0F);
