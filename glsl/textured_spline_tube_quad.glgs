@@ -268,6 +268,49 @@ mat4 calculate_transformation_matrix(QTube qTube) {
 	return M;
 }
 
+
+#if BOUNDING_GEOMETRY_TYPE == 1
+/*
+	Rounded cone signed distance function from:
+	https://iquilezles.org/www/articles/distfunctions/distfunctions.htm
+*/
+float sd_rounded_cone(vec3 p, vec4 a, vec4 b) {
+    // sampling independent computations (only depend on shape)
+    vec3  ba = b.xyz - a.xyz;
+    float l2 = dot(ba,ba);
+    float rr = a.w - b.w;
+    float a2 = l2 - rr*rr;
+    float il2 = 1.0/l2;
+    
+    // sampling dependant computations
+    vec3 pa = p - a.xyz;
+    float y = dot(pa,ba);
+    float z = y - l2;
+	vec3 v = pa*l2 - ba*y;
+    float x2 = dot(v, v);
+    float y2 = y*y*l2;
+    float z2 = z*z*l2;
+
+    float k = sign(rr)*rr*rr*x2;
+
+    if(sign(z)*a2*z2 > k)
+		return sqrt(x2 + z2) * il2 - b.w;
+
+    if(sign(y)*a2*y2 < k)
+		return sqrt(x2 + y2) * il2 - a.w;
+    
+	return (sqrt(x2*a2*il2) + y*rr) * il2 - a.w;
+}
+
+#elif BOUNDING_GEOMETRY_TYPE > 1
+
+// https://iquilezles.org/www/articles/distfunctions/distfunctions.htm
+float sd_box(vec3 p, vec3 b) {
+  vec3 q = abs(p) - b;
+  return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
+}
+#endif
+
 mat4x3 quad(vec4 start, vec4 end) {
 
 	vec3 ps = start.xyz;
@@ -330,39 +373,8 @@ mat4x3 quad(vec4 start, vec4 end) {
 
 #if BOUNDING_GEOMETRY_TYPE == 0
 #elif BOUNDING_GEOMETRY_TYPE == 1
-/*
-	Rounded cone signed distance function from:
-	https://iquilezles.org/www/articles/distfunctions/distfunctions.htm
-*/
-float sd_rounded_cone(vec3 p, vec4 a, vec4 b) {
-    // sampling independent computations (only depend on shape)
-    vec3  ba = b.xyz - a.xyz;
-    float l2 = dot(ba,ba);
-    float rr = a.w - b.w;
-    float a2 = l2 - rr*rr;
-    float il2 = 1.0/l2;
-    
-    // sampling dependant computations
-    vec3 pa = p - a.xyz;
-    float y = dot(pa,ba);
-    float z = y - l2;
-	vec3 v = pa*l2 - ba*y;
-    float x2 = dot(v, v);
-    float y2 = y*y*l2;
-    float z2 = z*z*l2;
 
-    float k = sign(rr)*rr*rr*x2;
-
-    if(sign(z)*a2*z2 > k)
-		return sqrt(x2 + z2) * il2 - b.w;
-
-    if(sign(y)*a2*y2 < k)
-		return sqrt(x2 + y2) * il2 - a.w;
-    
-	return (sqrt(x2*a2*il2) + y*rr) * il2 - a.w;
-}
-
-void emit_quad(int segment_idx, QTube qTube) {
+void emit_rounded_cone_billboard(int segment_idx, QTube qTube) {
 
 	mat4 M = calculate_transformation_matrix(qTube);
 	vec4 p000 = M * corners[0];
@@ -417,13 +429,7 @@ void emit_quad(int segment_idx, QTube qTube) {
 
 #elif BOUNDING_GEOMETRY_TYPE == 2
 
-// https://iquilezles.org/www/articles/distfunctions/distfunctions.htm
-float sd_box(vec3 p, vec3 b) {
-  vec3 q = abs(p) - b;
-  return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
-}
-
-void emit_box_bounding_primitive(int segment_idx, QTube qTube) {
+void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 	mat4 M = calculate_transformation_matrix(qTube);
 	vec3 p000 = (M * corners2[0]).xyz;
 	vec3 p100 = (M * corners2[1]).xyz;
@@ -574,13 +580,20 @@ void emit_box_bounding_primitive(int segment_idx, QTube qTube) {
 
 #else
 
-// https://iquilezles.org/www/articles/distfunctions/distfunctions.htm
-float sd_box(vec3 p, vec3 b) {
-  vec3 q = abs(p) - b;
-  return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
+vec3 intersect_plane(vec3 pn, vec3 ro, vec3 rd) {
+	// the plane has its origin in (0,0,0)
+	// assume that there always is an intersection
+	float t = dot(-ro, pn) / dot(pn, rd);
+	return ro + t * rd;
 }
 
-void emit_box_bounding_primitive(int segment_idx, QTube qTube) {
+void emit_box_billboard(int segment_idx, QTube qTube) {
+	/*=========================================
+	PROBLEM:
+	Billboard gets very large (fills screen) on certain view configurations.
+	Probably when behind the eye position.
+	=========================================*/
+
 	mat4 M = calculate_transformation_matrix(qTube);
 	vec3 p000 = (M * corners2[0]).xyz;
 	vec3 p100 = (M * corners2[1]).xyz;
@@ -591,141 +604,87 @@ void emit_box_bounding_primitive(int segment_idx, QTube qTube) {
 	vec3 dy = p010 - p000;
 	vec3 dz = p001 - p000;
 
-	vec3 a = p000;
-	vec3 b = p000 + 1.0*(dx + dy + dz);
-	vec3 org = 0.5*(a + b);
+	vec3 p110 = p100 + dy;
+	vec3 p101 = p100 + dz;
+	vec3 p011 = p010 + dz;
+	vec3 p111 = p110 + dz;
 
-	if(dot(eye_pos - org, dx) < 0) {
-		a += dx;
-		b -= dx;
-		dx = -dx;
-	}
-	if(dot(eye_pos - org, dy) < 0) {
-		a += dy;
-		b -= dy;
-		dy = -dy;
-	}
-	if(dot(eye_pos - org, dz) < 0) {
-		a += dz;
-		b -= dz;
-		dz = -dz;
-	}
+	vec3 aligned_up = normalize(cross(dx, view_dir));
+	vec3 aligned_right = cross(view_dir, aligned_up); // no need to normalize cross product of two unit vectors
+	
+	vec3 ps[8];
+	// The plane is defined by origin p000 and view direction as normal.
+	// By subtracting p000 from the points the plane origin is effectively moved to (0,0,0).
+	// Further the normalization of the directional vectors, i.e. eye_pos - p###, is not necessary,
+	// since this does not influece the computation of the intersection point.
+	ps[0] = intersect_plane(view_dir, p000 - p000, eye_pos - p000);
+	ps[1] = intersect_plane(view_dir, p100 - p000, eye_pos - p100);
+	ps[2] = intersect_plane(view_dir, p010 - p000, eye_pos - p010);
+	ps[3] = intersect_plane(view_dir, p001 - p000, eye_pos - p001);
 
-	int mask = 0;
-	if(dot(eye_pos - b, dx) < 0)
-		mask |= 1;
-	if(dot(eye_pos - b, dy) < 0)
-		mask |= 2;
-	if(dot(eye_pos - b, dz) < 0)
-		mask |= 4;
-		
-	int count = 6;
-	vec3 c[6];
-	c[0] = a + dy;
-	c[1] = a + dz;
-	c[2] = a + dy + dx;
-	c[3] = a + dz + dx;
+	ps[4] = intersect_plane(view_dir, p110 - p000, eye_pos - p110);
+	ps[5] = intersect_plane(view_dir, p101 - p000, eye_pos - p101);
+	ps[6] = intersect_plane(view_dir, p011 - p000, eye_pos - p011);
+	ps[7] = intersect_plane(view_dir, p111 - p000, eye_pos - p111);
 
-	// equivalent cases:
-	// 0
-	// 0: 000
+	// same as projecting ps[i] onto the line p000 + t*aligned_right; keeps the sign and only gets the length; division by squared length  of aligned_right not necessary, since aligned_right is a unit vector
+	float u, min_u, max_u;
+	u = dot(ps[0], aligned_right); min_u = u; max_u = u;
+	u = dot(ps[1], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
+	u = dot(ps[2], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
+	u = dot(ps[3], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
+	u = dot(ps[4], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
+	u = dot(ps[5], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
+	u = dot(ps[6], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
+	u = dot(ps[7], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
 
-	// 1, 2, 4:
-	// 1: 001
-	// 2: 010
-	// 4: 100
+	float v, min_v, max_v;
+	v = dot(ps[0], aligned_up); min_v = v; max_v = v;
+	v = dot(ps[1], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
+	v = dot(ps[2], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
+	v = dot(ps[3], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
+	v = dot(ps[4], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
+	v = dot(ps[5], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
+	v = dot(ps[6], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
+	v = dot(ps[7], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
 
-	// 3, 5, 6:
-	// 3: 011
-	// 5: 101
-	// 6: 110
-
-	switch(mask) {
-	case 0:
-		c[1] = b - dx;
-		c[3] = a + dz;
-
-		c[4] = a + dx;
-		c[5] = b - dy;
-		break;
-	case 1:
-		c[1] = b - dz;
-		c[2] = b - dx;
-		c[3] = b;
-
-		c[4] = a + dz;
-		c[5] = b - dy;
-		break;
-	case 2:
-		c[0] = b - dx;
-		c[2] = b;
-
-		c[4] = b - dz;
-		c[5] = a + dx;
-		break;
-	case 3:
-		c[0] = b - dx;
-		c[2] = b;
-		count = 4;
-		break;
-	case 4:
-		c[1] = b - dx;
-		c[3] = b;
-
-		c[4] = a + dx;
-		c[5] = b - dy;
-		break;
-	case 5:
-		c[1] = b - dx;
-		c[3] = b;
-		count = 4;
-		break;
-	case 6:
-		c[0] = b - dz;
-		c[1] = b;
-		c[2] = a + dx;
-		count = 4;
-		break;
-	}
-
+	vec3 c[4];
+	c[0] = p000 + min_u * aligned_right + min_v * aligned_up;
+	c[1] = p000 + max_u * aligned_right + min_v * aligned_up;
+	c[2] = p000 + min_u * aligned_right + max_v * aligned_up;
+	c[3] = p000 + max_u * aligned_right + max_v * aligned_up;
+	
 	vec3 ext = vec3(
 		length(dx),
 		length(dy),
 		length(dz)
 	);
 
-	// calculate the distance to the box and use this to move the corners in front of the box
-	float dist = sd_box(eye_pos - org, 0.5*ext);
+	float dist = sd_box(eye_pos - 0.5*(p000 + p111), 0.5*ext);
 	c[0] = eye_pos + dist * normalize(c[0] - eye_pos);
 	c[1] = eye_pos + dist * normalize(c[1] - eye_pos);
 	c[2] = eye_pos + dist * normalize(c[2] - eye_pos);
 	c[3] = eye_pos + dist * normalize(c[3] - eye_pos);
-	c[4] = eye_pos + dist * normalize(c[4] - eye_pos);
-	c[5] = eye_pos + dist * normalize(c[5] - eye_pos);
 
 	qTube.s.pos = (get_modelview_matrix() * vec4(qTube.s.pos, 1.0)).xyz;
 	qTube.h.pos = (get_modelview_matrix() * vec4(qTube.h.pos, 1.0)).xyz;
 	qTube.e.pos = (get_modelview_matrix() * vec4(qTube.e.pos, 1.0)).xyz;
 	qTube_fs = qTube;
-
+	
 	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
-
-	vec4 ps[6];
-
-	ps[0] = get_modelview_matrix() * vec4(c[0], 1.0);
-	ps[1] = get_modelview_matrix() * vec4(c[1], 1.0);
-	ps[2] = get_modelview_matrix() * vec4(c[2], 1.0);
-	ps[3] = get_modelview_matrix() * vec4(c[3], 1.0);
-	ps[4] = get_modelview_matrix() * vec4(c[4], 1.0);
-	ps[5] = get_modelview_matrix() * vec4(c[5], 1.0);
-
-	mat4 PM = get_projection_matrix();
-
-	for(int i = 0; i < count; ++i) {
-		position_fs = ps[i].xyz;
-		gl_Position = PM * ps[i];
-		EmitVertex();
-	}
+	
+	position_fs = (get_modelview_matrix() * vec4(c[0], 1.0)).xyz;
+	gl_Position = get_modelview_projection_matrix() * vec4(c[0], 1.0);
+	EmitVertex();
+	position_fs = (get_modelview_matrix() * vec4(c[1], 1.0)).xyz;
+	gl_Position = get_modelview_projection_matrix() * vec4(c[1], 1.0);
+	EmitVertex();
+	position_fs = (get_modelview_matrix() * vec4(c[2], 1.0)).xyz;
+	gl_Position = get_modelview_projection_matrix() * vec4(c[2], 1.0);
+	EmitVertex();
+	position_fs = (get_modelview_matrix() * vec4(c[3], 1.0)).xyz;
+	gl_Position = get_modelview_projection_matrix() * vec4(c[3], 1.0);
+	EmitVertex();
 	EndPrimitive();
 }
 
@@ -774,13 +733,13 @@ void main()
 
 #if BOUNDING_GEOMETRY_TYPE == 0
 #elif BOUNDING_GEOMETRY_TYPE == 1
-	emit_quad(0, qTube0);
-	emit_quad(1, qTube1);
+	emit_rounded_cone_billboard(0, qTube0);
+	emit_rounded_cone_billboard(1, qTube1);
 #elif BOUNDING_GEOMETRY_TYPE == 2
-	emit_box_bounding_primitive(0, qTube0);
-	emit_box_bounding_primitive(1, qTube1);
+	emit_exact_box_polygon(0, qTube0);
+	emit_exact_box_polygon(1, qTube1);
 #else
-	emit_box_bounding_primitive(0, qTube0);
-	emit_box_bounding_primitive(1, qTube1);
+	emit_box_billboard(0, qTube0);
+	emit_box_billboard(1, qTube1);
 #endif
 }
