@@ -22,19 +22,21 @@ mat3 get_normal_matrix();
 mat3 get_inverse_normal_matrix();
 //***** end interface of view.glsl ***********************************
 
+#if BOUNDING_GEOMETRY_TYPE < 2
 const vec4 corners[4] = {
 	vec4(-0.5, +0.0, +0.0, 1.0),
 	vec4(+0.5, +0.0, +0.0, 1.0),
 	vec4(-0.5, +0.5, +0.0, 1.0),
 	vec4(-0.5, +0.0, +0.5, 1.0)
 };
-
-const vec4 corners2[4] = {
+#else
+const vec4 corners[4] = {
 	vec4(-0.5, -0.5, -0.5, 1.0),
 	vec4(+0.5, -0.5, -0.5, 1.0),
 	vec4(-0.5, +0.5, -0.5, 1.0),
 	vec4(-0.5, -0.5, +0.5, 1.0)
 };
+#endif
 
 struct TubeNode {
 	vec3 pos;
@@ -431,10 +433,10 @@ void emit_rounded_cone_billboard(int segment_idx, QTube qTube) {
 
 void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 	mat4 M = calculate_transformation_matrix(qTube);
-	vec3 p000 = (M * corners2[0]).xyz;
-	vec3 p100 = (M * corners2[1]).xyz;
-	vec3 p010 = (M * corners2[2]).xyz;
-	vec3 p001 = (M * corners2[3]).xyz;
+	vec3 p000 = (M * corners[0]).xyz;
+	vec3 p100 = (M * corners[1]).xyz;
+	vec3 p010 = (M * corners[2]).xyz;
+	vec3 p001 = (M * corners[3]).xyz;
 
 	vec3 dx = p100 - p000;
 	vec3 dy = p010 - p000;
@@ -543,6 +545,7 @@ void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 		length(dz)
 	);
 
+#if USE_CONSERVATIVE_DEPTH == 1
 	// calculate the distance to the box and use this to move the corners in front of the box
 	float dist = sd_box(eye_pos - org, 0.5*ext);
 	c[0] = eye_pos + dist * normalize(c[0] - eye_pos);
@@ -551,6 +554,7 @@ void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 	c[3] = eye_pos + dist * normalize(c[3] - eye_pos);
 	c[4] = eye_pos + dist * normalize(c[4] - eye_pos);
 	c[5] = eye_pos + dist * normalize(c[5] - eye_pos);
+#endif
 
 	qTube.s.pos = (get_modelview_matrix() * vec4(qTube.s.pos, 1.0)).xyz;
 	qTube.h.pos = (get_modelview_matrix() * vec4(qTube.h.pos, 1.0)).xyz;
@@ -589,10 +593,10 @@ vec3 intersect_plane(vec3 pn, vec3 ro, vec3 rd) {
 
 void emit_box_billboard(int segment_idx, QTube qTube) {
 	mat4 M = calculate_transformation_matrix(qTube);
-	vec3 p000 = (M * corners2[0]).xyz;
-	vec3 p100 = (M * corners2[1]).xyz;
-	vec3 p010 = (M * corners2[2]).xyz;
-	vec3 p001 = (M * corners2[3]).xyz;
+	vec3 p000 = (M * corners[0]).xyz;
+	vec3 p100 = (M * corners[1]).xyz;
+	vec3 p010 = (M * corners[2]).xyz;
+	vec3 p001 = (M * corners[3]).xyz;
 
 	vec3 dx = p100 - p000;
 	vec3 dy = p010 - p000;
@@ -671,11 +675,13 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 	c[2] = p000 + min_u * aligned_right + max_v * aligned_up;
 	c[3] = p000 + max_u * aligned_right + max_v * aligned_up;
 	
+#if USE_CONSERVATIVE_DEPTH == 1
 	float dist = sd_box(eye_pos - origin, 0.5*ext);
 	c[0] = eye_pos + dist * normalize(c[0] - eye_pos);
 	c[1] = eye_pos + dist * normalize(c[1] - eye_pos);
 	c[2] = eye_pos + dist * normalize(c[2] - eye_pos);
 	c[3] = eye_pos + dist * normalize(c[3] - eye_pos);
+#endif
 
 	qTube.s.pos = (get_modelview_matrix() * vec4(qTube.s.pos, 1.0)).xyz;
 	qTube.h.pos = (get_modelview_matrix() * vec4(qTube.h.pos, 1.0)).xyz;
