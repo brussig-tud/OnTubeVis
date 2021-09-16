@@ -131,19 +131,19 @@ template <typename FLOAT_TYPE> struct Bezier {
      * Create numSamples amount of slices and add them all up to calculate the
      * integral that describes the length of the given bezier curve.
      */
-    FLOAT_TYPE arc_length_legendre_gauss(FLOAT_TYPE t = 1.0, int numSamples = 20) const;
+    FLOAT_TYPE arc_length_legendre_gauss(FLOAT_TYPE t = 1, int numSamples = 20) const;
 
     /**
      * Divide the curve into evenly spaced segments and sum up the straight line
      * distance of those segments.
      */
-    FLOAT_TYPE arc_length_even_subdivision(FLOAT_TYPE t = 1.0, int numSegments = 100) const;
+    FLOAT_TYPE arc_length_even_subdivision(FLOAT_TYPE t = 1, int numSegments = 100) const;
 
     /**
      * Divide the curve into evenly spaced segments and sum up the straight line
      * distance of those segments.
      */
-    FLOAT_TYPE arc_length_adaptive_subdivision(FLOAT_TYPE t = 1.0, FLOAT_TYPE epsilon = 0.0001F) const;
+    FLOAT_TYPE arc_length_adaptive_subdivision(FLOAT_TYPE t = 1, FLOAT_TYPE epsilon = 0.0001F) const;
 
     /**
      * Calculates a bezier curve that approximates the arc length of the original curve.

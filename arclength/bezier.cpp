@@ -143,14 +143,14 @@ FLOAT_TYPE Bezier<FLOAT_TYPE>::arc_length_legendre_gauss(const FLOAT_TYPE t, con
         return 0.0;
     }
 
-    FLOAT_TYPE zHalf = t * 0.5;
+    FLOAT_TYPE zHalf = t * FLOAT_TYPE(0.5);
     FLOAT_TYPE result = 0.0;
     for (int i = 0; i < numSamples; i++) {
         const fastgl::QuadPair pair = fastgl::GLPair(numSamples, i + 1);
-        FLOAT_TYPE T = pair.x();
+        FLOAT_TYPE T = (FLOAT_TYPE)pair.x();
         FLOAT_TYPE t_ = zHalf * T + zHalf;
         auto value = derivative(t_);
-        FLOAT_TYPE C = pair.weight;
+        FLOAT_TYPE C = (FLOAT_TYPE)pair.weight;
         result += C * value.length();
     }
 
@@ -159,8 +159,8 @@ FLOAT_TYPE Bezier<FLOAT_TYPE>::arc_length_legendre_gauss(const FLOAT_TYPE t, con
 
 template <typename FLOAT_TYPE>
 FLOAT_TYPE Bezier<FLOAT_TYPE>::arc_length_even_subdivision(FLOAT_TYPE t, int numSegments) const {
-    FLOAT_TYPE step = 1.0 / static_cast<FLOAT_TYPE>(numSegments);
-    FLOAT_TYPE result = 0.0;
+    FLOAT_TYPE step = FLOAT_TYPE(1) / static_cast<FLOAT_TYPE>(numSegments);
+    FLOAT_TYPE result = 0;
 
     v3<FLOAT_TYPE> lastPoint = points[0];
     for (int i = 0; i < numSegments; i++) {
@@ -183,18 +183,18 @@ template <typename FLOAT_TYPE>
 FLOAT_TYPE arc_length_adaptive_subdivision(const Bezier<FLOAT_TYPE> &b, FLOAT_TYPE epsilon) {
     auto lengthControlPolygon = b.length_control_polygon();
     auto lengthChord = b.length_chord();
-    auto degree = 3.0;
+    FLOAT_TYPE degree = 3;
 
     // TODO use better error metric
     auto error = lengthControlPolygon - lengthChord;
     if (error < epsilon) {
-        return (2.0 * lengthChord + (degree - 1.0) * lengthControlPolygon) / (degree + 1.0);
+        return (FLOAT_TYPE(2) * lengthChord + (degree - FLOAT_TYPE(1)) * lengthControlPolygon) / (degree + FLOAT_TYPE(1));
     }
 
     auto new_split = b.split(0.5F);
     auto b1 = new_split.first;
     auto b2 = new_split.second;
-    FLOAT_TYPE newEpsilon = epsilon / 2.0;
+    FLOAT_TYPE newEpsilon = epsilon / FLOAT_TYPE(2);
     return arc_length_adaptive_subdivision(b1, newEpsilon) + arc_length_adaptive_subdivision(b2, newEpsilon);
 }
 
@@ -283,7 +283,7 @@ FLOAT_TYPE ParameterizationSubdivisionLegendreGauss<FLOAT_TYPE>::evaluate(const 
     FLOAT_TYPE t1 = 1.0;
 
     for (int i = 0; i < depth; i++) {
-        FLOAT_TYPE t = (t0 + t1) / 2.0;
+        FLOAT_TYPE t = (t0 + t1) / FLOAT_TYPE(2);
         auto l = b.arc_length_legendre_gauss(t, 100);
         if (d < l) {
             t1 = t;
@@ -294,7 +294,7 @@ FLOAT_TYPE ParameterizationSubdivisionLegendreGauss<FLOAT_TYPE>::evaluate(const 
         }
     }
 
-    return (t0 + t1) / 2.0;
+    return (t0 + t1) / FLOAT_TYPE(2);
 }
 template <typename FLOAT_TYPE> FLOAT_TYPE ParameterizationSubdivisionLegendreGauss<FLOAT_TYPE>::length() const {
     return b.arc_length_legendre_gauss();
@@ -353,7 +353,7 @@ ArcLengthBezierApproximation<FLOAT_TYPE> Bezier<FLOAT_TYPE>::arc_length_bezier_a
     result.totalLength = arc_length_legendre_gauss(1.0, numSamples);
     result.lengths.push_back(0.0);
 
-    auto dStep = 1.0 / static_cast<FLOAT_TYPE>(numSegments);
+    auto dStep = FLOAT_TYPE(1) / static_cast<FLOAT_TYPE>(numSegments);
     for (int i = 0; i < numSegments; i++) {
         auto tPrev = static_cast<FLOAT_TYPE>(i) * dStep;
         auto tCur = static_cast<FLOAT_TYPE>(i + 1) * dStep;
@@ -363,35 +363,35 @@ ArcLengthBezierApproximation<FLOAT_TYPE> Bezier<FLOAT_TYPE>::arc_length_bezier_a
         auto dCur = arc_length_legendre_gauss(tCur, numSamples);
         auto dDiff = dCur - dPrev;
 
-        FLOAT_TYPE sample1 = (tPrev + tDiff * (1.0 / 3.0));
+        FLOAT_TYPE sample1 = (tPrev + tDiff * (FLOAT_TYPE(1) / FLOAT_TYPE(3)));
         auto s1over3 = arc_length_legendre_gauss(sample1);
         auto s1over3Scaled = (s1over3 - dPrev) / dDiff;
 
-        FLOAT_TYPE sample2 = (tPrev + tDiff * (2.0 / 3.0));
+        FLOAT_TYPE sample2 = (tPrev + tDiff * (FLOAT_TYPE(2) / FLOAT_TYPE(3)));
         auto s2over3 = arc_length_legendre_gauss(sample2);
         auto s2over3Scaled = (s2over3 - dPrev) / dDiff;
 
         auto y1 = (18.0 * s1over3Scaled - 9.0 * s2over3Scaled + 2.0) / 6.0;
         auto y2 = (-9.0 * s1over3Scaled + 18.0 * s2over3Scaled - 5.0) / 6.0;
 
-        result.y1.push_back(y1);
-        result.y2.push_back(y2);
-        result.lengths.push_back(dCur);
+        result.y1.push_back((FLOAT_TYPE)y1);
+        result.y2.push_back((FLOAT_TYPE)y2);
+        result.lengths.push_back((FLOAT_TYPE)dCur);
     }
 
     return result;
 }
 
 template <typename FLOAT_TYPE> FLOAT_TYPE ArcLengthBezierApproximation<FLOAT_TYPE>::evaluate(FLOAT_TYPE t) const {
-    if (t <= 0.0) {
-        return 0.0;
+    if (t <= 0) {
+        return 0;
     }
-    if (t >= 1.0) {
+    if (t >= 1) {
         return totalLength;
     }
 
     size_t segmentCount = y1.size();
-    size_t index = segmentCount * t;
+    size_t index = size_t(FLOAT_TYPE(segmentCount) * t);
     auto tStep = 1.0 / static_cast<FLOAT_TYPE>(segmentCount);
     auto tPrev = static_cast<FLOAT_TYPE>(index) * tStep;
     auto tCur = static_cast<FLOAT_TYPE>(index + 1) * tStep;
@@ -406,21 +406,21 @@ template <typename FLOAT_TYPE> FLOAT_TYPE ArcLengthBezierApproximation<FLOAT_TYP
     auto dPrev = lengths[index];
     auto dCur = lengths[index + 1];
     auto dDiff = dCur - dPrev;
-    return (y * dDiff) + dPrev;
+    return (FLOAT_TYPE)(y*dDiff + dPrev);
 }
 
 template <typename FLOAT_TYPE>
 FLOAT_TYPE ParameterizationBezierApproximation<FLOAT_TYPE>::evaluate(FLOAT_TYPE d) const {
-    if (d <= 0.0) {
-        return 0.0;
+    if (d <= 0) {
+        return 0;
     }
     if (d >= totalLength) {
-        return 1.0;
+        return 1;
     }
 
     auto dNormalized = d / totalLength;
     size_t segmentCount = y1.size();
-    size_t index = segmentCount * dNormalized;
+    size_t index = size_t(FLOAT_TYPE(segmentCount) * dNormalized);
     auto dStep = 1.0 / static_cast<FLOAT_TYPE>(segmentCount);
     auto dPrev = static_cast<FLOAT_TYPE>(index) * dStep;
     auto dCur = static_cast<FLOAT_TYPE>(index + 1) * dStep;
@@ -435,7 +435,7 @@ FLOAT_TYPE ParameterizationBezierApproximation<FLOAT_TYPE>::evaluate(FLOAT_TYPE 
     auto tPrev = t[index];
     auto tCur = t[index + 1];
     auto tDiff = tCur - tPrev;
-    return (y * tDiff) + tPrev;
+    return (FLOAT_TYPE)(y*tDiff + tPrev);
 }
 
 template <typename FLOAT_TYPE> FLOAT_TYPE ParameterizationBezierApproximation<FLOAT_TYPE>::length() const {
@@ -455,7 +455,7 @@ Bezier<FLOAT_TYPE>::parameterization_bezier_approximation(int numSegments, int n
 
     auto *legendreGauss = parameterization_subdivision_legendre_gauss(numSamples);
 
-    auto dStep = 1.0 / static_cast<FLOAT_TYPE>(numSegments);
+    auto dStep = FLOAT_TYPE(1) / static_cast<FLOAT_TYPE>(numSegments);
     for (int i = 0; i < numSegments; i++) {
         auto dPrev = static_cast<FLOAT_TYPE>(i) * dStep;
         auto dCur = static_cast<FLOAT_TYPE>(i + 1) * dStep;
@@ -465,20 +465,20 @@ Bezier<FLOAT_TYPE>::parameterization_bezier_approximation(int numSegments, int n
         auto tCur = legendreGauss->evaluate(dCur * result->totalLength);
         auto tDiff = tCur - tPrev;
 
-        FLOAT_TYPE sample1 = (dPrev + dDiff * (1.0 / 3.0)) * result->totalLength;
+        FLOAT_TYPE sample1 = (dPrev + dDiff * (FLOAT_TYPE(1) / FLOAT_TYPE(3))) * result->totalLength;
         auto s1over3 = legendreGauss->evaluate(sample1);
         auto s1over3Scaled = (s1over3 - tPrev) / tDiff;
 
-        FLOAT_TYPE sample2 = (dPrev + dDiff * (2.0 / 3.0)) * result->totalLength;
+        FLOAT_TYPE sample2 = (dPrev + dDiff * (FLOAT_TYPE(2) / FLOAT_TYPE(3))) * result->totalLength;
         auto s2over3 = legendreGauss->evaluate(sample2);
         auto s2over3Scaled = (s2over3 - tPrev) / tDiff;
 
         auto y1 = (18.0 * s1over3Scaled - 9.0 * s2over3Scaled + 2.0) / 6.0;
         auto y2 = (-9.0 * s1over3Scaled + 18.0 * s2over3Scaled - 5.0) / 6.0;
 
-        result->y1.push_back(y1);
-        result->y2.push_back(y2);
-        result->t.push_back(tCur);
+        result->y1.push_back((FLOAT_TYPE)y1);
+        result->y2.push_back((FLOAT_TYPE)y2);
+        result->t.push_back((FLOAT_TYPE)tCur);
     }
 
     return result;
@@ -489,7 +489,7 @@ FLOAT_TYPE ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>::evaluate(
     FLOAT_TYPE t0 = 0.0;
     FLOAT_TYPE t1 = 1.0;
     for (int i = 0; i < depth; i++) {
-        FLOAT_TYPE t = (t0 + t1) / 2.0;
+        FLOAT_TYPE t = (t0 + t1) / FLOAT_TYPE(2);
         auto l = arcLength.evaluate(t);
         if (d < l) {
             t1 = t;
@@ -499,7 +499,7 @@ FLOAT_TYPE ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>::evaluate(
             break;
         }
     }
-    return (t0 + t1) / 2.0;
+    return (t0 + t1) / FLOAT_TYPE(2);
 }
 
 template <typename FLOAT_TYPE> FLOAT_TYPE ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>::length() const {
@@ -510,7 +510,7 @@ template <typename FLOAT_TYPE> FLOAT_TYPE ParameterizationAdaptive<FLOAT_TYPE>::
     FLOAT_TYPE t0 = 0.0;
     FLOAT_TYPE t1 = 1.0;
     for (int i = 0; i < depth; i++) {
-        FLOAT_TYPE t = (t0 + t1) / 2.0;
+        FLOAT_TYPE t = (t0 + t1) / FLOAT_TYPE(2);
         auto l = b.arc_length_adaptive_subdivision(t);
         if (d < l) {
             t1 = t;
@@ -520,7 +520,7 @@ template <typename FLOAT_TYPE> FLOAT_TYPE ParameterizationAdaptive<FLOAT_TYPE>::
             break;
         }
     }
-    return (t0 + t1) / 2.0;
+    return (t0 + t1) / FLOAT_TYPE(2);
 }
 
 template <typename FLOAT_TYPE> FLOAT_TYPE ParameterizationAdaptive<FLOAT_TYPE>::length() const {
