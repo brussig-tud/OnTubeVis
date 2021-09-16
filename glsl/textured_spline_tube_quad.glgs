@@ -588,12 +588,6 @@ vec3 intersect_plane(vec3 pn, vec3 ro, vec3 rd) {
 }
 
 void emit_box_billboard(int segment_idx, QTube qTube) {
-	/*=========================================
-	PROBLEM:
-	Billboard gets very large (fills screen) on certain view configurations.
-	Probably when behind the eye position.
-	=========================================*/
-
 	mat4 M = calculate_transformation_matrix(qTube);
 	vec3 p000 = (M * corners2[0]).xyz;
 	vec3 p100 = (M * corners2[1]).xyz;
@@ -609,23 +603,46 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 	vec3 p011 = p010 + dz;
 	vec3 p111 = p110 + dz;
 
-	vec3 aligned_up = normalize(cross(dx, view_dir));
-	vec3 aligned_right = cross(view_dir, aligned_up); // no need to normalize cross product of two unit vectors
+	vec3 ext = vec3(
+		length(dx),
+		length(dy),
+		length(dz)
+	);
+	
+	vec3 origin = 0.5*(p000 + p111);
+	vec3 eye_to_origin = normalize(origin - eye_pos);
+
+	float ref_dot = abs(dot(dx, eye_to_origin)) / ext.x;
+	vec3 ref_dir = dx;
+	
+	float ang = abs(dot(eye_to_origin, dy)) / ext.y;
+	if(ang < ref_dot) {
+		ref_dot = ang;
+		ref_dir = dy;
+	}
+	ang = abs(dot(eye_to_origin, dz)) / ext.z;
+	if(ang < ref_dot) {
+		ref_dot = ang;
+		ref_dir = dz;
+	}
+
+	vec3 aligned_up = normalize(cross(ref_dir, eye_to_origin));
+	vec3 aligned_right = cross(eye_to_origin, aligned_up); // no need to normalize cross product of two unit vectors
 	
 	vec3 ps[8];
 	// The plane is defined by origin p000 and view direction as normal.
 	// By subtracting p000 from the points the plane origin is effectively moved to (0,0,0).
 	// Further the normalization of the directional vectors, i.e. eye_pos - p###, is not necessary,
 	// since this does not influece the computation of the intersection point.
-	ps[0] = intersect_plane(view_dir, p000 - p000, eye_pos - p000);
-	ps[1] = intersect_plane(view_dir, p100 - p000, eye_pos - p100);
-	ps[2] = intersect_plane(view_dir, p010 - p000, eye_pos - p010);
-	ps[3] = intersect_plane(view_dir, p001 - p000, eye_pos - p001);
+	ps[0] = intersect_plane(eye_to_origin, p000 - p000, eye_pos - p000);
+	ps[1] = intersect_plane(eye_to_origin, p100 - p000, eye_pos - p100);
+	ps[2] = intersect_plane(eye_to_origin, p010 - p000, eye_pos - p010);
+	ps[3] = intersect_plane(eye_to_origin, p001 - p000, eye_pos - p001);
 
-	ps[4] = intersect_plane(view_dir, p110 - p000, eye_pos - p110);
-	ps[5] = intersect_plane(view_dir, p101 - p000, eye_pos - p101);
-	ps[6] = intersect_plane(view_dir, p011 - p000, eye_pos - p011);
-	ps[7] = intersect_plane(view_dir, p111 - p000, eye_pos - p111);
+	ps[4] = intersect_plane(eye_to_origin, p110 - p000, eye_pos - p110);
+	ps[5] = intersect_plane(eye_to_origin, p101 - p000, eye_pos - p101);
+	ps[6] = intersect_plane(eye_to_origin, p011 - p000, eye_pos - p011);
+	ps[7] = intersect_plane(eye_to_origin, p111 - p000, eye_pos - p111);
 
 	// same as projecting ps[i] onto the line p000 + t*aligned_right; keeps the sign and only gets the length; division by squared length  of aligned_right not necessary, since aligned_right is a unit vector
 	float u, min_u, max_u;
@@ -654,13 +671,7 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 	c[2] = p000 + min_u * aligned_right + max_v * aligned_up;
 	c[3] = p000 + max_u * aligned_right + max_v * aligned_up;
 	
-	vec3 ext = vec3(
-		length(dx),
-		length(dy),
-		length(dz)
-	);
-
-	float dist = sd_box(eye_pos - 0.5*(p000 + p111), 0.5*ext);
+	float dist = sd_box(eye_pos - origin, 0.5*ext);
 	c[0] = eye_pos + dist * normalize(c[0] - eye_pos);
 	c[1] = eye_pos + dist * normalize(c[1] - eye_pos);
 	c[2] = eye_pos + dist * normalize(c[2] - eye_pos);
