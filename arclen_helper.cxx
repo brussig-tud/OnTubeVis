@@ -27,6 +27,18 @@ struct curve_segment
 	struct {
 		Bezier<flt_type> t_to_s [4]; /// 4 cubic Bezier segments approximate a the arclength with respect to t
 	} param;
+	flt_type alen (flt_type t=1)
+	{
+		const flt_type _4t = 4*t,
+		               _4tb4 = _4t / 4,
+		               _4tb4x4 = _4tb4 * 4;
+		const unsigned i = std::clamp((int)_4tb4x4, 0, 3);
+		const flt_type inner_start = i*flt_type(0.25),
+		               t_inner = (t-inner_start)*flt_type(4);
+		const auto &approx = param.t_to_s[i];
+		const auto result = approx.evaluate(t_inner).y;
+		return result;
+	}
 };
 
 // Anonymous namespace end
@@ -78,6 +90,7 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 				// arc length
 				// - fit beziers
 				const auto alen_approx = b.arc_length_bezier_approximation(4);
+				// - convert to calculation of trajectory-global arclength at segment
 				for (unsigned j=0; j<4; j++) {
 					const flt_type length_j = alen_approx.lengths[j+1] - alen_approx.lengths[j];
 					const flt_type length_jsum = length_sum + alen_approx.lengths[j];
@@ -85,15 +98,20 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 					seg.param.t_to_s[j].points[1].y = length_jsum + alen_approx.y1[j]*length_j;
 					// - offset by current global trajectory length
 					seg.param.t_to_s[j].points[2].y = length_jsum + alen_approx.y2[j]*length_j;
-					seg.param.t_to_s[j].points[3].y = alen_approx.lengths[j+1];
-					/*const real l0 = seg.param.t_to_s.evaluate(0.f).y,
-					         l1 = seg.param.t_to_s.evaluate(seg.param.t_to_s.points[1].x).y,
-					        l2 = seg.param.t_to_s.evaluate(0.5f).y,
-					        l3 = seg.param.t_to_s.evaluate(seg.param.t_to_s.points[2].x).y,
-					         l4 = seg.param.t_to_s.evaluate(1.f).y;*/
-					// - update global trajectory length
+					seg.param.t_to_s[j].points[3].y = length_sum  + alen_approx.lengths[j+1];
 				}
+				// - update global trajectory length
 				length_sum += alen_approx.totalLength;
+				// - testing
+				/*const real _l[] = {seg.alen(0.f),
+				                   seg.alen(0.125f),
+				                   seg.alen(0.25f),
+				                   seg.alen(0.375f),
+				                   seg.alen(0.5f),
+				                   seg.alen(0.625f),
+				                   seg.alen(0.75f),
+				                   seg.alen(0.875f),
+				                   seg.alen(1.f)};*/
 
 				// output control points
 				// - construct temp array
