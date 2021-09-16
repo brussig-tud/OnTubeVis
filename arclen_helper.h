@@ -23,12 +23,12 @@ namespace arclen
 	/// the segment index, and renderers can access the computed approximations using e.g. a storage
 	/// buffer and the current primitive ID.
 	template <class flt_type>
-	std::vector<cgv::render::render_types::vec4> compile_renderdata (const traj_manager<flt_type> &mgr);
+	std::vector<cgv::render::render_types::mat4> compile_renderdata (const traj_manager<flt_type> &mgr);
 
 	/// Create a GPU-side storage buffer holding the per-segment arclength approximations contained in
 	/// the provided array of vec4's.
 	cgv::render::vertex_buffer upload_renderdata (
-		cgv::render::context &ctx, const std::vector<cgv::render::render_types::vec4> &approximations
+		cgv::render::context &ctx, const std::vector<cgv::render::render_types::mat4> &approximations
 	);
 
 	/// convencience function for compiling and uploading the arclength approximation render data in one
