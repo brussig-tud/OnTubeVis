@@ -22,19 +22,19 @@ mat3 get_normal_matrix();
 mat3 get_inverse_normal_matrix();
 //***** end interface of view.glsl ***********************************
 
-#if BOUNDING_GEOMETRY_TYPE < 2
-const vec4 corners[4] = {
-	vec4(-0.5, +0.0, +0.0, 1.0),
-	vec4(+0.5, +0.0, +0.0, 1.0),
-	vec4(-0.5, +0.5, +0.0, 1.0),
-	vec4(-0.5, +0.0, +0.5, 1.0)
-};
-#else
+#if BOUNDING_GEOMETRY_TYPE == 0
 const vec4 corners[4] = {
 	vec4(-0.5, -0.5, -0.5, 1.0),
 	vec4(+0.5, -0.5, -0.5, 1.0),
 	vec4(-0.5, +0.5, -0.5, 1.0),
 	vec4(-0.5, -0.5, +0.5, 1.0)
+};
+#elif BOUNDING_GEOMETRY_TYPE == 1
+const vec4 corners[4] = {
+	vec4(-0.5, +0.0, +0.0, 1.0),
+	vec4(+0.5, +0.0, +0.0, 1.0),
+	vec4(-0.5, +0.5, +0.0, 1.0),
+	vec4(-0.5, +0.0, +0.5, 1.0)
 };
 #endif
 
@@ -64,7 +64,7 @@ struct QTube {
 
 layout(points) in;
 #if BOUNDING_GEOMETRY_TYPE == 0
-layout(triangle_strip, max_vertices = 14) out;
+layout(triangle_strip, max_vertices = 28) out;
 #elif BOUNDING_GEOMETRY_TYPE == 1
 layout(triangle_strip, max_vertices = 8) out;
 #elif BOUNDING_GEOMETRY_TYPE == 2
@@ -178,6 +178,7 @@ float EvalPolyD0(float x, float c[3]) {
 	return x * (x * c[2] + c[1]) + c[0];
 }
 
+#if BOUNDING_GEOMETRY_TYPE < 2
 mat4 calculate_transformation_matrix(QTube qTube) {
 
 	vec3 x, y, z;
@@ -270,6 +271,107 @@ mat4 calculate_transformation_matrix(QTube qTube) {
 	return M;
 }
 
+#else
+
+mat3 calculate_transformation_parameters(QTube qTube, out vec3 scale, out vec3 translation) {
+
+	vec3 x, y, z;
+	float xl, yl;
+	bool xq = false;
+	bool yq = false;
+	{
+		x = qTube.e.pos - qTube.s.pos;
+		xl = length(x);
+		
+		if(xl < 0.0001) {
+			y = qTube.h.pos - qTube.s.pos;
+			yl = length(y);
+			
+			if(yl < 0.0001) {
+				x = vec3(1.0, 0.0, 0.0);
+				y = vec3(0.0, 1.0, 0.0);
+				z = vec3(0.0, 0.0, 1.0);
+				
+				xl = 1.0; xq = true;
+				yl = 1.0; yq = true;
+			} else {
+				x = normalize(ortho_vec(x));
+				xl = 1.0; xq = true;
+				
+				z = cross(x, y);
+			}
+		} else {
+			y = project_to_plane(qTube.h.pos - qTube.s.pos, x);
+			yl = length(y);
+			
+			if(yl < 0.0001) {
+				y = normalize(ortho_vec(x));
+				yl = 1.0; yq = true;
+			}
+			
+			z = cross(x, y);
+		}
+	}	
+
+	vec3 xd = x / xl;
+	vec3 yd = y / yl;
+	vec3 zd = normalize(z);
+	
+	float xm, xp, ym, yp, zm;
+	{
+		float xyl = dot(qTube.h.pos - qTube.s.pos, xd);
+		
+		float cx[3];
+		SplinePointsToPolyCoeffs(0.0, xyl, xl, cx);
+		
+		float cy[3];
+		SplinePointsToPolyCoeffs(0.0, yl, 0.0, cy);
+		
+		float rc[3];
+		SplinePointsToPolyCoeffs(qTube.s.rad, qTube.h.rad, qTube.e.rad, rc);
+		
+		float c_xm[3];
+		c_xm[0] = cx[0] - rc[0]; c_xm[1] = cx[1] - rc[1]; c_xm[2] = cx[2] - rc[2];
+		
+		float c_xp[3];
+		c_xp[0] = cx[0] + rc[0]; c_xp[1] = cx[1] + rc[1]; c_xp[2] = cx[2] + rc[2];
+		
+		xm = min(-qTube.s.rad, min(xl - qTube.e.rad, EvalPolyD0(saturate(-c_xm[1] / c_xm[2] * 0.5), c_xm)));
+		xp = max( qTube.s.rad, max(xl + qTube.e.rad, EvalPolyD0(saturate(-c_xp[1] / c_xp[2] * 0.5), c_xp)));
+		
+		float c_ym[3];
+		c_ym[0] = cy[0] - rc[0]; c_ym[1] = cy[1] - rc[1]; c_ym[2] = cy[2] - rc[2];
+		
+		float c_yp[3];
+		c_yp[0] = cy[0] + rc[0]; c_yp[1] = cy[1] + rc[1]; c_yp[2] = cy[2] + rc[2];
+		
+		ym = min(-qTube.s.rad, min(-qTube.e.rad, EvalPolyD0(saturate(-c_ym[1] / c_ym[2] * 0.5), c_ym)));
+		yp = max( qTube.s.rad, max( qTube.e.rad, EvalPolyD0(saturate(-c_yp[1] / c_yp[2] * 0.5), c_yp)));
+		
+		zm = max( qTube.s.rad, max( qTube.e.rad, EvalPolyD0(saturate(-rc[1] / rc[2] * 0.5), rc)));
+		
+		if(xq) { xm = -zm; xp = zm; }
+		if(yq) { ym = -zm; yp = zm; }
+	}
+	
+	vec3 center = qTube.s.pos + 0.5*(xd * (xm + xp) + yd * (ym + yp));
+
+	scale = vec3(
+		xp - xm,
+		yp - ym,
+		2.0 * zm
+	);
+
+	translation = center;
+
+	mat3 R;
+	R[0] = xd;
+	R[1] = yd;
+	R[2] = zd;
+	
+	return R;
+}
+#endif
 
 #if BOUNDING_GEOMETRY_TYPE == 1
 /*
@@ -374,6 +476,81 @@ mat4x3 quad(vec4 start, vec4 end) {
 }
 
 #if BOUNDING_GEOMETRY_TYPE == 0
+void emit_bounding_box(int segment_idx, QTube qTube) {
+
+	mat4 M = calculate_transformation_matrix(qTube);
+	vec4 p000 = M * corners[0];
+	vec4 p100 = M * corners[1];
+	vec4 p010 = M * corners[2];
+	vec4 p001 = M * corners[3];
+
+	//vec4 dx = p100 - p000;
+	//vec4 dy = p010 - p000;
+	//vec4 dz = p001 - p000;
+	//
+	//vec3 p110 = p100 + dy;
+	//vec3 p101 = p100 + dz;
+	//vec3 p011 = p010 + dz;
+	//vec3 p111 = p110 + dz;
+
+	mat4 MV = get_modelview_matrix();
+
+	qTube.s.pos = (MV * vec4(qTube.s.pos, 1.0)).xyz;
+	qTube.h.pos = (MV * vec4(qTube.h.pos, 1.0)).xyz;
+	qTube.e.pos = (MV * vec4(qTube.e.pos, 1.0)).xyz;
+	qTube_fs = qTube;
+
+	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
+
+	// generate transformed base vector corners of the box
+	p000 = MV * p000;
+	p100 = MV * p100;
+	p010 = MV * p010;
+	p001 = MV * p001;
+
+	// calculate remaining corners
+	vec4 delta = p010 - p000; // dy
+	//vec4 dz = p001 - p000;
+
+	vec4 p110 = p100 + delta;
+
+	vec4 p101 = p100 + p001-p000;
+	vec4 p011 = p001 + delta;
+	vec4 p111 = p101 + delta;
+	
+	mat4 P = get_projection_matrix();
+
+	position_fs = p011.xyz;
+	gl_Position = P * p011; EmitVertex();
+	position_fs = p111.xyz;
+	gl_Position = P * p111; EmitVertex();
+	position_fs = p001.xyz;
+	gl_Position = P * p001; EmitVertex();
+	position_fs = p101.xyz;
+	gl_Position = P * p101; EmitVertex();
+	position_fs = p100.xyz;
+	gl_Position = P * p100; EmitVertex();
+	position_fs = p111.xyz;
+	gl_Position = P * p111; EmitVertex();
+	position_fs = p110.xyz;
+	gl_Position = P * p110; EmitVertex();
+	position_fs = p011.xyz;
+	gl_Position = P * p011; EmitVertex();
+	position_fs = p010.xyz;
+	gl_Position = P * p010; EmitVertex();
+	position_fs = p001.xyz;
+	gl_Position = P * p001; EmitVertex();
+	position_fs = p000.xyz;
+	gl_Position = P * p000; EmitVertex();
+	position_fs = p100.xyz;
+	gl_Position = P * p100; EmitVertex();
+	position_fs = p010.xyz;
+	gl_Position = P * p010; EmitVertex();
+	position_fs = p110.xyz;
+	gl_Position = P * p110; EmitVertex();
+	EndPrimitive();
+}
+
 #elif BOUNDING_GEOMETRY_TYPE == 1
 
 void emit_rounded_cone_billboard(int segment_idx, QTube qTube) {
@@ -432,18 +609,22 @@ void emit_rounded_cone_billboard(int segment_idx, QTube qTube) {
 #elif BOUNDING_GEOMETRY_TYPE == 2
 
 void emit_exact_box_polygon(int segment_idx, QTube qTube) {
-	mat4 M = calculate_transformation_matrix(qTube);
-	vec3 p000 = (M * corners[0]).xyz;
-	vec3 p100 = (M * corners[1]).xyz;
-	vec3 p010 = (M * corners[2]).xyz;
-	vec3 p001 = (M * corners[3]).xyz;
 
-	vec3 dx = p100 - p000;
-	vec3 dy = p010 - p000;
-	vec3 dz = p001 - p000;
+	vec3 scale, origin;
+	mat3 R = calculate_transformation_parameters(qTube, scale, origin);
+	
+	vec3 dx = R * vec3(1.0, 0.0, 0.0);
+	vec3 dy = R * vec3(0.0, 1.0, 0.0);
+	vec3 dz = R * vec3(0.0, 0.0, 1.0);
 
-	vec3 a = p000;
-	vec3 b = p000 + 1.0*(dx + dy + dz);
+	dx *= scale.x;
+	dy *= scale.y;
+	dz *= scale.z;
+
+	vec3 half_diag = 0.5f * (dx + dy + dz);
+	
+	vec3 a = origin - half_diag;
+	vec3 b = origin + half_diag;
 	vec3 org = 0.5*(a + b);
 
 	if(dot(eye_pos - org, dx) < 0) {
@@ -477,25 +658,10 @@ void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 	c[2] = a + dy + dx;
 	c[3] = a + dz + dx;
 
-	// equivalent cases:
-	// 0
-	// 0: 000
-
-	// 1, 2, 4:
-	// 1: 001
-	// 2: 010
-	// 4: 100
-
-	// 3, 5, 6:
-	// 3: 011
-	// 5: 101
-	// 6: 110
-
 	switch(mask) {
 	case 0:
 		c[1] = b - dx;
 		c[3] = a + dz;
-
 		c[4] = a + dx;
 		c[5] = b - dy;
 		break;
@@ -503,14 +669,12 @@ void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 		c[1] = b - dz;
 		c[2] = b - dx;
 		c[3] = b;
-
 		c[4] = a + dz;
 		c[5] = b - dy;
 		break;
 	case 2:
 		c[0] = b - dx;
 		c[2] = b;
-
 		c[4] = b - dz;
 		c[5] = a + dx;
 		break;
@@ -522,7 +686,6 @@ void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 	case 4:
 		c[1] = b - dx;
 		c[3] = b;
-
 		c[4] = a + dx;
 		c[5] = b - dy;
 		break;
@@ -539,15 +702,15 @@ void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 		break;
 	}
 
-	vec3 ext = vec3(
-		length(dx),
-		length(dy),
-		length(dz)
-	);
-
 #if USE_CONSERVATIVE_DEPTH == 1
-	// calculate the distance to the box and use this to move the corners in front of the box
-	float dist = sd_box(eye_pos - org, 0.5*ext);
+	// The signed distance function is defined on an axis aligned box centered in the origin.
+	// The scale of the box can simply be passed to the distance calculation, however we need
+	// to account for the orientation and translation of the box by inversely transforming
+	// the eye position.
+	// Since we have the rotation given as a matrix and the translation as a vector,
+	// this simplyfies to:
+	vec3 pos = (eye_pos - origin) * R; // with: R^(-1) = R^T and R^T * v = (v^T * R)^T (GLSL automatically transposes vectors)
+	float dist = sd_box(pos, 0.5*scale);
 	c[0] = eye_pos + dist * normalize(c[0] - eye_pos);
 	c[1] = eye_pos + dist * normalize(c[1] - eye_pos);
 	c[2] = eye_pos + dist * normalize(c[2] - eye_pos);
@@ -592,39 +755,39 @@ vec3 intersect_plane(vec3 pn, vec3 ro, vec3 rd) {
 }
 
 void emit_box_billboard(int segment_idx, QTube qTube) {
-	mat4 M = calculate_transformation_matrix(qTube);
-	vec3 p000 = (M * corners[0]).xyz;
-	vec3 p100 = (M * corners[1]).xyz;
-	vec3 p010 = (M * corners[2]).xyz;
-	vec3 p001 = (M * corners[3]).xyz;
 
-	vec3 dx = p100 - p000;
-	vec3 dy = p010 - p000;
-	vec3 dz = p001 - p000;
+	vec3 scale, origin;
+	mat3 R = calculate_transformation_parameters(qTube, scale, origin);
+	
+	vec3 dx = R * vec3(1.0, 0.0, 0.0);
+	vec3 dy = R * vec3(0.0, 1.0, 0.0);
+	vec3 dz = R * vec3(0.0, 0.0, 1.0);
+
+	dx *= scale.x;
+	dy *= scale.y;
+	dz *= scale.z;
+
+	vec3 p000 = origin - 0.5f * (dx + dy + dz);
+	vec3 p100 = p000 + dx;
+	vec3 p010 = p000 + dy;
+	vec3 p001 = p000 + dz;
 
 	vec3 p110 = p100 + dy;
 	vec3 p101 = p100 + dz;
 	vec3 p011 = p010 + dz;
 	vec3 p111 = p110 + dz;
 
-	vec3 ext = vec3(
-		length(dx),
-		length(dy),
-		length(dz)
-	);
-	
-	vec3 origin = 0.5*(p000 + p111);
 	vec3 eye_to_origin = normalize(origin - eye_pos);
 
-	float ref_dot = abs(dot(dx, eye_to_origin)) / ext.x;
+	float ref_dot = abs(dot(dx, eye_to_origin)) / scale.x;
 	vec3 ref_dir = dx;
 	
-	float ang = abs(dot(eye_to_origin, dy)) / ext.y;
+	float ang = abs(dot(eye_to_origin, dy)) / scale.y;
 	if(ang < ref_dot) {
 		ref_dot = ang;
 		ref_dir = dy;
 	}
-	ang = abs(dot(eye_to_origin, dz)) / ext.z;
+	ang = abs(dot(eye_to_origin, dz)) / scale.z;
 	if(ang < ref_dot) {
 		ref_dot = ang;
 		ref_dir = dz;
@@ -676,7 +839,14 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 	c[3] = p000 + max_u * aligned_right + max_v * aligned_up;
 	
 #if USE_CONSERVATIVE_DEPTH == 1
-	float dist = sd_box(eye_pos - origin, 0.5*ext);
+	// The signed distance function is defined on an axis aligned box centered in the origin.
+	// The scale of the box can simply be passed to the distance calculation, however we need
+	// to account for the orientation and translation of the box by inversely transforming
+	// the eye position.
+	// Since we have the rotation given as a matrix and the translation as a vector,
+	// this simplyfies to:
+	vec3 pos = (eye_pos - origin) * R; // with: R^(-1) = R^T and R^T * v = (v^T * R)^T (GLSL automatically transposes vectors)
+	float dist = sd_box(pos, 0.5*scale);
 	c[0] = eye_pos + dist * normalize(c[0] - eye_pos);
 	c[1] = eye_pos + dist * normalize(c[1] - eye_pos);
 	c[2] = eye_pos + dist * normalize(c[2] - eye_pos);
@@ -749,6 +919,8 @@ void main()
 #endif
 
 #if BOUNDING_GEOMETRY_TYPE == 0
+	emit_bounding_box(0, qTube0);
+	emit_bounding_box(1, qTube1);
 #elif BOUNDING_GEOMETRY_TYPE == 1
 	emit_rounded_cone_billboard(0, qTube0);
 	emit_rounded_cone_billboard(1, qTube1);

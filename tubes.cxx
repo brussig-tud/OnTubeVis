@@ -43,18 +43,21 @@ tubes::tubes() : application_plugin("tubes_instance")
 	fbc.add_attachment("albedo", "flt32[R,G,B,A]");
 	fbc.add_attachment("position", "flt32[R,G,B,A]");
 	fbc.add_attachment("normal", "flt32[R,G,B,A]");
+	fbc.add_attachment("tangent", "flt32[R,G,B]");
 	//fbc.add_attachment("texcoord", "flt32[R,G,B]");
 
 	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
 	tf_editor_ptr->set_visibility(false);
 
 	grids.resize(2);
-	grids[0].scaling = vec2(5.0f, 1.0f);
-	grids[0].thickness = 0.05f;
-	grids[0].blend_factor = 0.75f;
+	grids[0].scaling = vec2(2.0f, 1.0f);
+	grids[0].thickness = 0.2f;// 0.05f;
+	grids[0].blend_factor = 1.0f;// 0.75f;
 	grids[1].scaling = vec2(50.0f, 10.0f);
 	grids[1].thickness = 0.1f;
-	grids[1].blend_factor = 0.5f;
+	grids[1].blend_factor = 0.0f;// 0.5f;
+
+	//enable_grid_smoothing = true;
 
 	do_benchmark = false;
 	benchmark_running = false;
@@ -317,18 +320,16 @@ void tubes::init_frame (cgv::render::context &ctx)
 	// query the current viewport dimensions as this is needed for multiple draw methods
 	glGetIntegerv(GL_VIEWPORT, viewport);
 
-
-
-
-
-
-	/*
-	HotRoom:
-	4 Buffers
-	Average FPS: 428.40 | 2.33ms (without segment_id)
-	Average FPS: 430.76 | 2.32ms (with segment_id)
-	3 Buffers
-	Average FPS: 466.77 | 2.14ms
+	/* Measurements:
+	RTX 2080Ti
+	>> HotRoom <<
+	Average FPS(ms) over 10s long full horizontal rotation of data set
+	(3 g-buffers) (quadratic tangents)
+	Silhouette		| Full Ray Cast	| Geometry Only
+	Box				| 292.49 (3.42)	| 719.43 (1.39)
+	Approx. Billb.	| 462.27 (2.16)	| 985.90 (1.01)
+	Exact Polygon	| 429.63 (2.33)	| 962.18 (1.04)
+	Box Billboard	| 448.61 (2.23)	| 994.98 (1.01)
 	*/
 
 	if(benchmark_running) {
@@ -876,7 +877,7 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.enable_attachment(ctx, "albedo", 0);
 	fbc.enable_attachment(ctx, "position", 1);
 	fbc.enable_attachment(ctx, "normal", 2);
-	fbc.enable_attachment(ctx, "texcoord", 3);
+	fbc.enable_attachment(ctx, "tangent", 3);
 	fbc.enable_attachment(ctx, "depth", 4);
 	density_tex.enable(ctx, 5);
 
@@ -885,7 +886,7 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.disable_attachment(ctx, "albedo");
 	fbc.disable_attachment(ctx, "position");
 	fbc.disable_attachment(ctx, "normal");
-	fbc.disable_attachment(ctx, "texcoord");
+	fbc.disable_attachment(ctx, "tangent");
 	fbc.disable_attachment(ctx, "depth");
 	density_tex.disable(ctx);
 

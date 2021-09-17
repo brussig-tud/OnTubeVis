@@ -1,9 +1,9 @@
 #version 430
 #define M_PI 3.14159265359
 
-#define ENABLE_GRID_SMOOTHING 0
 #define SHOW_GLYPHS 1
 #define SHOW_GRID 1
+#define ENABLE_GRID_SMOOTHING 0
 
 //***** begin interface of view.glsl ***********************************
 mat4 get_modelview_matrix();
@@ -22,6 +22,7 @@ vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color
 layout (binding = 0) uniform sampler2D albedo_tex;
 layout (binding = 1) uniform sampler2D position_tex;
 layout (binding = 2) uniform sampler2D normal_tex;
+layout (binding = 3) uniform sampler2D tangent_tex;;
 //layout (binding = 3) uniform sampler2D texcoord_tex;
 layout (binding = 4) uniform sampler2D depth_tex;
 layout (binding = 5) uniform sampler3D density_tex;
@@ -173,6 +174,32 @@ float grid_texture(in vec2 p, in float n) {
     //pattern
     return min(max(1.0-i.x, 1.0-i.y), 1.0);	// grid
 }
+vec3 grid_normal(in vec2 p, in float n) {
+    // coordinates
+	vec2 s = fract(p + 0.5*n);
+	//vec2 t = clamp(s / n, 0.0, 1.0);
+	vec2 t = s / n;
+
+	vec3 normal = vec3(0.0, 0.0, 1.0);
+
+	if(t.x > 0.0 && t.x < 1.0) {
+		float x = -sin(2.0*M_PI*t.x);
+		float z = 0.5*cos(4.0*M_PI*t.x) + 0.5;
+
+		normal = vec3(x, 0.0, z);
+	}
+
+	if(t.y > 0.0 && t.y < 1.0) {
+		float y = -sin(2.0*M_PI*t.y);
+		//float z = 0.5*cos(4.0*M_PI*t.y) + 0.5;
+
+		normal.y = y;
+		//normal.z = max(normal.z, z);
+	}
+
+	//normal.z = 0.5;
+    return normalize(normal);
+}
 #endif
 
 // https://www.shadertoy.com/view/XtBfzz
@@ -199,6 +226,17 @@ float compute_grid_factor(vec2 uv) {
 	grid_factor = max(grid_factor, grids[1].blend_factor * grid_texture(grids[1].scaling*uv, grids[1].thickness));
 	return 1.0 - min(grid_factor, 1.0);
 }
+#if ENABLE_GRID_SMOOTHING == 1
+vec3 compute_grid_normal(vec2 uv) {
+	float l = attribute_mapping.length_scale;
+	if(uv.s <= -l || uv.s >= l || uv.t <= -1.0 || uv.t >= 1.0)
+		return vec3(0.0, 0.0, 1.0);
+	
+	vec3 normal = grids[0].blend_factor * grid_normal(grids[0].scaling*uv, grids[0].thickness);
+	normal = mix(normal, grids[1].blend_factor * grid_normal(grids[1].scaling*uv, grids[1].thickness), 0.5);
+	return normalize(normal);
+}
+#endif
 
 
 
@@ -272,6 +310,7 @@ void main()
 	vec3 pos_eye = b.xyz;
 	vec3 normal_value = c.xyz;
 	vec3 normal_eye = 2.0 * normal_value - 1.0;
+	vec3 tangent_eye = texture(tangent_tex, texcoord_fs).xyz;
 	
 	vec2 texcoord = vec2(a.w, b.w);
 	int segment_id = floatBitsToInt(c.w);
@@ -355,6 +394,24 @@ void main()
 			color = vec3(1.0, 0.0, 0.0);
 #endif
 
+#if ENABLE_GRID_SMOOTHING == 1
+		color = 0.5 * compute_grid_normal(uv) + 0.5;
+		vec3 gn = compute_grid_normal(uv);
+
+		//vec3 normal_world = inverse(get_normal_matrix()) * normal_eye;
+		//vec3 tangent_world = inverse(get_normal_matrix()) * tangent_eye;
+		//vec3 bitangent_world = cross(normal_world, tangent_world);
+
+		//mat3 TBN = mat3(tangent_world, bitangent_world, normal_world);
+		//normal_eye = normalize(get_normal_matrix() * normalize(TBN * gn));
+
+		vec3 bitangent_eye = cross(tangent_eye, normal_eye);
+		mat3 TBN = mat3(tangent_eye, bitangent_eye, normal_eye);
+		normal_eye = mix(normal_eye, normalize(TBN * gn), 0.5);
+
+		color = vec3(0.5);
+		//color = 0.5 * tangent_eye + 0.5;
+#else
 #if SHOW_GRID == 1
 		float grid_factor = compute_grid_factor(uv);
 
@@ -373,6 +430,8 @@ void main()
 			update_normal_from_height(pos_eye, normal_eye, uv);
 			break;
 		}
+#endif
+
 #endif
 
 

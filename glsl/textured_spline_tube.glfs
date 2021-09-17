@@ -70,6 +70,7 @@ layout (depth_greater) out float gl_FragDepth;
 layout (location = 0) out vec4 frag_albedo;
 layout (location = 1) out vec4 frag_position;
 layout (location = 2) out vec4 frag_normal;
+layout (location = 3) out vec3 frag_tangent;
 //layout (location = 3) out vec3 frag_texcoord;
 
 // arclen approximations SBO
@@ -730,6 +731,11 @@ void main()
 		frag_albedo = vec4(col.rgb, spline_t);
 		frag_position = vec4(hit_pos_eye, v);
 		frag_normal = vec4(0.5 * hit.normal + 0.5, intBitsToFloat(segment_id_fs));
+#if USE_CUBIC_TANGENTS == 0
+		frag_tangent = normalize(tangent);
+#else
+		frag_tangent = normalize(get_normal_matrix() * tangent);
+#endif
 	}
 #endif
 }
