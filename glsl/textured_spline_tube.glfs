@@ -72,6 +72,24 @@ layout (location = 1) out vec4 frag_position;
 layout (location = 2) out vec4 frag_normal;
 //layout (location = 3) out vec3 frag_texcoord;
 
+// arclen approximations SBO
+layout (std430, binding = 1) readonly buffer arclen_buffer { 
+  mat4 b[]; // 4 cubic beziers packed into colums of mat4
+};
+
+float alen (float t)
+{
+	const float _4t = 4*t,
+	            _4tb4 = _4t / 4,
+	            _4tb4x4 = _4tb4 * 4;
+	const int   i = int(clamp(_4tb4x4, 0, 3));
+	const float inner_start = i*0.25,
+	            t_inner = (t-inner_start)*4;
+	//const auto &approx = param.t_to_s[i];
+	//const auto result = approx.evaluate(t_inner).y;
+	return t;
+}
+
 float Pow2(float x) { return x * x; }
 float Pow3(float x) { return x * x * x; }
 

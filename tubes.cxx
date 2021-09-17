@@ -789,18 +789,23 @@ void tubes::draw_trajectories(context& ctx) {
 	
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 
-	// sort the sgment indices
+	// Prepare SSBO handles
+	// - node attributes
 	int data_handle = 0;
 	if(render.render_sbo.handle)
 		data_handle = (const int&)render.render_sbo.handle - 1;
-	
 	if(!data_handle)
 		return;
+	// - segment arclength approximations
+	int arclen_handle = 0;
+	if(render.arclen_sbo.handle)
+		arclen_handle = (const int&)render.arclen_sbo.handle - 1;
+	if(!arclen_handle)
+		return;
 
+	// sort the sgment indices
 	int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
-
-	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
-	
+	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");	
 	if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && render.sort)
 		render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, node_idx_handle);
 
@@ -813,7 +818,9 @@ void tubes::draw_trajectories(context& ctx) {
 	int count = int(render.percentage * (render.data->indices.size()/2));
 	
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, arclen_handle);
 	tstr.render(ctx, 0, count);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
 
 	tstr.disable_attribute_array_manager(ctx, render.aam);
