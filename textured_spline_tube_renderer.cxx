@@ -22,7 +22,7 @@ namespace cgv {
 			radius_scale = 1.0f;
 			radius = 1.0f;
 			fragment_mode = FM_RAY_CAST;
-			bounding_geometry = BG_APPROXIMATE_BILLBOARD;
+			bounding_geometry = BG_BOX_BILLBOARD;
 			use_conservative_depth = false;
 			use_cubic_tangents = true;
 		}

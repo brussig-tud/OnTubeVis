@@ -142,9 +142,10 @@ protected:
 
 
 	enum GridMode {
-		GM_COLOR = 0,
-		GM_BUMP = 1,
-		GM_COLOR_BUMP = 2
+		GM_NONE = 0,
+		GM_COLOR = 1,
+		GM_NORMAL = 2,
+		GM_COLOR_NORMAL = 3
 	};
 
 	struct grid_parameters {
@@ -154,7 +155,8 @@ protected:
 	};
 
 	GridMode grid_mode = GM_COLOR;
-	float bump_scale = 0.002f;
+	rgba grid_color = rgba(0.0, 0.0, 0.0, 1.0);
+	float normal_mapping_scale = 0.5f;
 	std::vector<grid_parameters> grids;
 	bool enable_grid_smoothing = false;
 
@@ -264,9 +266,6 @@ protected:
 
 		/// GPU-side render attribute buffer.
 		vertex_buffer render_sbo;
-
-		/// GPU-side node index buffer as a shader storage buffer.
-		//vertex_buffer node_index_sbo;
 
 		/// shared attribute array manager used by both renderers
 		attribute_array_manager aam;

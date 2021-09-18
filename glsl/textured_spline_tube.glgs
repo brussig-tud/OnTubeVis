@@ -86,6 +86,7 @@ layout(std430, binding = 0) readonly buffer data_buffer {
 uniform float radius_scale;
 uniform vec3 eye_pos;
 uniform vec3 view_dir;
+uniform vec4 viewport;
 
 in flat uvec2 node_ids_gs[];
 in flat int segment_id_gs[];
@@ -484,15 +485,6 @@ void emit_bounding_box(int segment_idx, QTube qTube) {
 	vec4 p010 = M * corners[2];
 	vec4 p001 = M * corners[3];
 
-	//vec4 dx = p100 - p000;
-	//vec4 dy = p010 - p000;
-	//vec4 dz = p001 - p000;
-	//
-	//vec3 p110 = p100 + dy;
-	//vec3 p101 = p100 + dz;
-	//vec3 p011 = p010 + dz;
-	//vec3 p111 = p110 + dz;
-
 	mat4 MV = get_modelview_matrix();
 
 	qTube.s.pos = (MV * vec4(qTube.s.pos, 1.0)).xyz;
@@ -509,14 +501,13 @@ void emit_bounding_box(int segment_idx, QTube qTube) {
 	p001 = MV * p001;
 
 	// calculate remaining corners
-	vec4 delta = p010 - p000; // dy
-	//vec4 dz = p001 - p000;
+	vec4 dy = p010 - p000;
+	vec4 dz = p001 - p000;
 
-	vec4 p110 = p100 + delta;
-
-	vec4 p101 = p100 + p001-p000;
-	vec4 p011 = p001 + delta;
-	vec4 p111 = p101 + delta;
+	vec4 p110 = p100 + dy;
+	vec4 p101 = p100 + dz;
+	vec4 p011 = p010 + dz;
+	vec4 p111 = p110 + dz;
 	
 	mat4 P = get_projection_matrix();
 
@@ -754,6 +745,10 @@ vec3 intersect_plane(vec3 pn, vec3 ro, vec3 rd) {
 	return ro + t * rd;
 }
 
+float dot2(vec2 v) {
+	return dot(v, v);
+}
+
 void emit_box_billboard(int segment_idx, QTube qTube) {
 
 	vec3 scale, origin;
@@ -779,6 +774,11 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 
 	vec3 eye_to_origin = normalize(origin - eye_pos);
 
+
+
+
+
+
 	float ref_dot = abs(dot(dx, eye_to_origin)) / scale.x;
 	vec3 ref_dir = dx;
 	
@@ -792,6 +792,47 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 		ref_dot = ang;
 		ref_dir = dz;
 	}
+
+
+
+
+	/*mat4 MVP = get_modelview_projection_matrix();
+
+	vec4 pro = MVP * vec4(p000, 1.0f);
+	vec4 prx = MVP * vec4(p100, 1.0f);
+	vec4 pry = MVP * vec4(p010, 1.0f);
+	vec4 prz = MVP * vec4(p001, 1.0f);
+	pro /= pro.w;
+	prx /= prx.w;
+	pry /= pry.w;
+	prz /= prz.w;
+
+	vec2 oo = (pro.xy / pro.w) * viewport.zw;
+	vec2 xx = (prx.xy / prx.w) * viewport.zw;
+	vec2 yy = (pry.xy / pry.w) * viewport.zw;
+	vec2 zz = (prz.xy / prz.w) * viewport.zw;
+
+	float lx = dot2(oo - xx);
+	float ly = dot2(oo - yy);
+	float lz = dot2(oo - zz);
+
+	float ref_l = lx;
+	vec3 ref_dir = dx;
+	
+	if(ly > ref_l) {
+		ref_l = ly;
+		ref_dir = dy;
+	}
+	if(lz > ref_l) {
+		ref_l = lz;
+		ref_dir = dz;
+	}*/
+
+
+
+
+
+
 
 	vec3 aligned_up = normalize(cross(ref_dir, eye_to_origin));
 	vec3 aligned_right = cross(eye_to_origin, aligned_up); // no need to normalize cross product of two unit vectors

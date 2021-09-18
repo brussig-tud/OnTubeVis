@@ -20,6 +20,7 @@
 tubes::tubes() : application_plugin("tubes_instance")
 {
 	// adjust render style defaults
+	//render.style.illumination_mode = IM_OFF;
 	render.style.material.set_brdf_type(
 		(cgv::media::illum::BrdfType)(cgv::media::illum::BrdfType::BT_STRAUSS_DIFFUSE
 			| cgv::media::illum::BrdfType::BT_COOK_TORRANCE)
@@ -51,13 +52,13 @@ tubes::tubes() : application_plugin("tubes_instance")
 
 	grids.resize(2);
 	grids[0].scaling = vec2(2.0f, 1.0f);
-	grids[0].thickness = 0.2f;// 0.05f;
-	grids[0].blend_factor = 1.0f;// 0.75f;
-	grids[1].scaling = vec2(50.0f, 10.0f);
+	grids[0].thickness = 0.05f;
+	grids[0].blend_factor = 1.0f;
+	grids[1].scaling = vec2(20.0f, 10.0f);
 	grids[1].thickness = 0.1f;
-	grids[1].blend_factor = 0.0f;// 0.5f;
+	grids[1].blend_factor = 0.5f;
 
-	//enable_grid_smoothing = true;
+	enable_grid_smoothing = true;
 
 	do_benchmark = false;
 	benchmark_running = false;
@@ -205,7 +206,7 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 
-	if(member_ptr == &enable_grid_smoothing) {
+	if(member_ptr == &grid_mode || member_ptr == &enable_grid_smoothing) {
 		shader_define_map defines = build_tube_shading_defines();
 		if(defines != tube_shading_defines) {
 			context& ctx = *get_context();
@@ -437,9 +438,10 @@ void tubes::create_gui (void)
 	add_decorator("Attribute Mapping", "heading", "level=1");
 	if(begin_tree_node("Grid", grids, false)) {
 		align("\a");
-		add_member_control(this, "Mode", grid_mode, "dropdown", "enums='Color, Bump, Color + Bump'");
+		add_member_control(this, "Mode", grid_mode, "dropdown", "enums='None, Color, Normal, Color + Normal'");
 		add_member_control(this, "Smooth", enable_grid_smoothing, "check");
-		add_member_control(this, "Bump Scale", bump_scale, "value_slider", "min=0;max=0.2;step=0.001;log=true;ticks=true");
+		add_member_control(this, "Color", grid_color);
+		add_member_control(this, "Normal Scale", normal_mapping_scale, "value_slider", "min=0;max=1;step=0.001;ticks=true");
 		for(size_t i = 0; i < grids.size(); ++i) {
 			add_decorator("Grid " + std::to_string(i), "heading", "level=3");
 			add_member_control(this, "Scaling U", grids[i].scaling[0], "value_slider", "min=1;max=50;step=0.5;ticks=true");
@@ -556,7 +558,7 @@ void tubes::update_attribute_bindings(void) {
 		unsigned segment_count = node_indices_count / 2;
 
 		std::vector<unsigned> segment_indices(segment_count);
-		
+
 		for(unsigned i = 0; i < segment_indices.size(); ++i)
 			segment_indices[i] = i;
 
@@ -797,6 +799,7 @@ void tubes::draw_trajectories(context& ctx) {
 		data_handle = (const int&)render.render_sbo.handle - 1;
 	if(!data_handle)
 		return;
+
 	// - segment arclength approximations
 	int arclen_handle = 0;
 	if(render.arclen_sbo.handle)
@@ -812,7 +815,7 @@ void tubes::draw_trajectories(context& ctx) {
 
 	tstr.set_eye_pos(eye_pos);
 	tstr.set_view_dir(view_dir);
-	tstr.set_viewport(vec4(2.0f) / vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
+	tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
 	tstr.set_render_style(render.style);
 	tstr.enable_attribute_array_manager(ctx, render.aam);
 
@@ -848,8 +851,8 @@ void tubes::draw_trajectories(context& ctx) {
 	prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
 
 	// set grid parameters
-	prog.set_uniform(ctx, "grid_mode", (int)grid_mode);
-	prog.set_uniform(ctx, "bump_scale", bump_scale);
+	prog.set_uniform(ctx, "grid_color", grid_color);
+	prog.set_uniform(ctx, "normal_mapping_scale", normal_mapping_scale);
 	for(size_t i = 0; i < grids.size(); ++i) {
 		std::string base_name = "grids[" + std::to_string(i) + "].";
 		prog.set_uniform(ctx, base_name + "scaling", grids[i].scaling);
@@ -957,6 +960,7 @@ bool tubes::load_transfer_function(context& ctx)
 
 shader_define_map tubes::build_tube_shading_defines() {
 	shader_define_map defines;
+	shader_code::set_define(defines, "GRID_MODE", grid_mode, GM_COLOR);
 	shader_code::set_define(defines, "ENABLE_GRID_SMOOTHING", enable_grid_smoothing, false);
 	return defines;
 }

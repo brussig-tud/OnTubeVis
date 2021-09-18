@@ -66,12 +66,10 @@ in flat mat4 SM_fs; // spline matrix
 layout (depth_greater) out float gl_FragDepth;
 #endif
 
-// try writing to 3 vec4 buffers
 layout (location = 0) out vec4 frag_albedo;
 layout (location = 1) out vec4 frag_position;
 layout (location = 2) out vec4 frag_normal;
 layout (location = 3) out vec3 frag_tangent;
-//layout (location = 3) out vec3 frag_texcoord;
 
 // arclen approximations SBO
 layout (std430, binding = 1) readonly buffer arclen_buffer { 
@@ -591,7 +589,7 @@ void main()
 	frag_albedo = vec4(1.0, 0.0, 0.0, 0.0);
 	frag_position = vec4(0.0, 0.0, 0.0, 0.0);
 	frag_normal = vec4(1.0, 0.0, 0.0, uintBitsToFloat(0));
-	//frag_texcoord = vec3(0.5, 0.5, uintBitsToFloat(0));
+	frag_tangent = vec3(0.0, 0.0, 1.0);
 	return;
 #else
 	vec3 direction = normalize(position_fs);
@@ -610,7 +608,7 @@ void main()
 		frag_albedo = vec4(1.0, 0.0, 0.0, 0.0);
 		frag_position = vec4(0.0, 0.0, 0.0, 0.0);
 		frag_normal = vec4(1.0, 0.0, 0.0, uintBitsToFloat(0));
-		//frag_texcoord = vec3(0.5, 0.5, uintBitsToFloat(0));
+		frag_tangent = vec3(0.0, 0.0, 1.0);
 #else
 		discard;
 #endif
@@ -696,15 +694,6 @@ void main()
 
 
 
-		
-		
-	
-		//finish_fragment(compute_reflected_appearance(hit_pos_eye, hit.normal, col, 1));
-		//col = compute_reflected_appearance(hit_pos_eye, hit.normal, col, 1);
-		//vec4 frag_color = vec4(pow(col.rgb, vec3(2.2)), 1.0);
-		//finish_fragment(col);
-		//frag_color = col;
-
 		vec4 v_eye = vec4(hit_pos_eye, 1.0);
 		vec4 depth = get_projection_matrix() * v_eye;
 		gl_FragDepth = 0.5*(depth.z / depth.w) + 0.5;
@@ -723,19 +712,16 @@ void main()
 		float v = acos(dot(b, normal_object)) * M_INV_PI * 0.5;
 #endif
 
-		//frag_albedo = col.rgb;
-		//frag_position = hit_pos_eye;
-		//frag_normal = 0.5 * hit.normal + 0.5;
-		//frag_texcoord = vec3(spline_t, v, intBitsToFloat(segment_id_fs));
-
 		frag_albedo = vec4(col.rgb, spline_t);
 		frag_position = vec4(hit_pos_eye, v);
 		frag_normal = vec4(0.5 * hit.normal + 0.5, intBitsToFloat(segment_id_fs));
+
 #if USE_CUBIC_TANGENTS == 0
 		frag_tangent = normalize(tangent);
 #else
 		frag_tangent = normalize(get_normal_matrix() * tangent);
 #endif
+
 	}
 #endif
 }
