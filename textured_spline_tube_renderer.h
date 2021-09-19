@@ -41,6 +41,10 @@ namespace cgv { // @<
 			bool use_conservative_depth;
 			/// whether to calculate tangents from the cubic hermite definition or from the two quadratic bezier segments
 			bool use_cubic_tangents;
+			/// whether to pack the color into an 32 bit integer upon transfer through the shader stages
+			bool use_packed_color;
+			/// whether to use the vertex position in view space or the projected position for ray casting (reduces per-vertex output when turned off)
+			bool use_view_space_position;
 			/// construct with default values
 			textured_spline_tube_render_style();
 		};

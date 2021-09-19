@@ -187,7 +187,7 @@ vec3 grid_normal(in vec2 p, in float n) {
 
 float compute_grid_factor(vec2 uv) {
 	float l = attribute_mapping.length_scale;
-	if(uv.s <= -l || uv.s >= l || uv.t <= -1.0 || uv.t >= 1.0)
+	if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
 		return 0.0;
 
 	float grid_factor = 0.0;
@@ -198,7 +198,7 @@ float compute_grid_factor(vec2 uv) {
 
 vec3 compute_grid_normal(vec2 uv) {
 	float l = attribute_mapping.length_scale;
-	if(uv.s <= -l || uv.s >= l || uv.t <= -1.0 || uv.t >= 1.0)
+	if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
 		return vec3(0.0, 0.0, 1.0);
 	
 	vec3 normal = vec3(0.0, 0.0, 1.0);
@@ -241,6 +241,7 @@ void main()
 		uv.t *= 2.0;
 		// Move the origin (0,0) to the center of the front side and scale the coordinates to [-1,1]
 		uv = 2.0 * uv - 1.0;
+
 		uv.s *= attribute_mapping.length_scale;
 
 		// Correct the perspective shift caused by the curved tube surface by rescaling the v coordinate around the tube.
