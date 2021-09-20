@@ -50,12 +50,14 @@ tubes::tubes() : application_plugin("tubes_instance")
 	tf_editor_ptr->set_visibility(false);
 
 	grids.resize(2);
-	grids[0].scaling = vec2(2.0f, 1.0f);
+	grids[0].scaling = vec2(1.0f, 1.0f);
 	grids[0].thickness = 0.05f;
 	grids[0].blend_factor = 1.0f;
-	grids[1].scaling = vec2(20.0f, 10.0f);
+	grids[1].scaling = vec2(10.0f, 10.0f);
 	grids[1].thickness = 0.1f;
 	grids[1].blend_factor = 0.5f;
+	grid_color = rgba(0.25f, 0.25f, 0.25f, 0.75f);
+	grid_mode = GM_COLOR_NORMAL;
 
 	enable_grid_smoothing = true;
 
@@ -179,7 +181,10 @@ void tubes::on_set(void *member_ptr) {
 	// - configurable datapath
 	if(member_ptr == &datapath && !datapath.empty()) {
 		traj_mgr.clear();
+		cgv::utils::stopwatch s(true);
+		std::cout << "Reading data set from " << datapath << " ..." << std::endl;
 		if(traj_mgr.load(datapath) != -1) {
+			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 			dataset.files.clear();
 			dataset.files.emplace(datapath);
 			render.data = &(traj_mgr.get_render_data());
@@ -194,8 +199,12 @@ void tubes::on_set(void *member_ptr) {
 
 		// load new data
 		bool loaded_something = false;
-		for(const auto &file : dataset.files)
+		for(const auto &file : dataset.files) {
+			cgv::utils::stopwatch s(true);
+			std::cout << "Reading data set from " << file << " ..." << std::endl;
 			loaded_something = traj_mgr.load(file) != -1 || loaded_something;
+			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+		}
 		update_member(&datapath);
 
 		// update render state
@@ -254,24 +263,6 @@ bool tubes::init (cgv::render::context &ctx)
 
 	// init shared attribute array manager
 	success &= render.aam.init(ctx);
-
-	/*render.sorter = new cgv::glutil::radix_sort_4way();
-	render.sorter->set_value_format(TI_UINT32, 2);
-	render.sorter->initialize_values_on_sort(false);
-	render.sorter->set_data_type_override("float x, y, z;");
-	
-	std::string key_definition =
-		R"(uvec2 indices = values[idx]; \
-		data_type a = data[indices.x]; \
-		data_type b = data[indices.y]; \
-		vec3 pa = vec3(a.x, a.y, a.z); \
-		vec3 pb = vec3(b.x, b.y, b.z); \
-		\
-		vec3 x = 0.5*(pa + pb); \
-		vec3 eye_to_pos = x - eye_pos; \
-		float key = dot(eye_to_pos, eye_to_pos);)";
-
-	render.sorter->set_key_definition_override(key_definition);*/
 
 	render.sorter = new cgv::glutil::radix_sort_4way();
 	render.sorter->set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent;");
@@ -383,10 +374,6 @@ void tubes::draw (cgv::render::context &ctx)
 {
 	if(!view_ptr) return;
 
-	// display drag-n-drop information, if a dnd operation is in progress
-	if (!dnd.text.empty())
-		draw_dnd(ctx);
-
 	// draw dataset using selected renderer
 	if(show_volume) {
 		draw_density_volume(ctx);
@@ -394,6 +381,10 @@ void tubes::draw (cgv::render::context &ctx)
 		if(traj_mgr.has_data())
 			draw_trajectories(ctx);
 	}
+
+	// display drag-n-drop information, if a dnd operation is in progress
+	if(!dnd.text.empty())
+		draw_dnd(ctx);
 }
 
 void tubes::create_gui (void)
@@ -527,9 +518,17 @@ void tubes::update_attribute_bindings(void) {
 	if (traj_mgr.has_data())
 	{
 		// Recompute arclength parametrization
+		cgv::utils::stopwatch s(true);
+		std::cout << "Computing arclength parametrization... ";
+
 		render.arclen_sbo.destruct(ctx);
 		render.arclen_data = arclen::compile_renderdata(traj_mgr);
 		render.arclen_sbo = arclen::upload_renderdata(ctx, render.arclen_data);
+		
+		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+
+		s.restart();
+		std::cout << "Uploading vertex attributes... ";
 
 		// Upload render attributes
 		render.render_sbo.destruct(ctx);
@@ -570,6 +569,8 @@ void tubes::update_attribute_bindings(void) {
 
 		if(!render.sorter->init(ctx, render.data->indices.size() / 2))
 			std::cout << "Could not initialize gpu sorter" << std::endl;
+
+		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 	}
 }
 
@@ -721,10 +722,6 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
-
-
-
-
 	// create histogram
 	// TODO: remove later. We dont need this or the transfer function editor for the paper.
 	unsigned n_bins = 256;
@@ -739,8 +736,6 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 	}
 
 	tf_editor_ptr->set_histogram(hist);
-
-
 
 	ao_style.derive_voxel_grid_parameters(density_volume);
 }

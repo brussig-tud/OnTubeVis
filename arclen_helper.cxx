@@ -5,13 +5,15 @@
 #include <algorithm>
 #include <utility>
 
+// OpenMP
+#include <omp.h>
+
 // arclength library
 #include "arclength/bezier.h"
 #include "arclength/hermite.h"
 
 // implemented header
 #include "arclen_helper.h"
-
 
 ////
 // Local types and variables
@@ -60,7 +62,8 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 
 	// obtain render attributes and dataset topology
 	const auto &rd = mgr.get_render_data();
-	result.reserve(rd.indices.size()/2);
+	//result.reserve(rd.indices.size()/2);
+	result.resize(rd.indices.size()/2);
 
 	// approximate arclength
 	for (unsigned ds=0; ds<rd.dataset_ranges.size(); ds++)
@@ -71,8 +74,11 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 		const unsigned idx_offset_ds = rd.dataset_ranges[ds].i0;
 
 		// approximate arclength for each trajectory in order
-		for (const auto &traj : trajs)
+		//for (const auto &traj : trajs)
+#pragma omp parallel for
+		for (int traj_idx = 0; traj_idx < trajs.size(); ++traj_idx)
 		{
+			const auto& traj = trajs[traj_idx];
 			const unsigned idx_offset = idx_offset_ds + traj.i0,
 			               idx_n = idx_offset + traj.n;
 			// compute individual segment global (w.r.t. current trajectory) arclength approximation 
@@ -126,7 +132,9 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 					           (float)seg.param.t_to_s[3].points[2].y, (float)seg.param.t_to_s[3].points[3].y
 				};
 				// - in-place construct matrix in list
-				result.emplace_back(4, 4, tmp);
+				//result.emplace_back(4, 4, tmp);
+
+				result[i/2] = cgv::render::render_types::mat4(4, 4, tmp);
 			}
 		}
 	}

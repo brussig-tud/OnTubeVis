@@ -186,8 +186,8 @@ vec3 grid_normal(in vec2 p, in float n) {
 
 float compute_grid_factor(vec2 uv) {
 	float l = attribute_mapping.length_scale;
-	if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
-		return 0.0;
+	//if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
+	//	return 0.0;
 
 	float grid_factor = 0.0;
 	grid_factor = grids[0].blend_factor * grid_texture(grids[0].scaling*uv, grids[0].thickness);
@@ -197,8 +197,8 @@ float compute_grid_factor(vec2 uv) {
 
 vec3 compute_grid_normal(vec2 uv) {
 	float l = attribute_mapping.length_scale;
-	if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
-		return vec3(0.0, 0.0, 1.0);
+	//if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
+	//	return vec3(0.0, 0.0, 1.0);
 	
 	vec3 normal = vec3(0.0, 0.0, 1.0);
 	vec3 normal0 = mix(normal, grid_normal(grids[0].scaling*uv, grids[0].thickness), grids[0].blend_factor);
@@ -233,7 +233,8 @@ void main()
 		// has coordinates in [0,1], while the back side lies in [1,2].
 		uv.t *= 2.0;
 		// Move the origin (0,0) to the center of the front side and scale the coordinates to [-1,1]
-		uv = 2.0 * uv - 1.0;
+		//uv = 2.0 * uv - 1.0;
+		uv.t = 2.0 * uv.t - 1.0;
 
 		uv.s *= attribute_mapping.length_scale;
 
@@ -313,6 +314,8 @@ void main()
 
 		if(ambient_occlusion.enable)
 			frag_color.rgb *= compute_ambient_occlusion_factor(pos_eye, normal_eye);
+
+		//frag_color = vec4(vec3(texcoord.x), 1.0);
 	}
 
 	if(use_gamma)
