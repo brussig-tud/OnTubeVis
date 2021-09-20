@@ -25,7 +25,6 @@ namespace cgv {
 			bounding_geometry = BG_BOX_BILLBOARD;
 			use_conservative_depth = false;
 			use_cubic_tangents = true;
-			use_packed_color = true;
 			use_view_space_position = true;
 		}
 
@@ -69,7 +68,6 @@ namespace cgv {
 
 			shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
 			shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
-			shader_code::set_define(defines, "USE_PACKED_COLOR", rs.use_packed_color, true);
 			shader_code::set_define(defines, "USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
 			shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, textured_spline_tube_render_style::BG_BOX_BILLBOARD);
 			shader_code::set_define(defines, "MODE", rs.fragment_mode, textured_spline_tube_render_style::FM_RAY_CAST);
@@ -148,7 +146,6 @@ namespace cgv {
 
 			p->add_member_control(b, "Conservative Depth", rs_ptr->use_conservative_depth, "check");
 			p->add_member_control(b, "Cubic Tangents", rs_ptr->use_cubic_tangents, "check");
-			p->add_member_control(b, "Pack Color", rs_ptr->use_packed_color, "check");
 			p->add_member_control(b, "View Space Position", rs_ptr->use_view_space_position, "check");
 			
 			p->add_gui("surface_render_style", *static_cast<cgv::render::surface_render_style*>(rs_ptr));

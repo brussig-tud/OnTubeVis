@@ -44,6 +44,7 @@ tubes::tubes() : application_plugin("tubes_instance")
 	fbc.add_attachment("albedo", "flt32[R,G,B,A]");
 	fbc.add_attachment("position", "flt32[R,G,B]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
+	fbc.add_attachment("tangent", "flt32[R,G,B]");
 
 	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
 	tf_editor_ptr->set_visibility(false);
@@ -847,7 +848,7 @@ void tubes::draw_trajectories(context& ctx) {
 
 	prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
 	prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
-
+	
 	// set grid parameters
 	prog.set_uniform(ctx, "grid_color", grid_color);
 	prog.set_uniform(ctx, "normal_mapping_scale", normal_mapping_scale);
@@ -878,7 +879,7 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.enable_attachment(ctx, "albedo", 0);
 	fbc.enable_attachment(ctx, "position", 1);
 	fbc.enable_attachment(ctx, "normal", 2);
-	//fbc.enable_attachment(ctx, "tangent", 3);
+	fbc.enable_attachment(ctx, "tangent", 3);
 	fbc.enable_attachment(ctx, "depth", 4);
 	density_tex.enable(ctx, 5);
 
@@ -887,7 +888,7 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.disable_attachment(ctx, "albedo");
 	fbc.disable_attachment(ctx, "position");
 	fbc.disable_attachment(ctx, "normal");
-	//fbc.disable_attachment(ctx, "tangent");
+	fbc.disable_attachment(ctx, "tangent");
 	fbc.disable_attachment(ctx, "depth");
 	density_tex.disable(ctx);
 

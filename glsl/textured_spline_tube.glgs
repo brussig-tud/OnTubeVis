@@ -2,7 +2,6 @@
 
 #define USE_CONSERVATIVE_DEPTH 0
 #define USE_CUBIC_TANGENTS 1
-#define USE_PACKED_COLOR 1
 #define USE_VIEW_SPACE_POSITION 1
 
 /*
@@ -98,13 +97,8 @@ in flat int segment_id_gs[];
 out vec3 position_fs;
 #endif
 out flat float l_offset_fs;
-#if USE_PACKED_COLOR == 0
-out flat vec3 color0_fs;
-out flat vec3 color1_fs;
-#else
 out flat uint color0_fs;
 out flat uint color1_fs;
-#endif
 out flat QTube qTube_fs;
 out flat int segment_id_fs;
 #if USE_CUBIC_TANGENTS == 1
@@ -1003,13 +997,8 @@ void main()
 	tube.e.pos_tan = n1.tangent.xyz;
 	tube.e.rad_tan = n1.tangent.w;
 
-#if USE_PACKED_COLOR == 0
-	color0_fs = n0.color.rgb;
-	color1_fs = n1.color.rgb;
-#else
 	color0_fs = packUnorm4x8(vec4(n0.color.rgb, 1.0));
 	color1_fs = packUnorm4x8(vec4(n1.color.rgb, 1.0));
-#endif
 	
 	QTube qTube0, qTube1;
 	SplitTube(tube, qTube0, qTube1);
