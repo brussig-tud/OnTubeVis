@@ -607,14 +607,10 @@ void main()
 	discard;
 	return;
 #elif MODE == 1
-	//frag_albedo = vec4(1.0, 0.0, 0.0, 0.0);
-	//frag_position = vec4(0.0, 0.0, 0.0, 0.0);
-	//frag_normal = vec4(1.0, 0.0, 0.0, uintBitsToFloat(0));
-	//frag_tangent = vec3(0.0, 0.0, 1.0);
-
 	frag_albedo = vec4(uintBitsToFloat(0xFF0000FF), 0.0, 0.0, intBitsToFloat(0));
-	frag_position = vec3(0.0, 0.0, 0.0, 0.0);
-	frag_normal = vec4(0.0, 0.0, 0.0, 1.0);
+	frag_position = vec3(0.0, 0.0, 1.0);
+	frag_normal = vec3(0.0, 0.0, 1.0);
+	frag_tangent = vec3(1.0, 0.0, 0.0);
 	return;
 #else
 
@@ -645,14 +641,10 @@ void main()
 
 	if(hit.t == POS_INF) {
 #if MODE == 2
-		//frag_albedo = vec4(1.0, 0.0, 0.0, 0.0);
-		//frag_position = vec4(0.0, 0.0, 0.0, 0.0);
-		//frag_normal = vec4(1.0, 0.0, 0.0, uintBitsToFloat(0));
-		//frag_tangent = vec3(0.0, 0.0, 1.0);
-
 		frag_albedo = vec4(uintBitsToFloat(0xFF0000FF), 0.0, 0.0, intBitsToFloat(0));
-		frag_position = vec3(0.0, 0.0, 0.0, 0.0);
-		frag_normal = vec4(0.0, 0.0, 0.0, 1.0);
+		frag_position = vec3(0.0, 0.0, 1.0);
+		frag_normal = vec3(0.0, 0.0, 1.0);
+		frag_tangent = vec3(1.0, 0.0, 0.0);
 #else
 		discard;
 #endif

@@ -875,6 +875,7 @@ void tubes::draw_trajectories(context& ctx) {
 	prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
 	prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
 
+	glDepthFunc(GL_ALWAYS);
 
 	fbc.enable_attachment(ctx, "albedo", 0);
 	fbc.enable_attachment(ctx, "position", 1);
@@ -891,6 +892,8 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.disable_attachment(ctx, "tangent");
 	fbc.disable_attachment(ctx, "depth");
 	density_tex.disable(ctx);
+
+	glDepthFunc(GL_LESS);
 
 	prog.disable(ctx);
 }
