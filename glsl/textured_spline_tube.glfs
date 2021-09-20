@@ -78,9 +78,8 @@ layout (depth_greater) out float gl_FragDepth;
 #endif
 
 layout (location = 0) out vec4 frag_albedo;
-layout (location = 1) out vec4 frag_position;
-layout (location = 2) out vec4 frag_normal;
-layout (location = 3) out vec3 frag_tangent;
+layout (location = 1) out vec3 frag_position;
+layout (location = 2) out vec3 frag_normal;
 
 // arclen approximations SBO
 layout (std430, binding = 1) readonly buffer arclen_buffer { 
@@ -613,10 +612,14 @@ void main()
 	discard;
 	return;
 #elif MODE == 1
-	frag_albedo = vec4(1.0, 0.0, 0.0, 0.0);
-	frag_position = vec4(0.0, 0.0, 0.0, 0.0);
-	frag_normal = vec4(1.0, 0.0, 0.0, uintBitsToFloat(0));
-	frag_tangent = vec3(0.0, 0.0, 1.0);
+	//frag_albedo = vec4(1.0, 0.0, 0.0, 0.0);
+	//frag_position = vec4(0.0, 0.0, 0.0, 0.0);
+	//frag_normal = vec4(1.0, 0.0, 0.0, uintBitsToFloat(0));
+	//frag_tangent = vec3(0.0, 0.0, 1.0);
+
+	frag_albedo = vec4(uintBitsToFloat(0xFF0000FF), 0.0, 0.0, intBitsToFloat(0));
+	frag_position = vec3(0.0, 0.0, 0.0, 0.0);
+	frag_normal = vec4(0.0, 0.0, 0.0, 1.0);
 	return;
 #else
 
@@ -647,10 +650,14 @@ void main()
 
 	if(hit.t == POS_INF) {
 #if MODE == 2
-		frag_albedo = vec4(1.0, 0.0, 0.0, 0.0);
-		frag_position = vec4(0.0, 0.0, 0.0, 0.0);
-		frag_normal = vec4(1.0, 0.0, 0.0, uintBitsToFloat(0));
-		frag_tangent = vec3(0.0, 0.0, 1.0);
+		//frag_albedo = vec4(1.0, 0.0, 0.0, 0.0);
+		//frag_position = vec4(0.0, 0.0, 0.0, 0.0);
+		//frag_normal = vec4(1.0, 0.0, 0.0, uintBitsToFloat(0));
+		//frag_tangent = vec3(0.0, 0.0, 1.0);
+
+		frag_albedo = vec4(uintBitsToFloat(0xFF0000FF), 0.0, 0.0, intBitsToFloat(0));
+		frag_position = vec3(0.0, 0.0, 0.0, 0.0);
+		frag_normal = vec4(0.0, 0.0, 0.0, 1.0);
 #else
 		discard;
 #endif
@@ -769,17 +776,20 @@ void main()
 		v *= radius/0.2;
 		*/
 
-
-		frag_albedo = vec4(col.rgb, spline_t);
-		frag_position = vec4(hit_pos_eye, v);
-		frag_normal = vec4(0.5 * hit.normal + 0.5, intBitsToFloat(segment_id_fs));
-
 #if USE_CUBIC_TANGENTS == 0
-		frag_tangent = normalize(tangent);
+		vec3 frag_tangent = normalize(tangent);
 #else
-		frag_tangent = normalize(get_normal_matrix() * tangent);
+		vec3 frag_tangent = normalize(get_normal_matrix() * tangent);
 #endif
 
+
+		frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(col)), spline_t, v, intBitsToFloat(segment_id_fs));
+		frag_position = vec3(hit_pos_eye);
+		frag_normal = vec3(
+			uintBitsToFloat(packSnorm4x8(vec4(hit.normal, 1.0))),
+			uintBitsToFloat(packSnorm4x8(vec4(frag_tangent, 1.0))),
+			uintBitsToFloat(packSnorm4x8(vec4(cross(hit.normal, frag_tangent), 1.0)))
+		);
 	}
 #endif
 }
