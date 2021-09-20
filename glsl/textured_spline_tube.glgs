@@ -504,6 +504,39 @@ void emit_bounding_box(int segment_idx, QTube qTube) {
 
 	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
 
+#if USE_VIEW_SPACE_POSITION == 0
+	mat4 MVP = get_projection_matrix() * MV;
+
+	// generate transformed base vector corners of the box
+	p000 = MVP * p000;
+	p100 = MVP * p100;
+	p010 = MVP * p010;
+	p001 = MVP * p001;
+
+	// calculate remaining corners
+	vec4 dy = p010 - p000;
+	vec4 dz = p001 - p000;
+
+	vec4 p110 = p100 + dy;
+	vec4 p101 = p100 + dz;
+	vec4 p011 = p010 + dz;
+	vec4 p111 = p110 + dz;
+
+	gl_Position = p011; EmitVertex();
+	gl_Position = p111; EmitVertex();
+	gl_Position = p001; EmitVertex();
+	gl_Position = p101; EmitVertex();
+	gl_Position = p100; EmitVertex();
+	gl_Position = p111; EmitVertex();
+	gl_Position = p110; EmitVertex();
+	gl_Position = p011; EmitVertex();
+	gl_Position = p010; EmitVertex();
+	gl_Position = p001; EmitVertex();
+	gl_Position = p000; EmitVertex();
+	gl_Position = p100; EmitVertex();
+	gl_Position = p010; EmitVertex();
+	gl_Position = p110; EmitVertex();
+#else
 	// generate transformed base vector corners of the box
 	p000 = MV * p000;
 	p100 = MV * p100;
@@ -518,7 +551,7 @@ void emit_bounding_box(int segment_idx, QTube qTube) {
 	vec4 p101 = p100 + dz;
 	vec4 p011 = p010 + dz;
 	vec4 p111 = p110 + dz;
-	
+
 	mat4 P = get_projection_matrix();
 
 	position_fs = p011.xyz;
@@ -549,6 +582,7 @@ void emit_bounding_box(int segment_idx, QTube qTube) {
 	gl_Position = P * p010; EmitVertex();
 	position_fs = p110.xyz;
 	gl_Position = P * p110; EmitVertex();
+#endif
 	EndPrimitive();
 }
 
@@ -589,6 +623,14 @@ void emit_rounded_cone_billboard(int segment_idx, QTube qTube) {
 
 	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
 
+#if USE_VIEW_SPACE_POSITION == 0
+	mat4 MVP = get_modelview_projection_matrix();
+
+	gl_Position = MVP * vec4(ps[0], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(ps[1], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(ps[2], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(ps[3], 1.0); EmitVertex();
+#else
 	vec4 p00 = get_modelview_matrix() * vec4(ps[0], 1.0);
 	vec4 p10 = get_modelview_matrix() * vec4(ps[1], 1.0);
 	vec4 p01 = get_modelview_matrix() * vec4(ps[2], 1.0);
@@ -604,6 +646,7 @@ void emit_rounded_cone_billboard(int segment_idx, QTube qTube) {
 	gl_Position = PM * p01; EmitVertex();
 	position_fs = p11.xyz;
 	gl_Position = PM * p11; EmitVertex();
+#endif
 	EndPrimitive();
 }
 
@@ -727,6 +770,14 @@ void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 
 	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
 
+#if USE_VIEW_SPACE_POSITION == 0
+	mat4 MVP = get_modelview_projection_matrix();
+
+	for(int i = 0; i < count; ++i) {
+		gl_Position = MVP * vec4(c[i], 1.0);
+		EmitVertex();
+	}
+#else
 	vec4 ps[6];
 
 	ps[0] = get_modelview_matrix() * vec4(c[0], 1.0);
@@ -743,6 +794,7 @@ void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 		gl_Position = PM * ps[i];
 		EmitVertex();
 	}
+#endif
 	EndPrimitive();
 }
 
@@ -789,7 +841,7 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 
 
 
-	float ref_dot = abs(dot(dx, eye_to_origin)) / scale.x;
+	/*float ref_dot = abs(dot(dx, eye_to_origin)) / scale.x;
 	vec3 ref_dir = dx;
 	
 	float ang = abs(dot(eye_to_origin, dy)) / scale.y;
@@ -801,12 +853,12 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 	if(ang < ref_dot) {
 		ref_dot = ang;
 		ref_dir = dz;
-	}
+	}*/
 
 
 
 
-	/*mat4 MVP = get_modelview_projection_matrix();
+	mat4 MVP = get_modelview_projection_matrix();
 
 	vec4 pro = MVP * vec4(p000, 1.0f);
 	vec4 prx = MVP * vec4(p100, 1.0f);
@@ -836,7 +888,7 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 	if(lz > ref_l) {
 		ref_l = lz;
 		ref_dir = dz;
-	}*/
+	}
 
 
 
@@ -911,25 +963,24 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 	
 	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
 	
-	mat4 MV = get_modelview_projection_matrix();
+	//mat4 MVP = get_modelview_projection_matrix();
 
 #if USE_VIEW_SPACE_POSITION == 0
-	gl_Position = MV * vec4(c[0], 1.0); EmitVertex();
-	gl_Position = MV * vec4(c[1], 1.0); EmitVertex();
-	gl_Position = MV * vec4(c[2], 1.0); EmitVertex();
-	gl_Position = MV * vec4(c[3], 1.0); EmitVertex();
-	EndPrimitive();
+	gl_Position = MVP * vec4(c[0], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(c[1], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(c[2], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(c[3], 1.0); EmitVertex();
 #else
 	position_fs = (get_modelview_matrix() * vec4(c[0], 1.0)).xyz;
-	gl_Position = MV * vec4(c[0], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(c[0], 1.0); EmitVertex();
 	position_fs = (get_modelview_matrix() * vec4(c[1], 1.0)).xyz;
-	gl_Position = MV * vec4(c[1], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(c[1], 1.0); EmitVertex();
 	position_fs = (get_modelview_matrix() * vec4(c[2], 1.0)).xyz;
-	gl_Position = MV * vec4(c[2], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(c[2], 1.0); EmitVertex();
 	position_fs = (get_modelview_matrix() * vec4(c[3], 1.0)).xyz;
-	gl_Position = MV * vec4(c[3], 1.0); EmitVertex();
-	EndPrimitive();
+	gl_Position = MVP * vec4(c[3], 1.0); EmitVertex();
 #endif
+	EndPrimitive();
 }
 
 #endif

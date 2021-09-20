@@ -26,7 +26,7 @@ namespace cgv {
 			use_conservative_depth = false;
 			use_cubic_tangents = true;
 			use_packed_color = true;
-			use_view_space_position = false;
+			use_view_space_position = true;
 		}
 
 		textured_spline_tube_renderer::textured_spline_tube_renderer()
@@ -70,8 +70,8 @@ namespace cgv {
 			shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
 			shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
 			shader_code::set_define(defines, "USE_PACKED_COLOR", rs.use_packed_color, true);
-			shader_code::set_define(defines, "USE_VIEW_SPACE_POSITION", rs.use_view_space_position, false);
-			shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, textured_spline_tube_render_style::BG_APPROXIMATE_BILLBOARD);
+			shader_code::set_define(defines, "USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
+			shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, textured_spline_tube_render_style::BG_BOX_BILLBOARD);
 			shader_code::set_define(defines, "MODE", rs.fragment_mode, textured_spline_tube_render_style::FM_RAY_CAST);
 		}
 		bool textured_spline_tube_renderer::build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines)
