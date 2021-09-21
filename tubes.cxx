@@ -34,6 +34,12 @@ tubes::tubes() : application_plugin("tubes_instance")
 	
 	vstyle.enable_depth_test = false;
 
+#ifdef _DEBUG
+	voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(32u);
+#else
+	voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(128u);
+#endif
+
 	ao_style.sample_distance = 0.5f;
 	ao_style.cone_angle = 40.0f;
 
@@ -214,6 +220,7 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 
+	// render settings
 	if(member_ptr == &grid_mode || member_ptr == &enable_grid_smoothing) {
 		shader_define_map defines = build_tube_shading_defines();
 		if(defines != tube_shading_defines) {
@@ -221,6 +228,13 @@ void tubes::on_set(void *member_ptr) {
 			tube_shading_defines = defines;
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
 		}
+	}
+
+	// voxelization settings
+	if(member_ptr == &voxel_grid_resolution) {
+		context& ctx = *get_context();
+		voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(cgv::math::clamp(static_cast<unsigned>(voxel_grid_resolution), 16u, 512u));
+		create_density_volume(ctx, voxel_grid_resolution);
 	}
 
 	// misc settings
@@ -411,6 +425,7 @@ void tubes::create_gui (void)
 
 	if(begin_tree_node("AO Style", ao_style, false)) {
 		align("\a");
+		add_member_control(this, "Voxel Grid Resolution", voxel_grid_resolution, "dropdown", "enums='16=16, 32=32, 64=64, 128=128, 256=256, 512=512'");
 		add_gui("ao_style", ao_style);
 		align("\b");
 		end_tree_node(ao_style);
@@ -513,7 +528,7 @@ void tubes::update_attribute_bindings(void) {
 	set_view();
 	calculate_bounding_box();
 
-	create_density_volume(ctx, 128);
+	create_density_volume(ctx, voxel_grid_resolution);
 
 	if (traj_mgr.has_data())
 	{

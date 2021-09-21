@@ -186,8 +186,8 @@ vec3 grid_normal(in vec2 p, in float n) {
 
 float compute_grid_factor(vec2 uv) {
 	float l = attribute_mapping.length_scale;
-	//if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
-	//	return 0.0;
+	if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
+		return 0.0;
 
 	float grid_factor = 0.0;
 	grid_factor = grids[0].blend_factor * grid_texture(grids[0].scaling*uv, grids[0].thickness);
@@ -197,8 +197,8 @@ float compute_grid_factor(vec2 uv) {
 
 vec3 compute_grid_normal(vec2 uv) {
 	float l = attribute_mapping.length_scale;
-	//if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
-	//	return vec3(0.0, 0.0, 1.0);
+	if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
+		return vec3(0.0, 0.0, 1.0);
 	
 	vec3 normal = vec3(0.0, 0.0, 1.0);
 	vec3 normal0 = mix(normal, grid_normal(grids[0].scaling*uv, grids[0].thickness), grids[0].blend_factor);
@@ -215,7 +215,7 @@ void main()
 	vec2 texcoord = albedo_texcoord_seg.yz;
 	int segment_id = floatBitsToInt(albedo_texcoord_seg.w);
 
-	vec3 pos_eye = texture(position_tex, texcoord_fs).xyz;;
+	vec3 pos_eye = texture(position_tex, texcoord_fs).xyz;
 	vec3 normal_eye = texture(normal_tex, texcoord_fs).xyz;
 	vec3 tangent_eye = texture(tangent_tex, texcoord_fs).xyz;
 	float depth = texture(depth_tex, texcoord_fs).r;

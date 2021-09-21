@@ -81,6 +81,7 @@ public:
 		}
 	};
 
+	cgv::type::DummyEnum voxel_grid_resolution;
 	std::vector<vec3> sample_position_offsets;
 	float subsampling_normalization_factor;
 
