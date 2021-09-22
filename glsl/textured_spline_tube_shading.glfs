@@ -168,10 +168,8 @@ float grid_texture(in vec2 p, in float n) {
 	vec2 s = fract(p + 0.5*n);
 	vec2 t = clamp(s / n, 0.0, 1.0);
 
-	vec2 i = 1.0 - (sin(t*M_PI));
-
-    //pattern
-    return min(max(1.0-i.x, 1.0-i.y), 1.0);	// grid
+	vec2 i = sin(t*M_PI);
+    return max(i.x, i.y);
 }
 #endif
 vec3 grid_normal(in vec2 p, in float n) {
@@ -179,9 +177,58 @@ vec3 grid_normal(in vec2 p, in float n) {
 	vec2 s = fract(p + 0.5*n);
 	vec2 t = clamp(s / n, 0.0, 1.0);
 
+	/*
+	// sharp
+	vec2 i = sin(t*M_PI);
+	vec2 xy = sin(2.0*M_PI*t);
+
+	vec2 z = 0.5*cos(2.0*M_PI*t) + 0.5;
+
+	vec3 nml;
+
+	if(i.x > i.y)
+		nml = vec3(xy.x, 0.0, z.x);
+	else
+		nml = vec3(0.0, -xy.y, z.y);
+
+    return normalize(nml);
+	*/
+
+	/*
+	vec2 i = sin(M_PI*t);
 	vec2 xy = sin(2.0*M_PI*t);
 	vec2 z = 0.5*cos(2.0*M_PI*t) + 0.5;
-    return normalize(vec3(-xy.x, xy.y, max(z.x, z.y)));
+
+	vec3 nml = vec3(0.0, 0.0, max(z.x, z.y));
+
+	if(i.x > i.y)
+		nml.x = xy.x;
+	else
+		nml.y = -xy.y;
+
+    return normalize(nml);
+	*/
+
+	
+	vec2 i = sin(M_PI*t);
+	vec2 xy = sin(2.0*M_PI*t);
+
+	vec3 nml = vec3(0.0, 0.0, 0.0);
+
+	if(i.x > i.y)
+		nml.x = xy.x;
+	else
+		nml.y = -xy.y;
+
+	float v = nml.x + nml.y;
+
+	nml.z = sqrt(1.0 - v*v);
+    return nml;
+	
+	
+	//vec2 xy = sin(2.0*M_PI*t);
+	//vec2 z = 0.5*cos(2.0*M_PI*t) + 0.5;
+    //return normalize(vec3(xy.x, -xy.y, max(z.x, z.y)));
 }
 
 float compute_grid_factor(vec2 uv) {

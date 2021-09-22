@@ -157,7 +157,7 @@ protected:
 
 	GridMode grid_mode = GM_COLOR;
 	rgba grid_color = rgba(0.0, 0.0, 0.0, 1.0);
-	float normal_mapping_scale = 0.5f;
+	float normal_mapping_scale = 1.0f;
 	std::vector<grid_parameters> grids;
 	bool enable_grid_smoothing = false;
 

@@ -58,10 +58,10 @@ tubes::tubes() : application_plugin("tubes_instance")
 	grids.resize(2);
 	grids[0].scaling = vec2(1.0f, 1.0f);
 	grids[0].thickness = 0.05f;
-	grids[0].blend_factor = 1.0f;
+	grids[0].blend_factor = 0.5f;
 	grids[1].scaling = vec2(10.0f, 10.0f);
 	grids[1].thickness = 0.1f;
-	grids[1].blend_factor = 0.5f;
+	grids[1].blend_factor = 0.333f;
 	grid_color = rgba(0.25f, 0.25f, 0.25f, 0.75f);
 	grid_mode = GM_COLOR_NORMAL;
 
