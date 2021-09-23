@@ -65,6 +65,11 @@ tubes::tubes() : application_plugin("tubes_instance")
 	grid_color = rgba(0.25f, 0.25f, 0.25f, 0.75f);
 	grid_mode = GM_COLOR_NORMAL;
 
+	grid_color = rgba(0.0, 0.0, 0.0, 1.0);
+	grid_normal_settings = (cgv::type::DummyEnum)0u;
+	grid_normal_inwards = false;
+	grid_normal_variant = false;
+	normal_mapping_scale = 1.0f;
 	enable_grid_smoothing = true;
 
 	do_benchmark = false;
@@ -221,7 +226,11 @@ void tubes::on_set(void *member_ptr) {
 	}
 
 	// render settings
-	if(member_ptr == &grid_mode || member_ptr == &enable_grid_smoothing) {
+	if( member_ptr == &grid_mode ||
+		member_ptr == &grid_normal_settings ||
+		member_ptr == &grid_normal_inwards ||
+		member_ptr == &grid_normal_variant ||
+		member_ptr == &enable_grid_smoothing) {
 		shader_define_map defines = build_tube_shading_defines();
 		if(defines != tube_shading_defines) {
 			context& ctx = *get_context();
@@ -446,6 +455,9 @@ void tubes::create_gui (void)
 		add_member_control(this, "Mode", grid_mode, "dropdown", "enums='None, Color, Normal, Color + Normal'");
 		add_member_control(this, "Smooth", enable_grid_smoothing, "check");
 		add_member_control(this, "Color", grid_color);
+		add_member_control(this, "Normal Type", grid_normal_settings, "dropdown", "enums='0,1,2,3'");
+		add_member_control(this, "Inward", grid_normal_inwards, "check");
+		add_member_control(this, "Variant", grid_normal_variant, "check");
 		add_member_control(this, "Normal Scale", normal_mapping_scale, "value_slider", "min=0;max=1;step=0.001;ticks=true");
 		for(size_t i = 0; i < grids.size(); ++i) {
 			add_decorator("Grid " + std::to_string(i), "heading", "level=3");
@@ -973,6 +985,10 @@ bool tubes::load_transfer_function(context& ctx)
 shader_define_map tubes::build_tube_shading_defines() {
 	shader_define_map defines;
 	shader_code::set_define(defines, "GRID_MODE", grid_mode, GM_COLOR);
+	unsigned gs = static_cast<unsigned>(grid_normal_settings);
+	if(grid_normal_inwards) gs += 4u;
+	if(grid_normal_variant) gs += 8u;
+	shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
 	shader_code::set_define(defines, "ENABLE_GRID_SMOOTHING", enable_grid_smoothing, false);
 	return defines;
 }

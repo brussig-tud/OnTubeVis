@@ -155,11 +155,14 @@ protected:
 		float blend_factor;
 	};
 
-	GridMode grid_mode = GM_COLOR;
-	rgba grid_color = rgba(0.0, 0.0, 0.0, 1.0);
-	float normal_mapping_scale = 1.0f;
+	GridMode grid_mode;
+	rgba grid_color;
+	cgv::type::DummyEnum grid_normal_settings;
+	bool grid_normal_inwards;
+	bool grid_normal_variant;
+	float normal_mapping_scale;
 	std::vector<grid_parameters> grids;
-	bool enable_grid_smoothing = false;
+	bool enable_grid_smoothing;
 
 	enum GlyphType {
 		GT_CIRCLE = 0,
