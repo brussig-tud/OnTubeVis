@@ -232,7 +232,7 @@ public:
 
 		if(h >= 0.0) {
 			h = sqrt(h);
-			vec2 x = (vec2(h, -h) - q) / 2.0;
+			vec2 x = (vec2(h, -h) - q) / 2.0f;
 			vec2 uv = sign(x)*cgv::math::pow(abs(x), vec2(1.0f / 3.0f));
 			float t = cgv::math::clamp(uv.x() + uv.y() - kx, 0.0f, 1.0f);
 
