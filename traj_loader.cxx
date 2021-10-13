@@ -1598,10 +1598,10 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 		impl.rd.radii.clear();
 		impl.rd.colors.clear();
 		impl.rd.indices.clear();
-		for (const auto &d_ptr : impl.datasets)
+		for (auto &d_ptr : impl.datasets)
 		{
 			// convencience shorthand
-			const auto &dataset = *d_ptr;
+			auto &dataset = *d_ptr;
 
 			// process indices
 			const unsigned idx_offset = (unsigned)impl.rd.positions.size();
@@ -1618,15 +1618,29 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 			impl.transform_attrib_old(&impl.rd.radii, VisualAttrib::RADIUS, dataset);
 			impl.transform_attrib_old(&impl.rd.tangents, VisualAttrib::TANGENT, dataset, auto_tangents);
 			impl.transform_attrib_old(&impl.rd.colors, VisualAttrib::COLOR, dataset);
-			goto skip;
 
-			// apply visual mapping to all involved attributes and distribute to user output draw arrays
-			unsigned num_samples = (unsigned)dataset.positions().size();
-			for (unsigned i=0; i<num_samples; i++)
+			/*// apply visual mapping to all involved attributes and distribute to user output draw arrays
+			for (unsigned i=0; i<(unsigned)dataset.positions().size(); i++)
 			{
+			}*/
+
+			// Calculate per-trajectory median of node radii
+			// ToDo: this should really also be weighted by segment length...
+			for (auto &traj : dataset.trajectories())
+			{
+				std::vector<real> traj_radii; traj_radii.reserve(traj.n/2 + 1);
+				for (unsigned i=0; i<traj.n; i+=2)
+					traj_radii.emplace_back(impl.rd.radii[impl.rd.indices[traj.i0+i]]);
+				traj_radii.emplace_back(impl.rd.radii[impl.rd.indices[traj.i0+traj.n-1]]);
+				std::sort(traj_radii.begin(), traj_radii.end());
+				if (traj_radii.size()%2 == 0)
+				{
+					auto mid = traj_radii.size()/2;
+					traj.med_radius = float(traj_radii[mid-1]+traj_radii[mid]) / 2.f;
+				}
+				else
+					traj.med_radius = float(traj_radii[traj_radii.size()/2]);
 			}
-		skip:
-			/* DoNothing() */;
 		}
 		impl.dirty = false;
 	}

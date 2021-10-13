@@ -549,7 +549,7 @@ void tubes::update_attribute_bindings(void) {
 		std::cout << "Computing arclength parametrization... ";
 
 		render.arclen_sbo.destruct(ctx);
-		render.arclen_data = arclen::compile_renderdata(traj_mgr);
+		render.arclen_data = arclen::compile_renderdata(traj_mgr, true);
 		render.arclen_sbo = arclen::upload_renderdata(ctx, render.arclen_data);
 		
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;

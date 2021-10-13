@@ -54,7 +54,8 @@ struct curve_segment
 namespace arclen {
 
 template <class flt_type>
-std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const traj_manager<flt_type> &mgr)
+std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const traj_manager<flt_type> &mgr,
+                                                                           bool scale_for_median_radius)
 {
 	typedef flt_type real;
 	typedef cgv::math::fvec<real, 4> rvec4;
@@ -75,8 +76,10 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 
 		// approximate arclength for each trajectory in order
 		//for (const auto &traj : trajs)
-#pragma omp parallel for
-		for (int traj_idx = 0; traj_idx < trajs.size(); ++traj_idx)
+	//#ifndef _DEBUG
+		#pragma omp parallel for
+	//#endif
+		for (int traj_idx=0; traj_idx<trajs.size(); ++traj_idx)
 		{
 			const auto& traj = trajs[traj_idx];
 			const unsigned idx_offset = idx_offset_ds + traj.i0,
@@ -135,6 +138,8 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 				//result.emplace_back(4, 4, tmp);
 
 				result[i/2] = cgv::render::render_types::mat4(4, 4, tmp);
+				if (scale_for_median_radius)
+					result[i/2] /= traj.med_radius;
 			}
 		}
 	}
@@ -163,8 +168,8 @@ cgv::render::vertex_buffer upload_renderdata (
 //
 
 // Only float and double variants are intended
-template std::vector<cgv::render::render_types::mat4> compile_renderdata<float>(const traj_manager<float> &mgr);
-template std::vector<cgv::render::render_types::mat4> compile_renderdata<double>(const traj_manager<double> &mgr);
+template std::vector<cgv::render::render_types::mat4> compile_renderdata<float>(const traj_manager<float>&, bool);
+template std::vector<cgv::render::render_types::mat4> compile_renderdata<double>(const traj_manager<double>&, bool);
 
 // namespace close
 };

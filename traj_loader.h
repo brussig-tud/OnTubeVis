@@ -526,6 +526,9 @@ struct range
 
 	/// number of samples in the trajectory
 	unsigned n;
+
+	/// median of node radii
+	float med_radius;
 };
 
 
