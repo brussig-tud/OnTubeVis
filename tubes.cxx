@@ -55,6 +55,8 @@ tubes::tubes() : application_plugin("tubes_instance")
 	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
 	tf_editor_ptr->set_visibility(false);
 
+	//navigator_ptr = register_overlay<cgv::glutil::navigator>("Navigator");
+
 	grids.resize(2);
 	grids[0].scaling = vec2(1.0f, 1.0f);
 	grids[0].thickness = 0.05f;

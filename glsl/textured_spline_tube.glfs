@@ -788,8 +788,8 @@ void main()
 		float v = acos(dot(b, normal_object)) * M_INV_PI * 0.5;
 #endif
 		
-		/* Activate to use radius correction (deactivate transformation in screen pass fragment shader)
-		v *= 2.0;
+		// Activate to use radius correction (deactivate transformation in screen pass fragment shader)
+		/*v *= 2.0;
 		v = 2.0 * v - 1.0;
 
 		float c[3];

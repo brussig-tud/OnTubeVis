@@ -22,6 +22,7 @@
 #include <cgv_glutil/box_render_data.h>
 #include <cgv_glutil/sphere_render_data.h>
 #include <cgv_glutil/transfer_function_editor.h>
+#include <cgv_glutil/navigator.h>
 
 // local includes
 #include "hermite_spline_tube.h"
@@ -140,6 +141,7 @@ protected:
 
 
 	cgv::glutil::transfer_function_editor* tf_editor_ptr;
+	cgv::glutil::navigator* navigator_ptr;
 
 
 	enum GridMode {
