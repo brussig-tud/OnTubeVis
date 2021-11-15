@@ -22,7 +22,7 @@ namespace cgv {
 			radius_scale = 1.0f;
 			radius = 1.0f;
 			fragment_mode = FM_RAY_CAST;
-			bounding_geometry = BG_BOX_BILLBOARD;
+			bounding_geometry = BG_ALIGNED_BOX_BILLBOARD;
 			use_conservative_depth = false;
 			use_cubic_tangents = true;
 			use_view_space_position = true;
@@ -69,7 +69,7 @@ namespace cgv {
 			shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
 			shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
 			shader_code::set_define(defines, "USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
-			shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, textured_spline_tube_render_style::BG_BOX_BILLBOARD);
+			shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
 			shader_code::set_define(defines, "MODE", rs.fragment_mode, textured_spline_tube_render_style::FM_RAY_CAST);
 		}
 		bool textured_spline_tube_renderer::build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines)
@@ -152,7 +152,7 @@ namespace cgv {
 
 			if(p->begin_tree_node("Debug Options", rs_ptr->fragment_mode)) {
 				p->align("\a");
-				p->add_member_control(b, "Bounding Geometry", rs_ptr->bounding_geometry, "dropdown", "enums='Box (disable cubic tangents!), Approximate Billboard, Exact Polygon, Box Billboard'");
+				p->add_member_control(b, "Bounding Geometry", rs_ptr->bounding_geometry, "dropdown", "enums='Box (disable cubic tangents!), Approximate Billboard, Exact Polygon, Box Billboard, Aligned Box Billboard'");
 				p->add_member_control(b, "Fragment Mode", rs_ptr->fragment_mode, "dropdown", "enums='No-Op, Rasterize Debug, Ray Cast Debug, Ray Cast'");
 				p->align("\b");
 				p->end_tree_node(rs_ptr->fragment_mode);

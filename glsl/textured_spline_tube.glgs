@@ -9,8 +9,9 @@
 	1: APPROXIMATE_BILLBOARD
 	2: EXACT_POLYGON
 	3: BOX_BILLBOARD
+	4: ALIGNED_BOX_BILLBOARD
 */
-#define BOUNDING_GEOMETRY_TYPE 3
+#define BOUNDING_GEOMETRY_TYPE 4
 
 #define ONE_OVER_THREE 1.0 / 3.0
 
@@ -792,7 +793,7 @@ void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 	EndPrimitive();
 }
 
-#else
+#elif BOUNDING_GEOMETRY_TYPE == 3
 
 vec3 intersect_plane(vec3 pn, vec3 ro, vec3 rd) {
 	// the plane has its origin in (0,0,0)
@@ -854,10 +855,10 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 
 	mat4 MVP = get_modelview_projection_matrix();
 
-	vec4 pro = MVP * vec4(p000, 1.0f);
-	vec4 prx = MVP * vec4(p100, 1.0f);
-	vec4 pry = MVP * vec4(p010, 1.0f);
-	vec4 prz = MVP * vec4(p001, 1.0f);
+	vec4 pro = MVP * vec4(p000, 1.0);
+	vec4 prx = MVP * vec4(p100, 1.0);
+	vec4 pry = MVP * vec4(p010, 1.0);
+	vec4 prz = MVP * vec4(p001, 1.0);
 	pro /= pro.w;
 	prx /= prx.w;
 	pry /= pry.w;
@@ -977,6 +978,208 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 	EndPrimitive();
 }
 
+#else
+
+vec2 ortho_vec(vec2 v) {
+
+	return vec2(v.y, -v.x);
+}
+
+vec2 project_to_vector(vec2 a, vec2 b) {
+	return (dot(a, b) / dot(b, b)) * b;
+}
+
+void emit_aligned_box_billboard(int segment_idx, QTube qTube) {
+
+	mat4 MV = get_modelview_matrix();
+	qTube_fs.s.pos = (MV * vec4(qTube.s.pos, 1.0)).xyz;
+	qTube_fs.h.pos = (MV * vec4(qTube.h.pos, 1.0)).xyz;
+	qTube_fs.e.pos = (MV * vec4(qTube.e.pos, 1.0)).xyz;
+	qTube_fs.s.rad = qTube.s.rad;
+	qTube_fs.h.rad = qTube.h.rad;
+	qTube_fs.e.rad = qTube.e.rad;
+
+	vec3 center = qTube.s.pos + qTube.h.pos + qTube.e.pos;
+	center *= 0.333333f;
+
+	vec3 delta = normalize(qTube.e.pos - qTube.s.pos);
+	vec3 local_z = normalize(center - eye_pos);
+	vec3 local_y = normalize(cross(delta, local_z));
+	vec3 local_x = cross(local_z, local_y);
+
+	// translate positions by local coordinate system origin
+	qTube.s.pos -= center;
+	qTube.h.pos -= center;
+	qTube.e.pos -= center;
+
+	// project positions onto local axes, i.e. rotate them into local system
+	// (this is a bit faster than constructing a matrix first)
+	//vec3 p0 = vec3(dot(a.pos, local_x), dot(a.pos, local_y), dot(a.pos, local_z));
+	//vec3 p1 = vec3(dot(b.pos, local_x), dot(b.pos, local_y), dot(b.pos, local_z));
+	//vec3 p2 = vec3(dot(c.pos, local_x), dot(c.pos, local_y), dot(c.pos, local_z));
+
+	vec3 p0 = vec3(dot(qTube.s.pos, local_x), dot(qTube.s.pos, local_y), dot(qTube.s.pos, local_z));
+	vec3 p1 = vec3(dot(qTube.h.pos, local_x), dot(qTube.h.pos, local_y), dot(qTube.h.pos, local_z));
+	vec3 p2 = vec3(dot(qTube.e.pos, local_x), dot(qTube.e.pos, local_y), dot(qTube.e.pos, local_z));
+
+	vec2 x, z, y;
+	float xl, zl, yl;
+	bool xq = false;
+	bool yq = false;
+
+	// TODO: fix orientation when xl gets close to zero
+	{
+		x = p2.xy - p0.xy;
+		xl = length(x);
+
+		if(xl < 0.0001) {
+			y = p1.xy - p0.xy;
+			yl = length(y);
+
+			if(yl < 0.0001) {
+				x = vec2(1.0, 0.0);
+				y = vec2(0.0, 1.0);
+				xl = 1.0; xq = true;
+				yl = 1.0; yq = true;
+			} else {
+				x = normalize(ortho_vec(y));
+				xl = 1.0; xq = true;
+			}
+		} else {
+			y = project_to_vector(p1.xy - p0.xy, ortho_vec(x));
+			yl = length(y);
+
+			if(yl < 0.0001) {
+				y = normalize(ortho_vec(x));
+				yl = 1.0; yq = true;
+			}
+		}
+
+		z = p2.zy - p0.zy;
+		zl = length(z);
+	}
+
+	vec2 xd = x / xl;
+	vec2 zd = z / zl;
+	vec2 yd = y / yl;
+
+	float r0 = qTube.s.rad;
+	float r1 = qTube.h.rad;
+	float r2 = qTube.e.rad;
+
+	vec3 cp[4];
+
+	{
+		float xm, xp, ym, yp, zm, zp, rm;
+		float xyl = dot(p1.xy - p0.xy, xd);
+		float zyl = dot(p1.zy - p0.zy, zd);
+
+		float rc[3];
+		rc[0] = r0;
+		rc[1] = 2.0 * (r1 - r0);
+		rc[2] = r0 + r2 - (r1 + r1);
+
+		float c_x1 = xyl + xyl;
+		float c_x2 = xl - c_x1;
+		float cx[3];
+		cx[0] = -rc[0];
+		cx[1] = c_x1 - rc[1];
+		cx[2] = c_x2 - rc[2];
+
+		xm = min(-r0, min(xl - r2, EvalPolyD0(saturate(-cx[1] / cx[2] * 0.5), cx)));
+
+		cx[0] = +rc[0];
+		cx[1] = c_x1 + rc[1];
+		cx[2] = c_x2 + rc[2];
+
+		xp = max(+r0, max(xl + r2, EvalPolyD0(saturate(-cx[1] / cx[2] * 0.5), cx)));
+
+		float c_y1 = yl + yl;
+		float cy[3];
+		cy[0] = - rc[0];
+		cy[1] = c_y1 - rc[1];
+		cy[2] = -c_y1 - rc[2];
+
+		ym = min(-r0, min(-r2, EvalPolyD0(saturate(-cy[1] / cy[2] * 0.5), cy)));
+
+		cy[0] = +rc[0];
+		cy[1] = c_y1 + rc[1];
+		cy[2] = -c_y1 + rc[2];
+
+		yp = max(+r0, max(+r2, EvalPolyD0(saturate(-cy[1] / cy[2] * 0.5), cy)));
+
+		float c_z1 = zyl + zyl;
+		float c_z2 = zl - c_z1;
+		float cz[3];
+		cz[0] = -rc[0];
+		cz[1] = c_z1 - rc[1];
+		cz[2] = c_z2 - rc[2];
+
+		zm = min(-r0, min(zl - r2, EvalPolyD0(saturate(-cz[1] / cz[2] * 0.5), cz)));
+
+		cz[0] = +rc[0];
+		cz[1] = c_z1 + rc[1];
+		cz[2] = c_z2 + rc[2];
+
+		zp = max(+r0, max(zl + r2, EvalPolyD0(saturate(-cz[1] / cz[2] * 0.5), cz)));
+
+		rm = max(r0, max(r2, EvalPolyD0(saturate(-rc[1] / rc[2] * 0.5), rc)));
+
+		if(xq) { xm = -rm; xp = rm; }
+		if(yq) { ym = -rm; yp = rm; }
+
+
+
+		vec2 txy = p0.xy + 0.5*(xd * (xm + xp) + yd * (ym + yp));
+		float dx = xp - xm;
+		float dy = yp - ym;
+
+		float tz = p0.z + 0.5 * (zd.x * (zm + zp) - zp + zm);
+
+		vec2 p00 = txy - 0.5 * vec2(dx, dy);
+		vec2 p10 = p00;
+		p00.x += dx;
+		vec2 p01 = p00;
+		p01.y += dy;
+		vec2 p11 = p10;
+		p11.y += dy;
+
+		vec3 local_z_scaled = tz * local_z;
+		cp[0] = center + p00.x * local_x + p00.y * local_y + local_z_scaled;
+		cp[1] = center + p10.x * local_x + p10.y * local_y + local_z_scaled;
+		cp[2] = center + p01.x * local_x + p01.y * local_y + local_z_scaled;
+		cp[3] = cp[1] + cp[2] - cp[0];
+	}
+
+	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
+
+#if USE_VIEW_SPACE_POSITION == 0
+	mat4 MVP = get_modelview_projection_matrix();
+
+	gl_Position = MVP * vec4(ps[0], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(ps[1], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(ps[2], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(ps[3], 1.0); EmitVertex();
+#else
+	mat4 PM = get_projection_matrix();
+
+	vec4 p00 = MV * vec4(cp[0], 1.0);
+	vec4 p10 = MV * vec4(cp[1], 1.0);
+	vec4 p01 = MV * vec4(cp[2], 1.0);
+	vec4 p11 = MV * vec4(cp[3], 1.0);
+
+	position_fs = p00.xyz;
+	gl_Position = PM * p00; EmitVertex();
+	position_fs = p10.xyz;
+	gl_Position = PM * p10; EmitVertex();
+	position_fs = p01.xyz;
+	gl_Position = PM * p01; EmitVertex();
+	position_fs = p11.xyz;
+	gl_Position = PM * p11; EmitVertex();
+#endif
+	EndPrimitive();
+}
+
 #endif
 
 void main()
@@ -1029,8 +1232,11 @@ void main()
 #elif BOUNDING_GEOMETRY_TYPE == 2
 	emit_exact_box_polygon(0, qTube0);
 	emit_exact_box_polygon(1, qTube1);
-#else
+#elif BOUNDING_GEOMETRY_TYPE == 3
 	emit_box_billboard(0, qTube0);
 	emit_box_billboard(1, qTube1);
+#else
+	emit_aligned_box_billboard(0, qTube0);
+	emit_aligned_box_billboard(1, qTube1);
 #endif
 }

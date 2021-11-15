@@ -16,6 +16,7 @@
 
 
 
+// TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff
 
 tubes::tubes() : application_plugin("tubes_instance")
 {
@@ -1000,9 +1001,9 @@ shader_define_map tubes::build_tube_shading_defines() {
 
 cgv::base::object_registration<tubes> reg_tubes("");
 
-#ifdef CGV_FORCE_STATIC
+//#ifdef CGV_FORCE_STATIC
 	cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
-#endif
+//#endif
 
 
 
