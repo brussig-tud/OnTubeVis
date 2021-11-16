@@ -109,6 +109,8 @@ void tubes::clear(cgv::render::context &ctx) {
 	ref_sphere_renderer(ctx, -1);
 	ref_volume_renderer(ctx, -1);
 
+	srd.destruct(ctx);
+
 	shaders.clear(ctx);
 	fbc.clear(ctx);
 
@@ -268,6 +270,13 @@ void tubes::on_set(void *member_ptr) {
 		if(misc_cfg.fix_view_up_dir_proxy)
 			find_view_as_node()->set_view_up_dir(0, 1, 0);
 
+	if(member_ptr == &test_dir[0] || member_ptr == &test_dir[1] || member_ptr == &test_dir[2]) {
+		test_dir = normalize(test_dir);
+		update_member(&test_dir[0]);
+		update_member(&test_dir[1]);
+		update_member(&test_dir[2]);
+	}
+
 	// default implementation for all members
 	// - remaining logic
 	update_member(member_ptr);
@@ -303,12 +312,16 @@ bool tubes::init (cgv::render::context &ctx)
 		\
 		vec3 x = 0.5*(pa + pb); \
 		vec3 eye_to_pos = x - eye_pos; \
-		float key = dot(eye_to_pos, eye_to_pos);)";
+		float ddv = dot(eye_to_pos, view_dir); \
+		float key = (ddv < 0.0 ? -1.0 : 1.0) * dot(eye_to_pos, eye_to_pos);)";
 
 	render.sorter->set_key_definition_override(key_definition);
 
 	success &= load_transfer_function(ctx);
 
+	ref_sphere_renderer(ctx, 1);
+	srd.init(ctx);
+	
 	// done
 	return success;
 }
@@ -394,11 +407,17 @@ void tubes::init_frame (cgv::render::context &ctx)
 			last_seconds_since_start = 0.0;
 		}
 	}
+
+	srd.clear();
+	srd.add(test_eye, 0.1f, rgb(1, 0, 0));
+	srd.add(test_eye + 0.15f*test_dir, 0.05f, rgb(1, 1, 0));
 }
 
 void tubes::draw (cgv::render::context &ctx)
 {
 	if(!view_ptr) return;
+
+	//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());
 
 	// draw dataset using selected renderer
 	if(show_volume) {
@@ -516,6 +535,22 @@ void tubes::create_gui (void)
 	}
 
 	add_member_control(this, "Start Benchmark", do_benchmark, "toggle", "");
+
+	create_vec3_gui("Eye Pos", test_eye, -10.0f, 10.0f);
+	create_vec3_gui("Eye Dir", test_dir, -1.0f, 1.0f);
+}
+
+void tubes::create_vec3_gui(const std::string& name, vec3& value, float min, float max) {
+
+	std::string value_config = "w=55;min=" + std::to_string(min) + ";max=" + std::to_string(max);
+	std::string slider_config = "w=55;min=" + std::to_string(min) + ";max=" + std::to_string(max) + ";step=0.0001;ticks=true";
+
+	add_member_control(this, name, value[0], "value", value_config, " ");
+	add_member_control(this, "", value[1], "value", value_config, " ");
+	add_member_control(this, "", value[2], "value", value_config);
+	add_member_control(this, "", value[0], "slider", slider_config, " ");
+	add_member_control(this, "", value[1], "slider", slider_config, " ");
+	add_member_control(this, "", value[2], "slider", slider_config);
 }
 
 void tubes::set_view(void)
@@ -835,7 +870,8 @@ void tubes::draw_trajectories(context& ctx) {
 	int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
 	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");	
 	if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && render.sort)
-		render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, node_idx_handle);
+		//render.sorter->sort(ctx, data_handle, segment_idx_handle, test_eye, test_dir, node_idx_handle);
+		render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
 
 	tstr.set_eye_pos(eye_pos);
 	tstr.set_view_dir(view_dir);
@@ -900,7 +936,7 @@ void tubes::draw_trajectories(context& ctx) {
 	prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
 	prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
 
-	glDepthFunc(GL_ALWAYS);
+	//glDepthFunc(GL_ALWAYS);
 
 	fbc.enable_attachment(ctx, "albedo", 0);
 	fbc.enable_attachment(ctx, "position", 1);
@@ -918,7 +954,7 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.disable_attachment(ctx, "depth");
 	density_tex.disable(ctx);
 
-	glDepthFunc(GL_LESS);
+	//glDepthFunc(GL_LESS);
 
 	prog.disable(ctx);
 }

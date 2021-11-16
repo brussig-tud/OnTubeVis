@@ -288,6 +288,10 @@ protected:
 	/// trajectory manager
 	traj_manager<float> traj_mgr;
 
+	cgv::glutil::sphere_render_data<> srd;
+	vec3 test_eye = vec3(5.0f, 0.5f, 5.0f);
+	vec3 test_dir = vec3(0.0f, 0.0f, -1.0f);
+
 	// Benchmark members
 	bool do_benchmark;
 	bool benchmark_running;
@@ -325,6 +329,8 @@ protected:
 	/// helper methods
 	bool load_transfer_function(context& ctx);
 	shader_define_map build_tube_shading_defines();
+
+	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
 
 public:
 	tubes();
