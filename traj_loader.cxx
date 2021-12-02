@@ -1317,7 +1317,7 @@ struct traj_manager<flt_type>::Impl
 				for (auto &traj : trajs)
 				{
 					// skip single-sample trajectories (they will just retain a 0-length tangent)
-					if (traj.n < 1) continue;
+					if (traj.n < 2) continue;
 
 					// determine tangent of first sample in trajectory
 					auto id_1st = I[traj.i0],
