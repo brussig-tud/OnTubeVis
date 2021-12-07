@@ -326,11 +326,13 @@ bool tubes::init (cgv::render::context &ctx)
 	srd.init(ctx);
 
 	// generate demo data
-	std::vector<demo::trajectory> demo_trajs; constexpr unsigned seed = 6;
+	constexpr unsigned seed = 6;
+	std::vector<demo::trajectory> demo_trajs;
 	for (unsigned i=0; i<16; i++)
 		demo_trajs.emplace_back(demo::gen_trajectory(16, seed+i));
-	auto &demo_ds = demo::compile_dataset(demo_trajs);
-	traj_mgr.add_dataset(std::move(demo_ds));
+	traj_mgr.add_dataset(
+		demo::compile_dataset(demo_trajs)
+	);
 	update_attribute_bindings();
 	
 	// done
