@@ -75,6 +75,8 @@ tubes::tubes() : application_plugin("tubes_instance")
 	normal_mapping_scale = 1.0f;
 	enable_grid_smoothing = true;
 
+	show_demo = true;
+
 	do_benchmark = false;
 	benchmark_running = false;
 }
@@ -122,6 +124,7 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 {
 	return
 		rh.reflect_member("datapath", datapath) &&
+		rh.reflect_member("show_demo", show_demo) &&
 		rh.reflect_member("render_style", render.style) &&
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
@@ -321,6 +324,14 @@ bool tubes::init (cgv::render::context &ctx)
 
 	ref_sphere_renderer(ctx, 1);
 	srd.init(ctx);
+
+	// generate demo data
+	std::vector<demo::trajectory> demo_trajs; constexpr unsigned seed = 6;
+	for (unsigned i=0; i<16; i++)
+		demo_trajs.emplace_back(demo::gen_trajectory(16, seed+i));
+	auto &demo_ds = demo::compile_dataset(demo_trajs);
+	traj_mgr.add_dataset(std::move(demo_ds));
+	update_attribute_bindings();
 	
 	// done
 	return success;
@@ -557,16 +568,6 @@ void tubes::set_view(void)
 {
 	if(!view_ptr || !traj_mgr.has_data()) return;
 
-	// TODO: is an accurate bounding box necessary?
-	// get a crude approximation of the bounding box
-	auto& positions = render.data->positions;
-
-	box3 bbox;
-
-	for(unsigned i = 0; i < positions.size(); ++i) {
-		bbox.add_point(positions[i]);
-	}
-
 	view_ptr->set_focus(bbox.get_center());
 	double extent_factor = 0.8;
 	view_ptr->set_y_extent_at_focus(extent_factor * (double)length(bbox.get_extent()));
@@ -575,19 +576,19 @@ void tubes::set_view(void)
 void tubes::update_attribute_bindings(void) {
 	auto &ctx = *get_context();
 
-	set_view();
-	calculate_bounding_box();
-
-	create_density_volume(ctx, voxel_grid_resolution);
-
 	if (traj_mgr.has_data())
 	{
+		calculate_bounding_box(); 
+		set_view();
+
+		create_density_volume(ctx, voxel_grid_resolution);
+
 		// Recompute arclength parametrization
 		cgv::utils::stopwatch s(true);
 		std::cout << "Computing arclength parametrization... ";
 
 		render.arclen_sbo.destruct(ctx);
-		render.arclen_data = arclen::compile_renderdata(traj_mgr, true);
+		render.arclen_data = arclen::compile_renderdata(traj_mgr);
 		render.arclen_sbo = arclen::upload_renderdata(ctx, render.arclen_data);
 		
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
@@ -647,6 +648,8 @@ void tubes::calculate_bounding_box(void) {
 	bbox.invalidate();
 	
 	if(traj_mgr.has_data()) {
+		// ensure render data
+		render.data = &(traj_mgr.get_render_data());
 		auto& positions = render.data->positions;
 		auto& tangents = render.data->tangents;
 		auto& radii = render.data->radii;
