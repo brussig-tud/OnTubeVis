@@ -54,8 +54,7 @@ struct curve_segment
 namespace arclen {
 
 template <class flt_type>
-std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const traj_manager<flt_type> &mgr,
-                                                                           bool scale_for_median_radius)
+std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const traj_manager<flt_type> &mgr)
 {
 	typedef flt_type real;
 	typedef cgv::math::fvec<real, 4> rvec4;
@@ -63,10 +62,9 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 
 	// obtain render attributes and dataset topology
 	const auto &rd = mgr.get_render_data();
-	//result.reserve(rd.indices.size()/2);
-	result.resize(rd.indices.size()/2);
+	result.reserve(rd.indices.size()/2);
 
-	// approximate arclength
+	// approximate arclength for all datasets
 	for (unsigned ds=0; ds<rd.dataset_ranges.size(); ds++)
 	{
 		// obtain dataset topology
@@ -76,12 +74,13 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 
 		// approximate arclength for each trajectory in order
 		//for (const auto &traj : trajs)
+		// ToDo: We can't use OpenMP for now because it's non-trivial to determine how to index into the result array
 	//#ifndef _DEBUG
-		#pragma omp parallel for
+	//	#pragma omp parallel for
 	//#endif
-		for (int traj_idx=0; traj_idx<trajs.size(); ++traj_idx)
+		for (int traj_idx=0; traj_idx<trajs.size(); traj_idx++)
 		{
-			const auto& traj = trajs[traj_idx];
+			const auto &traj = trajs[traj_idx];
 			const unsigned idx_offset = idx_offset_ds + traj.i0,
 			               idx_n = idx_offset + traj.n;
 			// compute individual segment global (w.r.t. current trajectory) arclength approximation 
@@ -135,11 +134,7 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 					           (float)seg.param.t_to_s[3].points[2].y, (float)seg.param.t_to_s[3].points[3].y
 				};
 				// - in-place construct matrix in list
-				//result.emplace_back(4, 4, tmp);
-
-				result[i/2] = cgv::render::render_types::mat4(4, 4, tmp);
-				if (scale_for_median_radius)
-					result[i/2] /= traj.med_radius;
+				result.emplace_back(4, 4, tmp);
 			}
 		}
 	}
@@ -168,8 +163,8 @@ cgv::render::vertex_buffer upload_renderdata (
 //
 
 // Only float and double variants are intended
-template std::vector<cgv::render::render_types::mat4> compile_renderdata<float>(const traj_manager<float>&, bool);
-template std::vector<cgv::render::render_types::mat4> compile_renderdata<double>(const traj_manager<double>&, bool);
+template std::vector<cgv::render::render_types::mat4> compile_renderdata<float>(const traj_manager<float>&);
+template std::vector<cgv::render::render_types::mat4> compile_renderdata<double>(const traj_manager<double>&);
 
 // namespace close
 };

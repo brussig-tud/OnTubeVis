@@ -21,13 +21,9 @@ namespace arclen
 	/// the segment arclength. The data is ordered in accordence with the index pairs in the render
 	/// data of the trajectory manager, so the corresponding attribute indices can be found by doubling
 	/// the segment index, and renderers can access the computed approximations using e.g. a storage
-	/// buffer and the current primitive ID. Optionally scales the arclength relative to the median
-	/// trajectory radius, i.e. a trajectory of length 300 with a median radius of 100 will have a
-	/// scaled arclength of 3.
+	/// buffer and the current primitive ID.
 	template <class flt_type>
-	std::vector<cgv::render::render_types::mat4> compile_renderdata (
-		const traj_manager<flt_type> &mgr, bool scale_for_median_radius=false
-	);
+	std::vector<cgv::render::render_types::mat4> compile_renderdata (const traj_manager<flt_type> &mgr);
 
 	/// Create a GPU-side storage buffer holding the per-segment arclength approximations contained in
 	/// the provided array of vec4's.
