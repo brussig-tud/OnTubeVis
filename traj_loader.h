@@ -692,6 +692,13 @@ protected:
 	/// Proxy for derived classes to gain write-access the list of individual trajectories in the dataset.
 	static std::vector<range>& trajectories (traj_dataset<real> &dataset);
 
+	/// Helper for derived classes to create an attribute of given name and type and obtain a \c std::vector reference for
+	/// easy immediate access
+	template <class T>
+	static std::vector<T>& add_attribute (traj_dataset<real> &dataset, const std::string &name)
+	{
+		return dataset.attributes().emplace(name, std::vector<T>()).first->second.get_data<T>();
+	}
 
 public:
 
@@ -774,6 +781,13 @@ public:
 	/// load trajectories from a file or directory and add them to the internal database, returning the index of the loaded dataset
 	/// if successfull, and -1 otherwise.
 	unsigned load (const std::string &path);
+
+	/// copy a custom dataset to the internally managed list, returning the resulting access index
+	unsigned add_dataset (const traj_dataset<real> &dataset);
+
+	/// move a custom dataset into the internally managed list (i.e. takes ownership of all memory etc), returning the resulting
+	/// access index
+	unsigned add_dataset (traj_dataset<real> &&dataset);
 
 	// read-only reference the dataset of the given index
 	const traj_dataset<real>& dataset (unsigned index) const;

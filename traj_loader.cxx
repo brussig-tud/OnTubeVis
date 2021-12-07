@@ -1202,7 +1202,7 @@ struct traj_manager<flt_type>::Impl
 	};
 
 	// fields
-	std::vector<std::unique_ptr<traj_dataset<real> > > datasets;
+	std::vector<std::unique_ptr<traj_dataset<real>>> datasets;
 	render_data rd;
 	bool dirty = true;
 
@@ -1565,6 +1565,24 @@ unsigned traj_manager<flt_type>::load (const std::string &path)
 }
 
 template <class flt_type>
+unsigned traj_manager<flt_type>::add_dataset (const traj_dataset<real> &dataset)
+{
+	auto &impl = *pimpl; // shortcut for saving one indirection
+	impl.datasets.emplace_back(new traj_dataset<real>(dataset));
+	impl.dirty = true; // we will need to rebuild the render data;
+	return (unsigned)impl.datasets.size() - 1;
+}
+
+template <class flt_type>
+unsigned traj_manager<flt_type>::add_dataset (traj_dataset<real> &&dataset)
+{
+	auto &impl = *pimpl; // shortcut for saving one indirection
+	impl.datasets.emplace_back(new traj_dataset<real>(std::move(dataset)));
+	impl.dirty = true; // we will need to rebuild the render data
+	return (unsigned)impl.datasets.size() - 1;
+}
+
+template <class flt_type>
 const traj_dataset<flt_type>& traj_manager<flt_type>::dataset (unsigned index) const
 {
 	return *(pimpl->datasets[index].get());
@@ -1626,6 +1644,7 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 
 			// Calculate per-trajectory median of node radii
 			// ToDo: this should really also be weighted by segment length...
+			// ToDo: check if this shouldn't better be in the load method instead
 			for (auto &traj : dataset.trajectories())
 			{
 				std::vector<real> traj_radii; traj_radii.reserve(traj.n/2 + 1);
