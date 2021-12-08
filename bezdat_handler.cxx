@@ -28,19 +28,19 @@
 #define BEZDAT_SIM_TOLERANCE_POS (real(32)*std::numeric_limits<real>::epsilon())
 
 /// multiple of the user-supplied distance unit for use as a tolerance to decide whether two node tangents are similar or not
-#define BEZDAT_SIM_TOLERANCE_DPOS real(0.125)
+#define BEZDAT_SIM_TOLERANCE_DPOS real(0.25)
 
 /// multiple of the user-supplied distance unit for use as a tolerance to decide whether two node radius values are similar or not
-#define BEZDAT_SIM_TOLERANCE_RAD (real(128)*std::numeric_limits<real>::epsilon())
+#define BEZDAT_SIM_TOLERANCE_RAD std::numeric_limits<real>::infinity() //(real(128)*std::numeric_limits<real>::epsilon())
 
 /// multiple of the user-supplied distance unit for use as a tolerance to decide whether two node radius derivatives are similar or not
-#define BEZDAT_SIM_TOLERANCE_DRAD real(0.125)
+#define BEZDAT_SIM_TOLERANCE_DRAD std::numeric_limits<real>::infinity() //real(0.125)
 
 /// multiple of the user-supplied distance unit for use as a tolerance to decide whether two node color values are similar or not
-#define BEZDAT_SIM_TOLERANCE_COL (real(1024)*std::numeric_limits<real>::epsilon())
+#define BEZDAT_SIM_TOLERANCE_COL std::numeric_limits<real>::infinity() //(real(1024)*std::numeric_limits<real>::epsilon())
 
 /// multiple of the user-supplied color distance unit for use as a tolerance to decide whether two node color derivatives are similar or not
-#define BEZDAT_SIM_TOLERANCE_DCOL real(0.125)
+#define BEZDAT_SIM_TOLERANCE_DCOL std::numeric_limits<real>::infinity() //real(0.125)
 
 /// identifyier to use for position data
 #define BEZDAT_POSITION_ATTRIB_NAME "position"
@@ -229,6 +229,8 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (std::istream &contents)
 		}
 		contents >> str;
 	}
+	avgRadiusDiff = std::max(avgRadiusDiff, std::numeric_limits<real>::epsilon());
+	avgColorDiff = std::max(avgColorDiff, std::numeric_limits<real>::epsilon());
 
 	// build database of Hermite node data
 	std::vector<bezdat_node<real> > nodes;
