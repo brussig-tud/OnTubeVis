@@ -721,6 +721,22 @@ cgv::base::object_registration_2<
 > csv_imluser_reg(
 	csv_imluser_desc,
 	visual_attribute_mapping<float>({
+		{VisualAttrib::POSITION, {
+			// we scale up the dataset to get more sensible numbers (mitigates floating point rounding errors etc.)
+			"position", attrib_transform<float>::vec3_to_vec3(
+				[](csv_handler<float>::Vec3 &out, const csv_handler<float>::Vec3 &in) {
+					out = 128.f * in;
+				}
+			)
+		 }},
+		{VisualAttrib::RADIUS, {
+			// we scale up the dataset to get more sensible numbers (mitigates floating point rounding errors etc.)
+			"radius", attrib_transform<float>::real_to_real(
+				[](float &out, const float &in) {
+					out = 128 * in;
+				}
+			)
+		 }},
 		{VisualAttrib::COLOR, {
 			// ids are either 1 or 2, so by substracting 1 we can use them as input to a color scale
 			"id", attrib_transform<float>::real_to_real(
@@ -737,12 +753,21 @@ csv_imldevice_reg(
 	visual_attribute_mapping<float>({
 		{VisualAttrib::POSITION, {
 			// we flip the direction of the x and z axes, as the tracking system for the devices in the IML
-			// study used a different coordinate system
+			// study used a different coordinate system, also scale up to get more sensible numbers (mitigates
+			// floating point rounding errors etc.)
 			"position", attrib_transform<float>::vec3_to_vec3(
 				[](csv_handler<float>::Vec3 &out, const csv_handler<float>::Vec3 &in) {
-					out.x() = -in.x();
-					out.y() =  in.y();
-					out.z() = -in.z();
+					out.x() = -128 * in.x();
+					out.y() =  128 * in.y();
+					out.z() = -128 * in.z();
+				}
+			)
+		 }},
+		{VisualAttrib::RADIUS, {
+			// we scale up the dataset to get more sensible numbers (mitigates floating point rounding errors etc.)
+			"radius", attrib_transform<float>::real_to_real(
+				[](float &out, const float &in) {
+					out = 128 * in;
 				}
 			)
 		 }},
