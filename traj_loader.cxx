@@ -1642,9 +1642,11 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 			{
 			}*/
 
-			// Calculate per-trajectory median of node radii
+			// Calculate per-trajectory median of node radii as well as dataset median node radius
 			// ToDo: this should really also be weighted by segment length...
 			// ToDo: check if this shouldn't better be in the load method instead
+			// - (1) trajectory median radii
+			std::vector<real> med_radii; med_radii.reserve(dataset.trajectories().size());
 			for (auto &traj : dataset.trajectories())
 			{
 				std::vector<real> traj_radii; traj_radii.reserve(traj.n/2 + 1);
@@ -1654,12 +1656,22 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 				std::sort(traj_radii.begin(), traj_radii.end());
 				if (traj_radii.size()%2 == 0)
 				{
-					auto mid = traj_radii.size()/2;
+					const auto mid = traj_radii.size()/2;
 					traj.med_radius = float(traj_radii[mid-1]+traj_radii[mid]) / 2.f;
 				}
 				else
 					traj.med_radius = float(traj_radii[traj_radii.size()/2]);
+				med_radii.push_back(traj.med_radius);
 			}
+			// - (2) dataset median radius
+			std::sort(med_radii.begin(), med_radii.end());
+			if (med_radii.size()%2 == 0)
+			{
+				const auto mid = med_radii.size()/2;
+				impl.rd.dataset_ranges.back().med_radius = float(med_radii[mid-1]+med_radii[mid]) / 2.f;
+			}
+			else
+				impl.rd.dataset_ranges.back().med_radius = float(med_radii[med_radii.size()/2]);
 		}
 		impl.dirty = false;
 	}

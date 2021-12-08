@@ -524,7 +524,7 @@ struct range
 	/// start index
 	unsigned i0;
 
-	/// number of samples in the trajectory
+	/// number of samples in the range
 	unsigned n;
 
 	/// median of node radii
