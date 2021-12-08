@@ -3,7 +3,7 @@
 
 #define SHOW_GLYPHS 1
 #define GRID_MODE 1
-#define ENABLE_GRID_SMOOTHING 0
+#define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
 
 //***** begin interface of view.glsl ***********************************
@@ -152,29 +152,54 @@ float sd_triangle_isosceles(in vec2 p, in vec2 q) {
     return -sqrt(d.x)*sign(d.y);
 }
 
-#if ENABLE_GRID_SMOOTHING == 0
-// https://www.shadertoy.com/view/XtBfzz
-float grid_texture(in vec2 p, in float n) {
-    // coordinates
-	vec2 i = step(fract(p + 0.5*n), vec2(n));
-
-    //pattern
-    return 1.0 - (1.0-i.x)*(1.0-i.y);	// grid
-    //return 1.0-i.x*i.y;				// squares
-    //return 1.0-i.x-i.y+2.0*i.x*i.y;	// checker
-}
-#else
-float grid_texture(in vec2 p, in float n) {
-    // coordinates
+float grid_texture_fuzzy(in vec2 p, in float n) {
+	// coordinates
 	vec2 s = fract(p + 0.5*n);
 	vec2 t = clamp(s / n, 0.0, 1.0);
 
 	vec2 i = sin(M_PI*t);
-    return max(i.x, i.y);
+	return max(i.x, i.y);
 }
+
+float grid_texture_aa(in vec2 p, in float n, float aa_strength) {
+	// pre-filter AA preparations
+	const float na = n*0.5, nb = 1.0-n*0.5;
+	const vec2 p_frac = fract(p), w = aa_strength*fwidth(p);
+
+	// coordinates
+	const vec2 i = vec2(1) - smoothstep(na-w, na+w, p_frac) + smoothstep(nb-w, nb+w, p_frac);
+
+	//pattern (from https://www.shadertoy.com/view/XtBfzz)
+	return 1.0 - (1.0-i.s)*(1.0-i.t);	// grid
+	//return 1.0-i.s*i.t;				// squares
+	//return 1.0-i.s-i.t+2.0*i.s*i.t;	// checker
+}
+
+float grid_texture(in vec2 p, in float n) {
+#if ENABLE_FUZZY_GRID == 1
+	return grid_texture_fuzzy(p, n);
+#else
+	return grid_texture_aa(p, n , 1);
 #endif
+}
+
+float aa_texture(in vec2 p, in float n, float aa_strength) {
+	// pre-filter AA preparations
+	const float na = n*0.5, nb = 1.0-n*0.5;
+	const vec2 p_frac = fract(p), w = 2*aa_strength*fwidth(p);
+
+	// coordinates
+	const vec2 i = vec2(1) - smoothstep(na-w, vec2(na), p_frac) + smoothstep(vec2(nb), nb+w, p_frac);
+
+	//pattern (from https://www.shadertoy.com/view/XtBfzz)
+	return 1.0 - (1.0-i.s)*(1.0-i.t);	// grid
+	//return 1.0-i.s*i.t;				// squares
+	//return 1.0-i.s-i.t+2.0*i.s*i.t;	// checker
+}
+
 vec3 grid_normal(in vec2 p, in float n) {
-    // coordinates
+
+	// coordinates
 	vec2 s = fract(p + 0.5*n);
 	vec2 t = clamp(s / n, 0.0, 1.0);
 
@@ -377,14 +402,18 @@ void main()
 #if GRID_MODE & 1
 		color = mix(color, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
 #endif
+
+		frag_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(color, 1.0), 1);
 #if GRID_MODE & 2
 		vec3 gn = compute_grid_normal(uv);
 		vec3 bitangent_eye = cross(normal_eye, tangent_eye);
 		mat3 TBN = mat3(tangent_eye, bitangent_eye, normal_eye);
-		normal_eye = mix(normal_eye, normalize(TBN * gn), normal_mapping_scale);
+		vec3 normal_eye_bump = mix(normal_eye, normalize(TBN * gn), normal_mapping_scale);
+		vec4 frag_color_bump = compute_reflected_appearance(pos_eye, normal_eye_bump, vec4(color, 1.0), 1);
 		//color = 0.5*gn+0.5;
+		float aa_factor = min(aa_texture(grids[0].scaling*uv, grids[0].thickness, 0.5) + aa_texture(grids[1].scaling*uv, grids[1].thickness, 0.5), 1);
+		frag_color = mix(frag_color, frag_color_bump, aa_factor);
 #endif
-		frag_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(color, 1.0), 1);
 
 		if(ambient_occlusion.enable)
 			frag_color.rgb *= compute_ambient_occlusion_factor(pos_eye, normal_eye);

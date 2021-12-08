@@ -67,13 +67,11 @@ tubes::tubes() : application_plugin("tubes_instance")
 	grids[1].blend_factor = 0.333f;
 	grid_color = rgba(0.25f, 0.25f, 0.25f, 0.75f);
 	grid_mode = GM_COLOR_NORMAL;
-
-	grid_color = rgba(0.0, 0.0, 0.0, 1.0);
-	grid_normal_settings = (cgv::type::DummyEnum)0u;
-	grid_normal_inwards = false;
-	grid_normal_variant = false;
+	grid_normal_settings = (cgv::type::DummyEnum)1u;
+	grid_normal_inwards = true;
+	grid_normal_variant = true;
 	normal_mapping_scale = 1.0f;
-	enable_grid_smoothing = true;
+	enable_fuzzy_grid = false;
 
 	show_demo = true;
 
@@ -126,6 +124,10 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("datapath", datapath) &&
 		rh.reflect_member("show_demo", show_demo) &&
 		rh.reflect_member("render_style", render.style) &&
+		rh.reflect_member("grid_mode", grid_mode) &&
+		rh.reflect_member("grid_normal_settings", grid_normal_settings) &&
+		rh.reflect_member("grid_normal_inwards", grid_normal_inwards) &&
+		rh.reflect_member("grid_normal_variant", grid_normal_variant) &&
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy);
@@ -208,6 +210,7 @@ void tubes::on_set(void *member_ptr) {
 			dataset.files.emplace(datapath);
 			render.data = &(traj_mgr.get_render_data());
 			update_attribute_bindings();
+			update_grid_ratios();
 		}
 	}
 	// - non-configurable dataset logic
@@ -230,6 +233,7 @@ void tubes::on_set(void *member_ptr) {
 		if(loaded_something) {
 			render.data = &(traj_mgr.get_render_data());
 			update_attribute_bindings();
+			update_grid_ratios();
 		}
 	}
 
@@ -238,7 +242,7 @@ void tubes::on_set(void *member_ptr) {
 		member_ptr == &grid_normal_settings ||
 		member_ptr == &grid_normal_inwards ||
 		member_ptr == &grid_normal_variant ||
-		member_ptr == &enable_grid_smoothing) {
+		member_ptr == &enable_fuzzy_grid) {
 		shader_define_map defines = build_tube_shading_defines();
 		if(defines != tube_shading_defines) {
 			context& ctx = *get_context();
@@ -334,6 +338,7 @@ bool tubes::init (cgv::render::context &ctx)
 		demo::compile_dataset(demo_trajs)
 	);
 	update_attribute_bindings();
+	update_grid_ratios();
 	
 	// done
 	return success;
@@ -488,7 +493,7 @@ void tubes::create_gui (void)
 	if(begin_tree_node("Grid", grids, false)) {
 		align("\a");
 		add_member_control(this, "Mode", grid_mode, "dropdown", "enums='None, Color, Normal, Color + Normal'");
-		add_member_control(this, "Smooth", enable_grid_smoothing, "check");
+		add_member_control(this, "Fuzzy coloring", enable_fuzzy_grid, "check");
 		add_member_control(this, "Color", grid_color);
 		add_member_control(this, "Normal Type", grid_normal_settings, "dropdown", "enums='0,1,2,3'");
 		add_member_control(this, "Inward", grid_normal_inwards, "check");
@@ -573,6 +578,31 @@ void tubes::set_view(void)
 	view_ptr->set_focus(bbox.get_center());
 	double extent_factor = 0.8;
 	view_ptr->set_y_extent_at_focus(extent_factor * (double)length(bbox.get_extent()));
+}
+
+void tubes::update_grid_ratios(void) {
+	auto& ctx = *get_context();
+
+	if (!render.data->dataset_ranges.empty())
+	{
+		uint64_t num = 0;
+		double sum = 0;
+		for (const auto &ds : render.data->dataset_ranges)
+		{
+			num += ds.n;
+			sum += ds.n * double(ds.med_radius);
+		}
+		double mean_rad = sum / double(num);
+		grids[0].scaling.x() = 1.f / float(mean_rad);
+		grids[0].scaling.y() = grids[0].scaling.x()/4;
+		grids[1].scaling.x() = grids[0].scaling.x()*4;
+		grids[1].scaling.y() = grids[0].scaling.x();
+		for (unsigned i=0; i<2; i++)
+		{
+			update_member(&(grids[i].scaling[0]));
+			update_member(&(grids[i].scaling[1]));
+		}
+	}
 }
 
 void tubes::update_attribute_bindings(void) {
@@ -1033,7 +1063,7 @@ shader_define_map tubes::build_tube_shading_defines() {
 	if(grid_normal_inwards) gs += 4u;
 	if(grid_normal_variant) gs += 8u;
 	shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
-	shader_code::set_define(defines, "ENABLE_GRID_SMOOTHING", enable_grid_smoothing, false);
+	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 	return defines;
 }
 

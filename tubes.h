@@ -165,7 +165,7 @@ protected:
 	bool grid_normal_variant;
 	float normal_mapping_scale;
 	std::vector<grid_parameters> grids;
-	bool enable_grid_smoothing;
+	bool enable_fuzzy_grid;
 
 	enum GlyphType {
 		GT_CIRCLE = 0,
@@ -177,7 +177,7 @@ protected:
 
 	struct attribute_mapping_parameters {
 		GlyphType glyph_type = GT_CIRCLE;
-		bool curvature_correction = false;
+		bool curvature_correction = true;
 		float radius0 = 0.5f;
 		float radius1 = 0.5f;
 		float angle0 = 90.0f;
@@ -317,6 +317,7 @@ protected:
 	ambient_occlusion_style ao_style;
 
 	void set_view(void);
+	void update_grid_ratios(void);
 	void update_attribute_bindings(void);
 	void calculate_bounding_box(void);
 
