@@ -62,7 +62,7 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 
 	// obtain render attributes and dataset topology
 	const auto &rd = mgr.get_render_data();
-	result.reserve(rd.indices.size()/2);
+	result.resize(rd.indices.size()/2);
 
 	// approximate arclength for all datasets
 	for (unsigned ds=0; ds<rd.dataset_ranges.size(); ds++)
@@ -74,10 +74,7 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 
 		// approximate arclength for each trajectory in order
 		//for (const auto &traj : trajs)
-		// ToDo: We can't use OpenMP for now because it's non-trivial to determine how to index into the result array
-	//#ifndef _DEBUG
-	//	#pragma omp parallel for
-	//#endif
+		#pragma omp parallel for
 		for (int traj_idx=0; traj_idx<trajs.size(); traj_idx++)
 		{
 			const auto &traj = trajs[traj_idx];
@@ -134,7 +131,7 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 					           (float)seg.param.t_to_s[3].points[2].y, (float)seg.param.t_to_s[3].points[3].y
 				};
 				// - in-place construct matrix in list
-				result.emplace_back(4, 4, tmp);
+				std::copy_n(tmp, 16, (float*)result[i/2]);
 			}
 		}
 	}
