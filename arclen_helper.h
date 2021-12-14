@@ -17,8 +17,8 @@
 namespace arclen
 {
 	/// Compute arclength approximation for all trajectory segments of all loaded datasets. The result
-	/// is one 4-vector per segment, which encode the 4 control values of a Bezier curve approximating
-	/// the segment arclength. The data is ordered in accordence with the index pairs in the render
+	/// is one 4x4 matrix per segment, which encodes a 4-segment cubic Bezier spline approximating
+	/// the segment arclength. The data is ordered in accordance with the index pairs in the render
 	/// data of the trajectory manager, so the corresponding attribute indices can be found by doubling
 	/// the segment index, and renderers can access the computed approximations using e.g. a storage
 	/// buffer and the current primitive ID.
@@ -26,7 +26,7 @@ namespace arclen
 	std::vector<cgv::render::render_types::mat4> compile_renderdata (const traj_manager<flt_type> &mgr);
 
 	/// Create a GPU-side storage buffer holding the per-segment arclength approximations contained in
-	/// the provided array of vec4's.
+	/// the provided array of mat4's.
 	cgv::render::vertex_buffer upload_renderdata (
 		cgv::render::context &ctx, const std::vector<cgv::render::render_types::mat4> &approximations
 	);
