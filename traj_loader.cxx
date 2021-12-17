@@ -1374,7 +1374,7 @@ struct traj_manager<flt_type>::Impl
 				out->reserve(out->size() + data.size());
 				std::transform(
 					data.begin(), data.end(), std::back_inserter(*out),
-					[&ref] (const Vec3 &src) { return vec3_to_rgb(src); }
+					[] (const Vec3 &src) { return vec3_to_rgb(src); }
 				);
 			}
 			else switch(ref.transform.get_src_type())
@@ -1644,7 +1644,6 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 
 			// Calculate per-trajectory median of node radii as well as dataset median node radius
 			// ToDo: this should really also be weighted by segment length...
-			// ToDo: check if this shouldn't better be in the load method instead
 			// - (1) trajectory median radii
 			std::vector<real> med_radii; med_radii.reserve(dataset.trajectories().size());
 			for (auto &traj : dataset.trajectories())

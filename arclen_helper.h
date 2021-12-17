@@ -34,9 +34,12 @@ namespace arclen
 	/// convencience function for compiling and uploading the arclength approximation render data in one
 	/// go
 	template <class flt_type>
-	cgv::render::vertex_buffer compile_and_upload_renderdata (
+	inline cgv::render::vertex_buffer compile_and_upload_renderdata (
 		cgv::render::context &ctx, const traj_manager<flt_type> &mgr, bool scale_for_median_radius=false)
 	{
 		return std::move(upload_renderdata(ctx, compile_renderdata(mgr), scale_for_median_radius));
 	}
+
+	/// evaluate the given arclength approximation for some curve parameter t
+	float eval (const cgv::render::render_types::mat4 &approx, float t);
 };

@@ -42,14 +42,27 @@ class tubes :
 	public cgv::glutil::application_plugin	// derive from application plugin, which is a node, drawable, gui provider and event handler and can handle overlays
 {
 public:
-	/// real number type
-	//typedef float real;
 
-	// data layout for per-node attributes within the attribute render SSBO
+	/// data layout for per-node attributes within the attribute render SSBO
 	struct node_attribs {
 		vec4 pos_rad;
 		vec4 color;
 		vec4 tangent;
+	};
+
+	/// data layout for an attribute value sampled independently from the geometry nodes
+	template <class T>
+	struct free_attrib
+	{
+		/// default constructor
+		inline free_attrib() {}
+		/// convenience constructor
+		inline free_attrib(float s, const T& value) : s(s), value(value) {}
+
+		/// arclength along trajectory at which the value was sampled
+		float s;
+		/// actual attribute value
+		T value;
 	};
 
 	struct voxel_grid {
@@ -249,6 +262,9 @@ protected:
 	struct {
 		/// set of filepaths for loading
 		std::set<std::string> files;
+
+		/// generated demo dataset
+		std::vector<demo::trajectory> demo_trajs;
 	} dataset;
 
 	// TODO: comment and cleanup members
@@ -273,6 +289,12 @@ protected:
 
 		/// GPU-side render attribute buffer.
 		vertex_buffer render_sbo;
+
+		/// GPU-side storage buffer storing independently sampled attribute data.
+		vertex_buffer attrib_sbo;
+
+		/// GPU-side storage buffer indexing the independently sampled attributes per tube segment.
+		vertex_buffer aindex_sbo;
 
 		/// shared attribute array manager used by both renderers
 		attribute_array_manager aam;
@@ -315,6 +337,8 @@ protected:
 
 	voxel_grid density_volume;
 	ambient_occlusion_style ao_style;
+
+	bool compile_glyph_attribs (void);
 
 	void set_view(void);
 	void update_grid_ratios(void);

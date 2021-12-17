@@ -290,6 +290,59 @@ void tubes::on_set(void *member_ptr) {
 	post_redraw();
 }
 
+bool tubes::compile_glyph_attribs (void)
+{
+	const auto &ctx = *get_context();
+
+	// upload attributes (scalar only for now)
+	struct irange { unsigned i0, n; };
+	// - compile data
+	std::vector<free_attrib<float>> attribs;
+	std::vector<irange> ranges;
+	attribs.reserve(dataset.demo_trajs.size() * dataset.demo_trajs[0].attrib_scalar.size());
+	ranges.reserve(dataset.demo_trajs.size() * dataset.demo_trajs[0].positions.size()-1);
+	unsigned alen_traj_offset = 0;
+	for (const auto &traj : dataset.demo_trajs)
+	{
+		// copy attributes to staging array
+		//std::copy(traj.attrib_scalar.begin(), traj.attrib_scalar.end(), std::back_inserter(attribs));
+
+		// determine index range that falls on each segment
+		const unsigned num_segments = (unsigned)traj.positions.size()-1;
+		const auto *alen = &(render.arclen_data[alen_traj_offset]);
+		for (unsigned i=0; i<(unsigned)traj.attrib_scalar.size(); i++)
+		{
+			const auto &a = traj.attrib_scalar[i];
+			unsigned i1 = (unsigned)a.t; // every segment is exactly dt=1 in our demo data
+			if (i1 > traj.positions.size() - 2)  // pos-1 -> num segments, pos-2 -> last 0-based segment index
+				break; // sample falls behind last recorded position
+			float t_seg = a.t - i1;
+			free_attrib<float> a_seg(arclen::eval(alen[i1], a.t), a.value);
+			attribs.emplace_back(a_seg);
+		}
+		
+
+		// update auxiliary indices
+		alen_traj_offset += num_segments;
+	}
+
+	// - upload
+	// ...attrib nodes
+	render.attrib_sbo.destruct(ctx);
+	cgv::render::vertex_buffer new_sbo(cgv::render::VBT_STORAGE, cgv::render::VBU_STATIC_READ);
+	if (!new_sbo.create(ctx, attribs))
+		std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
+	render.attrib_sbo = std::move(new_sbo); new_sbo.destruct(ctx);
+	// ...index ranges
+	render.aindex_sbo.destruct(ctx);
+	if (!new_sbo.create(ctx, attribs))
+		std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
+	
+
+	// done!
+	return true;
+}
+
 bool tubes::init (cgv::render::context &ctx)
 {
 	// increase reference count of the renderers by one
@@ -330,15 +383,15 @@ bool tubes::init (cgv::render::context &ctx)
 	srd.init(ctx);
 
 	// generate demo data
-	constexpr unsigned seed = 6;
-	std::vector<demo::trajectory> demo_trajs;
+	constexpr unsigned seed = 11;
 	for (unsigned i=0; i<16; i++)
-		demo_trajs.emplace_back(demo::gen_trajectory(16, seed+i));
+		dataset.demo_trajs.emplace_back(demo::gen_trajectory(16, seed+i));
 	traj_mgr.add_dataset(
-		demo::compile_dataset(demo_trajs)
+		demo::compile_dataset(dataset.demo_trajs)
 	);
 	update_attribute_bindings();
 	update_grid_ratios();
+	compile_glyph_attribs();
 	
 	// done
 	return success;

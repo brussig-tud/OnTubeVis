@@ -12,6 +12,9 @@
 #include "arclength/bezier.h"
 #include "arclength/hermite.h"
 
+// internal
+#include "curveutils.h"
+
 // implemented header
 #include "arclen_helper.h"
 
@@ -151,6 +154,15 @@ cgv::render::vertex_buffer upload_renderdata (
 
 	// done
 	return std::move(new_sbo);
+}
+
+float eval (const cgv::render::render_types::mat4 &approx, float t)
+{
+	// determine sub-segment and 
+	const float t4 = t+t+t+t;
+	const unsigned seg = std::max(std::min((signed)t4, 3), 0);
+	const float t_inner = t4 - (float)seg;
+	return evalBezier(approx.col(seg), t_inner);
 }
 
 
