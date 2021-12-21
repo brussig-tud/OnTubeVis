@@ -292,38 +292,95 @@ void tubes::on_set(void *member_ptr) {
 
 bool tubes::compile_glyph_attribs (void)
 {
+	// ToDo: replace with actual timestamps on trajectory position samples
+	struct segment_time {
+		float t0, t1;
+		inline static segment_time get (unsigned segment_index) {
+			return { (float)segment_index, (float)segment_index + 1 }; // in the demo data, one segment is exactly one second
+		}
+	};
+
+	// ToDo: generalize to arbitrary free attributes
+	#define FREE_ATTRIBUTE_SERIES attrib_scalar
+
+	// ToDo: make this adaptive to actual post-mapping glyph diameter
+	#define GLYPH_DIAMETER .5f
+
+	// get context
 	const auto &ctx = *get_context();
 
-	// upload attributes (scalar only for now)
-	struct irange { unsigned i0, n; };
-	// - compile data
-	std::vector<free_attrib<float>> attribs;
-	std::vector<irange> ranges;
-	attribs.reserve(dataset.demo_trajs.size() * dataset.demo_trajs[0].attrib_scalar.size());
-	ranges.reserve(dataset.demo_trajs.size() * dataset.demo_trajs[0].positions.size()-1);
-	unsigned alen_traj_offset = 0;
+	// Compile attribute data for GPU upload
+	// - CPU-side database
+	struct irange { int i0, n; };
+	std::vector<free_attrib<float>> attribs; // buffer of attribute values
+	std::vector<irange> ranges;              // buffer of index ranges per segment (indexes into 'attribs')
+	attribs.reserve(dataset.demo_trajs.size() * dataset.demo_trajs[0].FREE_ATTRIBUTE_SERIES.size());
+	ranges.reserve(dataset.demo_trajs.size() * dataset.demo_trajs[0].FREE_ATTRIBUTE_SERIES.size()-1);
+	// - data staging
+	unsigned traj_offset = 0;
 	for (const auto &traj : dataset.demo_trajs)
 	{
-		// copy attributes to staging array
-		//std::copy(traj.attrib_scalar.begin(), traj.attrib_scalar.end(), std::back_inserter(attribs));
-
-		// determine index range that falls on each segment
+		const auto* alen = &(render.arclen_data[traj_offset]);
 		const unsigned num_segments = (unsigned)traj.positions.size()-1;
-		const auto *alen = &(render.arclen_data[alen_traj_offset]);
-		for (unsigned i=0; i<(unsigned)traj.attrib_scalar.size(); i++)
+		const unsigned attribs_traj_offset = (unsigned)attribs.size();
+
+		// make sure there is exactly one 'range' entry per segment
+		ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
+
+		// - primary loop is through free attributes, segment assignment based on timestamps
+		for (unsigned i=0, seg=0; i<(unsigned)traj.FREE_ATTRIBUTE_SERIES.size() && seg < num_segments; i++)
 		{
-			const auto &a = traj.attrib_scalar[i];
-			unsigned i1 = (unsigned)a.t; // every segment is exactly dt=1 in our demo data
-			if (i1 > traj.positions.size() - 2)  // pos-1 -> num segments, pos-2 -> last 0-based segment index
-				break; // sample falls behind last recorded position
-			float t_seg = a.t - i1;
-			free_attrib<float> a_seg(arclen::eval(alen[i1], a.t), a.value);
-			attribs.emplace_back(a_seg);
+			const auto &a = traj.FREE_ATTRIBUTE_SERIES[i];
+			if (i > 0) // enforce monotonicity
+				assert(a.t >= traj.FREE_ATTRIBUTE_SERIES[i-1].t);
+
+			// advance segment pointer
+			auto segtime = segment_time::get(seg);
+			while (a.t >= segtime.t1)
+			{
+				if (seg >= num_segments)
+					break;
+				segtime = segment_time::get(++seg);
+			}
+			const unsigned global_seg = traj_offset + seg;
+
+			// commit the attribute if it falls into the current segment
+			if (a.t >= segtime.t0 && a.t < segtime.t1)
+			{
+				// compute segment-relative t and arclength
+				const float t_seg = (a.t-segtime.t0) / segtime.t1,
+				            s = arclen::eval(alen[global_seg], t_seg);
+
+				// only include samples that are far enough away from last sample to not cause overlapping glyphs
+				/*const bool cond1 = attribs.size() == attribs_traj_offset,
+				           cond2 = attribs.size() > 0 && s >= attribs.back().s + GLYPH_DIAMETER;*/
+				if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+GLYPH_DIAMETER)
+				{
+					auto &cur_range = ranges[global_seg];
+
+					if (cur_range.n < 1)
+					{
+						// first free attribute that falls into this segment
+						cur_range.i0 = (unsigned)attribs.size();
+						cur_range.n = 1;
+					}
+					else
+						// one more free attribute that falls into this segment
+						cur_range.n++;
+					attribs.emplace_back(free_attrib<float>{s, a.value});
+				}
+			}
+			else if (seg > (unsigned)traj.positions.size() - 2)
+				// we went beyond the last segment
+				break;
+			else
+				//
+				/* continue() */;
 		}
 		
 
 		// update auxiliary indices
-		alen_traj_offset += num_segments;
+		traj_offset += num_segments;
 	}
 
 	// - upload
