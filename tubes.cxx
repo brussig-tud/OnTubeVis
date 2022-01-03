@@ -338,7 +338,7 @@ bool tubes::compile_glyph_attribs (void)
 			auto segtime = segment_time::get(seg);
 			while (a.t >= segtime.t1)
 			{
-				if (seg >= num_segments)
+				if (seg >= num_segments-1)
 					break;
 				segtime = segment_time::get(++seg);
 			}
@@ -351,7 +351,7 @@ bool tubes::compile_glyph_attribs (void)
 				const float t_seg = (a.t-segtime.t0) / segtime.t1,
 				            s = arclen::eval(alen[global_seg], t_seg);
 
-				// only include samples that are far enough away from last sample to not cause overlapping glyphs
+				// only include samples that are far enough away from last sample to not cause (too much) overlap
 				/*const bool cond1 = attribs.size() == attribs_traj_offset,
 				           cond2 = attribs.size() > 0 && s >= attribs.back().s + GLYPH_DIAMETER;*/
 				if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+GLYPH_DIAMETER)
@@ -382,7 +382,9 @@ bool tubes::compile_glyph_attribs (void)
 		// update auxiliary indices
 		traj_offset += num_segments;
 	}
-
+	// - sanity check
+	{ const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size())/2;
+	  assert(num_ranges == num_segs); }
 	// - upload
 	// ...attrib nodes
 	render.attrib_sbo.destruct(ctx);
