@@ -304,7 +304,7 @@ bool tubes::compile_glyph_attribs (void)
 	#define FREE_ATTRIBUTE_SERIES attrib_scalar
 
 	// ToDo: make this adaptive to actual post-mapping glyph diameter
-	#define GLYPH_DIAMETER .5f
+	#define GLYPH_DIAMETER .0625f
 
 	// get context
 	const auto &ctx = *get_context();
@@ -320,7 +320,7 @@ bool tubes::compile_glyph_attribs (void)
 	unsigned traj_offset = 0;
 	for (const auto &traj : dataset.demo_trajs)
 	{
-		const auto* alen = &(render.arclen_data[traj_offset]);
+		const auto *alen = render.arclen_data.data();
 		const unsigned num_segments = (unsigned)traj.positions.size()-1;
 		const unsigned attribs_traj_offset = (unsigned)attribs.size();
 
@@ -328,7 +328,7 @@ bool tubes::compile_glyph_attribs (void)
 		ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
 
 		// - primary loop is through free attributes, segment assignment based on timestamps
-		for (unsigned i=0, seg=0; i<(unsigned)traj.FREE_ATTRIBUTE_SERIES.size() && seg < num_segments; i++)
+		for (unsigned i=0, seg=0; i<(unsigned)traj.FREE_ATTRIBUTE_SERIES.size() && seg<num_segments; i++)
 		{
 			const auto &a = traj.FREE_ATTRIBUTE_SERIES[i];
 			if (i > 0) // enforce monotonicity
@@ -348,16 +348,13 @@ bool tubes::compile_glyph_attribs (void)
 			if (a.t >= segtime.t0 && a.t < segtime.t1)
 			{
 				// compute segment-relative t and arclength
-				const float t_seg = (a.t-segtime.t0) / segtime.t1,
+				const float t_seg = (a.t-segtime.t0) / (segtime.t1-segtime.t0),
 				            s = arclen::eval(alen[global_seg], t_seg);
 
 				// only include samples that are far enough away from last sample to not cause (too much) overlap
-				/*const bool cond1 = attribs.size() == attribs_traj_offset,
-				           cond2 = attribs.size() > 0 && s >= attribs.back().s + GLYPH_DIAMETER;*/
 				if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+GLYPH_DIAMETER)
 				{
 					auto &cur_range = ranges[global_seg];
-
 					if (cur_range.n < 1)
 					{
 						// first free attribute that falls into this segment
@@ -373,11 +370,7 @@ bool tubes::compile_glyph_attribs (void)
 			else if (seg > (unsigned)traj.positions.size() - 2)
 				// we went beyond the last segment
 				break;
-			else
-				//
-				/* continue() */;
 		}
-		
 
 		// update auxiliary indices
 		traj_offset += num_segments;
@@ -388,15 +381,44 @@ bool tubes::compile_glyph_attribs (void)
 	// - upload
 	// ...attrib nodes
 	render.attrib_sbo.destruct(ctx);
-	cgv::render::vertex_buffer new_sbo(cgv::render::VBT_STORAGE, cgv::render::VBU_STATIC_READ);
-	if (!new_sbo.create(ctx, attribs))
+	if (!render.attrib_sbo.create(ctx, attribs))
 		std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
-	render.attrib_sbo = std::move(new_sbo); new_sbo.destruct(ctx);
 	// ...index ranges
 	render.aindex_sbo.destruct(ctx);
-	if (!new_sbo.create(ctx, attribs))
-		std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
-	
+	if (!render.aindex_sbo.create(ctx, ranges))
+		std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
+
+	// ToDo: REMOVE
+	// test nearest attribute binary search
+	for (unsigned seg=0; seg<ranges.size(); seg++) for (float t=0; t<=1; t+=1.f/16)
+	{
+		if (ranges[seg].n < 1)
+			continue;
+		const float s = arclen::eval(render.arclen_data[seg], t);
+		const auto &rng_orig = ranges[seg];
+		      auto  rng = rng_orig;
+		while (rng.n > 1)
+		{
+			const int mid_n = rng.n/2, mid = rng.i0+mid_n;
+			const auto &attrib_mid = attribs[mid];
+			if (attrib_mid.s > s)
+				// left node
+				rng.n = mid_n;
+			else
+			{
+				// right node
+				rng.i0 = rng.i0 + mid_n;
+				rng.n  = rng.n  - mid_n;
+			}
+		}
+		const int gidn = rng.i0 < rng_orig.i0+rng_orig.n-1 ? rng.i0+1 : rng.i0;
+		const float distc = std::abs(attribs[rng.i0].s-s), distn = std::abs(attribs[gidn].s-s);
+		const bool c_is_closer = distc <= distn;
+		//const float dist = c_is_closer ? distc : distn;
+		const int gid = c_is_closer ? rng.i0 : gidn;
+		assert(gid >= rng_orig.i0 && gid < rng_orig.i0+rng_orig.n); // sanity check
+		//std::cout << "seg"<<seg<<", t="<<t<<" -> attrib "<<gid<<" (dist="<<dist<<")" << std::endl;
+	}
 
 	// done!
 	return true;
