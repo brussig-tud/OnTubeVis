@@ -192,7 +192,7 @@ protected:
 		GlyphType glyph_type = GT_CIRCLE;
 		bool curvature_correction = true;
 		float radius0 = 2/3.f;
-		float radius1 = 2/4.f;
+		float radius1 = 1/4.f;
 		float angle0 = 215.0f;
 		float angle1 = 100.0f;
 		float length_scale = 1.0;
