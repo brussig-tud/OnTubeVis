@@ -221,6 +221,10 @@ struct demo : public traj_format_handler<float>
 		float mean, float sigma, float t0, float tn, float dt_mean, float dt_var, std::mt19937 &generator
 	)
 	{
+		// using a different phase for the non-periodic sine-based function has the effect of "seeding" it - by
+		// chosing it from a sizable portion of the float value range we get something quite random-looking
+		const float phase = (uni_0to1(generator) - 0.5f) * 1048576*pi;
+
 		// first sample
 		std::vector<trajectory::attrib_value<T>> result;
 		float t = t0;
@@ -230,7 +234,7 @@ struct demo : public traj_format_handler<float>
 		// remaining samples
 		for (unsigned s=0; t<=tn; s++)
 		{
-			const float dt_raw = noise((float)s, 0, dt_mean, dt_var, 0.5f);
+			const float dt_raw = noise((float)s, phase, dt_mean, dt_var, 0.5f);
 			const float dt = std::max(
 				dt_raw,
 				std::max(	// <-- make sure we actually advance t everytime
@@ -287,10 +291,10 @@ struct demo : public traj_format_handler<float>
 
 		// generic, independently sampled attributes
 		const float tn = (float)num_samples + 1;
-		traj.attrib_scalar = gen_attribute<float>(1, 2.5f, 0, tn, 1/3.f, 1/6.f, generator);
-		traj.attrib_vec2 = gen_attribute<Vec2>(1, 0.33333f, 0, tn, 1/3.f, 1/6.f, generator);
-		traj.attrib_vec3 = gen_attribute<Vec3>(1, 0.33333f, 0, tn, 1/3.f, 1/6.f, generator);
-		traj.attrib_vec4 = gen_attribute<Vec4>(1, 0.33333f, 0, tn, 1/3.f, 1/6.f, generator);
+		traj.attrib_scalar = gen_attribute<float>(1, 2.5f, 0, tn, 1/6.f, 1/16.f, generator);
+		traj.attrib_vec2 = gen_attribute<Vec2>(1, 0.33333f, 0, tn, 1/6.f, 1/16.f, generator);
+		traj.attrib_vec3 = gen_attribute<Vec3>(1, 0.33333f, 0, tn, 1/6.f, 1/16.f, generator);
+		traj.attrib_vec4 = gen_attribute<Vec4>(1, 0.33333f, 0, tn, 1/6.f, 1/16.f, generator);
 
 		// Done!
 		return std::move(traj);
