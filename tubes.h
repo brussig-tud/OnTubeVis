@@ -191,10 +191,10 @@ protected:
 	struct attribute_mapping_parameters {
 		GlyphType glyph_type = GT_CIRCLE;
 		bool curvature_correction = true;
-		float radius0 = 0.5f;
-		float radius1 = 0.5f;
-		float angle0 = 90.0f;
-		float angle1 = 90.0f;
+		float radius0 = 2/3.f;
+		float radius1 = 2/4.f;
+		float angle0 = 215.0f;
+		float angle1 = 100.0f;
 		float length_scale = 1.0;
 	} am_parameters;
 
