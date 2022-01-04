@@ -305,10 +305,11 @@ bool tubes::compile_glyph_attribs (void)
 	#define FREE_ATTRIBUTE_SERIES attrib_scalar
 
 	// ToDo: decide if this should even be considered here (or rather in the shader instead)
-	const float glyphdiam = std::min(
+	const float glyphrad = std::min(
 		am_parameters.radius0 + am_parameters.radius1,
 		1.25f*am_parameters.radius0
-	);
+	) / am_parameters.length_scale,
+	glyphdiam = glyphrad+glyphrad;
 
 	// get context
 	const auto &ctx = *get_context();
@@ -345,6 +346,16 @@ bool tubes::compile_glyph_attribs (void)
 				if (seg >= num_segments-1)
 					break;
 				segtime = segment_time::get(++seg);
+				// handle overlap from previous segment
+				const unsigned global_seg = traj_offset + seg;
+				if (ranges[global_seg-1].n > 0)
+				{
+					if (alen[global_seg][0] < attribs.back().s+glyphrad)
+					{
+						ranges[global_seg].i0 = (int)attribs.size()-1;
+						ranges[global_seg].n = 1;
+					}
+				}
 			}
 			const unsigned global_seg = traj_offset + seg;
 
@@ -364,6 +375,9 @@ bool tubes::compile_glyph_attribs (void)
 						// first free attribute that falls into this segment
 						cur_range.i0 = (unsigned)attribs.size();
 						cur_range.n = 1;
+						// handle overlap to previous segment
+						if (seg > 0 && alen[global_seg-1][15] > s-glyphrad)
+							ranges[global_seg-1].n++;
 					}
 					else
 						// one more free attribute that falls into this segment
