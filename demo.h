@@ -287,10 +287,10 @@ struct demo : public traj_format_handler<float>
 
 		// generic, independently sampled attributes
 		const float tn = (float)num_samples + 1;
-		traj.attrib_scalar = gen_attribute<float>(1, 2.5f, 0, tn, 1/3.f, 1/9.f, generator);
-		traj.attrib_vec2 = gen_attribute<Vec2>(1, 0.33333f, 0, tn, 1/3.f, 1/9.f, generator);
-		traj.attrib_vec3 = gen_attribute<Vec3>(1, 0.33333f, 0, tn, 1/3.f, 1/9.f, generator);
-		traj.attrib_vec4 = gen_attribute<Vec4>(1, 0.33333f, 0, tn, 1/3.f, 1/9.f, generator);
+		traj.attrib_scalar = gen_attribute<float>(1, 2.5f, 0, tn, 1/3.f, 1/6.f, generator);
+		traj.attrib_vec2 = gen_attribute<Vec2>(1, 0.33333f, 0, tn, 1/3.f, 1/6.f, generator);
+		traj.attrib_vec3 = gen_attribute<Vec3>(1, 0.33333f, 0, tn, 1/3.f, 1/6.f, generator);
+		traj.attrib_vec4 = gen_attribute<Vec4>(1, 0.33333f, 0, tn, 1/3.f, 1/6.f, generator);
 
 		// Done!
 		return std::move(traj);
