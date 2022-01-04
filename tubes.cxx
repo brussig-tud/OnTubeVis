@@ -52,6 +52,7 @@ tubes::tubes() : application_plugin("tubes_instance")
 	fbc.add_attachment("position", "flt32[R,G,B]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
+	fbc.add_attachment("info", "uint32[R,G,B,A]");
 
 	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
 	tf_editor_ptr->set_visibility(false);
@@ -303,8 +304,11 @@ bool tubes::compile_glyph_attribs (void)
 	// ToDo: generalize to arbitrary free attributes
 	#define FREE_ATTRIBUTE_SERIES attrib_scalar
 
-	// ToDo: make this adaptive to actual post-mapping glyph diameter
-	#define GLYPH_DIAMETER .0625f
+	// ToDo: decide if this should even be considered here (or rather in the shader instead)
+	const float glyphdiam = std::min(
+		am_parameters.radius0 + am_parameters.radius1,
+		1.25f*am_parameters.radius0
+	);
 
 	// get context
 	const auto &ctx = *get_context();
@@ -352,7 +356,7 @@ bool tubes::compile_glyph_attribs (void)
 				            s = arclen::eval(alen[global_seg], t_seg);
 
 				// only include samples that are far enough away from last sample to not cause (too much) overlap
-				if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+GLYPH_DIAMETER)
+				if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+glyphdiam)
 				{
 					auto &cur_range = ranges[global_seg];
 					if (cur_range.n < 1)
@@ -380,8 +384,8 @@ bool tubes::compile_glyph_attribs (void)
 	  assert(num_ranges == num_segs); }
 	// - upload
 	// ...attrib nodes
-	render.attrib_sbo.destruct(ctx);
-	if (!render.attrib_sbo.create(ctx, attribs))
+	render.attribs_sbo.destruct(ctx);
+	if (!render.attribs_sbo.create(ctx, attribs))
 		std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
 	// ...index ranges
 	render.aindex_sbo.destruct(ctx);
@@ -389,8 +393,8 @@ bool tubes::compile_glyph_attribs (void)
 		std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
 
 	// ToDo: REMOVE
-	// test nearest attribute binary search
-	for (unsigned seg=0; seg<ranges.size(); seg++) for (float t=0; t<=1; t+=1.f/16)
+	/*// test nearest attribute binary search
+	for (unsigned seg = 0; seg<ranges.size(); seg++) for (float t = 0; t <= 1; t += 1.f / 16)
 	{
 		if (ranges[seg].n < 1)
 			continue;
@@ -418,7 +422,7 @@ bool tubes::compile_glyph_attribs (void)
 		const int gid = c_is_closer ? rng.i0 : gidn;
 		assert(gid >= rng_orig.i0 && gid < rng_orig.i0+rng_orig.n); // sanity check
 		//std::cout << "seg"<<seg<<", t="<<t<<" -> attrib "<<gid<<" (dist="<<dist<<")" << std::endl;
-	}
+	}*/
 
 	// done!
 	return true;
@@ -727,7 +731,8 @@ void tubes::update_grid_ratios(void) {
 			sum += ds.n * double(ds.med_radius);
 		}
 		double mean_rad = sum / double(num);
-		grids[0].scaling.x() = 1.f / float(mean_rad);
+		// we base everything on the mean of all trajectory median radii
+		grids[0].scaling.x() = am_parameters.length_scale = 1.f / float(mean_rad);
 		grids[0].scaling.y() = grids[0].scaling.x()/4;
 		grids[1].scaling.x() = grids[0].scaling.x()*4;
 		grids[1].scaling.y() = grids[0].scaling.x();
@@ -735,6 +740,7 @@ void tubes::update_grid_ratios(void) {
 		{
 			update_member(&(grids[i].scaling[0]));
 			update_member(&(grids[i].scaling[1]));
+			update_member(&am_parameters.length_scale);
 		}
 	}
 }
@@ -1020,20 +1026,12 @@ void tubes::draw_trajectories(context& ctx) {
 	
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 
-	// Prepare SSBO handles
-	// - node attributes
-	int data_handle = 0;
-	if(render.render_sbo.handle)
-		data_handle = (const int&)render.render_sbo.handle - 1;
-	if(!data_handle)
-		return;
-
-	// - segment arclength approximations
-	int arclen_handle = 0;
-	if(render.arclen_sbo.handle)
-		arclen_handle = (const int&)render.arclen_sbo.handle - 1;
-	if(!arclen_handle)
-		return;
+	// prepare SSBO handles
+	const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle-1 : 0,
+	          arclen_handle = render.arclen_sbo.handle ? (const int&)render.arclen_sbo.handle-1 : 0,
+	          attribs_handle = render.attribs_sbo.handle ? (const int&)render.attribs_sbo.handle-1 : 0,
+	          aindex_handle = render.aindex_sbo.handle ? (const int&)render.aindex_sbo.handle-1 : 0;
+	if (!data_handle || !arclen_handle /*|| !attribs_handle || !aindex_handle*/) return;
 
 	// sort the sgment indices
 	int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
@@ -1111,15 +1109,21 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.enable_attachment(ctx, "position", 1);
 	fbc.enable_attachment(ctx, "normal", 2);
 	fbc.enable_attachment(ctx, "tangent", 3);
-	fbc.enable_attachment(ctx, "depth", 4);
-	density_tex.enable(ctx, 5);
+	fbc.enable_attachment(ctx, "info", 4);
+	fbc.enable_attachment(ctx, "depth", 5);
+	density_tex.enable(ctx, 6);
 
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, attribs_handle);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, aindex_handle);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0); 
 
 	fbc.disable_attachment(ctx, "albedo");
 	fbc.disable_attachment(ctx, "position");
 	fbc.disable_attachment(ctx, "normal");
 	fbc.disable_attachment(ctx, "tangent");
+	fbc.disable_attachment(ctx, "info");
 	fbc.disable_attachment(ctx, "depth");
 	density_tex.disable(ctx);
 

@@ -24,8 +24,9 @@ layout (binding = 0) uniform sampler2D albedo_tex;
 layout (binding = 1) uniform sampler2D position_tex;
 layout (binding = 2) uniform sampler2D normal_tex;
 layout (binding = 3) uniform sampler2D tangent_tex;
-layout (binding = 4) uniform sampler2D depth_tex;
-layout (binding = 5) uniform sampler3D density_tex;
+layout (binding = 4) uniform sampler2D info_tex;
+layout (binding = 5) uniform sampler2D depth_tex;
+layout (binding = 6) uniform sampler3D density_tex;
 
 // basic rendering parameters
 //uniform vec3 background_color;
@@ -67,9 +68,58 @@ uniform struct {
 	float length_scale;
 } attribute_mapping;
 
+// free attributes ssbo
+struct free_attrib {
+	float s, val;
+};
+layout (std430, binding=0) readonly buffer attribs_buffer { 
+	free_attrib attribs[];
+};
+
+// free attributes per-segment index ranges
+struct irange {
+	int i0, n;
+};
+layout (std430, binding=1) readonly buffer ranges_buffer { 
+	irange ranges[];
+};
+
 in vec2 texcoord_fs;
 
 out vec4 frag_color;
+
+struct closest_glyph_info
+{
+	int prev, next;
+	float dp, dn;
+};
+bool get_closest_samples (out closest_glyph_info closest, in irange segment, in float s)
+{
+	if (segment.n > 0)
+	{
+		// perform binary search
+		irange rng = segment;
+		while (rng.n > 1)
+		{
+			const int mid_n = rng.n/2, mid = rng.i0+mid_n;
+			if (attribs[mid].s > s)
+				// left node
+				rng.n = mid_n;
+			else
+			{
+				// right node
+				rng.i0 = rng.i0 + mid_n;
+				rng.n  = rng.n  - mid_n;
+			}
+		}
+		closest.prev = rng.i0;
+		closest.next = rng.i0 < segment.i0+segment.n-1 ? rng.i0+1 : rng.i0;
+		closest.dp = s-attribs[rng.i0].s;
+		closest.dn = attribs[closest.next].s-s;
+		return true;
+	}
+	return false;
+}
 
 float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
 	vec3 pos = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
@@ -334,8 +384,6 @@ void main()
 		//uv = 2.0 * uv - 1.0;
 		uv.t = 2.0 * uv.t - 1.0;
 
-		uv.s *= attribute_mapping.length_scale;
-
 		// Correct the perspective shift caused by the curved tube surface by rescaling the v coordinate around the tube.
 		if(attribute_mapping.curvature_correction)
 			uv.t = sin(0.5*M_PI*uv.t);
@@ -346,21 +394,30 @@ void main()
 		
 #if SHOW_GLYPHS == 1
 		float sd = 1e20;
+		closest_glyph_info closest;
+		if (get_closest_samples(closest, ranges[segment_id], uv.s))
+		{
+			//color = closest.dp < 0.03125 || closest.dn < 0.03125 ? vec3(1,0,0) : color;
+			vec2 glyphuv = vec2(
+				  (closest.dp <= closest.dn ? closest.dp : -closest.dn)
+				* attribute_mapping.length_scale, // <-- ToDo: replace with automatic uv re-projection method
+				uv.t
+			);
 		switch(attribute_mapping.glyph_type) {
 		case 0:
 			// circle with radius
-			sd = sd_circle(uv, attribute_mapping.radius0);
+			sd = sd_circle(glyphuv, attribute_mapping.radius0);
 			break;
 		case 1:
 			// rectangle (ring) with (width, length)
-			sd = sd_rect(uv, vec2(attribute_mapping.radius0, attribute_mapping.radius1));
+			sd = sd_rect(glyphuv, vec2(attribute_mapping.radius0, attribute_mapping.radius1));
 			break;
 		case 2:
 		{
 			// pie (circle wedge) with aperture angle and radius
 			float aperture_angle = radians(attribute_mapping.angle0);
 			sd = sd_pie(
-				uv,
+				glyphuv,
 				vec2(sin(aperture_angle), cos(aperture_angle)),
 				attribute_mapping.radius0
 			);
@@ -372,7 +429,7 @@ void main()
 			float orientation_angle = radians(attribute_mapping.angle1);
 			float aperture_angle = radians(attribute_mapping.angle0);
 			sd = sd_arc(
-				uv,
+				glyphuv,
 				vec2(sin(orientation_angle), cos(orientation_angle)),
 				vec2(sin(aperture_angle), cos(aperture_angle)),
 				attribute_mapping.radius0,
@@ -389,9 +446,10 @@ void main()
 			float ac = cos(angle);
 			mat2 rot = mat2(ac, as, -as, ac);
 
-			sd = sd_triangle_isosceles(rot * uv - vec2(0.0, attribute_mapping.radius1), vec2(attribute_mapping.radius0, -2.0 * attribute_mapping.radius1));
+			sd = sd_triangle_isosceles(rot * glyphuv - vec2(0.0, attribute_mapping.radius1), vec2(attribute_mapping.radius0, -2.0 * attribute_mapping.radius1));
 		}
 			break;
+		}
 		}
 
 		if(sd <= 0.0)

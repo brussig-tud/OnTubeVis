@@ -291,7 +291,7 @@ protected:
 		vertex_buffer render_sbo;
 
 		/// GPU-side storage buffer storing independently sampled attribute data.
-		vertex_buffer attrib_sbo;
+		vertex_buffer attribs_sbo;
 
 		/// GPU-side storage buffer indexing the independently sampled attributes per tube segment.
 		vertex_buffer aindex_sbo;
