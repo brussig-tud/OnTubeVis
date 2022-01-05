@@ -393,68 +393,70 @@ void main()
 		//frag_color = vec4(10*length(dFdx(uv)), 10*length(dFdy(uv)), 0.0, 1.0);
 		
 #if SHOW_GLYPHS == 1
-		float sd = 1e20;
 		closest_glyph_info closest;
 		if (get_closest_samples(closest, ranges[segment_id], uv.s))
 		{
-			//color = closest.dp < 0.03125 || closest.dn < 0.03125 ? vec3(1,0,0) : color;
 			vec2 glyphuv = vec2(
 				  (closest.dp <= closest.dn ? closest.dp : -closest.dn)
 				* attribute_mapping.length_scale, // <-- ToDo: replace with automatic uv re-projection method
 				uv.t
 			);
-		switch(attribute_mapping.glyph_type) {
-		case 0:
-			// circle with radius
-			sd = sd_circle(glyphuv, attribute_mapping.radius0);
-			break;
-		case 1:
-			// rectangle (ring) with (width, length)
-			sd = sd_rect(glyphuv, vec2(attribute_mapping.radius0, attribute_mapping.radius1));
-			break;
-		case 2:
-		{
-			// pie (circle wedge) with aperture angle and radius
-			float aperture_angle = radians(attribute_mapping.angle0);
-			sd = sd_pie(
-				glyphuv,
-				vec2(sin(aperture_angle), cos(aperture_angle)),
-				attribute_mapping.radius0
-			);
-		}
-			break;
-		case 3:
-		{
-			// arc (donut wedge) with orientation, aperture angle and two radii
-			float orientation_angle = radians(attribute_mapping.angle1);
-			float aperture_angle = radians(attribute_mapping.angle0);
-			sd = sd_arc(
-				glyphuv,
-				vec2(sin(orientation_angle), cos(orientation_angle)),
-				vec2(sin(aperture_angle), cos(aperture_angle)),
-				attribute_mapping.radius0,
-				attribute_mapping.radius1
-			);
-		}
-			break;
-		case 4:
-		{
-			// isosceles triangle (arrow tip) with base width and height
-			// compute a rotation matrix to rotate the uv coordinates
-			float angle = radians(attribute_mapping.angle0 + 90.0); // add 90 degree to make triangle point in direction of segment per default
-			float as = sin(angle);
-			float ac = cos(angle);
-			mat2 rot = mat2(ac, as, -as, ac);
+			float sd=1e20, aa_strength=1;
+			switch(attribute_mapping.glyph_type) {
+				case 0:
+					// circle with radius
+					sd = sd_circle(glyphuv, attribute_mapping.radius0);
+					break;
 
-			sd = sd_triangle_isosceles(rot * glyphuv - vec2(0.0, attribute_mapping.radius1), vec2(attribute_mapping.radius0, -2.0 * attribute_mapping.radius1));
-		}
-			break;
-		}
-		}
+				case 1:
+					// rectangle (ring) with (width, length)
+					sd = sd_rect(glyphuv, vec2(attribute_mapping.radius0, attribute_mapping.radius1));
+					break;
 
-		if(sd <= 0.0)
-			color = vec3(1.0, 0.0, 0.0);
-			//color = 1.0 - color;
+				case 2:
+				{
+					// pie (circle wedge) with aperture angle and radius
+					float aperture_angle = radians(attribute_mapping.angle0);
+					sd = sd_pie(
+						glyphuv,
+						vec2(sin(aperture_angle), cos(aperture_angle)),
+						attribute_mapping.radius0
+					);
+					break;
+				}
+
+				case 3:
+				{
+					// arc (donut wedge) with orientation, aperture angle and two radii
+					float orientation_angle = radians(attribute_mapping.angle1);
+					float aperture_angle = radians(attribute_mapping.angle0);
+					sd = sd_arc(
+						glyphuv,
+						vec2(sin(orientation_angle), cos(orientation_angle)),
+						vec2(sin(aperture_angle), cos(aperture_angle)),
+						attribute_mapping.radius0,
+						attribute_mapping.radius1
+					);
+					aa_strength = 0.75; // above SDF causes artifacts with AA which can be mitigated by reducing AA strength
+					break;
+				}
+
+				case 4:
+				{
+					// isosceles triangle (arrow tip) with base width and height
+					// compute a rotation matrix to rotate the uv coordinates
+					float angle = radians(attribute_mapping.angle0 + 90.0); // add 90 degree to make triangle point in direction of segment per default
+					float as = sin(angle);
+					float ac = cos(angle);
+					mat2 rot = mat2(ac, as, -as, ac);
+					sd = sd_triangle_isosceles(rot * glyphuv - vec2(0.0, attribute_mapping.radius1), vec2(attribute_mapping.radius0, -2.0 * attribute_mapping.radius1));
+					break;
+				}
+			}
+			// pre-filter the SDF for AA
+			const float w = aa_strength*fwidth(sd)/2;
+			color = mix(vec3(1.0, 0.0, 0.0), color, smoothstep(-w, w, sd));
+		}
 #endif
 
 #if GRID_MODE & 1
