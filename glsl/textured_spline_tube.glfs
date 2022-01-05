@@ -528,13 +528,13 @@ Hit EvalSplineISect(vec3 dir, vec3 s, vec3 h, vec3 t, float rs, float rh, float 
 			// mitigate inter-segment artifacts
 			if (hit.l < 0.00001)
 			{
-				hit.l = 0;
-				hit.t = qSplineIDistEval(0, curveX, polyB_C);
+				hit.l = 0.000001;
+				hit.t = qSplineIDistEval(hit.l, curveX, polyB_C);
 			}
 			else if (hit.l > 0.99999)
 			{
-				hit.l = 1;
-				hit.t = qSplineIDistEval(1, curveX, polyB_C);
+				hit.l = 0.999999;
+				hit.t = qSplineIDistEval(hit.l, curveX, polyB_C);
 			}
 
 			// get the position on the spline at l
