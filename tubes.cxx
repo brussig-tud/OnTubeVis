@@ -293,6 +293,9 @@ void tubes::on_set(void *member_ptr) {
 
 bool tubes::compile_glyph_attribs (void)
 {
+	// an instance of the struct for copying default values into new glyphs
+	const static attribute_mapping_parameters glyph_defaults;
+
 	// ToDo: replace with actual timestamps on trajectory position samples
 	struct segment_time {
 		float t0, t1;
@@ -304,20 +307,13 @@ bool tubes::compile_glyph_attribs (void)
 	// ToDo: generalize to arbitrary free attributes
 	#define FREE_ATTRIBUTE_SERIES attrib_scalar
 
-	// ToDo: decide if this should even be considered here (or rather in the shader instead)
-	const float glyphrad = std::min(
-		am_parameters.radius0 + am_parameters.radius1,
-		1.25f*am_parameters.radius0
-	) / am_parameters.length_scale,
-	glyphdiam = glyphrad+glyphrad;
-
 	// get context
 	const auto &ctx = *get_context();
 
 	// Compile attribute data for GPU upload
 	// - CPU-side database
 	struct irange { int i0, n; };
-	std::vector<free_attrib<float>> attribs; // buffer of attribute values
+	std::vector<glyph_attribs> attribs; // buffer of attribute values
 	std::vector<irange> ranges;              // buffer of index ranges per segment (indexes into 'attribs')
 	attribs.reserve(dataset.demo_trajs.size() * dataset.demo_trajs[0].FREE_ATTRIBUTE_SERIES.size());
 	ranges.reserve(dataset.demo_trajs.size() * dataset.demo_trajs[0].FREE_ATTRIBUTE_SERIES.size()-1);
@@ -350,7 +346,8 @@ bool tubes::compile_glyph_attribs (void)
 				const unsigned global_seg = traj_offset + seg;
 				if (ranges[global_seg-1].n > 0)
 				{
-					if (alen[global_seg][0] < attribs.back().s+glyphrad)
+					const float prev_rad = glyph_attribs::calc_radius(attribs.back(), am_parameters.length_scale).rad;
+					if (alen[global_seg][0] < attribs.back().s+prev_rad)
 					{
 						ranges[global_seg].i0 = (int)attribs.size()-1;
 						ranges[global_seg].n = 1;
@@ -366,8 +363,19 @@ bool tubes::compile_glyph_attribs (void)
 				const float t_seg = (a.t-segtime.t0) / (segtime.t1-segtime.t0),
 				            s = arclen::eval(alen[global_seg], t_seg);
 
+				// setup potential glyph
+				glyph_attribs new_glyph;
+				new_glyph.s = s;
+				new_glyph.radius0 = std::max(std::min(std::abs(a.value), 0.8f), 0.125f);
+				new_glyph.radius1 = new_glyph.radius0 / 3;
+				new_glyph.angle0 = glyph_defaults.angle0;
+				new_glyph.angle1 = glyph_defaults.angle1;
+
+				// infer potential glyph extents
+				auto ext = glyph_attribs::calc_radius(new_glyph, am_parameters.length_scale);
+
 				// only include samples that are far enough away from last sample to not cause (too much) overlap
-				if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+glyphdiam)
+				if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+ext.diam)
 				{
 					auto &cur_range = ranges[global_seg];
 					if (cur_range.n < 1)
@@ -376,13 +384,13 @@ bool tubes::compile_glyph_attribs (void)
 						cur_range.i0 = (unsigned)attribs.size();
 						cur_range.n = 1;
 						// handle overlap to previous segment
-						if (seg > 0 && alen[global_seg-1][15] > s-glyphrad)
+						if (seg > 0 && alen[global_seg-1][15] > s-ext.rad)
 							ranges[global_seg-1].n++;
 					}
 					else
 						// one more free attribute that falls into this segment
 						cur_range.n++;
-					attribs.emplace_back(free_attrib<float>{s, a.value});
+					attribs.emplace_back(std::move(new_glyph));
 				}
 			}
 			else if (seg > (unsigned)traj.positions.size() - 2)

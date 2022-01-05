@@ -65,6 +65,27 @@ public:
 		T value;
 	};
 
+	/// data layout for glyph visual attribute values
+	struct glyph_attribs
+	{
+		/// arclength along trajectory at which the glyph should be placed
+		float s;
+		/// radius properties
+		float radius0, radius1;
+		// angle properties
+		float angle0, angle1;
+
+		/// infer glyph dimensions (ToDo: should be dependent on glyph type)
+		struct extent { float rad, diam; };
+		static extent calc_radius (glyph_attribs glyph, float length_scale)
+		{
+			extent e;
+			e.rad = std::min(glyph.radius0+glyph.radius1, 1.25f*glyph.radius0) / length_scale;
+			e.diam = e.rad + e.rad;
+			return e;
+		}
+	};
+
 	struct voxel_grid {
 		float voxel_size;
 		float voxel_half_diag;
@@ -199,8 +220,6 @@ protected:
 	} am_parameters;
 
 	shader_define_map tube_shading_defines;
-	
-	
 
 
 
@@ -210,7 +229,8 @@ protected:
 
 
 
-	
+
+
 
 
 

@@ -69,11 +69,13 @@ uniform struct {
 } attribute_mapping;
 
 // free attributes ssbo
-struct free_attrib {
-	float s, val;
+struct glyph_desc {
+	float s;
+	float radius0, radius1;
+	float angle0, angle1;
 };
 layout (std430, binding=0) readonly buffer attribs_buffer { 
-	free_attrib attribs[];
+	glyph_desc glyphs[];
 };
 
 // free attributes per-segment index ranges
@@ -88,13 +90,13 @@ in vec2 texcoord_fs;
 
 out vec4 frag_color;
 
-struct closest_glyph_info
-{
-	int prev, next;
-	float dp, dn;
+struct closest_glyphs_info {
+	int prev, next, id;
+	float dp, dn, d;
 };
-bool get_closest_samples (out closest_glyph_info closest, in irange segment, in float s)
+bool get_closest_samples (out closest_glyphs_info closest, in int segid, in float s)
 {
+	const irange segment = ranges[segid];
 	if (segment.n > 0)
 	{
 		// perform binary search
@@ -102,7 +104,7 @@ bool get_closest_samples (out closest_glyph_info closest, in irange segment, in 
 		while (rng.n > 1)
 		{
 			const int mid_n = rng.n/2, mid = rng.i0+mid_n;
-			if (attribs[mid].s > s)
+			if (glyphs[mid].s > s)
 				// left node
 				rng.n = mid_n;
 			else
@@ -114,8 +116,11 @@ bool get_closest_samples (out closest_glyph_info closest, in irange segment, in 
 		}
 		closest.prev = rng.i0;
 		closest.next = rng.i0 < segment.i0+segment.n-1 ? rng.i0+1 : rng.i0;
-		closest.dp = s-attribs[rng.i0].s;
-		closest.dn = attribs[closest.next].s-s;
+		closest.dp = s-glyphs[rng.i0].s;
+		closest.dn = glyphs[closest.next].s-s;
+		const bool n_lt_p = closest.dn < closest.dp;
+		closest.id = n_lt_p ? closest.next : closest.prev;
+		closest.d  = n_lt_p ? closest.dn : closest.dp;
 		return true;
 	}
 	return false;
@@ -393,8 +398,8 @@ void main()
 		//frag_color = vec4(10*length(dFdx(uv)), 10*length(dFdy(uv)), 0.0, 1.0);
 		
 #if SHOW_GLYPHS == 1
-		closest_glyph_info closest;
-		if (get_closest_samples(closest, ranges[segment_id], uv.s))
+		closest_glyphs_info closest;
+		if (get_closest_samples(closest, segment_id, uv.s))
 		{
 			vec2 glyphuv = vec2(
 				  (closest.dp <= closest.dn ? closest.dp : -closest.dn)
@@ -405,22 +410,22 @@ void main()
 			switch(attribute_mapping.glyph_type) {
 				case 0:
 					// circle with radius
-					sd = sd_circle(glyphuv, attribute_mapping.radius0);
+					sd = sd_circle(glyphuv, glyphs[closest.id].radius0);
 					break;
 
 				case 1:
 					// rectangle (ring) with (width, length)
-					sd = sd_rect(glyphuv, vec2(attribute_mapping.radius0, attribute_mapping.radius1));
+					sd = sd_rect(glyphuv, vec2(glyphs[closest.id].radius0, glyphs[closest.id].radius1));
 					break;
 
 				case 2:
 				{
 					// pie (circle wedge) with aperture angle and radius
-					float aperture_angle = radians(attribute_mapping.angle0);
+					float aperture_angle = radians(glyphs[closest.id].angle0);
 					sd = sd_pie(
 						glyphuv,
 						vec2(sin(aperture_angle), cos(aperture_angle)),
-						attribute_mapping.radius0
+						glyphs[closest.id].radius0
 					);
 					break;
 				}
@@ -428,14 +433,14 @@ void main()
 				case 3:
 				{
 					// arc (donut wedge) with orientation, aperture angle and two radii
-					float orientation_angle = radians(attribute_mapping.angle1);
-					float aperture_angle = radians(attribute_mapping.angle0);
+					float orientation_angle = radians(glyphs[closest.id].angle1);
+					float aperture_angle = radians(glyphs[closest.id].angle0);
 					sd = sd_arc(
 						glyphuv,
 						vec2(sin(orientation_angle), cos(orientation_angle)),
 						vec2(sin(aperture_angle), cos(aperture_angle)),
-						attribute_mapping.radius0,
-						attribute_mapping.radius1
+						glyphs[closest.id].radius0,
+						glyphs[closest.id].radius1
 					);
 					aa_strength = 0.75; // above SDF causes artifacts with AA which can be mitigated by reducing AA strength
 					break;
@@ -445,11 +450,14 @@ void main()
 				{
 					// isosceles triangle (arrow tip) with base width and height
 					// compute a rotation matrix to rotate the uv coordinates
-					float angle = radians(attribute_mapping.angle0 + 90.0); // add 90 degree to make triangle point in direction of segment per default
+					float angle = radians(glyphs[closest.id].angle0 + 90.0); // add 90 degree to make triangle point in direction of segment per default
 					float as = sin(angle);
 					float ac = cos(angle);
 					mat2 rot = mat2(ac, as, -as, ac);
-					sd = sd_triangle_isosceles(rot * glyphuv - vec2(0.0, attribute_mapping.radius1), vec2(attribute_mapping.radius0, -2.0 * attribute_mapping.radius1));
+					sd = sd_triangle_isosceles(
+						rot*glyphuv - vec2(0.0, glyphs[closest.id].radius1),
+						vec2(glyphs[closest.id].radius0, -2.0*glyphs[closest.id].radius1)
+					);
 					break;
 				}
 			}
