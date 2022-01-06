@@ -50,6 +50,7 @@ struct Hit {
 	float l;
 	float t;
 	vec3 normal;
+	vec3 sp;
 };
 
 uniform vec3 eye_pos;
@@ -538,12 +539,12 @@ Hit EvalSplineISect(vec3 dir, vec3 s, vec3 h, vec3 t, float rs, float rh, float 
 			}
 
 			// get the position on the spline at l
-			vec3 sp = qSplineEval(hit.l, curveX, curveY, curveZ);
+			hit.sp = qSplineEval(hit.l, curveX, curveY, curveZ);
 			// transform from ray space to eye space
-			sp = RM * sp;
+			hit.sp = RM * hit.sp;
 			// calculate the intersection point of the ray with the spline tube
 			vec3 ip = hit.t * dir;
-			hit.normal = normalize(ip - sp);
+			hit.normal = normalize(ip - hit.sp);
 		}
 		//endregion
 	}
@@ -772,15 +773,16 @@ void main()
 
 #if USE_CUBIC_TANGENTS == 0
 		vec3 tangent = eval_quadratic_bezier_tangent(hit.l);
-		vec3 b = normalize(cross(tangent, hit_pos_eye));
+		vec3 b = normalize(cross(tangent, hit.sp));
 		float v = acos(dot(b, hit.normal)) * M_INV_PI * 0.5;
 #else
 		// transform the hit position and normal from eye space to object space
 		vec3 normal_object = get_inverse_normal_matrix() * hit.normal;
 		vec3 hit_pos_object = (get_inverse_modelview_matrix() * vec4(hit_pos_eye, 1.0)).xyz;
+		vec3 sp_object = (get_inverse_modelview_matrix() * vec4(hit.sp, 1.0)).xyz;
 
 		vec3 tangent = eval_cubic_hermite_tangent(spline_t);
-		vec3 b = normalize(cross(tangent, hit_pos_object - eye_pos));
+		vec3 b = normalize(cross(tangent, sp_object - eye_pos));
 		float v = acos(dot(b, normal_object)) * M_INV_PI * 0.5;
 #endif
 		
