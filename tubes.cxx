@@ -57,7 +57,8 @@ tubes::tubes() : application_plugin("tubes_instance")
 	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
 	tf_editor_ptr->set_visibility(false);
 
-	//navigator_ptr = register_overlay<cgv::glutil::navigator>("Navigator");
+	navigator_ptr = register_overlay<cgv::glutil::navigator>("Navigator");
+	navigator_ptr->set_visibility(false);
 
 	grids.resize(2);
 	grids[0].scaling = vec2(1.0f, 1.0f);
@@ -710,9 +711,18 @@ void tubes::create_gui (void)
 	
 	if(begin_tree_node("Transfer Function Editor", tf_editor_ptr, false)) {
 		align("\a");
-		tf_editor_ptr->create_gui(*this);
+		//tf_editor_ptr->create_gui(*this);
+		inline_object_gui(tf_editor_ptr);
 		align("\b");
 		end_tree_node(tf_editor_ptr);
+	}
+
+	if(begin_tree_node("Navigator", navigator_ptr, false)) {
+		align("\a");
+		//navigator_ptr->create_gui(*this);
+		inline_object_gui(navigator_ptr);
+		align("\b");
+		end_tree_node(navigator_ptr);
 	}
 
 	// Misc settings contractable section
