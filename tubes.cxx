@@ -202,6 +202,7 @@ void tubes::on_set(void *member_ptr) {
 	// dataset settings
 	// - configurable datapath
 	if(member_ptr == &datapath && !datapath.empty()) {
+		const bool from_demo = traj_mgr.dataset(0).data_source() == "DEMO";
 		traj_mgr.clear();
 		cgv::utils::stopwatch s(true);
 		std::cout << "Reading data set from " << datapath << " ..." << std::endl;
@@ -210,6 +211,10 @@ void tubes::on_set(void *member_ptr) {
 			dataset.files.clear();
 			dataset.files.emplace(datapath);
 			render.data = &(traj_mgr.get_render_data());
+			if (from_demo) {
+				ao_style = ao_style_bak;
+				update_member(&ao_style);
+			}
 			update_attribute_bindings();
 			update_grid_ratios();
 		}
@@ -217,6 +222,7 @@ void tubes::on_set(void *member_ptr) {
 	// - non-configurable dataset logic
 	else if(member_ptr == &dataset) {
 		// clear current dataset
+		const bool from_demo = traj_mgr.dataset(0).data_source() == "DEMO";
 		datapath.clear();
 		traj_mgr.clear();
 
@@ -233,6 +239,10 @@ void tubes::on_set(void *member_ptr) {
 		// update render state
 		if(loaded_something) {
 			render.data = &(traj_mgr.get_render_data());
+			if (from_demo) {
+				ao_style = ao_style_bak;
+				update_member(&ao_style);
+			}
 			update_attribute_bindings();
 			update_grid_ratios();
 		}
@@ -299,7 +309,8 @@ bool tubes::compile_glyph_attribs (void)
 	// ToDo: replace with actual timestamps on trajectory position samples
 	struct segment_time {
 		float t0, t1;
-		inline static segment_time get (unsigned segment_index) {
+		inline static segment_time get (unsigned segment_index)
+		{
 			return { (float)segment_index, (float)segment_index + 1 }; // in the demo data, one segment is exactly one second
 		}
 	};
@@ -314,7 +325,7 @@ bool tubes::compile_glyph_attribs (void)
 	// - CPU-side database
 	struct irange { int i0, n; };
 	std::vector<glyph_attribs> attribs; // buffer of attribute values
-	std::vector<irange> ranges;              // buffer of index ranges per segment (indexes into 'attribs')
+	std::vector<irange> ranges;         // buffer of index ranges per segment (indexes into 'attribs')
 	attribs.reserve(dataset.demo_trajs.size() * dataset.demo_trajs[0].FREE_ATTRIBUTE_SERIES.size());
 	ranges.reserve(dataset.demo_trajs.size() * dataset.demo_trajs[0].FREE_ATTRIBUTE_SERIES.size()-1);
 	// - data staging
@@ -373,10 +384,10 @@ bool tubes::compile_glyph_attribs (void)
 
 				// infer potential glyph extents
 				const auto new_glyph_ext = glyph_attribs::calc_radius(new_glyph, am_parameters.length_scale);
-				const float min_dist = std::max(
+				const float min_dist = attribs.size() > 0 ? std::max(
 					new_glyph_ext.diam,
 					glyph_attribs::calc_radius(attribs.back(), am_parameters.length_scale).diam
-				);
+				) : new_glyph_ext.diam;
 
 				// only include samples that are far enough away from last sample to not cause (too much) overlap
 				if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+min_dist)
@@ -493,10 +504,19 @@ bool tubes::init (cgv::render::context &ctx)
 	ref_sphere_renderer(ctx, 1);
 	srd.init(ctx);
 
-	// generate demo data
+	// generate demo
+	// - demo AO settings
+	ao_style_bak = ao_style;
+	ao_style.enable = true;
+	ao_style.cone_angle = 60.f;
+	ao_style.sample_offset = 0.08f;
+	ao_style.sample_distance = 0.5f;
+	ao_style.strength_scale = 7.5f;
+	update_member(&ao_style);
+	// - demo geometry
 	constexpr unsigned seed = 11;
-	for (unsigned i=0; i<16; i++)
-		dataset.demo_trajs.emplace_back(demo::gen_trajectory(16, seed+i));
+	for (unsigned i=0; i<256; i++)
+		dataset.demo_trajs.emplace_back(demo::gen_trajectory(256, seed+i));
 	traj_mgr.add_dataset(
 		demo::compile_dataset(dataset.demo_trajs)
 	);

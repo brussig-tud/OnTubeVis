@@ -356,7 +356,7 @@ protected:
 	texture tf_tex;
 
 	voxel_grid density_volume;
-	ambient_occlusion_style ao_style;
+	ambient_occlusion_style ao_style, ao_style_bak; // the latte is used to restore defaults after demo data is unloaded
 
 	bool compile_glyph_attribs (void);
 

@@ -309,7 +309,7 @@ struct demo : public traj_format_handler<float>
 		});
 
 		// prepare data containers
-		typename traj_dataset<float> ds;
+		typename traj_dataset<float> ds("Furball", "DEMO");
 		auto &P = add_attribute<Vec3>(ds, ATTRIB_POSITION);
 		auto &T = add_attribute<Vec4>(ds, ATTRIB_TANGENT);
 		auto &R = add_attribute<float>(ds, ATTRIB_RADIUS);
