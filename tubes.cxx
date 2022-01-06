@@ -372,10 +372,14 @@ bool tubes::compile_glyph_attribs (void)
 				new_glyph.angle1 = glyph_defaults.angle1;
 
 				// infer potential glyph extents
-				auto ext = glyph_attribs::calc_radius(new_glyph, am_parameters.length_scale);
+				const auto new_glyph_ext = glyph_attribs::calc_radius(new_glyph, am_parameters.length_scale);
+				const float min_dist = std::max(
+					new_glyph_ext.diam,
+					glyph_attribs::calc_radius(attribs.back(), am_parameters.length_scale).diam
+				);
 
 				// only include samples that are far enough away from last sample to not cause (too much) overlap
-				if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+ext.diam)
+				if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+min_dist)
 				{
 					auto &cur_range = ranges[global_seg];
 					if (cur_range.n < 1)
@@ -384,7 +388,7 @@ bool tubes::compile_glyph_attribs (void)
 						cur_range.i0 = (unsigned)attribs.size();
 						cur_range.n = 1;
 						// handle overlap to previous segment
-						if (seg > 0 && alen[global_seg-1][15] > s-ext.rad)
+						if (seg > 0 && alen[global_seg-1][15] > s-new_glyph_ext.rad)
 							ranges[global_seg-1].n++;
 					}
 					else
