@@ -207,6 +207,7 @@ protected:
 		GT_WEDGE = 2,
 		GT_ARC = 3,
 		GT_TRIANGLE = 4,
+		GT_DROP = 5
 	};
 
 	struct attribute_mapping_parameters {

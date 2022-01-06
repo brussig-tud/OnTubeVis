@@ -697,7 +697,7 @@ void tubes::create_gui (void)
 
 	if(begin_tree_node("Parameters", am_parameters, true)) {
 		align("\a");
-		add_member_control(this, "Gylph Type", am_parameters.glyph_type, "dropdown", "enums='Circle,Ring,Wedge,Arc,Triangle'");
+		add_member_control(this, "Gylph Type", am_parameters.glyph_type, "dropdown", "enums='Circle,Ring,Wedge,Arc,Triangle,Drop'");
 		add_member_control(this, "Curvature Correction", am_parameters.curvature_correction, "check");
 		add_member_control(this, "Radius 0", am_parameters.radius0, "value_slider", "min=0;max=1;step=0.01;ticks=true");
 		add_member_control(this, "Radius 1", am_parameters.radius1, "value_slider", "min=0;max=1;step=0.01;ticks=true");

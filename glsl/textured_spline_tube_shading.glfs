@@ -207,6 +207,22 @@ float sd_triangle_isosceles(in vec2 p, in vec2 q) {
     return -sqrt(d.x)*sign(d.y);
 }
 
+// r1 is the base radius
+// r2 is the tip radius0
+// h is the height/length of the capsule
+// alternative name: uneven_capsule
+float sd_drop(vec2 p, float r1, float r2, float h) {
+    p.x = abs(p.x);
+    float b = (r1 - r2) / h;
+    float a = sqrt(1.0 - b*b);
+    float k = dot(p, vec2(-b, a));
+    if(k < 0.0)
+		return length(p) - r1;
+    if(k > a*h)
+		return length(p - vec2(0.0, h)) - r2;
+    return dot(p, vec2(a, b)) - r1;
+}
+
 float grid_texture_fuzzy(in vec2 p, in float n) {
 	// coordinates
 	vec2 s = fract(p + 0.5*n);
@@ -457,6 +473,21 @@ void main()
 					sd = sd_triangle_isosceles(
 						rot*glyphuv - vec2(0.0, glyphs[closest.id].radius1),
 						vec2(glyphs[closest.id].radius0, -2.0*glyphs[closest.id].radius1)
+					);
+					break;
+				}
+
+				case 5:
+				{
+					// drop with base and tip radius and height
+					// compute a rotation matrix to rotate the uv coordinates
+					float angle = radians(glyphs[closest.id].angle0 + 90.0); // add 90 degree to make drop point in direction of segment per default
+					float as = sin(angle);
+					float ac = cos(angle);
+					mat2 rot = mat2(ac, as, -as, ac);
+					sd = sd_drop(
+						rot*glyphuv - vec2(0.0, glyphs[closest.id].radius1),
+						glyphs[closest.id].radius0, glyphs[closest.id].radius1, glyphs[closest.id].angle1 / 360.0 // for now: use the second angle normalized to define the height
 					);
 					break;
 				}
