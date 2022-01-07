@@ -82,20 +82,26 @@ public:
 	/// 4D vector type
 	typedef cgv::math::fvec<real, 4> Vec4;
 
-	/// color type
-	typedef cgv::media::color<float, cgv::media::RGB> Color;
-
 	/// base container class for having a common cleanup hook
 	struct container_base
 	{
 		/// virtual base destructor - causes vtable creation
 		virtual ~container_base();
 
+		/// query the number of data points in the container
+		virtual unsigned size (void) const = 0;
+
 		/// obtain raw pointer to the contained data
 		virtual void* get_pointer (void) = 0;
 
 		/// obtain raw const pointer to the contained data
 		virtual const void* get_pointer (void) const = 0;
+
+		/// obtain pointer to the data point timestamps
+		virtual flt_type* get_timestamps (void) = 0;
+
+		/// obtain const pointer to the data point timestamps
+		virtual const flt_type* get_timestamps (void) const = 0;
 	};
 
 	/// generic container type for storing the actual attribute data
@@ -108,6 +114,9 @@ public:
 		/// attribute data vector
 		std::vector<elem_type> data;
 
+		/// attribute timestamps
+		std::vector<flt_type> timestamps;
+
 		/// default constructor
 		container() {}
 
@@ -119,11 +128,20 @@ public:
 		container(std::vector<elem_type> &&data) : data(std::move(data))
 		{}
 
+		/// query the number of data points in the container
+		virtual unsigned size (void) const { return (unsigned)data.size(); };
+
 		/// obtain raw pointer to the contained data
 		virtual void* get_pointer (void) { return &data; };
 
 		/// obtain raw const pointer to the contained data
 		virtual const void* get_pointer (void) const { return &data; };
+
+		/// obtain pointer to the data point timestamps
+		virtual flt_type* get_timestamps (void) { return timestamps.data(); };
+
+		/// obtain const pointer to the data point timestamps
+		virtual const flt_type* get_timestamps (void) const { return timestamps.data(); };
 	};
 
 
@@ -216,6 +234,12 @@ public:
 
 	/// obtain raw const pointer to the attribute data
 	const void* get_pointer (void) const { return data->get_pointer(); };
+
+	/// obtain pointer to the data point timestamps
+	virtual flt_type* get_timestamps (void) { return data->get_timestamps(); };
+
+	/// obtain const pointer to the data point timestamps
+	virtual const flt_type* get_timestamps (void) const { return data->get_timestamps(); };
 
 	/// return a string representing the attribute data type
 	const std::string& type_string (void) const;
@@ -408,7 +432,7 @@ public:
 	typedef typename traj_attribute<real>::Vec4 Vec4;
 
 	/// color type
-	typedef typename traj_attribute<real>::Color Color;
+	typedef cgv::media::color<float, cgv::media::RGB> Color;
 
 	/// helper for referring to an attribute when using the mapping constructor; enables making the specification of
 	/// transforms optional by means of the two constructors provided by this helper
@@ -555,7 +579,7 @@ public:
 	typedef typename traj_attribute<real>::Vec4 Vec4;
 
 	/// color type
-	typedef typename traj_attribute<real>::Color Color;
+	typedef typename visual_attribute_mapping<float>::Color Color;
 
 
 private:
@@ -574,6 +598,9 @@ protected:
 
 	/// write-access the "special" positions attribute (for use by trajectory format handlers)
 	std::vector<Vec3>& positions (void);
+
+	/// write-access the timestamps at each position (for use by trajectory format handlers)
+	flt_type* timestamps (void);
 
 	/// write-access the map containing all generic attributes (for use by trajectory format handlers)
 	attribute_map<flt_type>& attributes (void);
@@ -626,6 +653,9 @@ public:
 
 	/// access the "special" positions attribute
 	const std::vector<Vec3>& positions (void) const;
+
+	/// access the timestamps at each position
+	const flt_type* timestamps (void) const;
 
 	/// access the map containing all generic attributes
 	const attribute_map<flt_type>& attributes (void) const;

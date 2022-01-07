@@ -924,7 +924,7 @@ struct traj_dataset<flt_type>::Impl
 
 	// fields
 	std::string name, data_source;
-	std::vector<Vec3> *positions;
+	traj_attribute<flt_type> *positions;
 	attribute_map<flt_type> attribs;
 	std::vector<unsigned> indices;
 	std::vector<range> trajs;
@@ -1033,7 +1033,13 @@ std::string& traj_dataset<flt_type>::data_source (void)
 template <class flt_type>
 std::vector<typename traj_dataset<flt_type>::Vec3>& traj_dataset<flt_type>::positions (void)
 {
-	return *(pimpl->positions);
+	return pimpl->positions->get_data<Vec3>();
+}
+
+template <class flt_type>
+flt_type* traj_dataset<flt_type>::timestamps (void)
+{
+	return pimpl->positions->get_timestamps();
 }
 
 template <class flt_type>
@@ -1075,7 +1081,13 @@ const std::string& traj_dataset<flt_type>::data_source (void) const
 template <class flt_type>
 const std::vector<typename traj_dataset<flt_type>::Vec3>& traj_dataset<flt_type>::positions (void) const
 {
-	return *(pimpl->positions);
+	return pimpl->positions->get_data<Vec3>();
+}
+
+template <class flt_type>
+const flt_type* traj_dataset<flt_type>::timestamps (void) const
+{
+	return pimpl->positions->get_timestamps();
 }
 
 template <class flt_type>
@@ -1114,7 +1126,7 @@ bool traj_dataset<flt_type>::set_mapping (const visual_attribute_mapping<real> &
 		if (it_data != impl.attribs.end())
 		{
 			impl.attrmap = visual_attrib_mapping;
-			impl.positions = &(it_data->second.get_data<Vec3>());
+			impl.positions = &it_data->second;
 			return true;
 		}
 	}
@@ -1133,7 +1145,7 @@ bool traj_dataset<flt_type>::set_mapping (visual_attribute_mapping<real> &&visua
 		if (it_data != impl.attribs.end())
 		{
 			impl.attrmap = std::move(visual_attrib_mapping);
-			impl.positions = &(it_data->second.get_data<Vec3>());
+			impl.positions = &it_data->second;
 			return true;
 		}
 	}
