@@ -203,7 +203,7 @@ void tubes::on_set(void *member_ptr) {
 	// dataset settings
 	// - configurable datapath
 	if(member_ptr == &datapath && !datapath.empty()) {
-		const bool from_demo = traj_mgr.dataset(0).data_source() == "DEMO";
+		const bool from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		traj_mgr.clear();
 		cgv::utils::stopwatch s(true);
 		std::cout << "Reading data set from " << datapath << " ..." << std::endl;
@@ -223,7 +223,7 @@ void tubes::on_set(void *member_ptr) {
 	// - non-configurable dataset logic
 	else if(member_ptr == &dataset) {
 		// clear current dataset
-		const bool from_demo = traj_mgr.dataset(0).data_source() == "DEMO";
+		const bool from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		datapath.clear();
 		traj_mgr.clear();
 

@@ -310,10 +310,10 @@ struct demo : public traj_format_handler<float>
 
 		// prepare data containers
 		typename traj_dataset<float> ds("Furball", "DEMO");
-		auto &P = add_attribute<Vec3>(ds, ATTRIB_POSITION);
-		auto &T = add_attribute<Vec4>(ds, ATTRIB_TANGENT);
-		auto &R = add_attribute<float>(ds, ATTRIB_RADIUS);
-		auto &C = add_attribute<Vec3>(ds, ATTRIB_COLOR);
+		auto &P = add_attribute<Vec3>(ds, ATTRIB_POSITION).values; //auto tP = attributes(ds)[ATTRIB_POSITION].get_timestamps();
+		auto &T = add_attribute<Vec4>(ds, ATTRIB_TANGENT).values; //auto tT = attributes(ds)[ATTRIB_TANGENT].get_timestamps();
+		auto &R = add_attribute<float>(ds, ATTRIB_RADIUS).values; //auto tR = attributes(ds)[ATTRIB_RADIUS].get_timestamps();
+		auto &C = add_attribute<Vec3>(ds, ATTRIB_COLOR).values; //auto tC = attributes(ds)[ATTRIB_COLOR].get_timestamps();
 		auto &I = indices(ds);
 		auto &ds_trajs = traj_format_handler<float>::trajectories(ds);
 		ds.set_mapping(attrmap);

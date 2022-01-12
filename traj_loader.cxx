@@ -70,25 +70,21 @@ traj_attribute<flt_type>::container_base::~container_base()
 {}
 
 template <class flt_type>
-traj_attribute<flt_type>::traj_attribute (const traj_attribute &other) : data(nullptr)
+traj_attribute<flt_type>::traj_attribute (const traj_attribute &other) : _data(nullptr), _type(other._type)
 {
 	switch (other._type)
 	{
 		case AttribType::REAL:
-			_type = AttribType::REAL;
-			data = new container<real>(other.get_data<real>());
+			_data = new container<flt_type>(*(container<flt_type>*)other._data);
 			return;
 		case AttribType::VEC2:
-			_type = AttribType::VEC2;
-			data = new container<Vec2>(other.get_data<Vec2>());
+			_data = new container<Vec2>(*(container<Vec2>*)other._data);
 			return;
 		case AttribType::VEC3:
-			_type = AttribType::VEC3;
-			data = new container<Vec3>(other.get_data<Vec3>());
+			_data = new container<Vec3>(*(container<Vec3>*)other._data);
 			return;
 		case AttribType::VEC4:
-			_type = AttribType::VEC4;
-			data = new container<Vec4>(other.get_data<Vec4>());
+			_data = new container<Vec4>(*(container<Vec4>*)other._data);
 			return;
 
 		default:
@@ -98,31 +94,31 @@ traj_attribute<flt_type>::traj_attribute (const traj_attribute &other) : data(nu
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (traj_attribute &&other)
-	: _type(other._type), data(other.data)
+	: _type(other._type), _data(other._data)
 {
-	other.data = nullptr;
+	other._data = nullptr;
 }
 
 template <class flt_type>
-traj_attribute<flt_type>::traj_attribute (unsigned components) : data(nullptr)
+traj_attribute<flt_type>::traj_attribute (unsigned components) : _data(nullptr)
 {
 	switch (components)
 	{
 		case 1:
 			_type = AttribType::REAL;
-			data = new container<real>();
+			_data = new container<real>();
 			return;
 		case 2:
 			_type = AttribType::VEC2;
-			data = new container<Vec2>();
+			_data = new container<Vec2>();
 			return;
 		case 3:
 			_type = AttribType::VEC3;
-			data = new container<Vec3>();
+			_data = new container<Vec3>();
 			return;
 		case 4:
 			_type = AttribType::VEC4;
-			data = new container<Vec4>();
+			_data = new container<Vec4>();
 			return;
 
 		default:
@@ -131,40 +127,88 @@ traj_attribute<flt_type>::traj_attribute (unsigned components) : data(nullptr)
 }
 
 template <class flt_type>
-traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source)
-	: _type(AttribType::REAL), data(nullptr)
+traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, float tstart, float dt)
+	: _type(AttribType::REAL), _data(nullptr)
 {
-	data = new container<real>(std::move(source));
+	// generate timestamps
+	std::vector<real> ts; ts.reserve(source.size());
+	for (unsigned i=0; i<(unsigned)source.size(); i++)
+		ts.emplace_back(tstart + dt*i);
+	// construct data container
+	_data = new container<real>(std::move(source), std::move(ts));
 }
 
 template <class flt_type>
-traj_attribute<flt_type>::traj_attribute (std::vector<Vec2> &&source)
-	: _type(AttribType::VEC2), data(nullptr)
+traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, std::vector<real> &&timestamps)
+	: _type(AttribType::REAL), _data(nullptr)
 {
-	data = new container<Vec2>(std::move(source));
+	_data = new container<real>(std::move(source), std::move(timestamps));
 }
 
 template <class flt_type>
-traj_attribute<flt_type>::traj_attribute (std::vector<Vec3> &&source)
-	: _type(AttribType::VEC3), data(nullptr)
+traj_attribute<flt_type>::traj_attribute (std::vector<Vec2> &&source, float tstart, float dt)
+	: _type(AttribType::VEC2), _data(nullptr)
 {
-	data = new container<Vec3>(std::move(source));
+	// generate timestamps
+	std::vector<real> ts; ts.reserve(source.size());
+	for (unsigned i=0; i<(unsigned)source.size(); i++)
+		ts.emplace_back(tstart + dt*i);
+	// construct data container
+	_data = new container<Vec2>(std::move(source), std::move(ts));
 }
 
 template <class flt_type>
-traj_attribute<flt_type>::traj_attribute (std::vector<Vec4> &&source)
-	: _type(AttribType::VEC4), data(nullptr)
+traj_attribute<flt_type>::traj_attribute (std::vector<Vec2> &&source, std::vector<real> &&timestamps)
+	: _type(AttribType::VEC2), _data(nullptr)
 {
-	data = new container<Vec4>(std::move(source));
+	_data = new container<Vec2>(std::move(source), std::move(timestamps));
+}
+
+template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (std::vector<Vec3> &&source, float tstart, float dt)
+	: _type(AttribType::VEC3), _data(nullptr)
+{
+	// generate timestamps
+	std::vector<real> ts; ts.reserve(source.size());
+	for (unsigned i=0; i<(unsigned)source.size(); i++)
+		ts.emplace_back(tstart + dt*i);
+	// construct data container
+	_data = new container<Vec3>(std::move(source), std::move(ts));
+}
+
+template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (std::vector<Vec3> &&source, std::vector<real> &&timestamps)
+	: _type(AttribType::VEC3), _data(nullptr)
+{
+	_data = new container<Vec3>(std::move(source), std::move(timestamps));
+}
+
+template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (std::vector<Vec4> &&source, float tstart, float dt)
+	: _type(AttribType::VEC4), _data(nullptr)
+{
+	// generate timestamps
+	std::vector<real> ts; ts.reserve(source.size());
+	for (unsigned i=0; i<(unsigned)source.size(); i++)
+		ts.emplace_back(tstart + dt*i);
+	// construct data container
+	_data = new container<Vec4>(std::move(source), std::move(ts));
+}
+
+template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (std::vector<Vec4> &&source, std::vector<real> &&timestamps)
+	: _type(AttribType::VEC4), _data(nullptr)
+{
+	_data = new container<Vec4>(std::move(source), std::move(timestamps));
 }
 
 template <class flt_type>
 traj_attribute<flt_type>::~traj_attribute()
 {
-	if (data)
+	if (_data)
 	{
-		delete data;
-		data = nullptr;
+		delete _data;
+		_data = nullptr;
 	}
 }
 
@@ -172,7 +216,7 @@ template <class flt_type>
 traj_attribute<flt_type>& traj_attribute<flt_type>::operator= (const traj_attribute &other)
 {
 	_type = other._type;
-	data = other.data;
+	_data = other._data;
 	return *this;
 }
 
@@ -181,7 +225,7 @@ traj_attribute<flt_type>& traj_attribute<flt_type>::operator= (traj_attribute &&
 {
 	this->~traj_attribute();
 	_type = other._type;
-	std::swap(data, other.data);
+	std::swap(_data, other._data);
 	return *this;
 }
 
@@ -1033,7 +1077,7 @@ std::string& traj_dataset<flt_type>::data_source (void)
 template <class flt_type>
 std::vector<typename traj_dataset<flt_type>::Vec3>& traj_dataset<flt_type>::positions (void)
 {
-	return pimpl->positions->get_data<Vec3>();
+	return pimpl->positions->get_data<Vec3>().values;
 }
 
 template <class flt_type>
@@ -1081,7 +1125,7 @@ const std::string& traj_dataset<flt_type>::data_source (void) const
 template <class flt_type>
 const std::vector<typename traj_dataset<flt_type>::Vec3>& traj_dataset<flt_type>::positions (void) const
 {
-	return pimpl->positions->get_data<Vec3>();
+	return pimpl->positions->get_data<Vec3>().values;
 }
 
 template <class flt_type>
@@ -1130,7 +1174,7 @@ bool traj_dataset<flt_type>::set_mapping (const visual_attribute_mapping<real> &
 			return true;
 		}
 	}
-	return false;
+	return false; 
 }
 
 template <class flt_type>
@@ -1248,7 +1292,7 @@ struct traj_manager<flt_type>::Impl
 			if (ref.transform.is_identity())
 			{
 				const auto &data = attrib.get_data<T>();
-				out->reserve(out->size() + data.size());
+				out->reserve(out->size() + data.num());
 				out->insert(out->end(), data.begin(), data.end());
 			}
 			else switch(ref.transform.get_src_type())
@@ -1256,8 +1300,8 @@ struct traj_manager<flt_type>::Impl
 				case AttribType::REAL:
 				{
 					const auto &data = attrib.get_data<real>();
-					out->reserve(out->size() + data.size());
-					for (unsigned i=0; i<data.size(); i++)
+					out->reserve(out->size() + data.num());
+					for (unsigned i=0; i<data.num(); i++)
 					{
 						out->emplace_back();
 						ref.transform.exec(out->back(), data[i]);
@@ -1267,8 +1311,8 @@ struct traj_manager<flt_type>::Impl
 				case AttribType::VEC2:
 				{
 					const auto &data = attrib.get_data<Vec2>();
-					out->reserve(out->size() + data.size());
-					for (unsigned i=0; i<data.size(); i++)
+					out->reserve(out->size() + data.num());
+					for (unsigned i=0; i<data.num(); i++)
 					{
 						out->emplace_back();
 						ref.transform.exec(out->back(), data[i]);
@@ -1278,8 +1322,8 @@ struct traj_manager<flt_type>::Impl
 				case AttribType::VEC3:
 				{
 					const auto &data = attrib.get_data<Vec3>();
-					out->reserve(out->size() + data.size());
-					for (unsigned i=0; i<data.size(); i++)
+					out->reserve(out->size() + data.num());
+					for (unsigned i=0; i<data.num(); i++)
 					{
 						out->emplace_back();
 						ref.transform.exec(out->back(), data[i]);
@@ -1289,8 +1333,8 @@ struct traj_manager<flt_type>::Impl
 				case AttribType::VEC4:
 				{
 					const auto &data = attrib.get_data<Vec4>();
-					out->reserve(out->size() + data.size());
-					for (unsigned i=0; i<data.size(); i++)
+					out->reserve(out->size() + data.num());
+					for (unsigned i=0; i<data.num(); i++)
 					{
 						out->emplace_back();
 						ref.transform.exec(out->back(), data[i]);
@@ -1383,7 +1427,7 @@ struct traj_manager<flt_type>::Impl
 			if (ref.transform.is_identity())
 			{
 				const auto &data = attrib.get_data<Vec3>();
-				out->reserve(out->size() + data.size());
+				out->reserve(out->size() + data.num());
 				std::transform(
 					data.begin(), data.end(), std::back_inserter(*out),
 					[] (const Vec3 &src) { return vec3_to_rgb(src); }
@@ -1394,7 +1438,7 @@ struct traj_manager<flt_type>::Impl
 				case AttribType::REAL:
 				{
 					const auto &data = attrib.get_data<real>();
-					out->reserve(out->size() + data.size());
+					out->reserve(out->size() + data.num());
 					if (mapping.uses_colormap())
 					{
 						const auto &color_scale = mapping.get_colormap().get_color_scale();
@@ -1418,7 +1462,7 @@ struct traj_manager<flt_type>::Impl
 				case AttribType::VEC2:
 				{
 					const auto &data = attrib.get_data<Vec2>();
-					out->reserve(out->size() + data.size());
+					out->reserve(out->size() + data.num());
 					std::transform(
 						data.begin(), data.end(), std::back_inserter(*out),
 						[&ref] (const Vec2 &src) { Vec3 tmp; ref.transform.exec(tmp, src); return vec3_to_rgb(tmp); }
@@ -1428,7 +1472,7 @@ struct traj_manager<flt_type>::Impl
 				case AttribType::VEC3:
 				{
 					const auto &data = attrib.get_data<Vec3>();
-					out->reserve(out->size() + data.size());
+					out->reserve(out->size() + data.num());
 					std::transform(
 						data.begin(), data.end(), std::back_inserter(*out),
 						[&ref] (const Vec3 &src) { Vec3 tmp; ref.transform.exec(tmp, src); return vec3_to_rgb(tmp); }
@@ -1438,7 +1482,7 @@ struct traj_manager<flt_type>::Impl
 				case AttribType::VEC4:
 				{
 					const auto &data = attrib.get_data<Vec4>();
-					out->reserve(out->size() + data.size());
+					out->reserve(out->size() + data.num());
 					std::transform(
 						data.begin(), data.end(), std::back_inserter(*out),
 						[&ref] (const Vec4 &src) { Vec4 tmp; ref.transform.exec(tmp, src); return vec3_to_rgb(*(Vec3*)&tmp); }

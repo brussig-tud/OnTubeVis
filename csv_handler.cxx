@@ -540,7 +540,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 
 	// trajectory database
 	double dist_accum = 0;
-	std::vector<Vec3> &P = declared_attribs[props.pos_id].attrib.get_data<Vec3>();
+	std::vector<Vec3> &P = declared_attribs[props.pos_id].attrib.get_data<Vec3>().values;
 	std::map<int, std::vector<unsigned> > trajs;
 
 	// parse the stream until EOF
@@ -565,28 +565,28 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 			switch (attrib.field_ids.size())
 			{
 				case 1:
-					attrib.attrib.get_data<real>().emplace_back(
+					attrib.attrib.get_data<real>().values.emplace_back(
 						Impl::parse_field(fields[attrib.field_ids.front()])
 					);
 					continue;
 
 				case 2:
 				{
-					attrib.attrib.get_data<Vec2>().emplace_back(
+					attrib.attrib.get_data<Vec2>().values.emplace_back(
 						std::move(Impl::parse_fields<2>(fields, attrib.field_ids))
 					);
 					continue;
 				}
 				case 3:
 				{
-					attrib.attrib.get_data<Vec3>().emplace_back(
+					attrib.attrib.get_data<Vec3>().values.emplace_back(
 						std::move(Impl::parse_fields<3>(fields, attrib.field_ids))
 					);
 					continue;
 				}
 				case 4:
 				{
-					attrib.attrib.get_data<Vec4>().emplace_back(
+					attrib.attrib.get_data<Vec4>().values.emplace_back(
 						std::move(Impl::parse_fields<4>(fields, attrib.field_ids))
 					);
 					continue;
@@ -599,7 +599,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 
 		// read in all undeclared attributes
 		for (auto &attrib : undeclared_attribs)
-			attrib.attrib.get_data<real>().emplace_back(Impl::parse_field(fields[attrib.field_id]));
+			attrib.attrib.get_data<real>().values.emplace_back(Impl::parse_field(fields[attrib.field_id]));
 
 		// store index for appropriate trajectory
 		auto &indices = trajs[traj_id];

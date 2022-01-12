@@ -82,6 +82,20 @@ public:
 	/// 4D vector type
 	typedef cgv::math::fvec<real, 4> Vec4;
 
+	/// struct referencing some datapoint of this attribute
+	template <class T>
+	struct datapoint
+	{
+		/// construct with the given references
+		datapoint(T &val, flt_type &t) : val(val), t(t) {}
+
+		/// reference to the attribute value
+		T &val;
+
+		/// datapoint timestamp
+		flt_type &t;
+	};
+
 	/// base container class for having a common cleanup hook
 	struct container_base
 	{
@@ -89,7 +103,7 @@ public:
 		virtual ~container_base();
 
 		/// query the number of data points in the container
-		virtual unsigned size (void) const = 0;
+		virtual unsigned num (void) const = 0;
 
 		/// obtain raw pointer to the contained data
 		virtual void* get_pointer (void) = 0;
@@ -111,8 +125,11 @@ public:
 		/// actual element type
 		typedef T elem_type;
 
+		/// alias to prevent STL errors. ToDo: investigate!
+		typedef elem_type value_type;
+
 		/// attribute data vector
-		std::vector<elem_type> data;
+		std::vector<elem_type> values;
 
 		/// attribute timestamps
 		std::vector<flt_type> timestamps;
@@ -120,22 +137,64 @@ public:
 		/// default constructor
 		container() {}
 
+		/// copy constructor
+		container(const container &other) : values(other.values), timestamps(other.timestamps)
+		{}
+
+		/// move constructor
+		container(container &&other) : values(std::move(other.values)), timestamps(std::move(other.timestamps))
+		{}
+
 		/// construct with the given actual data
-		container(const std::vector<elem_type> &data) : data(data)
+		container(const std::vector<elem_type> &values, const std::vector<flt_type> &timestamps)
+			: values(values), timestamps(timestamps)
 		{}
 
 		/// construct with the given actual data (move semantics)
-		container(std::vector<elem_type> &&data) : data(std::move(data))
+		container(std::vector<elem_type> &&values, std::vector<flt_type> &&timestamps)
+			: values(std::move(values)), timestamps(std::move(timestamps))
 		{}
 
+		/// write-access the attribute data
+		datapoint<elem_type> operator[] (unsigned index) { return datapoint<elem_type>(values[index], timestamps[index]); }
+
+		/// read-only access the attribute data
+		const datapoint<elem_type> operator[] (unsigned index) const {
+			return datapoint<elem_type>(const_cast<elem_type&>(values[index]), const_cast<flt_type&>(timestamps[index]));
+		}
+
+		/// obtain an iterator over the attribute values pointing at the first datapoint
+		typename std::vector<elem_type>::iterator begin (void) { return values.begin(); }
+
+		/// obtain a const-iterator over the attribute values pointing at the first datapoint
+		typename std::vector<elem_type>::const_iterator begin (void) const { return values.cbegin(); }
+
+		/// obtain an iterator over the attribute values pointing behind the last datapoint
+		typename std::vector<elem_type>::iterator end (void) { return values.end(); }
+
+		/// obtain a const-iterator over the attribute values pointing behind the last datapoint
+		typename std::vector<elem_type>::const_iterator end (void) const { return values.cend(); }
+
+		/// obtain an iterator over the attribute timestamps pointing at the first datapoint
+		typename std::vector<flt_type>::iterator begin_ts (void) { return timestamps.begin(); }
+
+		/// obtain a const-iterator over the attribute timestamps pointing at the first datapoint
+		typename std::vector<flt_type>::const_iterator begin_ts (void) const { return timestamps.cbegin(); }
+
+		/// obtain an iterator over the attribute timestamps pointing behind the last datapoint
+		typename std::vector<flt_type>::iterator end_ts (void) { return timestamps.end(); }
+
+		/// obtain a const-iterator over the attribute timestamps pointing behind the last datapoint
+		typename std::vector<flt_type>::const_iterator end_ts (void) const { return timestamps.cend(); }
+
 		/// query the number of data points in the container
-		virtual unsigned size (void) const { return (unsigned)data.size(); };
+		virtual unsigned num (void) const { return (unsigned)values.size(); };
 
 		/// obtain raw pointer to the contained data
-		virtual void* get_pointer (void) { return &data; };
+		virtual void* get_pointer (void) { return values.data(); };
 
 		/// obtain raw const pointer to the contained data
-		virtual const void* get_pointer (void) const { return &data; };
+		virtual const void* get_pointer (void) const { return values.data(); };
 
 		/// obtain pointer to the data point timestamps
 		virtual flt_type* get_timestamps (void) { return timestamps.data(); };
@@ -151,7 +210,7 @@ protected:
 	AttribType _type;
 
 	/// opaque data
-	container_base *data;
+	container_base *_data;
 
 
 public:
@@ -165,17 +224,29 @@ public:
 	/// construct with the given number of components (i.e. scalar, 2d, 3d, 4d)
 	traj_attribute(unsigned components);
 
-	/// construct with scalar attribute data
-	traj_attribute(std::vector<real> &&source);
+	/// construct with scalar attribute data, generating uniformly spaced timestamps for each item
+	traj_attribute(std::vector<real> &&source, float tstart=0, float dt=1);
 
-	/// construct with 2D vector attribute data
-	traj_attribute(std::vector<Vec2> &&source);
+	/// construct with scalar attribute data and timestamps
+	traj_attribute(std::vector<real> &&source, std::vector<real> &&timestamps);
 
-	/// construct with 3D vector attribute data
-	traj_attribute(std::vector<Vec3> &&source);
+	/// construct with 2D vector attribute data, generating uniformly spaced timestamps for each item
+	traj_attribute(std::vector<Vec2> &&source, float tstart=0, float dt=1);
 
-	/// construct with 4D vector attribute data
-	traj_attribute(std::vector<Vec4> &&source);
+	/// construct with 2D vector attribute data and timestamps
+	traj_attribute(std::vector<Vec2> &&source, std::vector<real> &&timestamps);
+
+	/// construct with 3D vector attribute data, generating uniformly spaced timestamps for each item
+	traj_attribute(std::vector<Vec3> &&source, float tstart=0, float dt=1);
+
+	/// construct with 3D vector attribute data and timestamps
+	traj_attribute(std::vector<Vec3> &&source, std::vector<real> &&timestamps);
+
+	/// construct with 4D vector attribute data, generating uniformly spaced timestamps for each item
+	traj_attribute(std::vector<Vec4> &&source, float tstart=0, float dt=1);
+
+	/// construct with 4D vector attribute data and timestamps
+	traj_attribute(std::vector<Vec4> &&source, std::vector<real> &&timestamps);
 
 	/// the destructor
 	~traj_attribute();
@@ -189,57 +260,60 @@ public:
 	/// report type of the stored attribute
 	AttribType type(void) const { return _type; }
 
-	/// access the attribute data as if it was of the specified type
-	template <class T>
-	std::vector<T>& get_data (void);
+	/// query the number of datapoints for this attribute
+	unsigned num (void) const { return _data->num(); }
 
 	/// access the attribute data as if it was of the specified type
 	template <class T>
-	const std::vector<T>& get_data (void) const;
+	container<T>& get_data (void);
+
+	/// access the attribute data as if it was of the specified type (read-only)
+	template <class T>
+	const container<T>& get_data (void) const;
 
 	/// access the attribute data as if it was of scalar type
 	template <>
-	std::vector<real>& get_data<real>(void) { return dynamic_cast<container<real>*>(data)->data; }
+	container<real>& get_data<real>(void) { return *dynamic_cast<container<real>*>(_data); }
 
 	/// access the attribute data as if it was of scalar type (read-only)
 	template <>
-	const std::vector<real>& get_data<real>(void) const { return dynamic_cast<container<real>*>(data)->data; }
+	const container<real>& get_data<real>(void) const { return *dynamic_cast<container<real>*>(_data); }
 
 	/// access the attribute data as if it was of type Vec2
 	template <>
-	std::vector<Vec2>& get_data<Vec2>(void) { return dynamic_cast<container<Vec2>*>(data)->data; }
+	container<Vec2>& get_data<Vec2>(void) { return *dynamic_cast<container<Vec2>*>(_data); }
 
 	/// access the attribute data as if it was of type Vec2 (read-only)
 	template <>
-	const std::vector<Vec2>& get_data<Vec2>(void) const { return dynamic_cast<container<Vec2>*>(data)->data; }
+	const container<Vec2>& get_data<Vec2>(void) const { return *dynamic_cast<container<Vec2>*>(_data); }
 
 	/// access the attribute data as if it was of type Vec3
 	template <>
-	std::vector<Vec3>& get_data<Vec3>(void) { return dynamic_cast<container<Vec3>*>(data)->data; }
+	container<Vec3>& get_data<Vec3>(void) { return *dynamic_cast<container<Vec3>*>(_data); }
 
 	/// access the attribute data as if it was of type Vec3 (read-only)
 	template <>
-	const std::vector<Vec3>& get_data<Vec3>(void) const { return dynamic_cast<container<Vec3>*>(data)->data; }
+	const container<Vec3>& get_data<Vec3>(void) const { return *dynamic_cast<container<Vec3>*>(_data); }
 
 	/// access the attribute data as if it was of type Vec4
 	template <>
-	std::vector<Vec4>& get_data<Vec4>(void) { return dynamic_cast<container<Vec4>*>(data)->data; }
+	container<Vec4>& get_data<Vec4>(void) { return *dynamic_cast<container<Vec4>*>(_data); }
 
 	/// access the attribute data as if it was of type Vec4 (read-only)
 	template <>
-	const std::vector<Vec4>& get_data<Vec4>(void) const { return dynamic_cast<container<Vec4>*>(data)->data; }
+	const container<Vec4>& get_data<Vec4>(void) const { return *dynamic_cast<container<Vec4>*>(_data); }
 
 	/// obtain raw pointer to the attribute data
-	void* get_pointer (void) { return data->get_pointer(); };
+	void* get_pointer (void) { return _data->get_pointer(); };
 
 	/// obtain raw const pointer to the attribute data
-	const void* get_pointer (void) const { return data->get_pointer(); };
+	const void* get_pointer (void) const { return _data->get_pointer(); };
 
 	/// obtain pointer to the data point timestamps
-	virtual flt_type* get_timestamps (void) { return data->get_timestamps(); };
+	virtual flt_type* get_timestamps (void) { return _data->get_timestamps(); };
 
 	/// obtain const pointer to the data point timestamps
-	virtual const flt_type* get_timestamps (void) const { return data->get_timestamps(); };
+	virtual const flt_type* get_timestamps (void) const { return _data->get_timestamps(); };
 
 	/// return a string representing the attribute data type
 	const std::string& type_string (void) const;
@@ -722,10 +796,12 @@ protected:
 	/// Proxy for derived classes to gain write-access the list of individual trajectories in the dataset.
 	static std::vector<range>& trajectories (traj_dataset<real> &dataset);
 
-	/// Helper for derived classes to create an attribute of given name and type and obtain a \c std::vector reference for
-	/// easy immediate access
+	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
+	/// access
 	template <class T>
-	static std::vector<T>& add_attribute (traj_dataset<real> &dataset, const std::string &name)
+	static typename traj_attribute<flt_type>::container<T>& add_attribute (
+		traj_dataset<real> &dataset, const std::string &name
+	)
 	{
 		return dataset.attributes().emplace(name, std::vector<T>()).first->second.get_data<T>();
 	}
