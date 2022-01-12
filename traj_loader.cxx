@@ -1304,7 +1304,7 @@ struct traj_manager<flt_type>::Impl
 					for (unsigned i=0; i<data.num(); i++)
 					{
 						out->emplace_back();
-						ref.transform.exec(out->back(), data[i]);
+						ref.transform.exec(out->back(), data.values[i]);
 					}
 					return;
 				}
@@ -1315,7 +1315,7 @@ struct traj_manager<flt_type>::Impl
 					for (unsigned i=0; i<data.num(); i++)
 					{
 						out->emplace_back();
-						ref.transform.exec(out->back(), data[i]);
+						ref.transform.exec(out->back(), data.values[i]);
 					}
 					return;
 				}
@@ -1326,7 +1326,7 @@ struct traj_manager<flt_type>::Impl
 					for (unsigned i=0; i<data.num(); i++)
 					{
 						out->emplace_back();
-						ref.transform.exec(out->back(), data[i]);
+						ref.transform.exec(out->back(), data.values[i]);
 					}
 					return;
 				}
@@ -1337,7 +1337,7 @@ struct traj_manager<flt_type>::Impl
 					for (unsigned i=0; i<data.num(); i++)
 					{
 						out->emplace_back();
-						ref.transform.exec(out->back(), data[i]);
+						ref.transform.exec(out->back(), data.values[i]);
 					}
 				}
 			}
