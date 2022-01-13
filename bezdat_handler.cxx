@@ -336,6 +336,7 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (std::istream &contents)
 	std::vector<Vec3> P; P.reserve(num);
 	std::vector<Vec4> dP; dP.reserve(num);
 	std::vector<real> R; R.reserve(num);
+	std::vector<real> ts; ts.resize(num);
 	std::vector<Vec3> C, dC; C.reserve(num); dC.reserve(num);
 	for (auto &node : nodes)
 	{
@@ -353,8 +354,10 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (std::istream &contents)
 		ds_trajs.emplace_back(range{
 			/* 1st index */ (unsigned)I.size(),  /* num indices */ (unsigned)traj.size()*2
 		});
+		real t = 0;
 		for (const auto& seg : traj)
 		{
+			ts[seg.n0] = t; ts[seg.n1] = ++t;
 			I.push_back(seg.n0);
 			I.push_back(seg.n1);
 			avg_dist += (P[seg.n1] - P[seg.n0]).length();
@@ -365,11 +368,11 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (std::istream &contents)
 
 	// commit to actual attribute storage
 	auto &A = attributes(ret);
-	A.emplace(BEZDAT_POSITION_ATTRIB_NAME, std::move(P));
-	A.emplace(BEZDAT_TANGENT_ATTRIB_NAME, std::move(dP));
-	A.emplace(BEZDAT_RADIUS_ATTRIB_NAME, std::move(R));
-	A.emplace(BEZDAT_COLOR_ATTRIB_NAME, std::move(C));
-	A.emplace(BEZDAT_DCOLOR_ATTRIB_NAME, std::move(dC));
+	A.emplace(BEZDAT_POSITION_ATTRIB_NAME, traj_attribute<real>{std::move(P), ts});
+	A.emplace(BEZDAT_TANGENT_ATTRIB_NAME, traj_attribute<real>{std::move(dP), ts});
+	A.emplace(BEZDAT_RADIUS_ATTRIB_NAME, traj_attribute<real>{std::move(R), ts});
+	A.emplace(BEZDAT_COLOR_ATTRIB_NAME, traj_attribute<real>{std::move(C), ts});
+	A.emplace(BEZDAT_DCOLOR_ATTRIB_NAME, traj_attribute<real>{std::move(dC), std::move(ts)});
 	indices(ret) = std::move(I);
 	ret.set_mapping(Impl<real>::attrmap);
 

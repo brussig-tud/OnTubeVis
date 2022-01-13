@@ -127,6 +127,18 @@ traj_attribute<flt_type>::traj_attribute (unsigned components) : _data(nullptr)
 }
 
 template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (const std::vector<real> &source, float tstart, float dt)
+	: _type(AttribType::REAL), _data(nullptr)
+{
+	// generate timestamps
+	std::vector<real> ts; ts.reserve(source.size());
+	for (unsigned i=0; i<(unsigned)source.size(); i++)
+		ts.emplace_back(tstart + dt*i);
+	// construct data container
+	_data = new container<real>(source, std::move(ts));
+}
+
+template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, float tstart, float dt)
 	: _type(AttribType::REAL), _data(nullptr)
 {
@@ -139,10 +151,29 @@ traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, float tsta
 }
 
 template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, const std::vector<real> &timestamps)
+	: _type(AttribType::REAL), _data(nullptr)
+{
+	_data = new container<real>(std::move(source), timestamps);
+}
+
+template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, std::vector<real> &&timestamps)
 	: _type(AttribType::REAL), _data(nullptr)
 {
 	_data = new container<real>(std::move(source), std::move(timestamps));
+}
+
+template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (const std::vector<Vec2> &source, float tstart, float dt)
+	: _type(AttribType::VEC2), _data(nullptr)
+{
+	// generate timestamps
+	std::vector<real> ts; ts.reserve(source.size());
+	for (unsigned i=0; i<(unsigned)source.size(); i++)
+		ts.emplace_back(tstart + dt*i);
+	// construct data container
+	_data = new container<Vec2>(source, std::move(ts));
 }
 
 template <class flt_type>
@@ -158,10 +189,29 @@ traj_attribute<flt_type>::traj_attribute (std::vector<Vec2> &&source, float tsta
 }
 
 template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (std::vector<Vec2> &&source, const std::vector<real> &timestamps)
+	: _type(AttribType::VEC2), _data(nullptr)
+{
+	_data = new container<Vec2>(std::move(source), timestamps);
+}
+
+template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<Vec2> &&source, std::vector<real> &&timestamps)
 	: _type(AttribType::VEC2), _data(nullptr)
 {
 	_data = new container<Vec2>(std::move(source), std::move(timestamps));
+}
+
+template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (const std::vector<Vec3> &source, float tstart, float dt)
+	: _type(AttribType::VEC3), _data(nullptr)
+{
+	// generate timestamps
+	std::vector<real> ts; ts.reserve(source.size());
+	for (unsigned i=0; i<(unsigned)source.size(); i++)
+		ts.emplace_back(tstart + dt*i);
+	// construct data container
+	_data = new container<Vec3>(source, std::move(ts));
 }
 
 template <class flt_type>
@@ -177,10 +227,29 @@ traj_attribute<flt_type>::traj_attribute (std::vector<Vec3> &&source, float tsta
 }
 
 template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (std::vector<Vec3> &&source, const std::vector<real> &timestamps)
+	: _type(AttribType::VEC3), _data(nullptr)
+{
+	_data = new container<Vec3>(std::move(source), timestamps);
+}
+
+template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<Vec3> &&source, std::vector<real> &&timestamps)
 	: _type(AttribType::VEC3), _data(nullptr)
 {
 	_data = new container<Vec3>(std::move(source), std::move(timestamps));
+}
+
+template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (const std::vector<Vec4> &source, float tstart, float dt)
+	: _type(AttribType::VEC4), _data(nullptr)
+{
+	// generate timestamps
+	std::vector<real> ts; ts.reserve(source.size());
+	for (unsigned i=0; i<(unsigned)source.size(); i++)
+		ts.emplace_back(tstart + dt*i);
+	// construct data container
+	_data = new container<Vec4>(source, std::move(ts));
 }
 
 template <class flt_type>
@@ -193,6 +262,13 @@ traj_attribute<flt_type>::traj_attribute (std::vector<Vec4> &&source, float tsta
 		ts.emplace_back(tstart + dt*i);
 	// construct data container
 	_data = new container<Vec4>(std::move(source), std::move(ts));
+}
+
+template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (std::vector<Vec4> &&source, const std::vector<real> &timestamps)
+	: _type(AttribType::VEC4), _data(nullptr)
+{
+	_data = new container<Vec4>(std::move(source), timestamps);
 }
 
 template <class flt_type>

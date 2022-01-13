@@ -150,7 +150,17 @@ public:
 			: values(values), timestamps(timestamps)
 		{}
 
-		/// construct with the given actual data (move semantics)
+		/// construct with the given actual data, moving in the values only
+		container(std::vector<elem_type> &&values, const std::vector<flt_type> &timestamps)
+			: values(std::move(values)), timestamps(timestamps)
+		{}
+
+		/// construct with the given actual data, moving in the timestamps only
+		container(const std::vector<elem_type> &values, std::vector<flt_type> &&timestamps)
+			: values(values), timestamps(std::move(timestamps))
+		{}
+
+		/// construct with the given actual data, moving in both values and timestamps
 		container(std::vector<elem_type> &&values, std::vector<flt_type> &&timestamps)
 			: values(std::move(values)), timestamps(std::move(timestamps))
 		{}
@@ -225,27 +235,51 @@ public:
 	traj_attribute(unsigned components);
 
 	/// construct with scalar attribute data, generating uniformly spaced timestamps for each item
+	traj_attribute(const std::vector<real> &source, float tstart=0, float dt=1);
+
+	/// construct with scalar attribute data (moved in), generating uniformly spaced timestamps for each item
 	traj_attribute(std::vector<real> &&source, float tstart=0, float dt=1);
 
-	/// construct with scalar attribute data and timestamps
+	/// construct with scalar attribute data (moved in) and timestamps (copied)
+	traj_attribute(std::vector<real> &&source, const std::vector<real> &timestamps);
+
+	/// construct with scalar attribute data and timestamps (both moved in)
 	traj_attribute(std::vector<real> &&source, std::vector<real> &&timestamps);
 
 	/// construct with 2D vector attribute data, generating uniformly spaced timestamps for each item
+	traj_attribute(const std::vector<Vec2> &source, float tstart=0, float dt=1);
+
+	/// construct with 2D vector attribute data (moved in), generating uniformly spaced timestamps for each item
 	traj_attribute(std::vector<Vec2> &&source, float tstart=0, float dt=1);
 
-	/// construct with 2D vector attribute data and timestamps
+	/// construct with 2D vector attribute data (moved in) and timestamps (copied)
+	traj_attribute(std::vector<Vec2> &&source, const std::vector<real> &timestamps);
+
+	/// construct with 2D vector attribute data and timestamps (both moved in)
 	traj_attribute(std::vector<Vec2> &&source, std::vector<real> &&timestamps);
 
 	/// construct with 3D vector attribute data, generating uniformly spaced timestamps for each item
+	traj_attribute(const std::vector<Vec3> &source, float tstart=0, float dt=1);
+
+	/// construct with 3D vector attribute data (moved in), generating uniformly spaced timestamps for each item
 	traj_attribute(std::vector<Vec3> &&source, float tstart=0, float dt=1);
 
-	/// construct with 3D vector attribute data and timestamps
+	/// construct with 3D vector attribute data (moved in) and timestamps (copied)
+	traj_attribute(std::vector<Vec3> &&source, const std::vector<real> &timestamps);
+
+	/// construct with 3D vector attribute data and timestamps (both moved in)
 	traj_attribute(std::vector<Vec3> &&source, std::vector<real> &&timestamps);
 
 	/// construct with 4D vector attribute data, generating uniformly spaced timestamps for each item
+	traj_attribute(const std::vector<Vec4> &source, float tstart=0, float dt=1);
+
+	/// construct with 4D vector attribute data (moved in), generating uniformly spaced timestamps for each item
 	traj_attribute(std::vector<Vec4> &&source, float tstart=0, float dt=1);
 
-	/// construct with 4D vector attribute data and timestamps
+	/// construct with 4D vector attribute data (moved in) and timestamps (copied)
+	traj_attribute(std::vector<Vec4> &&source, const std::vector<real> &timestamps);
+
+	/// construct with 4D vector attribute data and timestamps (both moved in)
 	traj_attribute(std::vector<Vec4> &&source, std::vector<real> &&timestamps);
 
 	/// the destructor
