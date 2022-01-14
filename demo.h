@@ -4,6 +4,7 @@
 #include <cmath>
 #include <chrono>
 #include <random>
+#include <numeric>
 
 // CGV framework core
 #include <cgv/render/render_types.h>
@@ -310,19 +311,22 @@ struct demo : public traj_format_handler<float>
 
 		// prepare data containers
 		typename traj_dataset<float> ds("Furball", "DEMO");
-		auto &P = add_attribute<Vec3>(ds, ATTRIB_POSITION).values; //auto tP = attributes(ds)[ATTRIB_POSITION].get_timestamps();
-		auto &T = add_attribute<Vec4>(ds, ATTRIB_TANGENT).values; //auto tT = attributes(ds)[ATTRIB_TANGENT].get_timestamps();
-		auto &R = add_attribute<float>(ds, ATTRIB_RADIUS).values; //auto tR = attributes(ds)[ATTRIB_RADIUS].get_timestamps();
-		auto &C = add_attribute<Vec3>(ds, ATTRIB_COLOR).values; //auto tC = attributes(ds)[ATTRIB_COLOR].get_timestamps();
-		auto &I = indices(ds);
-		auto &ds_trajs = traj_format_handler<float>::trajectories(ds);
-		ds.set_mapping(attrmap);
+		std::vector<range> &ds_trajs = traj_format_handler<float>::trajectories(ds);
+		std::vector<unsigned> &I = indices(ds);
+		std::vector<float> ts;
+		std::vector<Vec3> P;
+		std::vector<Vec4> T;
+		std::vector<float> R;
+		std::vector<Vec3> C;
 
 		// compile
 		unsigned idx=0, idx_base=0, num_segs=0;
 		real avg_dist = 0;
 		for (const auto &traj : trajectories)
 		{
+			// generate timestamps
+			for (unsigned i=0; i<(unsigned)traj.positions.size(); i++)
+				ts.emplace_back((float)i);
 			// copy over visual attributes
 			std::copy(traj.positions.begin(), traj.positions.end(), std::back_inserter(P));
 			std::copy(traj.tangents.begin(), traj.tangents.end(), std::back_inserter(T));
@@ -354,8 +358,15 @@ struct demo : public traj_format_handler<float>
 			idx_base = (unsigned)I.size();
 		}
 
+		// transfer attributes into dataset
+		add_attribute<Vec3>(ds, ATTRIB_POSITION, traj_attribute<float>{std::move(P), ts});
+		add_attribute<Vec4>(ds, ATTRIB_TANGENT, traj_attribute<float>{std::move(T), ts});
+		add_attribute<float>(ds, ATTRIB_RADIUS, traj_attribute<float>{std::move(R), ts});
+		add_attribute<Vec3>(ds, ATTRIB_COLOR, traj_attribute<float>{std::move(C), std::move(ts)});
+		ds.set_mapping(attrmap);
+
 		// done!
-		set_avg_segment_length(ds, avg_dist/num_segs);
+		set_avg_segment_length(ds, avg_dist / num_segs);
 		return std::move(ds);
 	}
 };

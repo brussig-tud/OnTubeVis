@@ -352,6 +352,78 @@ struct csv_handler<flt_type>::Impl
 			ret[i] = parse_field(fields[field_ids[i]]);
 		return std::move(ret);
 	}
+
+	// timestamp stuff
+	enum class TimeFmt
+	{
+		UNKNOWN, SIMPLE_NUMBER, HMS, HMS_MS
+	};
+	inline static TimeFmt guess_timestamp_format (const std::string &field)
+	{
+		static const std::string seperators = ":.";
+		std::vector<cgv::utils::token> tokens;
+		cgv::utils::split_to_tokens(field, tokens, seperators, false);
+		unsigned num_fields = 0;
+		for (const auto &token : tokens)
+		{
+			if (is_separator(token, seperators))
+				continue;
+			num_fields++;
+		}
+		if (num_fields == 3 && tokens.size() > 4)
+			return TimeFmt::HMS;
+		else if (num_fields == 4 && tokens.size() > 6)
+			return TimeFmt::HMS_MS;
+		return TimeFmt::SIMPLE_NUMBER;
+	}
+	inline static double parse_timestamp_field (TimeFmt fmt, const std::string &field)
+	{
+		switch (fmt)
+		{
+			case TimeFmt::SIMPLE_NUMBER:
+			{
+				real val;
+				try { val = (real)std::stod(field); }
+				catch (const std::out_of_range&) { val = std::numeric_limits<real>::infinity(); }
+				catch (...) { val = -std::numeric_limits<real>::infinity(); }
+				return val;
+			}
+			case TimeFmt::HMS:
+			{
+				static const std::string seperators = ":.";
+				std::vector<cgv::utils::token> tokens;
+				cgv::utils::split_to_tokens(field, tokens, seperators, false);
+				real val[3];
+				for (unsigned i=0; i<3; i++)
+				{
+					const auto &token = tokens[i*2];
+					try { val[i] = (real)std::stod(std::string(token.begin, size_t(token.end - token.begin))); }
+					catch (const std::out_of_range&) { val[i] = std::numeric_limits<real>::infinity(); }
+					catch (...) { val[i] = -std::numeric_limits<real>::infinity(); }
+				}
+				return double(val[0]*60*60 + val[1]*60 + val[2]);
+			}
+			case TimeFmt::HMS_MS:
+			{
+				static const std::string seperators = ":.";
+				std::vector<cgv::utils::token> tokens;
+				cgv::utils::split_to_tokens(field, tokens, seperators, false);
+				double val[4];
+				for (unsigned i=0; i<4; i++)
+				{
+					const auto &token = tokens[i*2];
+					try { val[i] = (real)std::stod(std::string(token.begin, size_t(token.end - token.begin))); }
+					catch (const std::out_of_range&) { val[i] = std::numeric_limits<real>::infinity(); }
+					catch (...) { val[i] = -std::numeric_limits<real>::infinity(); }
+				}
+				const double t_ms = val[3]/1000, t_m = val[1]*60, t_h = val[0]*60*60;
+				return t_h + t_m + val[2] + t_ms;
+			}
+			default:
+				/* DoNothing() */;
+		}
+		return 0;
+	}
 };
 
 template <class flt_type>
@@ -478,6 +550,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 	const auto &csv_attribs = impl.csv_desc.attributes();
 	std::vector<Impl::declared_attrib> declared_attribs;
 	declared_attribs.reserve(csv_attribs.size());
+	int timestamp_id = -1;
 	if (props.header)
 	{
 		// we know that we have a header because our attribute declaration requires one
@@ -486,6 +559,8 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 		// find actual .csv columns belonging to each declared attribute
 		for (const auto &csv_attrib : csv_attribs)
 		{
+			if (csv_attrib.semantics == CSV::TIMESTAMP)
+				timestamp_id = (int)declared_attribs.size();
 			declared_attribs.emplace_back(csv_attrib);
 			auto &attrib = declared_attribs.back();
 			// for each colum declaration, search the corresponding field in the actual .csv header row
@@ -510,6 +585,8 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 		// just commit the user-declared column numbers
 		for (const auto &csv_attrib : csv_attribs)
 		{
+			if (csv_attrib.semantics == CSV::TIMESTAMP)
+				timestamp_id = (int)declared_attribs.size();
 			declared_attribs.emplace_back(csv_attrib);
 			auto &attrib = declared_attribs.back();
 			for (const auto &col : csv_attrib.columns)
@@ -543,6 +620,11 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 	std::vector<Vec3> &P = declared_attribs[props.pos_id].attrib.get_data<Vec3>().values;
 	std::map<int, std::vector<unsigned> > trajs;
 
+	// prepare timestamp parsing
+	auto timestamp_format = Impl::TimeFmt::UNKNOWN;
+	if (timestamp_id > -1)
+		timestamp_format = Impl::guess_timestamp_format(fields[declared_attribs[timestamp_id].field_ids.front()]);
+
 	// parse the stream until EOF
 	while (!contents.eof())
 	{
@@ -559,38 +641,43 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 		// current sample index
 		unsigned current_idx = (unsigned)P.size();
 
+		// read in timestamps if present
+		double t;
+		if (timestamp_id > -1)
+			t = Impl::parse_timestamp_field(
+				timestamp_format, fields[declared_attribs[timestamp_id].field_ids.front()]
+			);
+		else
+			t = (flt_type)current_idx;
+
 		// read in all declared attributes
 		for (auto &attrib : declared_attribs)
 		{
 			switch (attrib.field_ids.size())
 			{
 				case 1:
-					attrib.attrib.get_data<real>().values.emplace_back(
-						Impl::parse_field(fields[attrib.field_ids.front()])
+					attrib.attrib.get_data<real>().append(
+						Impl::parse_field(fields[attrib.field_ids.front()]), t
 					);
 					continue;
 
 				case 2:
-				{
-					attrib.attrib.get_data<Vec2>().values.emplace_back(
-						std::move(Impl::parse_fields<2>(fields, attrib.field_ids))
+					attrib.attrib.get_data<Vec2>().append(
+						std::move(Impl::parse_fields<2>(fields, attrib.field_ids)), t
 					);
 					continue;
-				}
+
 				case 3:
-				{
-					attrib.attrib.get_data<Vec3>().values.emplace_back(
-						std::move(Impl::parse_fields<3>(fields, attrib.field_ids))
+					attrib.attrib.get_data<Vec3>().append(
+						std::move(Impl::parse_fields<3>(fields, attrib.field_ids)), t
 					);
 					continue;
-				}
+
 				case 4:
-				{
-					attrib.attrib.get_data<Vec4>().values.emplace_back(
-						std::move(Impl::parse_fields<4>(fields, attrib.field_ids))
+					attrib.attrib.get_data<Vec4>().append(
+						std::move(Impl::parse_fields<4>(fields, attrib.field_ids)), t
 					);
 					continue;
-				}
 
 				default:
 					/* DoNothing() */;
@@ -599,7 +686,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 
 		// read in all undeclared attributes
 		for (auto &attrib : undeclared_attribs)
-			attrib.attrib.get_data<real>().values.emplace_back(Impl::parse_field(fields[attrib.field_id]));
+			attrib.attrib.get_data<real>().append(Impl::parse_field(fields[attrib.field_id]), t);
 
 		// store index for appropriate trajectory
 		auto &indices = trajs[traj_id];
@@ -631,7 +718,8 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 	// commit attributes
 	auto &ret_attribs = attributes(ret);
 	for (auto &attrib : declared_attribs)
-		ret_attribs.emplace(attrib.desc.name, std::move(attrib.attrib));
+		if (attrib.desc.semantics != CSV::TIMESTAMP)
+			ret_attribs.emplace(attrib.desc.name, std::move(attrib.attrib));
 	for (auto &attrib : undeclared_attribs)
 		ret_attribs.emplace(attrib.name, std::move(attrib.attrib));
 	auto &I = indices(ret);
@@ -669,25 +757,31 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 template <class flt_type>
 bool csv_handler<flt_type>::is_csv_descriptor_valid (const csv_descriptor &csv_desc)
 {
-	bool pos_found=false, traj_id_found=false;
+	bool pos_found=false, traj_id_found=false, timestamp_found=false;
 	for (const auto &attrib : csv_desc.attributes())
 	{
-		if (attrib.semantics == CSV::POS && pos_found)
-			return false;
-		else if (attrib.semantics == CSV::POS)
+		if (attrib.semantics == CSV::POS)
 		{
 			pos_found = true;
 			if (attrib.columns.empty() || attrib.columns.size() > 3)
 				return false;
 		}
-		else if (attrib.semantics == CSV::TRAJ_ID && traj_id_found)
-			return false;
 		else if (attrib.semantics == CSV::TRAJ_ID)
 		{
 			traj_id_found = true;
 			if (attrib.columns.empty() || attrib.columns.size() > 1)
 				return false;
 		}
+		else if (attrib.semantics == CSV::TIMESTAMP)
+		{
+			timestamp_found = true;
+			if (attrib.columns.empty() || attrib.columns.size() > 1)
+				return false;
+		}
+		else if (   (attrib.semantics == CSV::POS && pos_found)
+		         || (attrib.semantics == CSV::TRAJ_ID && traj_id_found)
+		         || (attrib.semantics == CSV::TIMESTAMP && timestamp_found))
+			return false;
 	}
 	return pos_found;
 }
@@ -706,12 +800,12 @@ template class csv_handler<double>;
 
 // Register example handler for the IML multi-user study .csv files
 static const csv_descriptor csv_imluser_desc("IML user trajectory", ",", {
-	{ "timestamp", {"timestamp", false, 0} },
+	{ "timestamp", {"timestamp", false, 0}, CSV::TIMESTAMP },
 	{ "id",        {"id", false, 1}, CSV::TRAJ_ID },
 	{ "position",  {{"pos_1", false, 2}, {"pos_2", false, 3}, {"pos_3", false, 4}}, CSV::POS }}
 ),
 csv_imldevice_desc("IML device trajectory", ",", {
-	{ "timestamp", {"timestamp", false, 0} },
+	{ "timestamp", {"timestamp", false, 0}, CSV::TIMESTAMP },
 	{ "userid",    {"userid", false, 1}, CSV::TRAJ_ID },
 	{ "position",  {{"spacePos_1", false, 4}, {"spacePos_2", false, 5}, {"spacePos_3", false, 6}}, CSV::POS }}
 );

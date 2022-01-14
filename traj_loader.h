@@ -173,6 +173,20 @@ public:
 			return datapoint<elem_type>(const_cast<elem_type&>(values[index]), const_cast<flt_type&>(timestamps[index]));
 		}
 
+		/// append a datapoint, returning its resulting index
+		unsigned append(const elem_type& value, flt_type timestamp)
+		{
+			values.emplace_back(value); timestamps.emplace_back(timestamp);
+			return (unsigned)values.size()-1;
+		}
+
+		/// append a datapoint, returning its resulting index
+		unsigned append(const datapoint<elem_type> &new_datapoint)
+		{
+			values.emplace_back(new_datapoint.val); timestamps.emplace_back(new_datapoint.t);
+			return (unsigned)values.size()-1;
+		}
+
 		/// obtain an iterator over the attribute values pointing at the first datapoint
 		typename std::vector<elem_type>::iterator begin (void) { return values.begin(); }
 
@@ -832,12 +846,12 @@ protected:
 
 	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access
-	template <class T>
+	template <class T, typename ... Args>
 	static typename traj_attribute<flt_type>::container<T>& add_attribute (
-		traj_dataset<real> &dataset, const std::string &name
+		traj_dataset<real> &dataset, const std::string &name, Args&& ... args
 	)
 	{
-		return dataset.attributes().emplace(name, std::vector<T>()).first->second.get_data<T>();
+		return dataset.attributes().emplace(name, std::forward<Args>(args)...).first->second.get_data<T>();
 	}
 
 public:

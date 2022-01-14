@@ -17,7 +17,7 @@
 /// possible special semantics of attributes found in .csv column(s)
 enum class CSV_AttribSemantics
 {
-	ARBITRARY=0, POS, TRAJ_ID
+	ARBITRARY=0, POS, TRAJ_ID, TIMESTAMP
 };
 #if !defined(CSV_HANDLER_NO_SHORTHAND_ENUM_CSV) || CSV_HANDLER_NO_SHORTHAND_ENUM_CSV==0
 	/// convenience shorthand for \ref CSV_AttribSemantics
