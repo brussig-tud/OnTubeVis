@@ -1715,9 +1715,21 @@ unsigned traj_manager<flt_type>::add_dataset (traj_dataset<real> &&dataset)
 }
 
 template <class flt_type>
+unsigned traj_manager<flt_type>::num_datasets (void) const
+{
+	return (unsigned)pimpl->datasets.size();
+}
+
+template <class flt_type>
 const traj_dataset<flt_type>& traj_manager<flt_type>::dataset (unsigned index) const
 {
 	return *(pimpl->datasets[index].get());
+}
+
+template <class flt_type>
+typename traj_manager<flt_type>::dataset_range traj_manager<flt_type>::datasets (void) const
+{
+	return dataset_range(*this);
 }
 
 template <class flt_type>
@@ -1725,12 +1737,6 @@ void traj_manager<flt_type>::clear (void)
 {
 	pimpl->datasets.clear();
 	pimpl->dirty = true;
-}
-
-template <class flt_type>
-bool traj_manager<flt_type>::has_data (void) const
-{
-	return !(pimpl->datasets.empty());
 }
 
 template <class flt_type>

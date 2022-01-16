@@ -911,6 +911,45 @@ public:
 		std::vector<range> dataset_ranges;
 	};
 
+	/// convenience helper for iterating over datasets in the manager using range-based for loops
+	struct dataset_range
+	{
+		friend class traj_manager;
+
+	public:
+		/// dereference to current dataset
+		inline const traj_dataset<real>& operator* (void) const { return mgr.dataset(index); }
+
+		/// start iterating
+		inline dataset_range begin (void) { return dataset_range(mgr); }
+
+		/// end iterating
+		inline dataset_range end (void) { return dataset_range(mgr, mgr.num_datasets()); }
+
+		/// iterate forward
+		inline dataset_range& operator++ (void) { index++; return *this; }
+
+		/// iterate forward
+		inline dataset_range operator++ (int) { dataset_range copy(*this); index++; return copy; }
+
+		/// equality comparison
+		inline bool operator== (const dataset_range &other) const { return index == other.index; }
+
+		/// inequality comparison
+		inline bool operator!= (const dataset_range &other) const { return index != other.index; }
+
+	protected:
+		/// construct for the given manager and start index
+		inline dataset_range(const traj_manager<real> &mgr, unsigned start_index=0) : mgr(mgr), index(start_index) {}
+
+	private:
+		/// trajectory  manager back-reference
+		const traj_manager<real> &mgr;
+
+		/// current index counter
+		unsigned index;
+	};
+
 
 private:
 
@@ -943,14 +982,20 @@ public:
 	/// access index
 	unsigned add_dataset (traj_dataset<real> &&dataset);
 
-	// read-only reference the dataset of the given index
+	/// query the number of currently loaded datasets
+	unsigned num_datasets (void) const;
+
+	/// read-only reference the dataset of the given index
 	const traj_dataset<real>& dataset (unsigned index) const;
+
+	/// return a range over all datasets of the manager
+	dataset_range datasets (void) const;
 
 	/// reset internal trajectory database (e.g. for loading a new, unrelated set of trajectories into this existing instance)
 	void clear (void);
 
 	/// check if the manager currently stores valid loaded data
-	bool has_data (void) const;
+	bool has_data (void) const { return num_datasets() > 0; }
 
 	/// returns the visual attributes of all dataset laid out in a way suitable for rendering
 	/// \param auto_tangents

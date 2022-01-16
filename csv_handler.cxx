@@ -376,7 +376,7 @@ struct csv_handler<flt_type>::Impl
 			return TimeFmt::HMS_MS;
 		return TimeFmt::SIMPLE_NUMBER;
 	}
-	inline static double parse_timestamp_field (TimeFmt fmt, const std::string &field)
+	inline static real parse_timestamp_field (TimeFmt fmt, const std::string &field)
 	{
 		switch (fmt)
 		{
@@ -401,14 +401,14 @@ struct csv_handler<flt_type>::Impl
 					catch (const std::out_of_range&) { val[i] = std::numeric_limits<real>::infinity(); }
 					catch (...) { val[i] = -std::numeric_limits<real>::infinity(); }
 				}
-				return double(val[0]*60*60 + val[1]*60 + val[2]);
+				return val[0]*60*60 + val[1]*60 + val[2];
 			}
 			case TimeFmt::HMS_MS:
 			{
 				static const std::string seperators = ":.";
 				std::vector<cgv::utils::token> tokens;
 				cgv::utils::split_to_tokens(field, tokens, seperators, false);
-				double val[4];
+				real val[4];
 				for (unsigned i=0; i<4; i++)
 				{
 					const auto &token = tokens[i*2];
@@ -416,8 +416,7 @@ struct csv_handler<flt_type>::Impl
 					catch (const std::out_of_range&) { val[i] = std::numeric_limits<real>::infinity(); }
 					catch (...) { val[i] = -std::numeric_limits<real>::infinity(); }
 				}
-				const double t_ms = val[3]/1000, t_m = val[1]*60, t_h = val[0]*60*60;
-				return t_h + t_m + val[2] + t_ms;
+				return val[0]*60*60 + val[1]*60 + val[2] + val[3]/1000;
 			}
 			default:
 				/* DoNothing() */;
@@ -642,7 +641,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 		unsigned current_idx = (unsigned)P.size();
 
 		// read in timestamps if present
-		double t;
+		real t;
 		if (timestamp_id > -1)
 			t = Impl::parse_timestamp_field(
 				timestamp_format, fields[declared_attribs[timestamp_id].field_ids.front()]
