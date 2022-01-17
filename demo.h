@@ -311,13 +311,19 @@ struct demo : public traj_format_handler<float>
 
 		// prepare data containers
 		typename traj_dataset<float> ds("Furball", "DEMO");
-		std::vector<range> &ds_trajs = traj_format_handler<float>::trajectories(ds);
+		std::vector<range> ds_trajs;
 		std::vector<unsigned> &I = indices(ds);
 		std::vector<float> ts;
 		std::vector<Vec3> P;
 		std::vector<Vec4> T;
 		std::vector<float> R;
 		std::vector<Vec3> C;
+
+		// for the free attributes, we compile them into the dataset directly without staging
+		auto &attrib_scalar = add_attribute<real>(ds, "scalar");
+		auto &attrib_vec2 = add_attribute<Vec2>(ds, "vec2");
+		auto &attrib_vec3 = add_attribute<Vec3>(ds, "vec3");
+		auto &attrib_vec4 = add_attribute<Vec4>(ds, "vec4");
 
 		// compile
 		unsigned idx=0, idx_base=0, num_segs=0;
@@ -356,6 +362,16 @@ struct demo : public traj_format_handler<float>
 			ds_trajs.emplace_back(range{idx_base, (unsigned)I.size()-idx_base});
 			idx = idx_cur + 1;
 			idx_base = (unsigned)I.size();
+
+			// commit free attributes
+			for (const auto &attrib : traj.attrib_scalar)
+				attrib_scalar.append(attrib.value, attrib.t);
+			for (const auto &attrib : traj.attrib_vec2)
+				attrib_vec2.append(attrib.value, attrib.t);
+			for (const auto &attrib : traj.attrib_vec3)
+				attrib_vec3.append(attrib.value, attrib.t);
+			for (const auto &attrib : traj.attrib_vec4)
+				attrib_vec4.append(attrib.value, attrib.t);
 		}
 
 		// transfer attributes into dataset
@@ -364,6 +380,9 @@ struct demo : public traj_format_handler<float>
 		add_attribute<float>(ds, ATTRIB_RADIUS, traj_attribute<float>{std::move(R), ts});
 		add_attribute<Vec3>(ds, ATTRIB_COLOR, traj_attribute<float>{std::move(C), std::move(ts)});
 		ds.set_mapping(attrmap);
+
+		// transfer trajectory ranges (ToDo: temporary!)
+		traj_format_handler<float>::trajectories(ds) = std::move(ds_trajs);
 
 		// done!
 		set_avg_segment_length(ds, avg_dist / num_segs);

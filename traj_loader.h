@@ -21,6 +21,10 @@
 template <class flt_type>
 class visual_attribute_mapping;
 
+/// forward declaration of the trajectory data storage class
+template <class flt_type>
+class traj_dataset;
+
 /// forward declaration of the trajectory format handler interface
 template <class flt_type>
 class traj_format_handler;
@@ -67,6 +71,8 @@ struct stream_pos_guard
 template<class flt_type>
 class traj_attribute
 {
+	friend class traj_dataset<flt_type>;
+	friend class traj_format_handler<flt_type>;
 
 public:
 
@@ -174,14 +180,14 @@ public:
 		}
 
 		/// append a datapoint, returning its resulting index
-		unsigned append(const elem_type& value, flt_type timestamp)
+		unsigned append (const elem_type& value, flt_type timestamp)
 		{
 			values.emplace_back(value); timestamps.emplace_back(timestamp);
 			return (unsigned)values.size()-1;
 		}
 
 		/// append a datapoint, returning its resulting index
-		unsigned append(const datapoint<elem_type> &new_datapoint)
+		unsigned append (const datapoint<elem_type> &new_datapoint)
 		{
 			values.emplace_back(new_datapoint.val); timestamps.emplace_back(new_datapoint.t);
 			return (unsigned)values.size()-1;
@@ -235,6 +241,9 @@ protected:
 
 	/// opaque data
 	container_base *_data;
+
+	/// unique id of this attribute
+	unsigned id;
 
 
 public:
@@ -366,6 +375,14 @@ public:
 	/// return a string representing the attribute data type
 	const std::string& type_string (void) const;
 };
+
+namespace {
+	/// tag representing the attribute data
+	struct attrib_data_tag {} ATTRIB_DATA;
+
+	/// tag representing the overall attribute interface
+	struct attrib_interface_tag {} ATTRIB_INTERFACE;
+}
 
 /// a map of attribute names to their data
 template <class flt_type>
@@ -718,8 +735,11 @@ protected:
 	/// write-access the source name (filename, description, etc.) the dataset was loaded / originated from
 	std::string& data_source (void);
 
-	/// write-access the "special" positions attribute (for use by trajectory format handlers)
-	std::vector<Vec3>& positions (void);
+	/// write-access the "special" positions attribute data (for use by trajectory format handlers)
+	typename traj_attribute<real>::container<Vec3>& positions (attrib_data_tag tag=ATTRIB_DATA);
+
+	/// write-access the interface of the "special" positions attribute (for use by trajectory format handlers)
+	typename traj_attribute<real>& positions (attrib_interface_tag);
 
 	/// write-access the timestamps at each position (for use by trajectory format handlers)
 	flt_type* timestamps (void);
@@ -774,7 +794,7 @@ public:
 	const std::string& data_source (void) const;
 
 	/// access the "special" positions attribute
-	const std::vector<Vec3>& positions (void) const;
+	const typename traj_attribute<real>::container<Vec3>& positions (void) const;
 
 	/// access the timestamps at each position
 	const flt_type* timestamps (void) const;
@@ -830,7 +850,7 @@ public:
 protected:
 
 	/// Proxy for derived classes to gain write-access to the \ref traj_dataset::positions attribute.
-	static std::vector<Vec3>& positions (traj_dataset<real> &dataset);
+	static typename traj_attribute<real>::container<Vec3>& positions (traj_dataset<real> &dataset);
 
 	/// Proxy for derived classes to gain write-access to the \link traj_dataset::attributes generic attributes \endlink .
 	static attribute_map<flt_type>& attributes (traj_dataset<real> &dataset);
@@ -843,6 +863,14 @@ protected:
 
 	/// Proxy for derived classes to gain write-access the list of individual trajectories in the dataset.
 	static std::vector<range>& trajectories (traj_dataset<real> &dataset);
+
+	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
+	/// access
+	template <class T>
+	static typename traj_attribute<flt_type>::container<T>& add_attribute (traj_dataset<real> &dataset, const std::string &name)
+	{
+		return dataset.attributes().emplace(name, std::vector<T>()).first->second.get_data<T>();
+	}
 
 	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access

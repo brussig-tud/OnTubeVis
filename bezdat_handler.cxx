@@ -346,7 +346,7 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (std::istream &contents)
 		C.emplace_back(node.col/real(255));
 		dC.emplace_back(node.dcol/real(255));
 	}
-	std::vector<unsigned> I; auto &ds_trajs = trajectories(ret);
+	std::vector<unsigned> I; std::vector<range> ds_trajs;
 	real avg_dist = 0;
 	unsigned num_segs = 0;
 	for (const auto &traj : trajs)
@@ -375,6 +375,9 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (std::istream &contents)
 	A.emplace(BEZDAT_DCOLOR_ATTRIB_NAME, traj_attribute<real>{std::move(dC), std::move(ts)});
 	indices(ret) = std::move(I);
 	ret.set_mapping(Impl<real>::attrmap);
+
+	// transfer trajectory ranges (ToDo: temporary!)
+	trajectories(ret) = std::move(ds_trajs);
 
 	// print some stats
 	std::cout << "bezdat_handler: loading completed! Stats:" << std::endl

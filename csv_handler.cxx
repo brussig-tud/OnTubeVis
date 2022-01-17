@@ -722,7 +722,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 	for (auto &attrib : undeclared_attribs)
 		ret_attribs.emplace(attrib.name, std::move(attrib.attrib));
 	auto &I = indices(ret);
-	auto &ds_trajs = trajectories(ret);
+	std::vector<range> ds_trajs;
 	for (auto &traj : trajs)
 	{
 		ds_trajs.emplace_back(range{
@@ -740,6 +740,9 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 
 	// commit visual mapping
 	ret.set_mapping(std::move(vamap));
+
+	// transfer trajectory ranges (ToDo: temporary!)
+	trajectories(ret) = std::move(ds_trajs);
 
 	// print some stats
 	const unsigned num_trajs = (unsigned)trajs.size();
