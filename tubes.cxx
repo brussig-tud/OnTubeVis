@@ -250,7 +250,8 @@ void tubes::on_set(void *member_ptr) {
 	}
 
 	// render settings
-	if( member_ptr == &grid_mode ||
+	if( member_ptr == &override_attribute_values ||
+		member_ptr == &grid_mode ||
 		member_ptr == &grid_normal_settings ||
 		member_ptr == &grid_normal_inwards ||
 		member_ptr == &grid_normal_variant ||
@@ -697,12 +698,16 @@ void tubes::create_gui (void)
 
 	if(begin_tree_node("Parameters", am_parameters, true)) {
 		align("\a");
-		add_member_control(this, "Gylph Type", am_parameters.glyph_type, "dropdown", "enums='Circle,Ring,Wedge,Arc,Triangle,Drop'");
+		add_member_control(this, "Gylph Type", am_parameters.glyph_type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Triangle,Drop'");
 		add_member_control(this, "Curvature Correction", am_parameters.curvature_correction, "check");
+		add_member_control(this, "Antialias Radius", antialias_radius, "value_slider", "min=0;max=5;step=0.01;ticks=true");
+		add_decorator("", "separator");
+		add_member_control(this, "Override", override_attribute_values, "check");
 		add_member_control(this, "Radius 0", am_parameters.radius0, "value_slider", "min=0;max=1;step=0.01;ticks=true");
 		add_member_control(this, "Radius 1", am_parameters.radius1, "value_slider", "min=0;max=1;step=0.01;ticks=true");
 		add_member_control(this, "Angle 0", am_parameters.angle0, "value_slider", "min=0;max=360;step=0.01;ticks=true");
 		add_member_control(this, "Angle 1", am_parameters.angle1, "value_slider", "min=0;max=360;step=0.01;ticks=true");
+		add_decorator("", "separator");
 		// only for testing purposes
 		add_member_control(this, "Length Scale", am_parameters.length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xff0000");
 		align("\b");
@@ -1153,6 +1158,9 @@ void tubes::draw_trajectories(context& ctx) {
 
 	prog.set_uniform(ctx, "attribute_mapping.length_scale", am_parameters.length_scale);
 
+	// map global settings
+	prog.set_uniform(ctx, "antialias_radius", antialias_radius);
+
 	const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
 	
 	prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
@@ -1252,6 +1260,7 @@ bool tubes::load_transfer_function(context& ctx)
 
 shader_define_map tubes::build_tube_shading_defines() {
 	shader_define_map defines;
+	shader_code::set_define(defines, "OVERRIDE_ATTRIBUTE_VALUES", override_attribute_values, false);
 	shader_code::set_define(defines, "GRID_MODE", grid_mode, GM_COLOR);
 	unsigned gs = static_cast<unsigned>(grid_normal_settings);
 	if(grid_normal_inwards) gs += 4u;

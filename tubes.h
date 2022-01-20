@@ -203,11 +203,12 @@ protected:
 
 	enum GlyphType {
 		GT_CIRCLE = 0,
-		GT_RING = 1,
+		GT_RECTANGLE = 1,
 		GT_WEDGE = 2,
-		GT_ARC = 3,
-		GT_TRIANGLE = 4,
-		GT_DROP = 5
+		GT_ARC_FLAT = 3,
+		GT_ARC_ROUNDED = 4,
+		GT_TRIANGLE = 5,
+		GT_DROP = 6
 	};
 
 	struct attribute_mapping_parameters {
@@ -220,6 +221,9 @@ protected:
 		float length_scale = 1.0;
 	} am_parameters;
 
+	// global tube render settings
+	bool override_attribute_values = false; // only for testing purposes (uses values controlled by GUI sliders)
+	float antialias_radius = 0.5f;
 	shader_define_map tube_shading_defines;
 
 

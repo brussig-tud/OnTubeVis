@@ -2,6 +2,7 @@
 #define M_PI 3.14159265359
 
 #define SHOW_GLYPHS 1
+#define OVERRIDE_ATTRIBUTE_VALUES 0
 #define GRID_MODE 1
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
@@ -68,6 +69,8 @@ uniform struct {
 	float length_scale;
 } attribute_mapping;
 
+uniform float antialias_radius = 0.5;
+
 // free attributes ssbo
 struct glyph_desc {
 	float s;
@@ -94,6 +97,7 @@ struct closest_glyphs_info {
 	int prev, next, id;
 	float dp, dn, d;
 };
+
 bool get_closest_samples (out closest_glyphs_info closest, in int segid, in float s)
 {
 	const irange segment = ranges[segid];
@@ -169,6 +173,19 @@ float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
 	return 1.0 - clamp(ambient_occlusion.strength_scale * ao / 3.0, 0.0, 1.0);
 }
 
+// rotate a 2d point by the given angle in radians
+vec2 rotate(in vec2 p, in float a) {
+	const float quarter_turn = 1.57079632679; // additional rotation of 90 degrees, so an angle of 0 degrees points the glyph into the direction of the segment
+	a += quarter_turn;
+	float as = sin(a);
+	float ac = cos(a);
+	return mat2(ac, as, -as, ac) * p;
+}					
+
+float op_subtract(float d0, float d1) {
+	return max(-d0, d1);
+}
+
 // SDFs from https://iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
 float sd_circle(in vec2 p, in float r) {
     return length(p) - r;
@@ -180,19 +197,24 @@ float sd_rect(in vec2 p, in vec2 b) {
 }
 
 // c is the sin/cos of the aperture
-float sd_pie(in vec2 p, in vec2 c, in float r) {
+float sd_pie(in vec2 p, in vec2 sca, in float r) {
     p.x = abs(p.x);
     float l = length(p) - r;
-    float m = length(p-c*clamp(dot(p,c),0.0,r));
-    return max(l,m*sign(c.y*p.x-c.x*p.y));
+    float m = length(p-sca*clamp(dot(p,sca),0.0,r));
+    return max(l,m*sign(sca.y*p.x-sca.x*p.y));
 }
 
-// sca is the sin/cos of the orientation
-// scb is the sin/cos of the aperture
-float sd_arc(in vec2 p, in vec2 sca, in vec2 scb, in float ra, in float rb) {
-    p *= mat2(sca.x,sca.y,-sca.y,sca.x);
+// sca is the sin/cos of the aperture
+float sd_arc_flat(in vec2 p, in vec2 sca, in float ra, in float rb) {
+	float d0 = sd_pie(p, sca, ra + rb);
+	float d1 = sd_circle(p, ra - rb);
+	return op_subtract(d1, d0);
+}
+
+// sca is the sin/cos of the aperture
+float sd_arc_rounded(in vec2 p, in vec2 sca, in float ra, in float rb) {
     p.x = abs(p.x);
-    float k = (scb.y*p.x>scb.x*p.y) ? dot(p,scb) : length(p);
+    float k = (sca.y*p.x>sca.x*p.y) ? dot(p,sca) : length(p);
     return sqrt( dot(p,p) + ra*ra - 2.0*ra*k ) - rb;
 }
 
@@ -417,84 +439,101 @@ void main()
 		closest_glyphs_info closest;
 		if (get_closest_samples(closest, segment_id, uv.s))
 		{
+			glyph_desc current_glyph = glyphs[closest.id];
+
+#if OVERRIDE_ATTRIBUTE_VALUES == 1
+			current_glyph.radius0 = attribute_mapping.radius0;
+			current_glyph.radius1 = attribute_mapping.radius1;
+			current_glyph.angle0 = attribute_mapping.angle0;
+			current_glyph.angle1 = attribute_mapping.angle1;
+#endif
+
 			vec2 glyphuv = vec2(
 				  (closest.dp <= closest.dn ? closest.dp : -closest.dn)
 				* attribute_mapping.length_scale, // <-- ToDo: replace with automatic uv re-projection method
 				uv.t
 			);
-			float sd=1e20, aa_strength=1;
+
+			float sd=1e20;
 			switch(attribute_mapping.glyph_type) {
 				case 0:
 					// circle with radius
-					sd = sd_circle(glyphuv, glyphs[closest.id].radius0);
+					sd = sd_circle(glyphuv, current_glyph.radius0);
 					break;
 
 				case 1:
-					// rectangle (ring) with (width, length)
-					sd = sd_rect(glyphuv, vec2(glyphs[closest.id].radius0, glyphs[closest.id].radius1));
+					// rectangle with (width, length)
+					sd = sd_rect(glyphuv, vec2(current_glyph.radius0, current_glyph.radius1));
 					break;
 
 				case 2:
 				{
-					// pie (circle wedge) with aperture angle and radius
-					float aperture_angle = radians(glyphs[closest.id].angle0);
+					// pie (circle wedge) with orientation, aperture angle and radius
+					float aperture_angle = radians(0.5*current_glyph.angle0);
 					sd = sd_pie(
-						glyphuv,
+						rotate(glyphuv, radians(current_glyph.angle1)),
 						vec2(sin(aperture_angle), cos(aperture_angle)),
-						glyphs[closest.id].radius0
+						current_glyph.radius0
 					);
 					break;
 				}
 
 				case 3:
 				{
-					// arc (donut wedge) with orientation, aperture angle and two radii
-					float orientation_angle = radians(glyphs[closest.id].angle1);
-					float aperture_angle = radians(glyphs[closest.id].angle0);
-					sd = sd_arc(
-						glyphuv,
-						vec2(sin(orientation_angle), cos(orientation_angle)),
+					// arc (donut wedge) with flat caps with orientation, aperture angle and two radii
+					float aperture_angle = radians(0.5*current_glyph.angle0);
+					sd = sd_arc_flat(
+						rotate(glyphuv, radians(current_glyph.angle1)),
 						vec2(sin(aperture_angle), cos(aperture_angle)),
-						glyphs[closest.id].radius0,
-						glyphs[closest.id].radius1
+						current_glyph.radius0,
+						current_glyph.radius1
 					);
-					aa_strength = 0.75; // above SDF causes artifacts with AA which can be mitigated by reducing AA strength
 					break;
 				}
 
 				case 4:
 				{
-					// isosceles triangle (arrow tip) with base width and height
-					// compute a rotation matrix to rotate the uv coordinates
-					float angle = radians(glyphs[closest.id].angle0 + 90.0); // add 90 degree to make triangle point in direction of segment per default
-					float as = sin(angle);
-					float ac = cos(angle);
-					mat2 rot = mat2(ac, as, -as, ac);
-					sd = sd_triangle_isosceles(
-						rot*glyphuv - vec2(0.0, glyphs[closest.id].radius1),
-						vec2(glyphs[closest.id].radius0, -2.0*glyphs[closest.id].radius1)
+					// arc (donut wedge) with round caps with orientation, aperture angle and two radii
+					float aperture_angle = radians(0.5*current_glyph.angle0);
+					sd = sd_arc_rounded(
+						rotate(glyphuv, radians(current_glyph.angle1)),
+						vec2(sin(aperture_angle), cos(aperture_angle)),
+						current_glyph.radius0,
+						current_glyph.radius1
 					);
 					break;
 				}
 
 				case 5:
 				{
+					// isosceles triangle (arrow tip) with base width and height
+					sd = sd_triangle_isosceles(
+						rotate(glyphuv, radians(current_glyph.angle1)) - vec2(0.0, current_glyph.radius1),
+						vec2(current_glyph.radius0, -2.0*current_glyph.radius1)
+					);
+					break;
+				}
+
+				case 6:
+				{
 					// drop with base and tip radius and height
-					// compute a rotation matrix to rotate the uv coordinates
-					float angle = radians(glyphs[closest.id].angle0 + 90.0); // add 90 degree to make drop point in direction of segment per default
-					float as = sin(angle);
-					float ac = cos(angle);
-					mat2 rot = mat2(ac, as, -as, ac);
 					sd = sd_drop(
-						rot*glyphuv - vec2(0.0, glyphs[closest.id].radius1),
-						glyphs[closest.id].radius0, glyphs[closest.id].radius1, glyphs[closest.id].angle1 / 360.0 // for now: use the second angle normalized to define the height
+						rotate(glyphuv, radians(current_glyph.angle1)) - vec2(0.0, current_glyph.radius1),
+						current_glyph.radius0,
+						current_glyph.radius1,
+						current_glyph.angle0 / 360.0 // for now: use the first angle normalized to define the height
 					);
 					break;
 				}
 			}
 			// pre-filter the SDF for AA
-			const float w = aa_strength*fwidth(sd)/2;
-			color = mix(vec3(1.0, 0.0, 0.0), color, smoothstep(-w, w, sd));
+			// TODO: Fix AA artifacts.
+			/*	AA arifacts originate from "wrong" usage of sdf, where there are infinitesimally thin iso-lines with value 0.
+				For the circle wegde this is caused because the angle is above 180 and the wedge turns "inside-out".
+				Same holds for the arc, which is only supposed to be used with round caps (maybe we can fix that).
+			*/
+			const float antialias_width = antialias_radius*fwidth(sd);
+			color = mix(vec3(1.0, 0.0, 0.0), color, smoothstep(-antialias_width, antialias_width, sd));
 		}
 #endif
 
