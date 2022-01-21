@@ -415,16 +415,13 @@ void main()
 		vec3 background_color = vec3(0.0);
 		frag_color = vec4(background_color, 1.0);
 	} else {
-		//color = vec3(1.0);
-		
 		vec2 uv = texcoord;
 
 		// Transform the texture coordinate v to go around the tube twice, i.e. from [0,1] to [0,2].
 		// That way the front side of the tube (half the radius), that is always visible to the camera,
 		// has coordinates in [0,1], while the back side lies in [1,2].
 		uv.t *= 2.0;
-		// Move the origin (0,0) to the center of the front side and scale the coordinates to [-1,1]
-		//uv = 2.0 * uv - 1.0;
+		// Move the origin (0,0) to the center of the front side and scale the v coordinate to [-1,1]
 		uv.t = 2.0 * uv.t - 1.0;
 
 		// Correct the perspective shift caused by the curved tube surface by rescaling the v coordinate around the tube.
@@ -432,8 +429,6 @@ void main()
 			uv.t = sin(0.5*M_PI*uv.t);
 
 		//frag_color = vec4(uv.s, uv.t, 0.0, 1.0);
-
-		//frag_color = vec4(10*length(dFdx(uv)), 10*length(dFdy(uv)), 0.0, 1.0);
 		
 #if SHOW_GLYPHS == 1
 		closest_glyphs_info closest;
@@ -542,6 +537,7 @@ void main()
 #endif
 
 		frag_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(color, 1.0), 1);
+
 #if GRID_MODE & 2
 		vec3 gn = compute_grid_normal(uv);
 		vec3 bitangent_eye = cross(normal_eye, tangent_eye);
