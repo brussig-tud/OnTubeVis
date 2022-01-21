@@ -79,6 +79,14 @@ tubes::tubes() : application_plugin("tubes_instance")
 
 	do_benchmark = false;
 	benchmark_running = false;
+
+
+
+
+
+
+	glyph_attribute_mappings.push_back(glyph_attribute_mapping());
+	glyph_attribute_mappings.push_back(glyph_attribute_mapping());
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -269,6 +277,15 @@ void tubes::on_set(void *member_ptr) {
 		context& ctx = *get_context();
 		voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(cgv::math::clamp(static_cast<unsigned>(voxel_grid_resolution), 16u, 512u));
 		create_density_volume(ctx, voxel_grid_resolution);
+	}
+
+	// visualization settings
+	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
+		glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
+		if(member_ptr == &gam) {
+			if(gam.gui_redraw_requested())
+				post_recreate_gui();
+		}
 	}
 
 	// misc settings
@@ -696,7 +713,7 @@ void tubes::create_gui (void)
 		end_tree_node(am_parameters);
 	}
 
-	if(begin_tree_node("Parameters", am_parameters, true)) {
+	if(begin_tree_node("Parameters", am_parameters, false)) {
 		align("\a");
 		add_member_control(this, "Gylph Type", am_parameters.glyph_type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Triangle,Drop'");
 		add_member_control(this, "Curvature Correction", am_parameters.curvature_correction, "check");
@@ -712,6 +729,24 @@ void tubes::create_gui (void)
 		add_member_control(this, "Length Scale", am_parameters.length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xff0000");
 		align("\b");
 		end_tree_node(am_parameters);
+	}
+
+	if(begin_tree_node("ATTRIBUTE MAPPING", glyph_attribute_mappings, true)) {
+		align("\a");
+		connect_copy(add_button("Add Layer")->click, cgv::signal::rebind(this, &tubes::create_glyph_attribute_mapping));
+		for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
+			glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
+			bool node_is_open = begin_tree_node_void("Layer " + std::to_string(i + 1), &gam, -1, true, "level=2;options='w=180';align=''");
+			connect_copy(add_button("X", "w=20")->click, cgv::signal::rebind(this, &tubes::remove_glyph_attribute_mapping, cgv::signal::_c<size_t>(i)));
+			if(node_is_open) {
+				align("\a");
+				gam.create_gui(this, *this);
+				align("\b");
+				end_tree_node(gam);
+			}
+		}
+		align("\b");
+		end_tree_node(glyph_attribute_mappings);
 	}
 	
 	if(begin_tree_node("Transfer Function Editor", tf_editor_ptr, false)) {
@@ -1304,7 +1339,7 @@ namespace cgv {
 			
 			connect_copy(
 				p->add_member_control(b, "Cone Angle", s_ptr->cone_angle, "value_slider", "min=10.0;step=0.0001;max=90.0;ticks=true")->value_change,
-				cgv::signal::rebind(s_ptr, &tubes::ambient_occlusion_style::generate_sample_dirctions));
+				cgv::signal::rebind(s_ptr, &tubes::ambient_occlusion_style::generate_sample_directions));
 
 			return true;
 		}

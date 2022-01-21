@@ -29,6 +29,15 @@
 #include "traj_loader.h"
 #include "textured_spline_tube_renderer.h"
 #include "demo.h" // interactive testbed helper classes and data
+#include "glyph_shapes.h"
+#include "glyph_attribute_mapping.h"
+
+
+
+#include <cgv/data/ref_ptr.h>
+#include <cgv/gui/control.h>
+
+
 
 using namespace cgv::render;
 
@@ -137,7 +146,7 @@ public:
 		std::vector<vec3> sample_directions;
 
 		ambient_occlusion_style() {
-			generate_sample_dirctions();
+			generate_sample_directions();
 		}
 
 		void derive_voxel_grid_parameters(const voxel_grid& vg) {
@@ -152,7 +161,7 @@ public:
 			texel_size = 1.0f / volume_resolution[max_extent_axis];
 		}
 
-		void generate_sample_dirctions() {
+		void generate_sample_directions() {
 			sample_directions.resize(3, vec3(0.0f, 1.0f, 0.0f));
 
 			float alpha2 = cgv::math::deg2rad(cone_angle / 2.0f);
@@ -200,16 +209,6 @@ protected:
 	float normal_mapping_scale;
 	std::vector<grid_parameters> grids;
 	bool enable_fuzzy_grid;
-
-	enum GlyphType {
-		GT_CIRCLE = 0,
-		GT_RECTANGLE = 1,
-		GT_WEDGE = 2,
-		GT_ARC_FLAT = 3,
-		GT_ARC_ROUNDED = 4,
-		GT_TRIANGLE = 5,
-		GT_DROP = 6
-	};
 
 	struct attribute_mapping_parameters {
 		GlyphType glyph_type = GT_CIRCLE;
@@ -361,7 +360,7 @@ protected:
 	texture tf_tex;
 
 	voxel_grid density_volume;
-	ambient_occlusion_style ao_style, ao_style_bak; // the latte is used to restore defaults after demo data is unloaded
+	ambient_occlusion_style ao_style, ao_style_bak; // the latter is used to restore defaults after demo data is unloaded
 
 	bool compile_glyph_attribs (void);
 
@@ -369,8 +368,6 @@ protected:
 	void update_grid_ratios(void);
 	void update_attribute_bindings(void);
 	void calculate_bounding_box(void);
-
-	vec2 sd_quadratic_bezier(const vec3& A, const vec3& B, const vec3& C, const vec3& pos);
 
 	int sample_voxel(const ivec3& vidx, const quadratic_bezier_tube& qt);
 	void voxelize_q_tube(const quadratic_bezier_tube& qt);
@@ -386,6 +383,34 @@ protected:
 	shader_define_map build_tube_shading_defines();
 
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
+
+
+
+
+
+
+
+	
+
+	// TODO: use a cgv::signal::managed_list for this?
+	std::vector<glyph_attribute_mapping> glyph_attribute_mappings;
+
+	void create_glyph_attribute_mapping() {
+		glyph_attribute_mappings.push_back(glyph_attribute_mapping());
+		post_recreate_gui();
+	}
+
+	void remove_glyph_attribute_mapping(const size_t index) {
+		if(index < glyph_attribute_mappings.size())
+			glyph_attribute_mappings.erase(glyph_attribute_mappings.begin() + index);
+		post_recreate_gui();
+	}
+
+
+
+
+
+
 
 public:
 	tubes();
