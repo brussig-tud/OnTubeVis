@@ -30,6 +30,48 @@ bool glyph_attribute_mapping::gui_redraw_requested() {
 	return temp;
 }
 
+void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
+	if(!shape_ptr)
+		return;
+
+	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Triangle,Drop'");
+	for(size_t i = 0; i < shape_ptr->supported_attributes().size(); ++i)
+		create_attribute_gui(bp, p, i);
+}
+
+void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr) {
+	if(member_ptr == &type) {
+		request_gui_redraw = true;
+		create_glyph_shape();
+	}
+
+	for(size_t i = 0; i < attrib_source_indices.size(); ++i)
+		if(member_ptr == &attrib_source_indices[i])
+			request_gui_redraw = true;
+
+	base_ptr->on_set(this);
+}
+
+void glyph_attribute_mapping::create_glyph_shape() {
+	if(shape_ptr)
+		delete shape_ptr;
+
+	switch(type) {
+	case GT_CIRCLE: shape_ptr = new circle_glyph(); break;
+	case GT_RECTANGLE: shape_ptr = new rectangle_glyph(); break;
+	case GT_WEDGE: shape_ptr = new wedge_glyph(); break;
+	case GT_ARC_FLAT: shape_ptr = new circle_glyph(); break;
+	case GT_ARC_ROUNDED: shape_ptr = new circle_glyph(); break;
+	case GT_TRIANGLE: shape_ptr = new circle_glyph(); break;
+	case GT_DROP: shape_ptr = new circle_glyph(); break;
+	default: shape_ptr = new circle_glyph(); break;
+	}
+
+	size_t attrib_count = shape_ptr->supported_attributes().size();
+	attrib_source_indices.resize(attrib_count, -1);
+	attrib_mapping_values.resize(attrib_count, vec4(0.0f));
+}
+
 void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i) {
 	const glyph_attribute& attrib = shape_ptr->supported_attributes()[i];
 
@@ -55,46 +97,4 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 		add_local_member_control(p, bp, "Out Min", attrib_mapping_values[i][2], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
 		add_local_member_control(p, bp, "Out Max", attrib_mapping_values[i][3], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
 	}
-}
-
-void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
-	if(!shape_ptr)
-		return;
-
-	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Triangle,Drop'");
-	for(size_t i = 0; i < shape_ptr->supported_attributes().size(); ++i)
-		create_attribute_gui(bp, p, i);
-}
-
-void glyph_attribute_mapping::create_glyph_shape() {
-	if(shape_ptr)
-		delete shape_ptr;
-
-	switch(type) {
-	case GT_CIRCLE: shape_ptr = new circle_glyph(); break;
-	case GT_RECTANGLE: shape_ptr = new rectangle_glyph(); break;
-	case GT_WEDGE: shape_ptr = new wedge_glyph(); break;
-	case GT_ARC_FLAT: shape_ptr = new circle_glyph(); break;
-	case GT_ARC_ROUNDED: shape_ptr = new circle_glyph(); break;
-	case GT_TRIANGLE: shape_ptr = new circle_glyph(); break;
-	case GT_DROP: shape_ptr = new circle_glyph(); break;
-	default: shape_ptr = new circle_glyph(); break;
-	}
-
-	size_t attrib_count = shape_ptr->supported_attributes().size();
-	attrib_source_indices.resize(attrib_count, -1);
-	attrib_mapping_values.resize(attrib_count, vec4(0.0f));
-}
-
-void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr) {
-	if(member_ptr == &type) {
-		request_gui_redraw = true;
-		create_glyph_shape();
-	}
-
-	for(size_t i = 0; i < attrib_source_indices.size(); ++i)
-		if(member_ptr == &attrib_source_indices[i])
-			request_gui_redraw = true;
-
-	base_ptr->on_set(this);
 }

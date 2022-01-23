@@ -79,14 +79,6 @@ tubes::tubes() : application_plugin("tubes_instance")
 
 	do_benchmark = false;
 	benchmark_running = false;
-
-
-
-
-
-
-	glyph_attribute_mappings.push_back(glyph_attribute_mapping());
-	glyph_attribute_mappings.push_back(glyph_attribute_mapping());
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -280,12 +272,9 @@ void tubes::on_set(void *member_ptr) {
 	}
 
 	// visualization settings
-	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
-		glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
-		if(member_ptr == &gam) {
-			if(gam.gui_redraw_requested())
-				post_recreate_gui();
-		}
+	if(member_ptr == &glyph_layer_mgr) {
+		if(glyph_layer_mgr.gui_redraw_requested())
+			post_recreate_gui();
 	}
 
 	// misc settings
@@ -731,22 +720,11 @@ void tubes::create_gui (void)
 		end_tree_node(am_parameters);
 	}
 
-	if(begin_tree_node("ATTRIBUTE MAPPING", glyph_attribute_mappings, true)) {
+	if(begin_tree_node("ATTRIBUTE MAPPING", glyph_layer_mgr, true)) {
 		align("\a");
-		connect_copy(add_button("Add Layer")->click, cgv::signal::rebind(this, &tubes::create_glyph_attribute_mapping));
-		for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
-			glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
-			bool node_is_open = begin_tree_node_void("Layer " + std::to_string(i + 1), &gam, -1, true, "level=2;options='w=180';align=''");
-			connect_copy(add_button("X", "w=20")->click, cgv::signal::rebind(this, &tubes::remove_glyph_attribute_mapping, cgv::signal::_c<size_t>(i)));
-			if(node_is_open) {
-				align("\a");
-				gam.create_gui(this, *this);
-				align("\b");
-				end_tree_node(gam);
-			}
-		}
+		glyph_layer_mgr.create_gui(this, *this);
 		align("\b");
-		end_tree_node(glyph_attribute_mappings);
+		end_tree_node(glyph_layer_mgr);
 	}
 	
 	if(begin_tree_node("Transfer Function Editor", tf_editor_ptr, false)) {

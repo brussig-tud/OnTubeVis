@@ -29,8 +29,8 @@
 #include "traj_loader.h"
 #include "textured_spline_tube_renderer.h"
 #include "demo.h" // interactive testbed helper classes and data
-#include "glyph_shapes.h"
-#include "glyph_attribute_mapping.h"
+//#include "glyph_shapes.h"
+#include "glyph_layer_manager.h"
 
 
 
@@ -356,6 +356,17 @@ protected:
 	
 	bool show_volume = false;
 
+
+
+
+
+	glyph_layer_manager glyph_layer_mgr;
+
+
+
+
+
+
 	texture density_tex;
 	texture tf_tex;
 
@@ -383,34 +394,6 @@ protected:
 	shader_define_map build_tube_shading_defines();
 
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
-
-
-
-
-
-
-
-	
-
-	// TODO: use a cgv::signal::managed_list for this?
-	std::vector<glyph_attribute_mapping> glyph_attribute_mappings;
-
-	void create_glyph_attribute_mapping() {
-		glyph_attribute_mappings.push_back(glyph_attribute_mapping());
-		post_recreate_gui();
-	}
-
-	void remove_glyph_attribute_mapping(const size_t index) {
-		if(index < glyph_attribute_mappings.size())
-			glyph_attribute_mappings.erase(glyph_attribute_mappings.begin() + index);
-		post_recreate_gui();
-	}
-
-
-
-
-
-
 
 public:
 	tubes();

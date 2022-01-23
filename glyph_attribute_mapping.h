@@ -11,17 +11,17 @@
 
 class glyph_attribute_mapping : public cgv::render::render_types {
 protected:
+	bool request_gui_redraw = false;
+
 	GlyphType type = GT_CIRCLE;
 	glyph_shape* shape_ptr = nullptr;
 
 	std::vector<int> attrib_source_indices;
 	std::vector<vec4> attrib_mapping_values;
 
-	bool request_gui_redraw = false;
+	void on_set(void* member_ptr, cgv::base::base* base_ptr);
 
 	void create_glyph_shape();
-
-	void on_set(void* member_ptr, cgv::base::base* base_ptr);
 
 	template <typename T>
 	cgv::data::ref_ptr<cgv::gui::control<T>> add_local_member_control(cgv::gui::provider& p, cgv::base::base* base_ptr, const std::string& label, T& value, const std::string& gui_type = "", const std::string& options = "", const std::string& align = "\n") {
@@ -30,6 +30,8 @@ protected:
 			connect_copy(cp->value_change, cgv::signal::rebind(this, &glyph_attribute_mapping::on_set, &value, cgv::signal::_c<cgv::base::base*>(base_ptr)));
 		return cp;
 	}
+
+	void create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i);
 
 public:
 	glyph_attribute_mapping();
@@ -41,8 +43,6 @@ public:
 	~glyph_attribute_mapping();
 
 	bool gui_redraw_requested();
-
-	void create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i);
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
 };
