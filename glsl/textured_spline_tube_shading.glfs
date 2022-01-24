@@ -6,7 +6,7 @@
 #define GRID_MODE 1
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
-#define GLYPH_MAPPING_UNIFORMS
+#define GLYPH_MAPPING_UNIFORMS 0
 #define GLYPH_LAYER_DEFINITION 1e20;
 
 //***** begin interface of view.glsl ***********************************
