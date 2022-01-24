@@ -3,6 +3,12 @@
 #include <cgv/render/render_types.h>
 //#include <cgv/math/functions.h>
 
+enum ActionType {
+	AT_NONE = 0,
+	AT_CONFIGURATION_CHANGE = 1,
+	AT_VALUE_CHANGE = 2
+};
+
 enum GlyphType {
 	GT_CIRCLE = 0,
 	GT_RECTANGLE = 1,
@@ -16,7 +22,8 @@ enum GlyphType {
 enum GlyphAttributeType {
 	GAT_SIZE = 0, // value in [0,inf) determining radius, length or scale in general
 	GAT_ANGLE = 1, // value in [0,360] giving angle in degree
-	GAT_ORIENTATION = 2 // value in [0,360] giving angle in degree used specifically to orient the glyph
+	GAT_DOUBLE_ANGLE = 2, // value in [0,360] giving angle in degree (divided by 2 for the actual mapping)
+	GAT_ORIENTATION = 3 // value in [0,360] giving angle in degree used specifically to orient the glyph
 };
 
 struct glyph_attribute {
@@ -28,47 +35,14 @@ struct glyph_attribute {
 
 class glyph_shape : public cgv::render::render_types {
 public:
-	typedef std::pair<bool, float> parameter_pair;
-	typedef std::vector<parameter_pair> parameter_list;
 	typedef std::vector<glyph_attribute> attribute_list;
 
 protected:
-	void add_parameter(std::string& code, size_t idx, const parameter_pair& parameter) const {
-		if(parameter.first) {
-			// mapped parameter
-			code += "0.5"; // TODO: replace this with a call to the actual data
-		} else {
-			// constant parameter
-			code += parameter.second;
-		}
-	}
-
-	void fill_parameters(std::string& code, const parameter_list& parameters) const {
-		for(size_t i = 0; i < parameters.size(); ++i) {
-			add_parameter(code, i, parameters[i]);
-			if(i < parameters.size() - 1)
-				code += ", ";
-		}
-	}
-
+	
 public:
-
 	virtual glyph_shape* clone() const = 0;
 	virtual std::string name() const = 0;
 	virtual const attribute_list& supported_attributes() const = 0;
-
-	const std::string create_shader_code(const parameter_list& parameters) const {
-		const attribute_list& attribs = supported_attributes();
-		if(parameters.size() != attribs.size())
-			return "";
-
-		std::string code = "sd_";
-		code += name();
-		// TODO: find orientation attrib in list and use this to alter glyph coord (dont forget to skip the orientation param for the function call)
-		code += "(glyphuv, ";
-		fill_parameters(code, parameters);
-		code += ");";
-	}
 };
 
 class circle_glyph : public glyph_shape {
@@ -110,7 +84,7 @@ public:
 
 class wedge_glyph : public glyph_shape {
 public:
-	virtual wedge_glyph * clone() const {
+	virtual wedge_glyph* clone() const {
 		return new wedge_glyph(*this);
 	}
 
@@ -121,7 +95,80 @@ public:
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
 			{ "radius", GAT_SIZE },
-			{ "aperture", GAT_ANGLE },
+			{ "aperture", GAT_DOUBLE_ANGLE },
+			{ "orientation", GAT_ORIENTATION },
+		};
+		return attributes;
+	}
+};
+
+class flat_arc_glyph : public glyph_shape {
+public:
+	virtual flat_arc_glyph* clone() const {
+		return new flat_arc_glyph(*this);
+	}
+
+	virtual std::string name() const {
+		return "arc_flat";
+	}
+
+	virtual const attribute_list& supported_attributes() const {
+		static const attribute_list attributes = {
+			{ "radius", GAT_SIZE },
+			{ "thickness", GAT_SIZE },
+			{ "aperture", GAT_DOUBLE_ANGLE },
+			{ "orientation", GAT_ORIENTATION },
+		};
+		return attributes;
+	}
+};
+
+class rounded_arc_glyph : public flat_arc_glyph {
+public:
+	virtual rounded_arc_glyph* clone() const {
+		return new rounded_arc_glyph(*this);
+	}
+
+	virtual std::string name() const {
+		return "arc_rounded";
+	}
+};
+
+class isoceles_triangle_glyph : public glyph_shape {
+public:
+	virtual isoceles_triangle_glyph* clone() const {
+		return new isoceles_triangle_glyph(*this);
+	}
+
+	virtual std::string name() const {
+		return "triangle_isosceles";
+	}
+
+	virtual const attribute_list& supported_attributes() const {
+		static const attribute_list attributes = {
+			{ "base_width", GAT_SIZE },
+			{ "height", GAT_SIZE },
+			{ "orientation", GAT_ORIENTATION },
+		};
+		return attributes;
+	}
+};
+
+class drop_glyph : public glyph_shape {
+public:
+	virtual drop_glyph* clone() const {
+		return new drop_glyph(*this);
+	}
+
+	virtual std::string name() const {
+		return "drop";
+	}
+
+	virtual const attribute_list& supported_attributes() const {
+		static const attribute_list attributes = {
+			{ "base_radius", GAT_SIZE },
+			{ "tip_radius", GAT_SIZE },
+			{ "height", GAT_SIZE },
 			{ "orientation", GAT_ORIENTATION },
 		};
 		return attributes;

@@ -6,6 +6,8 @@
 #define GRID_MODE 1
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
+#define GLYPH_MAPPING_UNIFORMS
+#define GLYPH_LAYER_DEFINITION 1e20;
 
 //***** begin interface of view.glsl ***********************************
 mat4 get_modelview_matrix();
@@ -58,6 +60,8 @@ uniform float normal_mapping_scale = 1.0;
 uniform grid_parameters grids[2];
 
 // attribute mapping parameters
+GLYPH_MAPPING_UNIFORMS
+
 uniform struct {
 	int glyph_type;
 	bool curvature_correction;
@@ -187,39 +191,60 @@ float op_subtract(float d0, float d1) {
 }
 
 // SDFs from https://iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
+
+// r is the radius of the circle
 float sd_circle(in vec2 p, in float r) {
     return length(p) - r;
 }
 
-float sd_rect(in vec2 p, in vec2 b) {
-    vec2 d = abs(p)-b;
+// a is the width/length of the rectangle
+// b is the height of the rectangle
+float sd_rectangle(in vec2 p, in float a, in float b) {
+    vec2 d = abs(p)-vec2(a,b);
     return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
 }
 
-// c is the sin/cos of the aperture
-float sd_pie(in vec2 p, in vec2 sca, in float r) {
+// r is the radius of the circle wedge
+// a is the aperture angle in radians
+float sd_wedge(in vec2 p, in float r, in float a) {
+	vec2 sca = vec2(sin(a), cos(a));
+
     p.x = abs(p.x);
     float l = length(p) - r;
     float m = length(p-sca*clamp(dot(p,sca),0.0,r));
     return max(l,m*sign(sca.y*p.x-sca.x*p.y));
 }
 
-// sca is the sin/cos of the aperture
-float sd_arc_flat(in vec2 p, in vec2 sca, in float ra, in float rb) {
-	float d0 = sd_pie(p, sca, ra + rb);
+// ra is the radius of the arc
+// rb is the radius of the stroke
+// a is the aperture angle in radians
+float sd_arc_flat(in vec2 p, in float ra, in float rb, in float a) {
+	float d0 = sd_wedge(p, ra + rb, a);
 	float d1 = sd_circle(p, ra - rb);
 	return op_subtract(d1, d0);
 }
 
-// sca is the sin/cos of the aperture
-float sd_arc_rounded(in vec2 p, in vec2 sca, in float ra, in float rb) {
+// ra is the radius of the arc
+// rb is the radius of the stroke
+// a is the aperture angle in radians
+float sd_arc_rounded(in vec2 p, in float ra, in float rb, in float a) {
+	vec2 sca = vec2(sin(a), cos(a));
     p.x = abs(p.x);
     float k = (sca.y*p.x>sca.x*p.y) ? dot(p,sca) : length(p);
     return sqrt( dot(p,p) + ra*ra - 2.0*ra*k ) - rb;
 }
 
-// q is the base width/height of the triangle
-float sd_triangle_isosceles(in vec2 p, in vec2 q) {
+/*
+	Currently the triangle is centered and rotates around the tip. To center it to the middle of the height use:
+	sd = sd_triangle_isosceles(
+		rotate(glyphuv, radians(current_glyph.angle1)) - vec2(0.0, current_glyph.radius1),
+		vec2(current_glyph.radius0, -2.0*current_glyph.radius1)
+	);
+*/
+// bw is the base width of the triangle
+// h is the height of the triangle
+float sd_triangle_isosceles(in vec2 p, in float bw, in float h) {
+	vec2 q = vec2(bw, h);
     p.x = abs(p.x);
     vec2 a = p - q*clamp( dot(p,q)/dot(q,q), 0.0, 1.0 );
     vec2 b = p - q*vec2( clamp( p.x/q.x, 0.0, 1.0 ), 1.0 );
@@ -450,7 +475,9 @@ void main()
 			);
 
 			float sd=1e20;
-			switch(attribute_mapping.glyph_type) {
+			sd = GLYPH_LAYER_DEFINITION
+
+			/*switch(attribute_mapping.glyph_type) {
 				case 0:
 					// circle with radius
 					sd = sd_circle(glyphuv, current_glyph.radius0);
@@ -520,13 +547,8 @@ void main()
 					);
 					break;
 				}
-			}
+			}*/
 			// pre-filter the SDF for AA
-			// TODO: Fix AA artifacts.
-			/*	AA arifacts originate from "wrong" usage of sdf, where there are infinitesimally thin iso-lines with value 0.
-				For the circle wegde this is caused because the angle is above 180 and the wedge turns "inside-out".
-				Same holds for the arc, which is only supposed to be used with round caps (maybe we can fix that).
-			*/
 			const float antialias_width = antialias_radius*fwidth(sd);
 			color = mix(vec3(1.0, 0.0, 0.0), color, smoothstep(-antialias_width, antialias_width, sd));
 		}

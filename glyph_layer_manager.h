@@ -1,8 +1,6 @@
 #pragma once
 
 #include <cgv/base/base.h>
-//#include <cgv/data/ref_ptr.h>
-//#include <cgv/gui/control.h>
 #include <cgv/gui/provider.h>
 #include <vector>
 
@@ -10,46 +8,60 @@
 
 
 
-class glyph_layer_manager : public cgv::base::base {
+class glyph_layer_manager : public cgv::base::base, public cgv::render::render_types {
+public:
+	typedef std::pair<bool, float> parameter_pair;
+	typedef std::vector<parameter_pair> parameter_list;
+
 protected:
 	//
 	cgv::base::base_ptr base_ptr;
 	//
-	bool request_gui_redraw = false;
+	ActionType last_action_type = AT_NONE;
 
 	// TODO: use a cgv::signal::managed_list for this?
 	std::vector<glyph_attribute_mapping> glyph_attribute_mappings;
 
 	void on_set(void* member_ptr);
 
-	void create_glyph_attribute_mapping() {
-		glyph_attribute_mappings.push_back(glyph_attribute_mapping());
-		request_gui_redraw = true;
+	void create_glyph_attribute_mapping();
 
-		if(base_ptr)
-			base_ptr->on_set(this);
-	}
+	void remove_glyph_attribute_mapping(const size_t index);
 
-	void remove_glyph_attribute_mapping(const size_t index) {
-		if(index < glyph_attribute_mappings.size()) {
-			glyph_attribute_mappings.erase(glyph_attribute_mappings.begin() + index);
-			request_gui_redraw = true;
-
-			if(base_ptr)
-				base_ptr->on_set(this);
+	/*void add_parameter(std::string& code, size_t idx, const parameter_pair& parameter) const {
+		if(parameter.first) {
+			// mapped parameter
+			code += "0.5"; // TODO: replace this with a call to the actual data
+		} else {
+			// constant parameter
+			code += parameter.second;
 		}
 	}
+
+	void fill_parameters(std::string& code, const parameter_list& parameters) const {
+		for(size_t i = 0; i < parameters.size(); ++i) {
+			add_parameter(code, i, parameters[i]);
+			if(i < parameters.size() - 1)
+				code += ", ";
+		}
+	}*/
+
+	//const std::string create_shader_code(const parameter_list& parameters) const {
+	//	
+	//}
 
 public:
 	glyph_layer_manager() {
 		base_ptr = nullptr;
-		glyph_attribute_mappings.push_back(glyph_attribute_mapping());
+		// TODO: remove later
 		glyph_attribute_mappings.push_back(glyph_attribute_mapping());
 	}
 
 	~glyph_layer_manager() {}
 
-	bool gui_redraw_requested();
+	void generate_shader_code(std::string& uniform_block, std::string& glyph_block, std::vector<std::pair<std::string, const float*>>& uniform_value_ptrs) const;
+
+	ActionType action_type();
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
 };

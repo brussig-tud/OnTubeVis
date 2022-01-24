@@ -24,9 +24,9 @@ glyph_attribute_mapping::~glyph_attribute_mapping() {
 	delete shape_ptr;
 }
 
-bool glyph_attribute_mapping::gui_redraw_requested() {
-	bool temp = request_gui_redraw;
-	request_gui_redraw = false;
+ActionType glyph_attribute_mapping::action_type() {
+	ActionType temp = last_action_type;
+	last_action_type = AT_NONE;
 	return temp;
 }
 
@@ -34,20 +34,22 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 	if(!shape_ptr)
 		return;
 
-	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Triangle,Drop'");
+	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Isosceles Triangle,Drop'");
 	for(size_t i = 0; i < shape_ptr->supported_attributes().size(); ++i)
 		create_attribute_gui(bp, p, i);
 }
 
 void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr) {
+	last_action_type = AT_VALUE_CHANGE;
+
 	if(member_ptr == &type) {
-		request_gui_redraw = true;
+		last_action_type = AT_CONFIGURATION_CHANGE;
 		create_glyph_shape();
 	}
 
 	for(size_t i = 0; i < attrib_source_indices.size(); ++i)
 		if(member_ptr == &attrib_source_indices[i])
-			request_gui_redraw = true;
+			last_action_type = AT_CONFIGURATION_CHANGE;
 
 	base_ptr->on_set(this);
 }
@@ -60,10 +62,10 @@ void glyph_attribute_mapping::create_glyph_shape() {
 	case GT_CIRCLE: shape_ptr = new circle_glyph(); break;
 	case GT_RECTANGLE: shape_ptr = new rectangle_glyph(); break;
 	case GT_WEDGE: shape_ptr = new wedge_glyph(); break;
-	case GT_ARC_FLAT: shape_ptr = new circle_glyph(); break;
-	case GT_ARC_ROUNDED: shape_ptr = new circle_glyph(); break;
-	case GT_TRIANGLE: shape_ptr = new circle_glyph(); break;
-	case GT_DROP: shape_ptr = new circle_glyph(); break;
+	case GT_ARC_FLAT: shape_ptr = new flat_arc_glyph(); break;
+	case GT_ARC_ROUNDED: shape_ptr = new rounded_arc_glyph(); break;
+	case GT_TRIANGLE: shape_ptr = new isoceles_triangle_glyph(); break;
+	case GT_DROP: shape_ptr = new drop_glyph(); break;
 	default: shape_ptr = new circle_glyph(); break;
 	}
 
@@ -77,8 +79,9 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 
 	std::string limit = "1";
 	switch(attrib.type) {
-	case GAT_SIZE: limit = "10"; break;
+	case GAT_SIZE: limit = "2"; break;
 	case GAT_ANGLE:
+	case GAT_DOUBLE_ANGLE:
 	case GAT_ORIENTATION: limit = "360"; break;
 	default: break;
 	}

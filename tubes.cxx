@@ -273,8 +273,15 @@ void tubes::on_set(void *member_ptr) {
 
 	// visualization settings
 	if(member_ptr == &glyph_layer_mgr) {
-		if(glyph_layer_mgr.gui_redraw_requested())
+		if(glyph_layer_mgr.action_type() == AT_CONFIGURATION_CHANGE) {
+			glyph_layer_mgr.generate_shader_code(glyph_layers_shader_config.uniform_block, glyph_layers_shader_config.glyph_block, glyph_layers_shader_config.uniform_value_ptrs);
+
+			context& ctx = *get_context();
+			tube_shading_defines = build_tube_shading_defines();
+			shaders.reload(ctx, "tube_shading", tube_shading_defines);
+
 			post_recreate_gui();
+		}
 	}
 
 	// misc settings
@@ -311,6 +318,12 @@ void tubes::on_set(void *member_ptr) {
 
 bool tubes::compile_glyph_attribs (void)
 {
+
+
+	//traj_mgr.dataset(0).
+	
+
+
 	// an instance of the struct for copying default values into new glyphs
 	const static attribute_mapping_parameters glyph_defaults;
 
@@ -482,6 +495,8 @@ bool tubes::init (cgv::render::context &ctx)
 
 	// load all shaders in the library
 	success &= shaders.load_shaders(ctx);
+
+	glyph_layer_mgr.generate_shader_code(glyph_layers_shader_config.uniform_block, glyph_layers_shader_config.glyph_block, glyph_layers_shader_config.uniform_value_ptrs);
 
 	tube_shading_defines = build_tube_shading_defines();
 	shaders.reload(ctx, "tube_shading", tube_shading_defines);
@@ -726,6 +741,8 @@ void tubes::create_gui (void)
 		align("\b");
 		end_tree_node(glyph_layer_mgr);
 	}
+
+	//connect_copy(add_button("Generate Shader Code")->click, cgv::signal::rebind(this, &tubes::test_shader_code_generation));
 	
 	if(begin_tree_node("Transfer Function Editor", tf_editor_ptr, false)) {
 		align("\a");
@@ -920,115 +937,23 @@ void tubes::calculate_bounding_box(void) {
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 }
 
-int tubes::sample_voxel(const ivec3& vidx, const quadratic_bezier_tube& qt) {
-
-	vec3 voxel_min = density_volume.bounds.ref_min_pnt() + vec3(vidx) * density_volume.voxel_size;
-
-	vec3 spos = voxel_min + 0.5f * density_volume.voxel_size;
-	float dist = qt.signed_distance(spos);
-	if(dist > density_volume.voxel_half_diag)
-		return 0;
-	
-	int count = 0;
-
-	for(unsigned k = 0; k < 27; ++k) {
-		vec3 spos = voxel_min + sample_position_offsets[k];
-		float dist = qt.signed_distance(spos);
-
-		if(dist <= 0.0f)
-			++count;
-	}
-	
-	return count;
-}
-
-void tubes::voxelize_q_tube(const quadratic_bezier_tube& qt) {
-
-	box3 box = qt.bounding_box(true);
-
-	ivec3 sidx((box.get_min_pnt() - density_volume.bounds.ref_min_pnt()) / density_volume.voxel_size);
-	ivec3 eidx((box.get_max_pnt() - density_volume.bounds.ref_min_pnt()) / density_volume.voxel_size);
-	sidx = cgv::math::clamp(sidx, ivec3(0), density_volume.resolution - 1);
-	eidx = cgv::math::clamp(eidx, ivec3(0), density_volume.resolution - 1);
-
-	ivec3 res = density_volume.resolution;
-
-	for(int z = sidx.z(); z <= eidx.z(); ++z) {
-		for(int y = sidx.y(); y <= eidx.y(); ++y) {
-			for(int x = sidx.x(); x <= eidx.x(); ++x) {
-				int count = sample_voxel(ivec3(x, y, z), qt);
-				float occupancy = static_cast<float>(count) * subsampling_normalization_factor;
-
-				int idx = x + res.x() * y + res.x() * res.y() * z;
-
-#pragma omp atomic
-				density_volume.data[idx] += occupancy;
-			}
-		}
-	}
-}
-
 void tubes::create_density_volume(context& ctx, unsigned resolution) {
 
 	cgv::utils::stopwatch s(true);
 
-	density_volume.data.clear();
-	density_volume.compute_bounding_box(bbox, resolution);
+	density_volume.initialize_voxel_grid(bbox, resolution);
 
-	density_volume.data.resize(density_volume.resolution.x() * density_volume.resolution.y() * density_volume.resolution.z(), 0.0f);
+	ivec3 res = density_volume.ref_voxel_grid().resolution;
+	std::cout << "Generating density volume with resolution (" << res.x() << ", " << res.y() << ", " << res.z() << ")... ";
 
-	std::cout << "Generating density volume with resolution (" << density_volume.resolution.x() << ", " << density_volume.resolution.y() << ", " << density_volume.resolution.z() << ")... ";
-	
-	const unsigned num_samples_per_dim = 3;
-	const float step = density_volume.voxel_size / static_cast<float>(num_samples_per_dim);
-	const vec3 offset(0.5f * step);
-
-	sample_position_offsets.resize(num_samples_per_dim*num_samples_per_dim*num_samples_per_dim);
-
-	unsigned idx = 0;
-	for(unsigned z = 0; z < num_samples_per_dim; ++z) {
-		for(unsigned y = 0; y < num_samples_per_dim; ++y) {
-			for(unsigned x = 0; x < num_samples_per_dim; ++x) {
-				sample_position_offsets[idx++] = offset + vec3((float)x, (float)y, (float)z) * step;
-			}
-		}
-	}
-
-	subsampling_normalization_factor = 1.0f / static_cast<float>(num_samples_per_dim);
-
-	auto& positions = render.data->positions;
-	auto& tangents = render.data->tangents;
-	auto& radii = render.data->radii;
-	auto& indices = render.data->indices;
-
-#pragma omp parallel for
-	for(int i = 0; i < indices.size(); i += 2) {
-		unsigned idx_a = indices[i + 0];
-		unsigned idx_b = indices[i + 1];
-
-		vec3 p0 = positions[idx_a];
-		vec3 p1 = positions[idx_b];
-		float r0 = radii[idx_a];
-		float r1 = radii[idx_b];
-		vec4 t0 = tangents[idx_a];
-		vec4 t1 = tangents[idx_b];
-
-		hermite_spline_tube hst = hermite_spline_tube(p0, p1, r0, r1, vec3(t0), vec3(t1), t0.w(), t1.w());
-
-		quadratic_bezier_tube qbt0 = hst.split_to_quadratic_bezier_tube(0);
-		quadratic_bezier_tube qbt1 = hst.split_to_quadratic_bezier_tube(1);
-		
-		voxelize_q_tube(qbt0);
-		voxelize_q_tube(qbt1);
-	}
-
-	for(unsigned i = 0; i < density_volume.data.size(); ++i)
-		density_volume.data[i] = cgv::math::clamp(density_volume.data[i], 0.0f, 1.0f);
+	density_volume.compute_density_volume(render.data);
 
 	if(density_tex.is_created())
 		density_tex.destruct(ctx);
 
-	cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(density_volume.resolution.x(), density_volume.resolution.y(), density_volume.resolution.z(), TI_FLT32, cgv::data::CF_R), density_volume.data.data());
+	std::vector<float>& density_data = density_volume.ref_voxel_grid().data;
+
+	cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res.x(), res.y(), res.z(), TI_FLT32, cgv::data::CF_R), density_data.data());
 	density_tex = texture("flt32[R,G,B]", TF_LINEAR, TF_LINEAR_MIPMAP_LINEAR, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER);
 	density_tex.create(ctx, dv, 0);
 	density_tex.set_border_color(0.0f, 0.0f, 0.0f, 0.0f);
@@ -1042,16 +967,16 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 	std::vector<unsigned> hist(n_bins, 0u);
 
 	float x = 0.0f;
-	for(int i = 0; i < density_volume.data.size(); ++i) {
+	for(int i = 0; i < density_data.size(); ++i) {
 		// don't count 0
-		unsigned bin = static_cast<unsigned>(density_volume.data[i] * (n_bins - 1));
+		unsigned bin = static_cast<unsigned>(density_data[i] * (n_bins - 1));
 		if(bin != 0)
 			hist[bin] += 1;
 	}
 
 	tf_editor_ptr->set_histogram(hist);
 
-	ao_style.derive_voxel_grid_parameters(density_volume);
+	ao_style.derive_voxel_grid_parameters(density_volume.ref_voxel_grid());
 }
 
 void tubes::draw_dnd(context& ctx) {
@@ -1162,6 +1087,12 @@ void tubes::draw_trajectories(context& ctx) {
 	}
 
 	// set attribute mapping parameters
+	for(size_t i = 0; i < glyph_layers_shader_config.uniform_value_ptrs.size(); ++i) {
+		const auto& pair = glyph_layers_shader_config.uniform_value_ptrs[i];
+		//std::cout << "set_uniform: " << pair.first << " to " << *pair.second << std::endl;
+		prog.set_uniform(ctx, pair.first, *pair.second);
+	}
+
 	prog.set_uniform(ctx, "attribute_mapping.glyph_type", (int)am_parameters.glyph_type);
 	prog.set_uniform(ctx, "attribute_mapping.curvature_correction", am_parameters.curvature_correction);
 	prog.set_uniform(ctx, "attribute_mapping.radius0", am_parameters.radius0);
@@ -1217,7 +1148,7 @@ void tubes::draw_density_volume(context& ctx) {
 	//vr.set_transfer_function_texture(&tf_tex);
 	vr.set_transfer_function_texture(&tf_editor_ptr->ref_tex());
 	
-	vr.set_bounding_box(density_volume.bounds);
+	vr.set_bounding_box(density_volume.ref_voxel_grid().bounds);
 	vr.transform_to_bounding_box(true);
 
 	vr.render(ctx, 0, 0);
@@ -1280,6 +1211,9 @@ shader_define_map tubes::build_tube_shading_defines() {
 	if(grid_normal_variant) gs += 8u;
 	shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
+
+	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_shader_config.uniform_block, std::string(""));
+	shader_code::set_define(defines, "GLYPH_LAYER_DEFINITION", glyph_layers_shader_config.glyph_block, std::string("1e20;"));
 	return defines;
 }
 
@@ -1291,40 +1225,3 @@ cgv::base::object_registration<tubes> reg_tubes("");
 //#ifdef CGV_FORCE_STATIC
 	cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
 //#endif
-
-
-
-#include <cgv/gui/provider.h>
-
-namespace cgv {
-	namespace gui {
-
-	/// define a gui creator for the ambient occlusion style struct
-	struct ambient_occlusion_style_gui_creator : public gui_creator {
-		/// attempt to create a gui and return whether this was successful
-		bool create(provider* p, const std::string& label, void* value_ptr, const std::string& value_type, const std::string& gui_type, const std::string& options, bool*)
-		{
-			if(value_type != cgv::type::info::type_name<tubes::ambient_occlusion_style>::get_name())
-				return false;
-
-			tubes::ambient_occlusion_style* s_ptr = reinterpret_cast<tubes::ambient_occlusion_style*>(value_ptr);
-			cgv::base::base* b = dynamic_cast<cgv::base::base*>(p);
-
-			p->add_member_control(b, "Enable", s_ptr->enable, "check");
-			p->add_member_control(b, "Sample Offset", s_ptr->sample_offset, "value_slider", "min=0.0;step=0.0001;max=0.2;log=true;ticks=true");
-			p->add_member_control(b, "Sample Distance", s_ptr->sample_distance, "value_slider", "min=0.0;step=0.0001;max=1.0;log=true;ticks=true");
-			p->add_member_control(b, "Strength Scale", s_ptr->strength_scale, "value_slider", "min=0.0;step=0.0001;max=10.0;log=true;ticks=true");
-			
-			connect_copy(
-				p->add_member_control(b, "Cone Angle", s_ptr->cone_angle, "value_slider", "min=10.0;step=0.0001;max=90.0;ticks=true")->value_change,
-				cgv::signal::rebind(s_ptr, &tubes::ambient_occlusion_style::generate_sample_directions));
-
-			return true;
-		}
-	};
-
-#include <cgv_gl/gl/lib_begin.h>
-
-	cgv::gui::gui_creator_registration<ambient_occlusion_style_gui_creator> ambient_occlusion_s_gc_reg("ambient_occlusion_style_gui_creator");
-	}
-}

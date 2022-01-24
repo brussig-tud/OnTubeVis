@@ -25,17 +25,13 @@
 #include <cgv_glutil/navigator.h>
 
 // local includes
-#include "hermite_spline_tube.h"
 #include "traj_loader.h"
-#include "textured_spline_tube_renderer.h"
 #include "demo.h" // interactive testbed helper classes and data
-//#include "glyph_shapes.h"
+#include "hermite_spline_tube.h"
+#include "voxelizer.h"
+#include "ambient_occlusion_style.h"
 #include "glyph_layer_manager.h"
-
-
-
-#include <cgv/data/ref_ptr.h>
-#include <cgv/gui/control.h>
+#include "textured_spline_tube_renderer.h"
 
 
 
@@ -95,95 +91,11 @@ public:
 		}
 	};
 
-	struct voxel_grid {
-		float voxel_size;
-		float voxel_half_diag;
-		ivec3 resolution;
-		box3 bounds;
-		std::vector<float> data;
-
-		void compute_bounding_box(const box3& bbox, unsigned request_resolution) {
-
-			vec3 ext = bbox.get_extent();
-
-			// calculate the cube voxel size and the resolution in each dimension
-			int max_ext_axis = cgv::math::max_index(ext);
-			float max_ext = ext[max_ext_axis];
-			voxel_size = max_ext / static_cast<float>(request_resolution);
-			voxel_half_diag = 0.5f * sqrt(3.0f) * voxel_size;
-
-			// calculate the number of voxels in each dimension
-			unsigned resx = static_cast<unsigned>(ceilf(ext.x() / voxel_size));
-			unsigned resy = static_cast<unsigned>(ceilf(ext.y() / voxel_size));
-			unsigned resz = static_cast<unsigned>(ceilf(ext.z() / voxel_size));
-
-			resolution = vec3((float)resx, (float)resy, (float)resz);
-			vec3 grid_ext = vec3(voxel_size) * resolution;
-			vec3 grid_min = bbox.get_min_pnt() - 0.5f * (grid_ext - ext);
-
-			bounds.ref_min_pnt() = grid_min;
-			bounds.ref_max_pnt() = grid_min + grid_ext;
-		}
-	};
-
 	cgv::type::DummyEnum voxel_grid_resolution;
-	std::vector<vec3> sample_position_offsets;
-	float subsampling_normalization_factor;
 
-	struct ambient_occlusion_style {
-		bool enable = false;
-		float sample_offset = 0.04f;
-		float sample_distance = 0.8f;
-		float strength_scale = 1.0f;
-
-		vec3 texture_offset = vec3(0.0f);
-		vec3 texture_scaling = vec3(1.0f);
-		vec3 texcoord_scaling = vec3(1.0f);
-		float texel_size = 1.0f;
-
-		float cone_angle = 50.0f;
-		float angle_factor;
-		std::vector<vec3> sample_directions;
-
-		ambient_occlusion_style() {
-			generate_sample_directions();
-		}
-
-		void derive_voxel_grid_parameters(const voxel_grid& vg) {
-			const box3& volume_bbox = vg.bounds;
-			const ivec3& volume_resolution = vg.resolution;
-
-			unsigned max_extent_axis = cgv::math::max_index(volume_bbox.get_extent());
-
-			texture_offset = volume_bbox.get_min_pnt();
-			texture_scaling = vec3(1.0f) / volume_bbox.get_extent();
-			texcoord_scaling = vec3((float)volume_resolution[max_extent_axis]) / vec3(volume_resolution);
-			texel_size = 1.0f / volume_resolution[max_extent_axis];
-		}
-
-		void generate_sample_directions() {
-			sample_directions.resize(3, vec3(0.0f, 1.0f, 0.0f));
-
-			float alpha2 = cgv::math::deg2rad(cone_angle / 2.0f);
-			float beta = cgv::math::deg2rad(90.0f - (cone_angle / 2.0f));
-
-			float a = sinf(alpha2);
-			float dh = tanf(cgv::math::deg2rad(30.0f)) * a;
-
-			float c = length(vec2(a, dh));
-
-			float b = sqrtf(1 - c * c);
-
-			angle_factor = 2.0f * sinf(alpha2) / sinf(beta);
-			sample_directions[0] = vec3(0.0f, b, c);
-			sample_directions[1] = vec3(a, b, -dh);
-			sample_directions[2] = vec3(-a, b, -dh);
-		}
-	};
+	
 
 protected:
-
-
 	cgv::glutil::transfer_function_editor* tf_editor_ptr;
 	cgv::glutil::navigator* navigator_ptr;
 
@@ -224,25 +136,6 @@ protected:
 	bool override_attribute_values = false; // only for testing purposes (uses values controlled by GUI sliders)
 	float antialias_radius = 0.5f;
 	shader_define_map tube_shading_defines;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -352,10 +245,6 @@ protected:
 	vec3 initial_focus;
 	double last_seconds_since_start;
 
-	box3 bbox;
-	
-	bool show_volume = false;
-
 
 
 
@@ -364,14 +253,24 @@ protected:
 
 
 
-
-
-
+	bool show_volume = false;
+	box3 bbox;
 	texture density_tex;
 	texture tf_tex;
 
-	voxel_grid density_volume;
+	voxelizer density_volume;
 	ambient_occlusion_style ao_style, ao_style_bak; // the latter is used to restore defaults after demo data is unloaded
+
+	struct {
+		std::string uniform_block = "";
+		std::string glyph_block = "1e20;";
+		std::vector<std::pair<std::string, const float*>> uniform_value_ptrs;
+	} glyph_layers_shader_config;
+
+
+
+
+
 
 	bool compile_glyph_attribs (void);
 

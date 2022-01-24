@@ -11,7 +11,7 @@
 
 class glyph_attribute_mapping : public cgv::render::render_types {
 protected:
-	bool request_gui_redraw = false;
+	ActionType last_action_type = AT_NONE;
 
 	GlyphType type = GT_CIRCLE;
 	glyph_shape* shape_ptr = nullptr;
@@ -42,7 +42,13 @@ public:
 
 	~glyph_attribute_mapping();
 
-	bool gui_redraw_requested();
+	const glyph_shape* get_shape_ptr() const { return shape_ptr; }
+
+	const std::vector<int>& ref_attrib_indices() const { return attrib_source_indices; }
+	
+	const std::vector<vec4>& ref_attrib_values() const { return attrib_mapping_values; }
+
+	ActionType action_type();
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
 };
