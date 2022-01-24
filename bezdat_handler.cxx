@@ -331,53 +331,59 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (std::istream &contents)
 	if (trajs.size() < 1)
 		return std::move(ret);
 
+	// ToDo: sort segments within each trajectory such that they form a series rather than a soup!!!
+
 	// commit attributes to common curve representation
-	const size_t num = nodes.size();
-	std::vector<Vec3> P; P.reserve(num);
-	std::vector<Vec4> dP; dP.reserve(num);
-	std::vector<real> R; R.reserve(num);
-	std::vector<real> ts; ts.resize(num);
-	std::vector<Vec3> C, dC; C.reserve(num); dC.reserve(num);
-	for (auto &node : nodes)
-	{
-		P.emplace_back(node.pos);
-		dP.emplace_back(vec4_from_vec3s(node.dpos, node.drad));
-		R.emplace_back(node.rad);
-		C.emplace_back(node.col/real(255));
-		dC.emplace_back(node.dcol/real(255));
-	}
-	std::vector<unsigned> I; std::vector<range> ds_trajs;
+	// - create attributes in dataset
+	const unsigned num = (unsigned)nodes.size();
+	auto &P = add_attribute<Vec3>(ret, BEZDAT_POSITION_ATTRIB_NAME);
+	auto &dP = add_attribute<Vec4>(ret, BEZDAT_TANGENT_ATTRIB_NAME);
+	auto &R = add_attribute<real>(ret, BEZDAT_RADIUS_ATTRIB_NAME);
+	auto &C = add_attribute<Vec3>(ret, BEZDAT_COLOR_ATTRIB_NAME);
+	auto &dC = add_attribute<Vec3>(ret, BEZDAT_DCOLOR_ATTRIB_NAME);
+	P.data.reserve(num);
+	dP.data.reserve(num);
+	R.data.reserve(num);
+	C.data.reserve(num);
+	dC.data.reserve(num);
+	// - commit data
+	std::vector<range> ds_trajs;
 	real avg_dist = 0;
 	unsigned num_segs = 0;
 	for (const auto &traj : trajs)
 	{
 		ds_trajs.emplace_back(range{
-			/* 1st index */ (unsigned)I.size(),  /* num indices */ (unsigned)traj.size()*2
+			/* 1st node */ P.data.num(),  /* num nodes */ (unsigned)traj.size()+1
 		});
 		real t = 0;
-		for (const auto& seg : traj)
+		// commit first node
+		const auto &seg = traj[0];
+		P.data.append(nodes[seg.n0].pos, t);
+		dP.data.append(Vec4(nodes[seg.n0].dpos, nodes[seg.n0].drad), t);
+		R.data.append(nodes[seg.n0].rad, t);
+		C.data.append(nodes[seg.n0].col/real(255), t);
+		dC.data.append(nodes[seg.n0].dcol/real(255), ++t);
+		for (const auto &seg : traj)
 		{
-			ts[seg.n0] = t; ts[seg.n1] = ++t;
-			I.push_back(seg.n0);
-			I.push_back(seg.n1);
-			avg_dist += (P[seg.n1] - P[seg.n0]).length();
+			const auto &node = nodes[seg.n1];
+			P.data.append(node.pos, t);
+			dP.data.append(Vec4(node.dpos, node.drad), t);
+			R.data.append(node.rad, t);
+			C.data.append(node.col/real(255), t);
+			dC.data.append(node.dcol/real(255), ++t);
+			avg_dist += (nodes[seg.n1].pos - nodes[seg.n0].pos).length();
 			num_segs++;
 		}
 	}
 	set_avg_segment_length(ret, avg_dist/real(num_segs));
 
-	// commit to actual attribute storage
-	auto &A = attributes(ret);
-	A.emplace(BEZDAT_POSITION_ATTRIB_NAME, traj_attribute<real>{std::move(P), ts});
-	A.emplace(BEZDAT_TANGENT_ATTRIB_NAME, traj_attribute<real>{std::move(dP), ts});
-	A.emplace(BEZDAT_RADIUS_ATTRIB_NAME, traj_attribute<real>{std::move(R), ts});
-	A.emplace(BEZDAT_COLOR_ATTRIB_NAME, traj_attribute<real>{std::move(C), ts});
-	A.emplace(BEZDAT_DCOLOR_ATTRIB_NAME, traj_attribute<real>{std::move(dC), std::move(ts)});
-	indices(ret) = std::move(I);
+	// finalize
 	ret.set_mapping(Impl<real>::attrmap);
-
-	// transfer trajectory ranges (ToDo: temporary!)
-	trajectories(ret) = std::move(ds_trajs);
+	trajectories(ret, P.attrib) = ds_trajs;  // all attributes are sampled
+	trajectories(ret, dP.attrib) = ds_trajs; // equally, so we can just
+	trajectories(ret, R.attrib) = ds_trajs;  // duplicate the trajectory ranges
+	trajectories(ret, C.attrib) = ds_trajs;  // across all attributes
+	trajectories(ret, dC.attrib) = std::move(ds_trajs);
 
 	// print some stats
 	std::cout << "bezdat_handler: loading completed! Stats:" << std::endl

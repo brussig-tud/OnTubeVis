@@ -44,7 +44,7 @@ enum class VisualAttrib
 /// enumeration of all supported attribute types
 enum class AttribType
 {
-	REAL, VEC2, VEC3, VEC4
+	SCALAR, VEC2, VEC3, VEC4
 };
 
 
@@ -108,6 +108,9 @@ public:
 		/// virtual base destructor - causes vtable creation
 		virtual ~container_base();
 
+		/// query the dimensionality (number of components) of the data points in the container
+		virtual unsigned dims (void) const = 0;
+
 		/// query the number of data points in the container
 		virtual unsigned num (void) const = 0;
 
@@ -133,6 +136,9 @@ public:
 
 		/// alias to prevent STL errors. ToDo: investigate!
 		typedef elem_type value_type;
+
+		/// constant indicating the number of data point components
+		static constexpr unsigned num_components = sizeof(T) / sizeof(flt_type);
 
 		/// attribute data vector
 		std::vector<elem_type> values;
@@ -179,6 +185,11 @@ public:
 			return datapoint<elem_type>(const_cast<elem_type&>(values[index]), const_cast<flt_type&>(timestamps[index]));
 		}
 
+		/// internally reserve memory for at least the given amount of datapoints to accelerate subsequent calls to \ref append
+		void reserve (unsigned num_elements) {
+			values.reserve(num_elements); timestamps.reserve(num_elements);
+		}
+
 		/// append a datapoint, returning its resulting index
 		unsigned append (const elem_type& value, flt_type timestamp)
 		{
@@ -216,6 +227,9 @@ public:
 
 		/// obtain a const-iterator over the attribute timestamps pointing behind the last datapoint
 		typename std::vector<flt_type>::const_iterator end_ts (void) const { return timestamps.cend(); }
+
+		/// query the dimensionality (number of components) of the data points in the container
+		virtual unsigned dims (void) const { return num_components; };
 
 		/// query the number of data points in the container
 		virtual unsigned num (void) const { return (unsigned)values.size(); };
@@ -375,14 +389,6 @@ public:
 	/// return a string representing the attribute data type
 	const std::string& type_string (void) const;
 };
-
-namespace {
-	/// tag representing the attribute data
-	struct attrib_data_tag {} ATTRIB_DATA;
-
-	/// tag representing the overall attribute interface
-	struct attrib_interface_tag {} ATTRIB_INTERFACE;
-}
 
 /// a map of attribute names to their data
 template <class flt_type>
@@ -736,10 +742,11 @@ protected:
 	std::string& data_source (void);
 
 	/// write-access the "special" positions attribute data (for use by trajectory format handlers)
-	typename traj_attribute<real>::container<Vec3>& positions (attrib_data_tag tag=ATTRIB_DATA);
+	/// Note: shorthand for calling ::positions_interface().get_data<Vec3>()
+	typename traj_attribute<real>::container<Vec3>& positions (void);
 
 	/// write-access the interface of the "special" positions attribute (for use by trajectory format handlers)
-	typename traj_attribute<real>& positions (attrib_interface_tag);
+	traj_attribute<real>& positions_interface (void);
 
 	/// write-access the timestamps at each position (for use by trajectory format handlers)
 	flt_type* timestamps (void);
@@ -747,15 +754,11 @@ protected:
 	/// write-access the map containing all generic attributes (for use by trajectory format handlers)
 	attribute_map<flt_type>& attributes (void);
 
-	/// write-access the indices, which store connectivity with line-list semantics (i.e. pairs of indices form a trajectory segment)
-	/// (for use by trajectory format handlers)
-	std::vector<unsigned>& indices (void);
-
 	/// set the average segment length (for use by trajectory format handlers)
 	void set_avg_segment_length (real length);
 
-	/// write-access the list of individual trajectories in the dataset
-	std::vector<range>& trajectories (void);
+	/// write-access the list of individual trajectory ranges for the given attribute
+	std::vector<range>& trajectories (const traj_attribute<real> &attribute);
 
 
 public:
@@ -793,8 +796,11 @@ public:
 	/// access the source name (filename, description, etc.) the dataset was loaded / originated from
 	const std::string& data_source (void) const;
 
-	/// access the "special" positions attribute
+	/// access the "special" positions attribute data Note: shorthand for calling ::positions_interface().get_data<Vec3>()
 	const typename traj_attribute<real>::container<Vec3>& positions (void) const;
+
+	/// write-access the interface of the "special" positions attribute (for use by trajectory format handlers)
+	const traj_attribute<real>& positions_interface (void) const;
 
 	/// access the timestamps at each position
 	const flt_type* timestamps (void) const;
@@ -802,14 +808,11 @@ public:
 	/// access the map containing all generic attributes
 	const attribute_map<flt_type>& attributes (void) const;
 
-	/// access the indices, which store connectivity with line-list semantics (i.e. pairs of indices form a trajectory segment)
-	const std::vector<unsigned>& indices (void) const;
-
 	/// report the average length of line segments
 	real avg_segment_length (void) const;
 
-	/// access the list of individual trajectories in the dataset
-	const std::vector<range>& trajectories (void) const;
+	/// access the list of individual trajectory ranges for the given attribute
+	const std::vector<range>& trajectories (const traj_attribute<real> &attribute) const;
 
 	/// set the visual attribute mapping, reporting whether the crucial position mapping could be resolved. In case it couldn't, the
 	/// method will return false and the current mapping will remain unchanged.
@@ -846,40 +849,55 @@ public:
 	/// color type
 	typedef typename traj_dataset<real>::Color Color;
 
+	/// convenience struct that \ref add_attribute uses to return a reference to both the attribute interface and the data container
+	template <class T>
+	struct attrib_info
+	{
+		/// the abstract interface of the attribute
+		traj_attribute<real> &attrib;
+
+		/// the actual data container of the attribute
+		traj_attribute<real>::container<T> &data;
+
+		/// construct for given attribute
+		attrib_info(traj_attribute<real>& attribute) : attrib(attribute), data(attribute.get_data<T>()) {}
+	};
+
 
 protected:
 
-	/// Proxy for derived classes to gain write-access to the \ref traj_dataset::positions attribute.
+	/// Proxy for derived classes to gain write-access the "special" positions attribute data
+	/// Note: shorthand for calling ::positions_interface().get_data<Vec3>()
 	static typename traj_attribute<real>::container<Vec3>& positions (traj_dataset<real> &dataset);
+
+	/// Proxy for derived classes to gain write-access the interface of the "special" positions attribute
+	static traj_attribute<real>& positions_interface (traj_dataset<real> &dataset);
 
 	/// Proxy for derived classes to gain write-access to the \link traj_dataset::attributes generic attributes \endlink .
 	static attribute_map<flt_type>& attributes (traj_dataset<real> &dataset);
 
-	/// Proxy for derived classes to gain write-access to the \ref traj_dataset::indices .
-	static std::vector<unsigned>& indices (traj_dataset<real> &dataset);
-
 	/// Proxy for derived classes to set the average segment length in a dataset.
 	static void set_avg_segment_length (traj_dataset<real> &dataset, real length);
 
-	/// Proxy for derived classes to gain write-access the list of individual trajectories in the dataset.
-	static std::vector<range>& trajectories (traj_dataset<real> &dataset);
+	/// Proxy for derived classes to gain write-access the list of individual trajectory ranges for the given attribute
+	static std::vector<range>& trajectories (traj_dataset<real> &dataset, const traj_attribute<real> &attribute);
 
 	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access
 	template <class T>
-	static typename traj_attribute<flt_type>::container<T>& add_attribute (traj_dataset<real> &dataset, const std::string &name)
+	static attrib_info<T> add_attribute (traj_dataset<real> &dataset, const std::string &name)
 	{
-		return dataset.attributes().emplace(name, std::vector<T>()).first->second.get_data<T>();
+		return dataset.attributes().emplace(name, std::vector<T>()).first->second;
 	}
 
 	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access
 	template <class T, typename ... Args>
-	static typename traj_attribute<flt_type>::container<T>& add_attribute (
+	static attrib_info<T> add_attribute (
 		traj_dataset<real> &dataset, const std::string &name, Args&& ... args
 	)
 	{
-		return dataset.attributes().emplace(name, std::forward<Args>(args)...).first->second.get_data<T>();
+		return dataset.attributes().emplace(name, std::forward<Args>(args)...).first->second;
 	}
 
 public:
@@ -931,12 +949,18 @@ public:
 		typedef typename traj_manager<real>::Vec4 Vec4;
 		typedef typename traj_manager<real>::Color Color;
 
+		struct dataset
+		{
+			range irange;
+			std::vector<range> trajs;
+		};
+
 		std::vector<Vec3> positions;
 		std::vector<Vec4> tangents;
 		std::vector<real> radii;
 		std::vector<Color> colors;
 		std::vector<unsigned> indices;
-		std::vector<range> dataset_ranges;
+		std::vector<dataset> datasets;
 	};
 
 	/// convenience helper for iterating over datasets in the manager using range-based for loops
@@ -1042,13 +1066,6 @@ template <class vec_type>
 inline typename cgv::media::color<float, cgv::media::RGB, cgv::media::NO_ALPHA> vec3_to_rgb (const vec_type &v)
 {
 	return traj_format_handler<float>::Color((float)v.x(), (float)v.y(), (float)v.z());
-}
-
-/// constructs a 4-vector from a 3-vector and a scalar
-template <class vec3_type, class scalar_type>
-inline cgv::math::fvec<typename vec3_type::value_type, 4> vec4_from_vec3s (const vec3_type& v, scalar_type s)
-{
-	return cgv::math::fvec<typename vec3_type::value_type, 4>(v.x(), v.y(), v.z(), vec3_type::value_type(s));
 }
 
 /// truncates the last component from a 4-vector to create a 3-vector

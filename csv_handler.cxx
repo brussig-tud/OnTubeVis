@@ -185,9 +185,11 @@ struct csv_handler<flt_type>::Impl
 	{
 		const csv_descriptor::attribute &desc;
 		std::vector<unsigned> field_ids;
-		traj_attribute<real> attrib;
+		std::map<unsigned, traj_attribute<real>> trajs;
+		traj_attribute<real> ds_attrib;
+
 		declared_attrib(const csv_descriptor::attribute &adesc)
-			: desc(adesc), attrib((unsigned)adesc.columns.size())
+			: desc(adesc), ds_attrib((unsigned)adesc.columns.size())
 		{
 			field_ids.reserve(adesc.columns.size());
 		}
@@ -196,8 +198,10 @@ struct csv_handler<flt_type>::Impl
 	{
 		std::string name;
 		unsigned field_id;
-		traj_attribute<real> attrib;
-		undeclared_attrib(size_t num_cols) : attrib((unsigned)num_cols) {}
+		std::map<unsigned, traj_attribute<real>> trajs;
+		traj_attribute<real> ds_attrib;
+
+		undeclared_attrib() : ds_attrib(1) {}
 	};
 
 	// fields
@@ -213,6 +217,58 @@ struct csv_handler<flt_type>::Impl
 		if (!desc_valid)
 			std::cerr << "csv_handler: WARNING - invalid description of .csv data structure supplied!"
 			          << std::endl << std::endl;
+	}
+	static traj_attribute<real>& ensure_traj (
+		std::map<unsigned, traj_attribute<real>> &trajs, unsigned traj_id, unsigned num_components
+	)
+	{
+		auto it = trajs.find(traj_id);
+		if (it == trajs.end())
+			return trajs.emplace(traj_id, num_components).first->second;
+		return it->second;
+	}
+	static void concat_attribute_containers (
+		traj_attribute<real> &dest, const traj_attribute<real> &src
+	)
+	{
+		switch (dest.type())
+		{
+			case AttribType::SCALAR:
+			{
+				auto &dst_data = dest.get_data<real>();
+				const auto &src_data = src.get_data<real>();
+				std::copy(src_data.values.begin(), src_data.values.end(), std::back_inserter(dst_data.values));
+				std::copy(src_data.timestamps.begin(), src_data.timestamps.end(), std::back_inserter(dst_data.timestamps));
+				break;
+			}
+			case AttribType::VEC2:
+			{
+				auto &dst_data = dest.get_data<Vec2>();
+				const auto &src_data = src.get_data<Vec2>();
+				std::copy(src_data.values.begin(), src_data.values.end(), std::back_inserter(dst_data.values));
+				std::copy(src_data.timestamps.begin(), src_data.timestamps.end(), std::back_inserter(dst_data.timestamps));
+				break;
+			}
+			case AttribType::VEC3:
+			{
+				auto &dst_data = dest.get_data<Vec3>();
+				const auto &src_data = src.get_data<Vec3>();
+				std::copy(src_data.values.begin(), src_data.values.end(), std::back_inserter(dst_data.values));
+				std::copy(src_data.timestamps.begin(), src_data.timestamps.end(), std::back_inserter(dst_data.timestamps));
+				break;
+			}
+			case AttribType::VEC4:
+			{
+				auto &dst_data = dest.get_data<Vec4>();
+				const auto &src_data = src.get_data<Vec4>();
+				std::copy(src_data.values.begin(), src_data.values.end(), std::back_inserter(dst_data.values));
+				std::copy(src_data.timestamps.begin(), src_data.timestamps.end(), std::back_inserter(dst_data.timestamps));
+				break;
+			}
+
+			default:
+				static_assert(true, "[csv_handler] !!!INCOMPATIBLE DATATYPES FOR CONCATENATION!!!");
+		}
 	}
 	bool check_header (const std::vector<std::string> &header_fields)
 	{
@@ -600,7 +656,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 	undeclared_attribs.reserve(undeclared_cols.size());
 	for (unsigned i : undeclared_cols)
 	{
-		undeclared_attribs.emplace_back(1);
+		undeclared_attribs.emplace_back();
 		auto &attrib = undeclared_attribs.back();
 		if (header_present)
 			attrib.name = fields[i];
@@ -614,17 +670,14 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 	if (header_present)
 		Impl::read_next_nonempty_line(&line, &tokens, separators, contents, &fields);
 
-	// trajectory database
-	double dist_accum = 0;
-	std::vector<Vec3> &P = declared_attribs[props.pos_id].attrib.get_data<Vec3>().values;
-	std::map<int, std::vector<unsigned> > trajs;
-
 	// prepare timestamp parsing
 	auto timestamp_format = Impl::TimeFmt::UNKNOWN;
 	if (timestamp_id > -1)
 		timestamp_format = Impl::guess_timestamp_format(fields[declared_attribs[timestamp_id].field_ids.front()]);
 
 	// parse the stream until EOF
+	bool nothing_loaded = true;
+	real dist_accum = 0;
 	while (!contents.eof())
 	{
 		// determine trajectory id of this row
@@ -637,8 +690,8 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 		else
 			traj_id = 0;
 
-		// current sample index
-		unsigned current_idx = (unsigned)P.size();
+		// make sure position traj exists for various kinds of forward queries
+		auto &P = Impl::ensure_traj(declared_attribs[props.pos_id].trajs, traj_id, 3).get_data<Vec3>().values;
 
 		// read in timestamps if present
 		real t;
@@ -647,7 +700,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 				timestamp_format, fields[declared_attribs[timestamp_id].field_ids.front()]
 			);
 		else
-			t = (flt_type)current_idx;
+			t = (flt_type)P.size();
 
 		// read in all declared attributes
 		for (auto &attrib : declared_attribs)
@@ -655,28 +708,41 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 			switch (attrib.field_ids.size())
 			{
 				case 1:
-					attrib.attrib.get_data<real>().append(
+				{
+					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 1);
+					a.get_data<real>().append(
 						Impl::parse_field(fields[attrib.field_ids.front()]), t
 					);
 					continue;
+				}
 
 				case 2:
-					attrib.attrib.get_data<Vec2>().append(
+				{
+					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 2);
+					a.get_data<Vec2>().append(
 						std::move(Impl::parse_fields<2>(fields, attrib.field_ids)), t
 					);
 					continue;
+				}
 
 				case 3:
-					attrib.attrib.get_data<Vec3>().append(
+				{
+					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 3);
+					a.get_data<Vec3>().append(
 						std::move(Impl::parse_fields<3>(fields, attrib.field_ids)), t
 					);
+					nothing_loaded = false; // this is guaranteed to capture the position attribute, since positions are always Vec3
 					continue;
+				}
 
 				case 4:
-					attrib.attrib.get_data<Vec4>().append(
+				{
+					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 4);
+					a.get_data<Vec4>().append(
 						std::move(Impl::parse_fields<4>(fields, attrib.field_ids)), t
 					);
 					continue;
+				}
 
 				default:
 					/* DoNothing() */;
@@ -685,18 +751,14 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 
 		// read in all undeclared attributes
 		for (auto &attrib : undeclared_attribs)
-			attrib.attrib.get_data<real>().append(Impl::parse_field(fields[attrib.field_id]), t);
-
-		// store index for appropriate trajectory
-		auto &indices = trajs[traj_id];
-		indices.emplace_back(current_idx);
-		if (indices.size() > 1)
 		{
-			// accumulate the segment length
-			dist_accum += (P.back() - P[*(indices.end()-2)]).length();
-			// duplicate index to create new segment under line-list semantics
-			indices.emplace_back(current_idx);
+			auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 1);
+			a.get_data<real>().append(Impl::parse_field(fields[attrib.field_id]), t);
 		}
+
+		// update segment length counter
+		if (P.size() > 1)
+			dist_accum += (P.back() - P[P.size()-2]).length();
 
 		// read in next data row
 		Impl::read_next_nonempty_line(&line, &tokens, separators, contents, &fields);
@@ -704,48 +766,74 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 
 	// did we succeed at loading anything?
 	traj_dataset<real> ret;
-	if (trajs.size() < 1)
+	if (nothing_loaded)
 		return std::move(ret);
 
-	// prepare visual mapping
+	// transform from intermediate storage to final data layout and transfer into output dataset
+	for (auto &attr : declared_attribs)
+	{
+		std::vector<range> ds_trajs;
+		// special treatment for first trajectory
+		auto it = attr.trajs.begin();
+		attr.ds_attrib = std::move(it->second);
+		ds_trajs.emplace_back(range{ 0, attr.ds_attrib.num() });
+		it++; for (; it!=attr.trajs.end(); it++)
+		{
+			const auto &traj_attrib = it->second;
+			// generate range
+			ds_trajs.emplace_back(range{ attr.ds_attrib.num(), traj_attrib.num() });
+			// copy data points
+			Impl::concat_attribute_containers(attr.ds_attrib, traj_attrib);
+		}
+		// commit to dataset
+		trajectories(ret, attr.ds_attrib) = std::move(ds_trajs);
+		attributes(ret).emplace(attr.desc.name, std::move(attr.ds_attrib));
+	}
+	for (auto &attr : undeclared_attribs)
+	{
+		std::vector<range> ds_trajs;
+		// special treatment for first trajectory
+		auto it = attr.trajs.begin();
+		attr.ds_attrib = std::move(it->second);
+		ds_trajs.emplace_back(range{ 0, attr.ds_attrib.num() });
+		// copy datapoints from remaining trajectories
+		it++; for (; it!=attr.trajs.end(); it++)
+		{
+			const auto &traj_attrib = it->second;
+			// generate range
+			ds_trajs.emplace_back(range{ attr.ds_attrib.num(), traj_attrib.num() });
+			// copy data points
+			Impl::concat_attribute_containers(attr.ds_attrib, traj_attrib);
+		}
+		// commit to dataset
+		trajectories(ret, attr.ds_attrib) = std::move(ds_trajs);
+		attributes(ret).emplace(attr.name, attr.ds_attrib);
+	}
+	// prepare invented radii
+	auto R = add_attribute<real>(ret, "radius");
+
+	// set visual mapping
 	visual_attribute_mapping<real> vamap(impl.vmap_hints);
 	if (!vamap.is_mapped(VisualAttrib::POSITION))
 		// ToDo: perform more fine-grained / smart test to retain any hinted at transformation if
 		// pre-mapped name and position attribute name from the csv table description match up
 		vamap.map_attribute(VisualAttrib::POSITION, csv_attribs[props.pos_id].name);
-
-	// commit attributes
-	auto &ret_attribs = attributes(ret);
-	for (auto &attrib : declared_attribs)
-		if (attrib.desc.semantics != CSV::TIMESTAMP)
-			ret_attribs.emplace(attrib.desc.name, std::move(attrib.attrib));
-	for (auto &attrib : undeclared_attribs)
-		ret_attribs.emplace(attrib.name, std::move(attrib.attrib));
-	auto &I = indices(ret);
-	std::vector<range> ds_trajs;
-	for (auto &traj : trajs)
-	{
-		ds_trajs.emplace_back(range{
-			/* 1st index */ (unsigned)I.size(),  /* num indices */ (unsigned)traj.second.size()-1
-		});
-		I.insert(I.end(), traj.second.begin(), traj.second.end()-1);
-	}
-	unsigned num_segs = (unsigned)(I.size()/2);
-	set_avg_segment_length(ret, real(dist_accum / double(num_segs)));
-
-	// invent radii
-	size_t num_samples = P.size();
-	real radius = ret.avg_segment_length() * real(0.25);
-	attributes(ret).emplace("radius", std::vector<real>(num_samples, radius));
-
-	// commit visual mapping
 	ret.set_mapping(std::move(vamap));
 
-	// transfer trajectory ranges (ToDo: temporary!)
-	trajectories(ret) = std::move(ds_trajs);
+	// determine remaining stats
+	const auto &P = positions(ret);
+	const unsigned
+		num_samples = P.num(),
+		num_segs = std::max<int>(num_samples - (unsigned)trajectories(ret, positions_interface(ret)).size(), 1);
+	set_avg_segment_length(ret, real(dist_accum / double(num_segs)));
 
-	// print some stats
-	const unsigned num_trajs = (unsigned)trajs.size();
+	// invent radii now that all stats are known
+	R.data.values = std::vector<real>(num_samples, ret.avg_segment_length()*real(0.25));
+	R.data.timestamps = P.timestamps;
+	trajectories(ret, R.attrib) = trajectories(ret, positions_interface(ret));
+
+	// print stats
+	const unsigned num_trajs = (unsigned)declared_attribs[props.pos_id].trajs.size();
 	std::cout << "csv_handler: loading completed! Stats:" << std::endl
 	          << "  " << num_samples<<" samples" << std::endl
 	          << "  " << num_segs<<" segments" << std::endl

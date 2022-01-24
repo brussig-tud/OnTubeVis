@@ -26,7 +26,7 @@ namespace {
 
 // attribute datatype names
 namespace type_str {
-	static const std::string REAL       = "REAL";
+	static const std::string SCALAR       = "SCALAR";
 	static const std::string VEC2       = "VEC2";
 	static const std::string VEC3       = "VEC3";
 	static const std::string VEC4       = "VEC4";
@@ -85,7 +85,7 @@ traj_attribute<flt_type>::traj_attribute (const traj_attribute &other)
 {
 	switch (other._type)
 	{
-		case AttribType::REAL:
+		case AttribType::SCALAR:
 			_data = new container<flt_type>(*(container<flt_type>*)other._data);
 			return;
 		case AttribType::VEC2:
@@ -116,7 +116,7 @@ traj_attribute<flt_type>::traj_attribute (unsigned components) : _data(nullptr),
 	switch (components)
 	{
 		case 1:
-			_type = AttribType::REAL;
+			_type = AttribType::SCALAR;
 			_data = new container<real>();
 			return;
 		case 2:
@@ -139,7 +139,7 @@ traj_attribute<flt_type>::traj_attribute (unsigned components) : _data(nullptr),
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (const std::vector<real> &source, float tstart, float dt)
-	: _type(AttribType::REAL), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::SCALAR), _data(nullptr), id(get_unique_id())
 {
 	// generate timestamps
 	std::vector<real> ts; ts.reserve(source.size());
@@ -151,7 +151,7 @@ traj_attribute<flt_type>::traj_attribute (const std::vector<real> &source, float
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, float tstart, float dt)
-	: _type(AttribType::REAL), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::SCALAR), _data(nullptr), id(get_unique_id())
 {
 	// generate timestamps
 	std::vector<real> ts; ts.reserve(source.size());
@@ -163,14 +163,14 @@ traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, float tsta
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, const std::vector<real> &timestamps)
-	: _type(AttribType::REAL), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::SCALAR), _data(nullptr), id(get_unique_id())
 {
 	_data = new container<real>(std::move(source), timestamps);
 }
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, std::vector<real> &&timestamps)
-	: _type(AttribType::REAL), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::SCALAR), _data(nullptr), id(get_unique_id())
 {
 	_data = new container<real>(std::move(source), std::move(timestamps));
 }
@@ -321,8 +321,8 @@ const std::string& traj_attribute<flt_type>::type_string (void) const
 {
 	switch (_type)
 	{
-		case AttribType::REAL:
-			return type_str::REAL;
+		case AttribType::SCALAR:
+			return type_str::SCALAR;
 		case AttribType::VEC2:
 			return type_str::VEC2;
 		case AttribType::VEC3:
@@ -498,14 +498,14 @@ attrib_transform<flt_type>::attrib_transform(const vec3_to_vec3 &transform_func)
 
 template <class flt_type>
 attrib_transform<flt_type>::attrib_transform(const vec3_to_real &transform_func)
-	: tgt_type(AttribType::REAL), src_type(AttribType::VEC3)
+	: tgt_type(AttribType::SCALAR), src_type(AttribType::VEC3)
 {
 	t_ptr = new vec3_to_real(transform_func);
 }
 
 template <class flt_type>
 attrib_transform<flt_type>::attrib_transform(const real_to_real &transform_func)
-	: tgt_type(AttribType::REAL), src_type(AttribType::REAL)
+	: tgt_type(AttribType::SCALAR), src_type(AttribType::SCALAR)
 {
 	t_ptr = new real_to_real(transform_func);
 }
@@ -530,7 +530,7 @@ attrib_transform<flt_type>::~attrib_transform()
 			case AttribType::VEC2:
 				delete (std::function<void(Vec2&, const Vec4&)>*)t_ptr;
 				goto _done;
-			case AttribType::REAL:
+			case AttribType::SCALAR:
 				delete (std::function<void(real&, const Vec4&)>*)t_ptr;
 				goto _done;
 		}
@@ -544,7 +544,7 @@ attrib_transform<flt_type>::~attrib_transform()
 			case AttribType::VEC2:
 				delete (std::function<void(Vec2&, const Vec3&)>*)t_ptr;
 				goto _done;
-			case AttribType::REAL:
+			case AttribType::SCALAR:
 				delete (std::function<void(real&, const Vec3&)>*)t_ptr;
 				goto _done;
 		}
@@ -558,11 +558,11 @@ attrib_transform<flt_type>::~attrib_transform()
 			case AttribType::VEC2:
 				delete (std::function<void(Vec2&, const Vec2&)>*)t_ptr;
 				goto _done;
-			case AttribType::REAL:
+			case AttribType::SCALAR:
 				delete (std::function<void(real&, const Vec2&)>*)t_ptr;
 				goto _done;
 		}
-		case AttribType::REAL: switch (tgt_type) {
+		case AttribType::SCALAR: switch (tgt_type) {
 			case AttribType::VEC4:
 				delete (std::function<void(Vec4&, const real&)>*)t_ptr;
 				goto _done;
@@ -572,7 +572,7 @@ attrib_transform<flt_type>::~attrib_transform()
 			case AttribType::VEC2:
 				delete (std::function<void(Vec2&, const real&)>*)t_ptr;
 				goto _done;
-			case AttribType::REAL:
+			case AttribType::SCALAR:
 				delete (std::function<void(real&, const real&)>*)t_ptr;
 		}
 	}
@@ -607,7 +607,7 @@ attrib_transform<flt_type>& attrib_transform<flt_type>::operator= (const attrib_
 			case AttribType::VEC2:
 				t_ptr = new std::function<void(Vec2&, const Vec4&)>(*(std::function<void(Vec2&, const Vec4&)>*)other.t_ptr);
 				return *this;
-			case AttribType::REAL:
+			case AttribType::SCALAR:
 				t_ptr = new std::function<void(real&, const Vec4&)>(*(std::function<void(real&, const Vec4&)>*)other.t_ptr);
 				return *this;
 		}
@@ -621,7 +621,7 @@ attrib_transform<flt_type>& attrib_transform<flt_type>::operator= (const attrib_
 			case AttribType::VEC2:
 				t_ptr = new std::function<void(Vec2&, const Vec3&)>(*(std::function<void(Vec2&, const Vec3&)>*)other.t_ptr);
 				return *this;
-			case AttribType::REAL:
+			case AttribType::SCALAR:
 				t_ptr = new std::function<void(real&, const Vec3&)>(*(std::function<void(real&, const Vec3&)>*)other.t_ptr);
 				return *this;
 		}
@@ -635,11 +635,11 @@ attrib_transform<flt_type>& attrib_transform<flt_type>::operator= (const attrib_
 			case AttribType::VEC2:
 				t_ptr = new std::function<void(Vec2&, const Vec2&)>(*(std::function<void(Vec2&, const Vec2&)>*)other.t_ptr);
 				return *this;
-			case AttribType::REAL:
+			case AttribType::SCALAR:
 				t_ptr = new std::function<void(real&, const Vec2&)>(*(std::function<void(real&, const Vec2&)>*)other.t_ptr);
 				return *this;
 		}
-		case AttribType::REAL: switch (tgt_type) {
+		case AttribType::SCALAR: switch (tgt_type) {
 			case AttribType::VEC4:
 				t_ptr = new std::function<void(Vec4&, const real&)>(*(std::function<void(Vec4&, const real&)>*)other.t_ptr);
 				return *this;
@@ -649,7 +649,7 @@ attrib_transform<flt_type>& attrib_transform<flt_type>::operator= (const attrib_
 			case AttribType::VEC2:
 				t_ptr = new std::function<void(Vec2&, const real&)>(*(std::function<void(Vec2&, const real&)>*)other.t_ptr);
 				return *this;
-			case AttribType::REAL:
+			case AttribType::SCALAR:
 				t_ptr = new std::function<void(real&, const real&)>(*(std::function<void(real&, const real&)>*)other.t_ptr);
 		}
 	}
@@ -709,7 +709,7 @@ void attrib_transform<flt_type>::exec (void *target, const void *source) const
 					t(tgt[i], src[i]);
 				return;
 			}
-			case AttribType::REAL:
+			case AttribType::SCALAR:
 			{
 				auto &tgt = *(std::vector<real>*)target;
 				auto &src = *(std::vector<Vec4>*)source;
@@ -748,7 +748,7 @@ void attrib_transform<flt_type>::exec (void *target, const void *source) const
 					t(tgt[i], src[i]);
 				return;
 			}
-			case AttribType::REAL:
+			case AttribType::SCALAR:
 			{
 				auto &tgt = *(std::vector<real>*)target;
 				auto &src = *(std::vector<Vec3>*)source;
@@ -787,7 +787,7 @@ void attrib_transform<flt_type>::exec (void *target, const void *source) const
 					t(tgt[i], src[i]);
 				return;
 			}
-			case AttribType::REAL:
+			case AttribType::SCALAR:
 			{
 				auto &tgt = *(std::vector<real>*)target;
 				auto &src = *(std::vector<Vec2>*)source;
@@ -797,7 +797,7 @@ void attrib_transform<flt_type>::exec (void *target, const void *source) const
 				return;
 			}
 		}
-		case AttribType::REAL: switch (tgt_type)
+		case AttribType::SCALAR: switch (tgt_type)
 		{
 			case AttribType::VEC4:
 			{
@@ -826,7 +826,7 @@ void attrib_transform<flt_type>::exec (void *target, const void *source) const
 					t(tgt[i], src[i]);
 				return;
 			}
-			case AttribType::REAL:
+			case AttribType::SCALAR:
 			{
 				auto &tgt = *(std::vector<real>*)target;
 				auto &src = *(std::vector<real>*)source;
@@ -1057,7 +1057,6 @@ struct traj_dataset<flt_type>::Impl
 	std::string name, data_source;
 	typename traj_attribute<flt_type> *positions;
 	attribute_map<flt_type> attribs;
-	std::vector<unsigned> indices;
 	std::unordered_map<unsigned, std::vector<range>> trajs;
 	visual_attribute_mapping<flt_type> attrmap;
 	real avg_seg_len;
@@ -1069,7 +1068,7 @@ struct traj_dataset<flt_type>::Impl
 	{}
 	Impl(const Impl *other)
 		: name(other->name), data_source(other->data_source), positions(other->positions),
-		  attribs(other->attribs), indices(other->indices), attrmap(other->attrmap), avg_seg_len(other->avg_seg_len)
+		  attribs(other->attribs), attrmap(other->attrmap), avg_seg_len(other->avg_seg_len)
 	{}
 	void operator= (const Impl *other)
 	{
@@ -1077,7 +1076,6 @@ struct traj_dataset<flt_type>::Impl
 		data_source = other->data_source;
 		positions = other->positions;
 		attribs = other->attribs;
-		indices = other->indices;
 		attrmap = other->attrmap;
 		avg_seg_len = other->avg_seg_len;
 	}
@@ -1087,7 +1085,6 @@ struct traj_dataset<flt_type>::Impl
 		data_source.clear();
 		positions = nullptr;
 		attribs.clear();
-		indices.clear();
 		attrmap.clear();
 	}
 };
@@ -1153,7 +1150,7 @@ template <class flt_type>
 bool traj_dataset<flt_type>::has_data (void) const
 {
 	const auto &impl = *pimpl;
-	return impl.positions && !impl.indices.empty() && impl.trajs.find(impl.positions->id) != impl.trajs.end();
+	return impl.positions && impl.trajs.find(impl.positions->id) != impl.trajs.end();
 }
 
 template <class flt_type>
@@ -1163,13 +1160,13 @@ std::string& traj_dataset<flt_type>::data_source (void)
 }
 
 template <class flt_type>
-typename traj_attribute<flt_type>::container<typename traj_dataset<flt_type>::Vec3>& traj_dataset<flt_type>::positions (attrib_data_tag)
+typename traj_attribute<flt_type>::container<typename traj_dataset<flt_type>::Vec3>& traj_dataset<flt_type>::positions (void)
 {
 	return pimpl->positions->get_data<Vec3>();
 }
 
 template <class flt_type>
-typename traj_attribute<flt_type>& traj_dataset<flt_type>::positions (attrib_interface_tag)
+typename traj_attribute<flt_type>& traj_dataset<flt_type>::positions_interface (void)
 {
 	return *pimpl->positions;
 }
@@ -1187,21 +1184,17 @@ typename attribute_map<flt_type>& traj_dataset<flt_type>::attributes (void)
 }
 
 template <class flt_type>
-std::vector<unsigned>& traj_dataset<flt_type>::indices (void)
-{
-	return pimpl->indices;
-}
-
-template <class flt_type>
 void traj_dataset<flt_type>::set_avg_segment_length (real length)
 {
 	pimpl->avg_seg_len = length;
 }
 
 template <class flt_type>
-std::vector<range>& traj_dataset<flt_type>::trajectories (void)
+std::vector<range>& traj_dataset<flt_type>::trajectories (const traj_attribute<real> &attribute)
 {
-	return pimpl->trajs[pimpl->positions->id];
+	// Note: we blindly invoke the element-access operator here (compare to the const version of this function) since we assume that the
+	//       caller intends to create the trajectory entry if it doesn't yet exist and plans to commit the actual attribute data later on
+	return pimpl->trajs[attribute.id];
 }
 
 template <class flt_type>
@@ -1223,6 +1216,12 @@ const typename traj_attribute<flt_type>::container<typename traj_dataset<flt_typ
 }
 
 template <class flt_type>
+const typename traj_attribute<flt_type>& traj_dataset<flt_type>::positions_interface (void) const
+{
+	return *pimpl->positions;
+}
+
+template <class flt_type>
 const flt_type* traj_dataset<flt_type>::timestamps (void) const
 {
 	return pimpl->positions->get_timestamps();
@@ -1235,21 +1234,21 @@ const attribute_map<flt_type>& traj_dataset<flt_type>::attributes (void) const
 }
 
 template <class flt_type>
-const std::vector<unsigned>& traj_dataset<flt_type>::indices (void) const
-{
-	return pimpl->indices;
-}
-
-template <class flt_type>
 flt_type traj_dataset<flt_type>::avg_segment_length (void) const
 {
 	return pimpl->avg_seg_len;
 }
 
 template <class flt_type>
-const std::vector<range>& traj_dataset<flt_type>::trajectories (void) const
+const std::vector<range>& traj_dataset<flt_type>::trajectories (const traj_attribute<real> &attribute) const
 {
-	return pimpl->trajs[pimpl->positions->id];
+	// we return this if the trajectory index range for an unknown attribute is queried
+	static const std::vector<range> empty_default;
+
+	// find index range and return it
+	const auto &impl = *pimpl;
+	const auto it = impl.trajs.find(attribute.id);
+	return it != impl.trajs.end() ? it->second : empty_default;
 }
 
 template <class flt_type>
@@ -1301,9 +1300,15 @@ const visual_attribute_mapping<flt_type>& traj_dataset<flt_type>::mapping (void)
 // Class implementation - traj_format_handler
 
 template <class flt_type>
-typename traj_attribute<flt_type>::container<typename traj_format_handler<flt_type>::Vec3>& traj_format_handler<flt_type>::positions (traj_dataset<real> &dataset)
+typename traj_attribute<flt_type>::container<typename traj_dataset<flt_type>::Vec3>& traj_format_handler<flt_type>::positions (traj_dataset<real> &dataset)
 {
 	return dataset.positions();
+}
+
+template <class flt_type>
+typename traj_attribute<flt_type>& traj_format_handler<flt_type>::positions_interface (traj_dataset<real> &dataset)
+{
+	return dataset.positions_interface();
 }
 
 template <class flt_type>
@@ -1313,21 +1318,15 @@ attribute_map<flt_type>& traj_format_handler<flt_type>::attributes (traj_dataset
 }
 
 template <class flt_type>
-std::vector<unsigned>& traj_format_handler<flt_type>::indices (traj_dataset<real> &dataset)
-{
-	return dataset.indices();
-}
-
-template <class flt_type>
 void traj_format_handler<flt_type>::set_avg_segment_length (traj_dataset<real> &dataset, real length)
 {
 	return dataset.set_avg_segment_length(length);
 }
 
 template <class flt_type>
-std::vector<range>& traj_format_handler<flt_type>::trajectories (traj_dataset<real> &dataset)
+std::vector<range>& traj_format_handler<flt_type>::trajectories (traj_dataset<real> &dataset, const traj_attribute<real> &attribute)
 {
-	return dataset.trajectories();
+	return dataset.trajectories(attribute);
 }
 
 
@@ -1375,7 +1374,7 @@ struct traj_manager<flt_type>::Impl
 	}
 	template <class T>
 	void transform_attrib_old (
-		std::vector<T> *out, VisualAttrib visual_attrib, const traj_dataset<real> &dataset, bool auto_tangents=false
+		std::vector<T> *out, VisualAttrib visual_attrib, const traj_dataset<real> &dataset, int auto_tangents_ds=-1
 	)
 	{
 		const auto match = Impl::find_visual_attrib(dataset.mapping(), visual_attrib);
@@ -1391,7 +1390,7 @@ struct traj_manager<flt_type>::Impl
 			}
 			else switch(ref.transform.get_src_type())
 			{
-				case AttribType::REAL:
+				case AttribType::SCALAR:
 				{
 					const auto &data = attrib.get_data<real>();
 					out->reserve(out->size() + data.num());
@@ -1451,20 +1450,20 @@ struct traj_manager<flt_type>::Impl
 		}
 		if (visual_attrib == VisualAttrib::TANGENT)
 		{
-			if (auto_tangents)
+			if (auto_tangents_ds > -1)
 			{
 				// get all necessary pointers, references and metrics
 				unsigned idx_offset = (unsigned)out->size();
-				const auto *P = rd.positions.data() + idx_offset;
-				const auto *R = rd.radii.data() + idx_offset;
-				const auto &I = dataset.indices();
-				const auto &trajs = dataset.trajectories();
+				const auto *I = rd.indices.data();
+				const auto *P = rd.positions.data();
+				const auto *R = rd.radii.data();
+				const auto &trajs = rd.datasets[auto_tangents_ds].trajs;
 
 				// generate tangents on per-trajectory basis (currently hard-coded as radius- and segment length-
 				// adaptive variant of central differences)
 				out->resize(idx_offset + dataset.positions().num());
-				auto *o = ((std::vector<Vec4>*)out)->data() + idx_offset;
-				for (auto &traj : trajs)
+				auto *o = ((std::vector<Vec4>*)out)->data();
+				for (const auto &traj : trajs)
 				{
 					// skip single-sample trajectories (they will just retain a 0-length tangent)
 					if (traj.n < 2) continue;
@@ -1473,7 +1472,7 @@ struct traj_manager<flt_type>::Impl
 					auto id_1st = I[traj.i0],
 					     id_2nd = I[traj.i0+1];
 					Vec3 tangent = P[id_2nd] - P[id_1st];
-					o[id_1st] = vec4_from_vec3s(tangent, 0);
+					o[id_1st] = Vec4(tangent, 0);
 
 					// determine all inner tangents
 					for (unsigned j=1; j<traj.n-2; j+=2)
@@ -1485,14 +1484,14 @@ struct traj_manager<flt_type>::Impl
 						real len0 = diff0.length(), len1 = diff1.length(),
 						     len = std::max(R[id_mid]/real(2), std::min(len0, len1));
 						tangent = cgv::math::normalize(diff0 + diff1) * len;
-						o[id_mid] = vec4_from_vec3s(tangent, 0);
+						o[id_mid] = Vec4(tangent, 0);
 					}
 
 					// determine tangent of last sample in trajectory
 					id_1st = I[traj.i0 + traj.n-2];
 					id_2nd = I[traj.i0 + traj.n-1];
 					tangent = (P[id_2nd] - P[id_1st]);
-					o[id_2nd] = vec4_from_vec3s(tangent, 0);
+					o[id_2nd] = Vec4(tangent, 0);
 				}
 				return;
 			}
@@ -1509,7 +1508,7 @@ struct traj_manager<flt_type>::Impl
 	// ToDo: This specialization for the color attribute is not really ideal, should be handled more generically
 	template <>
 	void transform_attrib_old<Color> (
-		std::vector<Color> *out, VisualAttrib visual_attrib, const traj_dataset<real> &dataset, bool auto_tangents
+		std::vector<Color> *out, VisualAttrib visual_attrib, const traj_dataset<real> &dataset, int /*irrelevant*/
 	)
 	{
 		const auto &mapping = dataset.mapping();
@@ -1529,7 +1528,7 @@ struct traj_manager<flt_type>::Impl
 			}
 			else switch(ref.transform.get_src_type())
 			{
-				case AttribType::REAL:
+				case AttribType::SCALAR:
 				{
 					const auto &data = attrib.get_data<real>();
 					out->reserve(out->size() + data.num());
@@ -1766,43 +1765,63 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 	// check if the render data needs to be rebuild
 	if (impl.dirty)
 	{
-		impl.rd.dataset_ranges.clear();
+		impl.rd.datasets.clear();
 		impl.rd.positions.clear();
 		impl.rd.tangents.clear();
 		impl.rd.radii.clear();
 		impl.rd.colors.clear();
 		impl.rd.indices.clear();
-		for (auto &d_ptr : impl.datasets)
+		for (unsigned ds=0; ds<(unsigned)impl.datasets.size(); ds++)
 		{
-			// convencience shorthand
-			auto &dataset = *d_ptr;
+			// convencience shorthands
+			auto &dataset = *impl.datasets[ds];
+			const auto &positions = dataset.positions_interface();
+			auto &trajectories = dataset.trajectories(positions);
 
-			// process indices
-			const unsigned idx_offset = (unsigned)impl.rd.positions.size();
-			std::transform(
-				dataset.indices().begin(), dataset.indices().end(), std::back_inserter(impl.rd.indices),
-				[idx_offset] (unsigned index) -> unsigned { return index + idx_offset; }
-			);
-			impl.rd.dataset_ranges.emplace_back(range{
-				/* first index */idx_offset, /* num indices */(unsigned)dataset.indices().size()
+			// build line list indices
+			const unsigned idx_base = (unsigned)impl.rd.positions.size();
+			std::vector<range> traj_ranges; traj_ranges.reserve(trajectories.size());
+			for (const auto &traj : trajectories)
+			{
+				if (traj.n < 1)
+					continue;
+				const unsigned idx_traj_offset = (unsigned)impl.rd.indices.size();
+				impl.rd.indices.push_back(idx_base+traj.i0); unsigned idx=impl.rd.indices.back()+1;
+				for (unsigned i=1; i<traj.n-1; i++)
+				{
+					impl.rd.indices.push_back(idx);
+					impl.rd.indices.push_back(idx); // twice to gain line-list semantics
+					idx++;
+				}
+				if (traj.n > 1)
+					impl.rd.indices.push_back(idx); // final index only once
+				else
+					// degenerate single-sample segment
+					impl.rd.indices.push_back(impl.rd.indices.back());
+				traj_ranges.emplace_back(range{idx_traj_offset, (unsigned)impl.rd.indices.size()-idx_traj_offset});
+			}
+			impl.rd.datasets.emplace_back(render_data::dataset{
+				/* full dataset range */ { idx_base, (unsigned)impl.rd.indices.size()-idx_base },
+				/* individual trajectory ranges*/ std::move(traj_ranges)
 			});
+			auto &ds_info = impl.rd.datasets.back();
 
 			// copy mapped attributes, applying the desired transformations (if any)
 			impl.transform_attrib_old(&impl.rd.positions, VisualAttrib::POSITION, dataset);
 			impl.transform_attrib_old(&impl.rd.radii, VisualAttrib::RADIUS, dataset);
-			impl.transform_attrib_old(&impl.rd.tangents, VisualAttrib::TANGENT, dataset, auto_tangents);
+			impl.transform_attrib_old(&impl.rd.tangents, VisualAttrib::TANGENT, dataset, auto_tangents ? ds : -1);
 			impl.transform_attrib_old(&impl.rd.colors, VisualAttrib::COLOR, dataset);
 
-			/*// apply visual mapping to all involved attributes and distribute to user output draw arrays
-			for (unsigned i=0; i<(unsigned)dataset.positions().size(); i++)
+			// ToDo: apply visual mapping to all involved attributes and distribute to user output draw arrays
+			/*for (unsigned i = 0; i<(unsigned)dataset.positions().size(); i++)
 			{
 			}*/
 
 			// Calculate per-trajectory median of node radii as well as dataset median node radius
 			// ToDo: this should really also be weighted by segment length...
 			// - (1) trajectory median radii
-			std::vector<real> med_radii; med_radii.reserve(dataset.trajectories().size());
-			for (auto &traj : dataset.trajectories())
+			std::vector<real> med_radii; med_radii.reserve(trajectories.size());
+			for (auto &traj : ds_info.trajs)
 			{
 				std::vector<real> traj_radii; traj_radii.reserve(traj.n/2 + 1);
 				for (unsigned i=0; i<traj.n; i+=2)
@@ -1816,17 +1835,17 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 				}
 				else
 					traj.med_radius = float(traj_radii[traj_radii.size()/2]);
-				med_radii.push_back(traj.med_radius);
+				med_radii.emplace_back(traj.med_radius);
 			}
 			// - (2) dataset median radius
 			std::sort(med_radii.begin(), med_radii.end());
 			if (med_radii.size()%2 == 0)
 			{
 				const auto mid = med_radii.size()/2;
-				impl.rd.dataset_ranges.back().med_radius = float(med_radii[mid-1]+med_radii[mid]) / 2.f;
+				ds_info.irange.med_radius = float(med_radii[mid-1]+med_radii[mid]) / 2.f;
 			}
 			else
-				impl.rd.dataset_ranges.back().med_radius = float(med_radii[med_radii.size()/2]);
+				ds_info.irange.med_radius = float(med_radii[med_radii.size()/2]);
 		}
 		impl.dirty = false;
 	}

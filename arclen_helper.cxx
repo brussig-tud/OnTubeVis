@@ -68,20 +68,15 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 	result.resize(rd.indices.size()/2);
 
 	// approximate arclength for all datasets
-	for (unsigned ds=0; ds<rd.dataset_ranges.size(); ds++)
+	for (const auto &dataset : rd.datasets)
 	{
-		// obtain dataset topology
-		const auto &dataset = mgr.dataset(ds);
-		const auto &trajs = dataset.trajectories();
-		const unsigned idx_offset_ds = rd.dataset_ranges[ds].i0;
-
 		// approximate arclength for each trajectory in order
 		//for (const auto &traj : trajs)
-		#pragma omp parallel for
-		for (int traj_idx=0; traj_idx<trajs.size(); traj_idx++)
+		//#pragma omp parallel for
+		for (int traj_idx=0; traj_idx<dataset.trajs.size(); traj_idx++)
 		{
-			const auto &traj = trajs[traj_idx];
-			const unsigned idx_offset = idx_offset_ds + traj.i0,
+			const auto &traj = dataset.trajs[traj_idx];
+			const unsigned idx_offset = dataset.irange.i0 + traj.i0,
 			               idx_n = idx_offset + traj.n;
 			// compute individual segment global (w.r.t. current trajectory) arclength approximation 
 			real length_sum = 0;

@@ -812,14 +812,14 @@ void tubes::set_view(void)
 void tubes::update_grid_ratios(void) {
 	auto& ctx = *get_context();
 
-	if (!render.data->dataset_ranges.empty())
+	if (!render.data->datasets.empty())
 	{
 		uint64_t num = 0;
 		double sum = 0;
-		for (const auto &ds : render.data->dataset_ranges)
+		for (const auto &ds : render.data->datasets)
 		{
-			num += ds.n;
-			sum += ds.n * double(ds.med_radius);
+			num += ds.irange.n;
+			sum += ds.irange.n * double(ds.irange.med_radius);
 		}
 		double mean_rad = sum / double(num);
 		// we base everything on the mean of all trajectory median radii

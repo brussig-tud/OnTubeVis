@@ -309,17 +309,15 @@ struct demo : public traj_format_handler<float>
 			{VisualAttrib::RADIUS, {ATTRIB_RADIUS}}, {VisualAttrib::COLOR, {ATTRIB_COLOR}}
 		});
 
-		// prepare data containers
-		typename traj_dataset<float> ds("Furball", "DEMO");
-		std::vector<range> ds_trajs;
-		std::vector<unsigned> &I = indices(ds);
-		std::vector<float> ts;
-		std::vector<Vec3> P;
-		std::vector<Vec4> T;
-		std::vector<float> R;
-		std::vector<Vec3> C;
-
-		// for the free attributes, we compile them into the dataset directly without staging
+		// prepare dataset
+		typename traj_dataset<float> ds("Fuzzball", "DEMO");
+		std::vector<range> ds_trajs, ds_trajs_scalar, ds_trajs_vec2, ds_trajs_vec3, ds_trajs_vec4;
+		// - create geometry attributes
+		auto &P = add_attribute<Vec3>(ds, ATTRIB_POSITION);
+		auto &T = add_attribute<Vec4>(ds, ATTRIB_TANGENT);
+		auto &R = add_attribute<real>(ds, ATTRIB_RADIUS);
+		auto &C = add_attribute<Vec3>(ds, ATTRIB_COLOR);
+		// - create free attributes
 		auto &attrib_scalar = add_attribute<real>(ds, "scalar");
 		auto &attrib_vec2 = add_attribute<Vec2>(ds, "vec2");
 		auto &attrib_vec3 = add_attribute<Vec3>(ds, "vec3");
@@ -330,62 +328,55 @@ struct demo : public traj_format_handler<float>
 		real avg_dist = 0;
 		for (const auto &traj : trajectories)
 		{
-			// generate timestamps
-			for (unsigned i=0; i<(unsigned)traj.positions.size(); i++)
-				ts.emplace_back((float)i);
-			// copy over visual attributes
-			std::copy(traj.positions.begin(), traj.positions.end(), std::back_inserter(P));
-			std::copy(traj.tangents.begin(), traj.tangents.end(), std::back_inserter(T));
-			std::copy(traj.radii.begin(), traj.radii.end(), std::back_inserter(R));
-			std::copy(traj.colors.begin(), traj.colors.end(), std::back_inserter(C));
+			// optimize allocations
+			unsigned new_capacity = P.data.num() + (unsigned)traj.positions.size();
+			P.data.reserve(new_capacity);
+			T.data.reserve(new_capacity);
+			R.data.reserve(new_capacity);
+			C.data.reserve(new_capacity);
 
-			// build indices and determine avg segment length
-			I.push_back(idx); unsigned idx_cur = idx+1;
-			for (unsigned i=1; i<(unsigned)traj.positions.size()-1; i++)
-			{
-				I.push_back(idx_cur);
-				I.push_back(idx_cur); // twice to gain line-list semantics
-				avg_dist += (P[idx_cur] - P[idx_cur-1]).length();
-				num_segs++; idx_cur++;
-			}
-			if (traj.positions.size() > 1)
-			{
-				I.push_back(idx_cur); // final index only once
-				avg_dist += (P[idx_cur] - P[idx_cur-1]).length();  // account for final
-			}
-			else
-				// degenerate single-sample segment
-				I.push_back(idx);
-			num_segs++;
+			// set trajectory indexing info
+			ds_trajs.emplace_back(range{ P.data.num(), (unsigned)traj.positions.size() });
+			ds_trajs_scalar.emplace_back(range{ attrib_scalar.data.num(), (unsigned)traj.attrib_scalar.size() });
+			ds_trajs_scalar.emplace_back(range{ attrib_vec2.data.num(), (unsigned)traj.attrib_vec2.size() });
+			ds_trajs_scalar.emplace_back(range{ attrib_vec3.data.num(), (unsigned)traj.attrib_vec3.size() });
+			ds_trajs_scalar.emplace_back(range{ attrib_vec4.data.num(), (unsigned)traj.attrib_vec4.size() });
 
-			// store trajectory indexing info
-			ds_trajs.emplace_back(range{idx_base, (unsigned)I.size()-idx_base});
-			idx = idx_cur + 1;
-			idx_base = (unsigned)I.size();
+			// copy over position attribute, generate timestamps and determine avg segment length
+			P.data.append(traj.positions.front(), 0);
+			for (unsigned i=1; i<(unsigned)traj.positions.size(); i++)
+			{
+				avg_dist += (traj.positions[i] - traj.positions[i-1]).length();
+				P.data.append(traj.positions[i], (float)i);
+				num_segs++;
+			}
+			// copy over remaining geometry attributes
+			std::copy(traj.tangents.begin(), traj.tangents.end(), std::back_inserter(T.data.values));
+			std::copy(traj.radii.begin(), traj.radii.end(), std::back_inserter(R.data.values));
+			std::copy(traj.colors.begin(), traj.colors.end(), std::back_inserter(C.data.values));
 
 			// commit free attributes
 			for (const auto &attrib : traj.attrib_scalar)
-				attrib_scalar.append(attrib.value, attrib.t);
+				attrib_scalar.data.append(attrib.value, attrib.t);
 			for (const auto &attrib : traj.attrib_vec2)
-				attrib_vec2.append(attrib.value, attrib.t);
+				attrib_vec2.data.append(attrib.value, attrib.t);
 			for (const auto &attrib : traj.attrib_vec3)
-				attrib_vec3.append(attrib.value, attrib.t);
+				attrib_vec3.data.append(attrib.value, attrib.t);
 			for (const auto &attrib : traj.attrib_vec4)
-				attrib_vec4.append(attrib.value, attrib.t);
+				attrib_vec4.data.append(attrib.value, attrib.t);
 		}
 
-		// transfer attributes into dataset
-		add_attribute<Vec3>(ds, ATTRIB_POSITION, traj_attribute<float>{std::move(P), ts});
-		add_attribute<Vec4>(ds, ATTRIB_TANGENT, traj_attribute<float>{std::move(T), ts});
-		add_attribute<float>(ds, ATTRIB_RADIUS, traj_attribute<float>{std::move(R), ts});
-		add_attribute<Vec3>(ds, ATTRIB_COLOR, traj_attribute<float>{std::move(C), std::move(ts)});
-		ds.set_mapping(attrmap);
+		// transfer trajectory ranges
+		traj_format_handler<float>::trajectories(ds, P.attrib) = ds_trajs;
+		traj_format_handler<float>::trajectories(ds, T.attrib) = ds_trajs;
+		traj_format_handler<float>::trajectories(ds, R.attrib) = ds_trajs;
+		traj_format_handler<float>::trajectories(ds, C.attrib) = std::move(ds_trajs);
 
-		// transfer trajectory ranges (ToDo: temporary!)
-		traj_format_handler<float>::trajectories(ds) = std::move(ds_trajs);
+		// finalize
+		ds.set_mapping(attrmap);
+		set_avg_segment_length(ds, avg_dist/num_segs);
 
 		// done!
-		set_avg_segment_length(ds, avg_dist / num_segs);
 		return std::move(ds);
 	}
 };
