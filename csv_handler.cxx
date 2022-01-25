@@ -807,7 +807,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 		}
 		// commit to dataset
 		trajectories(ret, attr.ds_attrib) = std::move(ds_trajs);
-		attributes(ret).emplace(attr.name, attr.ds_attrib);
+		attributes(ret).emplace(attr.name, std::move(attr.ds_attrib));
 	}
 	// prepare invented radii
 	auto R = add_attribute<real>(ret, "radius");
