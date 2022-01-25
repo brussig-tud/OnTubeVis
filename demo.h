@@ -338,9 +338,9 @@ struct demo : public traj_format_handler<float>
 			// set trajectory indexing info
 			ds_trajs.emplace_back(range{ P.data.num(), (unsigned)traj.positions.size() });
 			ds_trajs_scalar.emplace_back(range{ attrib_scalar.data.num(), (unsigned)traj.attrib_scalar.size() });
-			ds_trajs_scalar.emplace_back(range{ attrib_vec2.data.num(), (unsigned)traj.attrib_vec2.size() });
-			ds_trajs_scalar.emplace_back(range{ attrib_vec3.data.num(), (unsigned)traj.attrib_vec3.size() });
-			ds_trajs_scalar.emplace_back(range{ attrib_vec4.data.num(), (unsigned)traj.attrib_vec4.size() });
+			ds_trajs_vec2.emplace_back(range{ attrib_vec2.data.num(), (unsigned)traj.attrib_vec2.size() });
+			ds_trajs_vec3.emplace_back(range{ attrib_vec3.data.num(), (unsigned)traj.attrib_vec3.size() });
+			ds_trajs_vec4.emplace_back(range{ attrib_vec4.data.num(), (unsigned)traj.attrib_vec4.size() });
 
 			// copy over position attribute, generate timestamps and determine avg segment length
 			P.data.append(traj.positions.front(), 0);
@@ -367,10 +367,16 @@ struct demo : public traj_format_handler<float>
 		}
 
 		// transfer trajectory ranges
+		// - geometry attributes
 		traj_format_handler<float>::trajectories(ds, P.attrib) = ds_trajs;
 		traj_format_handler<float>::trajectories(ds, T.attrib) = ds_trajs;
 		traj_format_handler<float>::trajectories(ds, R.attrib) = ds_trajs;
 		traj_format_handler<float>::trajectories(ds, C.attrib) = std::move(ds_trajs);
+		// - free attributes
+		traj_format_handler<float>::trajectories(ds, attrib_scalar.attrib) = std::move(ds_trajs_scalar);
+		traj_format_handler<float>::trajectories(ds, attrib_vec2.attrib) = std::move(ds_trajs_vec2);
+		traj_format_handler<float>::trajectories(ds, attrib_vec3.attrib) = std::move(ds_trajs_vec3);
+		traj_format_handler<float>::trajectories(ds, attrib_vec4.attrib) = std::move(ds_trajs_vec4);
 
 		// finalize
 		ds.set_mapping(attrmap);

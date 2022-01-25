@@ -330,112 +330,138 @@ bool tubes::compile_glyph_attribs (void)
 	// ToDo: replace with actual timestamps on trajectory position samples
 	struct segment_time {
 		float t0, t1;
-		inline static segment_time get (unsigned segment_index)
+		inline static segment_time get (const traj_attribute<float> &attrib, const range &traj, unsigned segment_index)
 		{
-			return { (float)segment_index, (float)segment_index + 1 }; // in the demo data, one segment is exactly one second
+			const float *ts = attrib.get_timestamps();
+			const unsigned startid = traj.i0 + segment_index;
+			return { ts[startid], ts[startid+1] };
 		}
 	};
 
 	// ToDo: generalize to arbitrary free attributes
-	#define FREE_ATTRIBUTE_SERIES attrib_scalar
+	#define FREE_ATTRIBUTE_SERIES "scalar"
 
 	// get context
 	const auto &ctx = *get_context();
 
-	// Compile attribute data for GPU upload
-	// - CPU-side database
+	// Compile attribute data for GPU upload - example for one scalar attribute (which one is hardcoded above)
+	// - CPU-side staging
 	struct irange { int i0, n; };
 	std::vector<glyph_attribs> attribs; // buffer of attribute values
 	std::vector<irange> ranges;         // buffer of index ranges per segment (indexes into 'attribs')
-	attribs.reserve(dataset.demo_trajs.size() * dataset.demo_trajs[0].FREE_ATTRIBUTE_SERIES.size());
-	ranges.reserve(dataset.demo_trajs.size() * dataset.demo_trajs[0].FREE_ATTRIBUTE_SERIES.size()-1);
-	// - data staging
-	unsigned traj_offset = 0;
-	for (const auto &traj : dataset.demo_trajs)
+	for (unsigned ds=0; ds<traj_mgr.num_datasets(); ds++)
 	{
-		const auto *alen = render.arclen_data.data();
-		const unsigned num_segments = (unsigned)traj.positions.size()-1;
-		const unsigned attribs_traj_offset = (unsigned)attribs.size();
+		// convenience shorthands
+		const auto &dataset = traj_mgr.dataset(ds);
+		const auto &P = dataset.positions_interface();
+		const auto &tube_trajs = dataset.trajectories(P);
 
-		// make sure there is exactly one 'range' entry per segment
-		ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
+		// from the docs: returns an explicitly invalid attribute interface that acts "empty" on all relevant queries
+		// if no attribute of the given name exists in the dataset
+		const auto &free_attrib = dataset.attribute(FREE_ATTRIBUTE_SERIES);
 
-		// - primary loop is through free attributes, segment assignment based on timestamps
-		for (unsigned i=0, seg=0; i<(unsigned)traj.FREE_ATTRIBUTE_SERIES.size() && seg<num_segments; i++)
+		// from the docs: returns an explicitly invalid range that indicates zero samples in the trajectory if the dataset has
+		// no trajectory information for the attribute
+		const auto &attrib_trajs = dataset.trajectories(free_attrib);
+
+		// reserve memory
+		attribs.reserve(attribs.size() + free_attrib.num());
+		ranges.reserve(ranges.size() + /* estimated_num_segments = */P.num() - tube_trajs.size());
+		// - compile data
+		unsigned traj_offset = 0;
+		for (unsigned trj=0; trj<(unsigned)tube_trajs.size(); trj++)
 		{
-			const auto &a = traj.FREE_ATTRIBUTE_SERIES[i];
-			if (i > 0) // enforce monotonicity
-				assert(a.t >= traj.FREE_ATTRIBUTE_SERIES[i-1].t);
+			const auto &tube_traj = tube_trajs[trj];
+			const auto &attrib_traj = attrib_trajs[trj];
+			const auto *alen = render.arclen_data.data();
+			const unsigned num_segments = tube_traj.n-1;
+			const unsigned attribs_traj_offset = (unsigned)attribs.size();
 
-			// advance segment pointer
-			auto segtime = segment_time::get(seg);
-			while (a.t >= segtime.t1)
+			const float vmin = free_attrib.min(), vmax = free_attrib.max();
+
+			// make sure there is exactly one 'range' entry per segment
+			ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
+
+			// - primary loop is through free attributes, segment assignment based on timestamps
+			for (unsigned i=0, seg=0; i<(unsigned)attrib_traj.n && seg<num_segments; i++)
 			{
-				if (seg >= num_segments-1)
-					break;
-				segtime = segment_time::get(++seg);
-				// handle overlap from previous segment
+				const auto a = free_attrib.magnitude_at(i);
+				if (i > 0) // enforce monotonicity
+					assert(a.t >= free_attrib.magnitude_at(i-1).t);
+
+				// advance segment pointer
+				auto segtime = segment_time::get(P, tube_traj, seg);
+				while (a.t >= segtime.t1)
+				{
+					if (seg >= num_segments-1)
+						break;
+					segtime = segment_time::get(P, tube_traj, ++seg);
+					// handle overlap from previous segment
+					const unsigned global_seg = traj_offset + seg;
+					if (ranges[global_seg-1].n > 0)
+					{
+						const float prev_rad = glyph_attribs::calc_radius(attribs.back(), am_parameters.length_scale).rad;
+						if (alen[global_seg][0] < attribs.back().s+prev_rad)
+						{
+							ranges[global_seg].i0 = (int)attribs.size()-1;
+							ranges[global_seg].n = 1;
+						}
+					}
+				}
 				const unsigned global_seg = traj_offset + seg;
-				if (ranges[global_seg-1].n > 0)
+
+				// commit the attribute if it falls into the current segment
+				if (a.t >= segtime.t0 && a.t < segtime.t1)
 				{
-					const float prev_rad = glyph_attribs::calc_radius(attribs.back(), am_parameters.length_scale).rad;
-					if (alen[global_seg][0] < attribs.back().s+prev_rad)
+					// compute segment-relative t and arclength
+					const float t_seg = (a.t-segtime.t0) / (segtime.t1-segtime.t0),
+					            s = arclen::eval(alen[global_seg], t_seg);
+
+					// normalize attribute value
+					const float v = (a.val-vmin) / (vmax-vmin);
+
+					// setup potential glyph
+					glyph_attribs new_glyph;
+					new_glyph.s = s;
+					new_glyph.radius0 = v;
+					new_glyph.radius1 = new_glyph.radius0 / 3;
+					new_glyph.angle0 = glyph_defaults.angle0;
+					new_glyph.angle1 = glyph_defaults.angle1;
+
+					// infer potential glyph extents
+					const auto new_glyph_ext = glyph_attribs::calc_radius(new_glyph, am_parameters.length_scale);
+					const float min_dist = attribs.size() > 0 ? std::max(
+						new_glyph_ext.diam,
+						glyph_attribs::calc_radius(attribs.back(), am_parameters.length_scale).diam
+					) : new_glyph_ext.diam;
+
+					// only include samples that are far enough away from last sample to not cause (too much) overlap
+					if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+min_dist)
 					{
-						ranges[global_seg].i0 = (int)attribs.size()-1;
-						ranges[global_seg].n = 1;
+						auto &cur_range = ranges[global_seg];
+						if (cur_range.n < 1)
+						{
+							// first free attribute that falls into this segment
+							cur_range.i0 = (unsigned)attribs.size();
+							cur_range.n = 1;
+							// handle overlap to previous segment
+							if (seg > 0 && alen[global_seg-1][15] > s-new_glyph_ext.rad)
+								ranges[global_seg-1].n++;
+						}
+						else
+							// one more free attribute that falls into this segment
+							cur_range.n++;
+						attribs.emplace_back(std::move(new_glyph));
 					}
 				}
+				else if (seg > (unsigned)tube_traj.n - 2)
+					// we went beyond the last segment
+					break;
 			}
-			const unsigned global_seg = traj_offset + seg;
 
-			// commit the attribute if it falls into the current segment
-			if (a.t >= segtime.t0 && a.t < segtime.t1)
-			{
-				// compute segment-relative t and arclength
-				const float t_seg = (a.t-segtime.t0) / (segtime.t1-segtime.t0),
-				            s = arclen::eval(alen[global_seg], t_seg);
-
-				// setup potential glyph
-				glyph_attribs new_glyph;
-				new_glyph.s = s;
-				new_glyph.radius0 = std::max(std::min(std::abs(a.value), 0.8f), 0.125f);
-				new_glyph.radius1 = new_glyph.radius0 / 3;
-				new_glyph.angle0 = glyph_defaults.angle0;
-				new_glyph.angle1 = glyph_defaults.angle1;
-
-				// infer potential glyph extents
-				const auto new_glyph_ext = glyph_attribs::calc_radius(new_glyph, am_parameters.length_scale);
-				const float min_dist = attribs.size() > 0 ? std::max(
-					new_glyph_ext.diam,
-					glyph_attribs::calc_radius(attribs.back(), am_parameters.length_scale).diam
-				) : new_glyph_ext.diam;
-
-				// only include samples that are far enough away from last sample to not cause (too much) overlap
-				if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+min_dist)
-				{
-					auto &cur_range = ranges[global_seg];
-					if (cur_range.n < 1)
-					{
-						// first free attribute that falls into this segment
-						cur_range.i0 = (unsigned)attribs.size();
-						cur_range.n = 1;
-						// handle overlap to previous segment
-						if (seg > 0 && alen[global_seg-1][15] > s-new_glyph_ext.rad)
-							ranges[global_seg-1].n++;
-					}
-					else
-						// one more free attribute that falls into this segment
-						cur_range.n++;
-					attribs.emplace_back(std::move(new_glyph));
-				}
-			}
-			else if (seg > (unsigned)traj.positions.size() - 2)
-				// we went beyond the last segment
-				break;
+			// update auxiliary indices
+			traj_offset += num_segments;
 		}
-
-		// update auxiliary indices
-		traj_offset += num_segments;
 	}
 	// - sanity check
 	{ const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size())/2;

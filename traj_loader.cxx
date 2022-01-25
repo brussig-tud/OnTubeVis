@@ -75,6 +75,23 @@ constexpr const unsigned va_max = (const unsigned)VisualAttrib::COLOR;
 ////
 // Class implementation - traj_attribute
 
+// helper class used in invalid attributes
+template <class flt_type>
+struct invalid_container : traj_attribute<flt_type>::container_base
+{
+	virtual unsigned dims (void) const { return 0; }
+	virtual unsigned num (void) const { return 0; }
+	virtual flt_type min(unsigned *index) const { return 0; }
+	virtual flt_type max(unsigned *index) const { return 0; }
+	virtual void* get_pointer (void) { return nullptr; }
+	virtual const void* get_pointer (void) const { return nullptr; }
+	virtual flt_type* get_timestamps (void) { return nullptr; }
+	virtual const flt_type* get_timestamps (void) const { return nullptr; }
+	virtual typename traj_attribute<flt_type>::datapoint_mag magnitude_at (unsigned index) const {
+		return { -1.f, 0.f };
+	}
+};
+
 template <class flt_type>
 traj_attribute<flt_type>::container_base::~container_base()
 {}
@@ -99,7 +116,7 @@ traj_attribute<flt_type>::traj_attribute (const traj_attribute &other)
 			return;
 
 		default:
-			/* DoNothing() */;
+			_data = new invalid_container<real>;
 	}
 }
 
@@ -133,7 +150,8 @@ traj_attribute<flt_type>::traj_attribute (unsigned components) : _data(nullptr),
 			return;
 
 		default:
-			/* DoNothing() */;
+			_type = (AttribType)-1;
+			_data = new invalid_container<real>;
 	}
 }
 
@@ -302,6 +320,8 @@ traj_attribute<flt_type>::~traj_attribute()
 template <class flt_type>
 traj_attribute<flt_type>& traj_attribute<flt_type>::operator= (const traj_attribute &other)
 {
+	this->~traj_attribute();
+	id = get_unique_id();
 	_type = other._type;
 	_data = other._data;
 	return *this;
@@ -311,6 +331,7 @@ template <class flt_type>
 traj_attribute<flt_type>& traj_attribute<flt_type>::operator= (traj_attribute &&other)
 {
 	this->~traj_attribute();
+	id = other.id;
 	_type = other._type;
 	std::swap(_data, other._data);
 	return *this;
@@ -1058,6 +1079,7 @@ struct traj_dataset<flt_type>::Impl
 	typename traj_attribute<flt_type> *positions;
 	attribute_map<flt_type> attribs;
 	std::unordered_map<unsigned, std::vector<range>> trajs;
+	std::vector<range> empty_default_trajectories;
 	visual_attribute_mapping<flt_type> attrmap;
 	real avg_seg_len;
 
@@ -1228,9 +1250,19 @@ const flt_type* traj_dataset<flt_type>::timestamps (void) const
 }
 
 template <class flt_type>
-const attribute_map<flt_type>& traj_dataset<flt_type>::attributes (void) const
+bool traj_dataset<flt_type>::has_attribute (const std::string &name) const
 {
-	return pimpl->attribs;
+	const auto &impl = *pimpl;
+	return impl.attribs.find(name) != impl.attribs.end();
+}
+
+template <class flt_type>
+const traj_attribute<flt_type>& traj_dataset<flt_type>::attribute (const std::string &name) const
+{
+	static const traj_attribute<real> error_attrib(0);
+	const auto &impl = *pimpl;
+	const auto it = impl.attribs.find(name);
+	return it != impl.attribs.end() ? it->second : error_attrib;
 }
 
 template <class flt_type>
@@ -1242,13 +1274,10 @@ flt_type traj_dataset<flt_type>::avg_segment_length (void) const
 template <class flt_type>
 const std::vector<range>& traj_dataset<flt_type>::trajectories (const traj_attribute<real> &attribute) const
 {
-	// we return this if the trajectory index range for an unknown attribute is queried
-	static const std::vector<range> empty_default;
-
 	// find index range and return it
 	const auto &impl = *pimpl;
 	const auto it = impl.trajs.find(attribute.id);
-	return it != impl.trajs.end() ? it->second : empty_default;
+	return it != impl.trajs.end() ? it->second : impl.empty_default_trajectories;
 }
 
 template <class flt_type>
@@ -1360,6 +1389,23 @@ struct traj_manager<flt_type>::Impl
 	{}
 	~Impl()
 	{}
+	static void ensure_dataset_defaults (traj_dataset<real> &dataset)
+	{
+		auto &ds_impl = *dataset.pimpl;
+		const auto &pos_trajs = dataset.trajectories(*ds_impl.positions);
+
+		// make sure querying trajectories for non-existing attributes (or for attributes that don't
+		// have trajectory information) works
+		if (ds_impl.empty_default_trajectories.size() < 1)
+			ds_impl.empty_default_trajectories = std::vector<range>(pos_trajs.size(), range{(unsigned)-1, 0, 0});
+
+#ifdef _DEBUG
+		// Sanity checks
+		// - consistent trajectory information
+		for (const auto &a : ds_impl.attribs)
+			assert(dataset.trajectories(a.second).size() == pos_trajs.size());
+#endif
+	}
 	static visual_attrib_match find_visual_attrib (const visual_attribute_mapping<real> &mapping,
 	                                               VisualAttrib visual_attrib)
 	{
@@ -1381,7 +1427,7 @@ struct traj_manager<flt_type>::Impl
 		if (match.found)
 		{
 			const auto &ref = match.it->second;
-			const auto &attrib = dataset.attributes().find(match.attrib_name)->second;
+			const auto &attrib = dataset.attribute(match.attrib_name);
 			if (ref.transform.is_identity())
 			{
 				const auto &data = attrib.get_data<T>();
@@ -1516,7 +1562,7 @@ struct traj_manager<flt_type>::Impl
 		if (match.found)
 		{
 			const auto &ref = match.it->second;
-			const auto &attrib = dataset.attributes().find(match.attrib_name)->second;
+			const auto &attrib = dataset.attribute(match.attrib_name);
 			if (ref.transform.is_identity())
 			{
 				const auto &data = attrib.get_data<Vec3>();
@@ -1686,6 +1732,7 @@ unsigned traj_manager<flt_type>::load (const std::string &path)
 			new_dataset = h->read(file);
 			if (new_dataset.has_data() && new_dataset.mapping().is_mapped(VisualAttrib::POSITION))
 			{
+				Impl::ensure_dataset_defaults(new_dataset);
 				handler = h;
 				break;
 			}
@@ -1718,6 +1765,7 @@ unsigned traj_manager<flt_type>::add_dataset (const traj_dataset<real> &dataset)
 {
 	auto &impl = *pimpl; // shortcut for saving one indirection
 	impl.datasets.emplace_back(new traj_dataset<real>(dataset));
+	Impl::ensure_dataset_defaults(*impl.datasets.back());
 	impl.dirty = true; // we will need to rebuild the render data;
 	return (unsigned)impl.datasets.size() - 1;
 }
@@ -1726,6 +1774,7 @@ template <class flt_type>
 unsigned traj_manager<flt_type>::add_dataset (traj_dataset<real> &&dataset)
 {
 	auto &impl = *pimpl; // shortcut for saving one indirection
+	Impl::ensure_dataset_defaults(dataset);
 	impl.datasets.emplace_back(new traj_dataset<real>(std::move(dataset)));
 	impl.dirty = true; // we will need to rebuild the render data
 	return (unsigned)impl.datasets.size() - 1;

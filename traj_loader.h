@@ -102,6 +102,16 @@ public:
 		flt_type &t;
 	};
 
+	/// struct representing the magnitude of a datapoint (and its timestamp)
+	struct datapoint_mag
+	{
+		/// attribute value magnitude
+		flt_type val;
+
+		/// datapoint timestamp
+		flt_type t;
+	};
+
 	/// base container class for having a common cleanup hook
 	struct container_base
 	{
@@ -114,6 +124,14 @@ public:
 		/// query the number of data points in the container
 		virtual unsigned num (void) const = 0;
 
+		/// returns the smallest attribute value in the series (in case of vector-valued attributes, the smallest magnitude), optionally
+		/// reporting the index of the corresponding datapoint
+		virtual real min (unsigned *index=nullptr) const = 0;
+
+		/// returns the largest attribute value in the series (in case of vector-valued attributes, the largest magnitude), optionally
+		/// reporting the index of the corresponding datapoint
+		virtual real max (unsigned *index=nullptr) const = 0;
+
 		/// obtain raw pointer to the contained data
 		virtual void* get_pointer (void) = 0;
 
@@ -125,6 +143,21 @@ public:
 
 		/// obtain const pointer to the data point timestamps
 		virtual const flt_type* get_timestamps (void) const = 0;
+
+		/// return a representation of the datapoint at the given index that contains its magnitude instead of the actual value
+		virtual datapoint_mag magnitude_at (unsigned index) const = 0;
+
+		/// utility for returning the magnitude of a vector or a scalar
+		template <class T>
+		static flt_type mag(const T& value) { return value.length(); }
+		template <>
+		static flt_type mag<flt_type>(const flt_type &value) { return std::abs(value); }
+
+		/// utility for returning the magnitude of a vector or a scalar, preserving the sign of the latter
+		template <class T>
+		static flt_type smag(const T &value) { return value.length(); }
+		template <>
+		static flt_type smag<flt_type>(const flt_type &value) { return value; }
 	};
 
 	/// generic container type for storing the actual attribute data
@@ -234,6 +267,36 @@ public:
 		/// query the number of data points in the container
 		virtual unsigned num (void) const { return (unsigned)values.size(); };
 
+		/// returns the smallest attribute value in the series (in case of vector-valued attributes, the smallest magnitude), optionally
+		/// reporting the index of the corresponding datapoint
+		virtual real min (unsigned *index=nullptr) const
+		{
+			auto it = std::min_element(
+				values.begin(), values.end(),
+				[](const elem_type &v1, const elem_type &v2) -> bool {
+					return smag(v1) < smag(v2);
+				}
+			);
+			if (index)
+				*index = (unsigned)(it-values.begin());
+			return smag(*it);
+		}
+
+		/// returns the largest attribute value in the series (in case of vector-valued attributes, the largest magnitude), optionally
+		/// reporting the index of the corresponding datapoint
+		virtual real max (unsigned *index=nullptr) const
+		{
+			auto it = std::max_element(
+				values.begin(), values.end(),
+				[](const elem_type &v1, const elem_type &v2) -> bool {
+					return smag(v1) < smag(v2); // NOTE: <-- don't reverse comparison here for maximum search...
+				}
+			);
+			if (index)
+				*index = (unsigned)(it-values.begin());
+			return smag(*it);
+		}
+
 		/// obtain raw pointer to the contained data
 		virtual void* get_pointer (void) { return values.data(); };
 
@@ -245,6 +308,11 @@ public:
 
 		/// obtain const pointer to the data point timestamps
 		virtual const flt_type* get_timestamps (void) const { return timestamps.data(); };
+
+		/// return a representation of the datapoint at the given index that contains its magnitude instead of the actual value
+		virtual datapoint_mag magnitude_at (unsigned index) const {
+			return { mag(const_cast<elem_type&>(values[index])), const_cast<flt_type&>(timestamps[index]) };
+		}
 	};
 
 
@@ -373,6 +441,17 @@ public:
 	/// access the attribute data as if it was of type Vec4 (read-only)
 	template <>
 	const container<Vec4>& get_data<Vec4>(void) const { return *dynamic_cast<container<Vec4>*>(_data); }
+
+	/// return a representation of the attribute datapoint at the given index that contains its magnitude instead of the actual value
+	datapoint_mag magnitude_at (unsigned index) const { return _data->magnitude_at(index); }
+
+	/// returns the smallest attribute value in the series (in case of vector-valued attributes, the smallest magnitude), optionally
+	/// reporting the index of the corresponding datapoint
+	real min (unsigned *index=nullptr) const { return _data->min(index); }
+
+	/// returns the largest attribute value in the series (in case of vector-valued attributes, the largest magnitude), optionally
+	/// reporting the index of the corresponding datapoint
+	real max (unsigned *index=nullptr) const { return _data->max(index); }
 
 	/// obtain raw pointer to the attribute data
 	void* get_pointer (void) { return _data->get_pointer(); };
@@ -757,7 +836,8 @@ protected:
 	/// set the average segment length (for use by trajectory format handlers)
 	void set_avg_segment_length (real length);
 
-	/// write-access the list of individual trajectory ranges for the given attribute
+	/// write-access the list of individual trajectory ranges for the given attribute. Note: if no trajectory
+	/// information for the given attribute exists yet, it will be created!
 	std::vector<range>& trajectories (const traj_attribute<real> &attribute);
 
 
@@ -796,7 +876,7 @@ public:
 	/// access the source name (filename, description, etc.) the dataset was loaded / originated from
 	const std::string& data_source (void) const;
 
-	/// access the "special" positions attribute data Note: shorthand for calling ::positions_interface().get_data<Vec3>()
+	/// access the "special" positions attribute data. Note: shorthand for calling ::positions_interface().get_data<Vec3>()
 	const typename traj_attribute<real>::container<Vec3>& positions (void) const;
 
 	/// write-access the interface of the "special" positions attribute (for use by trajectory format handlers)
@@ -805,13 +885,19 @@ public:
 	/// access the timestamps at each position
 	const flt_type* timestamps (void) const;
 
-	/// access the map containing all generic attributes
-	const attribute_map<flt_type>& attributes (void) const;
+	/// checks if an attribute of the given name is in the dataset
+	bool has_attribute (const std::string &name) const;
+
+	/// returns an interface to the attribute of the given name if it exists in the dataset. If it doesn't exist, returns an explicitly
+	/// invalid attribute interface that acts "empty" on all relevant queries. To explicitely check if an attribute of some name
+	/// exists, use \ref has_attribute .
+	const traj_attribute<real>& attribute (const std::string &name) const;
 
 	/// report the average length of line segments
 	real avg_segment_length (void) const;
 
-	/// access the list of individual trajectory ranges for the given attribute
+	/// access the list of individual trajectory ranges for the given attribute. In case the dataset has no trajectory information for
+	/// this attribute, invalid range will be returned which is generally "safe to use" as it indicates 0 elements in the range.
 	const std::vector<range>& trajectories (const traj_attribute<real> &attribute) const;
 
 	/// set the visual attribute mapping, reporting whether the crucial position mapping could be resolved. In case it couldn't, the
