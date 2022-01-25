@@ -72,7 +72,7 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 	{
 		// approximate arclength for each trajectory in order
 		//for (const auto &traj : trajs)
-		//#pragma omp parallel for
+#pragma omp parallel for
 		for (int traj_idx=0; traj_idx<dataset.trajs.size(); traj_idx++)
 		{
 			const auto &traj = dataset.trajs[traj_idx];
