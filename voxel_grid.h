@@ -24,11 +24,11 @@ struct voxel_grid : public cgv::render::render_types {
 		voxel_half_diag = 0.5f * sqrt(3.0f) * voxel_size;
 
 		// calculate the number of voxels in each dimension
-		unsigned resx = static_cast<unsigned>(ceilf(ext.x() / voxel_size));
-		unsigned resy = static_cast<unsigned>(ceilf(ext.y() / voxel_size));
-		unsigned resz = static_cast<unsigned>(ceilf(ext.z() / voxel_size));
+		int resx = static_cast<int>(ceilf(ext.x() / voxel_size));
+		int resy = static_cast<int>(ceilf(ext.y() / voxel_size));
+		int resz = static_cast<int>(ceilf(ext.z() / voxel_size));
 
-		resolution = vec3(resx, resy, resz);
+		resolution = ivec3(resx, resy, resz);
 		vec3 grid_ext = vec3(voxel_size) * resolution;
 		vec3 grid_min = bbox.get_min_pnt() - 0.5f * (grid_ext - ext);
 
