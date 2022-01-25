@@ -885,6 +885,9 @@ public:
 	/// access the timestamps at each position
 	const flt_type* timestamps (void) const;
 
+	/// return the names of all attributes in the dataset
+	std::vector<std::string> get_attribute_names (void) const;
+
 	/// checks if an attribute of the given name is in the dataset
 	bool has_attribute (const std::string &name) const;
 

@@ -1250,6 +1250,18 @@ const flt_type* traj_dataset<flt_type>::timestamps (void) const
 }
 
 template <class flt_type>
+std::vector<std::string> traj_dataset<flt_type>::get_attribute_names (void) const
+{
+	auto &impl = *pimpl;
+	std::vector<std::string> names;
+	std::transform(
+		impl.attribs.begin(), impl.attribs.end(), std::back_inserter(names),
+		[](const attribute_map<real>::value_type &elem) { return elem.first; }
+	);
+	return names;
+}
+
+template <class flt_type>
 bool traj_dataset<flt_type>::has_attribute (const std::string &name) const
 {
 	const auto &impl = *pimpl;
