@@ -9,6 +9,7 @@ glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& 
 	type = r.type;
 	if(r.shape_ptr)
 		shape_ptr = r.shape_ptr->clone();
+	color = r.color;
 	attrib_source_indices = r.attrib_source_indices;
 	attrib_mapping_values = r.attrib_mapping_values;
 }
@@ -44,6 +45,9 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 		return;
 
 	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Isosceles Triangle,Drop'");
+
+	add_local_member_control(p, bp, "Color", color);
+
 	for(size_t i = 0; i < shape_ptr->supported_attributes().size(); ++i)
 		create_attribute_gui(bp, p, i);
 }

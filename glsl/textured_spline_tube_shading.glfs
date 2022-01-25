@@ -7,7 +7,7 @@
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
 #define GLYPH_MAPPING_UNIFORMS
-#define GLYPH_LAYER_DEFINITION 1e20;
+#define GLYPH_LAYER_DEFINITION
 
 //***** begin interface of view.glsl ***********************************
 mat4 get_modelview_matrix();
@@ -424,17 +424,11 @@ vec3 compute_grid_normal(vec2 uv) {
 	return normalize(mix(normal0, normal1, 1.0 - grid_blend_factor));
 }
 
-/*void splat_glyph(in float dist, in vec3 glyph_color, out vec3 color) {
+void splat_glyph(in float dist, in vec3 glyph_color, inout vec3 color) {
 	// pre-filter the SDF for AA
-	//const float antialias_width = antialias_radius*fwidth(dist);
-
-	color = vec3(1.0, 0.0, 0.0);
-
-	//if(dist <= 0.0)
-		
-
-	//color = mix(glyph_color, color, smoothstep(-antialias_width, antialias_width, dist));
-}*/
+	const float antialias_width = antialias_radius*fwidth(dist);
+	color = mix(glyph_color, color, smoothstep(-antialias_width, antialias_width, dist));
+}
 
 void main()
 {
@@ -486,8 +480,10 @@ void main()
 				uv.t
 			);
 
-			float sd = 1e20;
-			sd = GLYPH_LAYER_DEFINITION
+			//float sd = 1e20;
+			//sd = GLYPH_LAYER_DEFINITION
+			//splat_glyph(sd_circle(glyphuv, 0.5), vec3(0.0, 1.0, 0.0), color);
+			GLYPH_LAYER_DEFINITION
 
 			/*switch(attribute_mapping.glyph_type) {
 				case 0:
@@ -559,11 +555,11 @@ void main()
 					);
 					break;
 				}
-			}*/
+			}
 			// pre-filter the SDF for AA
 			const float antialias_width = antialias_radius*fwidth(sd);
 			color = mix(vec3(1.0, 0.0, 0.0), color, smoothstep(-antialias_width, antialias_width, sd));
-			
+			*/
 		}
 #endif
 

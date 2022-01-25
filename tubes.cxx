@@ -298,12 +298,7 @@ void tubes::on_set(void *member_ptr) {
 	// visualization settings
 	if(member_ptr == &glyph_layer_mgr) {
 		if(glyph_layer_mgr.action_type() == AT_CONFIGURATION_CHANGE) {
-			glyph_layer_mgr.generate_shader_code(
-				glyph_layers_shader_config.uniform_block,
-				glyph_layers_shader_config.glyph_block,
-				glyph_layers_shader_config.uniform_value_ptrs,
-				glyph_layers_shader_config.attribute_source_indices
-			);
+			glyph_layers_shader_config = glyph_layer_mgr.generate_shader_configuration();
 
 			context& ctx = *get_context();
 			tube_shading_defines = build_tube_shading_defines();
@@ -550,12 +545,7 @@ bool tubes::init (cgv::render::context &ctx)
 	// load all shaders in the library
 	success &= shaders.load_shaders(ctx);
 
-	glyph_layer_mgr.generate_shader_code(
-		glyph_layers_shader_config.uniform_block,
-		glyph_layers_shader_config.glyph_block,
-		glyph_layers_shader_config.uniform_value_ptrs,
-		glyph_layers_shader_config.attribute_source_indices
-	);
+	glyph_layers_shader_config = glyph_layer_mgr.generate_shader_configuration();
 
 	tube_shading_defines = build_tube_shading_defines();
 	shaders.reload(ctx, "tube_shading", tube_shading_defines);
@@ -1158,8 +1148,14 @@ void tubes::draw_trajectories(context& ctx) {
 	}
 
 	// set attribute mapping parameters
-	for(size_t i = 0; i < glyph_layers_shader_config.uniform_value_ptrs.size(); ++i) {
-		const auto& pair = glyph_layers_shader_config.uniform_value_ptrs[i];
+	for(size_t i = 0; i < glyph_layers_shader_config.constant_parameters.size(); ++i) {
+		const auto& pair = glyph_layers_shader_config.constant_parameters[i];
+		//std::cout << "set_uniform: " << pair.first << " to " << *pair.second << std::endl;
+		prog.set_uniform(ctx, pair.first, *pair.second);
+	}
+
+	for(size_t i = 0; i < glyph_layers_shader_config.constant_colors.size(); ++i) {
+		const auto& pair = glyph_layers_shader_config.constant_colors[i];
 		//std::cout << "set_uniform: " << pair.first << " to " << *pair.second << std::endl;
 		prog.set_uniform(ctx, pair.first, *pair.second);
 	}
@@ -1283,8 +1279,8 @@ shader_define_map tubes::build_tube_shading_defines() {
 	shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
-	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_shader_config.uniform_block, std::string(""));
-	shader_code::set_define(defines, "GLYPH_LAYER_DEFINITION", glyph_layers_shader_config.glyph_block, std::string("1e20;"));
+	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_shader_config.uniforms_definition, std::string(""));
+	shader_code::set_define(defines, "GLYPH_LAYER_DEFINITION", glyph_layers_shader_config.glyph_layers_definition, std::string(""));
 	return defines;
 }
 

@@ -11,26 +11,23 @@ void glyph_layer_manager::set_attribute_names(const std::vector<std::string>& na
 		glyph_attribute_mappings[i].set_attribute_names(names);
 }
 
-void glyph_layer_manager::generate_shader_code(
-	std::string& uniform_block,
-	std::string& glyph_block,
-	std::vector<std::pair<std::string, const float*>>& uniform_value_ptrs,
-	std::vector<int> attribute_source_indices
-) const {
+const glyph_layer_manager::shader_configuration& glyph_layer_manager::generate_shader_configuration() {
 
-	const std::string constant_uniform_name_prefix = "cglyph_param";
+	const std::string constant_parameter_name_prefix = "cglyph_param";
+	const std::string constant_color_name_prefix = "cglyph_color";
 	std::vector<std::pair<std::string, const float*>> constant_glyph_parameters;
+	std::vector<std::pair<std::string, const rgb*>> constant_glyph_colors;
 	std::vector<std::string> mapped_attrib_parameter_names;
 
 	std::string code = "";
 
-	auto rgb_to_glsl_str = [](const rgb& col) {
+	/*auto rgb_to_glsl_str = [](const rgb& col) {
 		std::string str = "vec3(";
 		str += std::to_string(col.R()) + ", ";
 		str += std::to_string(col.G()) + ", ";
 		str += std::to_string(col.B()) + ")";
 		return str;
-	};
+	};*/
 
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		const glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
@@ -54,7 +51,7 @@ void glyph_layer_manager::generate_shader_code(
 
 				if(attrib_indices[j] < 0) {
 					// constant non-mapped parameter
-					parameter_str = constant_uniform_name_prefix + std::to_string(constant_glyph_parameters.size());
+					parameter_str = constant_parameter_name_prefix + std::to_string(constant_glyph_parameters.size());
 					std::string uniform_str = parameter_str;
 
 					switch(attribs[j].type) {
@@ -68,7 +65,7 @@ void glyph_layer_manager::generate_shader_code(
 				} else {
 					// mapped parameter
 					mapped_attrib_parameter_names.push_back(attribs[j].name);
-					attribute_source_indices.push_back(attrib_indices[i]);
+					shader_config.mapped_attributes.push_back(attrib_indices[i]);
 					parameter_str = "0.5"; // TODO: replace this with a call to the actual data
 				}
 
@@ -87,9 +84,12 @@ void glyph_layer_manager::generate_shader_code(
 					code += ", ";
 			}
 
-			code += ");";
+			code += ")";
 
-			//code = "splat_glyph(" + code + ", " + rgb_to_glsl_str(gam.ref_color()) + ", color);";
+			std::string color_str = constant_color_name_prefix + std::to_string(constant_glyph_colors.size());
+			constant_glyph_colors.push_back(std::make_pair(color_str, &gam.ref_color()));
+
+			code = "splat_glyph(" + code + ", " + color_str + ", color);";
 		}
 	}
 
@@ -99,6 +99,16 @@ void glyph_layer_manager::generate_shader_code(
 		for(size_t i = 0; i < constant_glyph_parameters.size(); ++i) {
 			uniforms_str += constant_glyph_parameters[i].first;
 			if(i < constant_glyph_parameters.size() - 1)
+				uniforms_str += ", ";
+		}
+		uniforms_str += ";";
+	}
+
+	if(constant_glyph_colors.size() > 0) {
+		uniforms_str += "uniform vec3 ";
+		for(size_t i = 0; i < constant_glyph_colors.size(); ++i) {
+			uniforms_str += constant_glyph_colors[i].first;
+			if(i < constant_glyph_colors.size() - 1)
 				uniforms_str += ", ";
 		}
 		uniforms_str += ";";
@@ -116,13 +126,20 @@ void glyph_layer_manager::generate_shader_code(
 	}
 
 
-	uniform_block = uniforms_str;
-	glyph_block = code;
-	uniform_value_ptrs = std::move(constant_glyph_parameters);
+	//uniform_block = uniforms_str;
+	//glyph_block = code;
+	//uniform_value_ptrs = std::move(constant_glyph_parameters);
 	
+	shader_config.uniforms_definition = uniforms_str;
+	shader_config.glyph_layers_definition = code;
+	shader_config.constant_parameters = constant_glyph_parameters;
+	shader_config.constant_colors = constant_glyph_colors;
+
 	std::cout << std::endl << std::endl << uniforms_str << std::endl << std::endl;
 	std::cout << glyph_attrib_block << std::endl << std::endl;
 	std::cout << code << std::endl << std::endl;
+
+	return shader_config;
 }
 
 ActionType glyph_layer_manager::action_type() {

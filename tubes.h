@@ -263,12 +263,7 @@ protected:
 	voxelizer density_volume;
 	ambient_occlusion_style ao_style, ao_style_bak; // the latter is used to restore defaults after demo data is unloaded
 
-	struct {
-		std::string uniform_block = "";
-		std::string glyph_block = "1e20;";
-		std::vector<std::pair<std::string, const float*>> uniform_value_ptrs;
-		std::vector<int> attribute_source_indices;
-	} glyph_layers_shader_config;
+	glyph_layer_manager::shader_configuration glyph_layers_shader_config;
 
 
 

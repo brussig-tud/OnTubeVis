@@ -13,6 +13,14 @@ public:
 	typedef std::pair<bool, float> parameter_pair;
 	typedef std::vector<parameter_pair> parameter_list;
 
+	struct shader_configuration {
+		std::string uniforms_definition = "";
+		std::string glyph_layers_definition = "";
+		std::vector<std::pair<std::string, const float*>> constant_parameters;
+		std::vector<std::pair<std::string, const rgb*>> constant_colors;
+		std::vector<int> mapped_attributes;
+	};
+
 protected:
 	//
 	cgv::base::base_ptr base_ptr;
@@ -23,6 +31,8 @@ protected:
 	std::vector<glyph_attribute_mapping> glyph_attribute_mappings;
 
 	std::vector<std::string> attribute_names;
+
+	shader_configuration shader_config;
 
 	void on_set(void* member_ptr);
 
@@ -65,7 +75,7 @@ public:
 
 	void set_attribute_names(const std::vector<std::string>& names);
 
-	void generate_shader_code(std::string& uniform_block, std::string& glyph_block, std::vector<std::pair<std::string, const float*>>& uniform_value_ptrs, std::vector<int> attribute_source_indices) const;
+	const shader_configuration& generate_shader_configuration();
 
 	ActionType action_type();
 
