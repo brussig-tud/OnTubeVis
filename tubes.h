@@ -16,13 +16,14 @@
 
 // CGV framework graphics utility
 #include <cgv_glutil/application_plugin.h>
+#include <cgv_glutil/box_render_data.h>
 #include <cgv_glutil/frame_buffer_container.h>
+#include <cgv_glutil/navigator.h>
 #include <cgv_glutil/radix_sort_4way.h>
 #include <cgv_glutil/shader_library.h>
-#include <cgv_glutil/box_render_data.h>
 #include <cgv_glutil/sphere_render_data.h>
+#include <cgv_glutil/color_scale_editor.h>
 #include <cgv_glutil/transfer_function_editor.h>
-#include <cgv_glutil/navigator.h>
 
 // local includes
 #include "traj_loader.h"
@@ -96,6 +97,7 @@ public:
 	
 
 protected:
+	cgv::glutil::color_scale_editor* cs_editor_ptr;
 	cgv::glutil::transfer_function_editor* tf_editor_ptr;
 	cgv::glutil::navigator* navigator_ptr;
 
@@ -265,6 +267,7 @@ protected:
 		std::string uniform_block = "";
 		std::string glyph_block = "1e20;";
 		std::vector<std::pair<std::string, const float*>> uniform_value_ptrs;
+		std::vector<int> attribute_source_indices;
 	} glyph_layers_shader_config;
 
 

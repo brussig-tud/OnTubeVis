@@ -54,6 +54,9 @@ tubes::tubes() : application_plugin("tubes_instance")
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
 	fbc.add_attachment("info", "uint32[R,G,B,A]");
 
+	cs_editor_ptr = register_overlay<cgv::glutil::color_scale_editor>("Color Scales");
+	cs_editor_ptr->set_visibility(false);
+
 	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
 	tf_editor_ptr->set_visibility(false);
 
@@ -218,6 +221,25 @@ void tubes::on_set(void *member_ptr) {
 			}
 			update_attribute_bindings();
 			update_grid_ratios();
+
+
+
+
+			// TODO: move this to some method?
+			// clear old configuration of glyph layers and reset shader
+			auto attrib_names = traj_mgr.dataset(0).get_attribute_names();
+			//for(auto& name : attrib_names) {
+			//	std::cout << name << std::endl;
+			//}
+
+			glyph_layer_mgr.clear();
+			glyph_layer_mgr.set_attribute_names(attrib_names);
+
+			context& ctx = *get_context();
+			tube_shading_defines = build_tube_shading_defines();
+			shaders.reload(ctx, "tube_shading", tube_shading_defines);
+
+			post_recreate_gui();
 		}
 	}
 	// - non-configurable dataset logic
@@ -274,7 +296,12 @@ void tubes::on_set(void *member_ptr) {
 	// visualization settings
 	if(member_ptr == &glyph_layer_mgr) {
 		if(glyph_layer_mgr.action_type() == AT_CONFIGURATION_CHANGE) {
-			glyph_layer_mgr.generate_shader_code(glyph_layers_shader_config.uniform_block, glyph_layers_shader_config.glyph_block, glyph_layers_shader_config.uniform_value_ptrs);
+			glyph_layer_mgr.generate_shader_code(
+				glyph_layers_shader_config.uniform_block,
+				glyph_layers_shader_config.glyph_block,
+				glyph_layers_shader_config.uniform_value_ptrs,
+				glyph_layers_shader_config.attribute_source_indices
+			);
 
 			context& ctx = *get_context();
 			tube_shading_defines = build_tube_shading_defines();
@@ -318,12 +345,6 @@ void tubes::on_set(void *member_ptr) {
 
 bool tubes::compile_glyph_attribs (void)
 {
-
-
-	//traj_mgr.dataset(0).
-	
-
-
 	// an instance of the struct for copying default values into new glyphs
 	const static attribute_mapping_parameters glyph_defaults;
 
@@ -522,7 +543,12 @@ bool tubes::init (cgv::render::context &ctx)
 	// load all shaders in the library
 	success &= shaders.load_shaders(ctx);
 
-	glyph_layer_mgr.generate_shader_code(glyph_layers_shader_config.uniform_block, glyph_layers_shader_config.glyph_block, glyph_layers_shader_config.uniform_value_ptrs);
+	glyph_layer_mgr.generate_shader_code(
+		glyph_layers_shader_config.uniform_block,
+		glyph_layers_shader_config.glyph_block,
+		glyph_layers_shader_config.uniform_value_ptrs,
+		glyph_layers_shader_config.attribute_source_indices
+	);
 
 	tube_shading_defines = build_tube_shading_defines();
 	shaders.reload(ctx, "tube_shading", tube_shading_defines);
@@ -571,6 +597,10 @@ bool tubes::init (cgv::render::context &ctx)
 	);
 	update_attribute_bindings();
 	update_grid_ratios();
+
+	auto attrib_names = traj_mgr.dataset(0).get_attribute_names();
+	glyph_layer_mgr.set_attribute_names(attrib_names);
+
 	compile_glyph_attribs();
 	
 	// done
@@ -770,6 +800,14 @@ void tubes::create_gui (void)
 
 	//connect_copy(add_button("Generate Shader Code")->click, cgv::signal::rebind(this, &tubes::test_shader_code_generation));
 	
+	if(begin_tree_node("Color Scales", cs_editor_ptr, false)) {
+		align("\a");
+		//cs_editor_ptr->create_gui(*this);
+		inline_object_gui(cs_editor_ptr);
+		align("\b");
+		end_tree_node(cs_editor_ptr);
+	}
+
 	if(begin_tree_node("Transfer Function Editor", tf_editor_ptr, false)) {
 		align("\a");
 		//tf_editor_ptr->create_gui(*this);

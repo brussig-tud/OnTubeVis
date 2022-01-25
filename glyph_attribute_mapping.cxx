@@ -1,6 +1,7 @@
 #include "glyph_attribute_mapping.h"
 
 glyph_attribute_mapping::glyph_attribute_mapping() {
+	color = rgb(0.0f);
 	create_glyph_shape();
 }
 
@@ -22,6 +23,14 @@ glyph_attribute_mapping& glyph_attribute_mapping::operator=(const glyph_attribut
 
 glyph_attribute_mapping::~glyph_attribute_mapping() {
 	delete shape_ptr;
+}
+
+const std::vector<int> glyph_attribute_mapping::get_attrib_indices() const {
+	std::vector<int> indices(attrib_source_indices.size(), -1);
+	for(size_t i = 0; i < attrib_source_indices.size(); ++i)
+		indices[i] = attribute_index_to_int(attrib_source_indices[i]);
+
+	return indices;
 }
 
 ActionType glyph_attribute_mapping::action_type() {
@@ -54,6 +63,10 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 	base_ptr->on_set(this);
 }
 
+void glyph_attribute_mapping::set_attribute_names(const std::vector<std::string>& names) {
+	attribute_names = names;
+}
+
 void glyph_attribute_mapping::create_glyph_shape() {
 	if(shape_ptr)
 		delete shape_ptr;
@@ -70,8 +83,12 @@ void glyph_attribute_mapping::create_glyph_shape() {
 	}
 
 	size_t attrib_count = shape_ptr->supported_attributes().size();
-	attrib_source_indices.resize(attrib_count, -1);
+	attrib_source_indices.resize(attrib_count, static_cast<cgv::type::DummyEnum>(0));
 	attrib_mapping_values.resize(attrib_count, vec4(0.0f));
+}
+
+int glyph_attribute_mapping::attribute_index_to_int(cgv::type::DummyEnum index) const {
+	return static_cast<int>(index) - 1;
 }
 
 void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i) {
@@ -91,8 +108,18 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 		label[0] = toupper(label[0]);
 
 	p.add_decorator(label, "heading", "level=4");
-	add_local_member_control(p, bp, "Attribute", attrib_source_indices[i], "value", "min=-1;max=10;step=1;ticks=true");
-	if(attrib_source_indices[i] < 0) {
+
+
+	std::string attrib_names_enums = "_,";
+	for(size_t i = 0; i < attribute_names.size(); ++i) {
+		attrib_names_enums += attribute_names[i];
+		if(i < attribute_names.size() - 1)
+			attrib_names_enums += ",";
+	}
+
+	//add_local_member_control(p, bp, "Attribute", attrib_source_indices[i], "value", "min=-1;max=10;step=1;ticks=true");
+	add_local_member_control(p, bp, "Source Attribute", attrib_source_indices[i], "dropdown", "enums='" + attrib_names_enums + "'");
+	if(attribute_index_to_int(attrib_source_indices[i]) < 0) {
 		add_local_member_control(p, bp, "Value", attrib_mapping_values[i][3], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
 	} else {
 		add_local_member_control(p, bp, "In Min", attrib_mapping_values[i][0], "value_slider", "min=0;max=1;step=0.001;ticks=true");

@@ -22,6 +22,8 @@ protected:
 	// TODO: use a cgv::signal::managed_list for this?
 	std::vector<glyph_attribute_mapping> glyph_attribute_mappings;
 
+	std::vector<std::string> attribute_names;
+
 	void on_set(void* member_ptr);
 
 	void create_glyph_attribute_mapping();
@@ -59,7 +61,11 @@ public:
 
 	~glyph_layer_manager() {}
 
-	void generate_shader_code(std::string& uniform_block, std::string& glyph_block, std::vector<std::pair<std::string, const float*>>& uniform_value_ptrs) const;
+	void clear();
+
+	void set_attribute_names(const std::vector<std::string>& names);
+
+	void generate_shader_code(std::string& uniform_block, std::string& glyph_block, std::vector<std::pair<std::string, const float*>>& uniform_value_ptrs, std::vector<int> attribute_source_indices) const;
 
 	ActionType action_type();
 

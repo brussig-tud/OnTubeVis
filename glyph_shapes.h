@@ -96,7 +96,7 @@ public:
 		static const attribute_list attributes = {
 			{ "radius", GAT_SIZE },
 			{ "aperture", GAT_DOUBLE_ANGLE },
-			{ "orientation", GAT_ORIENTATION },
+			{ "orientation", GAT_ORIENTATION }
 		};
 		return attributes;
 	}
@@ -117,7 +117,7 @@ public:
 			{ "radius", GAT_SIZE },
 			{ "thickness", GAT_SIZE },
 			{ "aperture", GAT_DOUBLE_ANGLE },
-			{ "orientation", GAT_ORIENTATION },
+			{ "orientation", GAT_ORIENTATION }
 		};
 		return attributes;
 	}
@@ -148,7 +148,7 @@ public:
 		static const attribute_list attributes = {
 			{ "base_width", GAT_SIZE },
 			{ "height", GAT_SIZE },
-			{ "orientation", GAT_ORIENTATION },
+			{ "orientation", GAT_ORIENTATION }
 		};
 		return attributes;
 	}
@@ -169,7 +169,7 @@ public:
 			{ "base_radius", GAT_SIZE },
 			{ "tip_radius", GAT_SIZE },
 			{ "height", GAT_SIZE },
-			{ "orientation", GAT_ORIENTATION },
+			{ "orientation", GAT_ORIENTATION }
 		};
 		return attributes;
 	}

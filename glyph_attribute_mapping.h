@@ -13,10 +13,13 @@ class glyph_attribute_mapping : public cgv::render::render_types {
 protected:
 	ActionType last_action_type = AT_NONE;
 
+	std::vector<std::string> attribute_names;
+
 	GlyphType type = GT_CIRCLE;
 	glyph_shape* shape_ptr = nullptr;
 
-	std::vector<int> attrib_source_indices;
+	rgb color;
+	std::vector<cgv::type::DummyEnum> attrib_source_indices;
 	std::vector<vec4> attrib_mapping_values;
 
 	void on_set(void* member_ptr, cgv::base::base* base_ptr);
@@ -31,6 +34,8 @@ protected:
 		return cp;
 	}
 
+	int attribute_index_to_int(cgv::type::DummyEnum index) const;
+
 	void create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i);
 
 public:
@@ -44,11 +49,15 @@ public:
 
 	const glyph_shape* get_shape_ptr() const { return shape_ptr; }
 
-	const std::vector<int>& ref_attrib_indices() const { return attrib_source_indices; }
+	const rgb& ref_color() const{ return color; }
+
+	const std::vector<int> get_attrib_indices() const;
 	
 	const std::vector<vec4>& ref_attrib_values() const { return attrib_mapping_values; }
 
 	ActionType action_type();
+
+	void set_attribute_names(const std::vector<std::string>& names);
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
 };
