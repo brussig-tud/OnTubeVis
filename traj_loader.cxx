@@ -1413,9 +1413,14 @@ struct traj_manager<flt_type>::Impl
 
 #ifdef _DEBUG
 		// Sanity checks
-		// - consistent trajectory information
+		// - per-attribute
 		for (const auto &a : ds_impl.attribs)
+		{
+			// all attributes are named
+			assert(!a.first.empty());
+			// consistent trajectory information
 			assert(dataset.trajectories(a.second).size() == pos_trajs.size());
+		}
 #endif
 	}
 	static visual_attrib_match find_visual_attrib (const visual_attribute_mapping<real> &mapping,
