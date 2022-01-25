@@ -235,6 +235,8 @@ void tubes::on_set(void *member_ptr) {
 			glyph_layer_mgr.clear();
 			glyph_layer_mgr.set_attribute_names(attrib_names);
 
+			compile_glyph_attribs();
+
 			context& ctx = *get_context();
 			tube_shading_defines = build_tube_shading_defines();
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
@@ -345,8 +347,11 @@ void tubes::on_set(void *member_ptr) {
 
 bool tubes::compile_glyph_attribs (void)
 {
-	// an instance of the struct for copying default values into new glyphs
+	// for copying default values into new glyphs
 	const static attribute_mapping_parameters glyph_defaults;
+	const static glyph_attribs empty_glyph = {
+		0.f, glyph_defaults.radius0, glyph_defaults.radius1, glyph_defaults.angle0, glyph_defaults.angle1
+	};
 
 	// ToDo: replace with actual timestamps on trajectory position samples
 	struct segment_time {
@@ -489,6 +494,8 @@ bool tubes::compile_glyph_attribs (void)
 	  assert(num_ranges == num_segs); }
 	// - upload
 	// ...attrib nodes
+	if (attribs.empty())
+		attribs.emplace_back(empty_glyph);
 	render.attribs_sbo.destruct(ctx);
 	if (!render.attribs_sbo.create(ctx, attribs))
 		std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
