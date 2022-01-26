@@ -529,7 +529,7 @@ bool tubes::compile_glyph_attribs (void)
 	struct irange { int i0, n; };
 	std::vector<glyph_attribs> attribs; // buffer of attribute values
 	std::vector<irange> ranges;         // buffer of index ranges per segment (indexes into 'attribs')
-	for (unsigned ds=0; ds<traj_mgr.num_datasets(); ds++)
+	for (unsigned ds=0;ds<std::max(traj_mgr.num_datasets(), (unsigned)1); ds++)
 	{
 		// convenience shorthands
 		const auto &dataset = traj_mgr.dataset(ds);
@@ -544,6 +544,9 @@ bool tubes::compile_glyph_attribs (void)
 		// no trajectory information for the attribute
 		const auto &attrib_trajs = dataset.trajectories(free_attrib);
 
+		// determine min, nax value (ToDo: observe glyph config)
+		const float vmin = free_attrib.min(), vmax = free_attrib.max();
+
 		// reserve memory
 		attribs.reserve(attribs.size() + free_attrib.num());
 		ranges.reserve(ranges.size() + /* estimated_num_segments = */ P.num() - tube_trajs.size());
@@ -556,8 +559,6 @@ bool tubes::compile_glyph_attribs (void)
 			const auto *alen = render.arclen_data.data();
 			const unsigned num_segments = tube_traj.n-1;
 			const unsigned attribs_traj_offset = (unsigned)attribs.size();
-
-			const float vmin = free_attrib.min(), vmax = free_attrib.max();
 
 			// make sure there is exactly one 'range' entry per segment
 			ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
