@@ -1,8 +1,6 @@
 #version 430
 #define M_PI 3.14159265359
 
-#define SHOW_GLYPHS 1
-#define OVERRIDE_ATTRIBUTE_VALUES 0
 #define GRID_MODE 1
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
@@ -63,17 +61,23 @@ uniform grid_parameters grids[2];
 GLYPH_MAPPING_UNIFORMS
 
 uniform struct {
+	bool use_curvature_correction;
+	float length_scale; // only for testing purposes
+	float antialias_radius;
+} general_settings;
+
+/*uniform struct {
 	int glyph_type;
 	bool curvature_correction;
 	float radius0;
 	float radius1;
 	float angle0;
 	float angle1;
-	// only for testing purposes
+	
 	float length_scale;
-} attribute_mapping;
+} attribute_mapping;*/
 
-uniform float antialias_radius = 0.5;
+
 
 // free attributes ssbo
 struct glyph_desc {
@@ -401,7 +405,7 @@ vec3 grid_normal(in vec2 p, in float n) {
 }
 
 float compute_grid_factor(vec2 uv) {
-	float l = attribute_mapping.length_scale;
+	float l = general_settings.length_scale;
 	//if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
 	//	return 0.0;
 
@@ -412,7 +416,7 @@ float compute_grid_factor(vec2 uv) {
 }
 
 vec3 compute_grid_normal(vec2 uv) {
-	float l = attribute_mapping.length_scale;
+	float l = general_settings.length_scale;
 	//if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
 	//	return vec3(0.0, 0.0, 1.0);
 	
@@ -426,7 +430,7 @@ vec3 compute_grid_normal(vec2 uv) {
 
 void splat_glyph(in float dist, in vec3 glyph_color, inout vec3 color) {
 	// pre-filter the SDF for AA
-	const float antialias_width = antialias_radius*fwidth(dist);
+	const float antialias_width = general_settings.antialias_radius*fwidth(dist);
 	color = mix(glyph_color, color, smoothstep(-antialias_width, antialias_width, dist));
 }
 
@@ -456,112 +460,24 @@ void main()
 		uv.t = 2.0 * uv.t - 1.0;
 
 		// Correct the perspective shift caused by the curved tube surface by rescaling the v coordinate around the tube.
-		if(attribute_mapping.curvature_correction)
+		if(general_settings.use_curvature_correction)
 			uv.t = sin(0.5*M_PI*uv.t);
 
 		//frag_color = vec4(uv.s, uv.t, 0.0, 1.0);
 		
-#if SHOW_GLYPHS == 1
 		closest_glyphs_info closest;
 		if (get_closest_samples(closest, segment_id, uv.s))
 		{
 			glyph_desc current_glyph = glyphs[closest.id];
 
-#if OVERRIDE_ATTRIBUTE_VALUES == 1
-			current_glyph.radius0 = attribute_mapping.radius0;
-			current_glyph.radius1 = attribute_mapping.radius1;
-			current_glyph.angle0 = attribute_mapping.angle0;
-			current_glyph.angle1 = attribute_mapping.angle1;
-#endif
-
 			vec2 glyphuv = vec2(
 				  (closest.dp <= closest.dn ? closest.dp : -closest.dn)
-				* attribute_mapping.length_scale, // <-- ToDo: replace with automatic uv re-projection method
+				* general_settings.length_scale, // <-- ToDo: replace with automatic uv re-projection method
 				uv.t
 			);
 
-			//float sd = 1e20;
-			//sd = GLYPH_LAYER_DEFINITION
-			//splat_glyph(sd_circle(glyphuv, 0.5), vec3(0.0, 1.0, 0.0), color);
 			GLYPH_LAYER_DEFINITION
-
-			/*switch(attribute_mapping.glyph_type) {
-				case 0:
-					// circle with radius
-					sd = sd_circle(glyphuv, current_glyph.radius0);
-					break;
-
-				case 1:
-					// rectangle with (width, length)
-					sd = sd_rect(glyphuv, vec2(current_glyph.radius0, current_glyph.radius1));
-					break;
-
-				case 2:
-				{
-					// pie (circle wedge) with orientation, aperture angle and radius
-					float aperture_angle = radians(0.5*current_glyph.angle0);
-					sd = sd_pie(
-						rotate(glyphuv, radians(current_glyph.angle1)),
-						vec2(sin(aperture_angle), cos(aperture_angle)),
-						current_glyph.radius0
-					);
-					break;
-				}
-
-				case 3:
-				{
-					// arc (donut wedge) with flat caps with orientation, aperture angle and two radii
-					float aperture_angle = radians(0.5*current_glyph.angle0);
-					sd = sd_arc_flat(
-						rotate(glyphuv, radians(current_glyph.angle1)),
-						vec2(sin(aperture_angle), cos(aperture_angle)),
-						current_glyph.radius0,
-						current_glyph.radius1
-					);
-					break;
-				}
-
-				case 4:
-				{
-					// arc (donut wedge) with round caps with orientation, aperture angle and two radii
-					float aperture_angle = radians(0.5*current_glyph.angle0);
-					sd = sd_arc_rounded(
-						rotate(glyphuv, radians(current_glyph.angle1)),
-						vec2(sin(aperture_angle), cos(aperture_angle)),
-						current_glyph.radius0,
-						current_glyph.radius1
-					);
-					break;
-				}
-
-				case 5:
-				{
-					// isosceles triangle (arrow tip) with base width and height
-					sd = sd_triangle_isosceles(
-						rotate(glyphuv, radians(current_glyph.angle1)) - vec2(0.0, current_glyph.radius1),
-						vec2(current_glyph.radius0, -2.0*current_glyph.radius1)
-					);
-					break;
-				}
-
-				case 6:
-				{
-					// drop with base and tip radius and height
-					sd = sd_drop(
-						rotate(glyphuv, radians(current_glyph.angle1)) - vec2(0.0, current_glyph.radius1),
-						current_glyph.radius0,
-						current_glyph.radius1,
-						current_glyph.angle0 / 360.0 // for now: use the first angle normalized to define the height
-					);
-					break;
-				}
-			}
-			// pre-filter the SDF for AA
-			const float antialias_width = antialias_radius*fwidth(sd);
-			color = mix(vec3(1.0, 0.0, 0.0), color, smoothstep(-antialias_width, antialias_width, sd));
-			*/
 		}
-#endif
 
 #if GRID_MODE & 1
 		color = mix(color, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);

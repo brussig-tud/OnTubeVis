@@ -86,6 +86,8 @@ void glyph_attribute_mapping::create_glyph_shape() {
 	default: shape_ptr = new circle_glyph(); break;
 	}
 
+	attrib_source_indices.clear();
+	attrib_mapping_values.clear();
 	size_t attrib_count = shape_ptr->supported_attributes().size();
 	attrib_source_indices.resize(attrib_count, static_cast<cgv::type::DummyEnum>(0));
 	attrib_mapping_values.resize(attrib_count, vec4(0.0f));

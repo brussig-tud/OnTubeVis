@@ -274,8 +274,7 @@ void tubes::on_set(void *member_ptr) {
 	}
 
 	// render settings
-	if( member_ptr == &override_attribute_values ||
-		member_ptr == &grid_mode ||
+	if( member_ptr == &grid_mode ||
 		member_ptr == &grid_normal_settings ||
 		member_ptr == &grid_normal_inwards ||
 		member_ptr == &grid_normal_variant ||
@@ -342,11 +341,15 @@ void tubes::on_set(void *member_ptr) {
 
 bool tubes::compile_glyph_attribs (void)
 {
+	cgv::utils::stopwatch s(true);
+	std::cout << "Compiling glyph attributes... ";
+	
 	// for copying default values into new glyphs
-	const static attribute_mapping_parameters glyph_defaults;
+	/*const static attribute_mapping_parameters glyph_defaults;
 	const static glyph_attribs empty_glyph = {
 		0.f, glyph_defaults.radius0, glyph_defaults.radius1, glyph_defaults.angle0, glyph_defaults.angle1
-	};
+	};*/
+	const static glyph_attribs empty_glyph = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	// ToDo: replace with actual timestamps on trajectory position samples
 	struct segment_time {
@@ -367,6 +370,162 @@ bool tubes::compile_glyph_attribs (void)
 
 	// Compile attribute data for GPU upload - example for one scalar attribute (which one is hardcoded above)
 	// - CPU-side staging
+	/*struct irange { int i0, n; };
+	std::vector<float> attribs; // buffer of attribute values
+	std::vector<irange> ranges;         // buffer of index ranges per segment (indexes into 'attribs')
+	*/
+	// Only consider first data set for now
+	const auto &dataset = traj_mgr.dataset(0);
+	// convenience shorthands
+	//const auto &P = dataset.positions_interface();
+	//const auto &tube_trajs = dataset.trajectories(P);
+	
+	auto attrib_names = dataset.get_attribute_names();
+
+	std::vector<const traj_attribute<float>*> mapped_attribs;
+	std::vector<const std::vector<range>*> attribs_trajs;
+	// TODO: remove "shader" from name and make a sub struct for that
+	for(size_t i = 0; i < glyph_layers_shader_config.mapped_attributes.size(); ++i) {
+		int attrib_idx = glyph_layers_shader_config.mapped_attributes[i];
+		if(attrib_idx < 0 || attrib_idx >= attrib_names.size())
+			std::cout << "Error: tubes::compile_glyph_attribs - attribute index out of range" << std::endl;
+
+		const traj_attribute<float>& attrib = dataset.attribute(attrib_names[attrib_idx]);
+		mapped_attribs.push_back(&attrib);
+		attribs_trajs.push_back(&dataset.trajectories(attrib));
+
+		std::cout << attrib_names[attrib_idx] << std::endl;
+	}
+
+	
+	// from the docs: returns an explicitly invalid attribute interface that acts "empty" on all relevant queries
+	// if no attribute of the given name exists in the dataset
+	//const auto &free_attrib = dataset.attribute(FREE_ATTRIBUTE_SERIES);
+
+	// from the docs: returns an explicitly invalid range that indicates zero samples in the trajectory if the dataset has
+	// no trajectory information for the attribute
+	//const auto &attrib_trajs = dataset.trajectories(free_attrib);
+
+	// reserve memory
+	//attribs.reserve(attribs.size() + free_attrib.num());
+	//ranges.reserve(ranges.size() + /* estimated_num_segments = */P.num() - tube_trajs.size());
+	// - compile data
+	/*unsigned traj_offset = 0;
+	for (unsigned trj=0; trj<(unsigned)tube_trajs.size(); trj++)
+	{
+		const auto &tube_traj = tube_trajs[trj];
+		const auto &attrib_traj = attrib_trajs[trj];
+		const auto *alen = render.arclen_data.data();
+		const unsigned num_segments = tube_traj.n-1;
+		const unsigned attribs_traj_offset = (unsigned)attribs.size();
+
+		const float vmin = free_attrib.min(), vmax = free_attrib.max();
+
+		// make sure there is exactly one 'range' entry per segment
+		ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
+
+		// - primary loop is through free attributes, segment assignment based on timestamps
+		for (unsigned i=0, seg=0; i<(unsigned)attrib_traj.n && seg<num_segments; i++)
+		{
+			const auto a = free_attrib.magnitude_at(i);
+			if (i > 0) // enforce monotonicity
+				assert(a.t >= free_attrib.magnitude_at(i-1).t);
+
+			// advance segment pointer
+			auto segtime = segment_time::get(P, tube_traj, seg);
+			while (a.t >= segtime.t1)
+			{
+				if (seg >= num_segments-1)
+					break;
+				segtime = segment_time::get(P, tube_traj, ++seg);
+				// handle overlap from previous segment
+				const unsigned global_seg = traj_offset + seg;
+				if (ranges[global_seg-1].n > 0)
+				{
+					const float prev_rad = glyph_attribs::calc_radius(attribs.back(), general_settings.length_scale).rad;
+					if (alen[global_seg][0] < attribs.back().s+prev_rad)
+					{
+						ranges[global_seg].i0 = (int)attribs.size()-1;
+						ranges[global_seg].n = 1;
+					}
+				}
+			}
+			const unsigned global_seg = traj_offset + seg;
+
+			// commit the attribute if it falls into the current segment
+			if (a.t >= segtime.t0 && a.t < segtime.t1)
+			{
+				// compute segment-relative t and arclength
+				const float t_seg = (a.t-segtime.t0) / (segtime.t1-segtime.t0),
+							s = arclen::eval(alen[global_seg], t_seg);
+
+				// normalize attribute value
+				const float v = (a.val-vmin) / (vmax-vmin);
+
+				// setup potential glyph
+				glyph_attribs new_glyph;
+				new_glyph.s = s;
+				new_glyph.radius0 = v;
+				new_glyph.radius1 = new_glyph.radius0 / 3;
+				new_glyph.angle0 = 0.0f;
+				new_glyph.angle1 = 0.0f;
+
+				// infer potential glyph extents
+				const auto new_glyph_ext = glyph_attribs::calc_radius(new_glyph, general_settings.length_scale);
+				const float min_dist = attribs.size() > 0 ? std::max(
+					new_glyph_ext.diam,
+					glyph_attribs::calc_radius(attribs.back(), general_settings.length_scale).diam
+				) : new_glyph_ext.diam;
+
+				// only include samples that are far enough away from last sample to not cause (too much) overlap
+				if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+min_dist)
+				{
+					auto &cur_range = ranges[global_seg];
+					if (cur_range.n < 1)
+					{
+						// first free attribute that falls into this segment
+						cur_range.i0 = (unsigned)attribs.size();
+						cur_range.n = 1;
+						// handle overlap to previous segment
+						if (seg > 0 && alen[global_seg-1][15] > s-new_glyph_ext.rad)
+							ranges[global_seg-1].n++;
+					}
+					else
+						// one more free attribute that falls into this segment
+						cur_range.n++;
+					attribs.emplace_back(std::move(new_glyph));
+				}
+			}
+			else if (seg > (unsigned)tube_traj.n - 2)
+				// we went beyond the last segment
+				break;
+		}
+
+		// update auxiliary indices
+		traj_offset += num_segments;
+	}
+
+	// - sanity check
+	{ const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size())/2;
+	  assert(num_ranges == num_segs); }
+	// - upload
+	// ...attrib nodes
+	if (attribs.empty())
+		attribs.emplace_back(empty_glyph);
+	render.attribs_sbo.destruct(ctx);
+	if (!render.attribs_sbo.create(ctx, attribs))
+		std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
+	// ...index ranges
+	render.aindex_sbo.destruct(ctx);
+	if (!render.aindex_sbo.create(ctx, ranges))
+		std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
+		*/
+
+	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+
+
+
+	// Here ist the original code:
 	struct irange { int i0, n; };
 	std::vector<glyph_attribs> attribs; // buffer of attribute values
 	std::vector<irange> ranges;         // buffer of index ranges per segment (indexes into 'attribs')
@@ -387,7 +546,7 @@ bool tubes::compile_glyph_attribs (void)
 
 		// reserve memory
 		attribs.reserve(attribs.size() + free_attrib.num());
-		ranges.reserve(ranges.size() + /* estimated_num_segments = */P.num() - tube_trajs.size());
+		ranges.reserve(ranges.size() + /* estimated_num_segments = */ P.num() - tube_trajs.size());
 		// - compile data
 		unsigned traj_offset = 0;
 		for (unsigned trj=0; trj<(unsigned)tube_trajs.size(); trj++)
@@ -421,7 +580,7 @@ bool tubes::compile_glyph_attribs (void)
 					const unsigned global_seg = traj_offset + seg;
 					if (ranges[global_seg-1].n > 0)
 					{
-						const float prev_rad = glyph_attribs::calc_radius(attribs.back(), am_parameters.length_scale).rad;
+						const float prev_rad = glyph_attribs::calc_radius(attribs.back(), general_settings.length_scale).rad;
 						if (alen[global_seg][0] < attribs.back().s+prev_rad)
 						{
 							ranges[global_seg].i0 = (int)attribs.size()-1;
@@ -446,14 +605,14 @@ bool tubes::compile_glyph_attribs (void)
 					new_glyph.s = s;
 					new_glyph.radius0 = v;
 					new_glyph.radius1 = new_glyph.radius0 / 3;
-					new_glyph.angle0 = glyph_defaults.angle0;
-					new_glyph.angle1 = glyph_defaults.angle1;
+					new_glyph.angle0 = 0.0f;
+					new_glyph.angle1 = 0.0f;
 
 					// infer potential glyph extents
-					const auto new_glyph_ext = glyph_attribs::calc_radius(new_glyph, am_parameters.length_scale);
+					const auto new_glyph_ext = glyph_attribs::calc_radius(new_glyph, general_settings.length_scale);
 					const float min_dist = attribs.size() > 0 ? std::max(
 						new_glyph_ext.diam,
-						glyph_attribs::calc_radius(attribs.back(), am_parameters.length_scale).diam
+						glyph_attribs::calc_radius(attribs.back(), general_settings.length_scale).diam
 					) : new_glyph_ext.diam;
 
 					// only include samples that are far enough away from last sample to not cause (too much) overlap
@@ -499,6 +658,7 @@ bool tubes::compile_glyph_attribs (void)
 	if (!render.aindex_sbo.create(ctx, ranges))
 		std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
 
+	
 	// ToDo: REMOVE
 	/*// test nearest attribute binary search
 	for (unsigned seg = 0; seg<ranges.size(); seg++) for (float t = 0; t <= 1; t += 1.f / 16)
@@ -574,6 +734,7 @@ bool tubes::init (cgv::render::context &ctx)
 	success &= load_transfer_function(ctx);
 
 	ref_sphere_renderer(ctx, 1);
+	// TODO: remove sphere renderer
 	srd.init(ctx);
 
 	// generate demo
@@ -749,7 +910,7 @@ void tubes::create_gui (void)
 	}
 
 	// attribute mapping settings
-	add_decorator("Attribute Mapping", "heading", "level=1");
+	//add_decorator("Attribute Mapping", "heading", "level=1");
 	if(begin_tree_node("Grid", grids, false)) {
 		align("\a");
 		add_member_control(this, "Mode", grid_mode, "dropdown", "enums='None, Color, Normal, Color + Normal'");
@@ -767,30 +928,22 @@ void tubes::create_gui (void)
 			add_member_control(this, "Blend Factor", grids[i].blend_factor, "value_slider", "min=0;max=1;step=0.01;ticks=true");
 		}
 		align("\b");
-		end_tree_node(am_parameters);
+		end_tree_node(grids);
 	}
 
-	if(begin_tree_node("Parameters", am_parameters, false)) {
+	if(begin_tree_node("Attribute Mapping", glyph_layer_mgr, true)) {
 		align("\a");
-		add_member_control(this, "Gylph Type", am_parameters.glyph_type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Triangle,Drop'");
-		add_member_control(this, "Curvature Correction", am_parameters.curvature_correction, "check");
-		add_member_control(this, "Antialias Radius", antialias_radius, "value_slider", "min=0;max=5;step=0.01;ticks=true");
-		add_decorator("", "separator");
-		add_member_control(this, "Override", override_attribute_values, "check");
-		add_member_control(this, "Radius 0", am_parameters.radius0, "value_slider", "min=0;max=1;step=0.01;ticks=true");
-		add_member_control(this, "Radius 1", am_parameters.radius1, "value_slider", "min=0;max=1;step=0.01;ticks=true");
-		add_member_control(this, "Angle 0", am_parameters.angle0, "value_slider", "min=0;max=360;step=0.01;ticks=true");
-		add_member_control(this, "Angle 1", am_parameters.angle1, "value_slider", "min=0;max=360;step=0.01;ticks=true");
-		add_decorator("", "separator");
-		// only for testing purposes
-		add_member_control(this, "Length Scale", am_parameters.length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xff0000");
-		align("\b");
-		end_tree_node(am_parameters);
-	}
-
-	if(begin_tree_node("ATTRIBUTE MAPPING", glyph_layer_mgr, true)) {
-		align("\a");
+		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
 		glyph_layer_mgr.create_gui(this, *this);
+		align("\b");
+		end_tree_node(glyph_layer_mgr);
+	}
+
+	if(begin_tree_node("General Settings", general_settings, true)) {
+		align("\a");
+		add_member_control(this, "Curvature Correction", general_settings.use_curvature_correction, "check");
+		add_member_control(this, "Length Scale", general_settings.length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xff0000");
+		add_member_control(this, "Antialias Radius", general_settings.antialias_radius, "value_slider", "min=0;max=5;step=0.01;ticks=true");
 		align("\b");
 		end_tree_node(glyph_layer_mgr);
 	}
@@ -884,7 +1037,7 @@ void tubes::update_grid_ratios(void) {
 		}
 		double mean_rad = sum / double(num);
 		// we base everything on the mean of all trajectory median radii
-		grids[0].scaling.x() = am_parameters.length_scale = 1.f / float(mean_rad);
+		grids[0].scaling.x() = general_settings.length_scale = 1.f / float(mean_rad);
 		grids[0].scaling.y() = grids[0].scaling.x()/4;
 		grids[1].scaling.x() = grids[0].scaling.x()*4;
 		grids[1].scaling.y() = grids[0].scaling.x();
@@ -892,7 +1045,7 @@ void tubes::update_grid_ratios(void) {
 		{
 			update_member(&(grids[i].scaling[0]));
 			update_member(&(grids[i].scaling[1]));
-			update_member(&am_parameters.length_scale);
+			update_member(&general_settings.length_scale);
 		}
 	}
 }
@@ -1160,17 +1313,10 @@ void tubes::draw_trajectories(context& ctx) {
 		prog.set_uniform(ctx, pair.first, *pair.second);
 	}
 
-	prog.set_uniform(ctx, "attribute_mapping.glyph_type", (int)am_parameters.glyph_type);
-	prog.set_uniform(ctx, "attribute_mapping.curvature_correction", am_parameters.curvature_correction);
-	prog.set_uniform(ctx, "attribute_mapping.radius0", am_parameters.radius0);
-	prog.set_uniform(ctx, "attribute_mapping.radius1", am_parameters.radius1);
-	prog.set_uniform(ctx, "attribute_mapping.angle0", am_parameters.angle0);
-	prog.set_uniform(ctx, "attribute_mapping.angle1", am_parameters.angle1);
-
-	prog.set_uniform(ctx, "attribute_mapping.length_scale", am_parameters.length_scale);
-
 	// map global settings
-	prog.set_uniform(ctx, "antialias_radius", antialias_radius);
+	prog.set_uniform(ctx, "general_settings.use_curvature_correction", general_settings.use_curvature_correction);
+	prog.set_uniform(ctx, "general_settings.length_scale", general_settings.length_scale);
+	prog.set_uniform(ctx, "general_settings.antialias_radius", general_settings.antialias_radius);
 
 	const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
 	
@@ -1271,7 +1417,6 @@ bool tubes::load_transfer_function(context& ctx)
 
 shader_define_map tubes::build_tube_shading_defines() {
 	shader_define_map defines;
-	shader_code::set_define(defines, "OVERRIDE_ATTRIBUTE_VALUES", override_attribute_values, false);
 	shader_code::set_define(defines, "GRID_MODE", grid_mode, GM_COLOR);
 	unsigned gs = static_cast<unsigned>(grid_normal_settings);
 	if(grid_normal_inwards) gs += 4u;

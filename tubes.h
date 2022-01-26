@@ -124,19 +124,13 @@ protected:
 	std::vector<grid_parameters> grids;
 	bool enable_fuzzy_grid;
 
-	struct attribute_mapping_parameters {
-		GlyphType glyph_type = GT_CIRCLE;
-		bool curvature_correction = true;
-		float radius0 = 2/3.f;
-		float radius1 = 1/4.f;
-		float angle0 = 215.0f;
-		float angle1 = 100.0f;
-		float length_scale = 1.0;
-	} am_parameters;
-
 	// global tube render settings
-	bool override_attribute_values = false; // only for testing purposes (uses values controlled by GUI sliders)
-	float antialias_radius = 0.5f;
+	struct {
+		bool use_curvature_correction = true;
+		float length_scale = 1.0;
+		float antialias_radius = 0.5f;
+	} general_settings;
+	
 	shader_define_map tube_shading_defines;
 
 

@@ -65,7 +65,7 @@ const glyph_layer_manager::shader_configuration& glyph_layer_manager::generate_s
 				} else {
 					// mapped parameter
 					mapped_attrib_parameter_names.push_back(attribs[j].name);
-					shader_config.mapped_attributes.push_back(attrib_indices[i]);
+					shader_config.mapped_attributes.push_back(attrib_indices[j]);
 					parameter_str = "0.5"; // TODO: replace this with a call to the actual data
 				}
 
