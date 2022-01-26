@@ -93,13 +93,22 @@ struct demo : public traj_format_handler<float>
 		return _1;
 	}
 
-	/// 1D non-periodic noise-like function.
-	inline static float noise (float x, float phase=0, float bias=0, float scale=1, float freq=1)
+	/// 1D non-periodic noise-like function build from 3 sines
+	inline static float sine_noise (float x, float phase=0, float bias=0, float scale=1, float freq=1)
 	{
 		const float q = x*freq - phase;
 		// arbitrary and hand-tuned coefficients, irrational factors ℯ and π for non-periodicity
 		return bias + scale*0.175f*(-3.2f*std::sin(-1.3f*q) - 1.2f*std::sin(-1.7f*e*q) + 1.9f*std::sin(0.7f*pi*q));
 	}
+
+	/// simple parametrized noise function
+	struct noise_function
+	{
+		float phase = 0, bias = 0, scale = 1, freq = 1;
+		float operator() (float x) const {
+			return sine_noise(x, phase, bias, scale, freq);
+		}
+	};
 
 	/// generic length template
 	template <class T>
@@ -147,18 +156,17 @@ struct demo : public traj_format_handler<float>
 		return std::move(result);
 	}
 	template <>
-	static float gen_unit_point<float> (std::mt19937& generator)
+	static float gen_unit_point<float> (std::mt19937&)
 	{
-		return 2*uni_0or1(generator) - 1.f;
+		return pole<float>();
 	}
 
 	/// generates a random velocity vector with the given mean magnitude and sigma standard deviation
 	template <class T>
-	static T gen_velocity (float mean, float sigma, std::mt19937 &generator)
+	static T gen_velocity (const noise_function &noise, std::mt19937 &generator)
 	{
-		std::normal_distribution<float> norm(mean, sigma);
 		const T p = gen_unit_point<T>(generator);
-		const float mag = norm(generator);
+		const float mag = noise(0);
 		return mag * p;
 	}
 
@@ -199,21 +207,25 @@ struct demo : public traj_format_handler<float>
 		return std::move(result);
 	}
 	template <>
-	static float gen_dir_offset<float> (float sigma, std::mt19937& generator)
+	static float gen_dir_offset<float> (float, std::mt19937&)
 	{
-		// We interpret it as the projection of a 2D direction change onto the original line of movement
-		std::normal_distribution<float> norm(0, sigma);
-		return std::cos(norm(generator));
+		// We ignore direction completely - just return the pole
+		return  pole<float>();
 	}
 
 	/// randomly perturbates a velocity vector given standard deviations from the original velocity direction and magnitude
 	template <class T>
-	static T gen_vel_perturbation(const T& vel_orig, float sigma_dir, float sigma_mag, std::mt19937 &generator)
+	static T gen_vel_perturbation(float t, const T& vel_orig, float sigma_dir, const noise_function &noise, std::mt19937 &generator)
 	{
-		std::normal_distribution<float> norm(0, sigma_mag);
-		const float dmag_new = norm(generator), mag_new = len(vel_orig)+dmag_new;
 		const T dvec = gen_dir_offset<T>(sigma_dir, generator) - pole<T>();
+		const float mag_new = noise(t);
 		return mag_new * normalized(normalized(vel_orig)+dvec);
+	}
+	/// special handling of scalar case for efficiency reasons
+	template <>
+	static float gen_vel_perturbation<float>(float t, const float&, float, const noise_function &noise, std::mt19937&)
+	{
+		return noise(t);
 	}
 
 	/// generate a generic attribute with slightly varying sampling rate
@@ -222,20 +234,29 @@ struct demo : public traj_format_handler<float>
 		float mean, float sigma, float t0, float tn, float dt_mean, float dt_var, std::mt19937 &generator
 	)
 	{
-		// using a different phase for the non-periodic sine-based function has the effect of "seeding" it - by
-		// chosing it from a sizable portion of the float value range we get something quite random-looking
-		const float phase = (uni_0to1(generator) - 0.5f) * 1048576*pi;
+		// determine noise function parameters
+		noise_function noise;
+		// - using a different phase for the non-periodic sine-based function has the effect of "seeding" it - by
+		//   chosing it from a sizable portion of the float value range we get something quite random-looking
+		noise.phase = (uni_0to1(generator) - 0.5f) * 131072*pi;
+		// - feature size of the noise function should be about double the mean sampling distance (according to Nyquist
+		//   and Shannon...), we make it 4 times for good measure and to mitigate local undersampling.
+		//   ToDo: make this user-overridable for intentionally aliased or oversampled signals
+		noise.freq = .25f / dt_mean;
+		// - mean translates 1:1 to bias (the y-offset of the zero-line)
+		noise.bias = mean;
+		// - expected scale corresponds to roughly 2 times sigma
+		noise.scale = sigma+sigma;
 
 		// first sample
 		std::vector<trajectory::attrib_value<T>> result;
 		float t = t0;
-		result.emplace_back(t, gen_velocity<T>(mean, sigma, generator));
-		const float sigma_mag = len(result.back().value)/3.f;
+		result.emplace_back(t, gen_velocity<T>(noise, generator));
 
 		// remaining samples
 		for (unsigned s=0; t<=tn; s++)
 		{
-			const float dt_raw = noise((float)s, phase, dt_mean, dt_var, 0.5f);
+			const float dt_raw = sine_noise((float)s, noise.phase, dt_mean, dt_var, 0.5f);
 			const float dt = std::max(
 				dt_raw,
 				std::max(	// <-- make sure we actually advance t everytime
@@ -244,7 +265,7 @@ struct demo : public traj_format_handler<float>
 				)
 			);
 			t += dt;
-			result.emplace_back(t, gen_vel_perturbation<T>(result.back().value, pi/6, sigma_mag, generator));
+			result.emplace_back(t, gen_vel_perturbation<T>(t, result.back().value, pi/6, noise, generator));
 		}
 
 		// done!
