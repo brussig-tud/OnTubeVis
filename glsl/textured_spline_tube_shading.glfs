@@ -83,6 +83,7 @@ uniform struct {
 // free attributes ssbo
 struct glyph_desc {
 	float s;
+	float opacity;
 	GLYPH_ATTRIBUTES_DEFINITION
 };
 layout (std430, binding=0) readonly buffer attribs_buffer { 
@@ -428,9 +429,10 @@ vec3 compute_grid_normal(vec2 uv) {
 	return normalize(mix(normal0, normal1, 1.0 - grid_blend_factor));
 }
 
-void splat_glyph(in float dist, in vec3 glyph_color, inout vec3 color) {
+void splat_glyph(glyph_desc gd, in float dist, in vec3 glyph_color, inout vec3 color) {
 	// pre-filter the SDF for AA
 	const float antialias_width = general_settings.antialias_radius*fwidth(dist);
+	glyph_color = mix(color, glyph_color, gd.opacity);
 	color = mix(glyph_color, color, smoothstep(-antialias_width, antialias_width, dist));
 }
 

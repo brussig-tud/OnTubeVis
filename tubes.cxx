@@ -432,7 +432,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 		size_t size() const { return data.size(); }
 
 		size_t glyph_count() const {
-			return size() / (1 + count);
+			return size() / (2 + count);
 		}
 
 		void add(const float& x) {
@@ -449,13 +449,20 @@ bool tubes::compile_glyph_attribs_new(void) {
 
 		float last_glyph_s() const {
 			if(size() > 0)
-				return data[size() - 1 - count];
+				return data[size() - 1 - 1 - count];
 			else
 				return 0.0f;
 		}
 	} attribs;
 
 	attribs.count = mapped_attribs.size();
+
+
+	// TODO: in layer manager: make sure that an attribute is only included once int the list of mapped attributes
+
+
+
+
 
 	struct irange { int i0, n; };
 	//std::vector<float> attribs; // buffer of attribute values
@@ -511,6 +518,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 		ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
 
 		float prev_glyph_size = 0.0f;
+		float last_commited_s = 0.0f;
 
 		std::vector<unsigned> attrib_indices(mapped_attribs.size(), 0);
 		unsigned seg = 0;
@@ -522,18 +530,34 @@ bool tubes::compile_glyph_attribs_new(void) {
 		}
 		run &= seg < num_segments;
 		
+		unsigned min_a_idx = 0;
+		traj_attribute<float>::datapoint_mag min_a;
+
 		while(run) {
 
-			unsigned i = attrib_indices[0];
+			min_a.t = std::numeric_limits<float>::max();
 
-			const auto a = mapped_attribs[0]->magnitude_at(i);
+			for(size_t i = 0; i < attrib_indices.size(); ++i) {
+				auto a = mapped_attribs[i]->magnitude_at(attrib_indices[i]);
+				if(a.t < min_a.t) {
+					min_a_idx = i;
+					min_a = a;
+				}
+			}
+
+
+			//unsigned i = attrib_indices[0];
+
+			//const auto a = mapped_attribs[0]->magnitude_at(i);
+
 			//if(i > 0) // enforce monotonicity
 			//	// TODO: this fails when using the debug-size dataset
 			//	assert(a.t >= mapped_attribs[0]->magnitude_at(i - 1).t);
 
 			// advance segment pointer
 			auto segtime = segment_time::get(P, tube_traj, seg);
-			while(a.t >= segtime.t1) {
+			while(min_a.t >= segtime.t1) {
+			//while(a.t >= segtime.t1) {
 				if(seg >= num_segments - 1)
 					break;
 				segtime = segment_time::get(P, tube_traj, ++seg);
@@ -550,13 +574,13 @@ bool tubes::compile_glyph_attribs_new(void) {
 			const unsigned global_seg = traj_offset + seg;
 
 			// commit the attribute if it falls into the current segment
-			if(a.t >= segtime.t0 && a.t < segtime.t1) {
+			if(min_a.t >= segtime.t0 && min_a.t < segtime.t1) {
 				// compute segment-relative t and arclength
-				const float t_seg = (a.t - segtime.t0) / (segtime.t1 - segtime.t0),
+				const float t_seg = (min_a.t - segtime.t0) / (segtime.t1 - segtime.t0),
 					s = arclen::eval(alen[global_seg], t_seg);
 
 				// normalize attribute value
-				const float v = (a.val - vmin) / (vmax - vmin);
+				const float v = (min_a.val - vmin) / (vmax - vmin);
 
 				// setup parameters of potential glyph
 				std::vector<float> new_glyph_params;
@@ -583,7 +607,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 					new_glyph_size;
 
 				// only include samples that are far enough away from last sample to not cause (too much) overlap
-				if(attribs.glyph_count() == attribs_traj_offset || s >= attribs.last_glyph_s() + min_dist) {
+				/*if(attribs.glyph_count() == attribs_traj_offset || s >= attribs.last_glyph_s() + min_dist) {
 					auto &cur_range = ranges[global_seg];
 					if(cur_range.n < 1) {
 						// first free attribute that falls into this segment
@@ -598,10 +622,40 @@ bool tubes::compile_glyph_attribs_new(void) {
 					}
 					// store the new glyph
 					attribs.add(s);
+					attribs.add(1.0f);
 					attribs.add(v);
 					//store the size when this glyph is actually placed
 					prev_glyph_size = new_glyph_size;
+				}*/
+
+
+
+				//bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= attribs.last_glyph_s() + min_dist;
+				bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= last_commited_s + min_dist;
+
+				auto &cur_range = ranges[global_seg];
+				if(cur_range.n < 1) {
+					// first free attribute that falls into this segment
+					cur_range.i0 = (unsigned)attribs.glyph_count();
+					cur_range.n = 1;
+					// handle overlap to previous segment
+					if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size)
+						ranges[global_seg - 1].n++;
+				} else {
+					// one more free attribute that falls into this segment
+					cur_range.n++;
 				}
+				// store the new glyph
+				attribs.add(s);
+				attribs.add(include_glyph ? 1.0f : 0.5f);
+				attribs.add(v);
+				//store the size when this glyph is actually placed
+				if(include_glyph) {
+					prev_glyph_size = new_glyph_size;
+					last_commited_s = s;
+				}
+				
+
 			} else if(seg > (unsigned)tube_traj.n - 2) {
 				// we went beyond the last segment
 				break;
@@ -719,6 +773,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 	if(attribs.empty()) {
 		//attribs.emplace_back(empty_glyph);
 		// TODO: fill with one entry of empty glyph attribs
+		attribs.add(0.0f);
 		attribs.add(0.0f);
 		attribs.add(0.0f);
 	}

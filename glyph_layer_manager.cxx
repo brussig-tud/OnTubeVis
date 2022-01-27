@@ -111,7 +111,7 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 			std::string color_str = constant_color_name_prefix + std::to_string(constant_glyph_colors.size());
 			constant_glyph_colors.push_back(std::make_pair(color_str, &gam.ref_color()));
 
-			code = "splat_glyph(" + code + ", " + color_str + ", color);";
+			code = "splat_glyph(current_glyph, " + code + ", " + color_str + ", color);";
 		}
 	}
 
