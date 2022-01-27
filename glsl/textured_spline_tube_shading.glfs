@@ -204,7 +204,7 @@ float sd_circle(in vec2 p, in float r) {
 // a is the width/length of the rectangle
 // b is the height of the rectangle
 float sd_rectangle(in vec2 p, in float a, in float b) {
-    vec2 d = abs(p)-vec2(a,b);
+    vec2 d = abs(p)-0.5*vec2(a,b);
     return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
 }
 

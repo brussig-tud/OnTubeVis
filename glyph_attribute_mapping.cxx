@@ -71,6 +71,10 @@ void glyph_attribute_mapping::set_attribute_names(const std::vector<std::string>
 	attribute_names = names;
 }
 
+void glyph_attribute_mapping::set_attribute_ranges(const std::vector<vec2>& ranges) {
+	attribute_ranges = ranges;
+}
+
 void glyph_attribute_mapping::create_glyph_shape() {
 	if(shape_ptr)
 		delete shape_ptr;
@@ -125,11 +129,16 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 
 	//add_local_member_control(p, bp, "Attribute", attrib_source_indices[i], "value", "min=-1;max=10;step=1;ticks=true");
 	add_local_member_control(p, bp, "Source Attribute", attrib_source_indices[i], "dropdown", "enums='" + attrib_names_enums + "'");
-	if(attribute_index_to_int(attrib_source_indices[i]) < 0) {
+
+	int selected_attrib_src_idx = attribute_index_to_int(attrib_source_indices[i]);
+
+	if(selected_attrib_src_idx < 0) {
 		add_local_member_control(p, bp, "Value", attrib_mapping_values[i][3], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
 	} else {
-		add_local_member_control(p, bp, "In Min", attrib_mapping_values[i][0], "value_slider", "min=0;max=1;step=0.001;ticks=true");
-		add_local_member_control(p, bp, "In Max", attrib_mapping_values[i][1], "value_slider", "min=0;max=1;step=0.001;ticks=true");
+		const vec2& range = attribute_ranges[selected_attrib_src_idx];
+		std::string options_str = "min=" + std::to_string(range.x()) + ";max=" + std::to_string(range.y()) + ";step=0.001;ticks=true";
+		add_local_member_control(p, bp, "In Min", attrib_mapping_values[i][0], "value_slider", options_str);
+		add_local_member_control(p, bp, "In Max", attrib_mapping_values[i][1], "value_slider", options_str);
 		add_local_member_control(p, bp, "Out Min", attrib_mapping_values[i][2], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
 		add_local_member_control(p, bp, "Out Max", attrib_mapping_values[i][3], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
 	}

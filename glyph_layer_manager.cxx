@@ -11,15 +11,31 @@ void glyph_layer_manager::set_attribute_names(const std::vector<std::string>& na
 		glyph_attribute_mappings[i].set_attribute_names(names);
 }
 
-const glyph_layer_manager::shader_configuration& glyph_layer_manager::generate_shader_configuration() {
+void glyph_layer_manager::set_attribute_ranges(const std::vector<vec2>& ranges) {
+	attribute_ranges = ranges;
 
+	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
+		glyph_attribute_mappings[i].set_attribute_ranges(ranges);
+
+	}
+}
+
+const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configuration() {
+
+	// initialize local variables
 	const std::string constant_parameter_name_prefix = "cglyph_param";
 	const std::string constant_color_name_prefix = "cglyph_color";
+
 	std::vector<std::pair<std::string, const float*>> constant_glyph_parameters;
 	std::vector<std::pair<std::string, const rgb*>> constant_glyph_colors;
 	std::vector<std::string> mapped_attrib_parameter_names;
 
 	std::string code = "";
+
+	// clear previous configuration
+	layer_config.shapes.clear();
+	layer_config.mapped_attributes.clear();
+	layer_config.glyph_mapping_sources.clear();
 
 	/*auto rgb_to_glsl_str = [](const rgb& col) {
 		std::string str = "vec3(";
@@ -35,6 +51,9 @@ const glyph_layer_manager::shader_configuration& glyph_layer_manager::generate_s
 		const glyph_shape* shape_ptr = gam.get_shape_ptr();
 
 		if(shape_ptr) {
+			// TODO: this may be unsafe (make a copy? needs to be deleted afterwards)
+			layer_config.shapes.push_back(shape_ptr);
+
 			const glyph_shape::attribute_list& attribs = shape_ptr->supported_attributes();
 
 			std::string func_name_str = "sd_" + shape_ptr->name();
@@ -62,12 +81,14 @@ const glyph_layer_manager::shader_configuration& glyph_layer_manager::generate_s
 					}
 
 					constant_glyph_parameters.push_back(std::make_pair(uniform_str, &attrib_values[j][3]));
+					layer_config.glyph_mapping_sources.push_back(0);
 				} else {
 					// mapped parameter
 					mapped_attrib_parameter_names.push_back(attribs[j].name);
-					shader_config.mapped_attributes.push_back(attrib_indices[j]);
+					layer_config.mapped_attributes.push_back(attrib_indices[j]);
 					//parameter_str = "0.5"; // TODO: replace this with a call to the actual data
 					parameter_str = "current_glyph." + attribs[j].name;
+					layer_config.glyph_mapping_sources.push_back(1);
 				}
 
 				if(attribs[j].type == GAT_ORIENTATION) {
@@ -131,17 +152,19 @@ const glyph_layer_manager::shader_configuration& glyph_layer_manager::generate_s
 	//glyph_block = code;
 	//uniform_value_ptrs = std::move(constant_glyph_parameters);
 	
-	shader_config.uniforms_definition = uniforms_str;
-	shader_config.glyph_layers_definition = code;
-	shader_config.attribute_buffer_definition = glyph_attrib_block;
-	shader_config.constant_parameters = constant_glyph_parameters;
-	shader_config.constant_colors = constant_glyph_colors;
+	layer_config.constant_parameters = constant_glyph_parameters;
+	layer_config.constant_colors = constant_glyph_colors;
+
+	// save shader configuration
+	layer_config.shader_config.uniforms_definition = uniforms_str;
+	layer_config.shader_config.glyph_layers_definition = code;
+	layer_config.shader_config.attribute_buffer_definition = glyph_attrib_block;
 
 	std::cout << std::endl << std::endl << uniforms_str << std::endl << std::endl;
 	std::cout << glyph_attrib_block << std::endl << std::endl;
 	std::cout << code << std::endl << std::endl;
 
-	return shader_config;
+	return layer_config;
 }
 
 ActionType glyph_layer_manager::action_type() {
@@ -183,8 +206,11 @@ void glyph_layer_manager::on_set(void* member_ptr) {
 
 void glyph_layer_manager::create_glyph_attribute_mapping() {
 	glyph_attribute_mappings.push_back(glyph_attribute_mapping());
-	last_action_type = AT_CONFIGURATION_CHANGE;
+	auto& gam = glyph_attribute_mappings.back();
+	gam.set_attribute_names(attribute_names);
+	gam.set_attribute_ranges(attribute_ranges);
 
+	last_action_type = AT_CONFIGURATION_CHANGE;
 	if(base_ptr)
 		base_ptr->on_set(this);
 }
@@ -192,8 +218,8 @@ void glyph_layer_manager::create_glyph_attribute_mapping() {
 void glyph_layer_manager::remove_glyph_attribute_mapping(const size_t index) {
 	if(index < glyph_attribute_mappings.size()) {
 		glyph_attribute_mappings.erase(glyph_attribute_mappings.begin() + index);
+		
 		last_action_type = AT_CONFIGURATION_CHANGE;
-
 		if(base_ptr)
 			base_ptr->on_set(this);
 	}

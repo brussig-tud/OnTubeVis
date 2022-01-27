@@ -43,6 +43,10 @@ public:
 	virtual glyph_shape* clone() const = 0;
 	virtual std::string name() const = 0;
 	virtual const attribute_list& supported_attributes() const = 0;
+
+	virtual float get_size(const std::vector<float>& param_values) const {
+		return 0.0f;
+	};
 };
 
 class circle_glyph : public glyph_shape {
@@ -60,6 +64,10 @@ public:
 			{ "radius", GAT_SIZE }
 		};
 		return attributes;
+	}
+
+	virtual float get_size(const std::vector<float>& param_values) const {
+		return 2.0f * param_values[0];
 	}
 };
 
@@ -79,6 +87,10 @@ public:
 			{ "height", GAT_SIZE }
 		};
 		return attributes;
+	}
+
+	virtual float get_size(const std::vector<float>& param_values) const {
+		return param_values[0];
 	}
 };
 

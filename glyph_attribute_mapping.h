@@ -14,6 +14,7 @@ protected:
 	ActionType last_action_type = AT_NONE;
 
 	std::vector<std::string> attribute_names;
+	std::vector<vec2> attribute_ranges;
 
 	GlyphType type = GT_CIRCLE;
 	glyph_shape* shape_ptr = nullptr;
@@ -58,6 +59,8 @@ public:
 	ActionType action_type();
 
 	void set_attribute_names(const std::vector<std::string>& names);
+
+	void set_attribute_ranges(const std::vector<vec2>& ranges);
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
 };

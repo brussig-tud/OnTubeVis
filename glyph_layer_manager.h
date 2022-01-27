@@ -13,13 +13,19 @@ public:
 	typedef std::pair<bool, float> parameter_pair;
 	typedef std::vector<parameter_pair> parameter_list;
 
-	struct shader_configuration {
-		std::string uniforms_definition = "";
-		std::string attribute_buffer_definition = "";
-		std::string glyph_layers_definition = "";
+	struct layer_configuration {
+		std::vector<const glyph_shape*> shapes;
+		// TODO: rename
+		std::vector<int> glyph_mapping_sources; // 0 for constant attrib, 1 for mapped attrib
 		std::vector<std::pair<std::string, const float*>> constant_parameters;
 		std::vector<std::pair<std::string, const rgb*>> constant_colors;
 		std::vector<int> mapped_attributes;
+
+		struct shader_configuration {
+			std::string uniforms_definition = "";
+			std::string attribute_buffer_definition = "";
+			std::string glyph_layers_definition = "";
+		} shader_config;
 	};
 
 protected:
@@ -32,8 +38,9 @@ protected:
 	std::vector<glyph_attribute_mapping> glyph_attribute_mappings;
 
 	std::vector<std::string> attribute_names;
+	std::vector<vec2> attribute_ranges;
 
-	shader_configuration shader_config;
+	layer_configuration layer_config;
 
 	void on_set(void* member_ptr);
 
@@ -41,33 +48,9 @@ protected:
 
 	void remove_glyph_attribute_mapping(const size_t index);
 
-	/*void add_parameter(std::string& code, size_t idx, const parameter_pair& parameter) const {
-		if(parameter.first) {
-			// mapped parameter
-			code += "0.5"; // TODO: replace this with a call to the actual data
-		} else {
-			// constant parameter
-			code += parameter.second;
-		}
-	}
-
-	void fill_parameters(std::string& code, const parameter_list& parameters) const {
-		for(size_t i = 0; i < parameters.size(); ++i) {
-			add_parameter(code, i, parameters[i]);
-			if(i < parameters.size() - 1)
-				code += ", ";
-		}
-	}*/
-
-	//const std::string create_shader_code(const parameter_list& parameters) const {
-	//	
-	//}
-
 public:
 	glyph_layer_manager() {
 		base_ptr = nullptr;
-		// TODO: remove later
-		glyph_attribute_mappings.push_back(glyph_attribute_mapping());
 	}
 
 	~glyph_layer_manager() {}
@@ -76,7 +59,9 @@ public:
 
 	void set_attribute_names(const std::vector<std::string>& names);
 
-	const shader_configuration& generate_shader_configuration();
+	void set_attribute_ranges(const std::vector<vec2>& ranges);
+
+	const layer_configuration& get_configuration();
 
 	ActionType action_type();
 

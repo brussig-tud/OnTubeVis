@@ -258,13 +258,13 @@ protected:
 	voxelizer density_volume;
 	ambient_occlusion_style ao_style, ao_style_bak; // the latter is used to restore defaults after demo data is unloaded
 
-	glyph_layer_manager::shader_configuration glyph_layers_shader_config;
+	glyph_layer_manager::layer_configuration glyph_layers_config;
 
 
 
 
 
-
+	void update_glyph_layer_manager(void);
 	bool compile_glyph_attribs(void);
 	bool compile_glyph_attribs_new (void);
 	bool compile_glyph_attribs_old (void);
