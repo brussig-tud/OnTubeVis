@@ -41,9 +41,6 @@ tubes::tubes() : application_plugin("tubes_instance")
 	voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(128u);
 #endif
 
-	ao_style.sample_distance = 0.5f;
-	ao_style.cone_angle = 40.0f;
-
 	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
 
 	// add frame buffer attachments needed for deferred rendering
@@ -343,45 +340,53 @@ void tubes::on_set(void *member_ptr) {
 
 bool tubes::compile_glyph_attribs (void)
 {
+	if(glyph_layers_shader_config.mapped_attributes.size() > 0)
+		return compile_glyph_attribs_new();
+	else
+		return compile_glyph_attribs_old();
+}
+
+bool tubes::compile_glyph_attribs_new(void) {
 	cgv::utils::stopwatch s(true);
 	std::cout << "Compiling glyph attributes... ";
-	
+
 	// for copying default values into new glyphs
 	/*const static attribute_mapping_parameters glyph_defaults;
 	const static glyph_attribs empty_glyph = {
 		0.f, glyph_defaults.radius0, glyph_defaults.radius1, glyph_defaults.angle0, glyph_defaults.angle1
 	};*/
-	const static glyph_attribs empty_glyph = { 0.0f, 0.0f, 0.0f, 0.0f };
+	struct glyph_attribs {
+		float s;
+		float attrib0;
+	};
+	
+	const static glyph_attribs empty_glyph = { 0.0f, 0.0f };
 
 	// ToDo: replace with actual timestamps on trajectory position samples
 	struct segment_time {
 		float t0, t1;
-		inline static segment_time get (const traj_attribute<float> &attrib, const range &traj, unsigned segment_index)
-		{
+		inline static segment_time get(const traj_attribute<float> &attrib, const range &traj, unsigned segment_index) {
 			const float *ts = attrib.get_timestamps();
 			const unsigned startid = traj.i0 + segment_index;
-			return { ts[startid], ts[startid+1] };
+			return { ts[startid], ts[startid + 1] };
 		}
 	};
-
-	// ToDo: generalize to arbitrary free attributes
-	#define FREE_ATTRIBUTE_SERIES "scalar"
 
 	// get context
 	const auto &ctx = *get_context();
 
 	// Compile attribute data for GPU upload - example for one scalar attribute (which one is hardcoded above)
 	// - CPU-side staging
-	/*struct irange { int i0, n; };
+	struct irange { int i0, n; };
 	std::vector<float> attribs; // buffer of attribute values
-	std::vector<irange> ranges;         // buffer of index ranges per segment (indexes into 'attribs')
-	*/
+	std::vector<irange> ranges; // buffer of index ranges per segment (indexes into 'attribs')
+
 	// Only consider first data set for now
 	const auto &dataset = traj_mgr.dataset(0);
 	// convenience shorthands
-	//const auto &P = dataset.positions_interface();
-	//const auto &tube_trajs = dataset.trajectories(P);
-	
+	const auto &P = dataset.positions_interface();
+	const auto &tube_trajs = dataset.trajectories(P);
+
 	auto attrib_names = dataset.get_attribute_names();
 
 	std::vector<const traj_attribute<float>*> mapped_attribs;
@@ -399,7 +404,10 @@ bool tubes::compile_glyph_attribs (void)
 		std::cout << attrib_names[attrib_idx] << std::endl;
 	}
 
-	
+
+	size_t attrib_count = mapped_attribs.size();
+
+
 	// from the docs: returns an explicitly invalid attribute interface that acts "empty" on all relevant queries
 	// if no attribute of the given name exists in the dataset
 	//const auto &free_attrib = dataset.attribute(FREE_ATTRIBUTE_SERIES);
@@ -412,42 +420,51 @@ bool tubes::compile_glyph_attribs (void)
 	//attribs.reserve(attribs.size() + free_attrib.num());
 	//ranges.reserve(ranges.size() + /* estimated_num_segments = */P.num() - tube_trajs.size());
 	// - compile data
-	/*unsigned traj_offset = 0;
-	for (unsigned trj=0; trj<(unsigned)tube_trajs.size(); trj++)
-	{
-		const auto &tube_traj = tube_trajs[trj];
-		const auto &attrib_traj = attrib_trajs[trj];
-		const auto *alen = render.arclen_data.data();
-		const unsigned num_segments = tube_traj.n-1;
-		const unsigned attribs_traj_offset = (unsigned)attribs.size();
 
-		const float vmin = free_attrib.min(), vmax = free_attrib.max();
+	// determine min, nax value (ToDo: observe glyph config)
+	const float vmin = mapped_attribs[0]->min(), vmax = mapped_attribs[0]->max();
+
+	unsigned traj_offset = 0;
+	for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
+		const auto &tube_traj = tube_trajs[trj];
+		const auto &attrib_traj = attribs_trajs[0]->at(trj);
+		const auto *alen = render.arclen_data.data();
+		const unsigned num_segments = tube_traj.n - 1;
+		const unsigned attribs_traj_offset = (unsigned)(attribs.size() / (1 + attrib_count));
+
+		//const float vmin = free_attrib.min(), vmax = free_attrib.max();
 
 		// make sure there is exactly one 'range' entry per segment
 		ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
 
 		// - primary loop is through free attributes, segment assignment based on timestamps
-		for (unsigned i=0, seg=0; i<(unsigned)attrib_traj.n && seg<num_segments; i++)
-		{
-			const auto a = free_attrib.magnitude_at(i);
-			if (i > 0) // enforce monotonicity
-				assert(a.t >= free_attrib.magnitude_at(i-1).t);
+		for(unsigned i = 0, seg = 0; i < (unsigned)attrib_traj.n && seg < num_segments; i++) {
+			const auto a = mapped_attribs[0]->magnitude_at(i);
+			//if(i > 0) // enforce monotonicity
+			//	// TODO: this fails when using the debug-size dataset
+			//	assert(a.t >= mapped_attribs[0]->magnitude_at(i - 1).t);
 
 			// advance segment pointer
 			auto segtime = segment_time::get(P, tube_traj, seg);
-			while (a.t >= segtime.t1)
-			{
-				if (seg >= num_segments-1)
+			while(a.t >= segtime.t1) {
+				if(seg >= num_segments - 1)
 					break;
 				segtime = segment_time::get(P, tube_traj, ++seg);
 				// handle overlap from previous segment
 				const unsigned global_seg = traj_offset + seg;
-				if (ranges[global_seg-1].n > 0)
-				{
-					const float prev_rad = glyph_attribs::calc_radius(attribs.back(), general_settings.length_scale).rad;
-					if (alen[global_seg][0] < attribs.back().s+prev_rad)
+				if(ranges[global_seg - 1].n > 0) {
+					const float prev_rad = 0.2f;// glyph_attribs::calc_radius(attribs.back(), general_settings.length_scale).rad;
+					
+					float last_attrib_s = 0.0f;
+					if(attribs.size() > attrib_count)
+						//last_attrib_s = attribs[attribs.size() - 1].s;
+						last_attrib_s = attribs[attribs.size() - 1 - attrib_count];
+
+					if(alen[global_seg][0] < last_attrib_s + prev_rad)
+					//float bs = attribs.back().s;
+					//if (alen[global_seg][0] < attribs.back().s+prev_rad)
 					{
-						ranges[global_seg].i0 = (int)attribs.size()-1;
+						ranges[global_seg].i0 = (int)(attribs.size() / (1 + attrib_count)) - 1;
 						ranges[global_seg].n = 1;
 					}
 				}
@@ -455,52 +472,64 @@ bool tubes::compile_glyph_attribs (void)
 			const unsigned global_seg = traj_offset + seg;
 
 			// commit the attribute if it falls into the current segment
-			if (a.t >= segtime.t0 && a.t < segtime.t1)
-			{
+			if(a.t >= segtime.t0 && a.t < segtime.t1) {
 				// compute segment-relative t and arclength
-				const float t_seg = (a.t-segtime.t0) / (segtime.t1-segtime.t0),
-							s = arclen::eval(alen[global_seg], t_seg);
+				const float t_seg = (a.t - segtime.t0) / (segtime.t1 - segtime.t0),
+					s = arclen::eval(alen[global_seg], t_seg);
 
 				// normalize attribute value
-				const float v = (a.val-vmin) / (vmax-vmin);
+				const float v = (a.val - vmin) / (vmax - vmin);
 
 				// setup potential glyph
 				glyph_attribs new_glyph;
 				new_glyph.s = s;
-				new_glyph.radius0 = v;
-				new_glyph.radius1 = new_glyph.radius0 / 3;
-				new_glyph.angle0 = 0.0f;
-				new_glyph.angle1 = 0.0f;
+				new_glyph.attrib0 = v;
+
+				//new_glyph.radius0 = v;
+				//new_glyph.radius1 = new_glyph.radius0 / 3;
+				//new_glyph.angle0 = 0.0f;
+				//new_glyph.angle1 = 0.0f;
 
 				// infer potential glyph extents
-				const auto new_glyph_ext = glyph_attribs::calc_radius(new_glyph, general_settings.length_scale);
+				const auto new_glyph_ext = 0.2f;// glyph_attribs::calc_radius(new_glyph, general_settings.length_scale);
 				const float min_dist = attribs.size() > 0 ? std::max(
-					new_glyph_ext.diam,
-					glyph_attribs::calc_radius(attribs.back(), general_settings.length_scale).diam
-				) : new_glyph_ext.diam;
+					0.4f,//new_glyph_ext.diam,
+					0.2f//glyph_attribs::calc_radius(attribs.back(), general_settings.length_scale).diam
+					) : 0.4f;// new_glyph_ext.diam;
 
 				// only include samples that are far enough away from last sample to not cause (too much) overlap
-				if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+min_dist)
-				{
+				
+				//float last_attrib_s = 0.0f;
+				//if(attribs.size() > attrib_count)
+				//	last_attrib_s = attribs[attribs.size() - 1 - attrib_count];
+				
+				float last_attrib_s = 0.0f;
+				if(attribs.size() > 0)
+					//last_attrib_s = attribs[attribs.size() - 1].s;
+					last_attrib_s = attribs[attribs.size() - 1 - attrib_count];
+
+				if((attribs.size() / (1 + attrib_count)) == attribs_traj_offset || s >= last_attrib_s + min_dist) {
+				//if(attribs.size() == attribs_traj_offset || s >= attribs.back().s + min_dist) {
 					auto &cur_range = ranges[global_seg];
-					if (cur_range.n < 1)
-					{
+					if(cur_range.n < 1) {
 						// first free attribute that falls into this segment
-						cur_range.i0 = (unsigned)attribs.size();
+						cur_range.i0 = (unsigned)(attribs.size() / (1 + attrib_count));
 						cur_range.n = 1;
 						// handle overlap to previous segment
-						if (seg > 0 && alen[global_seg-1][15] > s-new_glyph_ext.rad)
-							ranges[global_seg-1].n++;
-					}
-					else
+						if(seg > 0 && alen[global_seg - 1][15] > s - 0.2f)//new_glyph_ext.rad)
+							ranges[global_seg - 1].n++;
+					} else {
 						// one more free attribute that falls into this segment
 						cur_range.n++;
-					attribs.emplace_back(std::move(new_glyph));
+					}
+					//attribs.emplace_back(std::move(new_glyph));
+					attribs.push_back(s);
+					attribs.push_back(v);
 				}
-			}
-			else if (seg > (unsigned)tube_traj.n - 2)
+			} else if(seg > (unsigned)tube_traj.n - 2) {
 				// we went beyond the last segment
 				break;
+			}
 		}
 
 		// update auxiliary indices
@@ -508,31 +537,63 @@ bool tubes::compile_glyph_attribs (void)
 	}
 
 	// - sanity check
-	{ const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size())/2;
-	  assert(num_ranges == num_segs); }
+	{
+		const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size()) / 2;
+		assert(num_ranges == num_segs);
+	}
 	// - upload
 	// ...attrib nodes
-	if (attribs.empty())
-		attribs.emplace_back(empty_glyph);
+	if(attribs.empty()) {
+		//attribs.emplace_back(empty_glyph);
+		// TODO: fill with one entry of empty glyph attribs
+		attribs.push_back(0.0f);
+		attribs.push_back(0.0f);
+	}
 	render.attribs_sbo.destruct(ctx);
-	if (!render.attribs_sbo.create(ctx, attribs))
+	if(!render.attribs_sbo.create(ctx, attribs))
 		std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
 	// ...index ranges
 	render.aindex_sbo.destruct(ctx);
-	if (!render.aindex_sbo.create(ctx, ranges))
+	if(!render.aindex_sbo.create(ctx, ranges))
 		std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
-		*/
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
+	// done!
+	return true;
+}
 
+bool tubes::compile_glyph_attribs_old(void) {
+	cgv::utils::stopwatch s(true);
+	std::cout << "Compiling glyph attributes... ";
 
-	// Here ist the original code:
+	// for copying default values into new glyphs
+	/*const static attribute_mapping_parameters glyph_defaults;
+	const static glyph_attribs empty_glyph = {
+		0.f, glyph_defaults.radius0, glyph_defaults.radius1, glyph_defaults.angle0, glyph_defaults.angle1
+	};*/
+	const static glyph_attribs empty_glyph = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	// ToDo: replace with actual timestamps on trajectory position samples
+	struct segment_time {
+		float t0, t1;
+		inline static segment_time get(const traj_attribute<float> &attrib, const range &traj, unsigned segment_index) {
+			const float *ts = attrib.get_timestamps();
+			const unsigned startid = traj.i0 + segment_index;
+			return { ts[startid], ts[startid + 1] };
+		}
+	};
+
+	// ToDo: generalize to arbitrary free attributes
+	#define FREE_ATTRIBUTE_SERIES "scalar"
+
+	// get context
+	const auto &ctx = *get_context();
+
 	struct irange { int i0, n; };
 	std::vector<glyph_attribs> attribs; // buffer of attribute values
 	std::vector<irange> ranges;         // buffer of index ranges per segment (indexes into 'attribs')
-	for (unsigned ds=0;ds<std::max(traj_mgr.num_datasets(), (unsigned)1); ds++)
-	{
+	for(unsigned ds = 0; ds < std::max(traj_mgr.num_datasets(), (unsigned)1); ds++) {
 		// convenience shorthands
 		const auto &dataset = traj_mgr.dataset(ds);
 		const auto &P = dataset.positions_interface();
@@ -554,39 +615,35 @@ bool tubes::compile_glyph_attribs (void)
 		ranges.reserve(ranges.size() + /* estimated_num_segments = */ P.num() - tube_trajs.size());
 		// - compile data
 		unsigned traj_offset = 0;
-		for (unsigned trj=0; trj<(unsigned)tube_trajs.size(); trj++)
-		{
+		for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
 			const auto &tube_traj = tube_trajs[trj];
 			const auto &attrib_traj = attrib_trajs[trj];
 			const auto *alen = render.arclen_data.data();
-			const unsigned num_segments = tube_traj.n-1;
+			const unsigned num_segments = tube_traj.n - 1;
 			const unsigned attribs_traj_offset = (unsigned)attribs.size();
 
 			// make sure there is exactly one 'range' entry per segment
 			ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
 
 			// - primary loop is through free attributes, segment assignment based on timestamps
-			for (unsigned i=0, seg=0; i<(unsigned)attrib_traj.n && seg<num_segments; i++)
-			{
+			for(unsigned i = 0, seg = 0; i < (unsigned)attrib_traj.n && seg < num_segments; i++) {
 				const auto a = free_attrib.magnitude_at(i);
-				if (i > 0) // enforce monotonicity
-					assert(a.t >= free_attrib.magnitude_at(i-1).t);
+				//if(i > 0) // enforce monotonicity
+				//	// TODO: this fails when using the debug-size dataset
+				//	assert(a.t >= free_attrib.magnitude_at(i - 1).t);
 
 				// advance segment pointer
 				auto segtime = segment_time::get(P, tube_traj, seg);
-				while (a.t >= segtime.t1)
-				{
-					if (seg >= num_segments-1)
+				while(a.t >= segtime.t1) {
+					if(seg >= num_segments - 1)
 						break;
 					segtime = segment_time::get(P, tube_traj, ++seg);
 					// handle overlap from previous segment
 					const unsigned global_seg = traj_offset + seg;
-					if (ranges[global_seg-1].n > 0)
-					{
+					if(ranges[global_seg - 1].n > 0) {
 						const float prev_rad = glyph_attribs::calc_radius(attribs.back(), general_settings.length_scale).rad;
-						if (alen[global_seg][0] < attribs.back().s+prev_rad)
-						{
-							ranges[global_seg].i0 = (int)attribs.size()-1;
+						if(alen[global_seg][0] < attribs.back().s + prev_rad) {
+							ranges[global_seg].i0 = (int)attribs.size() - 1;
 							ranges[global_seg].n = 1;
 						}
 					}
@@ -594,14 +651,13 @@ bool tubes::compile_glyph_attribs (void)
 				const unsigned global_seg = traj_offset + seg;
 
 				// commit the attribute if it falls into the current segment
-				if (a.t >= segtime.t0 && a.t < segtime.t1)
-				{
+				if(a.t >= segtime.t0 && a.t < segtime.t1) {
 					// compute segment-relative t and arclength
-					const float t_seg = (a.t-segtime.t0) / (segtime.t1-segtime.t0),
-					            s = arclen::eval(alen[global_seg], t_seg);
+					const float t_seg = (a.t - segtime.t0) / (segtime.t1 - segtime.t0),
+						s = arclen::eval(alen[global_seg], t_seg);
 
 					// normalize attribute value
-					const float v = (a.val-vmin) / (vmax-vmin);
+					const float v = (a.val - vmin) / (vmax - vmin);
 
 					// setup potential glyph
 					glyph_attribs new_glyph;
@@ -619,25 +675,21 @@ bool tubes::compile_glyph_attribs (void)
 					) : new_glyph_ext.diam;
 
 					// only include samples that are far enough away from last sample to not cause (too much) overlap
-					if (attribs.size()==attribs_traj_offset || s >= attribs.back().s+min_dist)
-					{
+					if(attribs.size() == attribs_traj_offset || s >= attribs.back().s + min_dist) {
 						auto &cur_range = ranges[global_seg];
-						if (cur_range.n < 1)
-						{
+						if(cur_range.n < 1) {
 							// first free attribute that falls into this segment
 							cur_range.i0 = (unsigned)attribs.size();
 							cur_range.n = 1;
 							// handle overlap to previous segment
-							if (seg > 0 && alen[global_seg-1][15] > s-new_glyph_ext.rad)
-								ranges[global_seg-1].n++;
-						}
-						else
+							if(seg > 0 && alen[global_seg - 1][15] > s - new_glyph_ext.rad)
+								ranges[global_seg - 1].n++;
+						} else
 							// one more free attribute that falls into this segment
 							cur_range.n++;
 						attribs.emplace_back(std::move(new_glyph));
 					}
-				}
-				else if (seg > (unsigned)tube_traj.n - 2)
+				} else if(seg > (unsigned)tube_traj.n - 2)
 					// we went beyond the last segment
 					break;
 			}
@@ -647,21 +699,22 @@ bool tubes::compile_glyph_attribs (void)
 		}
 	}
 	// - sanity check
-	{ const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size())/2;
-	  assert(num_ranges == num_segs); }
+	{ const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size()) / 2;
+	assert(num_ranges == num_segs); }
 	// - upload
 	// ...attrib nodes
-	if (attribs.empty())
+	if(attribs.empty())
 		attribs.emplace_back(empty_glyph);
 	render.attribs_sbo.destruct(ctx);
-	if (!render.attribs_sbo.create(ctx, attribs))
+	if(!render.attribs_sbo.create(ctx, attribs))
 		std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
 	// ...index ranges
 	render.aindex_sbo.destruct(ctx);
-	if (!render.aindex_sbo.create(ctx, ranges))
+	if(!render.aindex_sbo.create(ctx, ranges))
 		std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
 
-	
+	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+
 	// ToDo: REMOVE
 	/*// test nearest attribute binary search
 	for (unsigned seg = 0; seg<ranges.size(); seg++) for (float t = 0; t <= 1; t += 1.f / 16)
@@ -670,7 +723,7 @@ bool tubes::compile_glyph_attribs (void)
 			continue;
 		const float s = arclen::eval(render.arclen_data[seg], t);
 		const auto &rng_orig = ranges[seg];
-		      auto  rng = rng_orig;
+			  auto  rng = rng_orig;
 		while (rng.n > 1)
 		{
 			const int mid_n = rng.n/2, mid = rng.i0+mid_n;
@@ -742,17 +795,23 @@ bool tubes::init (cgv::render::context &ctx)
 
 	// generate demo
 	// - demo AO settings
-	ao_style_bak = ao_style;
 	ao_style.enable = true;
 	ao_style.cone_angle = 60.f;
 	ao_style.sample_offset = 0.08f;
 	ao_style.sample_distance = 0.5f;
 	ao_style.strength_scale = 7.5f;
+	ao_style.generate_sample_directions();
+	ao_style_bak = ao_style;
 	update_member(&ao_style);
 	// - demo geometry
 	constexpr unsigned seed = 11;
-	for (unsigned i=0; i<256; i++)
-		dataset.demo_trajs.emplace_back(demo::gen_trajectory(256, seed+i));
+#ifdef _DEBUG
+	constexpr unsigned num_trajectories = 16;
+#else
+	constexpr unsigned num_trajectories = 256;
+#endif
+	for (unsigned i=0; i<num_trajectories; i++)
+		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_trajectories, seed+i));
 	traj_mgr.add_dataset(
 		demo::compile_dataset(dataset.demo_trajs)
 	);
@@ -1440,6 +1499,7 @@ shader_define_map tubes::build_tube_shading_defines() {
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
 	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_shader_config.uniforms_definition, std::string(""));
+	shader_code::set_define(defines, "GLYPH_ATTRIBUTES_DEFINITION", glyph_layers_shader_config.attribute_buffer_definition, std::string("float radius0, radius1, angle0, angle1;"));
 	shader_code::set_define(defines, "GLYPH_LAYER_DEFINITION", glyph_layers_shader_config.glyph_layers_definition, std::string(""));
 	return defines;
 }

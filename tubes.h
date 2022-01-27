@@ -265,7 +265,9 @@ protected:
 
 
 
-	bool compile_glyph_attribs (void);
+	bool compile_glyph_attribs(void);
+	bool compile_glyph_attribs_new (void);
+	bool compile_glyph_attribs_old (void);
 
 	void set_view(void);
 	void update_grid_ratios(void);

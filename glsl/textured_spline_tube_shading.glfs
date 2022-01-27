@@ -5,6 +5,7 @@
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
 #define GLYPH_MAPPING_UNIFORMS
+#define GLYPH_ATTRIBUTES_DEFINITION float radius0, radius1, angle0, angle1;
 #define GLYPH_LAYER_DEFINITION
 
 //***** begin interface of view.glsl ***********************************
@@ -82,8 +83,7 @@ uniform struct {
 // free attributes ssbo
 struct glyph_desc {
 	float s;
-	float radius0, radius1;
-	float angle0, angle1;
+	GLYPH_ATTRIBUTES_DEFINITION
 };
 layout (std430, binding=0) readonly buffer attribs_buffer { 
 	glyph_desc glyphs[];

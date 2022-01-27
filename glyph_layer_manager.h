@@ -15,6 +15,7 @@ public:
 
 	struct shader_configuration {
 		std::string uniforms_definition = "";
+		std::string attribute_buffer_definition = "";
 		std::string glyph_layers_definition = "";
 		std::vector<std::pair<std::string, const float*>> constant_parameters;
 		std::vector<std::pair<std::string, const rgb*>> constant_colors;
