@@ -665,8 +665,9 @@ bool tubes::compile_glyph_attribs_new(void) {
 
 
 
-			// increment
+			// increment indices
 			for(size_t i = 0; i < attrib_indices.size(); ++i) {
+				// TODO: only increment indices of attributes that have a sample at the current location (min_a.t)
 				++attrib_indices[i];
 				if(attrib_indices[i] >= (unsigned)attribs_trajs[i]->at(trj).n)
 					run &= false;
@@ -1149,8 +1150,7 @@ void tubes::init_frame (cgv::render::context &ctx)
 	//recreate_gui_requested = false;
 
 	srd.clear();
-	srd.add(test_eye, 0.1f, rgb(1, 0, 0));
-	srd.add(test_eye + 0.15f*test_dir, 0.05f, rgb(1, 1, 0));
+	srd.add(vec3(0.0f), 1.0f, rgb(1, 0, 0));
 }
 
 void tubes::draw (cgv::render::context &ctx)
@@ -1166,6 +1166,9 @@ void tubes::draw (cgv::render::context &ctx)
 		if(traj_mgr.has_data())
 			draw_trajectories(ctx);
 	}
+
+	//auto& sr = ref_sphere_renderer(ctx);
+	//srd.render(ctx, sr, sphere_render_style());
 
 	// display drag-n-drop information, if a dnd operation is in progress
 	if(!dnd.text.empty())
