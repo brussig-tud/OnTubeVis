@@ -59,8 +59,11 @@ struct demo : public traj_format_handler<float>
 		/// colors
 		std::vector<Vec3> colors;
 
-		/// some scalar attribute
+		/// some scalar attributes
 		std::vector<attrib_value<float>> attrib_scalar;
+		std::vector<attrib_value<float>> attrib_scalar1;
+		std::vector<attrib_value<float>> attrib_scalar2;
+		std::vector<attrib_value<float>> attrib_scalar3;
 
 		/// some 2-vector attribute
 		std::vector<attrib_value<Vec2>> attrib_vec2;
@@ -313,7 +316,11 @@ struct demo : public traj_format_handler<float>
 
 		// generic, independently sampled attributes
 		const float tn = (float)num_samples + 1;
-		traj.attrib_scalar = gen_attribute<float>(0, 0.25f, 0, tn, 1/12.f, 1/48.f, generator);
+		//traj.attrib_scalar = gen_attribute<float>(0, 0.25f, 0, tn, 1/12.f, 1/48.f, generator);
+		traj.attrib_scalar = gen_attribute<float>(0, 0.25f, 0, tn, 1/12.f, 0.f, generator);
+		traj.attrib_scalar1 = gen_attribute<float>(0, 0.25f, 0, tn, 2/12.f, 0.f, generator);
+		traj.attrib_scalar2 = gen_attribute<float>(0, 0.25f, 0, tn, 3/12.f, 0.f, generator);
+		traj.attrib_scalar3 = gen_attribute<float>(0, 0.25f, 0, tn, 6/12.f, 0.f, generator);
 		traj.attrib_vec2 = gen_attribute<Vec2>(1, 0.33333f, 0, tn, 1/4.f, 1/16.f, generator);
 		traj.attrib_vec3 = gen_attribute<Vec3>(1, 0.33333f, 0, tn, 1/4.f, 1/16.f, generator);
 		traj.attrib_vec4 = gen_attribute<Vec4>(1, 0.33333f, 0, tn, 1/4.f, 1/16.f, generator);
@@ -332,7 +339,7 @@ struct demo : public traj_format_handler<float>
 
 		// prepare dataset
 		typename traj_dataset<float> ds("Fuzzball", "DEMO");
-		std::vector<range> ds_trajs, ds_trajs_scalar, ds_trajs_vec2, ds_trajs_vec3, ds_trajs_vec4;
+		std::vector<range> ds_trajs, ds_trajs_scalar, ds_trajs_scalar1, ds_trajs_scalar2, ds_trajs_scalar3, ds_trajs_vec2, ds_trajs_vec3, ds_trajs_vec4;
 		// - create geometry attributes
 		auto &P = add_attribute<Vec3>(ds, ATTRIB_POSITION);
 		auto &T = add_attribute<Vec4>(ds, ATTRIB_TANGENT);
@@ -340,6 +347,9 @@ struct demo : public traj_format_handler<float>
 		auto &C = add_attribute<Vec3>(ds, ATTRIB_COLOR);
 		// - create free attributes
 		auto &attrib_scalar = add_attribute<real>(ds, "scalar");
+		auto &attrib_scalar1 = add_attribute<real>(ds, "scalar1");
+		auto &attrib_scalar2 = add_attribute<real>(ds, "scalar2");
+		auto &attrib_scalar3 = add_attribute<real>(ds, "scalar3");
 		auto &attrib_vec2 = add_attribute<Vec2>(ds, "vec2");
 		auto &attrib_vec3 = add_attribute<Vec3>(ds, "vec3");
 		auto &attrib_vec4 = add_attribute<Vec4>(ds, "vec4");
@@ -359,6 +369,9 @@ struct demo : public traj_format_handler<float>
 			// set trajectory indexing info
 			ds_trajs.emplace_back(range{ P.data.num(), (unsigned)traj.positions.size() });
 			ds_trajs_scalar.emplace_back(range{ attrib_scalar.data.num(), (unsigned)traj.attrib_scalar.size() });
+			ds_trajs_scalar1.emplace_back(range{ attrib_scalar1.data.num(), (unsigned)traj.attrib_scalar1.size() });
+			ds_trajs_scalar2.emplace_back(range{ attrib_scalar2.data.num(), (unsigned)traj.attrib_scalar2.size() });
+			ds_trajs_scalar3.emplace_back(range{ attrib_scalar3.data.num(), (unsigned)traj.attrib_scalar3.size() });
 			ds_trajs_vec2.emplace_back(range{ attrib_vec2.data.num(), (unsigned)traj.attrib_vec2.size() });
 			ds_trajs_vec3.emplace_back(range{ attrib_vec3.data.num(), (unsigned)traj.attrib_vec3.size() });
 			ds_trajs_vec4.emplace_back(range{ attrib_vec4.data.num(), (unsigned)traj.attrib_vec4.size() });
@@ -379,6 +392,12 @@ struct demo : public traj_format_handler<float>
 			// commit free attributes
 			for (const auto &attrib : traj.attrib_scalar)
 				attrib_scalar.data.append(attrib.value, attrib.t);
+			for(const auto &attrib : traj.attrib_scalar1)
+				attrib_scalar1.data.append(attrib.value, attrib.t);
+			for(const auto &attrib : traj.attrib_scalar2)
+				attrib_scalar2.data.append(attrib.value, attrib.t);
+			for(const auto &attrib : traj.attrib_scalar3)
+				attrib_scalar3.data.append(attrib.value, attrib.t);
 			for (const auto &attrib : traj.attrib_vec2)
 				attrib_vec2.data.append(attrib.value, attrib.t);
 			for (const auto &attrib : traj.attrib_vec3)
@@ -395,6 +414,9 @@ struct demo : public traj_format_handler<float>
 		traj_format_handler<float>::trajectories(ds, C.attrib) = std::move(ds_trajs);
 		// - free attributes
 		traj_format_handler<float>::trajectories(ds, attrib_scalar.attrib) = std::move(ds_trajs_scalar);
+		traj_format_handler<float>::trajectories(ds, attrib_scalar1.attrib) = std::move(ds_trajs_scalar1);
+		traj_format_handler<float>::trajectories(ds, attrib_scalar2.attrib) = std::move(ds_trajs_scalar2);
+		traj_format_handler<float>::trajectories(ds, attrib_scalar3.attrib) = std::move(ds_trajs_scalar3);
 		traj_format_handler<float>::trajectories(ds, attrib_vec2.attrib) = std::move(ds_trajs_vec2);
 		traj_format_handler<float>::trajectories(ds, attrib_vec3.attrib) = std::move(ds_trajs_vec3);
 		traj_format_handler<float>::trajectories(ds, attrib_vec4.attrib) = std::move(ds_trajs_vec4);

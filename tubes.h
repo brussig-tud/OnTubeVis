@@ -248,6 +248,8 @@ protected:
 	glyph_layer_manager glyph_layer_mgr;
 	int recreate_gui_requested = 0;
 
+	unsigned max_num_glyphs = 10;
+
 
 
 	bool show_volume = false;

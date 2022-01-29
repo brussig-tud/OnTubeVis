@@ -12,6 +12,8 @@ glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& 
 	color = r.color;
 	attrib_source_indices = r.attrib_source_indices;
 	attrib_mapping_values = r.attrib_mapping_values;
+	attribute_names = r.attribute_names;
+	attribute_ranges = r.attribute_ranges;
 }
 
 glyph_attribute_mapping& glyph_attribute_mapping::operator=(const glyph_attribute_mapping& r) {
@@ -61,8 +63,15 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 	}
 
 	for(size_t i = 0; i < attrib_source_indices.size(); ++i)
-		if(member_ptr == &attrib_source_indices[i])
+		if(member_ptr == &attrib_source_indices[i]) {
 			last_action_type = AT_CONFIGURATION_CHANGE;
+			int attrib_idx = attribute_index_to_int(attrib_source_indices[i]);
+			if(attrib_idx > -1) {
+				const vec2& range = attribute_ranges[attrib_idx];
+				attrib_mapping_values[i].x() = range.x();
+				attrib_mapping_values[i].y() = range.y();
+			}
+		}
 
 	base_ptr->on_set(this);
 }
@@ -73,6 +82,15 @@ void glyph_attribute_mapping::set_attribute_names(const std::vector<std::string>
 
 void glyph_attribute_mapping::set_attribute_ranges(const std::vector<vec2>& ranges) {
 	attribute_ranges = ranges;
+
+	for(size_t i = 0; i < attrib_mapping_values.size(); ++i) {
+		int attrib_idx = attribute_index_to_int(attrib_source_indices[i]);
+		if(attrib_idx > -1) {
+			const vec2& range = attribute_ranges[attrib_idx];
+			attrib_mapping_values[i].x() = range.x();
+			attrib_mapping_values[i].y() = range.y();
+		}
+	}
 }
 
 void glyph_attribute_mapping::create_glyph_shape() {
@@ -94,7 +112,27 @@ void glyph_attribute_mapping::create_glyph_shape() {
 	attrib_mapping_values.clear();
 	size_t attrib_count = shape_ptr->supported_attributes().size();
 	attrib_source_indices.resize(attrib_count, static_cast<cgv::type::DummyEnum>(0));
-	attrib_mapping_values.resize(attrib_count, vec4(0.0f));
+
+	for(size_t i = 0; i < attrib_count; ++i) {
+		GlyphAttributeType type = shape_ptr->supported_attributes()[i].type;
+		vec4 ranges(0.0f);
+
+		switch(type) {
+		case GAT_SIZE:
+			ranges = vec4(0.0f, 1.0f, 0.0f, 1.0f);
+			break;
+		case GAT_ANGLE:
+		case GAT_DOUBLE_ANGLE:
+		case GAT_ORIENTATION:
+			ranges = vec4(0.0f, 1.0f, 0.0f, 360.0f);
+			break;
+		default:
+			ranges = vec4(0.0f, 1.0f, 0.0f, 1.0f);
+			break;
+		}
+
+		attrib_mapping_values.push_back(ranges);
+	}
 }
 
 int glyph_attribute_mapping::attribute_index_to_int(cgv::type::DummyEnum index) const {

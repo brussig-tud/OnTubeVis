@@ -406,7 +406,11 @@ bool tubes::compile_glyph_attribs_new(void) {
 
 	std::vector<const traj_attribute<float>*> mapped_attribs;
 	std::vector<const std::vector<range>*> attribs_trajs;
-	// TODO: remove "shader" from name and make a sub struct for that
+	std::vector<vec2> attrib_data_ranges;
+
+	// TODO: add has_timestamps method to trajectory_attrib class and only inlcude attribs that have timestamps
+	// TODO: calling magnitude_at and signed_magnitude_at on attributes withut timestamps causes a crash
+
 	for(size_t i = 0; i < glyph_layers_config.mapped_attributes.size(); ++i) {
 		int attrib_idx = glyph_layers_config.mapped_attributes[i];
 		if(attrib_idx < 0 || attrib_idx >= attrib_names.size())
@@ -415,6 +419,9 @@ bool tubes::compile_glyph_attribs_new(void) {
 		const traj_attribute<float>& attrib = dataset.attribute(attrib_names[attrib_idx]);
 		mapped_attribs.push_back(&attrib);
 		attribs_trajs.push_back(&dataset.trajectories(attrib));
+
+		vec2 range(attrib.min(), attrib.max());
+		attrib_data_ranges.push_back(range);
 
 		std::cout << attrib_names[attrib_idx] << std::endl;
 	}
@@ -483,10 +490,10 @@ bool tubes::compile_glyph_attribs_new(void) {
 	// - compile data
 
 	// determine min, max value (ToDo: observe glyph config)
-	const float vmin = mapped_attribs[0]->min(), vmax = mapped_attribs[0]->max();
-	std::cout << "Attrib min/max: " << vmin << " | " << vmax << std::endl;
 
 	const glyph_shape* current_shape = glyph_layers_config.shapes[0];
+
+	
 
 	/*std::vector<float*> glyph_param_value_ptrs;
 	std::vector<int> glyph_param_ptr_offset_multipliers;
@@ -503,7 +510,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 		}
 	}*/
 
-	// TODO: when mapping radius magnitude_at produces a vector subscript out of range error
+	// TODO: when mapping radius, magnitude_at produces a vector subscript out of range error
 
 
 	unsigned traj_offset = 0;
@@ -520,7 +527,9 @@ bool tubes::compile_glyph_attribs_new(void) {
 		float prev_glyph_size = 0.0f;
 		float last_commited_s = 0.0f;
 
+		// create an index for each attribute
 		std::vector<unsigned> attrib_indices(mapped_attribs.size(), 0);
+		// and an index for the current segment
 		unsigned seg = 0;
 
 		bool run = true;
@@ -533,12 +542,21 @@ bool tubes::compile_glyph_attribs_new(void) {
 		unsigned min_a_idx = 0;
 		traj_attribute<float>::datapoint_mag min_a;
 
+		unsigned traj_glyph_count = 0;
+
 		while(run) {
+			//if(i > 0) // enforce monotonicity
+			//	// TODO: this fails when using the debug-size dataset
+			//	assert(a.t >= mapped_attribs[0]->signed_magnitude_at(i - 1).t);
+
+			if(traj_glyph_count == 16) {
+				unsigned aaa = 0;
+			}
 
 			min_a.t = std::numeric_limits<float>::max();
 
 			for(size_t i = 0; i < attrib_indices.size(); ++i) {
-				auto a = mapped_attribs[i]->magnitude_at(attrib_indices[i]);
+				auto a = mapped_attribs[i]->signed_magnitude_at(attrib_indices[i]);
 				if(a.t < min_a.t) {
 					min_a_idx = i;
 					min_a = a;
@@ -546,13 +564,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 			}
 
 
-			//unsigned i = attrib_indices[0];
 
-			//const auto a = mapped_attribs[0]->magnitude_at(i);
-
-			//if(i > 0) // enforce monotonicity
-			//	// TODO: this fails when using the debug-size dataset
-			//	assert(a.t >= mapped_attribs[0]->magnitude_at(i - 1).t);
 
 			// advance segment pointer
 			auto segtime = segment_time::get(P, tube_traj, seg);
@@ -573,14 +585,55 @@ bool tubes::compile_glyph_attribs_new(void) {
 			}
 			const unsigned global_seg = traj_offset + seg;
 
+
+
+
+			bool is_interpolated = false;
+			std::vector<bool> has_sample;
+			unsigned num_interpolated = 0;
+			for(size_t i = 0; i < attrib_indices.size(); ++i) {
+				auto a = mapped_attribs[i]->signed_magnitude_at(attrib_indices[i]);
+				if(abs(min_a.t - a.t) < 0.001f) {
+					has_sample.push_back(true);
+				} else {
+					has_sample.push_back(false);
+					is_interpolated = true;
+					++num_interpolated;
+				}
+			}
+
+
+
 			// commit the attribute if it falls into the current segment
 			if(min_a.t >= segtime.t0 && min_a.t < segtime.t1) {
 				// compute segment-relative t and arclength
 				const float t_seg = (min_a.t - segtime.t0) / (segtime.t1 - segtime.t0),
 					s = arclen::eval(alen[global_seg], t_seg);
 
+
+				
+
+
+
+				std::vector<float> attrib_values;
+				for(size_t i = 0; i < attrib_indices.size(); ++i) {
+					if(has_sample[i]) {
+						auto a = mapped_attribs[i]->signed_magnitude_at(attrib_indices[i]);
+						//const vec2& r = attrib_data_ranges[i];
+						//float v = (a.val - r.x()) / (r.y() - r.x());
+						attrib_values.push_back(a.val);
+					} else {
+						attrib_values.push_back(0.5f);
+					}
+				}
+
+
+
+
+
+
 				// normalize attribute value
-				const float v = (min_a.val - vmin) / (vmax - vmin);
+				//const float v = (min_a.val - vmin) / (vmax - vmin);
 
 				// setup parameters of potential glyph
 				std::vector<float> new_glyph_params;
@@ -593,7 +646,10 @@ bool tubes::compile_glyph_attribs_new(void) {
 						new_glyph_params.push_back(*(glyph_layers_config.constant_parameters[const_idx++].second));
 					} else {
 						// mapped attribute
+						const vec2& r = attrib_data_ranges[mapped_idx];
+						float v = (attrib_values[mapped_idx] - r.x()) / (r.y() - r.x());
 						new_glyph_params.push_back(v);
+						++mapped_idx;
 					}
 				}
 
@@ -647,8 +703,19 @@ bool tubes::compile_glyph_attribs_new(void) {
 				}
 				// store the new glyph
 				attribs.add(s);
-				attribs.add(include_glyph ? 1.0f : 0.5f);
-				attribs.add(v);
+				int debug_info = 0;
+
+				debug_info |= num_interpolated;
+				debug_info |= min_a_idx << 2;
+
+				if(include_glyph)
+					debug_info |= 0x1000;
+
+				attribs.add(*reinterpret_cast<float*>(&debug_info));
+
+				for(size_t i = 0; i < attrib_indices.size(); ++i) {
+					attribs.add(attrib_values[i]);
+				}
 				//store the size when this glyph is actually placed
 				if(include_glyph) {
 					prev_glyph_size = new_glyph_size;
@@ -668,11 +735,15 @@ bool tubes::compile_glyph_attribs_new(void) {
 			// increment indices
 			for(size_t i = 0; i < attrib_indices.size(); ++i) {
 				// TODO: only increment indices of attributes that have a sample at the current location (min_a.t)
-				++attrib_indices[i];
+				if(has_sample[i])
+					attrib_indices[i] = std::min((unsigned)attribs_trajs[i]->at(trj).n, ++attrib_indices[i]);
 				if(attrib_indices[i] >= (unsigned)attribs_trajs[i]->at(trj).n)
 					run &= false;
 			}
+
+			traj_glyph_count += 1;
 			run &= seg < num_segments;
+			//run &= traj_glyph_count < max_num_glyphs;
 		}
 
 		// - primary loop is through free attributes, segment assignment based on timestamps
@@ -1035,12 +1106,14 @@ bool tubes::init (cgv::render::context &ctx)
 	// - demo geometry
 	constexpr unsigned seed = 11;
 #ifdef _DEBUG
-	constexpr unsigned num_trajectories = 16;
+	constexpr unsigned num_trajectories = 1;
+	constexpr unsigned num_segments = 16;
 #else
 	constexpr unsigned num_trajectories = 256;
+	constexpr unsigned num_segments = 256;
 #endif
 	for (unsigned i=0; i<num_trajectories; i++)
-		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_trajectories, seed+i));
+		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_segments, seed+i));
 	traj_mgr.add_dataset(
 		demo::compile_dataset(dataset.demo_trajs)
 	);
@@ -1237,6 +1310,7 @@ void tubes::create_gui (void)
 
 	if(begin_tree_node("Attribute Mapping", glyph_layer_mgr, true)) {
 		align("\a");
+		add_member_control(this, "Max #Glyphs", max_num_glyphs, "value_slider", "min=1;max=100;step=1;ticks=true");
 		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
 		glyph_layer_mgr.create_gui(this, *this);
 		align("\b");
@@ -1607,6 +1681,12 @@ void tubes::draw_trajectories(context& ctx) {
 	// set attribute mapping parameters
 	for(size_t i = 0; i < glyph_layers_config.constant_parameters.size(); ++i) {
 		const auto& pair = glyph_layers_config.constant_parameters[i];
+		//std::cout << "set_uniform: " << pair.first << " to " << *pair.second << std::endl;
+		prog.set_uniform(ctx, pair.first, *pair.second);
+	}
+
+	for(size_t i = 0; i < glyph_layers_config.mapping_parameters.size(); ++i) {
+		const auto& pair = glyph_layers_config.mapping_parameters[i];
 		//std::cout << "set_uniform: " << pair.first << " to " << *pair.second << std::endl;
 		prog.set_uniform(ctx, pair.first, *pair.second);
 	}

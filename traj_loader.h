@@ -147,6 +147,9 @@ public:
 		/// return a representation of the datapoint at the given index that contains its magnitude instead of the actual value
 		virtual datapoint_mag magnitude_at (unsigned index) const = 0;
 
+		/// return a representation of the datapoint at the given index that contains its signed magnitude instead of the actual value
+		virtual datapoint_mag signed_magnitude_at(unsigned index) const = 0;
+
 		/// utility for returning the magnitude of a vector or a scalar
 		template <class T>
 		static flt_type mag(const T& value) { return value.length(); }
@@ -313,6 +316,11 @@ public:
 		virtual datapoint_mag magnitude_at (unsigned index) const {
 			return { mag(const_cast<elem_type&>(values[index])), const_cast<flt_type&>(timestamps[index]) };
 		}
+
+		/// return a representation of the datapoint at the given index that contains its signed magnitude instead of the actual value
+		virtual datapoint_mag signed_magnitude_at(unsigned index) const {
+			return { smag(const_cast<elem_type&>(values[index])), const_cast<flt_type&>(timestamps[index]) };
+		}
 	};
 
 
@@ -444,6 +452,9 @@ public:
 
 	/// return a representation of the attribute datapoint at the given index that contains its magnitude instead of the actual value
 	datapoint_mag magnitude_at (unsigned index) const { return _data->magnitude_at(index); }
+
+	/// return a representation of the attribute datapoint at the given index that contains its signed magnitude instead of the actual value
+	datapoint_mag signed_magnitude_at(unsigned index) const { return _data->signed_magnitude_at(index); }
 
 	/// returns the smallest attribute value in the series (in case of vector-valued attributes, the smallest magnitude), optionally
 	/// reporting the index of the corresponding datapoint

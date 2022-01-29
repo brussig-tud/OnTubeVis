@@ -23,10 +23,12 @@ void glyph_layer_manager::set_attribute_ranges(const std::vector<vec2>& ranges) 
 const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configuration() {
 
 	// initialize local variables
-	const std::string constant_parameter_name_prefix = "cglyph_param";
+	const std::string constant_parameter_name_prefix = "glyph_c_param";
+	const std::string mapped_parameter_name_prefix = "glyph_m_param";
 	const std::string constant_color_name_prefix = "cglyph_color";
 
 	std::vector<std::pair<std::string, const float*>> constant_glyph_parameters;
+	std::vector<std::pair<std::string, const vec4*>> mapped_glyph_parameters;
 	std::vector<std::pair<std::string, const rgb*>> constant_glyph_colors;
 	std::vector<std::string> mapped_attrib_parameter_names;
 
@@ -70,24 +72,37 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 
 				if(attrib_indices[j] < 0) {
 					// constant non-mapped parameter
-					parameter_str = constant_parameter_name_prefix + std::to_string(constant_glyph_parameters.size());
-					std::string uniform_str = parameter_str;
+					std::string uniform_name = constant_parameter_name_prefix + std::to_string(constant_glyph_parameters.size());
 
 					switch(attribs[j].type) {
-					case GAT_SIZE: break;
+					case GAT_ORIENTATION:
+					case GAT_SIZE: parameter_str = uniform_name; break;
+					case GAT_ANGLE: parameter_str = "radians(" + uniform_name + ")"; break;
+					case GAT_DOUBLE_ANGLE: parameter_str = "radians(0.5*" + uniform_name + ")"; break;
+					default: break;
+					}
+
+					constant_glyph_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j][3]));
+					layer_config.glyph_mapping_sources.push_back(0);
+				} else {
+					// mapped parameter
+					const std::string& attrib_name = attribs[j].name;
+
+					std::string uniform_name = mapped_parameter_name_prefix + std::to_string(mapped_glyph_parameters.size());
+					parameter_str = "clamp_remap(current_glyph." + attrib_name + ", " + uniform_name + ")";
+
+					switch(attribs[j].type) {
+					case GAT_ORIENTATION:
+					case GAT_SIZE: parameter_str = parameter_str; break;
 					case GAT_ANGLE: parameter_str = "radians(" + parameter_str + ")"; break;
 					case GAT_DOUBLE_ANGLE: parameter_str = "radians(0.5*" + parameter_str + ")"; break;
 					default: break;
 					}
 
-					constant_glyph_parameters.push_back(std::make_pair(uniform_str, &attrib_values[j][3]));
-					layer_config.glyph_mapping_sources.push_back(0);
-				} else {
-					// mapped parameter
-					mapped_attrib_parameter_names.push_back(attribs[j].name);
+					mapped_glyph_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j]));
+
+					mapped_attrib_parameter_names.push_back(attrib_name);
 					layer_config.mapped_attributes.push_back(attrib_indices[j]);
-					//parameter_str = "0.5"; // TODO: replace this with a call to the actual data
-					parameter_str = "current_glyph." + attribs[j].name;
 					layer_config.glyph_mapping_sources.push_back(1);
 				}
 
@@ -111,7 +126,7 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 			std::string color_str = constant_color_name_prefix + std::to_string(constant_glyph_colors.size());
 			constant_glyph_colors.push_back(std::make_pair(color_str, &gam.ref_color()));
 
-			code = "splat_glyph(current_glyph, " + code + ", " + color_str + ", color);";
+			code = "splat_glyph(glyphuv, current_glyph, " + code + ", " + color_str + ", color);";
 		}
 	}
 
@@ -121,6 +136,16 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 		for(size_t i = 0; i < constant_glyph_parameters.size(); ++i) {
 			uniforms_str += constant_glyph_parameters[i].first;
 			if(i < constant_glyph_parameters.size() - 1)
+				uniforms_str += ", ";
+		}
+		uniforms_str += ";";
+	}
+
+	if(mapped_glyph_parameters.size() > 0) {
+		uniforms_str += "uniform vec4 ";
+		for(size_t i = 0; i < mapped_glyph_parameters.size(); ++i) {
+			uniforms_str += mapped_glyph_parameters[i].first;
+			if(i < mapped_glyph_parameters.size() - 1)
 				uniforms_str += ", ";
 		}
 		uniforms_str += ";";
@@ -153,6 +178,7 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 	//uniform_value_ptrs = std::move(constant_glyph_parameters);
 	
 	layer_config.constant_parameters = constant_glyph_parameters;
+	layer_config.mapping_parameters = mapped_glyph_parameters;
 	layer_config.constant_colors = constant_glyph_colors;
 
 	// save shader configuration

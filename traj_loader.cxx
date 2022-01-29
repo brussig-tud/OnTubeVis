@@ -90,6 +90,9 @@ struct invalid_container : traj_attribute<flt_type>::container_base
 	virtual typename traj_attribute<flt_type>::datapoint_mag magnitude_at (unsigned index) const {
 		return { -1.f, 0.f };
 	}
+	virtual typename traj_attribute<flt_type>::datapoint_mag signed_magnitude_at(unsigned index) const {
+		return { -1.f, 0.f };
+	}
 };
 
 template <class flt_type>

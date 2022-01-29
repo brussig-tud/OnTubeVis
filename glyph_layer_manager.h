@@ -18,6 +18,7 @@ public:
 		// TODO: rename
 		std::vector<int> glyph_mapping_sources; // 0 for constant attrib, 1 for mapped attrib
 		std::vector<std::pair<std::string, const float*>> constant_parameters;
+		std::vector<std::pair<std::string, const vec4*>> mapping_parameters;
 		std::vector<std::pair<std::string, const rgb*>> constant_colors;
 		std::vector<int> mapped_attributes;
 

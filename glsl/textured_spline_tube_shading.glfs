@@ -83,7 +83,7 @@ uniform struct {
 // free attributes ssbo
 struct glyph_desc {
 	float s;
-	float opacity;
+	uint debug_info;
 	GLYPH_ATTRIBUTES_DEFINITION
 };
 layout (std430, binding=0) readonly buffer attribs_buffer { 
@@ -193,6 +193,10 @@ vec2 rotate(in vec2 p, in float a) {
 
 float op_subtract(float d0, float d1) {
 	return max(-d0, d1);
+}
+
+float op_onion(float d, float r) {
+  return abs(d) - r;
 }
 
 // SDFs from https://iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
@@ -429,11 +433,60 @@ vec3 compute_grid_normal(vec2 uv) {
 	return normalize(mix(normal0, normal1, 1.0 - grid_blend_factor));
 }
 
-void splat_glyph(glyph_desc gd, in float dist, in vec3 glyph_color, inout vec3 color) {
+// code for drawing digits from https://www.shadertoy.com/view/lsXXzN
+// adjusted to own needs
+float segment(vec2 uv, bool on) {
+	return on ? (1.0 - smoothstep(0.08, 0.09 + float(on)*0.02, abs(uv.x))) *
+			    (1.0 - smoothstep(0.46, 0.47 + float(on)*0.02, abs(uv.y) + abs(uv.x)))
+		        : 0.0;
+}
+
+float digit(vec2 uv, uint num) {
+	float seg= 0.0;
+    seg += segment(uv.yx + vec2(-1.0, +0.0), num!=1 && num!=4                    );
+	seg += segment(uv.xy + vec2(-0.5, -0.5), num!=1 && num!=2 && num!=3 && num!=7);
+	seg += segment(uv.xy + vec2(+0.5, -0.5), num!=5 && num!=6                    );
+   	seg += segment(uv.yx + vec2(+0.0, +0.0), num!=0 && num!=1 && num!=7          );
+	seg += segment(uv.xy + vec2(-0.5, +0.5), num==0 || num==2 || num==6 || num==8);
+	seg += segment(uv.xy + vec2(+0.5, +0.5), num!=2                              );
+    seg += segment(uv.yx + vec2(+1.0, +0.0), num!=1 && num!=4 && num!=7          );	
+	return seg;
+}
+
+// remap value v from range [r.x,r.y] to [r.z,r.w]
+float remap(float v, vec4 r) {
+	float t = (v - r.x) / (r.y - r.x);
+	return mix(r.z, r.w, t);
+}
+
+// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
+float clamp_remap(float v, vec4 r) {
+	v = clamp(v, r.x, r.y);
+	float t = (v - r.x) / (r.y - r.x);
+	return mix(r.z, r.w, t);
+}
+
+void splat_glyph(in vec2 uv, in glyph_desc gd, in float dist, in vec3 glyph_color, inout vec3 color) {
+	// the following is for debugging only
+	uint main_attrib_idx = (gd.debug_info>>2) & 0x0003;
+	uint interpolated_attrib_count = gd.debug_info & 0x0003;
+	
+	glyph_color = vec3(0.0);
+	glyph_color[main_attrib_idx] = 1.0;
+
+	if((gd.debug_info & 0x1000) == 0) {
+		// this is for showing otherwise not drawn glyphs
+		glyph_color = mix(color, glyph_color, 0.5); // make glyph half transparent
+		dist = op_onion(dist + 0.05, 0.05); // draw outline of glyph (keeps original size)
+	}
+
 	// pre-filter the SDF for AA
 	const float antialias_width = general_settings.antialias_radius*fwidth(dist);
-	glyph_color = mix(color, glyph_color, gd.opacity);
 	color = mix(glyph_color, color, smoothstep(-antialias_width, antialias_width, dist));
+
+	// draw a digit showing the number of interpolated attributes for the current glyph
+	vec2 digit_uv = -6.0 * uv;
+	color = mix(color, 1.0-color, digit(digit_uv, interpolated_attrib_count));
 }
 
 void main()
@@ -467,6 +520,8 @@ void main()
 
 		//frag_color = vec4(uv.s, uv.t, 0.0, 1.0);
 		
+		if((segment_id&1) > 0) color *= 0.5;
+
 		closest_glyphs_info closest;
 		if (get_closest_samples(closest, segment_id, uv.s))
 		{
