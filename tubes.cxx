@@ -411,7 +411,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 	// Only consider first data set for now
 	const auto &dataset = traj_mgr.dataset(0);
 	// convenience shorthands
-	const auto &P = dataset.positions_interface();
+	const auto &P = dataset.positions().attrib;
 	const auto &tube_trajs = dataset.trajectories(P);
 
 	auto attrib_names = dataset.get_attribute_names();
@@ -570,7 +570,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 			for(size_t i = 0; i < attrib_indices.size(); ++i) {
 				auto a = mapped_attribs[i]->signed_magnitude_at(attrib_indices[i]);
 				if(a.t < min_a.t) {
-					min_a_idx = i;
+					min_a_idx = (unsigned)i;
 					min_a = a;
 				}
 			}
@@ -908,7 +908,7 @@ bool tubes::compile_glyph_attribs_old(void) {
 	for(unsigned ds = 0; ds < std::max(traj_mgr.num_datasets(), (unsigned)1); ds++) {
 		// convenience shorthands
 		const auto &dataset = traj_mgr.dataset(ds);
-		const auto &P = dataset.positions_interface();
+		const auto &P = dataset.positions().attrib;
 		const auto &tube_trajs = dataset.trajectories(P);
 
 		// from the docs: returns an explicitly invalid attribute interface that acts "empty" on all relevant queries

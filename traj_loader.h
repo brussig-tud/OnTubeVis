@@ -816,6 +816,20 @@ public:
 	/// color type
 	typedef typename visual_attribute_mapping<float>::Color Color;
 
+	/// convenience struct that \ref add_attribute uses to return a reference to both the attribute interface and the data container
+	template <class T>
+	struct attrib_info
+	{
+		/// the abstract interface of the attribute
+		traj_attribute<real> &attrib;
+
+		/// the actual data container of the attribute
+		traj_attribute<real>::container<T> &data;
+
+		/// construct for given attribute
+		attrib_info(traj_attribute<real>& attribute) : attrib(attribute), data(attribute.get_data<T>()) {}
+	};
+
 
 private:
 
@@ -832,16 +846,28 @@ protected:
 	std::string& data_source (void);
 
 	/// write-access the "special" positions attribute data (for use by trajectory format handlers)
-	/// Note: shorthand for calling ::positions_interface().get_data<Vec3>()
-	typename traj_attribute<real>::container<Vec3>& positions (void);
-
-	/// write-access the interface of the "special" positions attribute (for use by trajectory format handlers)
-	traj_attribute<real>& positions_interface (void);
+	attrib_info<Vec3> positions (void);
 
 	/// write-access the timestamps at each position (for use by trajectory format handlers)
 	flt_type* timestamps (void);
 
-	/// write-access the map containing all generic attributes (for use by trajectory format handlers)
+	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
+	/// access
+	template <class T>
+	attrib_info<T> add_attribute (const std::string &name)
+	{
+		return attributes().emplace(name, std::vector<T>()).first->second;
+	}
+
+	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
+	/// access
+	template <class T, typename ...Args>
+	attrib_info<T> add_attribute (const std::string &name, Args&& ...args)
+	{
+		return attributes().emplace(name, std::forward<Args>(args)...).first->second;
+	}
+
+/// write-access the map containing all generic attributes (for use by trajectory format handlers)
 	attribute_map<flt_type>& attributes (void);
 
 	/// set the average segment length (for use by trajectory format handlers)
@@ -887,11 +913,8 @@ public:
 	/// access the source name (filename, description, etc.) the dataset was loaded / originated from
 	const std::string& data_source (void) const;
 
-	/// access the "special" positions attribute data. Note: shorthand for calling ::positions_interface().get_data<Vec3>()
-	const typename traj_attribute<real>::container<Vec3>& positions (void) const;
-
-	/// write-access the interface of the "special" positions attribute (for use by trajectory format handlers)
-	const traj_attribute<real>& positions_interface (void) const;
+	/// access the "special" positions attribute data.
+	const traj_dataset<real>::attrib_info<Vec3> positions (void) const;
 
 	/// access the timestamps at each position
 	const flt_type* timestamps (void) const;
@@ -949,29 +972,11 @@ public:
 	/// color type
 	typedef typename traj_dataset<real>::Color Color;
 
-	/// convenience struct that \ref add_attribute uses to return a reference to both the attribute interface and the data container
-	template <class T>
-	struct attrib_info
-	{
-		/// the abstract interface of the attribute
-		traj_attribute<real> &attrib;
-
-		/// the actual data container of the attribute
-		traj_attribute<real>::container<T> &data;
-
-		/// construct for given attribute
-		attrib_info(traj_attribute<real>& attribute) : attrib(attribute), data(attribute.get_data<T>()) {}
-	};
-
 
 protected:
 
-	/// Proxy for derived classes to gain write-access the "special" positions attribute data
-	/// Note: shorthand for calling ::positions_interface().get_data<Vec3>()
-	static typename traj_attribute<real>::container<Vec3>& positions (traj_dataset<real> &dataset);
-
-	/// Proxy for derived classes to gain write-access the interface of the "special" positions attribute
-	static traj_attribute<real>& positions_interface (traj_dataset<real> &dataset);
+	/// Proxy for derived classes to gain write-access the "special" positions attribute
+	static traj_dataset<real>::attrib_info<Vec3> positions (traj_dataset<real> &dataset);
 
 	/// Proxy for derived classes to gain write-access to the \link traj_dataset::attributes generic attributes \endlink .
 	static attribute_map<flt_type>& attributes (traj_dataset<real> &dataset);
@@ -985,19 +990,19 @@ protected:
 	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access
 	template <class T>
-	static attrib_info<T> add_attribute (traj_dataset<real> &dataset, const std::string &name)
+	static typename traj_dataset<real>::attrib_info<T> add_attribute (traj_dataset<real> &dataset, const std::string &name)
 	{
-		return dataset.attributes().emplace(name, std::vector<T>()).first->second;
+		return dataset.add_attribute<T>(name);
 	}
 
 	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access
 	template <class T, typename ... Args>
-	static attrib_info<T> add_attribute (
+	static typename traj_dataset<real>::attrib_info<T> add_attribute (
 		traj_dataset<real> &dataset, const std::string &name, Args&& ... args
 	)
 	{
-		return dataset.attributes().emplace(name, std::forward<Args>(args)...).first->second;
+		return dataset.add_attribute<T>(name, std::forward<Args>(args)...);
 	}
 
 public:
