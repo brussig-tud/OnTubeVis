@@ -67,6 +67,7 @@ public:
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
+		// size is two times the radius, a.k.a. the diameter of the circle
 		return 2.0f * param_values[0];
 	}
 };
@@ -90,6 +91,7 @@ public:
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
+		// size is just the length/width
 		return param_values[0];
 	}
 };
@@ -112,6 +114,12 @@ public:
 		};
 		return attributes;
 	}
+
+	virtual float get_size(const std::vector<float>& param_values) const {
+		// use just the radius as it gives a more uniform (or visually pleasing) spacing
+		// for complete correctness, aperture and orientation would need to be considered as well
+		return 2.0f * param_values[0];
+	}
 };
 
 class flat_arc_glyph : public glyph_shape {
@@ -132,6 +140,12 @@ public:
 			{ "orientation", GAT_ORIENTATION }
 		};
 		return attributes;
+	}
+
+	virtual float get_size(const std::vector<float>& param_values) const {
+		// use just the radius and thickness as it gives a more uniform (or visually pleasing) spacing
+		// for complete correctness, aperture and orientation would need to be considered as well
+		return 2.0f * (param_values[0] + param_values[1]);
 	}
 };
 
@@ -163,6 +177,47 @@ public:
 			{ "orientation", GAT_ORIENTATION }
 		};
 		return attributes;
+	}
+
+	virtual float get_size(const std::vector<float>& param_values) const {
+		// TODO: bounding box does not work right now
+
+		// build rotation matrix like in the shader
+		const float quarter_turn = 1.57079632679; // additional rotation of 90 degrees, so an angle of 0 degrees points the glyph into the direction of the segment
+		float angle = cgv::math::deg2rad(param_values[2]) + quarter_turn;
+		
+		float as = sin(angle);
+		float ac = cos(angle);
+		mat2 R = (ac, as, -as, ac);
+		
+		float half_base_width = 0.5f * param_values[0];
+		float half_height = 0.5f * param_values[1];
+
+		vec2 box_min;
+		vec2 box_max;
+
+		vec2 p = vec2(-half_base_width, half_height);
+		box_min = p;
+		box_max = p;
+
+		p = vec2(half_base_width, half_height);
+		box_min = min(box_min, p);
+		box_max = max(box_max, p);
+
+		p = vec2(0.0f, -half_height);
+		box_min = min(box_min, p);
+		box_max = max(box_max, p);
+
+		// the box can be off-center
+		// first get the center and then the extent to each side
+		float c = 0.5f * (box_min.x() + box_max.x());
+		float el = c - box_min.x();
+		float er = box_max.x() - c;
+		// the largest of these extents defines the total width
+		// TODO: use two sizes for gyphs?
+
+		// only use height for now
+		return param_values[1];// 2.0f * std::max(el, er);
 	}
 };
 

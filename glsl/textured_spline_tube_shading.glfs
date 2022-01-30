@@ -189,7 +189,7 @@ vec2 rotate(in vec2 p, in float a) {
 	float as = sin(a);
 	float ac = cos(a);
 	return mat2(ac, as, -as, ac) * p;
-}					
+}
 
 float op_subtract(float d0, float d1) {
 	return max(-d0, d1);
@@ -253,7 +253,18 @@ float sd_arc_rounded(in vec2 p, in float ra, in float rb, in float a) {
 // bw is the base width of the triangle
 // h is the height of the triangle
 float sd_triangle_isosceles(in vec2 p, in float bw, in float h) {
-	vec2 q = vec2(bw, h);
+	// in the default configuration the origin is at the tip of the two equal-length sides
+
+	// flip so default orientation is along trajectory direction
+	h = -h;
+
+	// move orign to base side of triangle
+	// p += h;
+	// or...
+	// move origin to center of triangle
+	p.y += 0.5*h;
+
+	vec2 q = vec2(0.5*bw, h);
     p.x = abs(p.x);
     vec2 a = p - q*clamp( dot(p,q)/dot(q,q), 0.0, 1.0 );
     vec2 b = p - q*vec2( clamp( p.x/q.x, 0.0, 1.0 ), 1.0 );
@@ -442,7 +453,7 @@ float segment(vec2 uv, bool on) {
 }
 
 float digit(vec2 uv, uint num) {
-	float seg= 0.0;
+	float seg = 0.0;
     seg += segment(uv.yx + vec2(-1.0, +0.0), num!=1 && num!=4                    );
 	seg += segment(uv.xy + vec2(-0.5, -0.5), num!=1 && num!=2 && num!=3 && num!=7);
 	seg += segment(uv.xy + vec2(+0.5, -0.5), num!=5 && num!=6                    );
@@ -487,6 +498,27 @@ void splat_glyph(in vec2 uv, in glyph_desc gd, in float dist, in vec3 glyph_colo
 	// draw a digit showing the number of interpolated attributes for the current glyph
 	vec2 digit_uv = -6.0 * uv;
 	color = mix(color, 1.0-color, digit(digit_uv, interpolated_attrib_count));
+
+	digit_uv = 2.0 * digit_uv;
+
+	/*float value = gd.radius;
+
+	float decimal_dot = sd_circle(digit_uv + vec2(0.0, 1.0), 0.15) < 0.0 ? 1.0 : 0.0;
+
+	float digit0 = digit(digit_uv - vec2(1.0, 0.0), uint(value));
+	value -= float(uint(value));
+	value *= 10.0;
+	float digit1 = digit(digit_uv + vec2(1.0, 0.0), uint(value));
+	value -= float(uint(value));
+	value *= 10.0;
+	float digit2 = digit(digit_uv + vec2(3.0, 0.0), uint(round(value)));
+
+	vec3 icol = 1.0 - color;
+
+	color = mix(color, icol, digit0);
+	color = mix(color, icol, digit1);
+	color = mix(color, icol, digit2);
+	color = mix(color, icol, decimal_dot);*/
 }
 
 void main()

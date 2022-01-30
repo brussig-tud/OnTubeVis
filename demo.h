@@ -318,9 +318,9 @@ struct demo : public traj_format_handler<float>
 		const float tn = (float)num_samples + 1;
 		//traj.attrib_scalar = gen_attribute<float>(0, 0.25f, 0, tn, 1/12.f, 1/48.f, generator);
 		traj.attrib_scalar = gen_attribute<float>(0, 0.25f, 0, tn, 1/12.f, 0.f, generator);
-		traj.attrib_scalar1 = gen_attribute<float>(0, 0.25f, 0, tn, 2/12.f, 0.f, generator);
-		traj.attrib_scalar2 = gen_attribute<float>(0, 0.25f, 0, tn, 3/12.f, 0.f, generator);
-		traj.attrib_scalar3 = gen_attribute<float>(0, 0.25f, 0, tn, 6/12.f, 0.f, generator);
+		traj.attrib_scalar1 = gen_attribute<float>(0, 0.25f, 0, tn, 4/12.f, 0.f, generator);
+		traj.attrib_scalar2 = gen_attribute<float>(0, 0.25f, 0, tn, 6/12.f, 0.f, generator);
+		traj.attrib_scalar3 = gen_attribute<float>(0, 0.25f, 0, tn, 9/12.f, 0.f, generator);
 		traj.attrib_vec2 = gen_attribute<Vec2>(1, 0.33333f, 0, tn, 1/4.f, 1/16.f, generator);
 		traj.attrib_vec3 = gen_attribute<Vec3>(1, 0.33333f, 0, tn, 1/4.f, 1/16.f, generator);
 		traj.attrib_vec4 = gen_attribute<Vec4>(1, 0.33333f, 0, tn, 1/4.f, 1/16.f, generator);
