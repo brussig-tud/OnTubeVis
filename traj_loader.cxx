@@ -1185,15 +1185,9 @@ std::string& traj_dataset<flt_type>::data_source (void)
 }
 
 template <class flt_type>
-typename traj_attribute<flt_type>::container<typename traj_dataset<flt_type>::Vec3>& traj_dataset<flt_type>::positions (void)
+traj_dataset<flt_type>::attrib_info<typename traj_dataset<flt_type>::Vec3> traj_dataset<flt_type>::positions (void)
 {
-	return pimpl->positions->get_data<Vec3>();
-}
-
-template <class flt_type>
-typename traj_attribute<flt_type>& traj_dataset<flt_type>::positions_interface (void)
-{
-	return *pimpl->positions;
+	return attrib_info<Vec3>(*pimpl->positions);
 }
 
 template <class flt_type>
@@ -1235,15 +1229,9 @@ const std::string& traj_dataset<flt_type>::data_source (void) const
 }
 
 template <class flt_type>
-const typename traj_attribute<flt_type>::container<typename traj_dataset<flt_type>::Vec3>& traj_dataset<flt_type>::positions (void) const
+const traj_dataset<flt_type>::attrib_info<typename traj_dataset<flt_type>::Vec3> traj_dataset<flt_type>::positions (void) const
 {
-	return pimpl->positions->get_data<Vec3>();
-}
-
-template <class flt_type>
-const typename traj_attribute<flt_type>& traj_dataset<flt_type>::positions_interface (void) const
-{
-	return *pimpl->positions;
+	return typename traj_dataset<flt_type>::attrib_info<Vec3>(*pimpl->positions);
 }
 
 template <class flt_type>
@@ -1344,15 +1332,9 @@ const visual_attribute_mapping<flt_type>& traj_dataset<flt_type>::mapping (void)
 // Class implementation - traj_format_handler
 
 template <class flt_type>
-typename traj_attribute<flt_type>::container<typename traj_dataset<flt_type>::Vec3>& traj_format_handler<flt_type>::positions (traj_dataset<real> &dataset)
+traj_dataset<flt_type>::attrib_info<typename traj_dataset<flt_type>::Vec3> traj_format_handler<flt_type>::positions (traj_dataset<real> &dataset)
 {
 	return dataset.positions();
-}
-
-template <class flt_type>
-typename traj_attribute<flt_type>& traj_format_handler<flt_type>::positions_interface (traj_dataset<real> &dataset)
-{
-	return dataset.positions_interface();
 }
 
 template <class flt_type>
@@ -1506,7 +1488,7 @@ struct traj_manager<flt_type>::Impl
 		{
 			// default to 1/4th the average segment length
 			const real r = dataset.avg_segment_length() / real(4);
-			const size_t num = dataset.positions().num();
+			const size_t num = dataset.positions().data.num();
 			out->reserve(out->size() + num);
 			for (size_t i=0; i<num; i++)
 				out->emplace_back(r);
@@ -1527,7 +1509,7 @@ struct traj_manager<flt_type>::Impl
 
 				// generate tangents on per-trajectory basis (currently hard-coded as radius- and segment length-
 				// adaptive variant of central differences)
-				out->resize(idx_offset + dataset.positions().num());
+				out->resize(idx_offset + dataset.positions().data.num());
 				auto *o = ((std::vector<Vec4>*)out)->data();
 				for (const auto &traj : trajs)
 				{
@@ -1562,7 +1544,7 @@ struct traj_manager<flt_type>::Impl
 				return;
 			}
 			// default to 0-length tangents (i.e. a poly-line)
-			const size_t num = dataset.positions().num();
+			const size_t num = dataset.positions().data.num();
 			auto &o = *(std::vector<Vec4>*)out;
 			o.reserve(o.size() + num);
 			for (size_t i=0; i<num; i++)
@@ -1652,7 +1634,7 @@ struct traj_manager<flt_type>::Impl
 		}
 		// default to dark-ish grey
 		const Color c(1.f/3.f);
-		const size_t num = dataset.positions().num();
+		const size_t num = dataset.positions().data.num();
 		out->reserve(out->size() + num);
 		for (size_t i=0; i<num; i++)
 			out->emplace_back(c);
@@ -1844,7 +1826,7 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 		{
 			// convencience shorthands
 			auto &dataset = *impl.datasets[ds];
-			const auto &positions = dataset.positions_interface();
+			const auto &positions = dataset.positions().attrib;
 			auto &trajectories = dataset.trajectories(positions);
 
 			// build line list indices

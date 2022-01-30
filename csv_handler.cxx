@@ -823,14 +823,14 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 	// determine remaining stats
 	const auto &P = positions(ret);
 	const unsigned
-		num_samples = P.num(),
-		num_segs = std::max<int>(num_samples - (unsigned)trajectories(ret, positions_interface(ret)).size(), 1);
+		num_samples = P.data.num(),
+		num_segs = std::max<int>(num_samples - (unsigned)trajectories(ret, P.attrib).size(), 1);
 	set_avg_segment_length(ret, real(dist_accum / double(num_segs)));
 
 	// invent radii now that all stats are known
 	R.data.values = std::vector<real>(num_samples, ret.avg_segment_length()*real(0.25));
-	R.data.timestamps = P.timestamps;
-	trajectories(ret, R.attrib) = trajectories(ret, positions_interface(ret));
+	R.data.timestamps = P.data.timestamps;
+	trajectories(ret, R.attrib) = trajectories(ret, P.attrib);
 
 	// print stats
 	const unsigned num_trajs = (unsigned)declared_attribs[props.pos_id].trajs.size();
