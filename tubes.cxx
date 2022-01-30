@@ -222,8 +222,9 @@ void tubes::on_set(void *member_ptr) {
 			update_glyph_layer_manager();
 
 			compile_glyph_attribs();
+			ah_mgr.set_dataset(traj_mgr.dataset(0));
 
-			context& ctx = *get_context();
+			context &ctx = *get_context();
 			tube_shading_defines = build_tube_shading_defines();
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
@@ -256,6 +257,17 @@ void tubes::on_set(void *member_ptr) {
 			}
 			update_attribute_bindings();
 			update_grid_ratios();
+
+			update_glyph_layer_manager();
+
+			compile_glyph_attribs();
+			ah_mgr.set_dataset(traj_mgr.dataset(0));
+
+			context &ctx = *get_context();
+			tube_shading_defines = build_tube_shading_defines();
+			shaders.reload(ctx, "tube_shading", tube_shading_defines);
+
+			post_recreate_gui();
 		}
 	}
 
@@ -1123,6 +1135,7 @@ bool tubes::init (cgv::render::context &ctx)
 	update_glyph_layer_manager();
 
 	compile_glyph_attribs();
+	ah_mgr.set_dataset(traj_mgr.dataset(0));
 	
 	// done
 	return success;

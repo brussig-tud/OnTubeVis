@@ -28,6 +28,7 @@
 // local includes
 #include "traj_loader.h"
 #include "demo.h" // interactive testbed helper classes and data
+#include "attrib_handle_manager.h"
 #include "hermite_spline_tube.h"
 #include "voxelizer.h"
 #include "ambient_occlusion_style.h"
@@ -224,6 +225,9 @@ protected:
 	/// trajectory manager
 	traj_manager<float> traj_mgr;
 
+	/// attribute handle manager
+	attrib_handle_manager<float> ah_mgr;
+
 	/// whether to display the interactive testbed
 	bool show_demo;
 
@@ -261,7 +265,6 @@ protected:
 	ambient_occlusion_style ao_style, ao_style_bak; // the latter is used to restore defaults after demo data is unloaded
 
 	glyph_layer_manager::layer_configuration glyph_layers_config;
-
 
 
 
