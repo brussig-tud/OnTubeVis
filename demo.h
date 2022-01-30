@@ -161,6 +161,8 @@ struct demo : public traj_format_handler<float>
 	template <>
 	static float gen_unit_point<float> (std::mt19937&)
 	{
+		// in the 1D case, we ignore direction and just return the unit ("north" on the 1-hypersphere). Negative "directions" can
+		// be achieved by providing appropriate mean and sigma values at the top level generator function .
 		return pole<float>();
 	}
 
@@ -207,24 +209,24 @@ struct demo : public traj_format_handler<float>
 		}
 
 		// done!
-		return std::move(result);
+		return result - pole<T>();
 	}
 	template <>
 	static float gen_dir_offset<float> (float, std::mt19937&)
 	{
-		// We ignore direction completely - just return the pole
-		return  pole<float>();
+		// We ignore direction completely - just return a zero-offset
+		return 0;
 	}
 
 	/// randomly perturbates a velocity vector given standard deviations from the original velocity direction and magnitude
 	template <class T>
 	static T gen_vel_perturbation(float t, const T& vel_orig, float sigma_dir, const noise_function &noise, std::mt19937 &generator)
 	{
-		const T dvec = gen_dir_offset<T>(sigma_dir, generator) - pole<T>();
+		const T dvec = gen_dir_offset<T>(sigma_dir, generator);
 		const float mag_new = noise(t);
 		return mag_new * normalized(normalized(vel_orig)+dvec);
 	}
-	/// special handling of scalar case for efficiency reasons
+	/// special handling of scalar case for efficiency (we don't call the direction-related stuff which wouldn't do anything anyway)
 	template <>
 	static float gen_vel_perturbation<float>(float t, const float&, float, const noise_function &noise, std::mt19937&)
 	{
