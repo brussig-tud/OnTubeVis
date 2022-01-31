@@ -16,7 +16,8 @@ enum GlyphType {
 	GT_ARC_FLAT = 3,
 	GT_ARC_ROUNDED = 4,
 	GT_TRIANGLE = 5,
-	GT_DROP = 6
+	GT_DROP = 6,
+	GT_STAR
 };
 
 enum GlyphAttributeType {
@@ -47,6 +48,10 @@ public:
 	virtual float get_size(const std::vector<float>& param_values) const {
 		return 0.0f;
 	};
+
+	virtual std::string splat_func() const {
+		return "";
+	}
 };
 
 class circle_glyph : public glyph_shape {
@@ -239,5 +244,34 @@ public:
 			{ "orientation", GAT_ORIENTATION }
 		};
 		return attributes;
+	}
+};
+
+class star_glyph : public glyph_shape {
+public:
+	virtual star_glyph* clone() const {
+		return new star_glyph(*this);
+	}
+
+	virtual std::string name() const {
+		return "star";
+	}
+
+	virtual const attribute_list& supported_attributes() const {
+		static const attribute_list attributes = {
+			{ "axis_0", GAT_SIZE }
+			//{ "axis_1", GAT_SIZE },
+			//{ "axis_2", GAT_SIZE }
+		};
+		return attributes;
+	}
+
+	virtual float get_size(const std::vector<float>& param_values) const {
+		// size is two times the radius, a.k.a. the diameter
+		return 2.0f * param_values[0];
+	}
+
+	virtual std::string splat_func() const {
+		return "splat_star";
 	}
 };

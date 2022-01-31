@@ -182,13 +182,22 @@ float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
 	return 1.0 - clamp(ambient_occlusion.strength_scale * ao / 3.0, 0.0, 1.0);
 }
 
+// return a rotation matrix given angle in radians
+mat2 rot_mat(float a) {
+	float as = sin(a);
+	float ac = cos(a);
+	return mat2(ac, as, -as, ac);
+}
+
 // rotate a 2d point by the given angle in radians
 vec2 rotate(in vec2 p, in float a) {
 	const float quarter_turn = 1.57079632679; // additional rotation of 90 degrees, so an angle of 0 degrees points the glyph into the direction of the segment
 	a += quarter_turn;
-	float as = sin(a);
-	float ac = cos(a);
-	return mat2(ac, as, -as, ac) * p;
+	return rot_mat(a) * p;
+}
+
+float op_union(float d0, float d1) {
+  return min(d0, d1);
 }
 
 float op_subtract(float d0, float d1) {
@@ -288,6 +297,79 @@ float sd_drop(vec2 p, float r1, float r2, float h) {
     if(k > a*h)
 		return length(p - vec2(0.0, h)) - r2;
     return dot(p, vec2(a, b)) - r1;
+}
+
+float sd_segment(in vec2 p, in vec2 a, in vec2 b) {
+    vec2 pa = p-a, ba = b-a;
+    float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+    return length( pa - ba*h );
+}
+
+const int N = 3;
+float sd_polygon(in vec2 p, in vec2[N] v) {
+    float d = dot(p-v[0],p-v[0]);
+    float s = 1.0;
+    for( int i=0, j=N-1; i<N; j=i, i++ )
+    {
+        vec2 e = v[j] - v[i];
+        vec2 w =    p - v[i];
+        vec2 b = w - e*clamp( dot(w,e)/dot(e,e), 0.0, 1.0 );
+        d = min( d, dot(b,b) );
+        bvec3 c = bvec3(p.y>=v[i].y,p.y<v[j].y,e.x*w.y>e.y*w.x);
+        if( all(c) || all(not(c)) ) s*=-1.0;  
+    }
+    return s*sqrt(d);
+}
+
+vec2 sd_star(vec2 p, float r) {
+	vec2 org = vec2(0.0);
+
+	float v[N] = float[N](0.9, 0.7, 0.5);
+
+	float d_axes = 1e20;
+	float d_poly = 1e20;
+	float thickness = 0.01;
+
+	vec2 ps[N];
+
+	for(int i = 0; i < N; ++i) {
+		float angle = 2.0*M_PI * (i / float(N));
+		mat2 R = rot_mat(angle);
+		vec2 end = R * vec2(0.0, r);
+		vec2 pp = R * vec2(0.0, r*v[i]);
+		ps[i] = pp;
+		d_axes = op_union(d_axes, sd_segment(p, org, end) - thickness);
+	}
+
+	d_poly = sd_polygon(p, ps);
+
+	return vec2(d_axes, d_poly);
+}
+
+vec4 splat_star(in glyph_desc gd, in vec2 p, in float r, in vec3 glyph_color) {
+	vec2 dist = sd_star(p, r);
+
+	// debug only
+	// show otherwise not drawn glyphs
+	float alpha_fac = 1.0;
+	if((gd.debug_info & 0x1000) == 0) {
+		alpha_fac = 0.5; // make glyph half transparent
+		dist.y = op_onion(dist.y + 0.05, 0.05); // draw outline of glyph (keeps original size)
+	}
+
+
+	vec3 dist3 = vec3(dist, op_onion(dist.y + 0.01, 0.01));
+
+	// >> non-debug implementation
+	// pre-filter the SDF for AA
+	const vec3 antialias_width = general_settings.antialias_radius*fwidth(dist3);
+	vec3 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist3);
+
+	float poly_alpha = max(0.25*alpha.y, alpha.z);
+
+	vec3 col = mix(vec3(1.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), alpha.x);
+	return vec4(col, alpha_fac * max(alpha.x, poly_alpha));
+	// <<
 }
 
 float grid_texture_fuzzy(in vec2 p, in float n) {
@@ -477,7 +559,46 @@ float clamp_remap(float v, vec4 r) {
 	return mix(r.z, r.w, t);
 }
 
-void splat_glyph(in vec2 uv, in glyph_desc gd, in float dist, in vec3 glyph_color, inout vec3 color) {
+vec4 splat_generic_glyph(in glyph_desc gd, in float dist, in vec3 glyph_color) {
+	
+	// debug only
+	// show otherwise not drawn glyphs
+	float alpha_fac = 1.0;
+	if((gd.debug_info & 0x1000) == 0) {
+		alpha_fac = 0.5; // make glyph half transparent
+		dist = op_onion(dist + 0.05, 0.05); // draw outline of glyph (keeps original size)
+	}
+
+	// >> non-debuig implementation
+	// pre-filter the SDF for AA
+	const float antialias_width = general_settings.antialias_radius*fwidth(dist);
+	float alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist);
+	return vec4(glyph_color, alpha_fac * alpha);
+	//return mix(glyph_color, color, smoothstep(-antialias_width, antialias_width, dist));
+	// <<
+}
+
+void finalize_glyph(in vec2 uv, in glyph_desc gd, in vec4 glyph_color, inout vec3 color) {
+
+	// the following is for debugging only
+	uint main_attrib_idx = (gd.debug_info>>2) & 0x0003;
+	uint interpolated_attrib_count = gd.debug_info & 0x0003;
+	
+	// color according to main attribute (the one, that induced the placement of this glyph)
+	glyph_color.rgb = vec3(0.0);
+	glyph_color.rgb[main_attrib_idx] = 1.0;
+
+	// >> non-debug implementation
+	color = mix(color, glyph_color.rgb, glyph_color.a);
+	// <<
+
+	// number overlay (debug only)
+	// draw a digit showing the number of interpolated attributes for the current glyph
+	vec2 digit_uv = -6.0 * uv;
+	color = mix(color, 1.0-color, digit(digit_uv, interpolated_attrib_count));
+}
+
+void splat_glyph2(in vec2 uv, in glyph_desc gd, in float dist, in vec3 glyph_color, inout vec3 color) {
 	// the following is for debugging only
 	uint main_attrib_idx = (gd.debug_info>>2) & 0x0003;
 	uint interpolated_attrib_count = gd.debug_info & 0x0003;

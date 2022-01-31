@@ -37,6 +37,8 @@ protected:
 
 	int attribute_index_to_int(cgv::type::DummyEnum index) const;
 
+	std::string to_display_str(const std::string& name) const;
+
 	void create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i);
 
 public:

@@ -46,7 +46,7 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 	if(!shape_ptr)
 		return;
 
-	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Isosceles Triangle,Drop'");
+	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Isosceles Triangle,Drop,Star'");
 
 	add_local_member_control(p, bp, "Color", color);
 
@@ -105,6 +105,7 @@ void glyph_attribute_mapping::create_glyph_shape() {
 	case GT_ARC_ROUNDED: shape_ptr = new rounded_arc_glyph(); break;
 	case GT_TRIANGLE: shape_ptr = new isoceles_triangle_glyph(); break;
 	case GT_DROP: shape_ptr = new drop_glyph(); break;
+	case GT_STAR: shape_ptr = new star_glyph(); break;
 	default: shape_ptr = new circle_glyph(); break;
 	}
 
@@ -139,6 +140,32 @@ int glyph_attribute_mapping::attribute_index_to_int(cgv::type::DummyEnum index) 
 	return static_cast<int>(index) - 1;
 }
 
+std::string glyph_attribute_mapping::to_display_str(const std::string& name) const {
+
+	if(name.length() > 0) {
+		std::string str = name;
+
+		bool up_next = false;
+		for(size_t i = 0; i < str.length(); ++i) {
+			if(i == 0) {
+				str[i] = toupper(name[i]);
+			} else {
+				if(name[i] == '_') {
+					str[i] = ' ';
+					up_next = true;
+				} else {
+					if(up_next) {
+						str[i] = toupper(name[i]);
+						up_next = false;
+					}
+				}
+			}
+		}
+		return str;
+	}
+	return name;
+}
+
 void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i) {
 	const glyph_attribute& attrib = shape_ptr->supported_attributes()[i];
 
@@ -151,9 +178,10 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 	default: break;
 	}
 
-	std::string label = attrib.name;
-	if(label.length() > 0)
-		label[0] = toupper(label[0]);
+	std::string label = to_display_str(attrib.name);
+	//if(label.length() > 0) {
+	//	label[0] = toupper(label[0]);
+	//}
 
 	p.add_decorator(label, "heading", "level=4");
 

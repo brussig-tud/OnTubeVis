@@ -86,7 +86,8 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 					layer_config.glyph_mapping_sources.push_back(0);
 				} else {
 					// mapped parameter
-					const std::string& attrib_name = attribs[j].name;
+					//const std::string& attrib_name = attribs[j].name;
+					const std::string& attrib_name = "v[" + std::to_string(mapped_attrib_parameter_names.size()) + "]";
 
 					std::string uniform_name = mapped_parameter_name_prefix + std::to_string(mapped_glyph_parameters.size());
 					parameter_str = "clamp_remap(current_glyph." + attrib_name + ", " + uniform_name + ")";
@@ -113,20 +114,30 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 				}
 			}
 
-			code = func_name_str + "(" + glyph_coord_str + ", ";
-
-			for(size_t j = 0; j < func_parameters_strs.size(); ++j) {
-				code += func_parameters_strs[j];
-				if(j < func_parameters_strs.size() - 1)
-					code += ", ";
-			}
-
-			code += ")";
-
+			// get glyph color
 			std::string color_str = constant_color_name_prefix + std::to_string(constant_glyph_colors.size());
 			constant_glyph_colors.push_back(std::make_pair(color_str, &gam.ref_color()));
 
-			code = "splat_glyph(glyphuv, current_glyph, " + code + ", " + color_str + ", color);";
+			// generate the glyph splat function
+			std::string splat_func = shape_ptr->splat_func();
+			if(splat_func == "") {
+				std::string glyph_func = func_name_str + "(" + glyph_coord_str + ", ";
+
+				for(size_t j = 0; j < func_parameters_strs.size(); ++j) {
+					glyph_func += func_parameters_strs[j];
+					if(j < func_parameters_strs.size() - 1)
+						glyph_func += ", ";
+				}
+
+				glyph_func += ")";
+
+				splat_func = "splat_generic_glyph(current_glyph, " + glyph_func + ", " + color_str + ")";
+			} else {
+				splat_func = "splat_star(current_glyph, " + glyph_coord_str + ", " + std::to_string(0.75f) + ", " + color_str + ")";
+			}
+
+			//code = "splat_glyph(glyphuv, current_glyph, " + splat_func + ", " + color_str + ", color);";
+			code = "finalize_glyph(glyphuv, current_glyph, " + splat_func + ", color);";
 		}
 	}
 
@@ -161,7 +172,7 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 		uniforms_str += ";";
 	}
 
-	std::string glyph_attrib_block = "";
+	/*std::string glyph_attrib_block = "";
 	if(mapped_attrib_parameter_names.size() > 0) {
 		glyph_attrib_block = "float ";
 		for(size_t i = 0; i < mapped_attrib_parameter_names.size(); ++i) {
@@ -170,13 +181,12 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 				glyph_attrib_block += ", ";
 		}
 		glyph_attrib_block += ";";
-	}
+	}*/
 
+	std::string glyph_attrib_block = "";
+	if(mapped_attrib_parameter_names.size() > 0)
+		glyph_attrib_block = "float v[" + std::to_string(mapped_attrib_parameter_names.size()) + "];";
 
-	//uniform_block = uniforms_str;
-	//glyph_block = code;
-	//uniform_value_ptrs = std::move(constant_glyph_parameters);
-	
 	layer_config.constant_parameters = constant_glyph_parameters;
 	layer_config.mapping_parameters = mapped_glyph_parameters;
 	layer_config.constant_colors = constant_glyph_colors;
