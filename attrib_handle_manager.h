@@ -36,10 +36,16 @@ public:
 	typedef typename traj_format_handler<real>::Color color;
 
 
-protected:
+private:
 
-	/// the handled dataset
-	const traj_dataset<real> *dataset = nullptr;
+	/// implementation forward
+	struct Impl;
+
+	/// implementation handle
+	Impl *pimpl;
+
+
+protected:
 
 	/// cleanup logic
 	void clear (void);
@@ -48,7 +54,10 @@ protected:
 public:
 
 	/// default constructor
-	attrib_handle_manager() {}
+	attrib_handle_manager();
+
+	/// the destructor
+	~attrib_handle_manager();
 
 	/// assign a dataset to handle
 	void set_dataset (const traj_dataset<real> &dataset);
