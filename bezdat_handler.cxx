@@ -332,6 +332,30 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (std::istream &contents)
 		return std::move(ret);
 
 	// ToDo: sort segments within each trajectory such that they form a series rather than a soup!!!
+	struct trajblock {
+		unsigned i0, i1;
+		unsigned n0, n1;
+	};
+	for (auto &traj : trajs)
+	{
+		std::vector<trajblock> blocks; blocks.reserve(2);
+		blocks.emplace_back(trajblock{0, 0, traj.front().n0, traj.front().n1});
+		for (unsigned i=1; i<traj.size(); i++)
+		{
+			auto &block = blocks.back();
+			const auto &seg = traj[i];
+			if (seg.n0 == traj[block.i1].n1)
+			{
+				// segment belongs to current block
+				block.i1 = i;
+				block.n1 = seg.n1;
+			}
+			else
+				// a new block begins
+				blocks.emplace_back(trajblock{i, i, seg.n0, seg.n1});
+		}
+		std::cout.flush();
+	}
 
 	// commit attributes to common curve representation
 	// - create attributes in dataset
