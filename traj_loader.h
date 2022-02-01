@@ -333,7 +333,7 @@ protected:
 	container_base *_data;
 
 	/// unique id of this attribute
-	unsigned id;
+	unsigned _id;
 
 
 public:
@@ -405,7 +405,10 @@ public:
 	traj_attribute& operator= (traj_attribute &&other);
 
 	/// report type of the stored attribute
-	AttribType type(void) const { return _type; }
+	AttribType type (void) const { return _type; }
+
+	/// return the unique ID of this attribute
+	unsigned id (void) const { return _id; }
 
 	/// query the number of datapoints for this attribute
 	unsigned num (void) const { return _data->num(); }

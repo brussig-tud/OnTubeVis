@@ -101,7 +101,7 @@ traj_attribute<flt_type>::container_base::~container_base()
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (const traj_attribute &other)
-	: _data(nullptr), _type(other._type), id(get_unique_id())
+	: _data(nullptr), _type(other._type), _id(get_unique_id())
 {
 	switch (other._type)
 	{
@@ -125,13 +125,13 @@ traj_attribute<flt_type>::traj_attribute (const traj_attribute &other)
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (traj_attribute &&other)
-	: _type(other._type), _data(other._data), id(other.id)
+	: _type(other._type), _data(other._data), _id(other._id)
 {
 	other._data = nullptr;
 }
 
 template <class flt_type>
-traj_attribute<flt_type>::traj_attribute (unsigned components) : _data(nullptr), id(get_unique_id())
+traj_attribute<flt_type>::traj_attribute (unsigned components) : _data(nullptr), _id(get_unique_id())
 {
 	switch (components)
 	{
@@ -160,7 +160,7 @@ traj_attribute<flt_type>::traj_attribute (unsigned components) : _data(nullptr),
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (const std::vector<real> &source, float tstart, float dt)
-	: _type(AttribType::SCALAR), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::SCALAR), _data(nullptr), _id(get_unique_id())
 {
 	// generate timestamps
 	std::vector<real> ts; ts.reserve(source.size());
@@ -172,7 +172,7 @@ traj_attribute<flt_type>::traj_attribute (const std::vector<real> &source, float
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, float tstart, float dt)
-	: _type(AttribType::SCALAR), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::SCALAR), _data(nullptr), _id(get_unique_id())
 {
 	// generate timestamps
 	std::vector<real> ts; ts.reserve(source.size());
@@ -184,21 +184,21 @@ traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, float tsta
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, const std::vector<real> &timestamps)
-	: _type(AttribType::SCALAR), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::SCALAR), _data(nullptr), _id(get_unique_id())
 {
 	_data = new container<real>(std::move(source), timestamps);
 }
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<real> &&source, std::vector<real> &&timestamps)
-	: _type(AttribType::SCALAR), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::SCALAR), _data(nullptr), _id(get_unique_id())
 {
 	_data = new container<real>(std::move(source), std::move(timestamps));
 }
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (const std::vector<Vec2> &source, float tstart, float dt)
-	: _type(AttribType::VEC2), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::VEC2), _data(nullptr), _id(get_unique_id())
 {
 	// generate timestamps
 	std::vector<real> ts; ts.reserve(source.size());
@@ -210,7 +210,7 @@ traj_attribute<flt_type>::traj_attribute (const std::vector<Vec2> &source, float
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<Vec2> &&source, float tstart, float dt)
-	: _type(AttribType::VEC2), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::VEC2), _data(nullptr), _id(get_unique_id())
 {
 	// generate timestamps
 	std::vector<real> ts; ts.reserve(source.size());
@@ -222,21 +222,21 @@ traj_attribute<flt_type>::traj_attribute (std::vector<Vec2> &&source, float tsta
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<Vec2> &&source, const std::vector<real> &timestamps)
-	: _type(AttribType::VEC2), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::VEC2), _data(nullptr), _id(get_unique_id())
 {
 	_data = new container<Vec2>(std::move(source), timestamps);
 }
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<Vec2> &&source, std::vector<real> &&timestamps)
-	: _type(AttribType::VEC2), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::VEC2), _data(nullptr), _id(get_unique_id())
 {
 	_data = new container<Vec2>(std::move(source), std::move(timestamps));
 }
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (const std::vector<Vec3> &source, float tstart, float dt)
-	: _type(AttribType::VEC3), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::VEC3), _data(nullptr), _id(get_unique_id())
 {
 	// generate timestamps
 	std::vector<real> ts; ts.reserve(source.size());
@@ -248,7 +248,7 @@ traj_attribute<flt_type>::traj_attribute (const std::vector<Vec3> &source, float
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<Vec3> &&source, float tstart, float dt)
-	: _type(AttribType::VEC3), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::VEC3), _data(nullptr), _id(get_unique_id())
 {
 	// generate timestamps
 	std::vector<real> ts; ts.reserve(source.size());
@@ -260,21 +260,21 @@ traj_attribute<flt_type>::traj_attribute (std::vector<Vec3> &&source, float tsta
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<Vec3> &&source, const std::vector<real> &timestamps)
-	: _type(AttribType::VEC3), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::VEC3), _data(nullptr), _id(get_unique_id())
 {
 	_data = new container<Vec3>(std::move(source), timestamps);
 }
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<Vec3> &&source, std::vector<real> &&timestamps)
-	: _type(AttribType::VEC3), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::VEC3), _data(nullptr), _id(get_unique_id())
 {
 	_data = new container<Vec3>(std::move(source), std::move(timestamps));
 }
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (const std::vector<Vec4> &source, float tstart, float dt)
-	: _type(AttribType::VEC4), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::VEC4), _data(nullptr), _id(get_unique_id())
 {
 	// generate timestamps
 	std::vector<real> ts; ts.reserve(source.size());
@@ -286,7 +286,7 @@ traj_attribute<flt_type>::traj_attribute (const std::vector<Vec4> &source, float
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<Vec4> &&source, float tstart, float dt)
-	: _type(AttribType::VEC4), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::VEC4), _data(nullptr), _id(get_unique_id())
 {
 	// generate timestamps
 	std::vector<real> ts; ts.reserve(source.size());
@@ -298,14 +298,14 @@ traj_attribute<flt_type>::traj_attribute (std::vector<Vec4> &&source, float tsta
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<Vec4> &&source, const std::vector<real> &timestamps)
-	: _type(AttribType::VEC4), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::VEC4), _data(nullptr), _id(get_unique_id())
 {
 	_data = new container<Vec4>(std::move(source), timestamps);
 }
 
 template <class flt_type>
 traj_attribute<flt_type>::traj_attribute (std::vector<Vec4> &&source, std::vector<real> &&timestamps)
-	: _type(AttribType::VEC4), _data(nullptr), id(get_unique_id())
+	: _type(AttribType::VEC4), _data(nullptr), _id(get_unique_id())
 {
 	_data = new container<Vec4>(std::move(source), std::move(timestamps));
 }
@@ -324,7 +324,7 @@ template <class flt_type>
 traj_attribute<flt_type>& traj_attribute<flt_type>::operator= (const traj_attribute &other)
 {
 	this->~traj_attribute();
-	id = get_unique_id();
+	_id = get_unique_id();
 	_type = other._type;
 	_data = other._data;
 	return *this;
@@ -334,7 +334,7 @@ template <class flt_type>
 traj_attribute<flt_type>& traj_attribute<flt_type>::operator= (traj_attribute &&other)
 {
 	this->~traj_attribute();
-	id = other.id;
+	_id = other._id;
 	_type = other._type;
 	std::swap(_data, other._data);
 	return *this;
@@ -1175,7 +1175,7 @@ template <class flt_type>
 bool traj_dataset<flt_type>::has_data (void) const
 {
 	const auto &impl = *pimpl;
-	return impl.positions && impl.trajs.find(impl.positions->id) != impl.trajs.end();
+	return impl.positions && impl.trajs.find(impl.positions->_id) != impl.trajs.end();
 }
 
 template <class flt_type>
@@ -1213,7 +1213,7 @@ std::vector<range>& traj_dataset<flt_type>::trajectories (const traj_attribute<r
 {
 	// Note: we blindly invoke the element-access operator here (compare to the const version of this function) since we assume that the
 	//       caller intends to create the trajectory entry if it doesn't yet exist and plans to commit the actual attribute data later on
-	return pimpl->trajs[attribute.id];
+	return pimpl->trajs[attribute._id];
 }
 
 template <class flt_type>
@@ -1279,7 +1279,7 @@ const std::vector<range>& traj_dataset<flt_type>::trajectories (const traj_attri
 {
 	// find index range and return it
 	const auto &impl = *pimpl;
-	const auto it = impl.trajs.find(attribute.id);
+	const auto it = impl.trajs.find(attribute._id);
 	return it != impl.trajs.end() ? it->second : impl.empty_default_trajectories;
 }
 
