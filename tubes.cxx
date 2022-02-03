@@ -51,8 +51,8 @@ tubes::tubes() : application_plugin("tubes_instance")
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
 	fbc.add_attachment("info", "uint32[R,G,B,A]");
 
-	cs_editor_ptr = register_overlay<cgv::glutil::color_scale_editor>("Color Scales");
-	cs_editor_ptr->set_visibility(false);
+	cm_editor_ptr = register_overlay<cgv::glutil::color_map_editor>("Color Scales");
+	cm_editor_ptr->set_visibility(false);
 
 	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
 	tf_editor_ptr->set_visibility(false);
@@ -537,8 +537,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 
 		// following variables only needed for debugging
 		unsigned min_a_idx = 0;
-		unsigned traj_glyph_count = 0;
-
+		
 
 
 		while(run) {
@@ -705,10 +704,6 @@ bool tubes::compile_glyph_attribs_new(void) {
 			}
 
 			run &= seg < num_segments;
-
-			// enable this to restrict the number of glyphs per segment (for debug purposes only)
-			//traj_glyph_count += 1;
-			//run &= traj_glyph_count < max_num_glyphs;
 		}
 
 		// update auxiliary indices
@@ -1007,6 +1002,26 @@ bool tubes::init (cgv::render::context &ctx)
 	compile_glyph_attribs();
 	ah_mgr.set_dataset(traj_mgr.dataset(0));
 	
+
+
+
+
+
+	// add one default color map
+	color_maps.push_back(cgv::glutil::color_map());
+
+	auto& cm = color_maps[0];
+	cm.add_color_point(0.0f, rgb(0.0f));
+	cm.add_color_point(1.0f, rgb(1.0f));
+
+
+
+
+
+
+
+
+
 	// done
 	return success;
 }
@@ -1193,7 +1208,6 @@ void tubes::create_gui (void)
 
 	if(begin_tree_node("Attribute Mapping", glyph_layer_mgr, true)) {
 		align("\a");
-		add_member_control(this, "Max #Glyphs", max_num_glyphs, "value_slider", "min=1;max=100;step=1;ticks=true");
 		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
 		glyph_layer_mgr.create_gui(this, *this);
 		align("\b");
@@ -1211,12 +1225,14 @@ void tubes::create_gui (void)
 
 	//connect_copy(add_button("Generate Shader Code")->click, cgv::signal::rebind(this, &tubes::test_shader_code_generation));
 	
-	if(begin_tree_node("Color Scales", cs_editor_ptr, false)) {
+	connect_copy(add_button("Set Color Scale")->click, cgv::signal::rebind(this, &tubes::edit_color_map));
+
+	if(begin_tree_node("Color Scales", cm_editor_ptr, false)) {
 		align("\a");
 		//cs_editor_ptr->create_gui(*this);
-		inline_object_gui(cs_editor_ptr);
+		inline_object_gui(cm_editor_ptr);
 		align("\b");
-		end_tree_node(cs_editor_ptr);
+		end_tree_node(cm_editor_ptr);
 	}
 
 	if(begin_tree_node("Transfer Function Editor", tf_editor_ptr, false)) {
@@ -1696,6 +1712,12 @@ shader_define_map tubes::build_tube_shading_defines() {
 	shader_code::set_define(defines, "GLYPH_ATTRIBUTES_DEFINITION", glyph_layers_config.shader_config.attribute_buffer_definition, std::string("float v[1];"));
 	shader_code::set_define(defines, "GLYPH_LAYER_DEFINITION", glyph_layers_config.shader_config.glyph_layers_definition, std::string(""));
 	return defines;
+}
+
+void tubes::edit_color_map() {
+	if(cm_editor_ptr) {
+		cm_editor_ptr->set_color_map(&color_maps[0]);
+	}
 }
 
 ////

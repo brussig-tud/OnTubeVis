@@ -22,14 +22,14 @@
 #include <cgv_glutil/radix_sort_4way.h>
 #include <cgv_glutil/shader_library.h>
 #include <cgv_glutil/sphere_render_data.h>
-#include <cgv_glutil/color_scale_editor.h>
+#include <cgv_glutil/color_map_editor.h>
 #include <cgv_glutil/transfer_function_editor.h>
 
 // local includes
 #include "traj_loader.h"
 #include "demo.h" // interactive testbed helper classes and data
 #include "attrib_handle_manager.h"
-#include "hermite_spline_tube.h"
+//#include "hermite_spline_tube.h"
 #include "voxelizer.h"
 #include "ambient_occlusion_style.h"
 #include "glyph_layer_manager.h"
@@ -98,7 +98,7 @@ public:
 	
 
 protected:
-	cgv::glutil::color_scale_editor* cs_editor_ptr;
+	cgv::glutil::color_map_editor* cm_editor_ptr;
 	cgv::glutil::transfer_function_editor* tf_editor_ptr;
 	cgv::glutil::navigator* navigator_ptr;
 
@@ -252,7 +252,12 @@ protected:
 	glyph_layer_manager glyph_layer_mgr;
 	int recreate_gui_requested = 0;
 
-	unsigned max_num_glyphs = 10;
+	std::vector<cgv::glutil::color_map> color_maps;
+	
+	void edit_color_map();
+	
+
+
 
 
 
@@ -279,8 +284,6 @@ protected:
 	void update_attribute_bindings(void);
 	void calculate_bounding_box(void);
 
-	int sample_voxel(const ivec3& vidx, const quadratic_bezier_tube& qt);
-	void voxelize_q_tube(const quadratic_bezier_tube& qt);
 	void create_density_volume(context& ctx, unsigned resolution);
 
 	/// draw methods
