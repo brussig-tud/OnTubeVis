@@ -39,7 +39,7 @@ struct glyph_attribute {
 	GlyphAttributeType type;
 	GlyphAttributeModifier modifiers = GAM_NONE;
 
-	glyph_attribute(std::string name, GlyphAttributeType type) : name(name), type(type), modifiers(modifiers) {}
+	glyph_attribute(std::string name, GlyphAttributeType type) : name(name), type(type) {}
 	glyph_attribute(std::string name, GlyphAttributeType type, GlyphAttributeModifier modifiers) : name(name), type(type), modifiers(modifiers) {}
 };
 

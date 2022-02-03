@@ -250,7 +250,6 @@ protected:
 
 
 	glyph_layer_manager glyph_layer_mgr;
-	int recreate_gui_requested = 0;
 
 	std::vector<cgv::glutil::color_map> color_maps;
 	

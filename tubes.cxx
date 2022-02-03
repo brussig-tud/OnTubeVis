@@ -301,8 +301,6 @@ void tubes::on_set(void *member_ptr) {
 			tube_shading_defines = build_tube_shading_defines();
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
-			// TODO: this is bad, but fixing it has to be done in the framework
-			//recreate_gui_requested = 50;
 			post_recreate_gui();
 		}
 	}
@@ -1107,18 +1105,6 @@ void tubes::init_frame (cgv::render::context &ctx)
 			last_seconds_since_start = 0.0;
 		}
 	}
-
-	// very brutal "hotfix" for fltk/framework gui issues
-	// Selecting an option from a dropdown menu and updating the gui (using post_recreate_gui) directly afterwards can result in program crashes.
-	if(recreate_gui_requested > 0) {
-		recreate_gui_requested -= 1;
-		if(recreate_gui_requested == 0)
-			post_recreate_gui();
-		else
-			post_redraw();
-	}
-		
-	//recreate_gui_requested = false;
 
 	srd.clear();
 	srd.add(vec3(0.0f), 1.0f, rgb(1, 0, 0));
