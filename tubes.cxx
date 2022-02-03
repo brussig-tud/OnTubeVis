@@ -302,8 +302,8 @@ void tubes::on_set(void *member_ptr) {
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
 			// TODO: this is bad, but fixing it has to be done in the framework
-			recreate_gui_requested = 50;
-			//post_recreate_gui();
+			//recreate_gui_requested = 50;
+			post_recreate_gui();
 		}
 	}
 
