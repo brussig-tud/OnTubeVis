@@ -17,21 +17,30 @@ enum GlyphType {
 	GT_ARC_ROUNDED = 4,
 	GT_TRIANGLE = 5,
 	GT_DROP = 6,
-	GT_STAR
+	GT_STAR = 7
 };
 
 enum GlyphAttributeType {
 	GAT_SIZE = 0, // value in [0,inf) determining radius, length or scale in general
 	GAT_ANGLE = 1, // value in [0,360] giving angle in degree
 	GAT_DOUBLE_ANGLE = 2, // value in [0,360] giving angle in degree (divided by 2 for the actual mapping)
-	GAT_ORIENTATION = 3 // value in [0,360] giving angle in degree used specifically to orient the glyph
+	GAT_ORIENTATION = 3, // value in [0,360] giving angle in degree used specifically to orient the glyph
+	GAT_COLOR = 4, // rgb color
+};
+
+enum GlyphAttributeModifier {
+	GAM_NONE = 0,
+	GAM_GLOBAL = 1, // global attributes are always constant (overrides non-const)
+	GAM_NON_CONST = 2, // cannot be set to constant value
 };
 
 struct glyph_attribute {
 	std::string name;
 	GlyphAttributeType type;
+	GlyphAttributeModifier modifiers = GAM_NONE;
 
-	glyph_attribute(std::string name, GlyphAttributeType type) : name(name), type(type) {}
+	glyph_attribute(std::string name, GlyphAttributeType type) : name(name), type(type), modifiers(modifiers) {}
+	glyph_attribute(std::string name, GlyphAttributeType type, GlyphAttributeModifier modifiers) : name(name), type(type), modifiers(modifiers) {}
 };
 
 class glyph_shape : public cgv::render::render_types {
@@ -259,9 +268,13 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "axis_0", GAT_SIZE }
-			//{ "axis_1", GAT_SIZE },
-			//{ "axis_2", GAT_SIZE }
+			{ "radius", GAT_SIZE, GAM_GLOBAL },
+			{ "color0", GAT_COLOR, GAM_GLOBAL },
+			{ "axis_0", GAT_SIZE, GAM_NON_CONST },
+			//{ "color1", (GlyphAttributeType)(GAT_COLOR | GAT_GLOBAL) },
+			{ "axis_1", GAT_SIZE, GAM_NON_CONST },
+			//{ "color2", (GlyphAttributeType)(GAT_COLOR | GAT_GLOBAL) },
+			{ "axis_2", GAT_SIZE, GAM_NON_CONST }
 		};
 		return attributes;
 	}

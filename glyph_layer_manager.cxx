@@ -22,6 +22,16 @@ void glyph_layer_manager::set_attribute_ranges(const std::vector<vec2>& ranges) 
 
 const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configuration() {
 
+	const auto join = [](const std::vector<std::string>& strings, const std::string& delimiter, bool trailing_delimiter = false) {
+		std::string result = "";
+		for(size_t i = 0; i < strings.size(); ++i) {
+			result += strings[i];
+			if(i < strings.size() - 1 || trailing_delimiter)
+				result += delimiter;
+		}
+		return result;
+	};
+
 	// initialize local variables
 	const std::string constant_parameter_name_prefix = "glyph_c_param";
 	const std::string mapped_parameter_name_prefix = "glyph_m_param";
@@ -38,14 +48,7 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 	layer_config.shapes.clear();
 	layer_config.mapped_attributes.clear();
 	layer_config.glyph_mapping_sources.clear();
-
-	/*auto rgb_to_glsl_str = [](const rgb& col) {
-		std::string str = "vec3(";
-		str += std::to_string(col.R()) + ", ";
-		str += std::to_string(col.G()) + ", ";
-		str += std::to_string(col.B()) + ")";
-		return str;
-	};*/
+	layer_config.shader_config.mapped_attrib_count = 0;
 
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		const glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
@@ -65,52 +68,58 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 			const std::vector<int> attrib_indices = gam.get_attrib_indices();
 			const std::vector<vec4>& attrib_values = gam.ref_attrib_values();
 
-			std::vector<std::string> func_parameters_strs;
+			std::vector<std::string> global_func_parameters_strs;
+			std::vector<std::string> mapped_func_parameters_strs;
 
 			for(size_t j = 0; j < attrib_indices.size(); ++j) {
+				int idx = attrib_indices[j];
+				GlyphAttributeType type = attribs[j].type;
+				GlyphAttributeModifier modifiers = attribs[j].modifiers;
+				bool is_global = modifiers & GAM_GLOBAL;
+				bool is_non_const = modifiers & GAM_NON_CONST;
+
 				std::string parameter_str = "";
 
-				if(attrib_indices[j] < 0) {
+				// skipt this parameter if it is not mapped from an attribute and does not allow constant values
+				if(idx < 0 && is_non_const && !is_global)
+					continue;
+
+				if(idx < 0 || is_global) {
 					// constant non-mapped parameter
 					std::string uniform_name = constant_parameter_name_prefix + std::to_string(constant_glyph_parameters.size());
-
-					switch(attribs[j].type) {
-					case GAT_ORIENTATION:
-					case GAT_SIZE: parameter_str = uniform_name; break;
-					case GAT_ANGLE: parameter_str = "radians(" + uniform_name + ")"; break;
-					case GAT_DOUBLE_ANGLE: parameter_str = "radians(0.5*" + uniform_name + ")"; break;
-					default: break;
-					}
+					parameter_str = uniform_name;
 
 					constant_glyph_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j][3]));
+					// TODO: enable usage of global params in mapping sources (is this needed?)
 					layer_config.glyph_mapping_sources.push_back(0);
 				} else {
 					// mapped parameter
-					//const std::string& attrib_name = attribs[j].name;
-					const std::string& attrib_name = "v[" + std::to_string(mapped_attrib_parameter_names.size()) + "]";
-
-					std::string uniform_name = mapped_parameter_name_prefix + std::to_string(mapped_glyph_parameters.size());
-					parameter_str = "clamp_remap(current_glyph." + attrib_name + ", " + uniform_name + ")";
-
-					switch(attribs[j].type) {
-					case GAT_ORIENTATION:
-					case GAT_SIZE: parameter_str = parameter_str; break;
-					case GAT_ANGLE: parameter_str = "radians(" + parameter_str + ")"; break;
-					case GAT_DOUBLE_ANGLE: parameter_str = "radians(0.5*" + parameter_str + ")"; break;
-					default: break;
-					}
+					const std::string& attrib_variable_name = "v[" + std::to_string(mapped_attrib_parameter_names.size()) + "]";
+					//std::string uniform_name = mapped_parameter_name_prefix + std::to_string(mapped_glyph_parameters.size());
+					std::string uniform_name = mapped_parameter_name_prefix + "[" + std::to_string(mapped_glyph_parameters.size()) + "]";
+					parameter_str = "clamp_remap(current_glyph." + attrib_variable_name + ", " + uniform_name + ")";
 
 					mapped_glyph_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j]));
-
-					mapped_attrib_parameter_names.push_back(attrib_name);
-					layer_config.mapped_attributes.push_back(attrib_indices[j]);
+					mapped_attrib_parameter_names.push_back(attrib_variable_name);
+					layer_config.mapped_attributes.push_back(idx);
 					layer_config.glyph_mapping_sources.push_back(1);
 				}
 
-				if(attribs[j].type == GAT_ORIENTATION) {
-					glyph_coord_str = "rotate(glyphuv, radians(" + parameter_str + "))";
+				switch(type) {
+				case GAT_SIZE: parameter_str = parameter_str; break;
+				case GAT_ORIENTATION:
+				case GAT_ANGLE: parameter_str = "radians(" + parameter_str + ")"; break;
+				case GAT_DOUBLE_ANGLE: parameter_str = "radians(0.5*" + parameter_str + ")"; break;
+				default: break;
+				}
+
+				if(type == GAT_ORIENTATION) {
+					glyph_coord_str = "rotate(glyphuv, " + parameter_str + ")";
 				} else {
-					func_parameters_strs.push_back(parameter_str);
+					if(is_global)
+						global_func_parameters_strs.push_back(parameter_str);
+					else
+						mapped_func_parameters_strs.push_back(parameter_str);
 				}
 			}
 
@@ -122,18 +131,16 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 			std::string splat_func = shape_ptr->splat_func();
 			if(splat_func == "") {
 				std::string glyph_func = func_name_str + "(" + glyph_coord_str + ", ";
-
-				for(size_t j = 0; j < func_parameters_strs.size(); ++j) {
-					glyph_func += func_parameters_strs[j];
-					if(j < func_parameters_strs.size() - 1)
-						glyph_func += ", ";
-				}
-
+				glyph_func += join(global_func_parameters_strs, ", ", true);
+				glyph_func += join(mapped_func_parameters_strs, ", ");
 				glyph_func += ")";
 
 				splat_func = "splat_generic_glyph(current_glyph, " + glyph_func + ", " + color_str + ")";
 			} else {
-				splat_func = "splat_star(current_glyph, " + glyph_coord_str + ", " + std::to_string(0.75f) + ", " + color_str + ")";
+				// TODO: check in glpyh shape if global or constant/mapped params are used
+				std::string global_params_str = join(global_func_parameters_strs, ", ");// +(global_func_parameters_strs.size() > 0 ? ", " : "");
+
+				splat_func += "(current_glyph, " + glyph_coord_str + ", " + global_params_str + ", " + color_str + ")";
 			}
 
 			//code = "splat_glyph(glyphuv, current_glyph, " + splat_func + ", " + color_str + ", color);";
@@ -141,6 +148,7 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 		}
 	}
 
+	// TODO: uniforms for constant parameters as array?
 	std::string uniforms_str = "";
 	if(constant_glyph_parameters.size() > 0) {
 		uniforms_str = "uniform float ";
@@ -152,7 +160,7 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 		uniforms_str += ";";
 	}
 
-	if(mapped_glyph_parameters.size() > 0) {
+	/*if(mapped_glyph_parameters.size() > 0) {
 		uniforms_str += "uniform vec4 ";
 		for(size_t i = 0; i < mapped_glyph_parameters.size(); ++i) {
 			uniforms_str += mapped_glyph_parameters[i].first;
@@ -160,7 +168,10 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 				uniforms_str += ", ";
 		}
 		uniforms_str += ";";
-	}
+	}*/
+
+	if(mapped_glyph_parameters.size() > 0)
+		uniforms_str += "uniform vec4 " + mapped_parameter_name_prefix + "[" + std::to_string(mapped_glyph_parameters.size()) + "];";
 
 	if(constant_glyph_colors.size() > 0) {
 		uniforms_str += "uniform vec3 ";
@@ -192,13 +203,16 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 	layer_config.constant_colors = constant_glyph_colors;
 
 	// save shader configuration
+	layer_config.shader_config.mapped_attrib_count = mapped_attrib_parameter_names.size();
 	layer_config.shader_config.uniforms_definition = uniforms_str;
 	layer_config.shader_config.glyph_layers_definition = code;
 	layer_config.shader_config.attribute_buffer_definition = glyph_attrib_block;
 
-	std::cout << std::endl << std::endl << uniforms_str << std::endl << std::endl;
-	std::cout << glyph_attrib_block << std::endl << std::endl;
-	std::cout << code << std::endl << std::endl;
+	std::cout << std::endl << ">>> SHADER DEFINES <<<" << std::endl;
+	std::cout << uniforms_str << std::endl;
+	std::cout << glyph_attrib_block << std::endl;
+	std::cout << code << std::endl;
+	std::cout << ">>> ============== <<<" << std::endl << std::endl;
 
 	return layer_config;
 }

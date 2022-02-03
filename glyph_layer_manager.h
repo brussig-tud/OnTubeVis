@@ -23,6 +23,7 @@ public:
 		std::vector<int> mapped_attributes;
 
 		struct shader_configuration {
+			unsigned mapped_attrib_count = 0;
 			std::string uniforms_definition = "";
 			std::string attribute_buffer_definition = "";
 			std::string glyph_layers_definition = "";

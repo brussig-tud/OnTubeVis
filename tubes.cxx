@@ -1691,8 +1691,9 @@ shader_define_map tubes::build_tube_shading_defines() {
 	shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
-	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.shader_config.uniforms_definition, std::string(""));
-	shader_code::set_define(defines, "GLYPH_ATTRIBUTES_DEFINITION", glyph_layers_config.shader_config.attribute_buffer_definition, std::string("float radius0, radius1, angle0, angle1;"));
+	shader_code::set_define(defines, "MAPPED_ATTRIBUTE_COUNT", glyph_layers_config.shader_config.mapped_attrib_count, 1u);
+	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.shader_config.uniforms_definition, std::string("vec4 glyph_m_param[MAPPED_ATTRIBUTE_COUNT];"));
+	shader_code::set_define(defines, "GLYPH_ATTRIBUTES_DEFINITION", glyph_layers_config.shader_config.attribute_buffer_definition, std::string("float v[1];"));
 	shader_code::set_define(defines, "GLYPH_LAYER_DEFINITION", glyph_layers_config.shader_config.glyph_layers_definition, std::string(""));
 	return defines;
 }

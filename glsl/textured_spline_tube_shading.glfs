@@ -4,8 +4,9 @@
 #define GRID_MODE 1
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
-#define GLYPH_MAPPING_UNIFORMS
-#define GLYPH_ATTRIBUTES_DEFINITION float radius0, radius1, angle0, angle1;
+#define MAPPED_ATTRIBUTE_COUNT 1
+#define GLYPH_MAPPING_UNIFORMS vec4 glyph_m_param[MAPPED_ATTRIBUTE_COUNT];
+#define GLYPH_ATTRIBUTES_DEFINITION float v[1];
 #define GLYPH_LAYER_DEFINITION
 
 //***** begin interface of view.glsl ***********************************
@@ -196,6 +197,20 @@ vec2 rotate(in vec2 p, in float a) {
 	return rot_mat(a) * p;
 }
 
+// remap value v from range [r.x,r.y] to [r.z,r.w]
+float remap(float v, vec4 r) {
+	float t = (v - r.x) / (r.y - r.x);
+	return mix(r.z, r.w, t);
+}
+
+// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
+float clamp_remap(float v, vec4 r) {
+	v = clamp(v, r.x, r.y);
+	float t = (v - r.x) / (r.y - r.x);
+	return mix(r.z, r.w, t);
+}
+
+// SDF operations
 float op_union(float d0, float d1) {
   return min(d0, d1);
 }
@@ -305,11 +320,11 @@ float sd_segment(in vec2 p, in vec2 a, in vec2 b) {
     return length( pa - ba*h );
 }
 
-const int N = 3;
-float sd_polygon(in vec2 p, in vec2[N] v) {
+#if MAPPED_ATTRIBUTE_COUNT > 0
+float sd_polygon(in vec2 p, in vec2[MAPPED_ATTRIBUTE_COUNT] v) {
     float d = dot(p-v[0],p-v[0]);
     float s = 1.0;
-    for( int i=0, j=N-1; i<N; j=i, i++ )
+    for( int i=0, j=MAPPED_ATTRIBUTE_COUNT-1; i<MAPPED_ATTRIBUTE_COUNT; j=i, i++ )
     {
         vec2 e = v[j] - v[i];
         vec2 w =    p - v[i];
@@ -321,22 +336,24 @@ float sd_polygon(in vec2 p, in vec2[N] v) {
     return s*sqrt(d);
 }
 
-vec2 sd_star(vec2 p, float r) {
+vec2 sd_star(vec2 p, float r, in glyph_desc gd) {
 	vec2 org = vec2(0.0);
 
-	float v[N] = float[N](0.9, 0.7, 0.5);
+	//float v[MAPPED_ATTRIBUTE_COUNT] = float[MAPPED_ATTRIBUTE_COUNT](0.9);
 
 	float d_axes = 1e20;
 	float d_poly = 1e20;
 	float thickness = 0.01;
 
-	vec2 ps[N];
+	vec2 ps[MAPPED_ATTRIBUTE_COUNT];
 
-	for(int i = 0; i < N; ++i) {
-		float angle = 2.0*M_PI * (i / float(N));
+	for(int i = 0; i < MAPPED_ATTRIBUTE_COUNT; ++i) {
+		float v = clamp_remap(gd.v[i], glyph_m_param[i]);
+
+		float angle = 2.0*M_PI * (i / float(MAPPED_ATTRIBUTE_COUNT));
 		mat2 R = rot_mat(angle);
 		vec2 end = R * vec2(0.0, r);
-		vec2 pp = R * vec2(0.0, r*v[i]);
+		vec2 pp = R * vec2(0.0, r*v);
 		ps[i] = pp;
 		d_axes = op_union(d_axes, sd_segment(p, org, end) - thickness);
 	}
@@ -345,9 +362,14 @@ vec2 sd_star(vec2 p, float r) {
 
 	return vec2(d_axes, d_poly);
 }
+#endif
 
 vec4 splat_star(in glyph_desc gd, in vec2 p, in float r, in vec3 glyph_color) {
-	vec2 dist = sd_star(p, r);
+#if MAPPED_ATTRIBUTE_COUNT > 0
+	vec2 dist = sd_star(p, r, gd);
+#else
+	vec2 dist = vec2(1e20);
+#endif
 
 	// debug only
 	// show otherwise not drawn glyphs
@@ -371,6 +393,7 @@ vec4 splat_star(in glyph_desc gd, in vec2 p, in float r, in vec3 glyph_color) {
 	return vec4(col, alpha_fac * max(alpha.x, poly_alpha));
 	// <<
 }
+
 
 float grid_texture_fuzzy(in vec2 p, in float n) {
 	// coordinates
@@ -546,19 +569,6 @@ float digit(vec2 uv, uint num) {
 	return seg;
 }
 
-// remap value v from range [r.x,r.y] to [r.z,r.w]
-float remap(float v, vec4 r) {
-	float t = (v - r.x) / (r.y - r.x);
-	return mix(r.z, r.w, t);
-}
-
-// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
-float clamp_remap(float v, vec4 r) {
-	v = clamp(v, r.x, r.y);
-	float t = (v - r.x) / (r.y - r.x);
-	return mix(r.z, r.w, t);
-}
-
 vec4 splat_generic_glyph(in glyph_desc gd, in float dist, in vec3 glyph_color) {
 	
 	// debug only
@@ -585,8 +595,8 @@ void finalize_glyph(in vec2 uv, in glyph_desc gd, in vec4 glyph_color, inout vec
 	uint interpolated_attrib_count = gd.debug_info & 0x0003;
 	
 	// color according to main attribute (the one, that induced the placement of this glyph)
-	glyph_color.rgb = vec3(0.0);
-	glyph_color.rgb[main_attrib_idx] = 1.0;
+	//glyph_color.rgb = vec3(0.0);
+	//glyph_color.rgb[main_attrib_idx] = 1.0;
 
 	// >> non-debug implementation
 	color = mix(color, glyph_color.rgb, glyph_color.a);
@@ -673,7 +683,8 @@ void main()
 
 		//frag_color = vec4(uv.s, uv.t, 0.0, 1.0);
 		
-		if((segment_id&1) > 0) color *= 0.5;
+		// enable to highlight individual segments
+		//if((segment_id&1) > 0) color *= 0.5;
 
 		closest_glyphs_info closest;
 		if (get_closest_samples(closest, segment_id, uv.s))

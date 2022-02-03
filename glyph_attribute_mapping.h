@@ -19,9 +19,10 @@ protected:
 	GlyphType type = GT_CIRCLE;
 	glyph_shape* shape_ptr = nullptr;
 
-	rgb color;
 	std::vector<cgv::type::DummyEnum> attrib_source_indices;
 	std::vector<vec4> attrib_mapping_values;
+	std::vector<rgb> attrib_colors;
+	rgb color = rgb(0.0f);
 
 	void on_set(void* member_ptr, cgv::base::base* base_ptr);
 

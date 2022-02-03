@@ -1,7 +1,6 @@
 #include "glyph_attribute_mapping.h"
 
 glyph_attribute_mapping::glyph_attribute_mapping() {
-	color = rgb(0.0f);
 	create_glyph_shape();
 }
 
@@ -9,9 +8,9 @@ glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& 
 	type = r.type;
 	if(r.shape_ptr)
 		shape_ptr = r.shape_ptr->clone();
-	color = r.color;
 	attrib_source_indices = r.attrib_source_indices;
 	attrib_mapping_values = r.attrib_mapping_values;
+	attrib_colors = r.attrib_colors;
 	attribute_names = r.attribute_names;
 	attribute_ranges = r.attribute_ranges;
 }
@@ -47,7 +46,6 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 		return;
 
 	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Isosceles Triangle,Drop,Star'");
-
 	add_local_member_control(p, bp, "Color", color);
 
 	for(size_t i = 0; i < shape_ptr->supported_attributes().size(); ++i)
@@ -111,6 +109,8 @@ void glyph_attribute_mapping::create_glyph_shape() {
 
 	attrib_source_indices.clear();
 	attrib_mapping_values.clear();
+	attrib_colors.clear();
+
 	size_t attrib_count = shape_ptr->supported_attributes().size();
 	attrib_source_indices.resize(attrib_count, static_cast<cgv::type::DummyEnum>(0));
 
@@ -134,6 +134,8 @@ void glyph_attribute_mapping::create_glyph_shape() {
 
 		attrib_mapping_values.push_back(ranges);
 	}
+
+	attrib_colors.resize(attrib_count, rgb(0.0f));
 }
 
 int glyph_attribute_mapping::attribute_index_to_int(cgv::type::DummyEnum index) const {
@@ -179,27 +181,37 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 	}
 
 	std::string label = to_display_str(attrib.name);
-	//if(label.length() > 0) {
-	//	label[0] = toupper(label[0]);
-	//}
+	
+	bool is_global = attrib.modifiers & GAM_GLOBAL;
+	bool is_non_const = attrib.modifiers & GAM_NON_CONST;
 
-	p.add_decorator(label, "heading", "level=4");
+	std::string value_label = label;
 
+	if(!is_global) {
+		value_label = "Value";
+		p.add_decorator(label, "heading", "level=4");
 
-	std::string attrib_names_enums = "_,";
-	for(size_t i = 0; i < attribute_names.size(); ++i) {
-		attrib_names_enums += attribute_names[i];
-		if(i < attribute_names.size() - 1)
-			attrib_names_enums += ",";
+		std::string attrib_names_enums = "-,";
+		if(is_non_const)
+			attrib_names_enums = "(disabled),";
+		for(size_t i = 0; i < attribute_names.size(); ++i) {
+			attrib_names_enums += attribute_names[i];
+			if(i < attribute_names.size() - 1)
+				attrib_names_enums += ",";
+		}
+
+		add_local_member_control(p, bp, "Source Attribute", attrib_source_indices[i], "dropdown", "enums='" + attrib_names_enums + "'");
 	}
-
-	//add_local_member_control(p, bp, "Attribute", attrib_source_indices[i], "value", "min=-1;max=10;step=1;ticks=true");
-	add_local_member_control(p, bp, "Source Attribute", attrib_source_indices[i], "dropdown", "enums='" + attrib_names_enums + "'");
 
 	int selected_attrib_src_idx = attribute_index_to_int(attrib_source_indices[i]);
 
-	if(selected_attrib_src_idx < 0) {
-		add_local_member_control(p, bp, "Value", attrib_mapping_values[i][3], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
+	if(selected_attrib_src_idx < 0 || is_global) {
+		if(attrib.type == GAT_COLOR)
+			add_local_member_control(p, bp, value_label, attrib_colors[i]);
+		else
+			add_local_member_control(p, bp, value_label, attrib_mapping_values[i][3], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
+
+		//add_local_member_control(p, bp, value_label, *reinterpret_cast<rgb*>(&attrib_mapping_values[i]));
 	} else {
 		const vec2& range = attribute_ranges[selected_attrib_src_idx];
 		std::string options_str = "min=" + std::to_string(range.x()) + ";max=" + std::to_string(range.y()) + ";step=0.001;ticks=true";
