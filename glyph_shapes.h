@@ -54,6 +54,13 @@ public:
 	virtual std::string name() const = 0;
 	virtual const attribute_list& supported_attributes() const = 0;
 
+	virtual size_t num_size_attribs() const {
+		size_t n = 0;
+		for(size_t i = 0; i < supported_attributes().size(); ++i)
+			if(supported_attributes()[i].type != GAT_COLOR) ++n;
+		return n;
+	}
+
 	virtual float get_size(const std::vector<float>& param_values) const {
 		return 0.0f;
 	};
@@ -75,7 +82,8 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "radius", GAT_SIZE }
+			{ "color", GAT_COLOR },
+			{ "radius", GAT_SIZE },
 		};
 		return attributes;
 	}
@@ -98,6 +106,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "color", GAT_COLOR, GAM_GLOBAL },
 			{ "length", GAT_SIZE },
 			{ "height", GAT_SIZE }
 		};
@@ -122,6 +131,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "color", GAT_COLOR, GAM_GLOBAL },
 			{ "radius", GAT_SIZE },
 			{ "aperture", GAT_DOUBLE_ANGLE },
 			{ "orientation", GAT_ORIENTATION }
@@ -148,6 +158,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "color", GAT_COLOR, GAM_GLOBAL },
 			{ "radius", GAT_SIZE },
 			{ "thickness", GAT_SIZE },
 			{ "aperture", GAT_DOUBLE_ANGLE },
@@ -186,6 +197,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "color", GAT_COLOR, GAM_GLOBAL },
 			{ "base_width", GAT_SIZE },
 			{ "height", GAT_SIZE },
 			{ "orientation", GAT_ORIENTATION }
@@ -247,6 +259,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "color", GAT_COLOR, GAM_GLOBAL },
 			{ "base_radius", GAT_SIZE },
 			{ "tip_radius", GAT_SIZE },
 			{ "height", GAT_SIZE },
@@ -268,13 +281,14 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "color", GAT_COLOR, GAM_GLOBAL },
 			{ "radius", GAT_SIZE, GAM_GLOBAL },
-			{ "color0", GAT_COLOR, GAM_GLOBAL },
 			{ "axis_0", GAT_SIZE, GAM_NON_CONST },
-			//{ "color1", (GlyphAttributeType)(GAT_COLOR | GAT_GLOBAL) },
+			{ "color_0", GAT_COLOR, GAM_GLOBAL },
 			{ "axis_1", GAT_SIZE, GAM_NON_CONST },
-			//{ "color2", (GlyphAttributeType)(GAT_COLOR | GAT_GLOBAL) },
-			{ "axis_2", GAT_SIZE, GAM_NON_CONST }
+			{ "color_1", GAT_COLOR, GAM_GLOBAL },
+			{ "axis_2", GAT_SIZE, GAM_NON_CONST },
+			{ "color_2", GAT_COLOR, GAM_GLOBAL }
 		};
 		return attributes;
 	}

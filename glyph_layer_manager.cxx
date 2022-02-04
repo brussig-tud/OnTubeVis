@@ -20,6 +20,10 @@ void glyph_layer_manager::set_attribute_ranges(const std::vector<vec2>& ranges) 
 	}
 }
 
+const std::string glyph_layer_manager::layer_configuration::constant_float_parameter_name_prefix = "glyph_cf_param";
+const std::string glyph_layer_manager::layer_configuration::constant_color_parameter_name_prefix = "glyph_cc_param";
+const std::string glyph_layer_manager::layer_configuration::mapped_parameter_name_prefix = "glyph_m_param";
+
 const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configuration() {
 
 	const auto join = [](const std::vector<std::string>& strings, const std::string& delimiter, bool trailing_delimiter = false) {
@@ -32,23 +36,10 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 		return result;
 	};
 
-	// initialize local variables
-	const std::string constant_parameter_name_prefix = "glyph_c_param";
-	const std::string mapped_parameter_name_prefix = "glyph_m_param";
-	const std::string constant_color_name_prefix = "cglyph_color";
-
-	std::vector<std::pair<std::string, const float*>> constant_glyph_parameters;
-	std::vector<std::pair<std::string, const vec4*>> mapped_glyph_parameters;
-	std::vector<std::pair<std::string, const rgb*>> constant_glyph_colors;
-	std::vector<std::string> mapped_attrib_parameter_names;
-
-	std::string code = "";
-
 	// clear previous configuration
-	layer_config.shapes.clear();
-	layer_config.mapped_attributes.clear();
-	layer_config.glyph_mapping_sources.clear();
-	layer_config.shader_config.mapped_attrib_count = 0;
+	layer_config.clear();
+
+	std::string glyph_layers_definition = "";
 
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		const glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
@@ -63,13 +54,21 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 
 			std::string func_name_str = "sd_" + shape_ptr->name();
 			std::string glyph_coord_str = "glyphuv";
-			std::string func_parameters_str = "";
+			
+			/*
+			std::vector<std::string> constant_float_parameters_strs;
+			std::vector<std::string> mapped_float_parameters_strs;
+			std::vector<std::string> constant_color_parameters_strs;
+			std::vector<std::string> mapped_color_parameters_strs;
+			*/
+
+			// the parameters used in the signed distance and splat function calls
+			std::vector<std::string> float_parameter_strs;
+			std::vector<std::string> color_parameter_strs;
 
 			const std::vector<int> attrib_indices = gam.get_attrib_indices();
 			const std::vector<vec4>& attrib_values = gam.ref_attrib_values();
-
-			std::vector<std::string> global_func_parameters_strs;
-			std::vector<std::string> mapped_func_parameters_strs;
+			const std::vector<rgb>& attrib_colors = gam.ref_attrib_colors();
 
 			for(size_t j = 0; j < attrib_indices.size(); ++j) {
 				int idx = attrib_indices[j];
@@ -86,27 +85,39 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 
 				if(idx < 0 || is_global) {
 					// constant non-mapped parameter
-					std::string uniform_name = constant_parameter_name_prefix + std::to_string(constant_glyph_parameters.size());
-					parameter_str = uniform_name;
+					std::string uniform_name;
 
-					constant_glyph_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j][3]));
-					// TODO: enable usage of global params in mapping sources (is this needed?)
-					layer_config.glyph_mapping_sources.push_back(0);
+					if(type == GAT_COLOR) {
+						uniform_name = layer_config.constant_color_parameter_name_prefix + "[" + std::to_string(layer_config.constant_color_parameters.size()) + "]";
+
+						layer_config.constant_color_parameters.push_back(std::make_pair(uniform_name, &attrib_colors[j]));
+					} else {
+						uniform_name = layer_config.constant_float_parameter_name_prefix + "[" + std::to_string(layer_config.constant_float_parameters.size()) + "]";
+						
+						layer_config.constant_float_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j][3]));
+						layer_config.glyph_mapping_sources.push_back(0);
+					}
+
+					parameter_str = uniform_name;
 				} else {
 					// mapped parameter
-					const std::string& attrib_variable_name = "v[" + std::to_string(mapped_attrib_parameter_names.size()) + "]";
-					//std::string uniform_name = mapped_parameter_name_prefix + std::to_string(mapped_glyph_parameters.size());
-					std::string uniform_name = mapped_parameter_name_prefix + "[" + std::to_string(mapped_glyph_parameters.size()) + "]";
-					parameter_str = "clamp_remap(current_glyph." + attrib_variable_name + ", " + uniform_name + ")";
+					const std::string& attrib_variable_name = "v[" + std::to_string(layer_config.mapping_parameters.size()) + "]";
+					std::string uniform_name = layer_config.mapped_parameter_name_prefix + "[" + std::to_string(layer_config.mapping_parameters.size()) + "]";
 
-					mapped_glyph_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j]));
-					mapped_attrib_parameter_names.push_back(attrib_variable_name);
+					std::string remap_func = type == GAT_COLOR ? "clamp_remap01" : "clamp_remap";
+					parameter_str = remap_func + "(current_glyph." + attrib_variable_name + ", " + uniform_name + ")";
+
+					if(type == GAT_COLOR) {
+						parameter_str = "color_map(" + parameter_str + ")";
+					} else {
+						layer_config.glyph_mapping_sources.push_back(1);
+					}
+
+					layer_config.mapping_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j]));
 					layer_config.mapped_attributes.push_back(idx);
-					layer_config.glyph_mapping_sources.push_back(1);
 				}
 
 				switch(type) {
-				case GAT_SIZE: parameter_str = parameter_str; break;
 				case GAT_ORIENTATION:
 				case GAT_ANGLE: parameter_str = "radians(" + parameter_str + ")"; break;
 				case GAT_DOUBLE_ANGLE: parameter_str = "radians(0.5*" + parameter_str + ")"; break;
@@ -115,104 +126,48 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 
 				if(type == GAT_ORIENTATION) {
 					glyph_coord_str = "rotate(glyphuv, " + parameter_str + ")";
+				} else if(type == GAT_COLOR) {
+					color_parameter_strs.push_back(parameter_str);
 				} else {
-					if(is_global)
-						global_func_parameters_strs.push_back(parameter_str);
-					else
-						mapped_func_parameters_strs.push_back(parameter_str);
+					float_parameter_strs.push_back(parameter_str);
 				}
 			}
 
 			// get glyph color
-			std::string color_str = constant_color_name_prefix + std::to_string(constant_glyph_colors.size());
-			constant_glyph_colors.push_back(std::make_pair(color_str, &gam.ref_color()));
+			//std::string color_str = constant_color_name_prefix + std::to_string(constant_glyph_colors.size());
+			//constant_glyph_colors.push_back(std::make_pair(color_str, &gam.ref_color()));
 
 			// generate the glyph splat function
 			std::string splat_func = shape_ptr->splat_func();
 			if(splat_func == "") {
+				// This is a generic glyph.
+				// It directly takes all the float parameters in the signed distance function call
+				// and only ever uses one color, which is give to the splat function.
 				std::string glyph_func = func_name_str + "(" + glyph_coord_str + ", ";
-				glyph_func += join(global_func_parameters_strs, ", ", true);
-				glyph_func += join(mapped_func_parameters_strs, ", ");
+				//glyph_func += join(global_func_parameters_strs, ", ", true);
+				glyph_func += join(float_parameter_strs, ", ");
 				glyph_func += ")";
+
+				std::string color_str = "vec3(0.0)";
+				if(color_parameter_strs.size() > 0) {
+					color_str = color_parameter_strs[0];
+				}
 
 				splat_func = "splat_generic_glyph(current_glyph, " + glyph_func + ", " + color_str + ")";
 			} else {
-				// TODO: check in glpyh shape if global or constant/mapped params are used
-				std::string global_params_str = join(global_func_parameters_strs, ", ");// +(global_func_parameters_strs.size() > 0 ? ", " : "");
+				// TODO: check in glyph shape if global or constant/mapped params are used
+				//std::string global_params_str = join(global_func_parameters_strs, ", ");// +(global_func_parameters_strs.size() > 0 ? ", " : "");
 
-				splat_func += "(current_glyph, " + glyph_coord_str + ", " + global_params_str + ", " + color_str + ")";
+				//splat_func += "(current_glyph, " + glyph_coord_str + ", " + global_params_str + ", " + color_str + ")";
+				splat_func += "(current_glyph, " + glyph_coord_str + ")";
 			}
 
 			//code = "splat_glyph(glyphuv, current_glyph, " + splat_func + ", " + color_str + ", color);";
-			code = "finalize_glyph(glyphuv, current_glyph, " + splat_func + ", color);";
+			glyph_layers_definition = "finalize_glyph(glyphuv, current_glyph, " + splat_func + ", color);";
 		}
 	}
 
-	// TODO: uniforms for constant parameters as array?
-	std::string uniforms_str = "";
-	if(constant_glyph_parameters.size() > 0) {
-		uniforms_str = "uniform float ";
-		for(size_t i = 0; i < constant_glyph_parameters.size(); ++i) {
-			uniforms_str += constant_glyph_parameters[i].first;
-			if(i < constant_glyph_parameters.size() - 1)
-				uniforms_str += ", ";
-		}
-		uniforms_str += ";";
-	}
-
-	/*if(mapped_glyph_parameters.size() > 0) {
-		uniforms_str += "uniform vec4 ";
-		for(size_t i = 0; i < mapped_glyph_parameters.size(); ++i) {
-			uniforms_str += mapped_glyph_parameters[i].first;
-			if(i < mapped_glyph_parameters.size() - 1)
-				uniforms_str += ", ";
-		}
-		uniforms_str += ";";
-	}*/
-
-	if(mapped_glyph_parameters.size() > 0)
-		uniforms_str += "uniform vec4 " + mapped_parameter_name_prefix + "[" + std::to_string(mapped_glyph_parameters.size()) + "];";
-
-	if(constant_glyph_colors.size() > 0) {
-		uniforms_str += "uniform vec3 ";
-		for(size_t i = 0; i < constant_glyph_colors.size(); ++i) {
-			uniforms_str += constant_glyph_colors[i].first;
-			if(i < constant_glyph_colors.size() - 1)
-				uniforms_str += ", ";
-		}
-		uniforms_str += ";";
-	}
-
-	/*std::string glyph_attrib_block = "";
-	if(mapped_attrib_parameter_names.size() > 0) {
-		glyph_attrib_block = "float ";
-		for(size_t i = 0; i < mapped_attrib_parameter_names.size(); ++i) {
-			glyph_attrib_block += mapped_attrib_parameter_names[i];
-			if(i < mapped_attrib_parameter_names.size() - 1)
-				glyph_attrib_block += ", ";
-		}
-		glyph_attrib_block += ";";
-	}*/
-
-	std::string glyph_attrib_block = "";
-	if(mapped_attrib_parameter_names.size() > 0)
-		glyph_attrib_block = "float v[" + std::to_string(mapped_attrib_parameter_names.size()) + "];";
-
-	layer_config.constant_parameters = constant_glyph_parameters;
-	layer_config.mapping_parameters = mapped_glyph_parameters;
-	layer_config.constant_colors = constant_glyph_colors;
-
-	// save shader configuration
-	layer_config.shader_config.mapped_attrib_count = mapped_attrib_parameter_names.size();
-	layer_config.shader_config.uniforms_definition = uniforms_str;
-	layer_config.shader_config.glyph_layers_definition = code;
-	layer_config.shader_config.attribute_buffer_definition = glyph_attrib_block;
-
-	std::cout << std::endl << ">>> SHADER DEFINES <<<" << std::endl;
-	std::cout << uniforms_str << std::endl;
-	std::cout << glyph_attrib_block << std::endl;
-	std::cout << code << std::endl;
-	std::cout << ">>> ============== <<<" << std::endl << std::endl;
+	layer_config.create_shader_config(glyph_layers_definition, true);
 
 	return layer_config;
 }

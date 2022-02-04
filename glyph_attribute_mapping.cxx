@@ -46,7 +46,7 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 		return;
 
 	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Isosceles Triangle,Drop,Star'");
-	add_local_member_control(p, bp, "Color", color);
+	//add_local_member_control(p, bp, "Color", color);
 
 	for(size_t i = 0; i < shape_ptr->supported_attributes().size(); ++i)
 		create_attribute_gui(bp, p, i);
@@ -215,9 +215,12 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 	} else {
 		const vec2& range = attribute_ranges[selected_attrib_src_idx];
 		std::string options_str = "min=" + std::to_string(range.x()) + ";max=" + std::to_string(range.y()) + ";step=0.001;ticks=true";
+
 		add_local_member_control(p, bp, "In Min", attrib_mapping_values[i][0], "value_slider", options_str);
 		add_local_member_control(p, bp, "In Max", attrib_mapping_values[i][1], "value_slider", options_str);
-		add_local_member_control(p, bp, "Out Min", attrib_mapping_values[i][2], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
-		add_local_member_control(p, bp, "Out Max", attrib_mapping_values[i][3], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
+		if(attrib.type != GAT_COLOR) {
+			add_local_member_control(p, bp, "Out Min", attrib_mapping_values[i][2], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
+			add_local_member_control(p, bp, "Out Max", attrib_mapping_values[i][3], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
+		}
 	}
 }

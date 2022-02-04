@@ -4,6 +4,8 @@
 #define GRID_MODE 1
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
+//#define CONST_FLOAT_ATTRIBUTE_COUNT 1
+//#define CONST_COLOR_ATTRIBUTE_COUNT 1
 #define MAPPED_ATTRIBUTE_COUNT 1
 #define GLYPH_MAPPING_UNIFORMS vec4 glyph_m_param[MAPPED_ATTRIBUTE_COUNT];
 #define GLYPH_ATTRIBUTES_DEFINITION float v[1];
@@ -27,9 +29,10 @@ layout (binding = 0) uniform sampler2D albedo_tex;
 layout (binding = 1) uniform sampler2D position_tex;
 layout (binding = 2) uniform sampler2D normal_tex;
 layout (binding = 3) uniform sampler2D tangent_tex;
-layout (binding = 4) uniform sampler2D info_tex;
+layout (binding = 4) uniform sampler2D info_tex; // TODO: is this needed?
 layout (binding = 5) uniform sampler2D depth_tex;
 layout (binding = 6) uniform sampler3D density_tex;
+layout (binding = 7) uniform sampler1D color_maps_tex;
 
 // basic rendering parameters
 //uniform vec3 background_color;
@@ -183,6 +186,29 @@ float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
 	return 1.0 - clamp(ambient_occlusion.strength_scale * ao / 3.0, 0.0, 1.0);
 }
 
+// remap value v from range [r.x,r.y] to [r.z,r.w]
+float remap(float v, vec4 r) {
+	float t = (v - r.x) / (r.y - r.x);
+	return mix(r.z, r.w, t);
+}
+
+// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
+float clamp_remap(float v, vec4 r) {
+	v = clamp(v, r.x, r.y);
+	float t = (v - r.x) / (r.y - r.x);
+	return mix(r.z, r.w, t);
+}
+
+// clamp value v to range [r.x,r.y] and remap to [0,1]
+float clamp_remap01(float v, vec4 r) {
+	v = clamp(v, r.x, r.y);
+	return (v - r.x) / (r.y - r.x);
+}
+
+vec3 color_map(float v) {
+	return texture(color_maps_tex, v).rgb;
+}
+
 // return a rotation matrix given angle in radians
 mat2 rot_mat(float a) {
 	float as = sin(a);
@@ -195,19 +221,6 @@ vec2 rotate(in vec2 p, in float a) {
 	const float quarter_turn = 1.57079632679; // additional rotation of 90 degrees, so an angle of 0 degrees points the glyph into the direction of the segment
 	a += quarter_turn;
 	return rot_mat(a) * p;
-}
-
-// remap value v from range [r.x,r.y] to [r.z,r.w]
-float remap(float v, vec4 r) {
-	float t = (v - r.x) / (r.y - r.x);
-	return mix(r.z, r.w, t);
-}
-
-// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
-float clamp_remap(float v, vec4 r) {
-	v = clamp(v, r.x, r.y);
-	float t = (v - r.x) / (r.y - r.x);
-	return mix(r.z, r.w, t);
 }
 
 // SDF operations
@@ -364,13 +377,10 @@ vec2 sd_star(vec2 p, float r, in glyph_desc gd) {
 }
 #endif
 
-vec4 splat_star(in glyph_desc gd, in vec2 p, in float r, in vec3 glyph_color) {
-#if MAPPED_ATTRIBUTE_COUNT > 0
-	vec2 dist = sd_star(p, r, gd);
-#else
-	vec2 dist = vec2(1e20);
-#endif
-
+vec4 splat_star(in glyph_desc gd, in vec2 p) {
+#if MAPPED_ATTRIBUTE_COUNT > 0 && false
+	vec2 dist = sd_star(p, glyph_cf_param[0], gd);
+	
 	// debug only
 	// show otherwise not drawn glyphs
 	float alpha_fac = 1.0;
@@ -378,7 +388,6 @@ vec4 splat_star(in glyph_desc gd, in vec2 p, in float r, in vec3 glyph_color) {
 		alpha_fac = 0.5; // make glyph half transparent
 		dist.y = op_onion(dist.y + 0.05, 0.05); // draw outline of glyph (keeps original size)
 	}
-
 
 	vec3 dist3 = vec3(dist, op_onion(dist.y + 0.01, 0.01));
 
@@ -389,9 +398,12 @@ vec4 splat_star(in glyph_desc gd, in vec2 p, in float r, in vec3 glyph_color) {
 
 	float poly_alpha = max(0.25*alpha.y, alpha.z);
 
-	vec3 col = mix(vec3(1.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), alpha.x);
+	vec3 col = mix(vec3(1.0, 0.0, 0.0), glyph_cc_param[0], alpha.x);
 	return vec4(col, alpha_fac * max(alpha.x, poly_alpha));
 	// <<
+#else
+	return vec4(0.0);
+#endif
 }
 
 

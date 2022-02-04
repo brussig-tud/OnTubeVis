@@ -512,14 +512,15 @@ bool tubes::compile_glyph_attribs_new(void) {
 		// index for the current segment
 		unsigned seg = 0;
 
+		// TODO: move this outside of the loop and re-init every iteration if necessary
 		unsigned attrib_count = mapped_attribs.size();
 		// create an index for each attribute
 		std::vector<unsigned> attrib_indices(attrib_count, 0);
 		// create storage for attribute and glyph parameter values
 		std::vector<traj_attribute<float>::datapoint_mag> data_points(attrib_count);
 		std::vector<float> attrib_values(attrib_count);
-		std::vector<float> glyph_params(attrib_count);
 		std::vector<bool> has_sample(attrib_count);
+		std::vector<float> glyph_params(current_shape->num_size_attribs());
 		
 		// stores the minimum t over all current attribute sample points in each iteration
 		float min_t;
@@ -609,7 +610,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 				for(size_t i = 0; i < glyph_layers_config.glyph_mapping_sources.size(); ++i) {
 					if(glyph_layers_config.glyph_mapping_sources[i] == 0) {
 						// constant attribute
-						glyph_params[i] = *(glyph_layers_config.constant_parameters[const_idx++].second);
+						glyph_params[i] = *(glyph_layers_config.constant_float_parameters[const_idx++].second);
 					} else {
 						// mapped attribute
 						const vec4& ranges = *(glyph_layers_config.mapping_parameters[mapped_idx].second);
@@ -1564,23 +1565,14 @@ void tubes::draw_trajectories(context& ctx) {
 	}
 
 	// set attribute mapping parameters
-	for(size_t i = 0; i < glyph_layers_config.constant_parameters.size(); ++i) {
-		const auto& pair = glyph_layers_config.constant_parameters[i];
-		//std::cout << "set_uniform: " << pair.first << " to " << *pair.second << std::endl;
-		prog.set_uniform(ctx, pair.first, *pair.second);
-	}
+	for(const auto& p : glyph_layers_config.constant_float_parameters)
+		prog.set_uniform(ctx, p.first, *p.second);
 
-	for(size_t i = 0; i < glyph_layers_config.mapping_parameters.size(); ++i) {
-		const auto& pair = glyph_layers_config.mapping_parameters[i];
-		//std::cout << "set_uniform: " << pair.first << " to " << *pair.second << std::endl;
-		prog.set_uniform(ctx, pair.first, *pair.second);
-	}
+	for(const auto& p : glyph_layers_config.constant_color_parameters)
+		prog.set_uniform(ctx, p.first, *p.second);
 
-	for(size_t i = 0; i < glyph_layers_config.constant_colors.size(); ++i) {
-		const auto& pair = glyph_layers_config.constant_colors[i];
-		//std::cout << "set_uniform: " << pair.first << " to " << *pair.second << std::endl;
-		prog.set_uniform(ctx, pair.first, *pair.second);
-	}
+	for(const auto& p : glyph_layers_config.mapping_parameters)
+		prog.set_uniform(ctx, p.first, *p.second);
 
 	// map global settings
 	prog.set_uniform(ctx, "general_settings.use_curvature_correction", general_settings.use_curvature_correction);
@@ -1599,9 +1591,10 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.enable_attachment(ctx, "position", 1);
 	fbc.enable_attachment(ctx, "normal", 2);
 	fbc.enable_attachment(ctx, "tangent", 3);
-	fbc.enable_attachment(ctx, "info", 4);
+	fbc.enable_attachment(ctx, "info", 4); // TODO: is this needed?
 	fbc.enable_attachment(ctx, "depth", 5);
 	density_tex.enable(ctx, 6);
+	cm_editor_ptr->ref_tex().enable(ctx, 7);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, attribs_handle);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, aindex_handle);
@@ -1616,6 +1609,7 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.disable_attachment(ctx, "info");
 	fbc.disable_attachment(ctx, "depth");
 	density_tex.disable(ctx);
+	cm_editor_ptr->ref_tex().disable(ctx);
 
 	//glDepthFunc(GL_LESS);
 

@@ -22,7 +22,7 @@ protected:
 	std::vector<cgv::type::DummyEnum> attrib_source_indices;
 	std::vector<vec4> attrib_mapping_values;
 	std::vector<rgb> attrib_colors;
-	rgb color = rgb(0.0f);
+	//rgb color = rgb(0.0f);
 
 	void on_set(void* member_ptr, cgv::base::base* base_ptr);
 
@@ -53,11 +53,13 @@ public:
 
 	const glyph_shape* get_shape_ptr() const { return shape_ptr; }
 
-	const rgb& ref_color() const{ return color; }
+	//const rgb& ref_color() const{ return color; }
 
 	const std::vector<int> get_attrib_indices() const;
 	
 	const std::vector<vec4>& ref_attrib_values() const { return attrib_mapping_values; }
+
+	const std::vector<rgb>& ref_attrib_colors() const { return attrib_colors; }
 
 	ActionType action_type();
 
