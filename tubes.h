@@ -29,10 +29,10 @@
 #include "traj_loader.h"
 #include "demo.h" // interactive testbed helper classes and data
 #include "attrib_handle_manager.h"
-//#include "hermite_spline_tube.h"
 #include "voxelizer.h"
 #include "ambient_occlusion_style.h"
 #include "glyph_layer_manager.h"
+#include "color_map_manager.h"
 #include "textured_spline_tube_renderer.h"
 
 
@@ -248,12 +248,13 @@ protected:
 
 
 
-
+	color_map_manager color_map_mgr;
 	glyph_layer_manager glyph_layer_mgr;
 
-	std::vector<cgv::glutil::color_map> color_maps;
+	//std::vector<cgv::glutil::color_map> color_maps;
 	
-	void edit_color_map();
+	//void edit_color_map();
+	void update_color_maps_texture();
 	
 
 

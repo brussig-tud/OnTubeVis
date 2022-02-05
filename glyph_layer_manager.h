@@ -1,8 +1,9 @@
 #pragma once
 
+#include <vector>
+
 #include <cgv/base/base.h>
 #include <cgv/gui/provider.h>
-#include <vector>
 
 #include "glyph_attribute_mapping.h"
 
@@ -90,6 +91,7 @@ protected:
 
 	std::vector<std::string> attribute_names;
 	std::vector<vec2> attribute_ranges;
+	std::vector<std::string> color_map_names;
 
 	layer_configuration layer_config;
 
@@ -112,6 +114,8 @@ public:
 
 	void set_attribute_ranges(const std::vector<vec2>& ranges);
 
+	void set_color_map_names(const std::vector<std::string>& names);
+	
 	const layer_configuration& get_configuration();
 
 	ActionType action_type();

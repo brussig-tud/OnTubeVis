@@ -305,6 +305,43 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 
+	if(member_ptr == &color_map_mgr) {
+		switch(color_map_mgr.action_type()) {
+		case AT_CONFIGURATION_CHANGE:
+		{
+			if(cm_editor_ptr) {
+				const auto& color_maps = color_map_mgr.ref_color_maps();
+				const auto* edit_cm_ptr = cm_editor_ptr->get_color_map();
+				for(size_t i = 0; i < color_maps.size(); ++i) {
+					if(&color_maps[i].cm == edit_cm_ptr) {
+						// TODO: use smart pointers for color map and in manager
+						cm_editor_ptr->set_color_map(nullptr);
+						cm_editor_ptr->set_visibility(false);
+					}
+				}
+			}
+			glyph_layer_mgr.set_color_map_names(color_map_mgr.get_names());
+
+			context& ctx = *get_context();
+			color_map_mgr.update_texture(ctx);
+
+			post_recreate_gui();
+		}
+			break;
+		case AT_EDIT_REQUEST:
+			if(cm_editor_ptr) {
+				int idx = color_map_mgr.edit_index();
+				if(idx > -1 && idx < color_map_mgr.ref_color_maps().size()) {
+					cm_editor_ptr->set_color_map(&(color_map_mgr.ref_color_maps()[idx].cm));
+					cm_editor_ptr->set_visibility(true);
+				}
+			}
+			break;
+		default: break;
+		}
+
+	}
+
 	// misc settings
 	// - instant redraw
 	if(member_ptr == &misc_cfg.instant_redraw_proxy)
@@ -358,6 +395,7 @@ void tubes::update_glyph_layer_manager() {
 	// set new information of available attributes and ranges
 	glyph_layer_mgr.set_attribute_names(attrib_names);
 	glyph_layer_mgr.set_attribute_ranges(attrib_ranges);
+	glyph_layer_mgr.set_color_map_names(color_map_mgr.get_names());
 }
 
 bool tubes::compile_glyph_attribs (void)
@@ -1007,11 +1045,11 @@ bool tubes::init (cgv::render::context &ctx)
 
 
 	// add one default color map
-	color_maps.push_back(cgv::glutil::color_map());
-
-	auto& cm = color_maps[0];
-	cm.add_color_point(0.0f, rgb(0.0f));
-	cm.add_color_point(1.0f, rgb(1.0f));
+	//color_maps.push_back(cgv::glutil::color_map());
+	//
+	//auto& cm = color_maps[0];
+	//cm.add_color_point(0.0f, rgb(0.0f));
+	//cm.add_color_point(1.0f, rgb(1.0f));
 
 
 
@@ -1196,6 +1234,7 @@ void tubes::create_gui (void)
 	if(begin_tree_node("Attribute Mapping", glyph_layer_mgr, true)) {
 		align("\a");
 		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
+		connect_copy(add_button("Update Color Maps")->click, cgv::signal::rebind(this, &tubes::update_color_maps_texture));
 		glyph_layer_mgr.create_gui(this, *this);
 		align("\b");
 		end_tree_node(glyph_layer_mgr);
@@ -1212,10 +1251,11 @@ void tubes::create_gui (void)
 
 	//connect_copy(add_button("Generate Shader Code")->click, cgv::signal::rebind(this, &tubes::test_shader_code_generation));
 	
-	connect_copy(add_button("Set Color Scale")->click, cgv::signal::rebind(this, &tubes::edit_color_map));
+	//connect_copy(add_button("Set Color Scale")->click, cgv::signal::rebind(this, &tubes::edit_color_map));
 
 	if(begin_tree_node("Color Scales", cm_editor_ptr, false)) {
 		align("\a");
+		color_map_mgr.create_gui(this, *this);
 		//cs_editor_ptr->create_gui(*this);
 		inline_object_gui(cm_editor_ptr);
 		align("\b");
@@ -1594,7 +1634,8 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.enable_attachment(ctx, "info", 4); // TODO: is this needed?
 	fbc.enable_attachment(ctx, "depth", 5);
 	density_tex.enable(ctx, 6);
-	cm_editor_ptr->ref_tex().enable(ctx, 7);
+	color_map_mgr.ref_texture().enable(ctx, 7);
+	//cm_editor_ptr->ref_tex().enable(ctx, 7);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, attribs_handle);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, aindex_handle);
@@ -1609,7 +1650,8 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.disable_attachment(ctx, "info");
 	fbc.disable_attachment(ctx, "depth");
 	density_tex.disable(ctx);
-	cm_editor_ptr->ref_tex().disable(ctx);
+	color_map_mgr.ref_texture().disable(ctx);
+	//cm_editor_ptr->ref_tex().disable(ctx);
 
 	//glDepthFunc(GL_LESS);
 
@@ -1694,10 +1736,15 @@ shader_define_map tubes::build_tube_shading_defines() {
 	return defines;
 }
 
-void tubes::edit_color_map() {
+/*void tubes::edit_color_map() {
 	if(cm_editor_ptr) {
 		cm_editor_ptr->set_color_map(&color_maps[0]);
 	}
+}*/
+
+void tubes::update_color_maps_texture() {
+	context& ctx = *get_context();
+	color_map_mgr.update_texture(ctx);
 }
 
 ////

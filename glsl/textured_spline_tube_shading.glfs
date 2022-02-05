@@ -32,7 +32,7 @@ layout (binding = 3) uniform sampler2D tangent_tex;
 layout (binding = 4) uniform sampler2D info_tex; // TODO: is this needed?
 layout (binding = 5) uniform sampler2D depth_tex;
 layout (binding = 6) uniform sampler3D density_tex;
-layout (binding = 7) uniform sampler1D color_maps_tex;
+layout (binding = 7) uniform sampler2D color_maps_tex;
 
 // basic rendering parameters
 //uniform vec3 background_color;
@@ -205,8 +205,12 @@ float clamp_remap01(float v, vec4 r) {
 	return (v - r.x) / (r.y - r.x);
 }
 
-vec3 color_map(float v) {
-	return texture(color_maps_tex, v).rgb;
+//vec3 map_to_color(float v, float map_idx_coord) {
+vec3 map_to_color(float v, int color_map_idx) {
+	vec2 ts = textureSize(color_maps_tex, 0);
+	float half_step = 0.5 * (1.0 / ts.y); 
+	float map_coord = float(color_map_idx) / ts.y + half_step;
+	return texture(color_maps_tex, vec2(v, map_coord)).rgb;
 }
 
 // return a rotation matrix given angle in radians

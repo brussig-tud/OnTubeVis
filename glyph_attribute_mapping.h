@@ -15,15 +15,16 @@ protected:
 
 	std::vector<std::string> attribute_names;
 	std::vector<vec2> attribute_ranges;
+	std::vector<std::string> color_map_names;
 
 	GlyphType type = GT_CIRCLE;
 	glyph_shape* shape_ptr = nullptr;
 
 	std::vector<cgv::type::DummyEnum> attrib_source_indices;
+	std::vector<cgv::type::DummyEnum> color_source_indices;
 	std::vector<vec4> attrib_mapping_values;
 	std::vector<rgb> attrib_colors;
-	//rgb color = rgb(0.0f);
-
+	
 	void on_set(void* member_ptr, cgv::base::base* base_ptr);
 
 	void create_glyph_shape();
@@ -36,7 +37,7 @@ protected:
 		return cp;
 	}
 
-	int attribute_index_to_int(cgv::type::DummyEnum index) const;
+	int dummy_enum_to_int(cgv::type::DummyEnum index) const;
 
 	std::string to_display_str(const std::string& name) const;
 
@@ -56,6 +57,8 @@ public:
 	//const rgb& ref_color() const{ return color; }
 
 	const std::vector<int> get_attrib_indices() const;
+
+	const std::vector<int> get_color_map_indices() const;
 	
 	const std::vector<vec4>& ref_attrib_values() const { return attrib_mapping_values; }
 
@@ -66,6 +69,8 @@ public:
 	void set_attribute_names(const std::vector<std::string>& names);
 
 	void set_attribute_ranges(const std::vector<vec2>& ranges);
+
+	void set_color_map_names(const std::vector<std::string>& names);
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
 };

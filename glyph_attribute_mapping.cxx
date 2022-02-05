@@ -9,6 +9,7 @@ glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& 
 	if(r.shape_ptr)
 		shape_ptr = r.shape_ptr->clone();
 	attrib_source_indices = r.attrib_source_indices;
+	color_source_indices = r.color_source_indices;
 	attrib_mapping_values = r.attrib_mapping_values;
 	attrib_colors = r.attrib_colors;
 	attribute_names = r.attribute_names;
@@ -30,7 +31,15 @@ glyph_attribute_mapping::~glyph_attribute_mapping() {
 const std::vector<int> glyph_attribute_mapping::get_attrib_indices() const {
 	std::vector<int> indices(attrib_source_indices.size(), -1);
 	for(size_t i = 0; i < attrib_source_indices.size(); ++i)
-		indices[i] = attribute_index_to_int(attrib_source_indices[i]);
+		indices[i] = dummy_enum_to_int(attrib_source_indices[i]);
+
+	return indices;
+}
+
+const std::vector<int> glyph_attribute_mapping::get_color_map_indices() const {
+	std::vector<int> indices(color_source_indices.size(), -1);
+	for(size_t i = 0; i < color_source_indices.size(); ++i)
+		indices[i] = dummy_enum_to_int(color_source_indices[i]);
 
 	return indices;
 }
@@ -60,17 +69,22 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 		create_glyph_shape();
 	}
 
-	for(size_t i = 0; i < attrib_source_indices.size(); ++i)
+	for(size_t i = 0; i < attrib_source_indices.size(); ++i) {
 		if(member_ptr == &attrib_source_indices[i]) {
 			last_action_type = AT_CONFIGURATION_CHANGE;
-			int attrib_idx = attribute_index_to_int(attrib_source_indices[i]);
+			int attrib_idx = dummy_enum_to_int(attrib_source_indices[i]);
 			if(attrib_idx > -1) {
 				const vec2& range = attribute_ranges[attrib_idx];
 				attrib_mapping_values[i].x() = range.x();
 				attrib_mapping_values[i].y() = range.y();
 			}
 		}
+	}
 
+	for(size_t i = 0; i < color_source_indices.size(); ++i)
+		if(member_ptr == &color_source_indices[i])
+			last_action_type = AT_CONFIGURATION_CHANGE;
+	
 	base_ptr->on_set(this);
 }
 
@@ -82,13 +96,17 @@ void glyph_attribute_mapping::set_attribute_ranges(const std::vector<vec2>& rang
 	attribute_ranges = ranges;
 
 	for(size_t i = 0; i < attrib_mapping_values.size(); ++i) {
-		int attrib_idx = attribute_index_to_int(attrib_source_indices[i]);
+		int attrib_idx = dummy_enum_to_int(attrib_source_indices[i]);
 		if(attrib_idx > -1) {
 			const vec2& range = attribute_ranges[attrib_idx];
 			attrib_mapping_values[i].x() = range.x();
 			attrib_mapping_values[i].y() = range.y();
 		}
 	}
+}
+
+void glyph_attribute_mapping::set_color_map_names(const std::vector<std::string>& names) {
+	color_map_names = names;
 }
 
 void glyph_attribute_mapping::create_glyph_shape() {
@@ -108,11 +126,13 @@ void glyph_attribute_mapping::create_glyph_shape() {
 	}
 
 	attrib_source_indices.clear();
+	color_source_indices.clear();
 	attrib_mapping_values.clear();
 	attrib_colors.clear();
 
 	size_t attrib_count = shape_ptr->supported_attributes().size();
 	attrib_source_indices.resize(attrib_count, static_cast<cgv::type::DummyEnum>(0));
+	color_source_indices.resize(attrib_count, static_cast<cgv::type::DummyEnum>(0));
 
 	for(size_t i = 0; i < attrib_count; ++i) {
 		GlyphAttributeType type = shape_ptr->supported_attributes()[i].type;
@@ -138,7 +158,7 @@ void glyph_attribute_mapping::create_glyph_shape() {
 	attrib_colors.resize(attrib_count, rgb(0.0f));
 }
 
-int glyph_attribute_mapping::attribute_index_to_int(cgv::type::DummyEnum index) const {
+int glyph_attribute_mapping::dummy_enum_to_int(cgv::type::DummyEnum index) const {
 	return static_cast<int>(index) - 1;
 }
 
@@ -185,32 +205,47 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 	bool is_global = attrib.modifiers & GAM_GLOBAL;
 	bool is_non_const = attrib.modifiers & GAM_NON_CONST;
 
+	int selected_attrib_src_idx = dummy_enum_to_int(attrib_source_indices[i]);
+	int selected_color_src_idx = dummy_enum_to_int(color_source_indices[i]);
+
 	std::string value_label = label;
 
 	if(!is_global) {
 		value_label = "Value";
 		p.add_decorator(label, "heading", "level=4");
 
-		std::string attrib_names_enums = "-,";
+		std::string attrib_name_enums = "-,";
 		if(is_non_const)
-			attrib_names_enums = "(disabled),";
+			attrib_name_enums = "(disabled),";
 		for(size_t i = 0; i < attribute_names.size(); ++i) {
-			attrib_names_enums += attribute_names[i];
+			attrib_name_enums += attribute_names[i];
 			if(i < attribute_names.size() - 1)
-				attrib_names_enums += ",";
+				attrib_name_enums += ",";
 		}
 
-		add_local_member_control(p, bp, "Source Attribute", attrib_source_indices[i], "dropdown", "enums='" + attrib_names_enums + "'");
+		add_local_member_control(p, bp, "Source Attribute", attrib_source_indices[i], "dropdown", "enums='" + attrib_name_enums + "'");
+		
+		if(attrib.type == GAT_COLOR) {
+			std::string color_map_name_enums = "-,";
+			if(is_non_const)
+				color_map_name_enums = "(disabled),";
+			for(size_t i = 0; i < color_map_names.size(); ++i) {
+				color_map_name_enums += color_map_names[i];
+				if(i < color_map_names.size() - 1)
+					color_map_name_enums += ",";
+			}
+
+			if(selected_attrib_src_idx > -1)
+				add_local_member_control(p, bp, "Color Map", color_source_indices[i], "dropdown", "enums='" + color_map_name_enums + "'");
+		}
 	}
 
-	int selected_attrib_src_idx = attribute_index_to_int(attrib_source_indices[i]);
-
 	if(selected_attrib_src_idx < 0 || is_global) {
-		if(attrib.type == GAT_COLOR)
+		if(attrib.type == GAT_COLOR) {
 			add_local_member_control(p, bp, value_label, attrib_colors[i]);
-		else
+		} else {
 			add_local_member_control(p, bp, value_label, attrib_mapping_values[i][3], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
-
+		}
 		//add_local_member_control(p, bp, value_label, *reinterpret_cast<rgb*>(&attrib_mapping_values[i]));
 	} else {
 		const vec2& range = attribute_ranges[selected_attrib_src_idx];

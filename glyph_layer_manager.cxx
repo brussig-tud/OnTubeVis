@@ -20,6 +20,15 @@ void glyph_layer_manager::set_attribute_ranges(const std::vector<vec2>& ranges) 
 	}
 }
 
+void glyph_layer_manager::set_color_map_names(const std::vector<std::string>& names) {
+	color_map_names = names;
+
+	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
+		glyph_attribute_mappings[i].set_color_map_names(names);
+
+	}
+}
+
 const std::string glyph_layer_manager::layer_configuration::constant_float_parameter_name_prefix = "glyph_cf_param";
 const std::string glyph_layer_manager::layer_configuration::constant_color_parameter_name_prefix = "glyph_cc_param";
 const std::string glyph_layer_manager::layer_configuration::mapped_parameter_name_prefix = "glyph_m_param";
@@ -67,11 +76,13 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 			std::vector<std::string> color_parameter_strs;
 
 			const std::vector<int> attrib_indices = gam.get_attrib_indices();
+			const std::vector<int> color_map_indices = gam.get_color_map_indices();
 			const std::vector<vec4>& attrib_values = gam.ref_attrib_values();
 			const std::vector<rgb>& attrib_colors = gam.ref_attrib_colors();
 
 			for(size_t j = 0; j < attrib_indices.size(); ++j) {
 				int idx = attrib_indices[j];
+				int color_map_idx = color_map_indices[j];
 				GlyphAttributeType type = attribs[j].type;
 				GlyphAttributeModifier modifiers = attribs[j].modifiers;
 				bool is_global = modifiers & GAM_GLOBAL;
@@ -108,7 +119,7 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 					parameter_str = remap_func + "(current_glyph." + attrib_variable_name + ", " + uniform_name + ")";
 
 					if(type == GAT_COLOR) {
-						parameter_str = "color_map(" + parameter_str + ")";
+						parameter_str = "map_to_color(" + parameter_str + ", " + std::to_string(color_map_idx) + ")";
 					} else {
 						layer_config.glyph_mapping_sources.push_back(1);
 					}
@@ -214,6 +225,7 @@ void glyph_layer_manager::create_glyph_attribute_mapping() {
 	auto& gam = glyph_attribute_mappings.back();
 	gam.set_attribute_names(attribute_names);
 	gam.set_attribute_ranges(attribute_ranges);
+	gam.set_color_map_names(color_map_names);
 
 	last_action_type = AT_CONFIGURATION_CHANGE;
 	if(base_ptr)
