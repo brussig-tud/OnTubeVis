@@ -76,7 +76,7 @@ layout (location = 0) out vec4 frag_albedo;
 layout (location = 1) out vec3 frag_position;
 layout (location = 2) out vec3 frag_normal;
 layout (location = 3) out vec3 frag_tangent;
-layout (location = 4) out vec4 frag_info;
+layout (location = 4) out uvec4 frag_info;
 
 // arclen approximations SBO
 layout (std430, binding = 1) readonly buffer arclen_buffer { 
@@ -799,6 +799,7 @@ void main()
 		frag_position = vec3(hit_pos_eye);
 		frag_normal = hit.normal;
 		frag_tangent = tangent;
+		frag_info = uvec4(gl_FragCoord.x, gl_FragCoord.y, 0, 1); // CPU-side debugging for now - should eventually store ID(s) that enable tracking the front-most segment covering the pixel
 	}
 #endif
 }

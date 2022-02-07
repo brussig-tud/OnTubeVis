@@ -1633,7 +1633,7 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.enable_attachment(ctx, "position", 1);
 	fbc.enable_attachment(ctx, "normal", 2);
 	fbc.enable_attachment(ctx, "tangent", 3);
-	fbc.enable_attachment(ctx, "info", 4); // TODO: is this needed?
+	fbc.enable_attachment(ctx, "info", 4);
 	fbc.enable_attachment(ctx, "depth", 5);
 	density_tex.enable(ctx, 6);
 	color_map_mgr.ref_texture().enable(ctx, 7);
