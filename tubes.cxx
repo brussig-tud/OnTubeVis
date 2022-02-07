@@ -53,13 +53,17 @@ tubes::tubes() : application_plugin("tubes_instance")
 
 	cm_editor_ptr = register_overlay<cgv::glutil::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
+	cm_editor_ptr->gui_options.show_heading = false;
 
 	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
 	tf_editor_ptr->set_visibility(false);
+	tf_editor_ptr->gui_options.show_heading = false;
 
 	navigator_ptr = register_overlay<cgv::glutil::navigator>("Navigator");
 	navigator_ptr->set_visibility(false);
-
+	navigator_ptr->gui_options.show_heading = false;
+	navigator_ptr->gui_options.show_layout_options = false;
+	
 	grids.resize(2);
 	grids[0].scaling = vec2(1.0f, 1.0f);
 	grids[0].thickness = 0.05f;
@@ -975,6 +979,7 @@ bool tubes::init (cgv::render::context &ctx)
 	// load all shaders in the library
 	success &= shaders.load_shaders(ctx);
 
+	color_map_mgr.init(ctx);
 	glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 	tube_shading_defines = build_tube_shading_defines();
@@ -1201,14 +1206,6 @@ void tubes::create_gui (void)
 		end_tree_node(ao_style);
 	}
 
-	if(begin_tree_node("Volume Style", vstyle, false)) {
-		align("\a");
-		add_member_control(this, "Show Volume", show_volume, "check");
-		add_gui("vstyle", vstyle);
-		align("\b");
-		end_tree_node(vstyle);
-	}
-
 	// attribute mapping settings
 	//add_decorator("Attribute Mapping", "heading", "level=1");
 	if(begin_tree_node("Grid", grids, false)) {
@@ -1231,15 +1228,6 @@ void tubes::create_gui (void)
 		end_tree_node(grids);
 	}
 
-	if(begin_tree_node("Attribute Mapping", glyph_layer_mgr, true)) {
-		align("\a");
-		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
-		connect_copy(add_button("Update Color Maps")->click, cgv::signal::rebind(this, &tubes::update_color_maps_texture));
-		glyph_layer_mgr.create_gui(this, *this);
-		align("\b");
-		end_tree_node(glyph_layer_mgr);
-	}
-
 	if(begin_tree_node("General Settings", general_settings, true)) {
 		align("\a");
 		add_member_control(this, "Curvature Correction", general_settings.use_curvature_correction, "check");
@@ -1249,9 +1237,14 @@ void tubes::create_gui (void)
 		end_tree_node(glyph_layer_mgr);
 	}
 
-	//connect_copy(add_button("Generate Shader Code")->click, cgv::signal::rebind(this, &tubes::test_shader_code_generation));
-	
-	//connect_copy(add_button("Set Color Scale")->click, cgv::signal::rebind(this, &tubes::edit_color_map));
+	if(begin_tree_node("Attribute Mapping", glyph_layer_mgr, true)) {
+		align("\a");
+		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
+		connect_copy(add_button("Update Color Maps")->click, cgv::signal::rebind(this, &tubes::update_color_maps_texture));
+		glyph_layer_mgr.create_gui(this, *this);
+		align("\b");
+		end_tree_node(glyph_layer_mgr);
+	}
 
 	if(begin_tree_node("Color Scales", cm_editor_ptr, false)) {
 		align("\a");
@@ -1260,14 +1253,6 @@ void tubes::create_gui (void)
 		inline_object_gui(cm_editor_ptr);
 		align("\b");
 		end_tree_node(cm_editor_ptr);
-	}
-
-	if(begin_tree_node("Transfer Function Editor", tf_editor_ptr, false)) {
-		align("\a");
-		//tf_editor_ptr->create_gui(*this);
-		inline_object_gui(tf_editor_ptr);
-		align("\b");
-		end_tree_node(tf_editor_ptr);
 	}
 
 	if(begin_tree_node("Navigator", navigator_ptr, false)) {
@@ -1280,6 +1265,23 @@ void tubes::create_gui (void)
 
 	// Misc settings contractable section
 	add_decorator("Miscellaneous", "heading", "level=1");
+	if(begin_tree_node("Volume Style", vstyle, false)) {
+		align("\a");
+		add_member_control(this, "Show Volume", show_volume, "check");
+		add_gui("vstyle", vstyle);
+
+		if(begin_tree_node("Transfer Function Editor", tf_editor_ptr, false)) {
+			align("\a");
+			//tf_editor_ptr->create_gui(*this);
+			inline_object_gui(tf_editor_ptr);
+			align("\b");
+			end_tree_node(tf_editor_ptr);
+		}
+
+		align("\b");
+		end_tree_node(vstyle);
+	}
+
 	if (begin_tree_node("Tools (Persistent by Default)", misc_cfg, false))
 	{
 		align("\a");
