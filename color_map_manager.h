@@ -60,11 +60,11 @@ public:
 	}
 
 	bool init(cgv::render::context& ctx) {
-		std::vector<uint8_t> data(2 * 3 * res);
+		std::vector<uint8_t> data(2 * 3 * res, 0u);
 
 		tex.destruct(ctx);
 		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res, 2u, TI_UINT8, cgv::data::CF_RGB), data.data());
-		tex = cgv::render::texture("uint8[R,G,B]", cgv::render::TF_LINEAR, cgv::render::TF_LINEAR);
+		tex = cgv::render::texture("uint8[R,G,B]", cgv::render::TF_LINEAR, cgv::render::TF_LINEAR, cgv::render::TW_CLAMP_TO_EDGE, cgv::render::TW_CLAMP_TO_EDGE);
 		return tex.create(ctx, dv, 0);
 	}
 
@@ -87,7 +87,7 @@ public:
 
 		std::vector<uint8_t> data(3 * color_maps.size() * res);
 
-		float step = 1.0f / static_cast<float>(res - 1);
+		/*float step = 1.0f / static_cast<float>(res - 1);
 
 		size_t base_idx = 0;
 		for(size_t i = 0; i < color_maps.size(); ++i) {
@@ -102,6 +102,18 @@ public:
 
 				base_idx += 3;
 			}
+		}*/
+
+		size_t base_idx = 0;
+		for(size_t i = 0; i < color_maps.size(); ++i) {
+			std::vector<rgb> cm_data = color_maps[i].cm.interpolate_color(static_cast<size_t>(res));
+
+			for(size_t j = 0; j < res; ++j) {
+				data[base_idx + 0] = static_cast<uint8_t>(255.0f * cm_data[j].R());
+				data[base_idx + 1] = static_cast<uint8_t>(255.0f * cm_data[j].G());
+				data[base_idx + 2] = static_cast<uint8_t>(255.0f * cm_data[j].B());
+				base_idx += 3;
+			}
 		}
 
 		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res, color_maps.size(), TI_UINT8, cgv::data::CF_RGB), data.data());
@@ -113,7 +125,7 @@ public:
 			tex.replace(ctx, 0, 0, dv);
 		} else {
 			tex.destruct(ctx);
-			tex = cgv::render::texture("uint8[R,G,B]", cgv::render::TF_LINEAR, cgv::render::TF_LINEAR);
+			tex = cgv::render::texture("uint8[R,G,B]", cgv::render::TF_LINEAR, cgv::render::TF_LINEAR, cgv::render::TW_CLAMP_TO_EDGE, cgv::render::TW_CLAMP_TO_EDGE);
 			tex.create(ctx, dv, 0);
 		}
 	}

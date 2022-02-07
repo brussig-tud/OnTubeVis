@@ -64,6 +64,9 @@ tubes::tubes() : application_plugin("tubes_instance")
 	navigator_ptr->gui_options.show_heading = false;
 	navigator_ptr->gui_options.show_layout_options = false;
 	
+	cm_viewer_ptr = register_overlay<color_map_viewer>("Color Scale Viewer");
+	cm_viewer_ptr->gui_options.show_heading = false;
+	
 	grids.resize(2);
 	grids[0].scaling = vec2(1.0f, 1.0f);
 	grids[0].thickness = 0.05f;
@@ -328,6 +331,8 @@ void tubes::on_set(void *member_ptr) {
 
 			context& ctx = *get_context();
 			color_map_mgr.update_texture(ctx);
+			if(cm_viewer_ptr)
+				cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 
 			post_recreate_gui();
 		}
@@ -1150,6 +1155,12 @@ void tubes::init_frame (cgv::render::context &ctx)
 		}
 	}
 
+	if(cm_editor_ptr && cm_editor_ptr->was_updated()) {
+		color_map_mgr.update_texture(ctx);
+		if(cm_viewer_ptr)
+			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+	}
+
 	srd.clear();
 	srd.add(vec3(0.0f), 1.0f, rgb(1, 0, 0));
 }
@@ -1240,7 +1251,6 @@ void tubes::create_gui (void)
 	if(begin_tree_node("Attribute Mapping", glyph_layer_mgr, true)) {
 		align("\a");
 		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
-		connect_copy(add_button("Update Color Maps")->click, cgv::signal::rebind(this, &tubes::update_color_maps_texture));
 		glyph_layer_mgr.create_gui(this, *this);
 		align("\b");
 		end_tree_node(glyph_layer_mgr);
@@ -1736,17 +1746,6 @@ shader_define_map tubes::build_tube_shading_defines() {
 	shader_code::set_define(defines, "GLYPH_ATTRIBUTES_DEFINITION", glyph_layers_config.shader_config.attribute_buffer_definition, std::string("float v[1];"));
 	shader_code::set_define(defines, "GLYPH_LAYER_DEFINITION", glyph_layers_config.shader_config.glyph_layers_definition, std::string(""));
 	return defines;
-}
-
-/*void tubes::edit_color_map() {
-	if(cm_editor_ptr) {
-		cm_editor_ptr->set_color_map(&color_maps[0]);
-	}
-}*/
-
-void tubes::update_color_maps_texture() {
-	context& ctx = *get_context();
-	color_map_mgr.update_texture(ctx);
 }
 
 ////

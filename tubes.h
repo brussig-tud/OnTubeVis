@@ -34,6 +34,7 @@
 #include "glyph_layer_manager.h"
 #include "color_map_manager.h"
 #include "textured_spline_tube_renderer.h"
+#include "color_map_viewer.h"
 
 
 
@@ -101,6 +102,7 @@ protected:
 	cgv::glutil::color_map_editor* cm_editor_ptr;
 	cgv::glutil::transfer_function_editor* tf_editor_ptr;
 	cgv::glutil::navigator* navigator_ptr;
+	color_map_viewer* cm_viewer_ptr;
 
 
 	enum GridMode {
@@ -251,11 +253,6 @@ protected:
 	color_map_manager color_map_mgr;
 	glyph_layer_manager glyph_layer_mgr;
 
-	//std::vector<cgv::glutil::color_map> color_maps;
-	
-	//void edit_color_map();
-	void update_color_maps_texture();
-	
 
 
 
