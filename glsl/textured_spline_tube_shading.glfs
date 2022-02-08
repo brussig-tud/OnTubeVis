@@ -143,6 +143,24 @@ bool get_closest_samples (out closest_glyphs_info closest, in int segid, in floa
 	return false;
 }
 
+bool get_current_glyph(out glyph_desc glyph, in int seg_id, inout vec2 uv) {
+	closest_glyphs_info closest;
+
+	if (get_closest_samples(closest, seg_id, uv.s)) {
+		glyph = glyphs[closest.id];
+
+		uv = vec2(
+			(closest.dp <= closest.dn ? closest.dp : -closest.dn)
+			* general_settings.length_scale, // <-- ToDo: replace with automatic uv re-projection method
+			uv.t
+		);
+
+		return true;
+	}
+
+	return false;
+}
+
 float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
 	vec3 pos = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
 	vec3 normal = normalize(get_inverse_normal_matrix() * normal_eye);
@@ -188,21 +206,28 @@ float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
 
 // remap value v from range [r.x,r.y] to [r.z,r.w]
 float remap(float v, vec4 r) {
-	float t = (v - r.x) / (r.y - r.x);
+	float t = 0.0;
+	if(abs(r.x - r.y) > 0.00001)
+		t = (v - r.x) / (r.y - r.x);
 	return mix(r.z, r.w, t);
 }
 
 // clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
 float clamp_remap(float v, vec4 r) {
 	v = clamp(v, r.x, r.y);
-	float t = (v - r.x) / (r.y - r.x);
+	float t = 0.0;
+	if(abs(r.x - r.y) > 0.00001)
+		t = (v - r.x) / (r.y - r.x);
 	return mix(r.z, r.w, t);
 }
 
 // clamp value v to range [r.x,r.y] and remap to [0,1]
 float clamp_remap01(float v, vec4 r) {
 	v = clamp(v, r.x, r.y);
-	return (v - r.x) / (r.y - r.x);
+	float t = 0.0;
+	if(abs(r.x - r.y) > 0.00001)
+		t = (v - r.x) / (r.y - r.x);
+	return t;
 }
 
 //vec3 map_to_color(float v, float map_idx_coord) {
@@ -355,8 +380,6 @@ float sd_polygon(in vec2 p, in vec2[MAPPED_ATTRIBUTE_COUNT] v) {
 
 vec2 sd_star(vec2 p, float r, in glyph_desc gd) {
 	vec2 org = vec2(0.0);
-
-	//float v[MAPPED_ATTRIBUTE_COUNT] = float[MAPPED_ATTRIBUTE_COUNT](0.9);
 
 	float d_axes = 1e20;
 	float d_poly = 1e20;
@@ -702,7 +725,8 @@ void main()
 		// enable to highlight individual segments
 		//if((segment_id&1) > 0) color *= 0.5;
 
-		closest_glyphs_info closest;
+		/*closest_glyphs_info closest;
+		
 		if (get_closest_samples(closest, segment_id, uv.s))
 		{
 			glyph_desc current_glyph = glyphs[closest.id];
@@ -714,7 +738,14 @@ void main()
 			);
 
 			GLYPH_LAYER_DEFINITION
+		}*/
+
+		glyph_desc current_glyph;
+		vec2 glyphuv = uv;
+		if(get_current_glyph(current_glyph, segment_id, glyphuv)) {
+			GLYPH_LAYER_DEFINITION
 		}
+
 
 #if GRID_MODE & 1
 		color = mix(color, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);

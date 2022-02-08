@@ -20,11 +20,18 @@ public:
 		static const std::string mapped_parameter_name_prefix;
 
 		std::vector<const glyph_shape*> shapes;
-		std::vector<int> glyph_mapping_sources; // 0 for constant attrib, 1 for mapped attrib
 		std::vector<std::pair<std::string, const float*>> constant_float_parameters;
 		std::vector<std::pair<std::string, const rgb*>> constant_color_parameters;
 		std::vector<std::pair<std::string, const vec4*>> mapping_parameters;
 		std::vector<int> mapped_attributes;
+
+		struct glyph_mapping_triple {
+			int type; // 0 = constant, 1 = mapped
+			size_t idx; // index into attribute values
+			const vec4* v; // pointer to
+		};
+
+		std::vector<glyph_mapping_triple> glyph_mapping_parameters;
 
 		struct shader_configuration {
 			unsigned mapped_attrib_count = 0u;
@@ -42,11 +49,12 @@ public:
 
 		void clear() {
 			shapes.clear();
-			glyph_mapping_sources.clear();
 			constant_float_parameters.clear();
 			constant_color_parameters.clear();
 			mapping_parameters.clear();
 			mapped_attributes.clear();
+
+			glyph_mapping_parameters.clear();
 
 			shader_config.clear();
 		}

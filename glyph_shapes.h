@@ -107,7 +107,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "color", GAT_COLOR, GAM_GLOBAL },
+			{ "color", GAT_COLOR },
 			{ "length", GAT_SIZE },
 			{ "height", GAT_SIZE }
 		};
@@ -132,7 +132,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "color", GAT_COLOR, GAM_GLOBAL },
+			{ "color", GAT_COLOR },
 			{ "radius", GAT_SIZE },
 			{ "aperture", GAT_DOUBLE_ANGLE },
 			{ "orientation", GAT_ORIENTATION }
@@ -159,7 +159,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "color", GAT_COLOR, GAM_GLOBAL },
+			{ "color", GAT_COLOR },
 			{ "radius", GAT_SIZE },
 			{ "thickness", GAT_SIZE },
 			{ "aperture", GAT_DOUBLE_ANGLE },
@@ -198,7 +198,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "color", GAT_COLOR, GAM_GLOBAL },
+			{ "color", GAT_COLOR },
 			{ "base_width", GAT_SIZE },
 			{ "height", GAT_SIZE },
 			{ "orientation", GAT_ORIENTATION }
@@ -260,7 +260,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "color", GAT_COLOR, GAM_GLOBAL },
+			{ "color", GAT_COLOR },
 			{ "base_radius", GAT_SIZE },
 			{ "tip_radius", GAT_SIZE },
 			{ "height", GAT_SIZE },

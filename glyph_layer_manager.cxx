@@ -64,13 +64,6 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 			std::string func_name_str = "sd_" + shape_ptr->name();
 			std::string glyph_coord_str = "glyphuv";
 			
-			/*
-			std::vector<std::string> constant_float_parameters_strs;
-			std::vector<std::string> mapped_float_parameters_strs;
-			std::vector<std::string> constant_color_parameters_strs;
-			std::vector<std::string> mapped_color_parameters_strs;
-			*/
-
 			// the parameters used in the signed distance and splat function calls
 			std::vector<std::string> float_parameter_strs;
 			std::vector<std::string> color_parameter_strs;
@@ -90,7 +83,7 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 
 				std::string parameter_str = "";
 
-				// skipt this parameter if it is not mapped from an attribute and does not allow constant values
+				// skip this parameter if it is not mapped from an attribute and does not allow constant values
 				if(idx < 0 && is_non_const && !is_global)
 					continue;
 
@@ -105,8 +98,8 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 					} else {
 						uniform_name = layer_config.constant_float_parameter_name_prefix + "[" + std::to_string(layer_config.constant_float_parameters.size()) + "]";
 						
+						layer_config.glyph_mapping_parameters.push_back({ 0, layer_config.constant_float_parameters.size(), &attrib_values[j] });
 						layer_config.constant_float_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j][3]));
-						layer_config.glyph_mapping_sources.push_back(0);
 					}
 
 					parameter_str = uniform_name;
@@ -119,9 +112,12 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 					parameter_str = remap_func + "(current_glyph." + attrib_variable_name + ", " + uniform_name + ")";
 
 					if(type == GAT_COLOR) {
-						parameter_str = "map_to_color(" + parameter_str + ", " + std::to_string(color_map_idx) + ")";
+						if(color_map_idx < 0)
+							parameter_str = "vec3(0.0)";
+						else
+							parameter_str = "map_to_color(" + parameter_str + ", " + std::to_string(color_map_idx) + ")";
 					} else {
-						layer_config.glyph_mapping_sources.push_back(1);
+						layer_config.glyph_mapping_parameters.push_back({ 1, layer_config.mapping_parameters.size(), &attrib_values[j] });
 					}
 
 					layer_config.mapping_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j]));

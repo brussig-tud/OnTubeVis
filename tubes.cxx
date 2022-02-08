@@ -1,9 +1,15 @@
 #include "tubes.h"
 
+#include <filesystem>
+
 // CGV framework core
+#include <cgv/defines/quote.h>
 #include <cgv/math/ftransform.h>
 #include <cgv/media/image/image_reader.h>
 #include <cgv/utils/advanced_scan.h>
+
+// CGV framework graphics utility
+#include <cgv_glutil/color_map_reader.h>
 
 // fltk_gl_view for controlling instant redraw
 #include <plugins/cg_fltk/fltk_gl_view.h>
@@ -438,7 +444,9 @@ bool tubes::compile_glyph_attribs_new(void) {
 	// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
 	auto clamp_remap = [](float v, vec4 r) {
 		v = cgv::math::clamp(v, r.x(), r.y());
-		float t = (v - r.x()) / (r.y() - r.x());
+		float t = 0.0f;
+		if(abs(r.x() - r.y()) > std::numeric_limits<float>::epsilon())
+			t = (v - r.x()) / (r.y() - r.x());
 		return cgv::math::lerp(r.z(), r.w(), t);
 	};
 
@@ -460,13 +468,9 @@ bool tubes::compile_glyph_attribs_new(void) {
 	std::vector<const std::vector<range>*> attribs_trajs;
 	std::vector<vec2> attrib_data_ranges;
 
-	
 	// when mapping radius, magnitude_at produces a vector subscript out of range error
 	// calling magnitude_at or signed_magnitude_at on attributes without timestamps causes a crash
 	// TODO: add has_timestamps method to trajectory_attrib class and only inlcude attribs that have timestamps
-
-	// TODO: in layer manager: make sure that an attribute is only included once int the list of mapped attributes
-
 
 	for(size_t i = 0; i < glyph_layers_config.mapped_attributes.size(); ++i) {
 		int attrib_idx = glyph_layers_config.mapped_attributes[i];
@@ -488,9 +492,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 		std::cout << attrib_names[attrib_idx] << std::endl;
 	}
 
-
 	size_t attrib_count = mapped_attribs.size();
-
 
 	struct {
 		size_t count = 0;
@@ -524,7 +526,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 		}
 	} attribs;
 
-	attribs.count = mapped_attribs.size();
+	attribs.count = attrib_count;
 
 	struct irange { int i0, n; };
 	//std::vector<float> attribs; // buffer of attribute values
@@ -652,19 +654,16 @@ bool tubes::compile_glyph_attribs_new(void) {
 				}
 
 				// setup parameters of potential glyph
-				size_t const_idx = 0;
-				size_t mapped_idx = 0;
-				for(size_t i = 0; i < glyph_layers_config.glyph_mapping_sources.size(); ++i) {
-					if(glyph_layers_config.glyph_mapping_sources[i] == 0) {
+				for(size_t i = 0; i < glyph_layers_config.glyph_mapping_parameters.size(); ++i) {
+					const auto& triple = glyph_layers_config.glyph_mapping_parameters[i];
+					if(triple.type == 0) {
 						// constant attribute
-						glyph_params[i] = *(glyph_layers_config.constant_float_parameters[const_idx++].second);
+						glyph_params[i] = (*triple.v)[3];
 					} else {
 						// mapped attribute
-						const vec4& ranges = *(glyph_layers_config.mapping_parameters[mapped_idx].second);
+						const vec4& ranges = *(triple.v);
 						// use windowing and remapping to get the value of the glyph parameter
-						// TODO: handle case where range is a single value (min = max)
-						glyph_params[i] = clamp_remap(attrib_values[mapped_idx], ranges);
-						++mapped_idx;
+						glyph_params[i] = clamp_remap(attrib_values[triple.idx], ranges);
 					}
 				}
 
@@ -976,6 +975,13 @@ bool tubes::compile_glyph_attribs_old(void) {
 
 bool tubes::init (cgv::render::context &ctx)
 {
+#ifdef CGV_FORCE_STATIC
+	std::string app_path = cgv::base::ref_prog_path_prefix();
+#else
+	std::string app_path = QUOTE_SYMBOL_VALUE(INPUT_DIR);
+	app_path += "/";
+#endif
+
 	// increase reference count of the renderers by one
 	auto &tstr = ref_textured_spline_tube_renderer(ctx, 1);
 	auto &vr = ref_volume_renderer(ctx, 1);
@@ -1044,24 +1050,33 @@ bool tubes::init (cgv::render::context &ctx)
 	update_attribute_bindings();
 	update_grid_ratios();
 
-	update_glyph_layer_manager();
-
-	compile_glyph_attribs();
-	ah_mgr.set_dataset(traj_mgr.dataset(0));
+	
 	
 
 
 
+	// load diverging color maps from the resource directory
+	std::string color_maps_path = app_path + "res/color_maps/diverging";
+	if(std::filesystem::exists(color_maps_path)) {
+		for(const auto &entry : std::filesystem::directory_iterator(color_maps_path)) {
+			std::filesystem::path entry_path = entry.path();
+			// only take xml files
+			if(entry_path.extension() == ".xml") {
+				std::string name = "";
+				cgv::glutil::color_map cm;
+				if(cgv::glutil::color_map_reader::read_from_xml(entry_path.string(), cm, name))
+					color_map_mgr.add_color_map(name, cm);
+			}
+		}
+		color_map_mgr.update_texture(ctx);
+		if(cm_viewer_ptr)
+			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+	}
 
+	update_glyph_layer_manager();
 
-	// add one default color map
-	//color_maps.push_back(cgv::glutil::color_map());
-	//
-	//auto& cm = color_maps[0];
-	//cm.add_color_point(0.0f, rgb(0.0f));
-	//cm.add_color_point(1.0f, rgb(1.0f));
-
-
+	compile_glyph_attribs();
+	ah_mgr.set_dataset(traj_mgr.dataset(0));
 
 
 
@@ -1263,6 +1278,13 @@ void tubes::create_gui (void)
 		inline_object_gui(cm_editor_ptr);
 		align("\b");
 		end_tree_node(cm_editor_ptr);
+	}
+
+	if(begin_tree_node("Color Scale Viewer", cm_viewer_ptr, false)) {
+		align("\a");
+		inline_object_gui(cm_viewer_ptr);
+		align("\b");
+		end_tree_node(cm_viewer_ptr);
 	}
 
 	if(begin_tree_node("Navigator", navigator_ptr, false)) {

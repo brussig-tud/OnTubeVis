@@ -10,6 +10,7 @@ color_map_viewer::color_map_viewer() {
 	set_name("Color Map Viewer");
 
 	layout.padding = 8;
+	layout.band_height = 15;
 	layout.total_height = 80;
 
 	set_overlay_alignment(AO_START, AO_END);
@@ -21,6 +22,7 @@ color_map_viewer::color_map_viewer() {
 	fbc.set_size(get_overlay_size());
 
 	canvas.register_shader("rectangle", cgv::glutil::canvas::shaders_2d::rectangle);
+	canvas.register_shader("color_maps", "color_maps.glpr");
 	
 	overlay_canvas.register_shader("rectangle", cgv::glutil::canvas::shaders_2d::rectangle);
 
@@ -46,8 +48,14 @@ bool color_map_viewer::handle_event(cgv::gui::event& e) {
 
 void color_map_viewer::on_set(void* member_ptr) {
 
-	if(member_ptr == &layout.total_height) {
+	if(member_ptr == &layout.total_height || member_ptr == &layout.band_height) {
 		ivec2 size = get_overlay_size();
+
+		if(tex) {
+			int h = static_cast<int>(tex->get_height());
+			layout.total_height = 2 * layout.padding + h * layout.band_height;
+		}
+
 		size.y() = layout.total_height;
 		set_overlay_size(size);
 	}
@@ -108,23 +116,16 @@ void color_map_viewer::draw(cgv::render::context& ctx) {
 	// draw inner border
 	border_style.apply(ctx, rect_prog);
 	canvas.draw_shape(ctx, ivec2(layout.padding - 1), container_size - 2*layout.padding + 2);
+	canvas.disable_current_shader(ctx);
 	
 	// draw color scale texture
-	color_map_style.apply(ctx, rect_prog);
+	auto& color_maps_prog = canvas.enable_shader(ctx, "color_maps");
+	color_map_style.apply(ctx, color_maps_prog);
 	tex->enable(ctx, 0);
 	canvas.draw_shape(ctx, layout.color_map_rect.pos(), layout.color_map_rect.size());
 	tex->disable(ctx);
 	canvas.disable_current_shader(ctx);
 	
-	// draw separator line
-	//rect_prog = canvas.enable_shader(ctx, "rectangle");
-	//border_style.apply(ctx, rect_prog);
-	//canvas.draw_shape(ctx,
-	//	ivec2(layout.color_map_rect.pos().x(), layout.color_map_rect.box.get_max_pnt().y()),
-	//	ivec2(container_size.x() - 2 * layout.padding, 1)
-	//);
-	//canvas.disable_current_shader(ctx);
-
 	glDisable(GL_BLEND);
 
 	fbc.disable(ctx);
@@ -144,12 +145,12 @@ void color_map_viewer::create_gui() {
 
 	create_overlay_gui();
 
-	if(begin_tree_node("Settings", layout, false)) {
-		align("\a");
-		add_member_control(this, "Height", layout.total_height, "value_slider", "min=100;max=500;step=10;ticks=true");
-		align("\b");
-		end_tree_node(layout);
-	}
+	//if(begin_tree_node("Settings", layout, false)) {
+	//	align("\a");
+		add_member_control(this, "Band Height", layout.band_height, "value_slider", "min=5;max=50;step=5;ticks=true");
+	//	align("\b");
+	//	end_tree_node(layout);
+	//}
 }
 
 void color_map_viewer::create_gui(cgv::gui::provider& p) {

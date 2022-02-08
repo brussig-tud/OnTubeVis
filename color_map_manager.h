@@ -74,11 +74,19 @@ public:
 
 	std::vector<color_map_container>& ref_color_maps() { return color_maps; }
 
+	cgv::render::texture& ref_texture() { return tex; }
+
 	std::vector<std::string> get_names() {
 		std::vector<std::string> names;
 		for(size_t i = 0; i < color_maps.size(); ++i)
 			names.push_back(color_maps[i].name);
 		return names;
+	}
+
+	void add_color_map(const std::string& name, const cgv::glutil::color_map& cm) {
+		color_map_container cmc(name);
+		cmc.cm = cm;
+		color_maps.push_back(cmc);
 	}
 
 	void update_texture(cgv::render::context& ctx) {
@@ -129,8 +137,6 @@ public:
 			tex.create(ctx, dv, 0);
 		}
 	}
-
-	cgv::render::texture& ref_texture() { return tex; }
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
 };

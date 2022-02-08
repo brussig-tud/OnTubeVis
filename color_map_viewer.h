@@ -19,6 +19,7 @@ protected:
 	
 	struct layout_attributes {
 		int padding;
+		int band_height;
 		int total_height;
 
 		// dependent members
@@ -55,11 +56,6 @@ public:
 
 	void set_color_map_texture(texture* tex) {
 		this->tex = tex;
-
-		if(tex) {
-			unsigned h = tex->get_height();
-			layout.total_height = 2.0f*layout.padding + 20.0f*h;
-			on_set(&layout.total_height);
-		}
+		on_set(&layout.total_height);
 	}
 };
