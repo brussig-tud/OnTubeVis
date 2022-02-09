@@ -4,12 +4,12 @@
 #define GRID_MODE 1
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
-//#define CONST_FLOAT_ATTRIBUTE_COUNT 1
-//#define CONST_COLOR_ATTRIBUTE_COUNT 1
-#define MAPPED_ATTRIBUTE_COUNT 1
-#define GLYPH_MAPPING_UNIFORMS vec4 glyph_m_param[MAPPED_ATTRIBUTE_COUNT];
-#define GLYPH_ATTRIBUTES_DEFINITION float v[1];
-#define GLYPH_LAYER_DEFINITION
+
+#define GLYPH_MAPPING_UNIFORMS
+#define L0_MAPPED_ATTRIB_COUNT 0
+#define L0_GLYPH_DEFINITION
+#define L1_MAPPED_ATTRIB_COUNT 0
+#define L1_GLYPH_DEFINITION
 
 //***** begin interface of view.glsl ***********************************
 mat4 get_modelview_matrix();
@@ -71,36 +71,26 @@ uniform struct {
 	float antialias_radius;
 } general_settings;
 
-/*uniform struct {
-	int glyph_type;
-	bool curvature_correction;
-	float radius0;
-	float radius1;
-	float angle0;
-	float angle1;
-	
-	float length_scale;
-} attribute_mapping;*/
-
-
-
-// free attributes ssbo
-struct glyph_desc {
-	float s;
-	uint debug_info;
-	GLYPH_ATTRIBUTES_DEFINITION
-};
-layout (std430, binding=0) readonly buffer attribs_buffer { 
-	glyph_desc glyphs[];
-};
-
-// free attributes per-segment index ranges
 struct irange {
 	int i0, n;
 };
-layout (std430, binding=1) readonly buffer ranges_buffer { 
-	irange ranges[];
+
+// attribute and range buffers for each glyph layer
+// free attributes ssbos
+// free attributes per-segment index ranges
+#if L0_MAPPED_ATTRIB_COUNT > 0
+struct glyph_desc0 {
+	float s;
+	uint debug_info;
+	float v[L0_MAPPED_ATTRIB_COUNT];
 };
+layout (std430, binding=0) readonly buffer attribs_buffer { 
+	glyph_desc0 glyphs0[];
+};
+layout (std430, binding=1) readonly buffer ranges_buffer { 
+	irange ranges0[];
+};
+#endif
 
 in vec2 texcoord_fs;
 
@@ -111,39 +101,33 @@ struct closest_glyphs_info {
 	float dp, dn, d;
 };
 
-bool get_closest_samples (out closest_glyphs_info closest, in int segid, in float s)
-{
-	const irange segment = ranges[segid];
-	if (segment.n > 0)
-	{
-		// perform binary search
-		irange rng = segment;
-		while (rng.n > 1)
-		{
-			const int mid_n = rng.n/2, mid = rng.i0+mid_n;
-			if (glyphs[mid].s > s)
-				// left node
-				rng.n = mid_n;
-			else
-			{
-				// right node
-				rng.i0 = rng.i0 + mid_n;
-				rng.n  = rng.n  - mid_n;
-			}
-		}
-		closest.prev = rng.i0;
-		closest.next = rng.i0 < segment.i0+segment.n-1 ? rng.i0+1 : rng.i0;
-		closest.dp = s-glyphs[rng.i0].s;
-		closest.dn = glyphs[closest.next].s-s;
-		const bool n_lt_p = closest.dn < closest.dp;
-		closest.id = n_lt_p ? closest.next : closest.prev;
-		closest.d  = n_lt_p ? closest.dn : closest.dp;
-		return true;
-	}
-	return false;
+#define DEF_CLOSEST_SAMPLES(I, ranges, glyphs) \
+bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info closest) { \
+	const irange segment = ranges[segid]; \
+	if (segment.n > 0) { \
+		irange rng = segment; \
+		while (rng.n > 1) { \
+			const int mid_n = rng.n/2, mid = rng.i0+mid_n; \
+			if (glyphs[mid].s > s) rng.n = mid_n; \
+			else { rng.i0 = rng.i0 + mid_n; rng.n  = rng.n  - mid_n; } \
+		} \
+		closest.prev = rng.i0; \
+		closest.next = rng.i0 < segment.i0+segment.n-1 ? rng.i0+1 : rng.i0; \
+		closest.dp = s-glyphs[rng.i0].s; \
+		closest.dn = glyphs[closest.next].s-s; \
+		const bool n_lt_p = closest.dn < closest.dp; \
+		closest.id = n_lt_p ? closest.next : closest.prev; \
+		closest.d  = n_lt_p ? closest.dn : closest.dp; \
+		return true; \
+	} \
+	return false; \
 }
 
-bool get_current_glyph(out glyph_desc glyph, in int seg_id, inout vec2 uv) {
+#if L0_MAPPED_ATTRIB_COUNT > 0
+DEF_CLOSEST_SAMPLES(0, ranges0, glyphs0)
+#endif
+
+/*bool get_current_glyph(out glyph_desc glyph, in int seg_id, inout vec2 uv) {
 	closest_glyphs_info closest;
 
 	if (get_closest_samples(closest, seg_id, uv.s)) {
@@ -159,7 +143,7 @@ bool get_current_glyph(out glyph_desc glyph, in int seg_id, inout vec2 uv) {
 	}
 
 	return false;
-}
+}*/
 
 float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
 	vec3 pos = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
@@ -362,6 +346,7 @@ float sd_segment(in vec2 p, in vec2 a, in vec2 b) {
     return length( pa - ba*h );
 }
 
+/*
 #if MAPPED_ATTRIBUTE_COUNT > 0
 float sd_polygon(in vec2 p, in vec2[MAPPED_ATTRIBUTE_COUNT] v) {
     float d = dot(p-v[0],p-v[0]);
@@ -431,7 +416,7 @@ vec4 splat_star(in glyph_desc gd, in vec2 p) {
 #else
 	return vec4(0.0);
 #endif
-}
+}*/
 
 
 float grid_texture_fuzzy(in vec2 p, in float n) {
@@ -608,12 +593,12 @@ float digit(vec2 uv, uint num) {
 	return seg;
 }
 
-vec4 splat_generic_glyph(in glyph_desc gd, in float dist, in vec3 glyph_color) {
+vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color) {
 	
 	// debug only
 	// show otherwise not drawn glyphs
 	float alpha_fac = 1.0;
-	if((gd.debug_info & 0x1000) == 0) {
+	if((debug_info & 0x1000) == 0) {
 		alpha_fac = 0.5; // make glyph half transparent
 		dist = op_onion(dist + 0.05, 0.05); // draw outline of glyph (keeps original size)
 	}
@@ -627,11 +612,11 @@ vec4 splat_generic_glyph(in glyph_desc gd, in float dist, in vec3 glyph_color) {
 	// <<
 }
 
-void finalize_glyph(in vec2 uv, in glyph_desc gd, in vec4 glyph_color, inout vec3 color) {
+void finalize_glyph(in uint debug_info, in vec2 uv, in vec4 glyph_color, inout vec3 color) {
 
 	// the following is for debugging only
-	uint main_attrib_idx = (gd.debug_info>>2) & 0x0003;
-	uint interpolated_attrib_count = gd.debug_info & 0x0003;
+	uint main_attrib_idx = (debug_info>>2) & 0x0003;
+	uint interpolated_attrib_count = debug_info & 0x0003;
 	
 	// color according to main attribute (the one, that induced the placement of this glyph)
 	//glyph_color.rgb = vec3(0.0);
@@ -647,15 +632,15 @@ void finalize_glyph(in vec2 uv, in glyph_desc gd, in vec4 glyph_color, inout vec
 	color = mix(color, 1.0-color, digit(digit_uv, interpolated_attrib_count));
 }
 
-void splat_glyph2(in vec2 uv, in glyph_desc gd, in float dist, in vec3 glyph_color, inout vec3 color) {
+void splat_glyph2(in uint debug_info, in vec2 uv, in float dist, in vec3 glyph_color, inout vec3 color) {
 	// the following is for debugging only
-	uint main_attrib_idx = (gd.debug_info>>2) & 0x0003;
-	uint interpolated_attrib_count = gd.debug_info & 0x0003;
+	uint main_attrib_idx = (debug_info>>2) & 0x0003;
+	uint interpolated_attrib_count = debug_info & 0x0003;
 	
 	glyph_color = vec3(0.0);
 	glyph_color[main_attrib_idx] = 1.0;
 
-	if((gd.debug_info & 0x1000) == 0) {
+	if((debug_info & 0x1000) == 0) {
 		// this is for showing otherwise not drawn glyphs
 		glyph_color = mix(color, glyph_color, 0.5); // make glyph half transparent
 		dist = op_onion(dist + 0.05, 0.05); // draw outline of glyph (keeps original size)
@@ -740,11 +725,32 @@ void main()
 			GLYPH_LAYER_DEFINITION
 		}*/
 
-		glyph_desc current_glyph;
+
+		
+		// glyph layer 0
+#if L0_MAPPED_ATTRIB_COUNT > 0
+		{
+			closest_glyphs_info closest;
+			vec2 glyphuv = uv;
+			if (get_closest_samples0(segment_id, glyphuv.s, closest)) {
+				glyph_desc0 glyph = glyphs0[closest.id];
+
+				glyphuv = vec2(
+					(closest.dp <= closest.dn ? closest.dp : -closest.dn)
+					* general_settings.length_scale, // <-- ToDo: replace with automatic uv re-projection method
+					glyphuv.t
+				);
+
+				L0_GLYPH_DEFINITION
+			}
+		}
+#endif
+
+		/*glyph_desc current_glyph;
 		vec2 glyphuv = uv;
 		if(get_current_glyph(current_glyph, segment_id, glyphuv)) {
 			GLYPH_LAYER_DEFINITION
-		}
+		}*/
 
 
 #if GRID_MODE & 1

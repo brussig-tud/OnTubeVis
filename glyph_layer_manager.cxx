@@ -29,11 +29,11 @@ void glyph_layer_manager::set_color_map_names(const std::vector<std::string>& na
 	}
 }
 
-const std::string glyph_layer_manager::layer_configuration::constant_float_parameter_name_prefix = "glyph_cf_param";
-const std::string glyph_layer_manager::layer_configuration::constant_color_parameter_name_prefix = "glyph_cc_param";
-const std::string glyph_layer_manager::layer_configuration::mapped_parameter_name_prefix = "glyph_m_param";
+const std::string glyph_layer_manager::configuration::constant_float_parameter_name_prefix = "glyph_cf_param";
+const std::string glyph_layer_manager::configuration::constant_color_parameter_name_prefix = "glyph_cc_param";
+const std::string glyph_layer_manager::configuration::mapped_parameter_name_prefix = "glyph_m_param";
 
-const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configuration() {
+const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration() {
 
 	const auto join = [](const std::vector<std::string>& strings, const std::string& delimiter, bool trailing_delimiter = false) {
 		std::string result = "";
@@ -46,18 +46,22 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 	};
 
 	// clear previous configuration
-	layer_config.clear();
+	config.clear();
 
-	std::string glyph_layers_definition = "";
+	size_t last_constant_float_parameters_size = 0;
+	size_t last_mapping_parameters_size = 0;
 
+	// iterate over layers
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		const glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
-
 		const glyph_shape* shape_ptr = gam.get_shape_ptr();
+
+		config.layer_configs.push_back(configuration::layer_configuration());
+		auto& layer_config = config.layer_configs.back();
 
 		if(shape_ptr) {
 			// TODO: this may be unsafe (make a copy? needs to be deleted afterwards)
-			layer_config.shapes.push_back(shape_ptr);
+			layer_config.shape_ptr = shape_ptr;
 
 			const glyph_shape::attribute_list& attribs = shape_ptr->supported_attributes();
 
@@ -92,24 +96,24 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 					std::string uniform_name;
 
 					if(type == GAT_COLOR) {
-						uniform_name = layer_config.constant_color_parameter_name_prefix + "[" + std::to_string(layer_config.constant_color_parameters.size()) + "]";
+						uniform_name = config.constant_color_parameter_name_prefix + "[" + std::to_string(config.constant_color_parameters.size()) + "]";
 
-						layer_config.constant_color_parameters.push_back(std::make_pair(uniform_name, &attrib_colors[j]));
+						config.constant_color_parameters.push_back(std::make_pair(uniform_name, &attrib_colors[j]));
 					} else {
-						uniform_name = layer_config.constant_float_parameter_name_prefix + "[" + std::to_string(layer_config.constant_float_parameters.size()) + "]";
+						uniform_name = config.constant_float_parameter_name_prefix + "[" + std::to_string(config.constant_float_parameters.size()) + "]";
 						
-						layer_config.glyph_mapping_parameters.push_back({ 0, layer_config.constant_float_parameters.size(), &attrib_values[j] });
-						layer_config.constant_float_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j][3]));
+						layer_config.glyph_mapping_parameters.push_back({ 0, config.constant_float_parameters.size() - last_constant_float_parameters_size, &attrib_values[j] });
+						config.constant_float_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j][3]));
 					}
 
 					parameter_str = uniform_name;
 				} else {
 					// mapped parameter
-					const std::string& attrib_variable_name = "v[" + std::to_string(layer_config.mapping_parameters.size()) + "]";
-					std::string uniform_name = layer_config.mapped_parameter_name_prefix + "[" + std::to_string(layer_config.mapping_parameters.size()) + "]";
+					const std::string& attrib_variable_name = "v[" + std::to_string(config.mapping_parameters.size()) + "]";
+					std::string uniform_name = config.mapped_parameter_name_prefix + "[" + std::to_string(config.mapping_parameters.size()) + "]";
 
 					std::string remap_func = type == GAT_COLOR ? "clamp_remap01" : "clamp_remap";
-					parameter_str = remap_func + "(current_glyph." + attrib_variable_name + ", " + uniform_name + ")";
+					parameter_str = remap_func + "(glyph." + attrib_variable_name + ", " + uniform_name + ")";
 
 					if(type == GAT_COLOR) {
 						if(color_map_idx < 0)
@@ -117,10 +121,10 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 						else
 							parameter_str = "map_to_color(" + parameter_str + ", " + std::to_string(color_map_idx) + ")";
 					} else {
-						layer_config.glyph_mapping_parameters.push_back({ 1, layer_config.mapping_parameters.size(), &attrib_values[j] });
+						layer_config.glyph_mapping_parameters.push_back({ 1, config.mapping_parameters.size() - last_mapping_parameters_size, &attrib_values[j] });
 					}
 
-					layer_config.mapping_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j]));
+					config.mapping_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j]));
 					layer_config.mapped_attributes.push_back(idx);
 				}
 
@@ -139,6 +143,9 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 					float_parameter_strs.push_back(parameter_str);
 				}
 			}
+
+			last_constant_float_parameters_size = config.constant_float_parameters.size();
+			last_mapping_parameters_size = config.mapping_parameters.size();
 
 			// get glyph color
 			//std::string color_str = constant_color_name_prefix + std::to_string(constant_glyph_colors.size());
@@ -160,23 +167,33 @@ const glyph_layer_manager::layer_configuration& glyph_layer_manager::get_configu
 					color_str = color_parameter_strs[0];
 				}
 
-				splat_func = "splat_generic_glyph(current_glyph, " + glyph_func + ", " + color_str + ")";
+				splat_func = "splat_generic_glyph(glyph.debug_info, " + glyph_func + ", " + color_str + ")";
 			} else {
 				// TODO: check in glyph shape if global or constant/mapped params are used
 				//std::string global_params_str = join(global_func_parameters_strs, ", ");// +(global_func_parameters_strs.size() > 0 ? ", " : "");
 
 				//splat_func += "(current_glyph, " + glyph_coord_str + ", " + global_params_str + ", " + color_str + ")";
-				splat_func += "(current_glyph, " + glyph_coord_str + ")";
+				splat_func += "(glyph.debug_info, " + glyph_coord_str + ")";
 			}
 
 			//code = "splat_glyph(glyphuv, current_glyph, " + splat_func + ", " + color_str + ", color);";
-			glyph_layers_definition = "finalize_glyph(glyphuv, current_glyph, " + splat_func + ", color);";
+			layer_config.glyph_definition = "finalize_glyph(glyph.debug_info, glyphuv, " + splat_func + ", color);";
 		}
 	}
 
-	layer_config.create_shader_config(glyph_layers_definition, true);
+	config.create_uniforms_definition();
 
-	return layer_config;
+	std::cout << std::endl << ">>> SHADER DEFINES <<<" << std::endl;
+	std::cout << config.uniforms_definition << std::endl << std::endl;
+	int i = 0;
+	for(const auto& lc : config.layer_configs) {
+		std::cout << "L" << std::to_string(i++) << std::endl;
+		std::cout << "Mapped attrib count = " << lc.mapped_attributes.size() << std::endl;
+		std::cout << lc.glyph_definition << std::endl << std::endl;
+	}
+	std::cout << ">>> ============== <<<" << std::endl << std::endl;
+
+	return config;
 }
 
 ActionType glyph_layer_manager::action_type() {
@@ -217,6 +234,11 @@ void glyph_layer_manager::on_set(void* member_ptr) {
 }
 
 void glyph_layer_manager::create_glyph_attribute_mapping() {
+	if(glyph_attribute_mappings.size() == 4) {
+		std::cout << "Cannot use more than 4 layers" << std::endl;
+		return;
+	}
+
 	glyph_attribute_mappings.push_back(glyph_attribute_mapping());
 	auto& gam = glyph_attribute_mappings.back();
 	gam.set_attribute_names(attribute_names);

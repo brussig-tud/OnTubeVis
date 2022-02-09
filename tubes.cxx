@@ -416,7 +416,7 @@ void tubes::update_glyph_layer_manager() {
 bool tubes::compile_glyph_attribs (void)
 {
 	bool success = false;
-	if(glyph_layers_config.mapped_attributes.size() > 0)
+	if(glyph_layers_config.layer_configs.size() > 0)
 		success = compile_glyph_attribs_new();
 	else
 		success = compile_glyph_attribs_old();
@@ -472,8 +472,10 @@ bool tubes::compile_glyph_attribs_new(void) {
 	// calling magnitude_at or signed_magnitude_at on attributes without timestamps causes a crash
 	// TODO: add has_timestamps method to trajectory_attrib class and only inlcude attribs that have timestamps
 
-	for(size_t i = 0; i < glyph_layers_config.mapped_attributes.size(); ++i) {
-		int attrib_idx = glyph_layers_config.mapped_attributes[i];
+	const auto& layer_config = glyph_layers_config.layer_configs[0];
+
+	for(size_t i = 0; i < layer_config.mapped_attributes.size(); ++i) {
+		int attrib_idx = layer_config.mapped_attributes[i];
 		if(attrib_idx < 0 || attrib_idx >= attrib_names.size())
 			std::cout << "Error: tubes::compile_glyph_attribs - attribute index out of range" << std::endl;
 
@@ -542,7 +544,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 	// TODO: support multiple data sets? Out of scope for current paper/implementation.
 	// TODO: enable usage of multiple glpyh layers
 
-	const glyph_shape* current_shape = glyph_layers_config.shapes[0];
+	const glyph_shape* current_shape = layer_config.shape_ptr;
 
 	unsigned traj_offset = 0;
 	for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
@@ -654,8 +656,8 @@ bool tubes::compile_glyph_attribs_new(void) {
 				}
 
 				// setup parameters of potential glyph
-				for(size_t i = 0; i < glyph_layers_config.glyph_mapping_parameters.size(); ++i) {
-					const auto& triple = glyph_layers_config.glyph_mapping_parameters[i];
+				for(size_t i = 0; i < layer_config.glyph_mapping_parameters.size(); ++i) {
+					const auto& triple = layer_config.glyph_mapping_parameters[i];
 					if(triple.type == 0) {
 						// constant attribute
 						glyph_params[i] = (*triple.v)[3];
@@ -1763,10 +1765,19 @@ shader_define_map tubes::build_tube_shading_defines() {
 	shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
-	shader_code::set_define(defines, "MAPPED_ATTRIBUTE_COUNT", glyph_layers_config.shader_config.mapped_attrib_count, 1u);
-	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.shader_config.uniforms_definition, std::string("vec4 glyph_m_param[MAPPED_ATTRIBUTE_COUNT];"));
-	shader_code::set_define(defines, "GLYPH_ATTRIBUTES_DEFINITION", glyph_layers_config.shader_config.attribute_buffer_definition, std::string("float v[1];"));
-	shader_code::set_define(defines, "GLYPH_LAYER_DEFINITION", glyph_layers_config.shader_config.glyph_layers_definition, std::string(""));
+	//shader_code::set_define(defines, "MAPPED_ATTRIBUTE_COUNT", glyph_layers_config.shader_config.mapped_attrib_count, 1u);
+	//shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.shader_config.uniforms_definition, std::string("vec4 glyph_m_param[MAPPED_ATTRIBUTE_COUNT];"));
+	//shader_code::set_define(defines, "GLYPH_ATTRIBUTES_DEFINITION", glyph_layers_config.shader_config.attribute_buffer_definition, std::string("float v[1];"));
+	//shader_code::set_define(defines, "GLYPH_LAYER_DEFINITION", glyph_layers_config.shader_config.glyph_layers_definition, std::string(""));
+
+	
+	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
+	
+	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
+		const auto& lc = glyph_layers_config.layer_configs[i];
+		shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
+		shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
+	}
 	return defines;
 }
 
