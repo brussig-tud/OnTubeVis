@@ -206,11 +206,11 @@ protected:
 		/// GPU-side render attribute buffer.
 		vertex_buffer render_sbo;
 
-		/// GPU-side storage buffer storing independently sampled attribute data.
-		vertex_buffer attribs_sbo;
+		/// GPU-side storage buffers storing independently sampled attribute data.
+		std::vector<vertex_buffer> attribs_sbos;
 
-		/// GPU-side storage buffer indexing the independently sampled attributes per tube segment.
-		vertex_buffer aindex_sbo;
+		/// GPU-side storage buffers indexing the independently sampled attributes per tube segment.
+		std::vector<vertex_buffer> aindex_sbos;
 
 		/// shared attribute array manager used by both renderers
 		attribute_array_manager aam;

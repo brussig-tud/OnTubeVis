@@ -14,6 +14,7 @@ glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& 
 	attrib_colors = r.attrib_colors;
 	attribute_names = r.attribute_names;
 	attribute_ranges = r.attribute_ranges;
+	color_map_names = r.color_map_names;
 }
 
 glyph_attribute_mapping& glyph_attribute_mapping::operator=(const glyph_attribute_mapping& r) {

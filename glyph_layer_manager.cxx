@@ -109,7 +109,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					parameter_str = uniform_name;
 				} else {
 					// mapped parameter
-					const std::string& attrib_variable_name = "v[" + std::to_string(config.mapping_parameters.size()) + "]";
+					const std::string& attrib_variable_name = "v[" + std::to_string(config.mapping_parameters.size() - last_mapping_parameters_size) + "]";
 					std::string uniform_name = config.mapped_parameter_name_prefix + "[" + std::to_string(config.mapping_parameters.size()) + "]";
 
 					std::string remap_func = type == GAT_COLOR ? "clamp_remap01" : "clamp_remap";

@@ -431,6 +431,15 @@ bool tubes::compile_glyph_attribs_new(void) {
 	cgv::utils::stopwatch s(true);
 	std::cout << "Compiling glyph attributes... ";
 
+	// when mapping radius, magnitude_at produces a vector subscript out of range error
+	// calling magnitude_at or signed_magnitude_at on attributes without timestamps causes a crash
+	// TODO: add has_timestamps method to trajectory_attrib class and only inlcude attribs that have timestamps? Or make sure every attribte has timestamps.
+
+	// TODO: support multiple data sets? Out of scope for current paper/implementation.
+
+	// helper struct for range entries with start index i0 and count n
+	struct irange { int i0, n; };
+
 	// ToDo: replace with actual timestamps on trajectory position samples
 	struct segment_time {
 		float t0, t1;
@@ -441,62 +450,8 @@ bool tubes::compile_glyph_attribs_new(void) {
 		}
 	};
 
-	// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
-	auto clamp_remap = [](float v, vec4 r) {
-		v = cgv::math::clamp(v, r.x(), r.y());
-		float t = 0.0f;
-		if(abs(r.x() - r.y()) > std::numeric_limits<float>::epsilon())
-			t = (v - r.x()) / (r.y() - r.x());
-		return cgv::math::lerp(r.z(), r.w(), t);
-	};
-
-	// get context
-	const auto &ctx = *get_context();
-
-	// Compile attribute data for GPU upload - example for one scalar attribute (which one is hardcoded above)
-	// - CPU-side staging
-	
-	// Only consider first data set for now
-	const auto &dataset = traj_mgr.dataset(0);
-	// convenience shorthands
-	const auto &P = dataset.positions().attrib;
-	const auto &tube_trajs = dataset.trajectories(P);
-
-	auto attrib_names = dataset.get_attribute_names();
-
-	std::vector<const traj_attribute<float>*> mapped_attribs;
-	std::vector<const std::vector<range>*> attribs_trajs;
-	std::vector<vec2> attrib_data_ranges;
-
-	// when mapping radius, magnitude_at produces a vector subscript out of range error
-	// calling magnitude_at or signed_magnitude_at on attributes without timestamps causes a crash
-	// TODO: add has_timestamps method to trajectory_attrib class and only inlcude attribs that have timestamps
-
-	const auto& layer_config = glyph_layers_config.layer_configs[0];
-
-	for(size_t i = 0; i < layer_config.mapped_attributes.size(); ++i) {
-		int attrib_idx = layer_config.mapped_attributes[i];
-		if(attrib_idx < 0 || attrib_idx >= attrib_names.size())
-			std::cout << "Error: tubes::compile_glyph_attribs - attribute index out of range" << std::endl;
-
-		// from the docs: returns an explicitly invalid attribute interface that acts "empty" on all relevant queries
-		// if no attribute of the given name exists in the dataset
-		const traj_attribute<float>& attrib = dataset.attribute(attrib_names[attrib_idx]);
-		mapped_attribs.push_back(&attrib);
-
-		// from the docs: returns an explicitly invalid range that indicates zero samples in the trajectory if the dataset has
-		// no trajectory information for the attribute
-		attribs_trajs.push_back(&dataset.trajectories(attrib));
-
-		vec2 range(attrib.min(), attrib.max());
-		attrib_data_ranges.push_back(range);
-
-		std::cout << attrib_names[attrib_idx] << std::endl;
-	}
-
-	size_t attrib_count = mapped_attribs.size();
-
-	struct {
+	// helper struct for glyph attributes
+	struct glyph_attributes {
 		size_t count = 0;
 		std::vector<float> data;
 
@@ -526,159 +481,240 @@ bool tubes::compile_glyph_attribs_new(void) {
 			else
 				return 0.0f;
 		}
-	} attribs;
+	};
 
-	attribs.count = attrib_count;
+	// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
+	auto clamp_remap = [](float v, vec4 r) {
+		v = cgv::math::clamp(v, r.x(), r.y());
+		float t = 0.0f;
+		if(abs(r.x() - r.y()) > std::numeric_limits<float>::epsilon())
+			t = (v - r.x()) / (r.y() - r.x());
+		return cgv::math::lerp(r.z(), r.w(), t);
+	};
 
-	struct irange { int i0, n; };
-	//std::vector<float> attribs; // buffer of attribute values
-	std::vector<irange> ranges; // buffer of index ranges per segment (indexes into 'attribs')
+	// get context
+	const auto &ctx = *get_context();
 
-	// reserve memory
-	// might not make a huge or even noticeable difference
-	//attribs.reserve(attribs.size() + ...);
-	// reserve the maximum amount of possible segments; actual segment count may be less if some nodes are used multiple times
-	ranges.reserve(ranges.size() + P.num() - tube_trajs.size());
-	// - compile data
+	// Compile attribute data for GPU upload
+	// - CPU-side staging
+	
+	// Only consider first data set for now
+	const auto &dataset = traj_mgr.dataset(0);
+	// convenience shorthands
+	const auto &P = dataset.positions().attrib;
+	const auto &tube_trajs = dataset.trajectories(P);
 
-	// TODO: support multiple data sets? Out of scope for current paper/implementation.
-	// TODO: enable usage of multiple glpyh layers
+	auto attrib_names = dataset.get_attribute_names();
 
-	const glyph_shape* current_shape = layer_config.shape_ptr;
 
-	unsigned traj_offset = 0;
-	for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
-		const auto &tube_traj = tube_trajs[trj];
-		const auto &attrib_traj = attribs_trajs[0]->at(trj);
-		const auto *alen = render.arclen_data.data();
-		const unsigned num_segments = tube_traj.n - 1;
-		const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count();
 
-		// make sure there is exactly one 'range' entry per segment
-		ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
 
-		float prev_glyph_size = 0.0f;
-		float last_commited_s = 0.0f;
 
-		// index for the current segment
-		unsigned seg = 0;
+	// build seperate range and attribs buffers for each glyph layer
+	for(size_t layer_idx = 0; layer_idx < glyph_layers_config.layer_configs.size(); ++layer_idx) {
+		const auto& layer_config = glyph_layers_config.layer_configs[layer_idx];
+		const glyph_shape* current_shape = layer_config.shape_ptr;
+		std::vector<const traj_attribute<float>*> mapped_attribs;
+		std::vector<const std::vector<range>*> attribs_trajs;
+		std::vector<vec2> attrib_data_ranges;
 
-		// TODO: move this outside of the loop and re-init every iteration if necessary
-		unsigned attrib_count = mapped_attribs.size();
-		// create an index for each attribute
-		std::vector<unsigned> attrib_indices(attrib_count, 0);
-		// create storage for attribute and glyph parameter values
-		std::vector<traj_attribute<float>::datapoint_mag> data_points(attrib_count);
-		std::vector<float> attrib_values(attrib_count);
-		std::vector<bool> has_sample(attrib_count);
-		std::vector<float> glyph_params(current_shape->num_size_attribs());
-		
-		// stores the minimum t over all current attribute sample points in each iteration
-		float min_t;
+		for(size_t i = 0; i < layer_config.mapped_attributes.size(); ++i) {
+			int attrib_idx = layer_config.mapped_attributes[i];
+			if(attrib_idx < 0 || attrib_idx >= attrib_names.size()) {
+				std::cout << "Error: tubes::compile_glyph_attribs - attribute index out of range" << std::endl;
+				continue;
+			}
 
-		bool run = true;
-		for(size_t i = 0; i < attrib_indices.size(); ++i) {
-			if(attrib_indices[i] >= (unsigned)attribs_trajs[i]->at(trj).n)
-				run &= false;
+			// from the docs: returns an explicitly invalid attribute interface that acts "empty" on all relevant queries
+			// if no attribute of the given name exists in the dataset
+			const traj_attribute<float>& attrib = dataset.attribute(attrib_names[attrib_idx]);
+			mapped_attribs.push_back(&attrib);
+
+			// from the docs: returns an explicitly invalid range that indicates zero samples in the trajectory if the dataset has
+			// no trajectory information for the attribute
+			attribs_trajs.push_back(&dataset.trajectories(attrib));
+
+			vec2 range(attrib.min(), attrib.max());
+			attrib_data_ranges.push_back(range);
+
+			std::cout << attrib_names[attrib_idx] << std::endl;
 		}
-		run &= seg < num_segments;
-		
-		
 
-		// following variables only needed for debugging
-		unsigned min_a_idx = 0;
-		
+		size_t attrib_count = mapped_attribs.size();
+
+		glyph_attributes attribs;
+		attribs.count = attrib_count;
+
+		// create a buffer for the index ranges per segment (indexes into 'attribs')
+		std::vector<irange> ranges;
+
+		// reserve memory (might not make a huge or even noticeable difference)
+		//attribs.reserve(attribs.size() + ...);
+		// reserve the maximum amount of possible segments; actual segment count may be less if some nodes are used multiple times
+		ranges.reserve(ranges.size() + P.num() - tube_trajs.size());
 
 
-		while(run) {
-			// TODO: do we need to test for monotone increasing vaues of t?
-			//if(i > 0) // enforce monotonicity
-			//	// TODO: this fails when using the debug-size dataset
-			//	assert(a.t >= mapped_attribs[0]->signed_magnitude_at(i - 1).t);
 
-			min_t = std::numeric_limits<float>::max();
 
-			for(size_t i = 0; i < attrib_count; ++i) {
-				auto a = mapped_attribs[i]->signed_magnitude_at(attrib_indices[i]);
-				data_points[i] = a;
-				if(a.t < min_t) {
-					min_a_idx = (unsigned)i;
-					min_t = a.t;
-				}
+
+
+		// - compile data
+		unsigned traj_offset = 0;
+		for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
+			const auto &tube_traj = tube_trajs[trj];
+			const auto &attrib_traj = attribs_trajs[0]->at(trj);
+			const auto *alen = render.arclen_data.data();
+			const unsigned num_segments = tube_traj.n - 1;
+			const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count();
+
+			// make sure there is exactly one 'range' entry per segment
+			ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
+
+			float prev_glyph_size = 0.0f;
+			float last_commited_s = 0.0f;
+
+			// index for the current segment
+			unsigned seg = 0;
+
+			// TODO: move this outside of the loop and re-init every iteration if necessary
+			unsigned attrib_count = mapped_attribs.size();
+			// create an index for each attribute
+			std::vector<unsigned> attrib_indices(attrib_count, 0);
+			// create storage for attribute and glyph parameter values
+			std::vector<traj_attribute<float>::datapoint_mag> data_points(attrib_count);
+			std::vector<float> attrib_values(attrib_count);
+			std::vector<bool> has_sample(attrib_count);
+			std::vector<float> glyph_params(current_shape->num_size_attribs());
+
+			// stores the minimum t over all current attribute sample points in each iteration
+			float min_t;
+
+			bool run = true;
+			for(size_t i = 0; i < attrib_indices.size(); ++i) {
+				if(attrib_indices[i] >= (unsigned)attribs_trajs[i]->at(trj).n)
+					run &= false;
 			}
+			run &= seg < num_segments;
 
-			// advance segment pointer
-			auto segtime = segment_time::get(P, tube_traj, seg);
-			while(min_t >= segtime.t1) {
-				if(seg >= num_segments - 1)
-					break;
-				segtime = segment_time::get(P, tube_traj, ++seg);
 
-				// handle overlap from previous segment
-				const unsigned global_seg = traj_offset + seg;
-				if(ranges[global_seg - 1].n > 0) {
-					// using half size of previous glyph
-					if(alen[global_seg][0] < attribs.last_glyph_s() + 0.5f*prev_glyph_size) {
-						ranges[global_seg].i0 = (int)attribs.glyph_count() - 1;
-						ranges[global_seg].n = 1;
-					}
-				}
-			}
-			const unsigned global_seg = traj_offset + seg;
 
-			// commit the attribute if it falls into the current segment
-			if(min_t >= segtime.t0 && min_t < segtime.t1) {
-				// compute segment-relative t and arclength
-				const float t_seg = (min_t - segtime.t0) / (segtime.t1 - segtime.t0),
-					s = arclen::eval(alen[global_seg], t_seg);
+			// following variables only needed for debugging
+			unsigned min_a_idx = 0;
 
-				// store the number of interpolated attributes for this glyph (debug only)
-				unsigned num_interpolated = 0;
+
+
+			while(run) {
+				// TODO: do we need to test for monotone increasing vaues of t?
+				//if(i > 0) // enforce monotonicity
+				//	// TODO: this fails when using the debug-size dataset
+				//	assert(a.t >= mapped_attribs[0]->signed_magnitude_at(i - 1).t);
+
+				min_t = std::numeric_limits<float>::max();
+
 				for(size_t i = 0; i < attrib_count; ++i) {
-					unsigned attrib_idx = attrib_indices[i];
-
-					const auto& a_curr = data_points[i];
-					float val = a_curr.val;
-
-					// TODO: make epsilon adjustable
-					bool found_sample = abs(min_t - a_curr.t) < 0.001f;
-					has_sample[i] = found_sample;
-					
-					if(!found_sample && attrib_idx > 0) {
-						// get interpolated value
-						auto a_prev = mapped_attribs[i]->signed_magnitude_at(attrib_idx - 1);
-						float t = (min_t - a_prev.t) / (a_curr.t - a_prev.t);
-						val = cgv::math::lerp(a_prev.val, val, t);
-						++num_interpolated;
-					}
-
-					attrib_values[i] = val;
-				}
-
-				// setup parameters of potential glyph
-				for(size_t i = 0; i < layer_config.glyph_mapping_parameters.size(); ++i) {
-					const auto& triple = layer_config.glyph_mapping_parameters[i];
-					if(triple.type == 0) {
-						// constant attribute
-						glyph_params[i] = (*triple.v)[3];
-					} else {
-						// mapped attribute
-						const vec4& ranges = *(triple.v);
-						// use windowing and remapping to get the value of the glyph parameter
-						glyph_params[i] = clamp_remap(attrib_values[triple.idx], ranges);
+					auto a = mapped_attribs[i]->signed_magnitude_at(attrib_indices[i]);
+					data_points[i] = a;
+					if(a.t < min_t) {
+						min_a_idx = (unsigned)i;
+						min_t = a.t;
 					}
 				}
 
-				float new_glyph_size = current_shape->get_size(glyph_params);
-				new_glyph_size /= general_settings.length_scale;
+				// advance segment pointer
+				auto segtime = segment_time::get(P, tube_traj, seg);
+				while(min_t >= segtime.t1) {
+					if(seg >= num_segments - 1)
+						break;
+					segtime = segment_time::get(P, tube_traj, ++seg);
 
-				// infer potential glyph extents
-				const float min_dist = attribs.size() > 0 ?
-					std::max(new_glyph_size, prev_glyph_size) :
-					new_glyph_size;
+					// handle overlap from previous segment
+					const unsigned global_seg = traj_offset + seg;
+					if(ranges[global_seg - 1].n > 0) {
+						// using half size of previous glyph
+						if(alen[global_seg][0] < attribs.last_glyph_s() + 0.5f*prev_glyph_size) {
+							ranges[global_seg].i0 = (int)attribs.glyph_count() - 1;
+							ranges[global_seg].n = 1;
+						}
+					}
+				}
+				const unsigned global_seg = traj_offset + seg;
 
-				// only include samples that are far enough away from last sample to not cause (too much) overlap
-				/*if(attribs.glyph_count() == attribs_traj_offset || s >= attribs.last_glyph_s() + min_dist) {
+				// commit the attribute if it falls into the current segment
+				if(min_t >= segtime.t0 && min_t < segtime.t1) {
+					// compute segment-relative t and arclength
+					const float t_seg = (min_t - segtime.t0) / (segtime.t1 - segtime.t0),
+						s = arclen::eval(alen[global_seg], t_seg);
+
+					// store the number of interpolated attributes for this glyph (debug only)
+					unsigned num_interpolated = 0;
+					for(size_t i = 0; i < attrib_count; ++i) {
+						unsigned attrib_idx = attrib_indices[i];
+
+						const auto& a_curr = data_points[i];
+						float val = a_curr.val;
+
+						// TODO: make epsilon adjustable
+						bool found_sample = abs(min_t - a_curr.t) < 0.001f;
+						has_sample[i] = found_sample;
+
+						if(!found_sample && attrib_idx > 0) {
+							// get interpolated value
+							auto a_prev = mapped_attribs[i]->signed_magnitude_at(attrib_idx - 1);
+							float t = (min_t - a_prev.t) / (a_curr.t - a_prev.t);
+							val = cgv::math::lerp(a_prev.val, val, t);
+							++num_interpolated;
+						}
+
+						attrib_values[i] = val;
+					}
+
+					// setup parameters of potential glyph
+					for(size_t i = 0; i < layer_config.glyph_mapping_parameters.size(); ++i) {
+						const auto& triple = layer_config.glyph_mapping_parameters[i];
+						if(triple.type == 0) {
+							// constant attribute
+							glyph_params[i] = (*triple.v)[3];
+						} else {
+							// mapped attribute
+							const vec4& ranges = *(triple.v);
+							// use windowing and remapping to get the value of the glyph parameter
+							glyph_params[i] = clamp_remap(attrib_values[triple.idx], ranges);
+						}
+					}
+
+					float new_glyph_size = current_shape->get_size(glyph_params);
+					new_glyph_size /= general_settings.length_scale;
+
+					// infer potential glyph extents
+					const float min_dist = attribs.size() > 0 ?
+						std::max(new_glyph_size, prev_glyph_size) :
+						new_glyph_size;
+
+					// only include samples that are far enough away from last sample to not cause (too much) overlap
+					/*if(attribs.glyph_count() == attribs_traj_offset || s >= attribs.last_glyph_s() + min_dist) {
+						auto &cur_range = ranges[global_seg];
+						if(cur_range.n < 1) {
+							// first free attribute that falls into this segment
+							cur_range.i0 = (unsigned)attribs.glyph_count();
+							cur_range.n = 1;
+							// handle overlap to previous segment
+							if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size)
+								ranges[global_seg - 1].n++;
+						} else {
+							// one more free attribute that falls into this segment
+							cur_range.n++;
+						}
+						// store the new glyph
+						attribs.add(s);
+						attribs.add(1.0f);
+						attribs.add(v);
+						//store the size when this glyph is actually placed
+						prev_glyph_size = new_glyph_size;
+					}*/
+
+					//bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= attribs.last_glyph_s() + min_dist;
+					bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= last_commited_s + min_dist;
+
 					auto &cur_range = ranges[global_seg];
 					if(cur_range.n < 1) {
 						// first free attribute that falls into this segment
@@ -693,93 +729,76 @@ bool tubes::compile_glyph_attribs_new(void) {
 					}
 					// store the new glyph
 					attribs.add(s);
-					attribs.add(1.0f);
-					attribs.add(v);
+					int debug_info = 0;
+
+					debug_info |= num_interpolated;
+					debug_info |= min_a_idx << 2;
+
+					if(include_glyph)
+						debug_info |= 0x1000;
+
+					attribs.add(*reinterpret_cast<float*>(&debug_info));
+
+					std::copy(attrib_values.begin(), attrib_values.end(), std::back_inserter(attribs.data));
+
+					//for(size_t i = 0; i < attrib_indices.size(); ++i)
+					//	attribs.add(attrib_values[i]);
+
 					//store the size when this glyph is actually placed
-					prev_glyph_size = new_glyph_size;
-				}*/
-
-				//bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= attribs.last_glyph_s() + min_dist;
-				bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= last_commited_s + min_dist;
-
-				auto &cur_range = ranges[global_seg];
-				if(cur_range.n < 1) {
-					// first free attribute that falls into this segment
-					cur_range.i0 = (unsigned)attribs.glyph_count();
-					cur_range.n = 1;
-					// handle overlap to previous segment
-					if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size)
-						ranges[global_seg - 1].n++;
-				} else {
-					// one more free attribute that falls into this segment
-					cur_range.n++;
+					if(include_glyph) {
+						prev_glyph_size = new_glyph_size;
+						last_commited_s = s;
+					}
+				} else if(seg > (unsigned)tube_traj.n - 2) {
+					// we went beyond the last segment
+					break;
 				}
-				// store the new glyph
-				attribs.add(s);
-				int debug_info = 0;
 
-				debug_info |= num_interpolated;
-				debug_info |= min_a_idx << 2;
-
-				if(include_glyph)
-					debug_info |= 0x1000;
-
-				attribs.add(*reinterpret_cast<float*>(&debug_info));
-
-				std::copy(attrib_values.begin(), attrib_values.end(), std::back_inserter(attribs.data));
-
-				//for(size_t i = 0; i < attrib_indices.size(); ++i)
-				//	attribs.add(attrib_values[i]);
-
-				//store the size when this glyph is actually placed
-				if(include_glyph) {
-					prev_glyph_size = new_glyph_size;
-					last_commited_s = s;
+				// increment indices and check whether the indices of all attributes have reached the end
+				for(size_t i = 0; i < attrib_count; ++i) {
+					// only increment indices of attributes that have a sample at the current location (min_a.t)
+					if(has_sample[i])
+						attrib_indices[i] = std::min((unsigned)attribs_trajs[i]->at(trj).n, ++attrib_indices[i]);
+					if(attrib_indices[i] >= (unsigned)attribs_trajs[i]->at(trj).n)
+						run &= false;
 				}
-			} else if(seg > (unsigned)tube_traj.n - 2) {
-				// we went beyond the last segment
-				break;
+
+				run &= seg < num_segments;
 			}
 
-			// increment indices and check whether the indices of all attributes have reached the end
-			for(size_t i = 0; i < attrib_count; ++i) {
-				// only increment indices of attributes that have a sample at the current location (min_a.t)
-				if(has_sample[i])
-					attrib_indices[i] = std::min((unsigned)attribs_trajs[i]->at(trj).n, ++attrib_indices[i]);
-				if(attrib_indices[i] >= (unsigned)attribs_trajs[i]->at(trj).n)
-					run &= false;
-			}
-
-			run &= seg < num_segments;
+			// update auxiliary indices
+			traj_offset += num_segments;
 		}
 
-		// update auxiliary indices
-		traj_offset += num_segments;
-	}
 
-	std::cout << "ATTRIBS SIZE: " << attribs.size() << std::endl;
-
-	// - sanity check
-	{
-		const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size()) / 2;
-		assert(num_ranges == num_segs);
-	}
-	// - upload
-	// ...attrib nodes
-	if(attribs.empty()) {
-		// fill with one entry of empty glyph attribs
-		attribs.add(0.0f);
-		attribs.add(0.0f);
-		for(size_t i = 0; i < attrib_count; ++i)
+		// fill the attribute buffer with one glyph entry if it is empty (will cause crash otherwise)
+		if(attribs.empty()) {
 			attribs.add(0.0f);
+			attribs.add(0.0f);
+			for(size_t i = 0; i < attrib_count; ++i)
+				attribs.add(0.0f);
+		}
+
+		// - sanity check
+		{
+			const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size()) / 2;
+			assert(num_ranges == num_segs);
+		}
+
+		// - upload
+		vertex_buffer& attribs_sbo = render.attribs_sbos[layer_idx];
+		vertex_buffer& aindex_sbo = render.aindex_sbos[layer_idx];
+
+		// ...attrib nodes
+		attribs_sbo.destruct(ctx);
+		if(!attribs_sbo.create(ctx, attribs.data))
+			std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
+
+		// ...index ranges
+		aindex_sbo.destruct(ctx);
+		if(!aindex_sbo.create(ctx, ranges))
+			std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
 	}
-	render.attribs_sbo.destruct(ctx);
-	if(!render.attribs_sbo.create(ctx, attribs.data))
-		std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
-	// ...index ranges
-	render.aindex_sbo.destruct(ctx);
-	if(!render.aindex_sbo.create(ctx, ranges))
-		std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
@@ -929,12 +948,12 @@ bool tubes::compile_glyph_attribs_old(void) {
 	// ...attrib nodes
 	if(attribs.empty())
 		attribs.emplace_back(empty_glyph);
-	render.attribs_sbo.destruct(ctx);
-	if(!render.attribs_sbo.create(ctx, attribs))
+	render.attribs_sbos[0].destruct(ctx);
+	if(!render.attribs_sbos[0].create(ctx, attribs))
 		std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
 	// ...index ranges
-	render.aindex_sbo.destruct(ctx);
-	if(!render.aindex_sbo.create(ctx, ranges))
+	render.aindex_sbos[0].destruct(ctx);
+	if(!render.aindex_sbos[0].create(ctx, ranges))
 		std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
@@ -1400,6 +1419,17 @@ void tubes::update_attribute_bindings(void) {
 
 		create_density_volume(ctx, voxel_grid_resolution);
 
+		// Clear range and attribute buffers for glyph layers
+		for(size_t i = 0; i < render.aindex_sbos.size(); ++i)
+			render.aindex_sbos[i].destruct(ctx);
+		for(size_t i = 0; i < render.attribs_sbos.size(); ++i)
+			render.attribs_sbos[i].destruct(ctx);
+		
+		render.aindex_sbos.clear();
+		render.aindex_sbos.resize(4);
+		render.attribs_sbos.clear();
+		render.attribs_sbos.resize(4);
+
 		// Recompute arclength parametrization
 		cgv::utils::stopwatch s(true);
 		std::cout << "Computing arclength parametrization... ";
@@ -1580,11 +1610,9 @@ void tubes::draw_trajectories(context& ctx) {
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 
 	// prepare SSBO handles
-	const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle-1 : 0,
-	          arclen_handle = render.arclen_sbo.handle ? (const int&)render.arclen_sbo.handle-1 : 0,
-	          attribs_handle = render.attribs_sbo.handle ? (const int&)render.attribs_sbo.handle-1 : 0,
-	          aindex_handle = render.aindex_sbo.handle ? (const int&)render.aindex_sbo.handle-1 : 0;
-	if (!data_handle || !arclen_handle /*|| !attribs_handle || !aindex_handle*/) return;
+	const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0,
+			  arclen_handle = render.arclen_sbo.handle ? (const int&)render.arclen_sbo.handle - 1 : 0;
+	if (!data_handle || !arclen_handle) return;
 
 	// sort the sgment indices
 	int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
@@ -1671,13 +1699,26 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.enable_attachment(ctx, "depth", 5);
 	density_tex.enable(ctx, 6);
 	color_map_mgr.ref_texture().enable(ctx, 7);
-	//cm_editor_ptr->ref_tex().enable(ctx, 7);
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, attribs_handle);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, aindex_handle);
+	// bind range attribute sbos of active glyph layers
+	bool active_sbos[4] = { false, false, false, false };
+	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
+		if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
+			const int attribs_handle = render.attribs_sbos[i].handle ? (const int&)render.attribs_sbos[i].handle - 1 : 0;
+			const int aindex_handle = render.aindex_sbos[i].handle ? (const int&)render.aindex_sbos[i].handle - 1 : 0;
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*i + 0, attribs_handle);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*i + 1, aindex_handle);
+		}
+	}
+
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0); 
+
+	for(size_t i = 0; i < 4; ++i) {
+		if(active_sbos[i]) {
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * i + 0, 0);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * i + 1, 0);
+		}
+	}
 
 	fbc.disable_attachment(ctx, "albedo");
 	fbc.disable_attachment(ctx, "position");
@@ -1687,7 +1728,6 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.disable_attachment(ctx, "depth");
 	density_tex.disable(ctx);
 	color_map_mgr.ref_texture().disable(ctx);
-	//cm_editor_ptr->ref_tex().disable(ctx);
 
 	//glDepthFunc(GL_LESS);
 

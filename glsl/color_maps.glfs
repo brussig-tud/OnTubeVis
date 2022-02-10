@@ -1,5 +1,7 @@
 #version 430
 
+#define M_PI 3.14159265359
+
 //***** begin interface of shape2d.glsl ***********************************
 uniform ivec2 resolution;
 
@@ -33,6 +35,20 @@ vec3 sample_texture(vec2 coord) {
 }
 
 void main() {
+
+	/*vec2 uv = tex_coord - 0.5;
+	float theta = atan(uv.y, uv.x) + M_PI;
+	float omega = (theta / (2.0 * M_PI));
+	//omega += 0.25;
+	omega += 0.125;
+	if(omega > 1.0)
+	omega -= 1.0;
+	omega = 1.0 - omega;
+	*/
+
+
 	vec3 color = sample_texture(vec2(tex_coord.s, 1.0 - tex_coord.t));
+	//color = texture(tex, vec2(omega, 9.5/10)).rgb;
 	finish_fragment2d(vec4(color, 1.0));
+	//finish_fragment2d(vec4(vec3(omega), 1.0));
 }

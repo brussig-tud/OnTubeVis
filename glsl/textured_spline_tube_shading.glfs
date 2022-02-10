@@ -10,6 +10,10 @@
 #define L0_GLYPH_DEFINITION
 #define L1_MAPPED_ATTRIB_COUNT 0
 #define L1_GLYPH_DEFINITION
+#define L2_MAPPED_ATTRIB_COUNT 0
+#define L2_GLYPH_DEFINITION
+#define L3_MAPPED_ATTRIB_COUNT 0
+#define L3_GLYPH_DEFINITION
 
 //***** begin interface of view.glsl ***********************************
 mat4 get_modelview_matrix();
@@ -71,6 +75,10 @@ uniform struct {
 	float antialias_radius;
 } general_settings;
 
+in vec2 texcoord_fs;
+
+out vec4 frag_color;
+
 struct irange {
 	int i0, n;
 };
@@ -78,23 +86,18 @@ struct irange {
 // attribute and range buffers for each glyph layer
 // free attributes ssbos
 // free attributes per-segment index ranges
-#if L0_MAPPED_ATTRIB_COUNT > 0
-struct glyph_desc0 {
-	float s;
-	uint debug_info;
-	float v[L0_MAPPED_ATTRIB_COUNT];
-};
-layout (std430, binding=0) readonly buffer attribs_buffer { 
-	glyph_desc0 glyphs0[];
-};
-layout (std430, binding=1) readonly buffer ranges_buffer { 
-	irange ranges0[];
-};
-#endif
-
-in vec2 texcoord_fs;
-
-out vec4 frag_color;
+#define DEF_GLYPH_DESC_AND_BUFFERS(I, N, B0, B1) \
+struct glyph_desc##I { \
+	float s; \
+	uint debug_info; \
+	float v[N]; \
+}; \
+layout (std430, binding=B0) readonly buffer attribs_buffer##I { \
+	glyph_desc##I glyphs##I[]; \
+}; \
+layout (std430, binding=B1) readonly buffer ranges_buffer##I { \
+	irange ranges##I[]; \
+}; \
 
 struct closest_glyphs_info {
 	int prev, next, id;
@@ -124,7 +127,23 @@ bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info cl
 }
 
 #if L0_MAPPED_ATTRIB_COUNT > 0
+DEF_GLYPH_DESC_AND_BUFFERS(0, L0_MAPPED_ATTRIB_COUNT, 0, 1)
 DEF_CLOSEST_SAMPLES(0, ranges0, glyphs0)
+#endif
+
+#if L1_MAPPED_ATTRIB_COUNT > 0
+DEF_GLYPH_DESC_AND_BUFFERS(1, L1_MAPPED_ATTRIB_COUNT, 2, 3)
+DEF_CLOSEST_SAMPLES(1, ranges1, glyphs1)
+#endif
+
+#if L2_MAPPED_ATTRIB_COUNT > 0
+DEF_GLYPH_DESC_AND_BUFFERS(2, L2_MAPPED_ATTRIB_COUNT, 4, 5)
+DEF_CLOSEST_SAMPLES(2, ranges2, glyphs2)
+#endif
+
+#if L3_MAPPED_ATTRIB_COUNT > 0
+DEF_GLYPH_DESC_AND_BUFFERS(3, L3_MAPPED_ATTRIB_COUNT, 6, 7)
+DEF_CLOSEST_SAMPLES(3, ranges3, glyphs3)
 #endif
 
 /*bool get_current_glyph(out glyph_desc glyph, in int seg_id, inout vec2 uv) {
@@ -742,6 +761,60 @@ void main()
 				);
 
 				L0_GLYPH_DEFINITION
+			}
+		}
+#endif
+		// glyph layer 1
+#if L1_MAPPED_ATTRIB_COUNT > 0
+		{
+			closest_glyphs_info closest;
+			vec2 glyphuv = uv;
+			if (get_closest_samples1(segment_id, glyphuv.s, closest)) {
+				glyph_desc1 glyph = glyphs1[closest.id];
+
+				glyphuv = vec2(
+					(closest.dp <= closest.dn ? closest.dp : -closest.dn)
+					* general_settings.length_scale, // <-- ToDo: replace with automatic uv re-projection method
+					glyphuv.t
+				);
+
+				L1_GLYPH_DEFINITION
+			}
+		}
+#endif
+		// glyph layer 2
+#if L2_MAPPED_ATTRIB_COUNT > 0
+		{
+			closest_glyphs_info closest;
+			vec2 glyphuv = uv;
+			if (get_closest_samples2(segment_id, glyphuv.s, closest)) {
+				glyph_desc2 glyph = glyphs2[closest.id];
+
+				glyphuv = vec2(
+					(closest.dp <= closest.dn ? closest.dp : -closest.dn)
+					* general_settings.length_scale, // <-- ToDo: replace with automatic uv re-projection method
+					glyphuv.t
+				);
+
+				L2_GLYPH_DEFINITION
+			}
+		}
+#endif
+		// glyph layer 3
+#if L3_MAPPED_ATTRIB_COUNT > 0
+		{
+			closest_glyphs_info closest;
+			vec2 glyphuv = uv;
+			if (get_closest_samples3(segment_id, glyphuv.s, closest)) {
+				glyph_desc3 glyph = glyphs3[closest.id];
+
+				glyphuv = vec2(
+					(closest.dp <= closest.dn ? closest.dp : -closest.dn)
+					* general_settings.length_scale, // <-- ToDo: replace with automatic uv re-projection method
+					glyphuv.t
+				);
+
+				L3_GLYPH_DEFINITION
 			}
 		}
 #endif
