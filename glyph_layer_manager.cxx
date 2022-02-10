@@ -112,7 +112,13 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					const std::string& attrib_variable_name = "v[" + std::to_string(config.mapping_parameters.size() - last_mapping_parameters_size) + "]";
 					std::string uniform_name = config.mapped_parameter_name_prefix + "[" + std::to_string(config.mapping_parameters.size()) + "]";
 
-					std::string remap_func = type == GAT_COLOR ? "clamp_remap01" : "clamp_remap";
+					std::string remap_func = "clamp_remap";
+					switch(type) {
+					case GAT_SIGNED_UNIT: remap_func = "clamp_remap11"; break;
+					case GAT_UNIT:
+					case GAT_COLOR: remap_func = "clamp_remap01"; break;
+					default: break;
+					}
 					parameter_str = remap_func + "(glyph." + attrib_variable_name + ", " + uniform_name + ")";
 
 					if(type == GAT_COLOR) {
@@ -173,7 +179,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				//std::string global_params_str = join(global_func_parameters_strs, ", ");// +(global_func_parameters_strs.size() > 0 ? ", " : "");
 
 				//splat_func += "(current_glyph, " + glyph_coord_str + ", " + global_params_str + ", " + color_str + ")";
-				splat_func += "(glyph.debug_info, " + glyph_coord_str + ")";
+				splat_func += std::to_string(i) + "(glyph, " + glyph_coord_str + ")";
 			}
 
 			//code = "splat_glyph(glyphuv, current_glyph, " + splat_func + ", " + color_str + ", color);";

@@ -506,13 +506,14 @@ bool tubes::compile_glyph_attribs_new(void) {
 
 	auto attrib_names = dataset.get_attribute_names();
 
-
-
-
-
 	// build seperate range and attribs buffers for each glyph layer
 	for(size_t layer_idx = 0; layer_idx < glyph_layers_config.layer_configs.size(); ++layer_idx) {
 		const auto& layer_config = glyph_layers_config.layer_configs[layer_idx];
+
+		// skip this layer if it does not have any mapped attributes
+		if(layer_config.mapped_attributes.size() == 0)
+			continue;
+
 		const glyph_shape* current_shape = layer_config.shape_ptr;
 		std::vector<const traj_attribute<float>*> mapped_attribs;
 		std::vector<const std::vector<range>*> attribs_trajs;
@@ -553,16 +554,10 @@ bool tubes::compile_glyph_attribs_new(void) {
 		// reserve the maximum amount of possible segments; actual segment count may be less if some nodes are used multiple times
 		ranges.reserve(ranges.size() + P.num() - tube_trajs.size());
 
-
-
-
-
-
 		// - compile data
 		unsigned traj_offset = 0;
 		for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
 			const auto &tube_traj = tube_trajs[trj];
-			const auto &attrib_traj = attribs_trajs[0]->at(trj);
 			const auto *alen = render.arclen_data.data();
 			const unsigned num_segments = tube_traj.n - 1;
 			const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count();
@@ -1812,6 +1807,10 @@ shader_define_map tubes::build_tube_shading_defines() {
 
 	
 	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
+
+	shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
+	shader_code::set_define(defines, "CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
+	shader_code::set_define(defines, "MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
 	
 	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
 		const auto& lc = glyph_layers_config.layer_configs[i];

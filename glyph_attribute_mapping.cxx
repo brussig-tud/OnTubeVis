@@ -55,7 +55,7 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 	if(!shape_ptr)
 		return;
 
-	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Isosceles Triangle,Drop,Star'");
+	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Isosceles Triangle,Drop,Sign Blob,Star'");
 	//add_local_member_control(p, bp, "Color", color);
 
 	for(size_t i = 0; i < shape_ptr->supported_attributes().size(); ++i)
@@ -122,6 +122,7 @@ void glyph_attribute_mapping::create_glyph_shape() {
 	case GT_ARC_ROUNDED: shape_ptr = new rounded_arc_glyph(); break;
 	case GT_TRIANGLE: shape_ptr = new isoceles_triangle_glyph(); break;
 	case GT_DROP: shape_ptr = new drop_glyph(); break;
+	case GT_SIGN_BLOB: shape_ptr = new sign_blob_glyph(); break;
 	case GT_STAR: shape_ptr = new star_glyph(); break;
 	default: shape_ptr = new circle_glyph(); break;
 	}
@@ -192,12 +193,14 @@ std::string glyph_attribute_mapping::to_display_str(const std::string& name) con
 void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i) {
 	const glyph_attribute& attrib = shape_ptr->supported_attributes()[i];
 
-	std::string limit = "1";
+	std::string lower_limit = "0";
+	std::string upper_limit = "1";
 	switch(attrib.type) {
-	case GAT_SIZE: limit = "2"; break;
+	case GAT_SIGNED_UNIT: lower_limit = "-1"; break;
+	case GAT_SIZE: upper_limit = "2"; break;
 	case GAT_ANGLE:
 	case GAT_DOUBLE_ANGLE:
-	case GAT_ORIENTATION: limit = "360"; break;
+	case GAT_ORIENTATION: upper_limit = "360"; break;
 	default: break;
 	}
 
@@ -241,22 +244,24 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 		}
 	}
 
+	std::string out_options_str = "min=" + lower_limit + ";max=" + upper_limit + ";step=0.001;ticks=true";
+
 	if(selected_attrib_src_idx < 0 || is_global) {
 		if(attrib.type == GAT_COLOR) {
 			add_local_member_control(p, bp, value_label, attrib_colors[i]);
 		} else {
-			add_local_member_control(p, bp, value_label, attrib_mapping_values[i][3], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
+			add_local_member_control(p, bp, value_label, attrib_mapping_values[i][3], "value_slider", out_options_str);
 		}
 		//add_local_member_control(p, bp, value_label, *reinterpret_cast<rgb*>(&attrib_mapping_values[i]));
 	} else {
 		const vec2& range = attribute_ranges[selected_attrib_src_idx];
-		std::string options_str = "min=" + std::to_string(range.x()) + ";max=" + std::to_string(range.y()) + ";step=0.001;ticks=true";
-
-		add_local_member_control(p, bp, "In Min", attrib_mapping_values[i][0], "value_slider", options_str);
-		add_local_member_control(p, bp, "In Max", attrib_mapping_values[i][1], "value_slider", options_str);
-		if(attrib.type != GAT_COLOR) {
-			add_local_member_control(p, bp, "Out Min", attrib_mapping_values[i][2], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
-			add_local_member_control(p, bp, "Out Max", attrib_mapping_values[i][3], "value_slider", "min=0;max=" + limit + ";step=0.001;ticks=true");
+		std::string in_options_str = "min=" + std::to_string(range.x()) + ";max=" + std::to_string(range.y()) + ";step=0.001;ticks=true";
+		
+		add_local_member_control(p, bp, "In Min", attrib_mapping_values[i][0], "value_slider", in_options_str);
+		add_local_member_control(p, bp, "In Max", attrib_mapping_values[i][1], "value_slider", in_options_str);
+		if(attrib.type != GAT_COLOR && attrib.type != GAT_UNIT && attrib.type != GAT_SIGNED_UNIT) {
+			add_local_member_control(p, bp, "Out Min", attrib_mapping_values[i][2], "value_slider", out_options_str);
+			add_local_member_control(p, bp, "Out Max", attrib_mapping_values[i][3], "value_slider", out_options_str);
 		}
 	}
 }

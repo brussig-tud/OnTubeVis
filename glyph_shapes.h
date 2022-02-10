@@ -18,15 +18,18 @@ enum GlyphType {
 	GT_ARC_ROUNDED = 4,
 	GT_TRIANGLE = 5,
 	GT_DROP = 6,
-	GT_STAR = 7
+	GT_SIGN_BLOB = 7,
+	GT_STAR = 8,
 };
 
 enum GlyphAttributeType {
-	GAT_SIZE = 0, // value in [0,inf) determining radius, length or scale in general
-	GAT_ANGLE = 1, // value in [0,360] giving angle in degree
-	GAT_DOUBLE_ANGLE = 2, // value in [0,360] giving angle in degree (divided by 2 for the actual mapping)
-	GAT_ORIENTATION = 3, // value in [0,360] giving angle in degree used specifically to orient the glyph
-	GAT_COLOR = 4, // rgb color
+	GAT_UNIT = 0, // value in [0,1] determining a generic glyph attribute
+	GAT_SIGNED_UNIT = 1, // value in [-1,1] determining a generic glyph attribute
+	GAT_SIZE = 2, // value in [0,inf) determining radius, length or scale in general
+	GAT_ANGLE = 3, // value in [0,360] giving angle in degree
+	GAT_DOUBLE_ANGLE = 4, // value in [0,360] giving angle in degree (divided by 2 for the actual mapping)
+	GAT_ORIENTATION = 5, // value in [0,360] giving angle in degree used specifically to orient the glyph
+	GAT_COLOR = 6, // rgb color
 };
 
 enum GlyphAttributeModifier {
@@ -267,6 +270,31 @@ public:
 			{ "orientation", GAT_ORIENTATION }
 		};
 		return attributes;
+	}
+};
+
+class sign_blob_glyph : public glyph_shape {
+public:
+	virtual sign_blob_glyph* clone() const {
+		return new sign_blob_glyph(*this);
+	}
+
+	virtual std::string name() const {
+		return "sign_blob";
+	}
+
+	virtual const attribute_list& supported_attributes() const {
+		static const attribute_list attributes = {
+			{ "color", GAT_COLOR },
+			{ "radius", GAT_SIZE, GAM_GLOBAL },
+			{ "value", GAT_SIGNED_UNIT },
+		};
+		return attributes;
+	}
+
+	virtual float get_size(const std::vector<float>& param_values) const {
+		// size is two times the radius, a.k.a. the diameter
+		return 2.0f * param_values[0];
 	}
 };
 
