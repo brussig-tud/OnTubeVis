@@ -11,15 +11,16 @@ enum ActionType {
 };
 
 enum GlyphType {
-	GT_CIRCLE = 0,
-	GT_RECTANGLE = 1,
-	GT_WEDGE = 2,
-	GT_ARC_FLAT = 3,
-	GT_ARC_ROUNDED = 4,
-	GT_TRIANGLE = 5,
-	GT_DROP = 6,
-	GT_SIGN_BLOB = 7,
-	GT_STAR = 8,
+	GT_COLOR,
+	GT_CIRCLE,
+	GT_RECTANGLE,
+	GT_WEDGE,
+	GT_ARC_FLAT,
+	GT_ARC_ROUNDED,
+	GT_TRIANGLE,
+	GT_DROP,
+	GT_SIGN_BLOB,
+	GT_STAR,
 };
 
 enum GlyphAttributeType {
@@ -51,10 +52,9 @@ class glyph_shape : public cgv::render::render_types {
 public:
 	typedef std::vector<glyph_attribute> attribute_list;
 
-protected:
-	
-public:
 	virtual glyph_shape* clone() const = 0;
+
+	virtual GlyphType type() const = 0;
 	virtual std::string name() const = 0;
 	virtual const attribute_list& supported_attributes() const = 0;
 
@@ -74,10 +74,46 @@ public:
 	}
 };
 
+class color_glyph : public glyph_shape {
+public:
+	virtual color_glyph* clone() const {
+		return new color_glyph(*this);
+	}
+
+	virtual GlyphType type() const {
+		return GT_COLOR;
+	}
+
+	virtual std::string name() const {
+		return "color";
+	}
+
+	virtual const attribute_list& supported_attributes() const {
+		static const attribute_list attributes = {
+			{ "color", GAT_COLOR }
+		};
+		return attributes;
+	}
+
+	virtual float get_size(const std::vector<float>& param_values) const {
+		// size is always zero so every attribute is shown
+		return 0.0f;
+	}
+
+	virtual std::string splat_func() const {
+		return "splat_color";
+	}
+};
+
+
 class circle_glyph : public glyph_shape {
 public:
 	virtual circle_glyph* clone() const {
 		return new circle_glyph(*this);
+	}
+
+	virtual GlyphType type() const {
+		return GT_CIRCLE;
 	}
 
 	virtual std::string name() const {
@@ -102,6 +138,10 @@ class rectangle_glyph : public glyph_shape {
 public:
 	virtual rectangle_glyph* clone() const {
 		return new rectangle_glyph(*this);
+	}
+
+	virtual GlyphType type() const {
+		return GT_RECTANGLE;
 	}
 
 	virtual std::string name() const {
@@ -129,6 +169,10 @@ public:
 		return new wedge_glyph(*this);
 	}
 
+	virtual GlyphType type() const {
+		return GT_WEDGE;
+	}
+
 	virtual std::string name() const {
 		return "wedge";
 	}
@@ -154,6 +198,10 @@ class flat_arc_glyph : public glyph_shape {
 public:
 	virtual flat_arc_glyph* clone() const {
 		return new flat_arc_glyph(*this);
+	}
+
+	virtual GlyphType type() const {
+		return GT_ARC_FLAT;
 	}
 
 	virtual std::string name() const {
@@ -184,6 +232,10 @@ public:
 		return new rounded_arc_glyph(*this);
 	}
 
+	virtual GlyphType type() const {
+		return GT_ARC_ROUNDED;
+	}
+
 	virtual std::string name() const {
 		return "arc_rounded";
 	}
@@ -193,6 +245,10 @@ class isoceles_triangle_glyph : public glyph_shape {
 public:
 	virtual isoceles_triangle_glyph* clone() const {
 		return new isoceles_triangle_glyph(*this);
+	}
+
+	virtual GlyphType type() const {
+		return GT_TRIANGLE;
 	}
 
 	virtual std::string name() const {
@@ -257,6 +313,10 @@ public:
 		return new drop_glyph(*this);
 	}
 
+	virtual GlyphType type() const {
+		return GT_DROP;
+	}
+
 	virtual std::string name() const {
 		return "drop";
 	}
@@ -277,6 +337,10 @@ class sign_blob_glyph : public glyph_shape {
 public:
 	virtual sign_blob_glyph* clone() const {
 		return new sign_blob_glyph(*this);
+	}
+
+	virtual GlyphType type() const {
+		return GT_SIGN_BLOB;
 	}
 
 	virtual std::string name() const {
@@ -304,6 +368,10 @@ public:
 		return new star_glyph(*this);
 	}
 
+	virtual GlyphType type() const {
+		return GT_STAR;
+	}
+
 	virtual std::string name() const {
 		return "star";
 	}
@@ -317,7 +385,11 @@ public:
 			{ "axis_1", GAT_SIZE, GAM_NON_CONST },
 			{ "color_1", GAT_COLOR, GAM_GLOBAL },
 			{ "axis_2", GAT_SIZE, GAM_NON_CONST },
-			{ "color_2", GAT_COLOR, GAM_GLOBAL }
+			{ "color_2", GAT_COLOR, GAM_GLOBAL },
+			{ "axis_3", GAT_SIZE, GAM_NON_CONST },
+			{ "color_3", GAT_COLOR, GAM_GLOBAL },
+			{ "axis_4", GAT_SIZE, GAM_NON_CONST },
+			{ "color_4", GAT_COLOR, GAM_GLOBAL }
 		};
 		return attributes;
 	}
@@ -329,5 +401,54 @@ public:
 
 	virtual std::string splat_func() const {
 		return "splat_star";
+	}
+};
+
+struct glyph_type_registry {
+	static std::string name_enums() {
+		static const std::vector<std::string> names = {
+			"Color",
+			"Circle",
+			"Rectangle",
+			"Wedge",
+			"Flat Arc",
+			"Rounded Arc",
+			"Isosceles Triangle",
+			"Drop",
+			"Sign Blob",
+			"Star"
+		};
+		
+		std::string enums = "";
+
+		for(size_t i = 0; i < names.size(); ++i) {
+			enums += names[i];
+			if(i < names.size() - 1)
+				enums += ",";
+		}
+
+		return enums;
+	}
+};
+
+struct glyph_shape_factory {
+	static glyph_shape* create(const GlyphType type) {
+		glyph_shape* shape_ptr = nullptr;
+
+		switch(type) {
+		case GT_COLOR: shape_ptr = new color_glyph(); break;
+		case GT_CIRCLE: shape_ptr = new circle_glyph(); break;
+		case GT_RECTANGLE: shape_ptr = new rectangle_glyph(); break;
+		case GT_WEDGE: shape_ptr = new wedge_glyph(); break;
+		case GT_ARC_FLAT: shape_ptr = new flat_arc_glyph(); break;
+		case GT_ARC_ROUNDED: shape_ptr = new rounded_arc_glyph(); break;
+		case GT_TRIANGLE: shape_ptr = new isoceles_triangle_glyph(); break;
+		case GT_DROP: shape_ptr = new drop_glyph(); break;
+		case GT_SIGN_BLOB: shape_ptr = new sign_blob_glyph(); break;
+		case GT_STAR: shape_ptr = new star_glyph(); break;
+		default: shape_ptr = new circle_glyph(); break;
+		}
+
+		return shape_ptr;
 	}
 };

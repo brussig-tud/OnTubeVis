@@ -55,9 +55,10 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 	if(!shape_ptr)
 		return;
 
-	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Isosceles Triangle,Drop,Sign Blob,Star'");
-	//add_local_member_control(p, bp, "Color", color);
-
+	std::string enums = glyph_type_registry::name_enums();
+	// Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Isosceles Triangle,Drop,Sign Blob,Star
+	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='" + enums + "'");
+	
 	for(size_t i = 0; i < shape_ptr->supported_attributes().size(); ++i)
 		create_attribute_gui(bp, p, i);
 }
@@ -114,7 +115,9 @@ void glyph_attribute_mapping::create_glyph_shape() {
 	if(shape_ptr)
 		delete shape_ptr;
 
-	switch(type) {
+	shape_ptr = glyph_shape_factory::create(type);
+
+	/*switch(type) {
 	case GT_CIRCLE: shape_ptr = new circle_glyph(); break;
 	case GT_RECTANGLE: shape_ptr = new rectangle_glyph(); break;
 	case GT_WEDGE: shape_ptr = new wedge_glyph(); break;
@@ -125,7 +128,7 @@ void glyph_attribute_mapping::create_glyph_shape() {
 	case GT_SIGN_BLOB: shape_ptr = new sign_blob_glyph(); break;
 	case GT_STAR: shape_ptr = new star_glyph(); break;
 	default: shape_ptr = new circle_glyph(); break;
-	}
+	}*/
 
 	attrib_source_indices.clear();
 	color_source_indices.clear();
@@ -214,7 +217,10 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 
 	std::string value_label = label;
 
-	if(!is_global) {
+	if(is_global) {
+		value_label = "";
+		p.add_decorator(label, "heading", "level=4");
+	} else {
 		value_label = "Value";
 		p.add_decorator(label, "heading", "level=4");
 

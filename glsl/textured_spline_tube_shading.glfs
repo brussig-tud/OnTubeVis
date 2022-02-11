@@ -292,7 +292,12 @@ float op_onion(float d, float r) {
 
 float dot2(in vec2 v) { return dot(v, v); }
 
-// SDFs from https://iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
+// most SDFs from https://iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
+
+// dummy that returns a negative distance as if we are always in the interior of tha shape
+float sd_color(in vec2 p) {
+    return -1.0;
+}
 
 // r is the radius of the circle
 float sd_circle(in vec2 p, in float r) {
@@ -400,10 +405,10 @@ float sd_rounded_cross(in vec2 p, in float r) {
 //  0 is circle
 // +1 is square
 float sd_sign_blob(in vec2 p, in float r, in float v) {
-	float d_circle = sd_circle(p, r);
+	float d_circle = sd_circle(p, 0.5641896*r);
 	return v < 0.0 ?
-		mix(sd_rounded_cross(p, r), d_circle, v + 1.0) :
-		mix(d_circle, sd_rectangle(p, r+r, r+r), v);
+		mix(sd_rounded_cross(p, 1.079328*r), d_circle, v + 1.0) :
+		mix(d_circle, sd_rectangle(p, r, r), v);
 }
 
 float sd_segment(in vec2 p, in vec2 a, in vec2 b) {
@@ -427,23 +432,6 @@ float sd_polygon##I(in vec2 p, in vec2[N] v) { \
     return s * sqrt(d); \
 }
 
-/*
-float sd_polygon(in vec2 p, in vec2[MAPPED_ATTRIBUTE_COUNT] v) {
-    float d = dot(p-v[0],p-v[0]);
-    float s = 1.0;
-    for( int i=0, j=MAPPED_ATTRIBUTE_COUNT-1; i<MAPPED_ATTRIBUTE_COUNT; j=i, i++ )
-    {
-        vec2 e = v[j] - v[i];
-        vec2 w =    p - v[i];
-        vec2 b = w - e*clamp( dot(w,e)/dot(e,e), 0.0, 1.0 );
-        d = min( d, dot(b,b) );
-        bvec3 c = bvec3(p.y>=v[i].y,p.y<v[j].y,e.x*w.y>e.y*w.x);
-        if( all(c) || all(not(c)) ) s*=-1.0;  
-    }
-    return s*sqrt(d);
-}
-*/
-
 #define DEF_SD_STAR(I, N) \
 vec2 sd_star##I(vec2 p, float r, in glyph_desc##I gd) { \
 	vec2 org = vec2(0.0); \
@@ -459,38 +447,11 @@ vec2 sd_star##I(vec2 p, float r, in glyph_desc##I gd) { \
 		vec2 end = R * vec2(0.0, r); \
 		vec2 pp = R * vec2(0.0, r*v); \
 		ps[i] = pp; \
-		d_axes = op_union(d_axes, sd_segment(p, org, end) - thickness); \
+		d_axes = op_union(d_axes, sd_segment(p, org, pp) - thickness); \
 	} \
 	d_poly = sd_polygon##I(p, ps); \
 	return vec2(d_axes, d_poly); \
 }
-
-/*
-vec2 sd_star(vec2 p, float r, in glyph_desc gd) {
-	vec2 org = vec2(0.0);
-
-	float d_axes = 1e20;
-	float d_poly = 1e20;
-	float thickness = 0.01;
-
-	vec2 ps[MAPPED_ATTRIBUTE_COUNT];
-
-	for(int i = 0; i < MAPPED_ATTRIBUTE_COUNT; ++i) {
-		float v = clamp_remap(gd.v[i], glyph_m_param[i]);
-
-		float angle = 2.0*M_PI * (i / float(MAPPED_ATTRIBUTE_COUNT));
-		mat2 R = rot_mat(angle);
-		vec2 end = R * vec2(0.0, r);
-		vec2 pp = R * vec2(0.0, r*v);
-		ps[i] = pp;
-		d_axes = op_union(d_axes, sd_segment(p, org, end) - thickness);
-	}
-
-	d_poly = sd_polygon(p, ps);
-
-	return vec2(d_axes, d_poly);
-}
-*/
 
 #define DEF_SPLAT_STAR(I) \
 vec4 splat_star##I(in glyph_desc##I gd, in vec2 p) { \
@@ -506,11 +467,13 @@ vec4 splat_star##I(in glyph_desc##I gd, in vec2 p) { \
 	const vec3 antialias_width = general_settings.antialias_radius*fwidth(dist3); \
 	vec3 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist3); \
 	\
-	float poly_alpha = max(0.25*alpha.y, alpha.z); \
+	float poly_alpha = alpha.y; \
 	\
-	vec3 col = mix(vec3(1.0, 0.0, 0.0), glyph_cc_param[0], alpha.x); \
+	vec3 col = mix(vec3(0.4, 0.4, 0.4), glyph_cc_param[0], alpha.x); \
 	return vec4(col, alpha_fac * max(alpha.x, poly_alpha)); \
 }
+
+//max(0.25*alpha.y, alpha.z); \
 
 #if L0_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_FLOAT_UNIFORM_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
 DEF_SD_POLYGON(0, L0_MAPPED_ATTRIB_COUNT);
@@ -518,33 +481,30 @@ DEF_SD_STAR(0, L0_MAPPED_ATTRIB_COUNT);
 DEF_SPLAT_STAR(0);
 #endif
 
-/*
-vec4 splat_star(in glyph_desc gd, in vec2 p) {
-	vec2 dist = sd_star(p, glyph_cf_param[0], gd);
-	
-	// debug only
-	// show otherwise not drawn glyphs
-	float alpha_fac = 1.0;
-	if((gd.debug_info & 0x1000) == 0) {
-		alpha_fac = 0.5; // make glyph half transparent
-		dist.y = op_onion(dist.y + 0.05, 0.05); // draw outline of glyph (keeps original size)
-	}
-
-	vec3 dist3 = vec3(dist, op_onion(dist.y + 0.01, 0.01));
-
-	// >> non-debug implementation
-	// pre-filter the SDF for AA
-	const vec3 antialias_width = general_settings.antialias_radius*fwidth(dist3);
-	vec3 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist3);
-
-	float poly_alpha = max(0.25*alpha.y, alpha.z);
-
-	vec3 col = mix(vec3(1.0, 0.0, 0.0), glyph_cc_param[0], alpha.x);
-	return vec4(col, alpha_fac * max(alpha.x, poly_alpha));
-	// <<
-	return vec4(0.0);
+#define DEF_SPLAT_COLOR(I) \
+vec4 splat_color##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc##I gd_next, in int color_map_idx, in vec2 p) { \
+	vec3 c = map_to_color(clamp_remap01(gd.v[0], glyph_m_param[0]), color_map_idx); \
+	vec3 cp = map_to_color(clamp_remap01(gd_prev.v[0], glyph_m_param[0]), color_map_idx); \
+	vec3 cn = map_to_color(clamp_remap01(gd_next.v[0], glyph_m_param[0]), color_map_idx); \
+	\
+	float s = gd.s; \
+	float sp = gd_prev.s; \
+	float sn = gd_next.s; \
+	\
+	vec3 final_col; \
+	if(p.x < 0.0) { \
+		float t = clamp_remap01(p.x + 1.0, vec4(sp, s, 0.0, 0.0)); \
+		final_col = mix(cp, c, t); \
+	} else { \
+		float t = clamp_remap01(p.x, vec4(s, sn, 0.0, 0.0)); \
+		final_col = mix(c, cn, t); \
+	} \
+	return vec4(final_col, 1.0); \
 }
-*/
+
+#if L0_MAPPED_ATTRIB_COUNT > 0
+DEF_SPLAT_COLOR(0)
+#endif
 
 float grid_texture_fuzzy(in vec2 p, in float n) {
 	// coordinates
@@ -755,8 +715,8 @@ void finalize_glyph(in uint debug_info, in vec2 uv, in vec4 glyph_color, inout v
 
 	// number overlay (debug only)
 	// draw a digit showing the number of interpolated attributes for the current glyph
-	vec2 digit_uv = -6.0 * uv;
-	color = mix(color, 1.0-color, digit(digit_uv, interpolated_attrib_count));
+	//vec2 digit_uv = -6.0 * uv;
+	//color = mix(color, 1.0-color, digit(digit_uv, interpolated_attrib_count));
 }
 
 void splat_glyph2(in uint debug_info, in vec2 uv, in float dist, in vec3 glyph_color, inout vec3 color) {

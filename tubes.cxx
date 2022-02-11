@@ -710,31 +710,33 @@ bool tubes::compile_glyph_attribs_new(void) {
 					//bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= attribs.last_glyph_s() + min_dist;
 					bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= last_commited_s + min_dist;
 
-					auto &cur_range = ranges[global_seg];
-					if(cur_range.n < 1) {
-						// first free attribute that falls into this segment
-						cur_range.i0 = (unsigned)attribs.glyph_count();
-						cur_range.n = 1;
-						// handle overlap to previous segment
-						if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size)
-							ranges[global_seg - 1].n++;
-					} else {
-						// one more free attribute that falls into this segment
-						cur_range.n++;
+					if(include_glyph || include_hidden_glyphs) {
+						auto &cur_range = ranges[global_seg];
+						if(cur_range.n < 1) {
+							// first free attribute that falls into this segment
+							cur_range.i0 = (unsigned)attribs.glyph_count();
+							cur_range.n = 1;
+							// handle overlap to previous segment
+							if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size)
+								ranges[global_seg - 1].n++;
+						} else {
+							// one more free attribute that falls into this segment
+							cur_range.n++;
+						}
+						// store the new glyph
+						attribs.add(s);
+						int debug_info = 0;
+
+						debug_info |= num_interpolated;
+						debug_info |= min_a_idx << 2;
+
+						if(include_glyph)
+							debug_info |= 0x1000;
+
+						attribs.add(*reinterpret_cast<float*>(&debug_info));
+
+						std::copy(attrib_values.begin(), attrib_values.end(), std::back_inserter(attribs.data));
 					}
-					// store the new glyph
-					attribs.add(s);
-					int debug_info = 0;
-
-					debug_info |= num_interpolated;
-					debug_info |= min_a_idx << 2;
-
-					if(include_glyph)
-						debug_info |= 0x1000;
-
-					attribs.add(*reinterpret_cast<float*>(&debug_info));
-
-					std::copy(attrib_values.begin(), attrib_values.end(), std::back_inserter(attribs.data));
 
 					//for(size_t i = 0; i < attrib_indices.size(); ++i)
 					//	attribs.add(attrib_values[i]);
@@ -1282,6 +1284,7 @@ void tubes::create_gui (void)
 	if(begin_tree_node("Attribute Mapping", glyph_layer_mgr, true)) {
 		align("\a");
 		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
+		add_member_control(this, "Show Hidden Glyphs", include_hidden_glyphs, "check");
 		glyph_layer_mgr.create_gui(this, *this);
 		align("\b");
 		end_tree_node(glyph_layer_mgr);

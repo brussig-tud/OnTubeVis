@@ -153,9 +153,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 			last_constant_float_parameters_size = config.constant_float_parameters.size();
 			last_mapping_parameters_size = config.mapping_parameters.size();
 
-			// get glyph color
-			//std::string color_str = constant_color_name_prefix + std::to_string(constant_glyph_colors.size());
-			//constant_glyph_colors.push_back(std::make_pair(color_str, &gam.ref_color()));
+			const std::string layer_id = std::to_string(i);
 
 			// generate the glyph splat function
 			std::string splat_func = shape_ptr->splat_func();
@@ -163,23 +161,33 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				// This is a generic glyph.
 				// It directly takes all the float parameters in the signed distance function call
 				// and only ever uses one color, which is give to the splat function.
-				std::string glyph_func = func_name_str + "(" + glyph_coord_str + ", ";
-				//glyph_func += join(global_func_parameters_strs, ", ", true);
+				std::string glyph_func = func_name_str + "(" + glyph_coord_str;
+				if(float_parameter_strs.size() > 0)
+					glyph_func += ", ";
 				glyph_func += join(float_parameter_strs, ", ");
 				glyph_func += ")";
 
 				std::string color_str = "vec3(0.0)";
-				if(color_parameter_strs.size() > 0) {
+				if(color_parameter_strs.size() > 0)
 					color_str = color_parameter_strs[0];
-				}
 
 				splat_func = "splat_generic_glyph(glyph.debug_info, " + glyph_func + ", " + color_str + ")";
 			} else {
+				switch(shape_ptr->type()) {
+				case GT_COLOR:
+				{
+					splat_func += layer_id + "(glyph, glyphs" + layer_id + "[closest.prev], glyphs" + layer_id + "[closest.next], " + std::to_string(color_map_indices[0]) + ", " + glyph_coord_str + ")";
+				} break;
+				case GT_STAR:
+				{
+					splat_func += layer_id + "(glyph, " + glyph_coord_str + ")";
+				} break;
+				default: break;
+				}
+
 				// TODO: check in glyph shape if global or constant/mapped params are used
 				//std::string global_params_str = join(global_func_parameters_strs, ", ");// +(global_func_parameters_strs.size() > 0 ? ", " : "");
-
 				//splat_func += "(current_glyph, " + glyph_coord_str + ", " + global_params_str + ", " + color_str + ")";
-				splat_func += std::to_string(i) + "(glyph, " + glyph_coord_str + ")";
 			}
 
 			//code = "splat_glyph(glyphuv, current_glyph, " + splat_func + ", " + color_str + ", color);";
