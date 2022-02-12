@@ -132,6 +132,7 @@ protected:
 		bool use_curvature_correction = true;
 		float length_scale = 1.0;
 		float antialias_radius = 0.5f;
+		bool debug_segments = false;
 	} general_settings;
 	
 	shader_define_map tube_shading_defines;
@@ -269,7 +270,7 @@ protected:
 	glyph_layer_manager::configuration glyph_layers_config;
 	bool include_hidden_glyphs = true;
 
-
+	void reload_shader();
 
 
 	void update_glyph_layer_manager(void);

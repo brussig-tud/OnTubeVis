@@ -285,7 +285,8 @@ void tubes::on_set(void *member_ptr) {
 	}
 
 	// render settings
-	if( member_ptr == &grid_mode ||
+	if( member_ptr == &general_settings.debug_segments ||
+		member_ptr == &grid_mode ||
 		member_ptr == &grid_normal_settings ||
 		member_ptr == &grid_normal_inwards ||
 		member_ptr == &grid_normal_variant ||
@@ -389,6 +390,12 @@ void tubes::on_set(void *member_ptr) {
 	post_redraw();
 }
 
+void tubes::reload_shader() {
+
+	shaders.reload(*get_context(), "tube_shading", tube_shading_defines);
+	post_redraw();
+}
+
 void tubes::update_glyph_layer_manager() {
 	if(!traj_mgr.has_data()) {
 		std::cout << "Warning: update_glyph_layer_manager - trajectory manager has no data" << std::endl;
@@ -436,6 +443,8 @@ bool tubes::compile_glyph_attribs_new(void) {
 	// TODO: add has_timestamps method to trajectory_attrib class and only inlcude attribs that have timestamps? Or make sure every attribte has timestamps.
 
 	// TODO: support multiple data sets? Out of scope for current paper/implementation.
+
+	// TODO: color glyphs still show some discontinuities (use debug data set and roma or berlin color map to see them)
 
 	// helper struct for range entries with start index i0 and count n
 	struct irange { int i0, n; };
@@ -538,7 +547,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 			vec2 range(attrib.min(), attrib.max());
 			attrib_data_ranges.push_back(range);
 
-			std::cout << attrib_names[attrib_idx] << std::endl;
+			//std::cout << attrib_names[attrib_idx] << std::endl;
 		}
 
 		size_t attrib_count = mapped_attribs.size();
@@ -626,9 +635,15 @@ bool tubes::compile_glyph_attribs_new(void) {
 					const unsigned global_seg = traj_offset + seg;
 					if(ranges[global_seg - 1].n > 0) {
 						// using half size of previous glyph
-						if(alen[global_seg][0] < attribs.last_glyph_s() + 0.5f*prev_glyph_size) {
+						if(prev_glyph_size < 0.0f) {
+							// "glpyhs" with a negative size value are possibly infinite in size and always overlap onto the next segment
 							ranges[global_seg].i0 = (int)attribs.glyph_count() - 1;
 							ranges[global_seg].n = 1;
+						} else {
+							if(alen[global_seg][0] < attribs.last_glyph_s() + 0.5f*prev_glyph_size) {
+								ranges[global_seg].i0 = (int)attribs.glyph_count() - 1;
+								ranges[global_seg].n = 1;
+							}
 						}
 					}
 				}
@@ -709,6 +724,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 
 					//bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= attribs.last_glyph_s() + min_dist;
 					bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= last_commited_s + min_dist;
+					include_glyph |= min_dist < 0.0f;
 
 					if(include_glyph || include_hidden_glyphs) {
 						auto &cur_range = ranges[global_seg];
@@ -717,8 +733,14 @@ bool tubes::compile_glyph_attribs_new(void) {
 							cur_range.i0 = (unsigned)attribs.glyph_count();
 							cur_range.n = 1;
 							// handle overlap to previous segment
-							if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size)
-								ranges[global_seg - 1].n++;
+							if(new_glyph_size < 0.0) {
+								// "glpyhs" with a negative size value are possibly infinite in size and always overlap onto the previous segment
+								if(global_seg > 0)
+									ranges[global_seg - 1].n++;
+							} else {
+								if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size)
+									ranges[global_seg - 1].n++;
+							}
 						} else {
 							// one more free attribute that falls into this segment
 							cur_range.n++;
@@ -1277,12 +1299,14 @@ void tubes::create_gui (void)
 		add_member_control(this, "Curvature Correction", general_settings.use_curvature_correction, "check");
 		add_member_control(this, "Length Scale", general_settings.length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xff0000");
 		add_member_control(this, "Antialias Radius", general_settings.antialias_radius, "value_slider", "min=0;max=5;step=0.01;ticks=true");
+		add_member_control(this, "Debug Segments", general_settings.debug_segments, "check");
 		align("\b");
 		end_tree_node(glyph_layer_mgr);
 	}
 
 	if(begin_tree_node("Attribute Mapping", glyph_layer_mgr, true)) {
 		align("\a");
+		connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &tubes::reload_shader));
 		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
 		add_member_control(this, "Show Hidden Glyphs", include_hidden_glyphs, "check");
 		glyph_layer_mgr.create_gui(this, *this);
@@ -1796,6 +1820,11 @@ bool tubes::load_transfer_function(context& ctx)
 
 shader_define_map tubes::build_tube_shading_defines() {
 	shader_define_map defines;
+
+	// debug defines
+	shader_code::set_define(defines, "DEBUG_SEGMENTS", general_settings.debug_segments, false);
+
+	// grid defines
 	shader_code::set_define(defines, "GRID_MODE", grid_mode, GM_COLOR);
 	unsigned gs = static_cast<unsigned>(grid_normal_settings);
 	if(grid_normal_inwards) gs += 4u;
@@ -1808,7 +1837,7 @@ shader_define_map tubes::build_tube_shading_defines() {
 	//shader_code::set_define(defines, "GLYPH_ATTRIBUTES_DEFINITION", glyph_layers_config.shader_config.attribute_buffer_definition, std::string("float v[1];"));
 	//shader_code::set_define(defines, "GLYPH_LAYER_DEFINITION", glyph_layers_config.shader_config.glyph_layers_definition, std::string(""));
 
-	
+	// glyph layer defines
 	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
 
 	shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));

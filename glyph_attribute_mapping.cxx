@@ -144,6 +144,10 @@ void glyph_attribute_mapping::create_glyph_shape() {
 		vec4 ranges(0.0f);
 
 		switch(type) {
+		case GAT_UNIT:
+		case GAT_SIGNED_UNIT:
+			ranges = vec4(0.0f, 1.0f, 0.0f, 0.0f);
+			break;
 		case GAT_SIZE:
 			ranges = vec4(0.0f, 1.0f, 0.0f, 1.0f);
 			break;

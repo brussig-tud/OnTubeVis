@@ -49,6 +49,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 	config.clear();
 
 	size_t last_constant_float_parameters_size = 0;
+	size_t last_constant_color_parameters_size = 0;
 	size_t last_mapping_parameters_size = 0;
 
 	// iterate over layers
@@ -150,9 +151,6 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				}
 			}
 
-			last_constant_float_parameters_size = config.constant_float_parameters.size();
-			last_mapping_parameters_size = config.mapping_parameters.size();
-
 			const std::string layer_id = std::to_string(i);
 
 			// generate the glyph splat function
@@ -176,11 +174,15 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				switch(shape_ptr->type()) {
 				case GT_COLOR:
 				{
-					splat_func += layer_id + "(glyph, glyphs" + layer_id + "[closest.prev], glyphs" + layer_id + "[closest.next], " + std::to_string(color_map_indices[0]) + ", " + glyph_coord_str + ")";
+					splat_func += layer_id + "(glyph, glyphs" + layer_id + "[closest.prev], glyphs" + layer_id + "[closest.next], " + "uv"  + ", " + std::to_string(color_map_indices[0]) + ")";
 				} break;
 				case GT_STAR:
 				{
-					splat_func += layer_id + "(glyph, " + glyph_coord_str + ")";
+					splat_func += layer_id + "(glyph, " + glyph_coord_str + ", ";
+					splat_func += std::to_string(last_constant_float_parameters_size) + ", ";
+					splat_func += std::to_string(last_constant_color_parameters_size) + ", ";
+					splat_func += std::to_string(last_mapping_parameters_size);
+					splat_func += ")";
 				} break;
 				default: break;
 				}
@@ -192,6 +194,10 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 			//code = "splat_glyph(glyphuv, current_glyph, " + splat_func + ", " + color_str + ", color);";
 			layer_config.glyph_definition = "finalize_glyph(glyph.debug_info, glyphuv, " + splat_func + ", color);";
+
+			last_constant_float_parameters_size = config.constant_float_parameters.size();
+			last_constant_color_parameters_size = config.constant_color_parameters.size();
+			last_mapping_parameters_size = config.mapping_parameters.size();
 		}
 	}
 

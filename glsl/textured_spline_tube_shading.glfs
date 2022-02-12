@@ -1,11 +1,12 @@
 #version 430
 #define M_PI 3.14159265359
 
+#define DEBUG_SEGMENTS 0
+
 #define GRID_MODE 1
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
 
-//#define GLYPH_MAPPING_UNIFORMS
 #define CONSTANT_FLOAT_UNIFORM_COUNT 0
 #define CONSTANT_COLOR_UNIFORM_COUNT 0
 #define MAPPING_PARAMETER_UNIFORM_COUNT 0
@@ -70,7 +71,6 @@ uniform float normal_mapping_scale = 1.0;
 uniform grid_parameters grids[2];
 
 // attribute mapping parameters
-//GLYPH_MAPPING_UNIFORMS
 #if CONSTANT_FLOAT_UNIFORM_COUNT > 0
 uniform float glyph_cf_param[CONSTANT_FLOAT_UNIFORM_COUNT];
 #endif
@@ -405,10 +405,13 @@ float sd_rounded_cross(in vec2 p, in float r) {
 //  0 is circle
 // +1 is square
 float sd_sign_blob(in vec2 p, in float r, in float v) {
+	//float d_circle = sd_circle(p, 0.5641896*r);
+	//return v < 0.0 ?
+	//	mix(sd_rounded_cross(p, 1.079328*r), d_circle, v + 1.0) :
+	//	mix(d_circle, sd_rectangle(p, r, r), v);
+	float d_cross = sd_rounded_cross(p, 1.079328*r);
 	float d_circle = sd_circle(p, 0.5641896*r);
-	return v < 0.0 ?
-		mix(sd_rounded_cross(p, 1.079328*r), d_circle, v + 1.0) :
-		mix(d_circle, sd_rectangle(p, r, r), v);
+	return mix(d_cross, d_circle, 0.5*v + 0.5);
 }
 
 float sd_segment(in vec2 p, in vec2 a, in vec2 b) {
@@ -433,7 +436,7 @@ float sd_polygon##I(in vec2 p, in vec2[N] v) { \
 }
 
 #define DEF_SD_STAR(I, N) \
-vec2 sd_star##I(vec2 p, float r, in glyph_desc##I gd) { \
+vec2 sd_star##I(vec2 p, float r, in glyph_desc##I gd, in int mapping_base_idx) { \
 	vec2 org = vec2(0.0); \
 	float d_axes = 1e20; \
 	float d_poly = 1e20; \
@@ -441,8 +444,8 @@ vec2 sd_star##I(vec2 p, float r, in glyph_desc##I gd) { \
 	vec2 ps[N]; \
 	\
 	for(int i = 0; i < N; ++i) { \
-		float v = clamp_remap(gd.v[i], glyph_m_param[i]); \
-		float angle = 2.0*M_PI * (i / float(N)); \
+		float v = clamp_remap(gd.v[i], glyph_m_param[mapping_base_idx + i]); \
+		float angle = 2.0*M_PI * (i / float(N)) + M_PI; \
 		mat2 R = rot_mat(angle); \
 		vec2 end = R * vec2(0.0, r); \
 		vec2 pp = R * vec2(0.0, r*v); \
@@ -453,9 +456,9 @@ vec2 sd_star##I(vec2 p, float r, in glyph_desc##I gd) { \
 	return vec2(d_axes, d_poly); \
 }
 
-#define DEF_SPLAT_STAR(I) \
-vec4 splat_star##I(in glyph_desc##I gd, in vec2 p) { \
-	vec2 dist = sd_star##I(p, glyph_cf_param[0], gd); \
+#define DEF_SPLAT_STAR(I, N) \
+vec4 splat_star##I(in glyph_desc##I gd, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx) { \
+	vec2 dist = sd_star##I(p, glyph_cf_param[float_base_idx], gd, mapping_base_idx); \
 	float alpha_fac = 1.0; \
 	\
 	if((gd.debug_info & 0x1000) == 0) { \
@@ -469,20 +472,48 @@ vec4 splat_star##I(in glyph_desc##I gd, in vec2 p) { \
 	\
 	float poly_alpha = alpha.y; \
 	\
-	vec3 col = mix(vec3(0.4, 0.4, 0.4), glyph_cc_param[0], alpha.x); \
+	float theta = atan(-p.x, p.y) + M_PI; \
+	theta /=  2.0*M_PI; \
+	float omega = N * theta; \
+	int ci0 = int(omega); \
+	omega = fract(omega); \
+	int ci1 = (ci0 + 1)%N; \
+	float limit = mix(0.01, 0.5, glyph_cf_param[float_base_idx + 1]); \
+	float t = smoothstep(0.5 - limit, 0.5 + limit, omega); \
+	vec3 col = mix(glyph_cc_param[color_base_idx + ci0 + 1], glyph_cc_param[color_base_idx + ci1 + 1], t);\
+	col = mix(col, glyph_cc_param[color_base_idx], alpha.x); \
 	return vec4(col, alpha_fac * max(alpha.x, poly_alpha)); \
 }
 
-//max(0.25*alpha.y, alpha.z); \
+// float omega2 = 1.0 - abs(2.0 * omega  - 1.0); \
+// max(0.25*alpha.y, alpha.z); \
 
 #if L0_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_FLOAT_UNIFORM_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
 DEF_SD_POLYGON(0, L0_MAPPED_ATTRIB_COUNT);
 DEF_SD_STAR(0, L0_MAPPED_ATTRIB_COUNT);
-DEF_SPLAT_STAR(0);
+DEF_SPLAT_STAR(0, L0_MAPPED_ATTRIB_COUNT);
+#endif
+
+#if L1_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_FLOAT_UNIFORM_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
+DEF_SD_POLYGON(1, L1_MAPPED_ATTRIB_COUNT);
+DEF_SD_STAR(1, L1_MAPPED_ATTRIB_COUNT);
+DEF_SPLAT_STAR(1, L1_MAPPED_ATTRIB_COUNT);
+#endif
+
+#if L2_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_FLOAT_UNIFORM_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
+DEF_SD_POLYGON(2, L2_MAPPED_ATTRIB_COUNT);
+DEF_SD_STAR(2, L2_MAPPED_ATTRIB_COUNT);
+DEF_SPLAT_STAR(2, L2_MAPPED_ATTRIB_COUNT);
+#endif
+
+#if L3_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_FLOAT_UNIFORM_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
+DEF_SD_POLYGON(3, L3_MAPPED_ATTRIB_COUNT);
+DEF_SD_STAR(3, L3_MAPPED_ATTRIB_COUNT);
+DEF_SPLAT_STAR(3, L3_MAPPED_ATTRIB_COUNT);
 #endif
 
 #define DEF_SPLAT_COLOR(I) \
-vec4 splat_color##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc##I gd_next, in int color_map_idx, in vec2 p) { \
+vec4 splat_color##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc##I gd_next, in vec2 p, in int color_map_idx) { \
 	vec3 c = map_to_color(clamp_remap01(gd.v[0], glyph_m_param[0]), color_map_idx); \
 	vec3 cp = map_to_color(clamp_remap01(gd_prev.v[0], glyph_m_param[0]), color_map_idx); \
 	vec3 cn = map_to_color(clamp_remap01(gd_next.v[0], glyph_m_param[0]), color_map_idx); \
@@ -492,8 +523,8 @@ vec4 splat_color##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc
 	float sn = gd_next.s; \
 	\
 	vec3 final_col; \
-	if(p.x < 0.0) { \
-		float t = clamp_remap01(p.x + 1.0, vec4(sp, s, 0.0, 0.0)); \
+	if(p.x < s) { \
+		float t = clamp_remap01(p.x, vec4(sp, s, 0.0, 0.0)); \
 		final_col = mix(cp, c, t); \
 	} else { \
 		float t = clamp_remap01(p.x, vec4(s, sn, 0.0, 0.0)); \
@@ -793,9 +824,6 @@ void main()
 			uv.t = sin(0.5*M_PI*uv.t);
 
 		//frag_color = vec4(uv.s, uv.t, 0.0, 1.0);
-		
-		// enable to highlight individual segments
-		//if((segment_id&1) > 0) color *= 0.5;
 
 		/*closest_glyphs_info closest;
 		
@@ -885,6 +913,11 @@ void main()
 				L3_GLYPH_DEFINITION
 			}
 		}
+#endif
+
+#if DEBUG_SEGMENTS > 0
+		// highlight individual segments
+		if((segment_id&1) > 0) color *= 0.5;
 #endif
 
 		/*glyph_desc current_glyph;

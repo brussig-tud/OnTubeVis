@@ -96,8 +96,10 @@ public:
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
-		// size is always zero so every attribute is shown
-		return 0.0f;
+		// a negative size tells the glyph layout algorithm to never skip these glyphs
+		// and that they are potentially infinite in size (the glpyh will stretch as long
+		// as a next one is placed)
+		return -1.0f;
 	}
 
 	virtual std::string splat_func() const {
@@ -380,6 +382,7 @@ public:
 		static const attribute_list attributes = {
 			{ "color", GAT_COLOR, GAM_GLOBAL },
 			{ "radius", GAT_SIZE, GAM_GLOBAL },
+			{ "blend_factor", GAT_UNIT, GAM_GLOBAL },
 			{ "axis_0", GAT_SIZE, GAM_NON_CONST },
 			{ "color_0", GAT_COLOR, GAM_GLOBAL },
 			{ "axis_1", GAT_SIZE, GAM_NON_CONST },
