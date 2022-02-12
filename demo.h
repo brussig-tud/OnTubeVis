@@ -406,8 +406,11 @@ struct demo : public traj_format_handler<float>
 			}
 			// copy over remaining geometry attributes
 			std::copy(traj.tangents.begin(), traj.tangents.end(), std::back_inserter(T.data.values));
+			T.data.timestamps = P.data.timestamps;
 			std::copy(traj.radii.begin(), traj.radii.end(), std::back_inserter(R.data.values));
+			R.data.timestamps = P.data.timestamps;
 			std::copy(traj.colors.begin(), traj.colors.end(), std::back_inserter(C.data.values));
+			C.data.timestamps = P.data.timestamps;
 
 			// commit free attributes
 			for (const auto &attrib : traj.attrib_scalar)

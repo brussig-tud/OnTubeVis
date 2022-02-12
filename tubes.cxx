@@ -440,11 +440,11 @@ bool tubes::compile_glyph_attribs_new(void) {
 	// helper struct for range entries with start index i0 and count n
 	struct irange { int i0, n; };
 
-	// ToDo: replace with actual timestamps on trajectory position samples
+	// helper for determining segment time span
 	struct segment_time {
 		float t0, t1;
 		inline static segment_time get(const traj_attribute<float> &attrib, const range &traj, unsigned segment_index) {
-			const float *ts = attrib.get_timestamps();
+			const float *ts = attrib.get_timestamps().data();
 			const unsigned startid = traj.i0 + segment_index;
 			return { ts[startid], ts[startid + 1] };
 		}
@@ -814,11 +814,11 @@ bool tubes::compile_glyph_attribs_old(void) {
 	};*/
 	const static glyph_attribs empty_glyph = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-	// ToDo: replace with actual timestamps on trajectory position samples
+	// helper for determining segment time span
 	struct segment_time {
 		float t0, t1;
 		inline static segment_time get(const traj_attribute<float> &attrib, const range &traj, unsigned segment_index) {
-			const float *ts = attrib.get_timestamps();
+			const float *ts = attrib.get_timestamps().data();
 			const unsigned startid = traj.i0 + segment_index;
 			return { ts[startid], ts[startid + 1] };
 		}

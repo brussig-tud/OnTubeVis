@@ -138,11 +138,11 @@ public:
 		/// obtain raw const pointer to the contained data
 		virtual const void* get_pointer (void) const = 0;
 
-		/// obtain pointer to the data point timestamps
-		virtual flt_type* get_timestamps (void) = 0;
+		/// obtain access to the data point timestamps
+		virtual std::vector<flt_type>& get_timestamps (void) = 0;
 
-		/// obtain const pointer to the data point timestamps
-		virtual const flt_type* get_timestamps (void) const = 0;
+		/// obtain const access to the data point timestamps
+		virtual const std::vector<flt_type>& get_timestamps (void) const = 0;
 
 		/// return a representation of the datapoint at the given index that contains its magnitude instead of the actual value
 		virtual datapoint_mag magnitude_at (unsigned index) const = 0;
@@ -307,10 +307,10 @@ public:
 		virtual const void* get_pointer (void) const { return values.data(); };
 
 		/// obtain pointer to the data point timestamps
-		virtual flt_type* get_timestamps (void) { return timestamps.data(); };
+		virtual std::vector<flt_type>& get_timestamps (void) { return timestamps; };
 
 		/// obtain const pointer to the data point timestamps
-		virtual const flt_type* get_timestamps (void) const { return timestamps.data(); };
+		virtual const std::vector<flt_type>& get_timestamps (void) const { return timestamps; };
 
 		/// return a representation of the datapoint at the given index that contains its magnitude instead of the actual value
 		virtual datapoint_mag magnitude_at (unsigned index) const {
@@ -474,13 +474,16 @@ public:
 	const void* get_pointer (void) const { return _data->get_pointer(); };
 
 	/// obtain pointer to the data point timestamps
-	virtual flt_type* get_timestamps (void) { return _data->get_timestamps(); };
+	virtual std::vector<flt_type>& get_timestamps (void) { return _data->get_timestamps(); };
 
 	/// obtain const pointer to the data point timestamps
-	virtual const flt_type* get_timestamps (void) const { return _data->get_timestamps(); };
+	virtual const std::vector<flt_type>& get_timestamps (void) const { return _data->get_timestamps(); };
 
 	/// return a string representing the attribute data type
 	const std::string& type_string (void) const;
+
+	/// shallow consistency diagnostics for data point values and timestamps (essentially checks for equal amount)
+	bool check_timestamps_shallow (void) const;
 };
 
 /// a map of attribute names to their data

@@ -79,14 +79,18 @@ constexpr const unsigned va_max = (const unsigned)VisualAttrib::COLOR;
 template <class flt_type>
 struct invalid_container : traj_attribute<flt_type>::container_base
 {
+	inline const static std::vector<flt_type> empty_ts;
+
 	virtual unsigned dims (void) const { return 0; }
 	virtual unsigned num (void) const { return 0; }
 	virtual flt_type min(unsigned *index) const { return 0; }
 	virtual flt_type max(unsigned *index) const { return 0; }
 	virtual void* get_pointer (void) { return nullptr; }
 	virtual const void* get_pointer (void) const { return nullptr; }
-	virtual flt_type* get_timestamps (void) { return nullptr; }
-	virtual const flt_type* get_timestamps (void) const { return nullptr; }
+	virtual std::vector<flt_type>& get_timestamps (void) {
+		/* should never write-access */ return *(std::vector<flt_type>*)nullptr;
+	}
+	virtual const std::vector<flt_type>& get_timestamps (void) const { return empty_ts; }
 	virtual typename traj_attribute<flt_type>::datapoint_mag magnitude_at (unsigned index) const {
 		return { -1.f, 0.f };
 	}
@@ -357,6 +361,12 @@ const std::string& traj_attribute<flt_type>::type_string (void) const
 		default:
 			return type_str::ERROR_TYPE;
 	}
+}
+
+template <class flt_type>
+bool traj_attribute<flt_type>::check_timestamps_shallow (void) const
+{
+	return ((size_t)num()) == _data->get_timestamps().size();
 }
 
 
@@ -1193,7 +1203,7 @@ traj_dataset<flt_type>::attrib_info<typename traj_dataset<flt_type>::Vec3> traj_
 template <class flt_type>
 flt_type* traj_dataset<flt_type>::timestamps (void)
 {
-	return pimpl->positions->get_timestamps();
+	return pimpl->positions->get_timestamps().data();
 }
 
 template <class flt_type>
@@ -1237,7 +1247,7 @@ const traj_dataset<flt_type>::attrib_info<typename traj_dataset<flt_type>::Vec3>
 template <class flt_type>
 const flt_type* traj_dataset<flt_type>::timestamps (void) const
 {
-	return pimpl->positions->get_timestamps();
+	return pimpl->positions->get_timestamps().data();
 }
 
 template <class flt_type>
@@ -1403,6 +1413,8 @@ struct traj_manager<flt_type>::Impl
 		{
 			// all attributes are named
 			assert(!a.first.empty());
+			// all attributes have right amount of timestamp data (no further checks, e.g. for monotonicity)
+			assert(a.second.check_timestamps_shallow());
 			// consistent trajectory information
 			assert(dataset.trajectories(a.second).size() == pos_trajs.size());
 		}
