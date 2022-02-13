@@ -26,6 +26,7 @@ namespace cgv {
 			use_conservative_depth = false;
 			use_cubic_tangents = true;
 			use_view_space_position = true;
+			cap_clip_distance = 20.0f;
 		}
 
 		textured_spline_tube_renderer::textured_spline_tube_renderer()
@@ -90,6 +91,7 @@ namespace cgv {
 			ref_prog().set_uniform(ctx, "eye_pos", eye_pos);
 			ref_prog().set_uniform(ctx, "view_dir", view_dir);
 			ref_prog().set_uniform(ctx, "viewport", viewport);
+			ref_prog().set_uniform(ctx, "cap_clip_distance", rs.cap_clip_distance);
 
 			return true;
 		}
@@ -147,6 +149,8 @@ namespace cgv {
 			p->add_member_control(b, "Conservative Depth", rs_ptr->use_conservative_depth, "check");
 			p->add_member_control(b, "Cubic Tangents", rs_ptr->use_cubic_tangents, "check");
 			p->add_member_control(b, "View Space Position", rs_ptr->use_view_space_position, "check");
+
+			p->add_member_control(b, "Cap Clip Distance", rs_ptr->cap_clip_distance, "value_slider", "min=0.0;max=100.0;step=0.01;ticks=true");
 			
 			p->add_gui("surface_render_style", *static_cast<cgv::render::surface_render_style*>(rs_ptr));
 

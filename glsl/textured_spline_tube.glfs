@@ -51,10 +51,12 @@ struct Hit {
 	float t;
 	vec3 normal;
 	vec3 sp;
+	bool cap;
 };
 
 uniform vec3 eye_pos;
 uniform vec4 viewport;
+uniform float cap_clip_distance;
 
 #if USE_VIEW_SPACE_POSITION == 1
 in vec3 position_fs;
@@ -526,8 +528,14 @@ Hit EvalSplineISect(vec3 dir, vec3 s, vec3 h, vec3 t, float rs, float rh, float 
 				hit.l = l2;
 			}
 
+			hit.cap = false;
+			if (hit.l == 0.0)
+				hit.cap = true;
+			if (hit.l == 1.0)
+				hit.cap = true;
+
 			// mitigate inter-segment artifacts
-			if (hit.l < 0.00001)
+			/*if (hit.l < 0.00001)
 			{
 				hit.l = 0.000001;
 				hit.t = qSplineIDistEval(hit.l, curveX, polyB_C);
@@ -536,7 +544,7 @@ Hit EvalSplineISect(vec3 dir, vec3 s, vec3 h, vec3 t, float rs, float rh, float 
 			{
 				hit.l = 0.999999;
 				hit.t = qSplineIDistEval(hit.l, curveX, polyB_C);
-			}
+			}*/
 
 			// get the position on the spline at l
 			hit.sp = qSplineEval(hit.l, curveX, curveY, curveZ);
@@ -679,7 +687,7 @@ void main()
 	gl_FragDepth = 1.0;
 #endif
 
-	if(hit.t == POS_INF) {
+	if(hit.t == POS_INF || (hit.cap && hit.t > cap_clip_distance)) {
 #if MODE == 2
 		frag_albedo = vec4(uintBitsToFloat(0xFF0000FF), 0.0, 0.0, intBitsToFloat(0));
 		frag_position = vec3(0.0, 0.0, 1.0);

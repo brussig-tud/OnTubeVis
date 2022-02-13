@@ -44,6 +44,8 @@ namespace cgv { // @<
 			bool use_cubic_tangents;
 			/// whether to use the vertex position in view space or the projected position for ray casting (reduces per-vertex output when turned off)
 			bool use_view_space_position;
+			/// the minimum distance from the camera from which segment end caps are clipped to prevent z-fighting artifacts
+			float cap_clip_distance;
 			/// construct with default values
 			textured_spline_tube_render_style();
 		};

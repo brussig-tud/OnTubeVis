@@ -21,6 +21,7 @@ enum GlyphType {
 	GT_DROP,
 	GT_SIGN_BLOB,
 	GT_STAR,
+	GT_VIOLIN,
 };
 
 enum GlyphAttributeType {
@@ -97,7 +98,7 @@ public:
 
 	virtual float get_size(const std::vector<float>& param_values) const {
 		// a negative size tells the glyph layout algorithm to never skip these glyphs
-		// and that they are potentially infinite in size (the glpyh will stretch as long
+		// and that they are potentially infinite in size (the glyph will stretch as long
 		// as a next one is placed)
 		return -1.0f;
 	}
@@ -380,9 +381,11 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "color", GAT_COLOR, GAM_GLOBAL },
 			{ "radius", GAT_SIZE, GAM_GLOBAL },
+			{ "secondary_color", GAT_COLOR, GAM_GLOBAL },
+			{ "color_setting", GAT_UNIT, GAM_GLOBAL },
 			{ "blend_factor", GAT_UNIT, GAM_GLOBAL },
+			{ "inner_transparency", GAT_UNIT, GAM_GLOBAL },
 			{ "axis_0", GAT_SIZE, GAM_NON_CONST },
 			{ "color_0", GAT_COLOR, GAM_GLOBAL },
 			{ "axis_1", GAT_SIZE, GAM_NON_CONST },
@@ -407,6 +410,40 @@ public:
 	}
 };
 
+class violin_glyph : public glyph_shape {
+public:
+	virtual violin_glyph* clone() const {
+		return new violin_glyph(*this);
+	}
+
+	virtual GlyphType type() const {
+		return GT_VIOLIN;
+	}
+
+	virtual std::string name() const {
+		return "violin";
+	}
+
+	virtual const attribute_list& supported_attributes() const {
+		static const attribute_list attributes = {
+			{ "value_0", GAT_SIZE, GAM_NON_CONST }
+			//{ "color_0", GAT_COLOR, GAM_GLOBAL },
+		};
+		return attributes;
+	}
+
+	virtual float get_size(const std::vector<float>& param_values) const {
+		// a negative size tells the glyph layout algorithm to never skip these glyphs
+		// and that they are potentially infinite in size (the glyph will stretch as long
+		// as a next one is placed)
+		return -1.0f;
+	}
+
+	virtual std::string splat_func() const {
+		return "splat_violin";
+	}
+};
+
 struct glyph_type_registry {
 	static std::string name_enums() {
 		static const std::vector<std::string> names = {
@@ -419,7 +456,8 @@ struct glyph_type_registry {
 			"Isosceles Triangle",
 			"Drop",
 			"Sign Blob",
-			"Star"
+			"Star",
+			"Violin"
 		};
 		
 		std::string enums = "";
@@ -449,6 +487,7 @@ struct glyph_shape_factory {
 		case GT_DROP: shape_ptr = new drop_glyph(); break;
 		case GT_SIGN_BLOB: shape_ptr = new sign_blob_glyph(); break;
 		case GT_STAR: shape_ptr = new star_glyph(); break;
+		case GT_VIOLIN: shape_ptr = new violin_glyph(); break;
 		default: shape_ptr = new circle_glyph(); break;
 		}
 

@@ -398,20 +398,45 @@ float sd_rounded_cross(in vec2 p, in float r) {
                  dot2(p - vec2(r,0.0)))); // right corner
 }
 
+float sd_cross(in vec2 p, in vec2 b, float r) {
+    p = abs(p); p = (p.y>p.x) ? p.yx : p.xy;
+    
+	vec2  q = p - b;
+    float k = max(q.y,q.x);
+    vec2  w = (k>0.0) ? q : vec2(b.y-p.x,-k);
+    float d = length(max(w,0.0));
+    return ((k>0.0)?d:-d) + r;
+}
+
 // r is the radius of the blob
 // v defines the shape
 // must be in [-1,1]
-// -1 is sharp pointy cross
-//  0 is circle
-// +1 is square
 float sd_sign_blob(in vec2 p, in float r, in float v) {
+	// first form
+	// -1 is sharp pointy cross
+	//  0 is circle
+	// +1 is square
 	//float d_circle = sd_circle(p, 0.5641896*r);
 	//return v < 0.0 ?
 	//	mix(sd_rounded_cross(p, 1.079328*r), d_circle, v + 1.0) :
 	//	mix(d_circle, sd_rectangle(p, r, r), v);
-	float d_cross = sd_rounded_cross(p, 1.079328*r);
-	float d_circle = sd_circle(p, 0.5641896*r);
-	return mix(d_cross, d_circle, 0.5*v + 0.5);
+
+	// second form
+	// -1 is sharp pointy cross
+	//  0 is diamond
+	// +1 is circle
+	//float d_cross = sd_rounded_cross(p, 1.079328*r);
+	//float d_circle = sd_circle(p, 0.5641896*r);
+	//return mix(d_cross, d_circle, 0.5*v + 0.5);
+
+	// third form
+	// -1 is minus sign
+	//  0 is circle
+	// +1 is plus sign
+	float d_circle = sd_circle(p, 0.25*r);
+	return v < 0.0 ?
+		mix(sd_rectangle(p, r, 0.2), d_circle, v + 1.0) :
+		mix(d_circle, sd_cross(p, vec2(0.5*r, 0.1), 0.0), v);
 }
 
 float sd_segment(in vec2 p, in vec2 a, in vec2 b) {
@@ -470,23 +495,24 @@ vec4 splat_star##I(in glyph_desc##I gd, in vec2 p, in int float_base_idx, in int
 	const vec3 antialias_width = general_settings.antialias_radius*fwidth(dist3); \
 	vec3 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist3); \
 	\
-	float poly_alpha = alpha.y; \
-	\
 	float theta = atan(-p.x, p.y) + M_PI; \
 	theta /=  2.0*M_PI; \
 	float omega = N * theta; \
 	int ci0 = int(omega); \
 	omega = fract(omega); \
 	int ci1 = (ci0 + 1)%N; \
-	float limit = mix(0.01, 0.5, glyph_cf_param[float_base_idx + 1]); \
+	\
+	float limit = mix(0.01, 0.5, glyph_cf_param[float_base_idx + 2]); \
 	float t = smoothstep(0.5 - limit, 0.5 + limit, omega); \
-	vec3 col = mix(glyph_cc_param[color_base_idx + ci0 + 1], glyph_cc_param[color_base_idx + ci1 + 1], t);\
-	col = mix(col, glyph_cc_param[color_base_idx], alpha.x); \
-	return vec4(col, alpha_fac * max(alpha.x, poly_alpha)); \
+	vec3 col = mix(glyph_cc_param[color_base_idx + ci0 + 1], glyph_cc_param[color_base_idx + ci1 + 1], t); \
+	\
+	if(glyph_cf_param[float_base_idx + 1] < 0.5) { \
+		col = mix(col, glyph_cc_param[color_base_idx], alpha.x); \
+	} else { \
+		col = mix(glyph_cc_param[color_base_idx], col, alpha.x); \
+	} \
+	return vec4(col, alpha_fac * max(alpha.x, max((1.0 - glyph_cf_param[float_base_idx + 3])*alpha.y, alpha.z))); \
 }
-
-// float omega2 = 1.0 - abs(2.0 * omega  - 1.0); \
-// max(0.25*alpha.y, alpha.z); \
 
 #if L0_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_FLOAT_UNIFORM_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
 DEF_SD_POLYGON(0, L0_MAPPED_ATTRIB_COUNT);
@@ -518,16 +544,12 @@ vec4 splat_color##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc
 	vec3 cp = map_to_color(clamp_remap01(gd_prev.v[0], glyph_m_param[0]), color_map_idx); \
 	vec3 cn = map_to_color(clamp_remap01(gd_next.v[0], glyph_m_param[0]), color_map_idx); \
 	\
-	float s = gd.s; \
-	float sp = gd_prev.s; \
-	float sn = gd_next.s; \
-	\
 	vec3 final_col; \
-	if(p.x < s) { \
-		float t = clamp_remap01(p.x, vec4(sp, s, 0.0, 0.0)); \
+	if(p.x < gd.s) { \
+		float t = clamp_remap01(p.x, vec4(gd_prev.s, gd.s, 0.0, 0.0)); \
 		final_col = mix(cp, c, t); \
 	} else { \
-		float t = clamp_remap01(p.x, vec4(s, sn, 0.0, 0.0)); \
+		float t = clamp_remap01(p.x, vec4(gd.s, gd_next.s, 0.0, 0.0)); \
 		final_col = mix(c, cn, t); \
 	} \
 	return vec4(final_col, 1.0); \
@@ -535,6 +557,62 @@ vec4 splat_color##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc
 
 #if L0_MAPPED_ATTRIB_COUNT > 0
 DEF_SPLAT_COLOR(0)
+#endif
+
+#if L1_MAPPED_ATTRIB_COUNT > 0
+DEF_SPLAT_COLOR(1)
+#endif
+
+#if L2_MAPPED_ATTRIB_COUNT > 0
+DEF_SPLAT_COLOR(2)
+#endif
+
+#if L3_MAPPED_ATTRIB_COUNT > 0
+DEF_SPLAT_COLOR(3)
+#endif
+
+#define DEF_SPLAT_VIOLIN(I, N) \
+vec4 splat_violin##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc##I gd_next, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx) { \
+	float dist; \
+	\
+	p.y = abs(p.y); \
+	float s0; \
+	float s1 = gd.s; \
+	float v0; \
+	float v1 = clamp_remap(gd.v[0], glyph_m_param[mapping_base_idx]); \
+	float t; \
+	if(p.x < gd.s) { \
+		s0 = gd_prev.s; \
+		v0 = clamp_remap(gd_prev.v[0], glyph_m_param[mapping_base_idx]); \
+		t = clamp_remap01(p.x, vec4(gd_prev.s, gd.s, 0.0, 0.0)); \
+	} else { \
+		s0 = gd_next.s; \
+		v0 = clamp_remap(gd_next.v[0], glyph_m_param[mapping_base_idx]); \
+		t = 1.0 - clamp_remap01(p.x, vec4(gd.s, gd_next.s, 0.0, 0.0)); \
+	} \
+	float vv = mix(v0, v1, t); \
+	dist = p.y - vv; \
+	\
+	const float antialias_width = general_settings.antialias_radius*fwidth(dist); \
+	float alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist); \
+	\
+	return vec4(vec3(0.0), alpha); \
+}
+
+#if L0_MAPPED_ATTRIB_COUNT > 0
+DEF_SPLAT_VIOLIN(0, L0_MAPPED_ATTRIB_COUNT);
+#endif
+
+#if L1_MAPPED_ATTRIB_COUNT > 0
+DEF_SPLAT_VIOLIN(1, L0_MAPPED_ATTRIB_COUNT);
+#endif
+
+#if L2_MAPPED_ATTRIB_COUNT > 0
+DEF_SPLAT_VIOLIN(2, L0_MAPPED_ATTRIB_COUNT);
+#endif
+
+#if L3_MAPPED_ATTRIB_COUNT > 0
+DEF_SPLAT_VIOLIN(3, L0_MAPPED_ATTRIB_COUNT);
 #endif
 
 float grid_texture_fuzzy(in vec2 p, in float n) {

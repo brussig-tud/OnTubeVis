@@ -269,7 +269,8 @@ protected:
 
 	glyph_layer_manager::configuration glyph_layers_config;
 	bool include_hidden_glyphs = true;
-
+	unsigned max_glyph_count = 10;
+	
 	void reload_shader();
 
 

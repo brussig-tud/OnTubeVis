@@ -315,6 +315,8 @@ void tubes::on_set(void *member_ptr) {
 			tube_shading_defines = build_tube_shading_defines();
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
+			compile_glyph_attribs();
+
 			post_recreate_gui();
 		}
 	}
@@ -604,6 +606,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 
 			// following variables only needed for debugging
 			unsigned min_a_idx = 0;
+			unsigned glyph_idx = 0;
 
 
 
@@ -733,17 +736,16 @@ bool tubes::compile_glyph_attribs_new(void) {
 							cur_range.i0 = (unsigned)attribs.glyph_count();
 							cur_range.n = 1;
 							// handle overlap to previous segment
-							if(new_glyph_size < 0.0) {
-								// "glpyhs" with a negative size value are possibly infinite in size and always overlap onto the previous segment
-								if(global_seg > 0)
-									ranges[global_seg - 1].n++;
-							} else {
-								if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size)
-									ranges[global_seg - 1].n++;
-							}
+							if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size)
+								ranges[global_seg - 1].n++;
 						} else {
 							// one more free attribute that falls into this segment
 							cur_range.n++;
+							// for infinitely sized "glyphs" there will always be overlap from the previous fragment, so the above branch wont't be executed
+							if(global_seg > 0 && new_glyph_size < 0.0) {
+								// "glpyhs" with a negative size value are possibly infinite in size and always overlap onto the previous segment
+								ranges[global_seg - 1].n++;
+							}
 						}
 						// store the new glyph
 						attribs.add(s);
@@ -783,6 +785,9 @@ bool tubes::compile_glyph_attribs_new(void) {
 				}
 
 				run &= seg < num_segments;
+				++glyph_idx;
+				//if(glyph_idx >= max_glyph_count)
+				//	run = false;
 			}
 
 			// update auxiliary indices
@@ -1308,6 +1313,7 @@ void tubes::create_gui (void)
 		align("\a");
 		connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &tubes::reload_shader));
 		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
+		add_member_control(this, "Max Count (Debug)", max_glyph_count, "value_slider", "min=1;max=100;step=1;ticks=true");
 		add_member_control(this, "Show Hidden Glyphs", include_hidden_glyphs, "check");
 		glyph_layer_mgr.create_gui(this, *this);
 		align("\b");
