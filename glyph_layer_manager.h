@@ -104,6 +104,10 @@ public:
 
 	void clear();
 
+	const std::vector<glyph_attribute_mapping>& ref_glyph_attribute_mappings() {
+		return glyph_attribute_mappings;
+	}
+
 	void set_attribute_names(const std::vector<std::string>& names);
 
 	void set_attribute_ranges(const std::vector<vec2>& ranges);

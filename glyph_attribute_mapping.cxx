@@ -55,7 +55,7 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 	if(!shape_ptr)
 		return;
 
-	std::string enums = glyph_type_registry::name_enums();
+	std::string enums = glyph_type_registry::display_name_enums();
 	// Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Isosceles Triangle,Drop,Sign Blob,Star
 	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='" + enums + "'");
 	

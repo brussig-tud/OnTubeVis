@@ -573,45 +573,52 @@ DEF_SPLAT_COLOR(3)
 
 #define DEF_SPLAT_VIOLIN(I, N) \
 vec4 splat_violin##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc##I gd_next, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx) { \
-	float dist; \
+	int idx = int(float(N) * (0.5*p.y + 0.5)); \
+	idx = min(idx, N - 1); \
 	\
+	float st = 2.0/float(N); \
+	float offset = -1.0 + st*float(idx) + 0.5*st; \
+	p.y += -offset; \
+	p.y *= float(N); \
 	p.y = abs(p.y); \
+	\
+	vec4 mapping_ranges = glyph_m_param[mapping_base_idx + idx]; \
 	float s0; \
 	float s1 = gd.s; \
 	float v0; \
-	float v1 = clamp_remap(gd.v[0], glyph_m_param[mapping_base_idx]); \
+	float v1 = clamp_remap(gd.v[idx], mapping_ranges); \
 	float t; \
 	if(p.x < gd.s) { \
 		s0 = gd_prev.s; \
-		v0 = clamp_remap(gd_prev.v[0], glyph_m_param[mapping_base_idx]); \
+		v0 = clamp_remap(gd_prev.v[idx], mapping_ranges); \
 		t = clamp_remap01(p.x, vec4(gd_prev.s, gd.s, 0.0, 0.0)); \
 	} else { \
 		s0 = gd_next.s; \
-		v0 = clamp_remap(gd_next.v[0], glyph_m_param[mapping_base_idx]); \
+		v0 = clamp_remap(gd_next.v[idx], mapping_ranges); \
 		t = 1.0 - clamp_remap01(p.x, vec4(gd.s, gd_next.s, 0.0, 0.0)); \
 	} \
 	float vv = mix(v0, v1, t); \
-	dist = p.y - vv; \
+	float dist = p.y - vv; \
 	\
 	const float antialias_width = general_settings.antialias_radius*fwidth(dist); \
 	float alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist); \
 	\
-	return vec4(vec3(0.0), alpha); \
+	return vec4(glyph_cc_param[color_base_idx + idx], alpha); \
 }
 
-#if L0_MAPPED_ATTRIB_COUNT > 0
+#if L0_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
 DEF_SPLAT_VIOLIN(0, L0_MAPPED_ATTRIB_COUNT);
 #endif
 
-#if L1_MAPPED_ATTRIB_COUNT > 0
+#if L1_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
 DEF_SPLAT_VIOLIN(1, L0_MAPPED_ATTRIB_COUNT);
 #endif
 
-#if L2_MAPPED_ATTRIB_COUNT > 0
+#if L2_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
 DEF_SPLAT_VIOLIN(2, L0_MAPPED_ATTRIB_COUNT);
 #endif
 
-#if L3_MAPPED_ATTRIB_COUNT > 0
+#if L3_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
 DEF_SPLAT_VIOLIN(3, L0_MAPPED_ATTRIB_COUNT);
 #endif
 

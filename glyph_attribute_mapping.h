@@ -54,8 +54,6 @@ public:
 
 	const glyph_shape* get_shape_ptr() const { return shape_ptr; }
 
-	//const rgb& ref_color() const{ return color; }
-
 	const std::vector<int> get_attrib_indices() const;
 
 	const std::vector<int> get_color_map_indices() const;

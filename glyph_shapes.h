@@ -11,6 +11,7 @@ enum ActionType {
 };
 
 enum GlyphType {
+	GT_UNDEFINED = -1,
 	GT_COLOR,
 	GT_CIRCLE,
 	GT_RECTANGLE,
@@ -426,8 +427,14 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "value_0", GAT_SIZE, GAM_NON_CONST }
-			//{ "color_0", GAT_COLOR, GAM_GLOBAL },
+			{ "value_0", GAT_SIZE, GAM_NON_CONST },
+			{ "color_0", GAT_COLOR, GAM_GLOBAL },
+			{ "value_1", GAT_SIZE, GAM_NON_CONST },
+			{ "color_1", GAT_COLOR, GAM_GLOBAL },
+			{ "value_2", GAT_SIZE, GAM_NON_CONST },
+			{ "color_2", GAT_COLOR, GAM_GLOBAL },
+			{ "value_3", GAT_SIZE, GAM_NON_CONST },
+			{ "color_3", GAT_COLOR, GAM_GLOBAL }
 		};
 		return attributes;
 	}
@@ -445,7 +452,47 @@ public:
 };
 
 struct glyph_type_registry {
-	static std::string name_enums() {
+	static GlyphType type(const std::string& name) {
+		const auto& n = names();
+		static const std::map<std::string, GlyphType> mapping = {
+			{ n[0], GT_COLOR },
+			{ n[1], GT_CIRCLE },
+			{ n[2], GT_RECTANGLE },
+			{ n[3], GT_WEDGE },
+			{ n[4], GT_ARC_FLAT },
+			{ n[5], GT_ARC_ROUNDED },
+			{ n[6], GT_TRIANGLE },
+			{ n[7], GT_DROP },
+			{ n[8], GT_SIGN_BLOB },
+			{ n[9], GT_STAR },
+			{ n[10], GT_VIOLIN }
+		};
+
+		auto it = mapping.find(name);
+		if(it == mapping.end())
+			return (*it).second;
+		return GT_UNDEFINED;
+	}
+
+	static std::vector<std::string> names() {
+		static const std::vector<std::string> n = {
+			"Color",
+			"Circle",
+			"Rectangle",
+			"Wedge",
+			"Flat Arc",
+			"Rounded Arc",
+			"Isosceles Triangle",
+			"Drop",
+			"Sign Blob",
+			"Star",
+			"Violin"
+		};
+
+		return n;
+	}
+
+	static std::vector<std::string> display_names() {
 		static const std::vector<std::string> names = {
 			"Color",
 			"Circle",
@@ -459,7 +506,12 @@ struct glyph_type_registry {
 			"Star",
 			"Violin"
 		};
-		
+
+		return names;
+	}
+
+	static std::string display_name_enums() {
+		const auto& names = display_names();
 		std::string enums = "";
 
 		for(size_t i = 0; i < names.size(); ++i) {

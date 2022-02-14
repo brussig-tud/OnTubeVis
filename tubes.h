@@ -272,6 +272,7 @@ protected:
 	unsigned max_glyph_count = 10;
 	
 	void reload_shader();
+	bool save_layer_configuration();// const std::string& file_name);
 
 
 	void update_glyph_layer_manager(void);

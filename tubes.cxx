@@ -398,6 +398,70 @@ void tubes::reload_shader() {
 	post_redraw();
 }
 
+bool tubes::save_layer_configuration() {//const std::string& file_name) {
+
+	const auto& gams = glyph_layer_mgr.ref_glyph_attribute_mappings();
+
+	auto to_col_uint8 = [](const float& val) {
+		int ival = cgv::math::clamp(static_cast<int>(255.0f * val + 0.5f), 0, 255);
+		return static_cast<unsigned char>(ival);
+	};
+
+	auto vec2_to_str = [](const vec2& v) {
+		return std::to_string(v.x()) + ", " + std::to_string(v.y());
+	};
+
+	auto rgb_to_str = [](const rgb& v) {
+		return std::to_string(v.R()) + ", " + std::to_string(v.G()) + ", " + std::to_string(v.B());
+	};
+
+	auto put = [](const std::string& n, const std::string& v) {
+		return n + "=\"" + v + "\" ";
+	};
+
+	std::string content = "";
+	content += "<Layers>\n";
+	std::string tab = "  ";
+	std::string t = tab;
+
+	for(unsigned i = 0; i < gams.size(); ++i) {
+		const auto& gam = gams[i];
+		const auto* shape_ptr = gam.get_shape_ptr();
+
+		if(shape_ptr) {
+			//content += t + "<Layer ";
+			//content += "glyph=\"" + gam.get_shape_ptr()->name + "\" ";
+			//content += ">\n";
+			content += t + "<Layer " + put("glyph", shape_ptr->name()) + ">\n";
+
+			t += tab;
+			const auto& attribs = shape_ptr->supported_attributes();
+			const auto attrib_indices = gam.get_attrib_indices();
+			const auto color_indices = gam.get_color_map_indices();
+			const auto& mapping_ranges = gam.ref_attrib_values();
+			const auto& colors = gam.ref_attrib_colors();
+			for(size_t j = 0; j < attribs.size(); ++j) {
+				content += t + "<Values " + put("name", attribs[j].name);
+				content += put("attrib_idx", std::to_string(attrib_indices[j]));
+				content += put("color_idx", std::to_string(color_indices[j]));
+				vec4 mr = mapping_ranges[j];
+				content += put("in_range", vec2_to_str(vec2(mr.x(), mr.y())));
+				content += put("out_range", vec2_to_str(vec2(mr.z(), mr.w())));
+				content += put("color", rgb_to_str(colors[j]));
+				content += "/>\n";
+			}
+			t = tab;
+
+			content += t + "</Layer>\n";
+		}
+	}
+
+	content += "</Layers>\n";
+
+	std::string file_name2 = "layer_config.xml";
+	return cgv::utils::file::write(file_name2, content, true);
+}
+
 void tubes::update_glyph_layer_manager() {
 	if(!traj_mgr.has_data()) {
 		std::cout << "Warning: update_glyph_layer_manager - trajectory manager has no data" << std::endl;
@@ -1311,6 +1375,7 @@ void tubes::create_gui (void)
 
 	if(begin_tree_node("Attribute Mapping", glyph_layer_mgr, true)) {
 		align("\a");
+		connect_copy(add_button("Save Configuration")->click, cgv::signal::rebind(this, &tubes::save_layer_configuration));
 		connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &tubes::reload_shader));
 		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
 		add_member_control(this, "Max Count (Debug)", max_glyph_count, "value_slider", "min=1;max=100;step=1;ticks=true");
