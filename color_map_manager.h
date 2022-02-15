@@ -18,6 +18,7 @@ public:
 	struct color_map_container {
 		std::string name = "";
 		cgv::glutil::color_map cm;
+		bool custom = false;
 
 		color_map_container() {}
 		color_map_container(const std::string& name) : name(name) {}
@@ -83,9 +84,10 @@ public:
 		return names;
 	}
 
-	void add_color_map(const std::string& name, const cgv::glutil::color_map& cm) {
+	void add_color_map(const std::string& name, const cgv::glutil::color_map& cm, bool custom) {
 		color_map_container cmc(name);
 		cmc.cm = cm;
+		cmc.custom = custom;
 		color_maps.push_back(cmc);
 	}
 

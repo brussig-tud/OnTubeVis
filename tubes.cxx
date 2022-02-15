@@ -7,6 +7,7 @@
 #include <cgv/math/ftransform.h>
 #include <cgv/media/image/image_reader.h>
 #include <cgv/utils/advanced_scan.h>
+#include <cgv/utils/xml.h>
 
 // CGV framework graphics utility
 #include <cgv_glutil/color_map_reader.h>
@@ -420,46 +421,195 @@ bool tubes::save_layer_configuration() {//const std::string& file_name) {
 	};
 
 	std::string content = "";
-	content += "<Layers>\n";
+	content += "<GlyphConfiguration>\n";
 	std::string tab = "  ";
 	std::string t = tab;
 
-	for(unsigned i = 0; i < gams.size(); ++i) {
+	const auto& color_maps = color_map_mgr.ref_color_maps();
+
+	content += t + "<ColorScales>\n";
+	t += tab;
+
+	for(size_t i = 0; i < color_maps.size(); ++i) {
+		const auto& cmc = color_maps[i];
+		content += t + "<ColorScale " + put("name", cmc.name) + put("custom", std::to_string(cmc.custom));
+		if(cmc.custom) {
+			content += ">\n";
+			t += tab;
+
+			const auto& cm = cmc.cm;
+			for(size_t j = 0; j < cm.ref_color_points().size(); ++j) {
+				const auto& p = cm.ref_color_points()[j];
+
+				content += t + "<Point ";
+				content += "x=\"" + std::to_string(p.first) + "\" ";
+				content += "o=\"1\" ";
+				content += "r=\"" + std::to_string(p.second.R()) + "\" ";
+				content += "g=\"" + std::to_string(p.second.G()) + "\" ";
+				content += "b=\"" + std::to_string(p.second.B()) + "\"";
+				content += "/>\n";
+			}
+
+			t = tab + tab;
+			content += t + "</ColorScale>\n";
+		} else {
+			content += "/>\n";
+		}
+	}
+
+	t = tab;
+	content += t + "</ColorScales>\n";
+	content += t + "<Layers>\n";
+	t += tab;
+
+	for(size_t i = 0; i < gams.size(); ++i) {
 		const auto& gam = gams[i];
 		const auto* shape_ptr = gam.get_shape_ptr();
 
 		if(shape_ptr) {
-			//content += t + "<Layer ";
-			//content += "glyph=\"" + gam.get_shape_ptr()->name + "\" ";
-			//content += ">\n";
 			content += t + "<Layer " + put("glyph", shape_ptr->name()) + ">\n";
-
 			t += tab;
+
 			const auto& attribs = shape_ptr->supported_attributes();
 			const auto attrib_indices = gam.get_attrib_indices();
 			const auto color_indices = gam.get_color_map_indices();
 			const auto& mapping_ranges = gam.ref_attrib_values();
 			const auto& colors = gam.ref_attrib_colors();
+
+			const auto& attrib_names = gam.ref_attribute_names();
+			const auto& color_map_names = gam.ref_color_map_names();
+
 			for(size_t j = 0; j < attribs.size(); ++j) {
-				content += t + "<Values " + put("name", attribs[j].name);
-				content += put("attrib_idx", std::to_string(attrib_indices[j]));
-				content += put("color_idx", std::to_string(color_indices[j]));
+				const auto& attrib = attribs[j];
+				content += t + "<Property " + put("name", attrib.name);
+
+				if(!(attrib.modifiers & GAM_GLOBAL)) {
+					int a_idx = attrib_indices[j];
+					if(a_idx > -1)
+						content += put("attrib_name", attrib_names[a_idx]);
+				}
+
+				if(attrib.type == GAT_COLOR) {
+					int c_idx = color_indices[j];
+					if(c_idx > -1)
+						content += put("color_map_name", color_map_names[c_idx]);
+					else
+						content += put("color", rgb_to_str(colors[j]));
+				}
+
 				vec4 mr = mapping_ranges[j];
 				content += put("in_range", vec2_to_str(vec2(mr.x(), mr.y())));
 				content += put("out_range", vec2_to_str(vec2(mr.z(), mr.w())));
-				content += put("color", rgb_to_str(colors[j]));
 				content += "/>\n";
 			}
-			t = tab;
 
+			t = tab;
 			content += t + "</Layer>\n";
 		}
 	}
+	t = tab;
+	content += "</Layers>";
+	content += "</GlyphConfiguration>\n";
 
-	content += "</Layers>\n";
-
-	std::string file_name2 = "layer_config.xml";
+	std::string file_name2 = "glyph_config.xml";
 	return cgv::utils::file::write(file_name2, content, true);
+}
+
+bool tubes::read_layer_configuration() {//const std::string& file_name) {
+
+	std::string file_name2 = "glyph_config.xml";
+
+
+
+	glyph_layer_mgr.clear();
+	
+
+
+	if(!cgv::utils::file::exists(file_name2) || cgv::utils::to_upper(cgv::utils::file::get_extension(file_name2)) != "XML")
+		return false;
+
+	std::string content;
+	cgv::utils::file::read(file_name2, content, true);
+
+	bool read = true;
+	size_t nl_pos = content.find_first_of("\n");
+	size_t line_offset = 0;
+	bool first_line = true;
+
+	while(read) {
+		std::string line = "";
+
+		if(nl_pos == std::string::npos) {
+			read = false;
+			line = content.substr(line_offset, std::string::npos);
+		} else {
+			size_t next_line_offset = nl_pos;
+			line = content.substr(line_offset, next_line_offset - line_offset);
+			line_offset = next_line_offset + 1;
+			nl_pos = content.find_first_of('\n', line_offset);
+		}
+
+		cgv::utils::trim(line);
+
+		if(line.length() < 3)
+			continue;
+
+		line = line.substr(1, line.length() - 2);
+
+
+		cgv::utils::xml_tag tag = cgv::utils::xml_read_tag(line);
+
+
+		if(tag.name == "GlyphConfiguration") {
+			// root node indicates that this is a glyph layer configuration file
+			// do nothing
+		} else if(tag.name == "ColorMaps") {
+
+		}
+
+
+
+		/*std::vector<cgv::utils::token> tokens;
+		cgv::utils::split_to_tokens(line, tokens, "", true, "", "");
+
+		if(tokens.size() == 1 && to_string(tokens[0]) == "GlyphConfiguration") {
+			// root node indicates that this is a glyph layer configuration file
+		}
+
+		if(tokens.size() == 3 && to_string(tokens[0]) == "ColorMap") {
+			name = xml_attribute_value(to_string(tokens[1]));
+		}
+
+		if(tokens.size() == 6 && to_string(tokens[0]) == "Point") {
+			float x = -1.0f;
+			float o = 0.0f;
+			float r = 0.0f;
+			float g = 0.0f;
+			float b = 0.0f;
+
+			xml_attribute_to_float(to_string(tokens[1]), x);
+			xml_attribute_to_float(to_string(tokens[2]), o);
+			xml_attribute_to_float(to_string(tokens[3]), r);
+			xml_attribute_to_float(to_string(tokens[4]), g);
+			xml_attribute_to_float(to_string(tokens[5]), b);
+
+			if(!(x < 0.0f)) {
+				rgb col(0.0f);
+				float opacity = 0.0f;
+
+				col[0] = cgv::math::clamp(r, 0.0f, 1.0f);
+				col[1] = cgv::math::clamp(g, 0.0f, 1.0f);
+				col[2] = cgv::math::clamp(b, 0.0f, 1.0f);
+
+				opacity = cgv::math::clamp(o, 0.0f, 1.0f);
+
+				cm.add_color_point(x, col);
+				cm.add_opacity_point(x, opacity);
+			}
+		}*/
+	}
+
+	return true;
 }
 
 void tubes::update_glyph_layer_manager() {
@@ -1171,10 +1321,14 @@ bool tubes::init (cgv::render::context &ctx)
 			std::filesystem::path entry_path = entry.path();
 			// only take xml files
 			if(entry_path.extension() == ".xml") {
-				std::string name = "";
-				cgv::glutil::color_map cm;
-				if(cgv::glutil::color_map_reader::read_from_xml(entry_path.string(), cm, name))
-					color_map_mgr.add_color_map(name, cm);
+				std::vector<std::string> names;
+				std::vector<cgv::glutil::color_map> color_maps;
+				if(cgv::glutil::color_map_reader::read_from_xml(entry_path.string(), names, color_maps)) {
+					if(names.size() == color_maps.size()) {
+						for(size_t i = 0; i < names.size(); ++i)
+							color_map_mgr.add_color_map(names[i], color_maps[i], false);
+					}
+				}
 			}
 		}
 		color_map_mgr.update_texture(ctx);

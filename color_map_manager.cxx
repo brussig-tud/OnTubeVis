@@ -18,7 +18,8 @@ void color_map_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
 	for(size_t i = 0; i < color_maps.size(); ++i) {
 		color_map_container& cmc = color_maps[i];
 		p.add_member_control(bp, "", cmc.name, "string", "w=120", " ");
-		connect_copy(p.add_button("Edit", "w=35", " ")->click, cgv::signal::rebind(this, &color_map_manager::edit_color_map, cgv::signal::_c<size_t>(i)));
+		std::string active = cmc.custom ? "true" : "false";
+		connect_copy(p.add_button("Edit", "w=35;active=" + active, " ")->click, cgv::signal::rebind(this, &color_map_manager::edit_color_map, cgv::signal::_c<size_t>(i)));
 		connect_copy(p.add_button("X", "w=20")->click, cgv::signal::rebind(this, &color_map_manager::remove_color_map, cgv::signal::_c<size_t>(i)));
 	}
 }
@@ -44,6 +45,7 @@ void color_map_manager::create_color_map() {
 
 	color_maps.push_back(color_map_container(new_name));
 	auto& gam = color_maps.back();
+	gam.custom = true;
 
 	last_action_type = AT_CONFIGURATION_CHANGE;
 	if(base_ptr)

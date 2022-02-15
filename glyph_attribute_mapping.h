@@ -52,6 +52,8 @@ public:
 
 	~glyph_attribute_mapping();
 
+	ActionType action_type();
+
 	const glyph_shape* get_shape_ptr() const { return shape_ptr; }
 
 	const std::vector<int> get_attrib_indices() const;
@@ -62,7 +64,9 @@ public:
 
 	const std::vector<rgb>& ref_attrib_colors() const { return attrib_colors; }
 
-	ActionType action_type();
+	const std::vector<std::string>& ref_attribute_names() const { return attribute_names; }
+	
+	const std::vector<std::string>& ref_color_map_names() const { return color_map_names; }
 
 	void set_attribute_names(const std::vector<std::string>& names);
 

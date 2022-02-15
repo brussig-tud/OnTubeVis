@@ -273,6 +273,7 @@ protected:
 	
 	void reload_shader();
 	bool save_layer_configuration();// const std::string& file_name);
+	bool read_layer_configuration();// const std::string& file_name);
 
 
 	void update_glyph_layer_manager(void);
