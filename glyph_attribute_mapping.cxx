@@ -51,6 +51,11 @@ ActionType glyph_attribute_mapping::action_type() {
 	return temp;
 }
 
+void glyph_attribute_mapping::set_glyph_type(GlyphType type) {
+	this->type = type;
+	create_glyph_shape();
+}
+
 void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
 	if(!shape_ptr)
 		return;

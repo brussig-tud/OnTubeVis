@@ -400,7 +400,6 @@ void tubes::reload_shader() {
 }
 
 bool tubes::save_layer_configuration() {//const std::string& file_name) {
-
 	const auto& gams = glyph_layer_mgr.ref_glyph_attribute_mappings();
 
 	auto to_col_uint8 = [](const float& val) {
@@ -503,12 +502,12 @@ bool tubes::save_layer_configuration() {//const std::string& file_name) {
 				content += "/>\n";
 			}
 
-			t = tab;
+			t = tab + tab;
 			content += t + "</Layer>\n";
 		}
 	}
 	t = tab;
-	content += "</Layers>";
+	content += t + "</Layers>";
 	content += "</GlyphConfiguration>\n";
 
 	std::string file_name2 = "glyph_config.xml";
@@ -521,12 +520,20 @@ bool tubes::read_layer_configuration() {//const std::string& file_name) {
 
 
 
-	glyph_layer_mgr.clear();
+	
 	
 
 
 	if(!cgv::utils::file::exists(file_name2) || cgv::utils::to_upper(cgv::utils::file::get_extension(file_name2)) != "XML")
 		return false;
+
+
+	bool read_color_maps = false;
+	std::vector<std::string> color_map_lines;
+
+	bool read_layers = false;
+	std::vector<cgv::utils::xml_tag> layer_data;
+
 
 	std::string content;
 	cgv::utils::file::read(file_name2, content, true);
@@ -534,7 +541,6 @@ bool tubes::read_layer_configuration() {//const std::string& file_name) {
 	bool read = true;
 	size_t nl_pos = content.find_first_of("\n");
 	size_t line_offset = 0;
-	bool first_line = true;
 
 	while(read) {
 		std::string line = "";
@@ -549,65 +555,160 @@ bool tubes::read_layer_configuration() {//const std::string& file_name) {
 			nl_pos = content.find_first_of('\n', line_offset);
 		}
 
-		cgv::utils::trim(line);
-
-		if(line.length() < 3)
-			continue;
-
-		line = line.substr(1, line.length() - 2);
-
-
 		cgv::utils::xml_tag tag = cgv::utils::xml_read_tag(line);
-
+		if(tag.type == cgv::utils::XTT_UNDEF)
+			continue;
 
 		if(tag.name == "GlyphConfiguration") {
 			// root node indicates that this is a glyph layer configuration file
 			// do nothing
 		} else if(tag.name == "ColorMaps") {
-
-		}
-
-
-
-		/*std::vector<cgv::utils::token> tokens;
-		cgv::utils::split_to_tokens(line, tokens, "", true, "", "");
-
-		if(tokens.size() == 1 && to_string(tokens[0]) == "GlyphConfiguration") {
-			// root node indicates that this is a glyph layer configuration file
-		}
-
-		if(tokens.size() == 3 && to_string(tokens[0]) == "ColorMap") {
-			name = xml_attribute_value(to_string(tokens[1]));
-		}
-
-		if(tokens.size() == 6 && to_string(tokens[0]) == "Point") {
-			float x = -1.0f;
-			float o = 0.0f;
-			float r = 0.0f;
-			float g = 0.0f;
-			float b = 0.0f;
-
-			xml_attribute_to_float(to_string(tokens[1]), x);
-			xml_attribute_to_float(to_string(tokens[2]), o);
-			xml_attribute_to_float(to_string(tokens[3]), r);
-			xml_attribute_to_float(to_string(tokens[4]), g);
-			xml_attribute_to_float(to_string(tokens[5]), b);
-
-			if(!(x < 0.0f)) {
-				rgb col(0.0f);
-				float opacity = 0.0f;
-
-				col[0] = cgv::math::clamp(r, 0.0f, 1.0f);
-				col[1] = cgv::math::clamp(g, 0.0f, 1.0f);
-				col[2] = cgv::math::clamp(b, 0.0f, 1.0f);
-
-				opacity = cgv::math::clamp(o, 0.0f, 1.0f);
-
-				cm.add_color_point(x, col);
-				cm.add_opacity_point(x, opacity);
+			if(tag.type == cgv::utils::XTT_OPEN) {
+				read_color_maps = true;
+			} else if(tag.type == cgv::utils::XTT_CLOSE) {
+				read_color_maps = false;
 			}
-		}*/
+		} else if(tag.name == "Layers") {
+			if(tag.type == cgv::utils::XTT_OPEN) {
+				read_layers = true;
+			} else if(tag.type == cgv::utils::XTT_CLOSE) {
+				read_layers = false;
+			}
+		}
+
+		if(read_color_maps) {
+			color_map_lines.push_back(line);
+		}
+
+		if(read_layers) {
+			layer_data.push_back(tag);
+		}
 	}
+
+
+
+
+	
+	std::vector<std::string> color_map_names;
+	std::vector<cgv::glutil::color_map> color_maps;
+	if(cgv::glutil::color_map_reader::read_from_xml(color_map_lines, color_map_names, color_maps)) {
+		if(color_map_names.size() == color_maps.size()) {
+			// clear previous custom color maps
+			std::vector<std::string> current_names;
+			const auto& current_color_maps = color_map_mgr.ref_color_maps();
+			for(size_t i = 0; i < current_color_maps.size(); ++i) {
+				if(current_color_maps[i].custom)
+					current_names.push_back(current_color_maps[i].name);
+			}
+
+			for(size_t i = 0; i < current_names.size(); ++i)
+				color_map_mgr.remove_color_map_by_name(current_names[i]);
+
+			for(size_t i = 0; i < color_map_names.size(); ++i)
+				color_map_mgr.add_color_map(color_map_names[i], color_maps[i], false);
+		}
+	}
+	
+
+
+	const auto index_of = [](const std::vector<std::string>& v, const std::string& elem) {
+		int idx = -1;
+		int c = 0;
+		for(const auto& s : v) {
+			if(s == elem) {
+				idx = c;
+				break;
+			}
+			++c;
+		}
+		return idx;
+	};
+	
+
+
+	glyph_layer_mgr.clear();
+
+	const auto attrib_names = traj_mgr.dataset(0).get_attribute_names();
+
+	bool read_layer = false;
+	glyph_attribute_mapping gam;
+	const glyph_shape* shape_ptr = nullptr;
+	std::vector<std::string> shape_attribute_names;
+
+	for(size_t i = 0; i < layer_data.size(); ++i) {
+		const cgv::utils::xml_tag& tag = layer_data[i];
+		
+		if(tag.name == "Layer") {
+			if(tag.type == cgv::utils::XTT_OPEN) {
+				read_layer = true;
+				gam = glyph_attribute_mapping();
+				shape_ptr = nullptr;
+				shape_attribute_names.clear();
+
+				for(const auto& attrib : tag.attributes) {
+					if(attrib.first == "glyph") {
+						GlyphType glyph_type = glyph_type_registry::type(attrib.second);
+						gam.set_glyph_type(glyph_type);
+						shape_ptr = gam.get_shape_ptr();
+
+						for(const auto& a : shape_ptr->supported_attributes())
+							shape_attribute_names.push_back(a.name);
+					}
+				}
+			} else if(tag.type == cgv::utils::XTT_CLOSE) {
+				if(read_layer) {
+					// TODO: save layer to manager
+					//glyph_layer_mgr
+				}
+				read_layer = false;
+			}
+		} else if(tag.name == "Property") {
+			if(read_layer && shape_ptr) {
+				const auto end = tag.attributes.end();
+
+				auto it = tag.attributes.find("name");
+				if(it == end)
+					// property has no name, skip
+					continue;
+
+				std::string name = (*it).second;
+				int shape_attrib_idx = index_of(shape_attribute_names, name);
+				if(shape_attrib_idx < 0)
+					// shape does not have this attribute
+					continue;
+
+				int attrib_idx = -1;
+				it = tag.attributes.find("attrib_name");
+				if(it != end) {
+					// the name for a mapped attribute is given
+					std::string attrib_name = (*it).second;
+					// if not -1, then this attribute is also present in the loaded data set
+					attrib_idx = index_of(attrib_names, attrib_name);
+				}
+
+
+			}
+		}
+	}
+
+
+
+
+
+	// TODO: do after succesfull load
+	/*
+	color_map_mgr.update_texture(ctx);
+	if(cm_viewer_ptr)
+		cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+	update_glyph_layer_manager();
+	*/
+
+	
+
+
+
+
+
 
 	return true;
 }
@@ -1530,6 +1631,7 @@ void tubes::create_gui (void)
 	if(begin_tree_node("Attribute Mapping", glyph_layer_mgr, true)) {
 		align("\a");
 		connect_copy(add_button("Save Configuration")->click, cgv::signal::rebind(this, &tubes::save_layer_configuration));
+		connect_copy(add_button("Read Configuration")->click, cgv::signal::rebind(this, &tubes::read_layer_configuration));
 		connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &tubes::reload_shader));
 		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
 		add_member_control(this, "Max Count (Debug)", max_glyph_count, "value_slider", "min=1;max=100;step=1;ticks=true");

@@ -91,6 +91,18 @@ public:
 		color_maps.push_back(cmc);
 	}
 
+	void remove_color_map_by_name(const std::string& name) {
+		int index = -1;
+		for(size_t i = 0; i < color_maps.size(); ++i) {
+			if(color_maps[i].name == name) {
+				index = i;
+				break;
+			}
+		}
+
+		remove_color_map(index);
+	}
+
 	void update_texture(cgv::render::context& ctx) {
 		if(color_maps.size() == 0)
 			return;
