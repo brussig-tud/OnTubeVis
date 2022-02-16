@@ -18,10 +18,18 @@ glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& 
 }
 
 glyph_attribute_mapping& glyph_attribute_mapping::operator=(const glyph_attribute_mapping& r) {
+	type = r.type;
 	delete shape_ptr;
 	shape_ptr = nullptr;
 	if(r.shape_ptr)
 		shape_ptr = r.shape_ptr->clone();
+	attrib_source_indices = r.attrib_source_indices;
+	color_source_indices = r.color_source_indices;
+	attrib_mapping_values = r.attrib_mapping_values;
+	attrib_colors = r.attrib_colors;
+	attribute_names = r.attribute_names;
+	attribute_ranges = r.attribute_ranges;
+	color_map_names = r.color_map_names;
 	return *this;
 }
 
@@ -174,6 +182,10 @@ void glyph_attribute_mapping::create_glyph_shape() {
 
 int glyph_attribute_mapping::dummy_enum_to_int(cgv::type::DummyEnum index) const {
 	return static_cast<int>(index) - 1;
+}
+
+cgv::type::DummyEnum glyph_attribute_mapping::int_to_dummy_enum(int index) const {
+	return static_cast<cgv::type::DummyEnum>(index + 1);
 }
 
 std::string glyph_attribute_mapping::to_display_str(const std::string& name) const {

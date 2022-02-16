@@ -39,6 +39,8 @@ protected:
 
 	int dummy_enum_to_int(cgv::type::DummyEnum index) const;
 
+	cgv::type::DummyEnum int_to_dummy_enum(int index) const;
+
 	std::string to_display_str(const std::string& name) const;
 
 	void create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i);
@@ -77,4 +79,37 @@ public:
 	void set_color_map_names(const std::vector<std::string>& names);
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
+
+
+
+
+
+	void set_attrib_source_index(size_t attrib_idx, int source_idx) {
+		if(attrib_idx < attrib_source_indices.size())
+			attrib_source_indices[attrib_idx] = int_to_dummy_enum(source_idx);
+	}
+
+	void set_color_source_index(size_t color_idx, int source_idx) {
+		if(color_idx < color_source_indices.size())
+			color_source_indices[color_idx] = int_to_dummy_enum(source_idx);
+	}
+
+	void set_attrib_in_range(size_t idx, const vec2& range) {
+		if(idx < attrib_mapping_values.size()) {
+			attrib_mapping_values[idx].x() = range.x();
+			attrib_mapping_values[idx].y() = range.y();
+		}
+	}
+
+	void set_attrib_out_range(size_t idx, const vec2& range) {
+		if(idx < attrib_mapping_values.size()) {
+			attrib_mapping_values[idx].z() = range.x();
+			attrib_mapping_values[idx].w() = range.y();
+		}
+	}
+
+	void set_attrib_color(size_t idx, const rgb& color) {
+		if(idx < attrib_colors.size())
+			attrib_colors[idx] = color;
+	}
 };

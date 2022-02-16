@@ -194,10 +194,6 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				} break;
 				default: break;
 				}
-
-				// TODO: check in glyph shape if global or constant/mapped params are used
-				//std::string global_params_str = join(global_func_parameters_strs, ", ");// +(global_func_parameters_strs.size() > 0 ? ", " : "");
-				//splat_func += "(current_glyph, " + glyph_coord_str + ", " + global_params_str + ", " + color_str + ")";
 			}
 
 			//code = "splat_glyph(glyphuv, current_glyph, " + splat_func + ", " + color_str + ", color);";
@@ -236,7 +232,17 @@ void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p)
 	connect_copy(p.add_button("Add Layer")->click, cgv::signal::rebind(this, &glyph_layer_manager::create_glyph_attribute_mapping));
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
-		bool node_is_open = p.begin_tree_node_void("Layer " + std::to_string(i + 1), &gam, -1, true, "level=2;options='w=180';align=''");
+		bool node_is_open = p.begin_tree_node_void("Layer " + std::to_string(i + 1), &gam, -1, false, "level=2;options='w=120';align=''");
+		connect_copy(
+			p.add_button("", "image='res://up32.png';fit_image=true;w=20;h=20;label=''", " ")->click,
+			cgv::signal::rebind(this, &glyph_layer_manager::move_glyph_attribute_mapping, cgv::signal::_c<size_t>(i), cgv::signal::_c<size_t>(-1))
+		);
+
+		connect_copy(
+			p.add_button("", "image='res://down32.png';fit_image=true;w=20;h=20;label=''", " ")->click,
+			cgv::signal::rebind(this, &glyph_layer_manager::move_glyph_attribute_mapping, cgv::signal::_c<size_t>(i), cgv::signal::_c<size_t>(1))
+		);
+
 		connect_copy(p.add_button("X", "w=20")->click, cgv::signal::rebind(this, &glyph_layer_manager::remove_glyph_attribute_mapping, cgv::signal::_c<size_t>(i)));
 		if(node_is_open) {
 			p.align("\a");
@@ -248,6 +254,8 @@ void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p)
 }
 
 void glyph_layer_manager::on_set(void* member_ptr) {
+
+	last_action_type = AT_VALUE_CHANGE;
 
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
@@ -273,17 +281,27 @@ void glyph_layer_manager::create_glyph_attribute_mapping() {
 	gam.set_attribute_ranges(attribute_ranges);
 	gam.set_color_map_names(color_map_names);
 
-	last_action_type = AT_CONFIGURATION_CHANGE;
-	if(base_ptr)
-		base_ptr->on_set(this);
+	notify_configuration_change();
 }
 
 void glyph_layer_manager::remove_glyph_attribute_mapping(const size_t index) {
 	if(index < glyph_attribute_mappings.size()) {
 		glyph_attribute_mappings.erase(glyph_attribute_mappings.begin() + index);
 		
-		last_action_type = AT_CONFIGURATION_CHANGE;
-		if(base_ptr)
-			base_ptr->on_set(this);
+		notify_configuration_change();
+	}
+}
+
+void glyph_layer_manager::move_glyph_attribute_mapping(const size_t index, int offset) {
+	if(index < glyph_attribute_mappings.size()) {
+		if(offset < 0 && index > 0) {
+			// move up if not the first element
+			std::swap(glyph_attribute_mappings[index], glyph_attribute_mappings[index - 1]);
+			notify_configuration_change();
+		} else if(offset > 0 && index < glyph_attribute_mappings.size() - 1) {
+			// move down if not the last element
+			std::swap(glyph_attribute_mappings[index], glyph_attribute_mappings[index + 1]);
+			notify_configuration_change();
+		}
 	}
 }

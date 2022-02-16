@@ -90,9 +90,6 @@ tubes::tubes() : application_plugin("tubes_instance")
 	enable_fuzzy_grid = false;
 
 	show_demo = true;
-
-	do_benchmark = false;
-	benchmark_running = false;
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -309,7 +306,8 @@ void tubes::on_set(void *member_ptr) {
 
 	// visualization settings
 	if(member_ptr == &glyph_layer_mgr) {
-		if(glyph_layer_mgr.action_type() == AT_CONFIGURATION_CHANGE) {
+		const auto action = glyph_layer_mgr.action_type();
+		if(action == AT_CONFIGURATION_CHANGE) {
 			glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 			context& ctx = *get_context();
@@ -319,6 +317,8 @@ void tubes::on_set(void *member_ptr) {
 			compile_glyph_attribs();
 
 			post_recreate_gui();
+		} else if(action == AT_VALUE_CHANGE) {
+			glyphs_out_of_date(true);
 		}
 	}
 
@@ -426,12 +426,12 @@ bool tubes::save_layer_configuration() {//const std::string& file_name) {
 
 	const auto& color_maps = color_map_mgr.ref_color_maps();
 
-	content += t + "<ColorScales>\n";
+	content += t + "<ColorMaps>\n";
 	t += tab;
 
 	for(size_t i = 0; i < color_maps.size(); ++i) {
 		const auto& cmc = color_maps[i];
-		content += t + "<ColorScale " + put("name", cmc.name) + put("custom", std::to_string(cmc.custom));
+		content += t + "<ColorMap " + put("name", cmc.name) + put("custom", std::to_string(cmc.custom));
 		if(cmc.custom) {
 			content += ">\n";
 			t += tab;
@@ -450,14 +450,14 @@ bool tubes::save_layer_configuration() {//const std::string& file_name) {
 			}
 
 			t = tab + tab;
-			content += t + "</ColorScale>\n";
+			content += t + "</ColorMap>\n";
 		} else {
 			content += "/>\n";
 		}
 	}
 
 	t = tab;
-	content += t + "</ColorScales>\n";
+	content += t + "</ColorMaps>\n";
 	content += t + "<Layers>\n";
 	t += tab;
 
@@ -507,7 +507,7 @@ bool tubes::save_layer_configuration() {//const std::string& file_name) {
 		}
 	}
 	t = tab;
-	content += t + "</Layers>";
+	content += t + "</Layers>\n";
 	content += "</GlyphConfiguration>\n";
 
 	std::string file_name2 = "glyph_config.xml";
@@ -605,11 +605,12 @@ bool tubes::read_layer_configuration() {//const std::string& file_name) {
 				color_map_mgr.remove_color_map_by_name(current_names[i]);
 
 			for(size_t i = 0; i < color_map_names.size(); ++i)
-				color_map_mgr.add_color_map(color_map_names[i], color_maps[i], false);
+				color_map_mgr.add_color_map(color_map_names[i], color_maps[i], true);
 		}
 	}
 	
-
+	// update the list of color map names
+	color_map_names = color_map_mgr.get_names();
 
 	const auto index_of = [](const std::vector<std::string>& v, const std::string& elem) {
 		int idx = -1;
@@ -624,6 +625,39 @@ bool tubes::read_layer_configuration() {//const std::string& file_name) {
 		return idx;
 	};
 	
+
+	const auto read_vec2 = [](const std::string& str) {
+		size_t space_pos = str.find_first_of(" ");
+		size_t last_space_pos = 0;
+
+		vec2 v(0.0f);
+		std::string value_str = str.substr(last_space_pos, space_pos - last_space_pos);
+		v[0] = std::strtof(value_str.c_str(), nullptr);
+
+		last_space_pos = space_pos + 1;
+		value_str = str.substr(space_pos + 1);
+		v[1] = std::strtof(value_str.c_str(), nullptr);
+		return v;
+	};
+
+	const auto read_vec3 = [](const std::string& str) {
+		size_t space_pos = str.find_first_of(" ");
+		size_t last_space_pos = 0;
+
+		vec3 v(0.0f);
+		std::string value_str = str.substr(last_space_pos, space_pos - last_space_pos);
+		v[0] = std::strtof(value_str.c_str(), nullptr);
+
+		last_space_pos = space_pos + 1;
+		space_pos = str.find_first_of(" ", last_space_pos);
+		value_str = str.substr(last_space_pos, space_pos - last_space_pos);
+		v[1] = std::strtof(value_str.c_str(), nullptr);
+
+		last_space_pos = space_pos + 1;
+		value_str = str.substr(space_pos + 1);
+		v[2] = std::strtof(value_str.c_str(), nullptr);
+		return v;
+	};
 
 
 	glyph_layer_mgr.clear();
@@ -658,7 +692,7 @@ bool tubes::read_layer_configuration() {//const std::string& file_name) {
 			} else if(tag.type == cgv::utils::XTT_CLOSE) {
 				if(read_layer) {
 					// TODO: save layer to manager
-					//glyph_layer_mgr
+					glyph_layer_mgr.add_glyph_attribute_mapping(gam);
 				}
 				read_layer = false;
 			}
@@ -686,30 +720,63 @@ bool tubes::read_layer_configuration() {//const std::string& file_name) {
 					attrib_idx = index_of(attrib_names, attrib_name);
 				}
 
+				if(attrib_idx < 0) {
+					// the shape attribute is not mapped
+				} else {
+					// a data set attribute is mapped to the shape attribute
+					gam.set_attrib_source_index(static_cast<size_t>(shape_attrib_idx), attrib_idx);
+				}
 
+				it = tag.attributes.find("in_range");
+				if(it != end) {
+					std::string str = (*it).second;
+					vec2 r = read_vec2(str);
+					gam.set_attrib_in_range(shape_attrib_idx, r);
+				}
+
+				it = tag.attributes.find("out_range");
+				if(it != end) {
+					std::string str = (*it).second;
+					vec2 r = read_vec2(str);
+					gam.set_attrib_out_range(shape_attrib_idx, r);
+				}
+
+				if(shape_ptr->supported_attributes()[shape_attrib_idx].type == GAT_COLOR) {
+					int color_map_idx = -1;
+					it = tag.attributes.find("color_map_name");
+					if(it != end) {
+						// the name for a color map is given
+						std::string color_map_name = (*it).second;
+						// if not -1, then this attribute is also present in the loaded data set
+						color_map_idx = index_of(color_map_names, color_map_name);
+					}
+
+					if(color_map_idx < 0) {
+						// no color map selected
+						it = tag.attributes.find("color");
+						if(it != end) {
+							std::string col_str = (*it).second;
+							vec3 v = read_vec3(col_str);
+							rgb col(v.x(), v.y(), v.z());
+							gam.set_attrib_color(shape_attrib_idx, col);
+						}
+					} else {
+						// a color map is selected
+						gam.set_color_source_index(shape_attrib_idx, color_map_idx);
+					}
+				}
 			}
 		}
 	}
 
-
-
-
-
-	// TODO: do after succesfull load
-	/*
-	color_map_mgr.update_texture(ctx);
+	// update the dependant members
+	color_map_mgr.update_texture(*get_context());
 	if(cm_viewer_ptr)
 		cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
-	update_glyph_layer_manager();
-	*/
 
+	glyph_layer_mgr.set_color_map_names(color_map_names);
+	glyph_layer_mgr.notify_configuration_change();
 	
-
-
-
-
-
-
 	return true;
 }
 
@@ -737,13 +804,20 @@ void tubes::update_glyph_layer_manager() {
 	glyph_layer_mgr.set_color_map_names(color_map_mgr.get_names());
 }
 
+void tubes::glyphs_out_of_date(bool state) {
+	auto ctrl = find_element("Compile Attributes");
+	if(ctrl)
+		ctrl->set("color", state ? "0xff6666" : "");
+}
+
 bool tubes::compile_glyph_attribs (void)
 {
 	bool success = false;
-	if(glyph_layers_config.layer_configs.size() > 0)
+	if(glyph_layers_config.layer_configs.size() > 0) {
 		success = compile_glyph_attribs_new();
-	else
-		success = compile_glyph_attribs_old();
+		glyphs_out_of_date(false);
+	} /*else
+		success = compile_glyph_attribs_old();*/
 
 	if(success)
 		post_redraw();
@@ -1488,22 +1562,24 @@ void tubes::init_frame (cgv::render::context &ctx)
 	Box Billboard	| 448.61 (2.23)	| 994.98 (1.01)
 	*/
 
-	if(benchmark_running) {
-		++total_frames;
+	if(benchmark.running) {
+		++benchmark.total_frames;
 		double benchmark_time = 10.0;
 
-		double seconds_since_start = benchmark_timer.get_elapsed_time();
-		double alpha = (seconds_since_start - last_seconds_since_start) / benchmark_time;
-		last_seconds_since_start = seconds_since_start;
+		double seconds_since_start = benchmark.timer.get_elapsed_time();
+		double alpha = (seconds_since_start - benchmark.last_seconds_since_start) / benchmark_time;
+		benchmark.last_seconds_since_start = seconds_since_start;
 
 		double depth = cgv::math::length(view_ptr->get_eye() - view_ptr->get_focus());
 
 		view_ptr->rotate(0.0, cgv::math::deg2rad(360.0 * alpha), depth);
 
 		if(seconds_since_start >= benchmark_time) {
-			benchmark_running = false;
+			benchmark.running = false;
+			benchmark.requested = false;
+			update_member(&benchmark.requested);
 
-			double avg_fps = (double)total_frames / seconds_since_start;
+			double avg_fps = (double)benchmark.total_frames / seconds_since_start;
 
 			std::stringstream ss;
 			ss.precision(2);
@@ -1514,23 +1590,18 @@ void tubes::init_frame (cgv::render::context &ctx)
 		}
 	}
 
-	if(do_benchmark) {
-		do_benchmark = false;
-		update_member(&do_benchmark);
-
+	if(benchmark.requested) {
 		misc_cfg.instant_redraw_proxy = true;
 		misc_cfg.vsync_proxy = false;
 		on_set(&misc_cfg.instant_redraw_proxy);
 		on_set(&misc_cfg.vsync_proxy);
 
-		if(!benchmark_running) {
-			benchmark_running = true;
-			benchmark_timer.restart();
+		if(!benchmark.running) {
+			benchmark.running = true;
+			benchmark.timer.restart();
 
-			total_frames = 0u;
-			initial_eye_pos = view_ptr->get_eye();
-			initial_focus = view_ptr->get_focus();
-			last_seconds_since_start = 0.0;
+			benchmark.total_frames = 0u;
+			benchmark.last_seconds_since_start = 0.0;
 		}
 	}
 
@@ -1703,7 +1774,7 @@ void tubes::create_gui (void)
 		end_tree_node(misc_cfg);
 	}
 
-	add_member_control(this, "Start Benchmark", do_benchmark, "toggle", "");
+	add_member_control(this, "Start Benchmark", benchmark.requested, "toggle", "");
 
 	create_vec3_gui("Eye Pos", test_eye, -10.0f, 10.0f);
 	create_vec3_gui("Eye Dir", test_dir, -1.0f, 1.0f);

@@ -234,19 +234,26 @@ protected:
 	/// whether to display the interactive testbed
 	bool show_demo;
 
+	/// rendering state fields
+	struct {
+		/// whether a benchmark run is requested
+		bool requested = false;
+		/// whether a benchmark is currently running
+		bool running = false;
+		/// timer to count elapsed time
+		cgv::utils::stopwatch timer;
+		/// counter for rendered frames
+		unsigned total_frames;
+		/// store last seconds since the start of the run
+		double last_seconds_since_start;
+	} benchmark;
 
+	/// members for rendering eye position and direction used to test sorting
 	cgv::glutil::sphere_render_data<> srd;
 	vec3 test_eye = vec3(5.0f, 0.5f, 5.0f);
 	vec3 test_dir = vec3(0.0f, 0.0f, -1.0f);
 
-	// Benchmark members
-	bool do_benchmark;
-	bool benchmark_running;
-	cgv::utils::stopwatch benchmark_timer;
-	unsigned total_frames;
-	vec3 initial_eye_pos;
-	vec3 initial_focus;
-	double last_seconds_since_start;
+
 
 
 
@@ -277,6 +284,7 @@ protected:
 
 
 	void update_glyph_layer_manager(void);
+	void glyphs_out_of_date(bool state);
 	bool compile_glyph_attribs(void);
 	bool compile_glyph_attribs_new (void);
 	bool compile_glyph_attribs_old (void);

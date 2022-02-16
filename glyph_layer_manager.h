@@ -95,6 +95,8 @@ protected:
 
 	void remove_glyph_attribute_mapping(const size_t index);
 
+	void move_glyph_attribute_mapping(const size_t index, int offset);
+
 public:
 	glyph_layer_manager() {
 		base_ptr = nullptr;
@@ -119,4 +121,28 @@ public:
 	ActionType action_type();
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
+
+	
+
+
+
+
+	void notify_configuration_change() {
+		last_action_type = AT_CONFIGURATION_CHANGE;
+		if(base_ptr)
+			base_ptr->on_set(this);
+	}
+
+	void add_glyph_attribute_mapping(const glyph_attribute_mapping& attribute_mapping) {
+		if(glyph_attribute_mappings.size() == 4) {
+			std::cout << "Cannot use more than 4 layers" << std::endl;
+			return;
+		}
+
+		glyph_attribute_mappings.push_back(attribute_mapping);
+		auto& gam = glyph_attribute_mappings.back();
+		gam.set_attribute_names(attribute_names);
+		gam.set_attribute_ranges(attribute_ranges);
+		gam.set_color_map_names(color_map_names);
+	}
 };

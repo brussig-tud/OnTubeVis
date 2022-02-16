@@ -469,24 +469,24 @@ struct glyph_type_registry {
 		};
 
 		auto it = mapping.find(name);
-		if(it == mapping.end())
+		if(it != mapping.end())
 			return (*it).second;
 		return GT_UNDEFINED;
 	}
 
 	static std::vector<std::string> names() {
 		static const std::vector<std::string> n = {
-			"Color",
-			"Circle",
-			"Rectangle",
-			"Wedge",
-			"Flat Arc",
-			"Rounded Arc",
-			"Isosceles Triangle",
-			"Drop",
-			"Sign Blob",
-			"Star",
-			"Violin"
+			"color",
+			"circle",
+			"rectangle",
+			"wedge",
+			"arc_flat",
+			"arc_rounded",
+			"triangle_isosceles",
+			"drop",
+			"sign_blob",
+			"star",
+			"violin"
 		};
 
 		return n;
