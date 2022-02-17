@@ -319,7 +319,7 @@ struct demo : public traj_format_handler<float>
 		}
 
 		// generic, independently sampled attributes
-		const float tn = (float)num_samples + 1;
+		const float tn = (float)num_samples - 1;
 		//traj.attrib_scalar = gen_attribute<float>(0, 0.25f, 0, tn, 1/12.f, 1/48.f, generator);
 		traj.attrib_scalar = gen_attribute<float>(0, 0.25f, 0, tn, 1/12.f, 0.f, generator);
 		traj.attrib_scalar1 = gen_attribute<float>(0, 0.25f, 0, tn, 4/12.f, 0.f, generator);
