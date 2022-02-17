@@ -696,15 +696,25 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 		// read in timestamps if present
 		real t;
 		if (timestamp_id > -1)
+		{
+			auto &ts_csv = declared_attribs[timestamp_id];
 			t = Impl::parse_timestamp_field(
-				timestamp_format, fields[declared_attribs[timestamp_id].field_ids.front()]
+				timestamp_format, fields[ts_csv.field_ids.front()]
 			);
+			// also commit as actual data point
+			auto &ts_attrib = Impl::ensure_traj(ts_csv.trajs, traj_id, 1);
+			ts_attrib.get_data<real>().append(t, t);
+		}
 		else
 			t = (flt_type)P.size();
 
 		// read in all declared attributes
 		for (auto &attrib : declared_attribs)
 		{
+			if (attrib.desc.semantics == CSV::TIMESTAMP)
+				// timestamps are handled above
+				continue;
+
 			switch (attrib.field_ids.size())
 			{
 				case 1:
