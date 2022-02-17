@@ -1025,7 +1025,10 @@ bool tubes::compile_glyph_attribs_new(void) {
 
 			bool run = true;
 			for(size_t i = 0; i < attrib_indices.size(); ++i) {
-				if(attrib_indices[i] >= (unsigned)attribs_trajs[i]->at(trj).n)
+				const auto &traj_range = attribs_trajs[i]->at(trj);
+				attrib_indices[i] = traj_range.i0;
+				if (traj_range.n < 2) // single-sample trajectory, assignment doesn't make sense here
+				//if(attrib_indices[i] >= (unsigned)attribs_trajs[i]->at(trj).n)
 					run &= false;
 			}
 			run &= seg < num_segments;
