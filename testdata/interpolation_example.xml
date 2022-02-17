@@ -1,0 +1,42 @@
+<GlyphConfiguration>
+  <ColorMaps>
+    <ColorMap name="bam" custom="0" />
+    <ColorMap name="vanimo" custom="0" />
+    <ColorMap name="cork" custom="0" />
+    <ColorMap name="tofino" custom="0" />
+    <ColorMap name="broc" custom="0" />
+    <ColorMap name="lisbon" custom="0" />
+    <ColorMap name="vik" custom="0" />
+    <ColorMap name="berlin" custom="0" />
+    <ColorMap name="roma" custom="0" />
+    <ColorMap name="red" custom="1" >
+      <Point x="0.000000" o="1" r="1.000000" g="0.000000" b="0.000000"/>
+    </ColorMap>
+    <ColorMap name="green" custom="1" >
+      <Point x="0.000000" o="1" r="0.000000" g="1.000000" b="0.000000"/>
+    </ColorMap>
+    <ColorMap name="blue" custom="1" >
+      <Point x="0.000000" o="1" r="0.000000" g="0.000000" b="1.000000"/>
+    </ColorMap>
+  </ColorMaps>
+  <Layers>
+    <Layer glyph="wedge" >
+      <Property name="color" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="radius" attrib_name="scalar1" in_range="-0.550941, 0.550976" out_range="0.240000, 0.740000" />
+      <Property name="aperture" attrib_name="scalar2" in_range="-0.550974, 0.550992" out_range="0.000000, 360.000000" />
+      <Property name="orientation" attrib_name="scalar3" in_range="-0.550711, 0.551063" out_range="0.000000, 360.000000" />
+    </Layer>
+    <Layer glyph="circle" >
+      <Property name="color" attrib_name="scalar1" color_map_name="red" in_range="-0.550941, 0.550976" out_range="0.000000, 1.000000" />
+      <Property name="radius" in_range="0.000000, 1.000000" out_range="0.000000, 0.200000" />
+    </Layer>
+    <Layer glyph="circle" >
+      <Property name="color" attrib_name="scalar2" color_map_name="green" in_range="-0.550974, 0.550992" out_range="0.000000, 1.000000" />
+      <Property name="radius" in_range="0.000000, 1.000000" out_range="0.000000, 0.175000" />
+    </Layer>
+    <Layer glyph="circle" >
+      <Property name="color" attrib_name="scalar3" color_map_name="blue" in_range="-0.550711, 0.551063" out_range="0.000000, 1.000000" />
+      <Property name="radius" in_range="0.000000, 1.000000" out_range="0.000000, 0.150000" />
+    </Layer>
+  </Layers>
+</GlyphConfiguration>

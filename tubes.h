@@ -261,8 +261,11 @@ protected:
 	color_map_manager color_map_mgr;
 	glyph_layer_manager glyph_layer_mgr;
 
-
-
+	struct {
+		std::string file_name;
+		std::string save_file_name;
+		bool has_unsaved_changes = false;
+	} fh;
 
 
 
@@ -279,8 +282,8 @@ protected:
 	unsigned max_glyph_count = 10;
 	
 	void reload_shader();
-	bool save_layer_configuration();// const std::string& file_name);
-	bool read_layer_configuration();// const std::string& file_name);
+	bool save_layer_configuration(const std::string& file_name);
+	bool read_layer_configuration(const std::string& file_name);
 
 
 	void update_glyph_layer_manager(void);

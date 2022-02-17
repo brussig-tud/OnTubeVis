@@ -90,6 +90,13 @@ tubes::tubes() : application_plugin("tubes_instance")
 	enable_fuzzy_grid = false;
 
 	show_demo = true;
+
+
+
+
+	//fh.file_name = QUOTE_SYMBOL_VALUE(INPUT_DIR);
+	//fh.file_name += "/res/";
+	fh.file_name = "";
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -358,8 +365,66 @@ void tubes::on_set(void *member_ptr) {
 			break;
 		default: break;
 		}
-
 	}
+
+
+
+
+
+
+	if(member_ptr == &fh.file_name) {
+		/*
+		#ifndef CGV_FORCE_STATIC
+				// TODO: implemenmt
+				std::cout << "IMPLEMENT" << std::endl;
+				//std::filesystem::path file_path(file_name);
+				//if(file_path.is_relative()) {
+				//	std::string debug_file_name = QUOTE_SYMBOL_VALUE(INPUT_DIR);
+				//	file_name = debug_file_name + "/" + file_name;
+				//}
+		#endif
+		*/
+		if(!read_layer_configuration(fh.file_name))
+			std::cout << "Error: could not read glyph layer configuration from " << fh.file_name << std::endl;
+		//if(!read_layer_configuration(fh.file_name))
+		//	glyph_layer_manager.clear();
+
+		fh.has_unsaved_changes = false;
+		on_set(&fh.has_unsaved_changes);
+	}
+
+	if(member_ptr == &fh.save_file_name) {
+		std::string extension = cgv::utils::file::get_extension(fh.save_file_name);
+
+		if(extension == "") {
+			extension = "xml";
+			fh.save_file_name += "." + extension;
+		}
+
+		if(cgv::utils::to_upper(extension) == "XML") {
+			if(save_layer_configuration(fh.save_file_name)) {
+				fh.file_name = fh.save_file_name;
+				update_member(&fh.file_name);
+				fh.has_unsaved_changes = false;
+				on_set(&fh.has_unsaved_changes);
+			} else {
+				std::cout << "Error: Could not write glyph_ layer configuration to file: " << fh.save_file_name << std::endl;
+			}
+		} else {
+			std::cout << "Please specify a xml file name." << std::endl;
+		}
+	}
+
+	if(member_ptr == &fh.has_unsaved_changes) {
+		auto ctrl = find_control(fh.file_name);
+		if(ctrl)
+			ctrl->set("color", fh.has_unsaved_changes ? "0xff6666" : "0xffffff");
+	}
+
+
+
+
+
 
 	// misc settings
 	// - instant redraw
@@ -399,7 +464,7 @@ void tubes::reload_shader() {
 	post_redraw();
 }
 
-bool tubes::save_layer_configuration() {//const std::string& file_name) {
+bool tubes::save_layer_configuration(const std::string& file_name) {
 	const auto& gams = glyph_layer_mgr.ref_glyph_attribute_mappings();
 
 	auto to_col_uint8 = [](const float& val) {
@@ -510,21 +575,11 @@ bool tubes::save_layer_configuration() {//const std::string& file_name) {
 	content += t + "</Layers>\n";
 	content += "</GlyphConfiguration>\n";
 
-	std::string file_name2 = "glyph_config.xml";
-	return cgv::utils::file::write(file_name2, content, true);
+	return cgv::utils::file::write(file_name, content, true);
 }
 
-bool tubes::read_layer_configuration() {//const std::string& file_name) {
-
-	std::string file_name2 = "glyph_config.xml";
-
-
-
-	
-	
-
-
-	if(!cgv::utils::file::exists(file_name2) || cgv::utils::to_upper(cgv::utils::file::get_extension(file_name2)) != "XML")
+bool tubes::read_layer_configuration(const std::string& file_name) {
+	if(!cgv::utils::file::exists(file_name) || cgv::utils::to_upper(cgv::utils::file::get_extension(file_name)) != "XML")
 		return false;
 
 
@@ -536,7 +591,7 @@ bool tubes::read_layer_configuration() {//const std::string& file_name) {
 
 
 	std::string content;
-	cgv::utils::file::read(file_name2, content, true);
+	cgv::utils::file::read(file_name, content, true);
 
 	bool read = true;
 	size_t nl_pos = content.find_first_of("\n");
@@ -1681,8 +1736,13 @@ void tubes::create_gui (void)
 
 	if(begin_tree_node("Attribute Mapping", glyph_layer_mgr, true)) {
 		align("\a");
-		connect_copy(add_button("Save Configuration")->click, cgv::signal::rebind(this, &tubes::save_layer_configuration));
-		connect_copy(add_button("Read Configuration")->click, cgv::signal::rebind(this, &tubes::read_layer_configuration));
+		add_decorator("Configuration File", "heading", "level=3");
+		std::string filter = "XML Files (xml):*.xml|All Files:*.*";
+		add_gui("File", fh.file_name, "file_name", "title='Open Transfer Function';filter='" + filter + "';save=false;w=136;small_icon=true;align_gui=' ';color=" + (fh.has_unsaved_changes ? "0xff6666" : "0xffffff"));
+		add_gui("save_file_name", fh.save_file_name, "file_name", "title='Save Transfer Function';filter='" + filter + "';save=true;control=false;small_icon=true");
+		add_decorator("", "separator", "level=3");
+		//connect_copy(add_button("Save Configuration")->click, cgv::signal::rebind(this, &tubes::save_layer_configuration));
+		//connect_copy(add_button("Read Configuration")->click, cgv::signal::rebind(this, &tubes::read_layer_configuration));
 		connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &tubes::reload_shader));
 		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
 		add_member_control(this, "Max Count (Debug)", max_glyph_count, "value_slider", "min=1;max=100;step=1;ticks=true");
