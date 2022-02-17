@@ -1450,7 +1450,7 @@ bool tubes::init (cgv::render::context &ctx)
 	// - demo geometry
 	constexpr unsigned seed = 11;
 #ifdef _DEBUG
-	constexpr unsigned num_trajectories = 1;
+	constexpr unsigned num_trajectories = 3;
 	constexpr unsigned num_segments = 16;
 #else
 	constexpr unsigned num_trajectories = 256;

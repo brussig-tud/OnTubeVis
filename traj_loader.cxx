@@ -1656,7 +1656,8 @@ struct traj_manager<flt_type>::Impl
 	void transform_attrib (
 		T &out, VisualAttrib visual_attrib, const traj_dataset<real> &dataset, bool auto_tangents=false
 	)
-	{	// ToDo: implement component swizzling for visual attributes, so clients can exactly specify the format of
+	{
+		// ToDo: implement component swizzling for visual attributes, so clients can exactly specify the format of
 		//       their output draw arrays (like radius and its derivative inside vec4 positions and tangents, or
 		//       everything inside a big mat4)
 	}
@@ -1674,8 +1675,51 @@ struct traj_manager<flt_type>::Impl
 		out->clear();
 		if (traj_tgt.n < 2)
 			// single-sample trajectory, exit right here
+			// ToDo: investigate whether we should output a single but empty range for the "virtual" segment
 			return;
-		out->reserve(num_segs);
+		out->resize(num_segs); // takes care of zero-initializing each entry
+
+		// compile ranges
+		// - primary loop is through source attribute, target segment assignment based on timestamps
+		const auto &timestamps_src = attrib_src.get_timestamps();
+		for(unsigned i=0, seg=0; i<(unsigned)traj_src.n && seg<num_segs; i++)
+		{
+			const unsigned aid = traj_src.i0 + i;
+			const real t_src = timestamps_src[aid];
+			// enforce monotonicity
+			if(i > 0)
+				// TODO: this fails when using the debug-size dataset
+				assert(t_src >= timestamps_src[aid-1]);
+
+			// advance target segment pointer
+			auto segtime = segment_time_get(attrib_tgt, traj_tgt, seg);
+			while (t_src >= segtime.t1)
+			{
+				if(seg >= num_segs-1)
+					break;
+				segtime = segment_time_get(attrib_tgt, traj_tgt, ++seg);
+			}
+
+			// commit the source attribute if it falls into the current target segment
+			// ToDo: do we even need this check here???
+			if(   (t_src >= segtime.t0 && t_src < segtime.t1)
+			   || (seg == num_segs-1 && t_src <= segtime.t1))
+			{
+				auto &cur_range = out->at(seg);
+				if(cur_range.n < 1)
+				{
+					// first source attribute that falls into this segment
+					cur_range.i0 = aid;
+					cur_range.n = 1;
+				}
+				else
+					// one more source attribute that falls into this segment
+					cur_range.n++;
+			}
+			else if (seg >= num_segs)
+				// we went beyond the last segment
+				break;
+		}
 
 		// done!
 		return;

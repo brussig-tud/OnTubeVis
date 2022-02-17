@@ -821,7 +821,7 @@ struct segment_time
 
 /// convenience wrapper for \ref segment_time::get that doesn't need an explicit template argument
 template <class attrib_type>
-inline segment_time<typename attrib_type::real> segment_time_get(const attrib_type &attrib, const range &traj, unsigned segment_index)
+inline segment_time<typename attrib_type::real> segment_time_get (const attrib_type &attrib, const range &traj, unsigned segment_index)
 {
 	return segment_time<typename attrib_type::real>::get(attrib, traj, segment_index);
 }
