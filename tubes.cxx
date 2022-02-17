@@ -1081,7 +1081,8 @@ bool tubes::compile_glyph_attribs_new(void) {
 				const unsigned global_seg = traj_offset + seg;
 
 				// commit the attribute if it falls into the current segment
-				if(min_t >= segtime.t0 && min_t < segtime.t1) {
+				if(   (min_t >= segtime.t0 && min_t < segtime.t1)
+			       || (seg == num_segments-1 && min_t <= segtime.t1)) {
 					// compute segment-relative t and arclength
 					const float t_seg = (min_t - segtime.t0) / (segtime.t1 - segtime.t0),
 						s = arclen::eval(alen[global_seg], t_seg);
@@ -1198,10 +1199,10 @@ bool tubes::compile_glyph_attribs_new(void) {
 						prev_glyph_size = new_glyph_size;
 						last_commited_s = s;
 					}
-				} else if(seg > (unsigned)tube_traj.n - 2) {
+				}/* else if (seg > (unsigned)tube_traj.n - 2) {
 					// we went beyond the last segment
 					break;
-				}
+				}*/
 
 				// increment indices and check whether the indices of all attributes have reached the end
 				for(size_t i = 0; i < attrib_count; ++i) {
