@@ -840,16 +840,6 @@ bool tubes::compile_glyph_attribs_new(void) {
 	// helper struct for range entries with start index i0 and count n
 	struct irange { int i0, n; };
 
-	// helper for determining segment time span
-	struct segment_time {
-		float t0, t1;
-		inline static segment_time get(const traj_attribute<float> &attrib, const range &traj, unsigned segment_index) {
-			const float *ts = attrib.get_timestamps().data();
-			const unsigned startid = traj.i0 + segment_index;
-			return { ts[startid], ts[startid + 1] };
-		}
-	};
-
 	// helper struct for glyph attributes
 	struct glyph_attributes {
 		size_t count = 0;
@@ -1017,11 +1007,11 @@ bool tubes::compile_glyph_attribs_new(void) {
 				}
 
 				// advance segment pointer
-				auto segtime = segment_time::get(P, tube_traj, seg);
+				auto segtime = segment_time_get(P, tube_traj, seg);
 				while(min_t >= segtime.t1) {
 					if(seg >= num_segments - 1)
 						break;
-					segtime = segment_time::get(P, tube_traj, ++seg);
+					segtime = segment_time_get(P, tube_traj, ++seg);
 
 					// handle overlap from previous segment
 					const unsigned global_seg = traj_offset + seg;
@@ -1230,16 +1220,6 @@ bool tubes::compile_glyph_attribs_old(void) {
 	};*/
 	const static glyph_attribs empty_glyph = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-	// helper for determining segment time span
-	struct segment_time {
-		float t0, t1;
-		inline static segment_time get(const traj_attribute<float> &attrib, const range &traj, unsigned segment_index) {
-			const float *ts = attrib.get_timestamps().data();
-			const unsigned startid = traj.i0 + segment_index;
-			return { ts[startid], ts[startid + 1] };
-		}
-	};
-
 	// ToDo: generalize to arbitrary free attributes
 	#define FREE_ATTRIBUTE_SERIES "scalar"
 
@@ -1289,11 +1269,11 @@ bool tubes::compile_glyph_attribs_old(void) {
 				//	assert(a.t >= free_attrib.magnitude_at(i - 1).t);
 
 				// advance segment pointer
-				auto segtime = segment_time::get(P, tube_traj, seg);
+				auto segtime = segment_time_get(P, tube_traj, seg);
 				while(a.t >= segtime.t1) {
 					if(seg >= num_segments - 1)
 						break;
-					segtime = segment_time::get(P, tube_traj, ++seg);
+					segtime = segment_time_get(P, tube_traj, ++seg);
 					// handle overlap from previous segment
 					const unsigned global_seg = traj_offset + seg;
 					if(ranges[global_seg - 1].n > 0) {

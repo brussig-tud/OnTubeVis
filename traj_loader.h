@@ -797,6 +797,36 @@ struct range
 };
 
 
+/// helper struct for dealing with segment timestamps
+template <class flt_type>
+struct segment_time
+{
+	/// timestamp at the start of the segment
+	flt_type t0;
+
+	/// timestamp at the end of the segment
+	flt_type t1;
+
+	/// get the normalized (to 0..1 relative to segment endpoints) curve parameter \a t from an arbitrary timestamp
+	flt_type t01 (flt_type time) const { return (time-t0) / (t1-t0); }
+
+	/// build for the given segment in the given attribute trajectory
+	inline static segment_time get (const traj_attribute<flt_type> &attrib, const range &traj, unsigned segment_index)
+	{
+		const flt_type *ts = attrib.get_timestamps().data();
+		const unsigned startid = traj.i0 + segment_index;
+		return { ts[startid], ts[startid + 1] };
+	}
+};
+
+/// convenience wrapper for \ref segment_time::get that doesn't need an explicit template argument
+template <class attrib_type>
+inline segment_time<typename attrib_type::real> segment_time_get(const attrib_type &attrib, const range &traj, unsigned segment_index)
+{
+	return segment_time<typename attrib_type::real>::get(attrib, traj, segment_index);
+}
+
+
 /// trajectory data storage
 template <class flt_type>
 class traj_dataset
@@ -1054,23 +1084,43 @@ public:
 	/// encapsulates data for all visual attributes for use by renderers
 	struct render_data
 	{
+		// types
 		typedef flt_type real;
 		typedef typename traj_manager<real>::Vec2 Vec2;
 		typedef typename traj_manager<real>::Vec3 Vec3;
 		typedef typename traj_manager<real>::Vec4 Vec4;
 		typedef typename traj_manager<real>::Color Color;
 
+		/// encapsulates various kinds of per-dataset ranges over the render attributes
 		struct dataset
 		{
+			/// range over the index pairs occupied by the dataset
 			range irange;
+
+			/// per-trajectory ranges over the index pairs for this dataset, 
 			std::vector<range> trajs;
+
+			/// per attribute (keyed via its unique id) and dataset trajectory, the ranges
+			/// over the datapoints that fall into each trajectory segment
+			std::unordered_map<unsigned, std::vector<std::vector<range>>> seg_attribs;
 		};
 
+		/// all node positions
 		std::vector<Vec3> positions;
+
+		/// all node tangents
 		std::vector<Vec4> tangents;
+
+		/// all node radii
 		std::vector<real> radii;
+
+		/// all node colors
 		std::vector<Color> colors;
+
+		/// all indices (line-list semantics)
 		std::vector<unsigned> indices;
+
+		/// all dataset-related ranges over the index pairs forming individual segments
 		std::vector<dataset> datasets;
 	};
 

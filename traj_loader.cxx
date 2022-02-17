@@ -1426,9 +1426,7 @@ struct traj_manager<flt_type>::Impl
 		const auto &map = mapping.map();
 		const auto it = map.find(visual_attrib);
 		if (it != map.end())
-		{
 			return {true, it->second.name, it};
-		}
 		else
 			return {false, "", it};
 	}
@@ -1662,6 +1660,26 @@ struct traj_manager<flt_type>::Impl
 		//       their output draw arrays (like radius and its derivative inside vec4 positions and tangents, or
 		//       everything inside a big mat4)
 	}
+
+	static void compile_segment_attrib_ranges (
+		std::vector<range> *out, const traj_attribute<real> &attrib_tgt, const traj_attribute<real> &attrib_src, unsigned traj_id, const traj_dataset<real> &ds
+	)
+	{
+		// trajectory info
+		const auto &traj_tgt = ds.trajectories(attrib_tgt)[traj_id],
+		           &traj_src = ds.trajectories(attrib_src)[traj_id];
+		const unsigned num_segs = traj_tgt.n - 1;
+
+		// prepare output
+		out->clear();
+		if (traj_tgt.n < 2)
+			// single-sample trajectory, exit right here
+			return;
+		out->reserve(num_segs);
+
+		// done!
+		return;
+	}
 };
 
 template <class flt_type>
@@ -1874,6 +1892,23 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 			impl.transform_attrib_old(&impl.rd.radii, VisualAttrib::RADIUS, dataset);
 			impl.transform_attrib_old(&impl.rd.tangents, VisualAttrib::TANGENT, dataset, auto_tangents ? ds : -1);
 			impl.transform_attrib_old(&impl.rd.colors, VisualAttrib::COLOR, dataset);
+
+			// compile per-segment attribute ranges
+			for (const auto &attrib_it : dataset.attributes())
+			{
+				const auto &attrib = attrib_it.second;
+				auto &segattribs_trajs = ds_info.seg_attribs[attrib.id()];
+				segattribs_trajs.resize(trajectories.size());
+				//#pragma omp for
+				for (int st=0; st<(int)segattribs_trajs.size(); st++)
+				{
+					auto &segattribs_traj = segattribs_trajs[st];
+					Impl::compile_segment_attrib_ranges(
+						/* output array */&segattribs_traj,
+						/* target attrib */positions, /* other attrib */attrib, /* traj id */st, dataset
+					);
+				}
+			}
 
 			// ToDo: apply visual mapping to all involved attributes and distribute to user output draw arrays
 			/*for (unsigned i = 0; i<(unsigned)dataset.positions().size(); i++)
