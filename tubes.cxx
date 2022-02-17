@@ -1025,7 +1025,10 @@ bool tubes::compile_glyph_attribs_new(void) {
 
 			bool run = true;
 			for(size_t i = 0; i < attrib_indices.size(); ++i) {
-				if(attrib_indices[i] >= (unsigned)attribs_trajs[i]->at(trj).n)
+				const auto &traj_range = attribs_trajs[i]->at(trj);
+				attrib_indices[i] = traj_range.i0;
+				if (traj_range.n < 2) // single-sample trajectory, assignment doesn't make sense here
+				//if(attrib_indices[i] >= (unsigned)attribs_trajs[i]->at(trj).n)
 					run &= false;
 			}
 			run &= seg < num_segments;
@@ -1206,10 +1209,11 @@ bool tubes::compile_glyph_attribs_new(void) {
 
 				// increment indices and check whether the indices of all attributes have reached the end
 				for(size_t i = 0; i < attrib_count; ++i) {
+					const auto &traj_range = attribs_trajs[i]->at(trj);
 					// only increment indices of attributes that have a sample at the current location (min_a.t)
 					if(has_sample[i])
-						attrib_indices[i] = std::min((unsigned)attribs_trajs[i]->at(trj).n, ++attrib_indices[i]);
-					if(attrib_indices[i] >= (unsigned)attribs_trajs[i]->at(trj).n)
+						attrib_indices[i] = std::min(traj_range.i0+traj_range.n, ++attrib_indices[i]);
+					if(attrib_indices[i] >= traj_range.i0+traj_range.n)
 						run &= false;
 				}
 
