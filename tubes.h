@@ -231,9 +231,6 @@ protected:
 	/// attribute handle manager
 	attrib_handle_manager<float> ah_mgr;
 
-	/// whether to display the interactive testbed
-	bool show_demo;
-
 	/// rendering state fields
 	struct {
 		/// whether a benchmark run is requested

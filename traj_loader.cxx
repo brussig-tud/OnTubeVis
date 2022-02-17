@@ -1946,9 +1946,8 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 				//#pragma omp for
 				for (int st=0; st<(int)segattribs_trajs.size(); st++)
 				{
-					auto &segattribs_traj = segattribs_trajs[st];
 					Impl::compile_segment_attrib_ranges(
-						/* output array */&segattribs_traj,
+						/* output array */&segattribs_trajs[st],
 						/* target attrib */positions, /* other attrib */attrib, /* traj id */st, dataset
 					);
 				}

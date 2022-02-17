@@ -89,11 +89,6 @@ tubes::tubes() : application_plugin("tubes_instance")
 	normal_mapping_scale = 1.0f;
 	enable_fuzzy_grid = false;
 
-	show_demo = true;
-
-
-
-
 	//fh.file_name = QUOTE_SYMBOL_VALUE(INPUT_DIR);
 	//fh.file_name += "/res/";
 	fh.file_name = "";
@@ -142,7 +137,8 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 {
 	return
 		rh.reflect_member("datapath", datapath) &&
-		rh.reflect_member("show_demo", show_demo) &&
+		rh.reflect_member("layer_config_file", fh.file_name) && // ToDo: figure out proper reflection name
+		rh.reflect_member("show_hidden_glyphs", include_hidden_glyphs) && // ToDo: which of these two names is better?
 		rh.reflect_member("render_style", render.style) &&
 		rh.reflect_member("grid_mode", grid_mode) &&
 		rh.reflect_member("grid_normal_settings", grid_normal_settings) &&
@@ -421,10 +417,8 @@ void tubes::on_set(void *member_ptr) {
 			ctrl->set("color", fh.has_unsaved_changes ? "0xff6666" : "0xffffff");
 	}
 
-
-
-
-
+	if (member_ptr == &include_hidden_glyphs)
+		compile_glyph_attribs();
 
 	// misc settings
 	// - instant redraw

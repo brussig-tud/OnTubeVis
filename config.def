@@ -2,6 +2,10 @@
 // dataset to load
 type(tubes):datapath=""
 
+// initial glyph layer config
+//type(tubes):layer_config_file="./testdata/layerconf_4layers_interpolationdemo.xml"
+type(tubes):show_hidden_glyphs=false
+
 // renderer to use (0=rounded_cone, 1=spline_tube, 2=textured_spline_tube)
 type(tubes):renderer=2
 
