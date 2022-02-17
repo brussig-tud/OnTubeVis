@@ -1,0 +1,62 @@
+<GlyphConfiguration>
+  <ColorMaps>
+    <ColorMap name="bam" custom="0" />
+    <ColorMap name="vanimo" custom="0" />
+    <ColorMap name="cork" custom="0" />
+    <ColorMap name="tofino" custom="0" />
+    <ColorMap name="broc" custom="0" />
+    <ColorMap name="lisbon" custom="0" />
+    <ColorMap name="vik" custom="0" />
+    <ColorMap name="berlin" custom="0" />
+    <ColorMap name="roma" custom="0" />
+    <ColorMap name="red" custom="1" >
+      <Point x="0.000000" o="1" r="1.000000" g="0.000000" b="0.000000"/>
+    </ColorMap>
+    <ColorMap name="green" custom="1" >
+      <Point x="0.000000" o="1" r="0.000000" g="1.000000" b="0.000000"/>
+    </ColorMap>
+    <ColorMap name="blue" custom="1" >
+      <Point x="0.000000" o="1" r="0.000000" g="0.000000" b="1.000000"/>
+    </ColorMap>
+    <ColorMap name="test" custom="1" >
+      <Point x="0.000000" o="1" r="0.000000" g="0.000000" b="0.000000"/>
+      <Point x="1.000000" o="1" r="1.000000" g="1.000000" b="1.000000"/>
+    </ColorMap>
+  </ColorMaps>
+  <Layers>
+    <Layer glyph="color" >
+      <Property name="color" attrib_name="scalar3" color_map_name="roma" in_range="-0.550711, 0.551063" out_range="0.000000, 1.000000" />
+    </Layer>
+    <Layer glyph="violin" >
+      <Property name="value_0" attrib_name="scalar" in_range="-0.550992, 0.551041" out_range="0.000000, 1.000000" />
+      <Property name="color_0" color="0.397139, 0.345652, 0.425743" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="value_1" in_range="-0.740125, 0.814854" out_range="0.000000, 1.000000" />
+      <Property name="color_1" color="1.000000, 1.000000, 1.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="value_2" in_range="-1.666537, 2.363361" out_range="0.000000, 1.000000" />
+      <Property name="color_2" color="0.613112, 0.801980, 0.508185" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="color_3" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+    </Layer>
+    <Layer glyph="circle" >
+      <Property name="color" attrib_name="scalar" color_map_name="berlin" in_range="-0.550992, 0.551041" out_range="0.000000, 1.000000" />
+      <Property name="radius" in_range="-0.534629, 0.522465" out_range="0.020000, 0.150000" />
+    </Layer>
+    <Layer glyph="star" >
+      <Property name="radius" in_range="0.000000, 1.000000" out_range="0.000000, 1.125000" />
+      <Property name="secondary_color" color="0.058769, 0.042055, 0.108911" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="color_setting" in_range="0.000000, 1.000000" out_range="0.000000, 0.000000" />
+      <Property name="blend_factor" in_range="0.000000, 1.000000" out_range="0.000000, 0.667000" />
+      <Property name="inner_transparency" in_range="0.000000, 1.000000" out_range="0.000000, 0.667000" />
+      <Property name="axis_0" attrib_name="scalar" in_range="-0.550992, 0.551041" out_range="0.150000, 1.000000" />
+      <Property name="color_0" color="1.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="axis_1" attrib_name="scalar" in_range="-0.550992, 0.551041" out_range="0.150000, 1.000000" />
+      <Property name="color_1" color="0.000000, 1.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="axis_2" attrib_name="vec2" in_range="0.265814, 1.734466" out_range="0.000000, 0.667000" />
+      <Property name="color_2" color="0.000000, 0.000000, 1.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="axis_3" attrib_name="vec3" in_range="0.265376, 1.734504" out_range="0.000000, 1.000000" />
+      <Property name="color_3" color="0.000000, 1.000000, 0.892857" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="axis_4" attrib_name="vec4" in_range="0.265410, 1.733644" out_range="0.000000, 1.000000" />
+      <Property name="color_4" color="1.000000, 0.821429, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+    </Layer>
+  </Layers>
+</GlyphConfiguration>
