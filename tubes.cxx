@@ -1210,10 +1210,11 @@ bool tubes::compile_glyph_attribs_new(void) {
 				// increment indices and check whether the indices of all attributes have reached the end
 				for(size_t i = 0; i < attrib_count; ++i) {
 					const auto &traj_range = attribs_trajs[i]->at(trj);
+					const unsigned max_attrib_index = traj_range.i0+traj_range.n;
 					// only increment indices of attributes that have a sample at the current location (min_a.t)
 					if(has_sample[i])
-						attrib_indices[i] = std::min(traj_range.i0+traj_range.n, ++attrib_indices[i]);
-					if(attrib_indices[i] >= traj_range.i0+traj_range.n)
+						attrib_indices[i] = std::min(max_attrib_index, ++attrib_indices[i]);
+					if(attrib_indices[i] >= max_attrib_index)
 						run &= false;
 				}
 
