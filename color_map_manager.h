@@ -100,7 +100,8 @@ public:
 			}
 		}
 
-		remove_color_map(index);
+		if(index > -1)
+			remove_color_map(static_cast<size_t>(index));
 	}
 
 	void update_texture(cgv::render::context& ctx) {

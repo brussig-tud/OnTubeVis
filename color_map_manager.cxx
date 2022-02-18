@@ -53,7 +53,7 @@ void color_map_manager::create_color_map() {
 }
 
 void color_map_manager::remove_color_map(const size_t index) {
-	if(index > -1 && index < color_maps.size()) {
+	if(index < color_maps.size()) {
 		color_maps.erase(color_maps.begin() + index);
 		
 		last_action_type = AT_CONFIGURATION_CHANGE;
