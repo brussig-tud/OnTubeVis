@@ -1678,7 +1678,7 @@ void tubes::create_gui (void)
 	add_decorator("Dataset", "heading", "level=1");
 	//add_member_control(this, "data file/path", datapath);
 	add_gui("Data Path", datapath, "file_name", "title='Open Trajectory Data';"
-		"filter='Trajectory Files (bezdat, csv):*.bezdat;*.csv|All Files:*.*';"
+		"filter='Trajectory Files (bezdat, csv, tgen):*.bezdat;*.csv;*.tgen|All Files:*.*';"
 		"small_icon=true");
 
 	// rendering settings
