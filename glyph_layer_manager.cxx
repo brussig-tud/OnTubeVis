@@ -234,16 +234,18 @@ void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p)
 		glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
 		bool node_is_open = p.begin_tree_node_void("Layer " + std::to_string(i + 1), &gam, -1, false, "level=2;options='w=120';align=''");
 		connect_copy(
-			p.add_button("", "image='res://up32.png';fit_image=true;w=20;h=20;label=''", " ")->click,
+			//p.add_button("", "image='res://up32.png';fit_image=true;w=20;h=20;label=''", " ")->click,
+			p.add_button("@8>", "w=20;h=20", " ")->click,
 			cgv::signal::rebind(this, &glyph_layer_manager::move_glyph_attribute_mapping, cgv::signal::_c<size_t>(i), cgv::signal::_c<size_t>(-1))
 		);
 
 		connect_copy(
-			p.add_button("", "image='res://down32.png';fit_image=true;w=20;h=20;label=''", " ")->click,
+			//p.add_button("", "image='res://down32.png';fit_image=true;w=20;h=20;label=''", " ")->click,
+			p.add_button("@2>", "w=20;h=20", " ")->click,
 			cgv::signal::rebind(this, &glyph_layer_manager::move_glyph_attribute_mapping, cgv::signal::_c<size_t>(i), cgv::signal::_c<size_t>(1))
 		);
 
-		connect_copy(p.add_button("X", "w=20")->click, cgv::signal::rebind(this, &glyph_layer_manager::remove_glyph_attribute_mapping, cgv::signal::_c<size_t>(i)));
+		connect_copy(p.add_button("@9+", "w=20")->click, cgv::signal::rebind(this, &glyph_layer_manager::remove_glyph_attribute_mapping, cgv::signal::_c<size_t>(i)));
 		if(node_is_open) {
 			p.align("\a");
 			gam.create_gui(this, p);
