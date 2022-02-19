@@ -376,12 +376,12 @@ struct csv_handler<flt_type>::Impl
 		const std::string &separators, std::istream &contents, std::vector<std::string> *fields_out=nullptr
 	)
 	{
+		tokens->clear();
 		unsigned num_tokens = 0;
 		do {
 			std::getline(contents, *line_out);
 			if (!line_out->empty())
 			{
-				tokens->clear();
 				cgv::utils::split_to_tokens(*line_out, *tokens, separators, false);
 				num_tokens = (unsigned)tokens->size();
 			}
