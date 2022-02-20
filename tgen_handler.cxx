@@ -124,17 +124,21 @@ struct tgen_handler<flt_type>::Impl {
 		while (!contents.eof() && num_tokens < 1);
 		return read_fields(*tokens, separators, fields_out);
 	}
+	inline static bool field_starts_comment (const std::string &field)
+	{
+		return field.size() >= 2 && field[0] == '/' && field[1] == '/';
+	}
 	template <class int_type>
 	inline static bool parse_int (int_type *out, const std::string &field)
 	{
-		size_t pos;
-		try { *out = (int_type)std::stoi(field, &pos); }
-		catch (const std::out_of_range&) {
-			*out = std::numeric_limits<int_type>::infinity();
-			pos = 1;
-		}
+		int_type v;
+		size_t pos = 0;
+		try { v = (int_type)std::stoll(field, &pos); }
 		catch (...) { return false; }
-		return pos > 0;
+		const bool success = pos > 0 && pos == field.size();
+		if (success)
+			*out = v;
+		return success;
 	}
 	template <class int_type>
 	inline static bool parse_int_prop (
@@ -143,15 +147,18 @@ struct tgen_handler<flt_type>::Impl {
 	{
 		if (cgv::utils::to_lower(fields[0]).compare(name) == 0)
 		{
-			if (fields.size()==2 && Impl::parse_int(out, fields[1]))
+			if (   (fields.size()==2 || (fields.size() > 2 && Impl::field_starts_comment(fields[2])))
+			    && Impl::parse_int(out, fields[1]))
 			{
 				if (*visited)
 					std::cerr << "[tgen_handler] WARNING: '"<<name<<"' specified more than once! Using new value: "<<*out << std::endl;
 				*visited = true;
-				return true;
 			}
 			else
 				std::cerr << "[tgen_handler] WARNING: '"<<name<<"' specification could not be parsed! Line: "<<line << std::endl;
+
+			// we were responsible for this field, so return 'true' even in case we couldn't parse it
+			return true; 
 		}
 		return false;
 	}
@@ -225,10 +232,10 @@ traj_dataset<flt_type> tgen_handler<flt_type>::read (std::istream &contents)
 	       && Impl::read_next_nonempty_line(&line, &tokens, whitespaces, quotations, contents, &fields))
 	{
 		// skip comment-only lines
-		if (fields[0].compare("//") == 0)
+		if (Impl::field_starts_comment(fields[0]))
 			continue;
 
-		// parse declaration
+		// parse declarations
 		if      (Impl::parse_int_prop(&seed, &seed_specified, "seed",  fields, line)) DO_NOTHING;
 		else if (Impl::parse_int_prop(&num,  &num_specified,  "num",   fields, line)) DO_NOTHING;
 		else if (Impl::parse_int_prop(&segs, &segs_specified, "segs",  fields, line)) DO_NOTHING;
