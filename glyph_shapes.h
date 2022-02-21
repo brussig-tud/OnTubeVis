@@ -1,14 +1,6 @@
 #pragma once
 
 #include <cgv/render/render_types.h>
-//#include <cgv/math/functions.h>
-
-enum ActionType {
-	AT_NONE = 0,
-	AT_CONFIGURATION_CHANGE,
-	AT_VALUE_CHANGE,
-	AT_EDIT_REQUEST
-};
 
 enum GlyphType {
 	GT_UNDEFINED = -1,
@@ -92,6 +84,8 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "interpolate", GAT_UNIT, GAM_GLOBAL },
+			{ "classification", GAT_UNIT, GAM_GLOBAL },
 			{ "color", GAT_COLOR }
 		};
 		return attributes;

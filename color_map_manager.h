@@ -9,149 +9,77 @@
 #include <cgv/render/texture.h>
 #include <cgv_glutil/color_map.h>
 
+#include "gui_util.h"
 #include "glyph_attribute_mapping.h"
 
 
 
 class color_map_manager : public cgv::base::base, public cgv::render::render_types {
 public:
+	/// container to store color map with name and additional info
 	struct color_map_container {
+		/// the name of this color map
 		std::string name = "";
+		/// the actual color map object
 		cgv::glutil::color_map cm;
+		/// whether this color map is custom or a default choice
 		bool custom = false;
 
 		color_map_container() {}
 		color_map_container(const std::string& name) : name(name) {}
 	};
 protected:
-	//
+	/// pointer to the base that uses this manager
 	cgv::base::base_ptr base_ptr;
-	//
+	/// type of the last gui action
 	ActionType last_action_type = AT_NONE;
+	/// index of currently edited color map
 	int edit_idx = -1;
-
+	/// name for the new color map
 	std::string new_name = "";
-
-	// TODO: use a cgv::signal::managed_list for this?
+	/// list of all currently managed color maps
 	std::vector<color_map_container> color_maps;
-	cgv::render::texture tex;
+	/// resolution (width) of the created texture
 	unsigned res = 256;
-
+	/// 2d texture to store the sampled color map data
+	cgv::render::texture tex;
+	/// handle gui changes
 	void on_set(void* member_ptr);
-
+	/// create a new color map with name from new_name and add it to the list, if name is not already in use
 	void create_color_map();
-
+	/// remove a colro map by index
 	void remove_color_map(const size_t index);
-
+	/// set a color map to be edited
 	void edit_color_map(const size_t index);
+	/// create or update the actual texture object
+	bool create_or_replace_texture(cgv::render::context& ctx, unsigned w, unsigned h, std::vector<uint8_t>& data);
 
 public:
-	color_map_manager() {
-		base_ptr = nullptr;
-	}
-
+	/// construct a new color map manager
+	color_map_manager() : base_ptr(nullptr) {}
 	~color_map_manager() {}
-
+	/// clear all color maps (this will not update the texture)
 	void clear();
-
-	bool destruct(cgv::render::context& ctx) {
-		if(tex.is_created())
-			return tex.destruct(ctx);
-		return true;
-	}
-
-	bool init(cgv::render::context& ctx) {
-		std::vector<uint8_t> data(2 * 3 * res, 0u);
-
-		tex.destruct(ctx);
-		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res, 2u, TI_UINT8, cgv::data::CF_RGB), data.data());
-		tex = cgv::render::texture("uint8[R,G,B]", cgv::render::TF_LINEAR, cgv::render::TF_LINEAR, cgv::render::TW_CLAMP_TO_EDGE, cgv::render::TW_CLAMP_TO_EDGE);
-		return tex.create(ctx, dv, 0);
-	}
-
-	ActionType action_type();
-
-	int edit_index() { return edit_idx; }
-
-	std::vector<color_map_container>& ref_color_maps() { return color_maps; }
-
-	cgv::render::texture& ref_texture() { return tex; }
-
-	std::vector<std::string> get_names() {
-		std::vector<std::string> names;
-		for(size_t i = 0; i < color_maps.size(); ++i)
-			names.push_back(color_maps[i].name);
-		return names;
-	}
-
-	void add_color_map(const std::string& name, const cgv::glutil::color_map& cm, bool custom) {
-		color_map_container cmc(name);
-		cmc.cm = cm;
-		cmc.custom = custom;
-		color_maps.push_back(cmc);
-	}
-
-	void remove_color_map_by_name(const std::string& name) {
-		int index = -1;
-		for(size_t i = 0; i < color_maps.size(); ++i) {
-			if(color_maps[i].name == name) {
-				index = i;
-				break;
-			}
-		}
-
-		if(index > -1)
-			remove_color_map(static_cast<size_t>(index));
-	}
-
-	void update_texture(cgv::render::context& ctx) {
-		if(color_maps.size() == 0)
-			return;
-
-		std::vector<uint8_t> data(3 * color_maps.size() * res);
-
-		/*float step = 1.0f / static_cast<float>(res - 1);
-
-		size_t base_idx = 0;
-		for(size_t i = 0; i < color_maps.size(); ++i) {
-			const auto& cm = color_maps[i].cm;
-			for(size_t j = 0; j < res; ++j) {
-				float t = j * step;
-				rgb col = cm.interpolate_color(t);
-
-				data[base_idx + 0] = static_cast<uint8_t>(255.0f * col.R());
-				data[base_idx + 1] = static_cast<uint8_t>(255.0f * col.G());
-				data[base_idx + 2] = static_cast<uint8_t>(255.0f * col.B());
-
-				base_idx += 3;
-			}
-		}*/
-
-		size_t base_idx = 0;
-		for(size_t i = 0; i < color_maps.size(); ++i) {
-			std::vector<rgb> cm_data = color_maps[i].cm.interpolate_color(static_cast<size_t>(res));
-
-			for(size_t j = 0; j < res; ++j) {
-				data[base_idx + 0] = static_cast<uint8_t>(255.0f * cm_data[j].R());
-				data[base_idx + 1] = static_cast<uint8_t>(255.0f * cm_data[j].G());
-				data[base_idx + 2] = static_cast<uint8_t>(255.0f * cm_data[j].B());
-				base_idx += 3;
-			}
-		}
-
-		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res, color_maps.size(), TI_UINT8, cgv::data::CF_RGB), data.data());
-
-		unsigned width = tex.get_width();
-		unsigned height = tex.get_height();
-
-		if(tex.is_created() && width == res && height == color_maps.size()) {
-			tex.replace(ctx, 0, 0, dv);
-		} else {
-			tex.destruct(ctx);
-			tex = cgv::render::texture("uint8[R,G,B]", cgv::render::TF_LINEAR, cgv::render::TF_LINEAR, cgv::render::TW_CLAMP_TO_EDGE, cgv::render::TW_CLAMP_TO_EDGE);
-			tex.create(ctx, dv, 0);
-		}
-	}
-
+	/// destruct the texture
+	bool destruct(cgv::render::context& ctx);
+	/// init the texture with all black values
+	bool init(cgv::render::context& ctx);
+	/// create the gui for this manager
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
+	/// return and clear the last action
+	ActionType action_type();
+	/// get the index of the currently edited color map
+	int edit_index() { return edit_idx; }
+	/// reference to the list of color maps
+	std::vector<color_map_container>& ref_color_maps() { return color_maps; }
+	/// reference to the texture
+	cgv::render::texture& ref_texture() { return tex; }
+	/// return a list of all color map names
+	std::vector<std::string> get_names();
+	/// add a color map from outside of this manager
+	void add_color_map(const std::string& name, const cgv::glutil::color_map& cm, bool custom);
+	/// remove a color map by its name
+	void remove_color_map_by_name(const std::string& name);
+	/// update the color map texture to the contents of the color maps
+	bool update_texture(cgv::render::context& ctx);
 };

@@ -5,6 +5,7 @@
 #include <cgv/base/base.h>
 #include <cgv/gui/provider.h>
 
+#include "gui_util.h"
 #include "glyph_attribute_mapping.h"
 
 

@@ -1,0 +1,33 @@
+<GlyphConfiguration>
+  <ColorMaps>
+    <ColorMap name="bam" custom="0" />
+    <ColorMap name="vanimo" custom="0" />
+    <ColorMap name="cork" custom="0" />
+    <ColorMap name="tofino" custom="0" />
+    <ColorMap name="broc" custom="0" />
+    <ColorMap name="lisbon" custom="0" />
+    <ColorMap name="vik" custom="0" />
+    <ColorMap name="berlin" custom="0" />
+    <ColorMap name="roma" custom="0" />
+    <ColorMap name="rainbow" custom="1" >
+      <Point x="0.000000" o="1" r="1.000000" g="0.000000" b="0.000000"/>
+      <Point x="0.212866" o="1" r="1.000000" g="1.000000" b="0.000000"/>
+      <Point x="0.425731" o="1" r="0.000000" g="1.000000" b="0.000000"/>
+      <Point x="0.601170" o="1" r="0.000000" g="1.000000" b="1.000000"/>
+      <Point x="0.769591" o="1" r="0.000000" g="0.000000" b="1.000000"/>
+      <Point x="1.000000" o="1" r="1.000000" g="0.000000" b="1.000000"/>
+    </ColorMap>
+  </ColorMaps>
+  <Layers>
+    <Layer glyph="color" >
+      <Property name="interpolate" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="classification" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="color" attrib_name="scalar2" color_map_name="rainbow" in_range="-1.000000, 1.000000" out_range="0.000000, 1.000000" />
+    </Layer>
+    <Layer glyph="sign_blob" >
+      <Property name="color" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="radius" in_range="0.000000, 1.000000" out_range="0.000000, 0.700000" />
+      <Property name="value" attrib_name="scalar2" in_range="-1.000000, 1.000000" out_range="0.000000, 0.000000" />
+    </Layer>
+  </Layers>
+</GlyphConfiguration>

@@ -231,6 +231,12 @@ protected:
 	/// attribute handle manager
 	attrib_handle_manager<float> ah_mgr;
 
+	/// glyph layer manager
+	glyph_layer_manager glyph_layer_mgr;
+
+	/// color map manager
+	color_map_manager color_map_mgr;
+
 	/// rendering state fields
 	struct {
 		/// whether a benchmark run is requested
@@ -250,21 +256,16 @@ protected:
 	vec3 test_eye = vec3(5.0f, 0.5f, 5.0f);
 	vec3 test_dir = vec3(0.0f, 0.0f, -1.0f);
 
-
-
-
-
-
-	color_map_manager color_map_mgr;
-	glyph_layer_manager glyph_layer_mgr;
-
+	/// file handling fields
 	struct {
+		/// file name of loaded layer configuration
 		std::string file_name;
+		/// file name of to be saved layer configuration (used to trigger save action)
 		std::string save_file_name;
+		/// track whether the current configuration has unsaved changes
+		// TODO: implement functionality
 		bool has_unsaved_changes = false;
 	} fh;
-
-
 
 	bool show_volume = false;
 	box3 bbox;
@@ -281,7 +282,6 @@ protected:
 	void reload_shader();
 	bool save_layer_configuration(const std::string& file_name);
 	bool read_layer_configuration(const std::string& file_name);
-
 
 	void update_glyph_layer_manager(void);
 	void glyphs_out_of_date(bool state);

@@ -129,6 +129,8 @@ void tubes::clear(cgv::render::context &ctx) {
 	shaders.clear(ctx);
 	fbc.clear(ctx);
 
+	color_map_mgr.destruct(ctx);
+
 	delete render.sorter;
 	render.sorter = nullptr;
 }
@@ -414,7 +416,7 @@ void tubes::on_set(void *member_ptr) {
 	if(member_ptr == &fh.has_unsaved_changes) {
 		auto ctrl = find_control(fh.file_name);
 		if(ctrl)
-			ctrl->set("color", fh.has_unsaved_changes ? "0xff6666" : "0xffffff");
+			ctrl->set("color", fh.has_unsaved_changes ? "0xff6666" : "");
 	}
 
 	if (member_ptr == &include_hidden_glyphs)
@@ -1679,7 +1681,7 @@ void tubes::create_gui (void)
 	//add_member_control(this, "data file/path", datapath);
 	add_gui("Data Path", datapath, "file_name", "title='Open Trajectory Data';"
 		"filter='Trajectory Files (bezdat, csv, tgen):*.bezdat;*.csv;*.tgen|All Files:*.*';"
-		"small_icon=true");
+		"small_icon=true;w=168");
 
 	// rendering settings
 	add_decorator("Rendering", "heading", "level=1");
@@ -1738,11 +1740,9 @@ void tubes::create_gui (void)
 		align("\a");
 		add_decorator("Configuration File", "heading", "level=3");
 		std::string filter = "XML Files (xml):*.xml|All Files:*.*";
-		add_gui("File", fh.file_name, "file_name", "title='Open Transfer Function';filter='" + filter + "';save=false;w=136;small_icon=true;align_gui=' ';color=" + (fh.has_unsaved_changes ? "0xff6666" : "0xffffff"));
+		add_gui("File", fh.file_name, "file_name", "title='Open Transfer Function';filter='" + filter + "';save=false;w=136;small_icon=true;align_gui=' '" + (fh.has_unsaved_changes ? ";color=0xff6666" : ""));
 		add_gui("save_file_name", fh.save_file_name, "file_name", "title='Save Transfer Function';filter='" + filter + "';save=true;control=false;small_icon=true");
 		add_decorator("", "separator", "level=3");
-		//connect_copy(add_button("Save Configuration")->click, cgv::signal::rebind(this, &tubes::save_layer_configuration));
-		//connect_copy(add_button("Read Configuration")->click, cgv::signal::rebind(this, &tubes::read_layer_configuration));
 		connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &tubes::reload_shader));
 		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
 		add_member_control(this, "Max Count (Debug)", max_glyph_count, "value_slider", "min=1;max=100;step=1;ticks=true");

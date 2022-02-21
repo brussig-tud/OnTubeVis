@@ -4,10 +4,15 @@ void color_map_manager::clear() {
 	color_maps.clear();
 }
 
-ActionType color_map_manager::action_type() {
-	ActionType temp = last_action_type;
-	last_action_type = AT_NONE;
-	return temp;
+bool color_map_manager::destruct(cgv::render::context& ctx) {
+	if(tex.is_created())
+		return tex.destruct(ctx);
+	return true;
+}
+
+bool color_map_manager::init(cgv::render::context& ctx) {
+	std::vector<uint8_t> data(2 * 3 * res, 0u);
+	return create_or_replace_texture(ctx, res, 2u, data);
 }
 
 void color_map_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
@@ -22,6 +27,60 @@ void color_map_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
 		connect_copy(p.add_button("Edit", "w=35;active=" + active, " ")->click, cgv::signal::rebind(this, &color_map_manager::edit_color_map, cgv::signal::_c<size_t>(i)));
 		connect_copy(p.add_button("X", "w=20")->click, cgv::signal::rebind(this, &color_map_manager::remove_color_map, cgv::signal::_c<size_t>(i)));
 	}
+}
+
+ActionType color_map_manager::action_type() {
+	ActionType temp = last_action_type;
+	last_action_type = AT_NONE;
+	return temp;
+}
+
+std::vector<std::string> color_map_manager::get_names() {
+	std::vector<std::string> names;
+	for(size_t i = 0; i < color_maps.size(); ++i)
+		names.push_back(color_maps[i].name);
+	return names;
+}
+
+void color_map_manager::add_color_map(const std::string& name, const cgv::glutil::color_map& cm, bool custom) {
+	color_map_container cmc(name);
+	cmc.cm = cm;
+	cmc.custom = custom;
+	color_maps.push_back(cmc);
+}
+
+void color_map_manager::remove_color_map_by_name(const std::string& name) {
+	int index = -1;
+	for(size_t i = 0; i < color_maps.size(); ++i) {
+		if(color_maps[i].name == name) {
+			index = i;
+			break;
+		}
+	}
+
+	if(index > -1)
+		remove_color_map(static_cast<size_t>(index));
+}
+
+bool color_map_manager::update_texture(cgv::render::context& ctx) {
+	if(color_maps.size() == 0)
+		return false;
+
+	std::vector<uint8_t> data(3 * color_maps.size() * res);
+
+	size_t base_idx = 0;
+	for(size_t i = 0; i < color_maps.size(); ++i) {
+		std::vector<rgb> cm_data = color_maps[i].cm.interpolate_color(static_cast<size_t>(res));
+
+		for(size_t j = 0; j < res; ++j) {
+			data[base_idx + 0] = static_cast<uint8_t>(255.0f * cm_data[j].R());
+			data[base_idx + 1] = static_cast<uint8_t>(255.0f * cm_data[j].G());
+			data[base_idx + 2] = static_cast<uint8_t>(255.0f * cm_data[j].B());
+			base_idx += 3;
+		}
+	}
+
+	return create_or_replace_texture(ctx, res, static_cast<unsigned>(color_maps.size()), data);
 }
 
 void color_map_manager::on_set(void* member_ptr) {
@@ -67,5 +126,21 @@ void color_map_manager::edit_color_map(const size_t index) {
 		last_action_type = AT_EDIT_REQUEST;
 		edit_idx = index;
 		base_ptr->on_set(this);
+	}
+}
+
+bool color_map_manager::create_or_replace_texture(cgv::render::context& ctx, unsigned w, unsigned h, std::vector<uint8_t>& data) {
+	cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res, h, TI_UINT8, cgv::data::CF_RGB), data.data());
+
+	unsigned width = tex.get_width();
+	unsigned height = tex.get_height();
+
+	if(tex.is_created() && width == res && height == color_maps.size()) {
+		return tex.replace(ctx, 0, 0, dv);
+	} else {
+		tex.destruct(ctx);
+		tex = cgv::render::texture("uint8[R,G,B]", cgv::render::TF_LINEAR, cgv::render::TF_LINEAR, cgv::render::TW_CLAMP_TO_BORDER, cgv::render::TW_CLAMP_TO_BORDER);
+		tex.set_border_color(0.0f, 0.0f, 0.0f, 1.0f);
+		return tex.create(ctx, dv, 0);
 	}
 }
