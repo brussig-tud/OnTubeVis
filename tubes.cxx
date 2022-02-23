@@ -23,7 +23,8 @@
 
 
 
-// TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff
+// TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
+// TODO: add option to change background color
 
 tubes::tubes() : application_plugin("tubes_instance")
 {
@@ -858,7 +859,7 @@ void tubes::update_glyph_layer_manager() {
 void tubes::glyphs_out_of_date(bool state) {
 	auto ctrl = find_element("Compile Attributes");
 	if(ctrl)
-		ctrl->set("color", state ? "0xff6666" : "");
+		ctrl->set("color", state ? "0xb51c1c" : "");
 }
 
 bool tubes::compile_glyph_attribs (void)
@@ -1729,7 +1730,7 @@ void tubes::create_gui (void)
 	if(begin_tree_node("General Settings", general_settings, true)) {
 		align("\a");
 		add_member_control(this, "Curvature Correction", general_settings.use_curvature_correction, "check");
-		add_member_control(this, "Length Scale", general_settings.length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xff0000");
+		add_member_control(this, "Length Scale", general_settings.length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xb51c1c");
 		add_member_control(this, "Antialias Radius", general_settings.antialias_radius, "value_slider", "min=0;max=5;step=0.01;ticks=true");
 		add_member_control(this, "Debug Segments", general_settings.debug_segments, "check");
 		align("\b");
