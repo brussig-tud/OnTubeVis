@@ -267,7 +267,7 @@ public:
 		// TODO: bounding box does not work right now
 
 		// build rotation matrix like in the shader
-		const float quarter_turn = 1.57079632679; // additional rotation of 90 degrees, so an angle of 0 degrees points the glyph into the direction of the segment
+		const float quarter_turn = 1.57079632679f; // additional rotation of 90 degrees, so an angle of 0 degrees points the glyph into the direction of the segment
 		float angle = cgv::math::deg2rad(param_values[2]) + quarter_turn;
 		
 		float as = sin(angle);

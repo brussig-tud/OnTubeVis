@@ -276,7 +276,7 @@ protected:
 	ambient_occlusion_style ao_style, ao_style_bak; // the latter is used to restore defaults after demo data is unloaded
 
 	glyph_layer_manager::configuration glyph_layers_config;
-	bool include_hidden_glyphs = true;
+	bool include_hidden_glyphs = false;
 	unsigned max_glyph_count = 10;
 	
 	void reload_shader();
@@ -302,7 +302,7 @@ protected:
 	void draw_density_volume(context& ctx);
 
 	/// helper methods
-	bool load_transfer_function(context& ctx);
+	//bool load_transfer_function(context& ctx);
 	shader_define_map build_tube_shading_defines();
 
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
