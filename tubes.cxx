@@ -24,9 +24,10 @@
 
 
 // TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
+// TODO: seting color of file input has no effect (may be due to recent gui changes)
 // TODO: add option to change background color
 
-tubes::tubes() : application_plugin("tubes_instance")
+tubes::tubes() : application_plugin("Tubes")
 {
 	// adjust render style defaults
 	//render.style.illumination_mode = IM_OFF;
@@ -417,7 +418,7 @@ void tubes::on_set(void *member_ptr) {
 	if(member_ptr == &fh.has_unsaved_changes) {
 		auto ctrl = find_control(fh.file_name);
 		if(ctrl)
-			ctrl->set("color", fh.has_unsaved_changes ? "0xff6666" : "");
+			ctrl->set("color", fh.has_unsaved_changes ? "0xb51c1c" : "");
 	}
 
 	if (member_ptr == &include_hidden_glyphs)
@@ -1489,7 +1490,7 @@ bool tubes::init (cgv::render::context &ctx)
 
 	render.sorter->set_key_definition_override(key_definition);
 
-	success &= load_transfer_function(ctx);
+	//success &= load_transfer_function(ctx);
 
 	ref_sphere_renderer(ctx, 1);
 	// TODO: remove sphere renderer
@@ -1675,8 +1676,7 @@ void tubes::draw (cgv::render::context &ctx)
 		draw_dnd(ctx);
 }
 
-void tubes::create_gui (void)
-{
+void tubes::create_gui(void) {
 	// dataset settings
 	add_decorator("Dataset", "heading", "level=1");
 	//add_member_control(this, "data file/path", datapath);
@@ -1686,8 +1686,7 @@ void tubes::create_gui (void)
 
 	// rendering settings
 	add_decorator("Rendering", "heading", "level=1");
-	if (begin_tree_node("Tube Style", render.style, false))
-	{
+	if(begin_tree_node("Tube Style", render.style, false)) {
 		align("\a");
 		add_gui("tube_style", render.style);
 		// render percentage exists for debug reasons only and can be removed at some point
@@ -1727,7 +1726,7 @@ void tubes::create_gui (void)
 		end_tree_node(grids);
 	}
 
-	if(begin_tree_node("General Settings", general_settings, true)) {
+	if(begin_tree_node("General Settings", general_settings, false)) {
 		align("\a");
 		add_member_control(this, "Curvature Correction", general_settings.use_curvature_correction, "check");
 		add_member_control(this, "Length Scale", general_settings.length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xb51c1c");
@@ -1796,8 +1795,7 @@ void tubes::create_gui (void)
 		end_tree_node(vstyle);
 	}
 
-	if (begin_tree_node("Tools (Persistent by Default)", misc_cfg, false))
-	{
+	if(begin_tree_node("Tools (Persistent by Default)", misc_cfg, false)) {
 		align("\a");
 		add_member_control(
 			this, "instant_redraw_proxy", misc_cfg.instant_redraw_proxy, "toggle",
@@ -1815,10 +1813,14 @@ void tubes::create_gui (void)
 		end_tree_node(misc_cfg);
 	}
 
-	add_member_control(this, "Start Benchmark", benchmark.requested, "toggle", "");
-
-	create_vec3_gui("Eye Pos", test_eye, -10.0f, 10.0f);
-	create_vec3_gui("Eye Dir", test_dir, -1.0f, 1.0f);
+	if(begin_tree_node("(Debug)", benchmark, false)) {
+		align("\a");
+		add_member_control(this, "Start Benchmark", benchmark.requested, "toggle", "");
+		create_vec3_gui("Eye Pos", test_eye, -10.0f, 10.0f);
+		create_vec3_gui("Eye Dir", test_dir, -1.0f, 1.0f);
+		align("\b");
+		end_tree_node(benchmark);
+	}
 }
 
 void tubes::create_vec3_gui(const std::string& name, vec3& value, float min, float max) {
@@ -2209,7 +2211,7 @@ void tubes::draw_density_volume(context& ctx) {
 	vr.render(ctx, 0, 0);
 }
 
-bool tubes::load_transfer_function(context& ctx)
+/*bool tubes::load_transfer_function(context& ctx)
 {
 	// attempt to load a transfer function from an image file
 	cgv::data::data_format format;
@@ -2255,7 +2257,7 @@ bool tubes::load_transfer_function(context& ctx)
 
 	image.close();
 	return success;
-}
+}*/
 
 shader_define_map tubes::build_tube_shading_defines() {
 	shader_define_map defines;
@@ -2299,3 +2301,10 @@ cgv::base::object_registration<tubes> reg_tubes("");
 //#ifdef CGV_FORCE_STATIC
 	cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
 //#endif
+
+#ifdef CGV_FORCE_STATIC
+//#include <tubes_shader_inc.h>
+
+#define REGISTER_SHADER_FILES
+#include <cgv_glutil/shader_inc.h>
+#endif
