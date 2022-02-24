@@ -2,6 +2,7 @@
 
 #include <cgv/gui/key_event.h>
 #include <cgv/gui/mouse_event.h>
+#include <cgv/gui/theme_info.h>
 #include <cgv/math/ftransform.h>
 #include <cgv_gl/gl/gl.h>
 
@@ -9,13 +10,13 @@ color_map_viewer::color_map_viewer() {
 
 	set_name("Color Map Viewer");
 
-	layout.padding = 8;
+	layout.padding = 13; // 10px plus 3px border
 	layout.band_height = 15;
 	layout.total_height = 80;
 
-	set_overlay_alignment(AO_START, AO_END);
+	set_overlay_alignment(AO_END, AO_END);
 	set_overlay_stretch(SO_NONE);
-	set_overlay_margin(ivec2(20));
+	set_overlay_margin(ivec2(-3));
 	set_overlay_size(ivec2(200u, layout.total_height));
 	
 	fbc.add_attachment("color", "flt32[R,G,B,A]");
@@ -90,6 +91,12 @@ void color_map_viewer::init_frame(cgv::render::context& ctx) {
 		canvas.set_resolution(ctx, container_size);
 		overlay_canvas.set_resolution(ctx, get_viewport_size());
 	}
+
+	int theme_idx = cgv::gui::theme_info::instance().get_theme_idx();
+	if(last_theme_idx != theme_idx) {
+		last_theme_idx = theme_idx;
+		init_styles(ctx);
+	}
 }
 
 void color_map_viewer::draw(cgv::render::context& ctx) {
@@ -137,7 +144,7 @@ void color_map_viewer::draw(cgv::render::context& ctx) {
 	fbc.disable_attachment(ctx, "color");
 
 	overlay_canvas.disable_current_shader(ctx);
-
+	
 	glEnable(GL_DEPTH_TEST);
 }
 
@@ -159,17 +166,25 @@ void color_map_viewer::create_gui(cgv::gui::provider& p) {
 }
 
 void color_map_viewer::init_styles(context& ctx) {
+	// get theme colors
+	auto& ti = cgv::gui::theme_info::instance();
+	rgba background_color = rgba(ti.background(), 1.0f);
+	rgba group_color = rgba(ti.group(), 1.0f);
+	rgba border_color = rgba(ti.border(), 1.0f);
 
 	// configure style for the container rectangle
 	container_style.apply_gamma = false;
-	container_style.fill_color = rgba(0.9f, 0.9f, 0.9f, 1.0f);
-	container_style.border_color = rgba(0.2f, 0.2f, 0.2f, 1.0f);
-	container_style.border_width = 1.0f;
+	//container_style.fill_color = rgba(0.9f, 0.9f, 0.9f, 1.0f);
+	//container_style.border_color = rgba(0.2f, 0.2f, 0.2f, 1.0f);
+	container_style.fill_color = group_color;
+	container_style.border_color = background_color;
+	container_style.border_width = 3.0f;
 	container_style.feather_width = 0.0f;
 	
 	// configure style for the border rectangles
 	border_style = container_style;
-	border_style.fill_color = rgba(0.2f, 0.2f, 0.2f, 1.0f);
+	//border_style.fill_color = rgba(0.2f, 0.2f, 0.2f, 1.0f);
+	border_style.fill_color = border_color;
 	border_style.border_width = 0.0f;
 	
 	// configure style for the color scale rectangle

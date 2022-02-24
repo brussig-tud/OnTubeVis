@@ -12,6 +12,7 @@
 
 class color_map_viewer : public cgv::glutil::overlay {
 protected:
+	int last_theme_idx = -1;
 	cgv::glutil::frame_buffer_container fbc;
 
 	cgv::glutil::canvas canvas, overlay_canvas;

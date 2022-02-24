@@ -263,7 +263,6 @@ protected:
 		/// file name of to be saved layer configuration (used to trigger save action)
 		std::string save_file_name;
 		/// track whether the current configuration has unsaved changes
-		// TODO: implement functionality
 		bool has_unsaved_changes = false;
 	} fh;
 
@@ -319,6 +318,7 @@ public:
 
 	bool handle_event(cgv::gui::event& e);
 	void on_set(void* member_ptr);
+	bool on_exit_request();
 
 	bool init(context& ctx);
 	void init_frame(context& ctx);

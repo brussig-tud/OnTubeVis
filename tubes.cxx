@@ -4,6 +4,8 @@
 
 // CGV framework core
 #include <cgv/defines/quote.h>
+#include <cgv/gui/dialog.h>
+#include <cgv/gui/theme_info.h>
 #include <cgv/math/ftransform.h>
 #include <cgv/media/image/image_reader.h>
 #include <cgv/utils/advanced_scan.h>
@@ -324,8 +326,13 @@ void tubes::on_set(void *member_ptr) {
 			compile_glyph_attribs();
 
 			post_recreate_gui();
+			
+			fh.has_unsaved_changes = true;
+			on_set(&fh.has_unsaved_changes);
 		} else if(action == AT_VALUE_CHANGE) {
 			glyphs_out_of_date(true);
+			fh.has_unsaved_changes = true;
+			on_set(&fh.has_unsaved_changes);
 		}
 	}
 
@@ -365,6 +372,9 @@ void tubes::on_set(void *member_ptr) {
 			break;
 		default: break;
 		}
+		// TODO: add case for value change action type
+		fh.has_unsaved_changes = true;
+		on_set(&fh.has_unsaved_changes);
 	}
 
 
@@ -384,13 +394,17 @@ void tubes::on_set(void *member_ptr) {
 				//}
 		#endif
 		*/
-		if(!read_layer_configuration(fh.file_name))
-			std::cout << "Error: could not read glyph layer configuration from " << fh.file_name << std::endl;
-		//if(!read_layer_configuration(fh.file_name))
-		//	glyph_layer_manager.clear();
 
-		fh.has_unsaved_changes = false;
-		on_set(&fh.has_unsaved_changes);
+		std::string extension = cgv::utils::file::get_extension(fh.save_file_name);
+		// only try to read the filename if it ends with an xml extension
+		if(cgv::utils::to_upper(extension) == "XML") {
+			if(read_layer_configuration(fh.file_name)) {
+				fh.has_unsaved_changes = false;
+				on_set(&fh.has_unsaved_changes);
+			} else {
+				std::cout << "Error: could not read glyph layer configuration from " << fh.file_name << std::endl;
+			}
+		}
 	}
 
 	if(member_ptr == &fh.save_file_name) {
@@ -418,7 +432,7 @@ void tubes::on_set(void *member_ptr) {
 	if(member_ptr == &fh.has_unsaved_changes) {
 		auto ctrl = find_control(fh.file_name);
 		if(ctrl)
-			ctrl->set("color", fh.has_unsaved_changes ? "0xb51c1c" : "");
+			ctrl->set("text_color", fh.has_unsaved_changes ? cgv::gui::theme_info::instance().warning_hex() : "");
 	}
 
 	if (member_ptr == &include_hidden_glyphs)
@@ -455,6 +469,17 @@ void tubes::on_set(void *member_ptr) {
 	update_member(member_ptr);
 	post_redraw();
 }
+
+bool tubes::on_exit_request() {
+	// TODO: does not seem to fire when window is maximized?
+#ifndef _DEBUG
+	if(fh.has_unsaved_changes) {
+		return cgv::gui::question("The glyph layer configuration has unsaved changes. Are you sure you want to quit?");
+	}
+#endif
+	return true;
+}
+
 
 void tubes::reload_shader() {
 
@@ -860,7 +885,7 @@ void tubes::update_glyph_layer_manager() {
 void tubes::glyphs_out_of_date(bool state) {
 	auto ctrl = find_element("Compile Attributes");
 	if(ctrl)
-		ctrl->set("color", state ? "0xb51c1c" : "");
+		ctrl->set("color", state ? cgv::gui::theme_info::instance().warning_hex() : "");
 }
 
 bool tubes::compile_glyph_attribs (void)
@@ -1738,7 +1763,7 @@ void tubes::create_gui(void) {
 		align("\a");
 		add_decorator("Configuration File", "heading", "level=3");
 		std::string filter = "XML Files (xml):*.xml|All Files:*.*";
-		add_gui("File", fh.file_name, "file_name", "title='Open Transfer Function';filter='" + filter + "';save=false;w=136;small_icon=true;align_gui=' '" + (fh.has_unsaved_changes ? ";color=0xff6666" : ""));
+		add_gui("File", fh.file_name, "file_name", "title='Open Transfer Function';filter='" + filter + "';save=false;w=136;small_icon=true;align_gui=' '" + (fh.has_unsaved_changes ? ";text_color=" + cgv::gui::theme_info::instance().warning_hex() : ""));
 		add_gui("save_file_name", fh.save_file_name, "file_name", "title='Save Transfer Function';filter='" + filter + "';save=true;control=false;small_icon=true");
 		add_decorator("", "separator", "level=3");
 		connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &tubes::reload_shader));
