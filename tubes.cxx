@@ -1490,8 +1490,6 @@ bool tubes::init (cgv::render::context &ctx)
 
 	render.sorter->set_key_definition_override(key_definition);
 
-	//success &= load_transfer_function(ctx);
-
 	ref_sphere_renderer(ctx, 1);
 	// TODO: remove sphere renderer
 	srd.init(ctx);
@@ -2211,54 +2209,6 @@ void tubes::draw_density_volume(context& ctx) {
 	vr.render(ctx, 0, 0);
 }
 
-/*bool tubes::load_transfer_function(context& ctx)
-{
-	// attempt to load a transfer function from an image file
-	cgv::data::data_format format;
-	cgv::media::image::image_reader image(format);
-	cgv::data::data_view image_data;
-
-	bool success = false;
-
-	std::string file_name = "res://inferno.bmp";
-	if(!image.read_image(file_name, image_data)) {
-		std::cout << "Error: Could not read image file " << file_name << std::endl;
-	} else {
-		// the image shall be given with a resolution of (width x 1)
-		// yet this still results in a 2d data view
-		// reduce the data to a 1d view and add an alpha channel
-
-		// TODO: make data_view reduce operations change format or make texture create get dims from view and not format (ask Stefan)
-		cgv::data::data_view tex_data_1d = image_data(0);
-
-		unsigned w = tex_data_1d.get_format()->get_width();
-		std::vector<unsigned char> data(4 * w, 0u);
-
-		unsigned char* src_ptr = tex_data_1d.get_ptr<unsigned char>();
-		
-		for(unsigned i = 0; i < w; ++i) {
-			float alpha = static_cast<float>(i / 4) / static_cast<float>(w);
-			data[4 * i + 0] = src_ptr[3 * i + 0];
-			data[4 * i + 1] = src_ptr[3 * i + 1];
-			data[4 * i + 2] = src_ptr[3 * i + 2];
-			data[4 * i + 3] = static_cast<unsigned char>(255.0f * alpha);
-		}
-
-		tex_data_1d.set_format(new cgv::data::data_format(w, cgv::type::info::TypeId::TI_UINT8, cgv::data::ComponentFormat::CF_RGBA));
-		tex_data_1d.set_ptr((void*)data.data());
-
-		tf_tex.create(ctx, tex_data_1d, 0);
-		tf_tex.set_min_filter(cgv::render::TextureFilter::TF_LINEAR);
-		tf_tex.set_mag_filter(cgv::render::TextureFilter::TF_LINEAR);
-		tf_tex.set_wrap_s(cgv::render::TextureWrap::TW_CLAMP_TO_EDGE);
-		
-		success = true;
-	}
-
-	image.close();
-	return success;
-}*/
-
 shader_define_map tubes::build_tube_shading_defines() {
 	shader_define_map defines;
 
@@ -2272,11 +2222,6 @@ shader_define_map tubes::build_tube_shading_defines() {
 	if(grid_normal_variant) gs += 8u;
 	shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
-
-	//shader_code::set_define(defines, "MAPPED_ATTRIBUTE_COUNT", glyph_layers_config.shader_config.mapped_attrib_count, 1u);
-	//shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.shader_config.uniforms_definition, std::string("vec4 glyph_m_param[MAPPED_ATTRIBUTE_COUNT];"));
-	//shader_code::set_define(defines, "GLYPH_ATTRIBUTES_DEFINITION", glyph_layers_config.shader_config.attribute_buffer_definition, std::string("float v[1];"));
-	//shader_code::set_define(defines, "GLYPH_LAYER_DEFINITION", glyph_layers_config.shader_config.glyph_layers_definition, std::string(""));
 
 	// glyph layer defines
 	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
@@ -2297,10 +2242,7 @@ shader_define_map tubes::build_tube_shading_defines() {
 // Object registration
 
 cgv::base::object_registration<tubes> reg_tubes("");
-
-//#ifdef CGV_FORCE_STATIC
-	cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
-//#endif
+cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
 
 #ifdef CGV_FORCE_STATIC
 //#include <tubes_shader_inc.h>
@@ -2308,3 +2250,11 @@ cgv::base::object_registration<tubes> reg_tubes("");
 #define REGISTER_SHADER_FILES
 #include <cgv_glutil/shader_inc.h>
 #endif
+
+// Force the usage of the discrete Nvidia graphics card.
+// This is needed for systems with Nvidia Optimus technology.
+#define NOMINMAX
+#include <windows.h>
+	extern "C" {
+		_declspec(dllexport) DWORD NvOptimusEnablement = true;
+	}

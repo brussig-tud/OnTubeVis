@@ -302,7 +302,6 @@ protected:
 	void draw_density_volume(context& ctx);
 
 	/// helper methods
-	//bool load_transfer_function(context& ctx);
 	shader_define_map build_tube_shading_defines();
 
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
