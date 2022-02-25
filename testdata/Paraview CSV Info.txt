@@ -1,0 +1,16 @@
+„SimulationTimeStep“ und „IntegrationTime“ dienen als Marker für Start/Ende einer Trajektorie.
+ 
+Die Daten stammen aus OpenFOAM Simulationen und wurden angereichert in Paraview.
+Attribute aus OpenFOAM:
+·         U: 3D Velocity
+·         p: Druck
+·         Q: https://www.openfoam.com/documentation/guides/latest/doc/guide-fos-field-Q.html
+·         ddt: https://www.openfoam.com/documentation/guides/latest/doc/guide-fos-field-ddt.html
+·         alpha.water: Bei Mehrphasensimulationen (Hier Luft-Wasser, bestimmt Isovolumen, „Ist Wasser 1 oder Luft 0, oder gemischt dazwischen“)
+ 
+Paraview Attribute:
+·         Vorticity (3D)
+·         Rotation (höchstwahrscheinlich die Curvature der Streamlines, siehe https://discourse.paraview.org/t/rotation-colouring-of-streamlines/6644/2)
+·         AngularVelocity (Winkelgeschwindigkeit mit Einheit "zurückgelegter Winkel pro Zeiteinheit" [Radiant pro Sekunde])
+·         Normals
+·         Points (3D Position)

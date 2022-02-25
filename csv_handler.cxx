@@ -678,8 +678,22 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 	// parse the stream until EOF
 	bool nothing_loaded = true;
 	real dist_accum = 0;
+	unsigned running_traj_id = 0;
+	real last_timestamp = 0.0f;
+	bool first = true;
 	while (!contents.eof())
 	{
+		// read in timestamps if present
+		real t;
+		if(timestamp_id > -1) {
+			auto &ts_csv = declared_attribs[timestamp_id];
+			t = Impl::parse_timestamp_field(
+				timestamp_format, fields[ts_csv.field_ids.front()]
+			);
+		}
+
+
+
 		// determine trajectory id of this row
 		unsigned traj_id;
 		if (props.multi_traj)
@@ -687,26 +701,41 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (std::istream &contents)
 			const int traj_id_field = declared_attribs[props.traj_id].field_ids.front();
 			traj_id = std::atoi(fields[traj_id_field].c_str());
 		}
-		else
+		else if(timestamp_id > -1) {
+			if(!first) {
+				if(last_timestamp > t)
+					++running_traj_id;
+			}
+			first = false;
+			last_timestamp = t;
+			traj_id = running_traj_id;
+		} else {
 			traj_id = 0;
+		}
 
 		// make sure position traj exists for various kinds of forward queries
 		auto &P = Impl::ensure_traj(declared_attribs[props.pos_id].trajs, traj_id, 3).get_data<Vec3>().values;
 
-		// read in timestamps if present
-		real t;
-		if (timestamp_id > -1)
-		{
+
+
+
+		// commit timestamp as actual data point if present
+		if(timestamp_id > -1) {
 			auto &ts_csv = declared_attribs[timestamp_id];
-			t = Impl::parse_timestamp_field(
-				timestamp_format, fields[ts_csv.field_ids.front()]
-			);
-			// also commit as actual data point
 			auto &ts_attrib = Impl::ensure_traj(ts_csv.trajs, traj_id, 1);
 			ts_attrib.get_data<real>().append(t, t);
-		}
-		else
+		} else {
 			t = (flt_type)P.size();
+		}
+	
+
+
+
+
+
+
+
+
 
 		// read in all declared attributes
 		for (auto &attrib : declared_attribs)
@@ -975,4 +1004,36 @@ csv_imldevice_reg(
 		colormap({{ 166.f/255.f, 206.f/255.f, 227.f/255.f }, { 31.f/255.f, 120.f/255.f, 180.f/255.f }})
 	),
 	"csv handler (float) - "+csv_imldevice_desc.name()
+);
+
+// Register example handler for streamline .csv files exported from paraview
+static const csv_descriptor csv_paraview_streamline_desc("Paraview streamline", ",", {
+	{ "timestamp", {"\"IntegrationTime\"", false, 4}, CSV::TIMESTAMP },
+	//{ "id",        {"id", false, 1}, CSV::TRAJ_ID },
+	{ "position",  {{"\"Points:0\"", false, 13}, {"\"Points:1\"", false, 14}, {"\"Points:2\"", false, 15}}, CSV::POS }}
+);
+
+cgv::base::object_registration_2<
+	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>
+> csv_paraview_streamline_reg(
+	csv_paraview_streamline_desc,
+	visual_attribute_mapping<float>({
+		{VisualAttrib::POSITION, {
+			//
+			"position", attrib_transform<float>::vec3_to_vec3(
+				[](csv_handler<float>::Vec3 &out, const csv_handler<float>::Vec3 &in) {
+					out = in;
+				}
+			)
+		 }},
+		{VisualAttrib::RADIUS, {
+			// radius is set to a constant value
+			"radius", attrib_transform<float>::real_to_real(
+				[](float &out, const float &in) {
+					out = 0.005f;
+				}
+			)
+		 }}}
+	),
+	"csv handler (float) - "+csv_paraview_streamline_desc.name()
 );
