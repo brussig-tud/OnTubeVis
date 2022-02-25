@@ -398,9 +398,11 @@ float sd_rounded_cross(in vec2 p, in float r) {
                  dot2(p - vec2(r,0.0)))); // right corner
 }
 
+// b is the size of the cross (total width/diameter)
+// r is distance radius offset
 float sd_cross(in vec2 p, in vec2 b, float r) {
     p = abs(p); p = (p.y>p.x) ? p.yx : p.xy;
-    
+    b *= 0.5;
 	vec2  q = p - b;
     float k = max(q.y,q.x);
     vec2  w = (k>0.0) ? q : vec2(b.y-p.x,-k);
@@ -408,10 +410,10 @@ float sd_cross(in vec2 p, in vec2 b, float r) {
     return ((k>0.0)?d:-d) + r;
 }
 
-// r is the radius of the blob
+// s is the size of the blob (total width/diameter)
 // v defines the shape
 // must be in [-1,1]
-float sd_sign_blob(in vec2 p, in float r, in float v) {
+float sd_sign_blob(in vec2 p, in float s, in float v) {
 	// first form
 	// -1 is sharp pointy cross
 	//  0 is circle
@@ -433,10 +435,10 @@ float sd_sign_blob(in vec2 p, in float r, in float v) {
 	// -1 is minus sign
 	//  0 is circle
 	// +1 is plus sign
-	float d_circle = sd_circle(p, 0.25*r);
+	float d_circle = sd_circle(p, 0.25*s);
 	return v < 0.0 ?
-		mix(sd_rectangle(p, r, 0.2*r), d_circle, v + 1.0) :
-		mix(d_circle, sd_cross(p, vec2(0.5*r, 0.1*r), 0.0), v);
+		mix(sd_rectangle(p, s, 0.2*s), d_circle, v + 1.0) :
+		mix(d_circle, sd_cross(p, vec2(s, 0.2*s), 0.0), v);
 }
 
 float sd_segment(in vec2 p, in vec2 a, in vec2 b) {

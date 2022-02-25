@@ -278,6 +278,7 @@ void tubes::on_set(void *member_ptr) {
 			update_attribute_bindings();
 			update_grid_ratios();
 
+			// TODO: glyphs are not fully cleared when loading a new dataset
 			update_glyph_layer_manager();
 
 			compile_glyph_attribs();
@@ -2050,8 +2051,10 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 }
 
 void tubes::draw_dnd(context& ctx) {
+	const auto& ti = cgv::gui::theme_info::instance();
 
-	static const rgb dnd_col(1, 0.5f, 0.5f);
+	//static const rgb dnd_col(1, 0.5f, 0.5f);
+	static const rgb dnd_col = ti.highlight();
 	// compile the text we're going to draw and gather its approximate dimensions at the same time
 	float w = 0, s = ctx.get_current_font_size();
 	std::stringstream dnd_drawtext;
