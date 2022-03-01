@@ -1006,11 +1006,11 @@ csv_imldevice_reg(
 	"csv handler (float) - "+csv_imldevice_desc.name()
 );
 
-// Register example handler for streamline .csv files exported from paraview
-static const csv_descriptor csv_paraview_streamline_desc("Paraview streamline", ",", {
+// Register handler for streamline .csv files exported from paraview
+static const csv_descriptor csv_paraview_streamline_desc("Paraview Streamline", ",", {
 	{ "timestamp", {"\"IntegrationTime\"", false, 4}, CSV::TIMESTAMP },
-	//{ "id",        {"id", false, 1}, CSV::TRAJ_ID },
-	{ "position",  {{"\"Points:0\"", false, 13}, {"\"Points:1\"", false, 14}, {"\"Points:2\"", false, 15}}, CSV::POS }}
+	{ "position",  {{"\"Points:0\"", false, 13}, {"\"Points:1\"", false, 14}, {"\"Points:2\"", false, 15}}, CSV::POS },
+	{ "velocity",  {{"\"U:0\"", false, 0}, {"\"U:1\"", false, 1}, {"\"U:2\"", false, 2}} }}
 );
 
 cgv::base::object_registration_2<
@@ -1018,22 +1018,75 @@ cgv::base::object_registration_2<
 > csv_paraview_streamline_reg(
 	csv_paraview_streamline_desc,
 	visual_attribute_mapping<float>({
-		{VisualAttrib::POSITION, {
-			//
-			"position", attrib_transform<float>::vec3_to_vec3(
-				[](csv_handler<float>::Vec3 &out, const csv_handler<float>::Vec3 &in) {
-					out = in;
-				}
-			)
-		 }},
 		{VisualAttrib::RADIUS, {
-			// radius is set to a constant value
+			// increase radius a bit to get thicker tubes with more visible area
 			"radius", attrib_transform<float>::real_to_real(
 				[](float &out, const float &in) {
-					out = 0.005f;
+					out = 1.25f*in;
 				}
 			)
 		 }}}
 	),
 	"csv handler (float) - "+csv_paraview_streamline_desc.name()
 );
+
+// Register handler for package delivery drone trajectory .csv files
+static const csv_descriptor csv_pkg_drone_streamline_desc("Delivery Drone Trajectory", ",", {
+	{ "timestamp", {"time", false, 0}, CSV::TIMESTAMP },
+	{ "position",  {{"position_x", false, 5}, {"position_y", false, 6}, {"position_z", false, 7}}, CSV::POS },
+	{ "velocity",  {{"velocity_x", false, 12}, {"velocity_y", false, 13}, {"velocity_z", false, 14}} },
+	{ "linear_acceleration",  {{"linear_acceleration_x", false, 18}, {"linear_acceleration_y", false, 19}, {"linear_acceleration_z", false, 20}} },
+	{ "battery_voltage",  {"battery_voltage", false, 3} },
+	{ "battery_current",  {"battery_current", false, 4} },
+	{ "wind_speed",  {"wind_speed", false, 1} }
+	}
+);
+
+cgv::base::object_registration_2<
+	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>
+> csv_pkg_drone_streamline_reg(
+	csv_pkg_drone_streamline_desc,
+	visual_attribute_mapping<float>({
+		{VisualAttrib::POSITION, {
+			// increase radius a bit to get thicker tubes with more visible area
+			"position", attrib_transform<float>::vec3_to_vec3(
+				[](csv_handler<float>::Vec3 &out, const csv_handler<float>::Vec3 &in) {
+					float lat = cgv::math::deg2rad(in.y()); // latitude in degrees
+					float lon = cgv::math::deg2rad(in.x()); // longitude in degrees
+					float alt = in.z(); // altitude in meters above sea level
+
+					const float earth_radius = 6371.0f * 1000.0f; // meter
+					const float alt_scale = 1.0f; // scale the altitude for visualization reasons
+
+					const float ref_lat = cgv::math::deg2rad(40.45804724f);
+					const float ref_lon = cgv::math::deg2rad(-79.78239570000002f);
+					const float ref_alt = 269.3324017f;
+					const csv_handler<float>::Vec3 o =
+						csv_handler<float>::Vec3(
+							sin(M_PI_2 - ref_lat) * cos(ref_lon),
+							sin(M_PI_2 - ref_lat) * sin(ref_lon),
+							cos(M_PI_2 - ref_lat)
+						) * earth_radius + alt_scale*ref_alt;
+
+					csv_handler<float>::Vec3 p;
+					p.x() = sin(M_PI_2 - lat) * cos(lon);
+					p.y() = sin(M_PI_2 - lat) * sin(lon);
+					p.z() = cos(M_PI_2 - lat);
+
+					p = (earth_radius + alt_scale*alt) * p;
+					out = p - o;
+				}
+			)
+		 }},
+		{VisualAttrib::RADIUS, {
+			// increase radius a bit to get thicker tubes with more visible area
+			"radius", attrib_transform<float>::real_to_real(
+				[](float &out, const float &in) {
+					out = 10.0f*in;
+				}
+			)
+		}}
+		}
+		),
+	"csv handler (float) - " + csv_pkg_drone_streamline_desc.name()
+					);

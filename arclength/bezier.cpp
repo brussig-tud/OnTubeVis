@@ -363,19 +363,24 @@ ArcLengthBezierApproximation<FLOAT_TYPE> Bezier<FLOAT_TYPE>::arc_length_bezier_a
         auto dCur = arc_length_legendre_gauss(tCur, numSamples);
         auto dDiff = dCur - dPrev;
 
-        FLOAT_TYPE sample1 = (tPrev + tDiff * (FLOAT_TYPE(1) / FLOAT_TYPE(3)));
-        auto s1over3 = arc_length_legendre_gauss(sample1);
-        auto s1over3Scaled = (s1over3 - dPrev) / dDiff;
+		if(abs(dDiff) < std::numeric_limits<FLOAT_TYPE>::epsilon()) {
+			result.y1.push_back((FLOAT_TYPE)0);
+			result.y2.push_back((FLOAT_TYPE)0);
+		} else {
+			FLOAT_TYPE sample1 = (tPrev + tDiff * (FLOAT_TYPE(1) / FLOAT_TYPE(3)));
+			auto s1over3 = arc_length_legendre_gauss(sample1);
+			auto s1over3Scaled = (s1over3 - dPrev) / dDiff;
 
-        FLOAT_TYPE sample2 = (tPrev + tDiff * (FLOAT_TYPE(2) / FLOAT_TYPE(3)));
-        auto s2over3 = arc_length_legendre_gauss(sample2);
-        auto s2over3Scaled = (s2over3 - dPrev) / dDiff;
+			FLOAT_TYPE sample2 = (tPrev + tDiff * (FLOAT_TYPE(2) / FLOAT_TYPE(3)));
+			auto s2over3 = arc_length_legendre_gauss(sample2);
+			auto s2over3Scaled = (s2over3 - dPrev) / dDiff;
 
-        auto y1 = (18.0 * s1over3Scaled - 9.0 * s2over3Scaled + 2.0) / 6.0;
-        auto y2 = (-9.0 * s1over3Scaled + 18.0 * s2over3Scaled - 5.0) / 6.0;
+			auto y1 = (18.0 * s1over3Scaled - 9.0 * s2over3Scaled + 2.0) / 6.0;
+			auto y2 = (-9.0 * s1over3Scaled + 18.0 * s2over3Scaled - 5.0) / 6.0;
 
-        result.y1.push_back((FLOAT_TYPE)y1);
-        result.y2.push_back((FLOAT_TYPE)y2);
+			result.y1.push_back((FLOAT_TYPE)y1);
+			result.y2.push_back((FLOAT_TYPE)y2);
+		}
         result.lengths.push_back((FLOAT_TYPE)dCur);
     }
 

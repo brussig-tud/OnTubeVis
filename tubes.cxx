@@ -82,7 +82,7 @@ tubes::tubes() : application_plugin("Tubes")
 	grids[0].scaling = vec2(1.0f, 1.0f);
 	grids[0].thickness = 0.05f;
 	grids[0].blend_factor = 0.5f;
-	grids[1].scaling = vec2(10.0f, 10.0f);
+	grids[1].scaling = vec2(4.0f);
 	grids[1].thickness = 0.1f;
 	grids[1].blend_factor = 0.333f;
 	grid_color = rgba(0.25f, 0.25f, 0.25f, 0.75f);
@@ -396,7 +396,7 @@ void tubes::on_set(void *member_ptr) {
 		#endif
 		*/
 
-		std::string extension = cgv::utils::file::get_extension(fh.save_file_name);
+		std::string extension = cgv::utils::file::get_extension(fh.file_name);
 		// only try to read the filename if it ends with an xml extension
 		if(cgv::utils::to_upper(extension) == "XML") {
 			if(read_layer_configuration(fh.file_name)) {
@@ -893,10 +893,9 @@ bool tubes::compile_glyph_attribs (void)
 {
 	bool success = false;
 	if(glyph_layers_config.layer_configs.size() > 0) {
-		success = compile_glyph_attribs_new();
+		success = compile_glyph_attribs_start();
 		glyphs_out_of_date(false);
-	} /*else
-		success = compile_glyph_attribs_old();*/
+	}
 
 	if(success)
 		post_redraw();
@@ -904,16 +903,11 @@ bool tubes::compile_glyph_attribs (void)
 	return success;
 }
 
-bool tubes::compile_glyph_attribs_new(void) {
+bool tubes::compile_glyph_attribs_start(void) {
 	cgv::utils::stopwatch s(true);
 	std::cout << "Compiling glyph attributes... ";
 
-	// when mapping radius, magnitude_at produces a vector subscript out of range error
-	// calling magnitude_at or signed_magnitude_at on attributes without timestamps causes a crash
-	// TODO: add has_timestamps method to trajectory_attrib class and only inlcude attribs that have timestamps? Or make sure every attribte has timestamps.
-
 	// TODO: support multiple data sets? Out of scope for current paper/implementation.
-
 	// TODO: color glyphs still show some discontinuities (use debug data set and roma or berlin color map to see them)
 
 	// helper struct for range entries with start index i0 and count n
@@ -1023,6 +1017,20 @@ bool tubes::compile_glyph_attribs_new(void) {
 		// reserve the maximum amount of possible segments; actual segment count may be less if some nodes are used multiple times
 		ranges.reserve(ranges.size() + P.num() - tube_trajs.size());
 
+
+
+
+		// create an index for each attribute
+		std::vector<unsigned> attrib_indices(attrib_count, 0);
+		// create storage for attribute and glyph parameter values
+		std::vector<traj_attribute<float>::datapoint_mag> data_points(attrib_count);
+		std::vector<float> attrib_values(attrib_count);
+		std::vector<bool> has_sample(attrib_count);
+		std::vector<float> glyph_params(current_shape->num_size_attribs());
+
+
+
+
 		// - compile data
 		unsigned traj_offset = 0;
 		for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
@@ -1040,15 +1048,8 @@ bool tubes::compile_glyph_attribs_new(void) {
 			// index for the current segment
 			unsigned seg = 0;
 
-			// TODO: move this outside of the loop and re-init every iteration if necessary
-			unsigned attrib_count = mapped_attribs.size();
-			// create an index for each attribute
-			std::vector<unsigned> attrib_indices(attrib_count, 0);
-			// create storage for attribute and glyph parameter values
-			std::vector<traj_attribute<float>::datapoint_mag> data_points(attrib_count);
-			std::vector<float> attrib_values(attrib_count);
-			std::vector<bool> has_sample(attrib_count);
-			std::vector<float> glyph_params(current_shape->num_size_attribs());
+			// reset the status sample availability status
+			std::fill(has_sample.begin(), has_sample.end(), false);
 
 			// stores the minimum t over all current attribute sample points in each iteration
 			float min_t;
@@ -1058,7 +1059,6 @@ bool tubes::compile_glyph_attribs_new(void) {
 				const auto &traj_range = attribs_trajs[i]->at(trj);
 				attrib_indices[i] = traj_range.i0;
 				if (traj_range.n < 2) // single-sample trajectory, assignment doesn't make sense here
-				//if(attrib_indices[i] >= (unsigned)attribs_trajs[i]->at(trj).n)
 					run &= false;
 			}
 			run &= seg < num_segments;
@@ -1072,7 +1072,7 @@ bool tubes::compile_glyph_attribs_new(void) {
 
 
 			while(run) {
-				// TODO: do we need to test for monotone increasing vaues of t?
+				// TODO: do we need to test for monotone increasing values of t?
 				//if(i > 0) // enforce monotonicity
 				//	// TODO: this fails when using the debug-size dataset
 				//	assert(a.t >= mapped_attribs[0]->signed_magnitude_at(i - 1).t);
@@ -1165,29 +1165,6 @@ bool tubes::compile_glyph_attribs_new(void) {
 						std::max(new_glyph_size, prev_glyph_size) :
 						new_glyph_size;
 
-					// only include samples that are far enough away from last sample to not cause (too much) overlap
-					/*if(attribs.glyph_count() == attribs_traj_offset || s >= attribs.last_glyph_s() + min_dist) {
-						auto &cur_range = ranges[global_seg];
-						if(cur_range.n < 1) {
-							// first free attribute that falls into this segment
-							cur_range.i0 = (unsigned)attribs.glyph_count();
-							cur_range.n = 1;
-							// handle overlap to previous segment
-							if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size)
-								ranges[global_seg - 1].n++;
-						} else {
-							// one more free attribute that falls into this segment
-							cur_range.n++;
-						}
-						// store the new glyph
-						attribs.add(s);
-						attribs.add(1.0f);
-						attribs.add(v);
-						//store the size when this glyph is actually placed
-						prev_glyph_size = new_glyph_size;
-					}*/
-
-					//bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= attribs.last_glyph_s() + min_dist;
 					bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= last_commited_s + min_dist;
 					include_glyph |= min_dist < 0.0f;
 
@@ -1224,18 +1201,12 @@ bool tubes::compile_glyph_attribs_new(void) {
 						std::copy(attrib_values.begin(), attrib_values.end(), std::back_inserter(attribs.data));
 					}
 
-					//for(size_t i = 0; i < attrib_indices.size(); ++i)
-					//	attribs.add(attrib_values[i]);
-
 					//store the size when this glyph is actually placed
 					if(include_glyph) {
 						prev_glyph_size = new_glyph_size;
 						last_commited_s = s;
 					}
-				}/* else if (seg > (unsigned)tube_traj.n - 2) {
-					// we went beyond the last segment
-					break;
-				}*/
+				}
 
 				// increment indices and check whether the indices of all attributes have reached the end
 				for(size_t i = 0; i < attrib_count; ++i) {
@@ -1257,7 +1228,6 @@ bool tubes::compile_glyph_attribs_new(void) {
 			// update auxiliary indices
 			traj_offset += num_segments;
 		}
-
 
 		// fill the attribute buffer with one glyph entry if it is empty (will cause crash otherwise)
 		if(attribs.empty()) {
@@ -1289,184 +1259,6 @@ bool tubes::compile_glyph_attribs_new(void) {
 	}
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
-
-	// done!
-	return true;
-}
-
-bool tubes::compile_glyph_attribs_old(void) {
-	cgv::utils::stopwatch s(true);
-	std::cout << "Compiling glyph attributes... ";
-
-	// for copying default values into new glyphs
-	/*const static attribute_mapping_parameters glyph_defaults;
-	const static glyph_attribs empty_glyph = {
-		0.f, glyph_defaults.radius0, glyph_defaults.radius1, glyph_defaults.angle0, glyph_defaults.angle1
-	};*/
-	const static glyph_attribs empty_glyph = { 0.0f, 0.0f, 0.0f, 0.0f };
-
-	// ToDo: generalize to arbitrary free attributes
-	#define FREE_ATTRIBUTE_SERIES "scalar"
-
-	// get context
-	const auto &ctx = *get_context();
-
-	struct irange { int i0, n; };
-	std::vector<glyph_attribs> attribs; // buffer of attribute values
-	std::vector<irange> ranges;         // buffer of index ranges per segment (indexes into 'attribs')
-	for(unsigned ds = 0; ds < std::max(traj_mgr.num_datasets(), (unsigned)1); ds++) {
-		// convenience shorthands
-		const auto &dataset = traj_mgr.dataset(ds);
-		const auto &P = dataset.positions().attrib;
-		const auto &tube_trajs = dataset.trajectories(P);
-
-		// from the docs: returns an explicitly invalid attribute interface that acts "empty" on all relevant queries
-		// if no attribute of the given name exists in the dataset
-		const auto &free_attrib = dataset.attribute(FREE_ATTRIBUTE_SERIES);
-
-		// from the docs: returns an explicitly invalid range that indicates zero samples in the trajectory if the dataset has
-		// no trajectory information for the attribute
-		const auto &attrib_trajs = dataset.trajectories(free_attrib);
-
-		// determine min, nax value (ToDo: observe glyph config)
-		const float vmin = free_attrib.min(), vmax = free_attrib.max();
-
-		// reserve memory
-		attribs.reserve(attribs.size() + free_attrib.num());
-		ranges.reserve(ranges.size() + /* estimated_num_segments = */ P.num() - tube_trajs.size());
-		// - compile data
-		unsigned traj_offset = 0;
-		for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
-			const auto &tube_traj = tube_trajs[trj];
-			const auto &attrib_traj = attrib_trajs[trj];
-			const auto *alen = render.arclen_data.data();
-			const unsigned num_segments = tube_traj.n - 1;
-			const unsigned attribs_traj_offset = (unsigned)attribs.size();
-
-			// make sure there is exactly one 'range' entry per segment
-			ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
-
-			// - primary loop is through free attributes, segment assignment based on timestamps
-			for(unsigned i = 0, seg = 0; i < (unsigned)attrib_traj.n && seg < num_segments; i++) {
-				const auto a = free_attrib.magnitude_at(i);
-				//if(i > 0) // enforce monotonicity
-				//	// TODO: this fails when using the debug-size dataset
-				//	assert(a.t >= free_attrib.magnitude_at(i - 1).t);
-
-				// advance segment pointer
-				auto segtime = segment_time_get(P, tube_traj, seg);
-				while(a.t >= segtime.t1) {
-					if(seg >= num_segments - 1)
-						break;
-					segtime = segment_time_get(P, tube_traj, ++seg);
-					// handle overlap from previous segment
-					const unsigned global_seg = traj_offset + seg;
-					if(ranges[global_seg - 1].n > 0) {
-						const float prev_rad = glyph_attribs::calc_radius(attribs.back(), general_settings.length_scale).rad;
-						if(alen[global_seg][0] < attribs.back().s + prev_rad) {
-							ranges[global_seg].i0 = (int)attribs.size() - 1;
-							ranges[global_seg].n = 1;
-						}
-					}
-				}
-				const unsigned global_seg = traj_offset + seg;
-
-				// commit the attribute if it falls into the current segment
-				if(a.t >= segtime.t0 && a.t < segtime.t1) {
-					// compute segment-relative t and arclength
-					const float t_seg = (a.t - segtime.t0) / (segtime.t1 - segtime.t0),
-						s = arclen::eval(alen[global_seg], t_seg);
-
-					// normalize attribute value
-					const float v = (a.val - vmin) / (vmax - vmin);
-
-					// setup potential glyph
-					glyph_attribs new_glyph;
-					new_glyph.s = s;
-					new_glyph.radius0 = v;
-					new_glyph.radius1 = new_glyph.radius0 / 3;
-					new_glyph.angle0 = 0.0f;
-					new_glyph.angle1 = 0.0f;
-
-					// infer potential glyph extents
-					const auto new_glyph_ext = glyph_attribs::calc_radius(new_glyph, general_settings.length_scale);
-					const float min_dist = attribs.size() > 0 ? std::max(
-						new_glyph_ext.diam,
-						glyph_attribs::calc_radius(attribs.back(), general_settings.length_scale).diam
-					) : new_glyph_ext.diam;
-
-					// only include samples that are far enough away from last sample to not cause (too much) overlap
-					if(attribs.size() == attribs_traj_offset || s >= attribs.back().s + min_dist) {
-						auto &cur_range = ranges[global_seg];
-						if(cur_range.n < 1) {
-							// first free attribute that falls into this segment
-							cur_range.i0 = (unsigned)attribs.size();
-							cur_range.n = 1;
-							// handle overlap to previous segment
-							if(seg > 0 && alen[global_seg - 1][15] > s - new_glyph_ext.rad)
-								ranges[global_seg - 1].n++;
-						} else
-							// one more free attribute that falls into this segment
-							cur_range.n++;
-						attribs.emplace_back(std::move(new_glyph));
-					}
-				} else if(seg > (unsigned)tube_traj.n - 2)
-					// we went beyond the last segment
-					break;
-			}
-
-			// update auxiliary indices
-			traj_offset += num_segments;
-		}
-	}
-	// - sanity check
-	{ const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size()) / 2;
-	assert(num_ranges == num_segs); }
-	// - upload
-	// ...attrib nodes
-	if(attribs.empty())
-		attribs.emplace_back(empty_glyph);
-	render.attribs_sbos[0].destruct(ctx);
-	if(!render.attribs_sbos[0].create(ctx, attribs))
-		std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
-	// ...index ranges
-	render.aindex_sbos[0].destruct(ctx);
-	if(!render.aindex_sbos[0].create(ctx, ranges))
-		std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
-
-	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
-
-	// ToDo: REMOVE
-	/*// test nearest attribute binary search
-	for (unsigned seg = 0; seg<ranges.size(); seg++) for (float t = 0; t <= 1; t += 1.f / 16)
-	{
-		if (ranges[seg].n < 1)
-			continue;
-		const float s = arclen::eval(render.arclen_data[seg], t);
-		const auto &rng_orig = ranges[seg];
-			  auto  rng = rng_orig;
-		while (rng.n > 1)
-		{
-			const int mid_n = rng.n/2, mid = rng.i0+mid_n;
-			const auto &attrib_mid = attribs[mid];
-			if (attrib_mid.s > s)
-				// left node
-				rng.n = mid_n;
-			else
-			{
-				// right node
-				rng.i0 = rng.i0 + mid_n;
-				rng.n  = rng.n  - mid_n;
-			}
-		}
-		const int gidn = rng.i0 < rng_orig.i0+rng_orig.n-1 ? rng.i0+1 : rng.i0;
-		const float distc = std::abs(attribs[rng.i0].s-s), distn = std::abs(attribs[gidn].s-s);
-		const bool c_is_closer = distc <= distn;
-		//const float dist = c_is_closer ? distc : distn;
-		const int gid = c_is_closer ? rng.i0 : gidn;
-		assert(gid >= rng_orig.i0 && gid < rng_orig.i0+rng_orig.n); // sanity check
-		//std::cout << "seg"<<seg<<", t="<<t<<" -> attrib "<<gid<<" (dist="<<dist<<")" << std::endl;
-	}*/
 
 	// done!
 	return true;
@@ -1550,10 +1342,8 @@ bool tubes::init (cgv::render::context &ctx)
 	
 	
 
-
-
-	// load diverging color maps from the resource directory
-	std::string color_maps_path = app_path + "res/color_maps/diverging";
+	// load sequential color maps from the resource directory
+	std::string color_maps_path = app_path + "res/color_maps/sequential";
 	if(std::filesystem::exists(color_maps_path)) {
 		for(const auto &entry : std::filesystem::directory_iterator(color_maps_path)) {
 			std::filesystem::path entry_path = entry.path();
@@ -1569,10 +1359,34 @@ bool tubes::init (cgv::render::context &ctx)
 				}
 			}
 		}
-		color_map_mgr.update_texture(ctx);
-		if(cm_viewer_ptr)
-			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+		//color_map_mgr.update_texture(ctx);
+		//if(cm_viewer_ptr)
+		//	cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 	}
+
+	// load diverging color maps from the resource directory
+	color_maps_path = app_path + "res/color_maps/diverging";
+	if(std::filesystem::exists(color_maps_path)) {
+		for(const auto &entry : std::filesystem::directory_iterator(color_maps_path)) {
+			std::filesystem::path entry_path = entry.path();
+			// only take xml files
+			if(entry_path.extension() == ".xml") {
+				std::vector<std::string> names;
+				std::vector<cgv::glutil::color_map> color_maps;
+				if(cgv::glutil::color_map_reader::read_from_xml(entry_path.string(), names, color_maps)) {
+					if(names.size() == color_maps.size()) {
+						for(size_t i = 0; i < names.size(); ++i)
+							color_map_mgr.add_color_map(names[i], color_maps[i], false);
+					}
+				}
+			}
+		}
+	}
+
+	color_map_mgr.update_texture(ctx);
+	if(cm_viewer_ptr)
+		cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+
 
 	update_glyph_layer_manager();
 
@@ -1674,8 +1488,8 @@ void tubes::init_frame (cgv::render::context &ctx)
 			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 	}
 
-	srd.clear();
-	srd.add(vec3(0.0f), 1.0f, rgb(1, 0, 0));
+	//srd.clear();
+	//srd.add(vec3(0.0f), 1.0f, rgb(1, 0, 0));
 }
 
 void tubes::draw (cgv::render::context &ctx)
@@ -1688,6 +1502,8 @@ void tubes::draw (cgv::render::context &ctx)
 	if(show_volume) {
 		draw_density_volume(ctx);
 	} else {
+		//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());
+
 		if(traj_mgr.has_data())
 			draw_trajectories(ctx);
 	}
@@ -1884,9 +1700,11 @@ void tubes::update_grid_ratios(void) {
 		double mean_rad = sum / double(num);
 		// we base everything on the mean of all trajectory median radii
 		grids[0].scaling.x() = general_settings.length_scale = 1.f / float(mean_rad);
-		grids[0].scaling.y() = grids[0].scaling.x()/4;
+		//grids[0].scaling.y() = grids[0].scaling.x()/4;
+		grids[0].scaling.y() = 1.0f;
 		grids[1].scaling.x() = grids[0].scaling.x()*4;
-		grids[1].scaling.y() = grids[0].scaling.x();
+		//grids[1].scaling.y() = grids[0].scaling.x();
+		grids[1].scaling.y() = 4.0f;
 		for (unsigned i=0; i<2; i++)
 		{
 			update_member(&(grids[i].scaling[0]));
@@ -2006,6 +1824,7 @@ void tubes::calculate_bounding_box(void) {
 	}
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+	std::cout << "Bounding box min: " << bbox.get_min_pnt() << "| max: " << bbox.get_max_pnt() << "| extent: " << bbox.get_extent() << std::endl;
 }
 
 void tubes::create_density_volume(context& ctx, unsigned resolution) {

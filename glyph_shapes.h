@@ -359,7 +359,7 @@ public:
 		float s = param_values[0];
 		float v = param_values[1];
 		float d_circle = 2.0f * 0.25f * s; // circle diameter
-		// v directly corresponds to the width of the plus or minus
+		// s directly corresponds to the width of the plus or minus shape
 		return v < 0.0 ?
 			cgv::math::lerp(s, d_circle, v + 1.0f) :
 			cgv::math::lerp(d_circle, s, v);
