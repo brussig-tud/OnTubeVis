@@ -25,6 +25,7 @@ enum GlyphAttributeType {
 	GAT_DOUBLE_ANGLE = 4, // value in [0,360] giving angle in degree (divided by 2 for the actual mapping)
 	GAT_ORIENTATION = 5, // value in [0,360] giving angle in degree used specifically to orient the glyph
 	GAT_COLOR = 6, // rgb color
+	GAT_OUTLINE = 7,
 };
 
 enum GlyphAttributeModifier {
@@ -120,6 +121,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
 			{ "color", GAT_COLOR },
 			{ "radius", GAT_SIZE },
 		};
@@ -128,7 +130,7 @@ public:
 
 	virtual float get_size(const std::vector<float>& param_values) const {
 		// size is two times the radius, a.k.a. the diameter of the circle
-		return 2.0f * param_values[0];
+		return 2.0f * param_values[1];
 	}
 };
 
@@ -148,6 +150,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
 			{ "color", GAT_COLOR },
 			{ "length", GAT_SIZE },
 			{ "height", GAT_SIZE }
@@ -157,7 +160,7 @@ public:
 
 	virtual float get_size(const std::vector<float>& param_values) const {
 		// size is just the length/width
-		return param_values[0];
+		return param_values[1];
 	}
 };
 
@@ -177,6 +180,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
 			{ "color", GAT_COLOR },
 			{ "radius", GAT_SIZE },
 			{ "aperture", GAT_DOUBLE_ANGLE },
@@ -188,7 +192,7 @@ public:
 	virtual float get_size(const std::vector<float>& param_values) const {
 		// use just the radius as it gives a more uniform (or visually pleasing) spacing
 		// for complete correctness, aperture and orientation would need to be considered as well
-		return 2.0f * param_values[0];
+		return 2.0f * param_values[1];
 	}
 };
 
@@ -208,6 +212,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
 			{ "color", GAT_COLOR },
 			{ "radius", GAT_SIZE },
 			{ "thickness", GAT_SIZE },
@@ -220,7 +225,7 @@ public:
 	virtual float get_size(const std::vector<float>& param_values) const {
 		// use just the radius and thickness as it gives a more uniform (or visually pleasing) spacing
 		// for complete correctness, aperture and orientation would need to be considered as well
-		return 2.0f * (param_values[0] + param_values[1]);
+		return 2.0f * (param_values[1] + param_values[2]);
 	}
 };
 
@@ -255,6 +260,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
 			{ "color", GAT_COLOR },
 			{ "base_width", GAT_SIZE },
 			{ "height", GAT_SIZE },
@@ -301,7 +307,7 @@ public:
 		// TODO: use two sizes for gyphs?
 
 		// only use height for now
-		return param_values[1];// 2.0f * std::max(el, er);
+		return param_values[2];// 2.0f * std::max(el, er);
 	}
 };
 
@@ -321,6 +327,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
 			{ "color", GAT_COLOR },
 			{ "base_radius", GAT_SIZE },
 			{ "tip_radius", GAT_SIZE },
@@ -347,6 +354,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
 			{ "size", GAT_SIZE, GAM_GLOBAL },
 			{ "color", GAT_COLOR },
 			{ "value", GAT_SIGNED_UNIT },
@@ -356,8 +364,8 @@ public:
 
 	virtual float get_size(const std::vector<float>& param_values) const {
 		// size is the total width of the glyph but depends on the current shape, which depends on the mapped value
-		float s = param_values[0];
-		float v = param_values[1];
+		float s = param_values[1];
+		float v = param_values[2];
 		float d_circle = 2.0f * 0.25f * s; // circle diameter
 		// s directly corresponds to the width of the plus or minus shape
 		return v < 0.0 ?
@@ -387,16 +395,16 @@ public:
 			{ "color_setting", GAT_UNIT, GAM_GLOBAL },
 			{ "blend_factor", GAT_UNIT, GAM_GLOBAL },
 			{ "inner_transparency", GAT_UNIT, GAM_GLOBAL },
-			{ "axis_0", GAT_SIZE, GAM_NON_CONST },
 			{ "color_0", GAT_COLOR, GAM_GLOBAL },
-			{ "axis_1", GAT_SIZE, GAM_NON_CONST },
+			{ "axis_0", GAT_SIZE, GAM_NON_CONST },
 			{ "color_1", GAT_COLOR, GAM_GLOBAL },
-			{ "axis_2", GAT_SIZE, GAM_NON_CONST },
+			{ "axis_1", GAT_SIZE, GAM_NON_CONST },
 			{ "color_2", GAT_COLOR, GAM_GLOBAL },
-			{ "axis_3", GAT_SIZE, GAM_NON_CONST },
+			{ "axis_2", GAT_SIZE, GAM_NON_CONST },
 			{ "color_3", GAT_COLOR, GAM_GLOBAL },
-			{ "axis_4", GAT_SIZE, GAM_NON_CONST },
-			{ "color_4", GAT_COLOR, GAM_GLOBAL }
+			{ "axis_3", GAT_SIZE, GAM_NON_CONST },
+			{ "color_4", GAT_COLOR, GAM_GLOBAL },
+			{ "axis_4", GAT_SIZE, GAM_NON_CONST }
 		};
 		return attributes;
 	}
@@ -427,14 +435,14 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "value_0", GAT_SIZE, GAM_NON_CONST },
 			{ "color_0", GAT_COLOR, GAM_GLOBAL },
-			{ "value_1", GAT_SIZE, GAM_NON_CONST },
+			{ "value_0", GAT_SIZE, GAM_NON_CONST },
 			{ "color_1", GAT_COLOR, GAM_GLOBAL },
-			{ "value_2", GAT_SIZE, GAM_NON_CONST },
+			{ "value_1", GAT_SIZE, GAM_NON_CONST },
 			{ "color_2", GAT_COLOR, GAM_GLOBAL },
-			{ "value_3", GAT_SIZE, GAM_NON_CONST },
-			{ "color_3", GAT_COLOR, GAM_GLOBAL }
+			{ "value_2", GAT_SIZE, GAM_NON_CONST },
+			{ "color_3", GAT_COLOR, GAM_GLOBAL },
+			{ "value_3", GAT_SIZE, GAM_NON_CONST }
 		};
 		return attributes;
 	}

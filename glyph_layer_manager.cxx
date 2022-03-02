@@ -68,6 +68,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 			std::string func_name_str = "sd_" + shape_ptr->name();
 			std::string glyph_coord_str = "glyphuv";
+			std::string glyph_outline_str = "0.0";
 			
 			// the parameters used in the signed distance and splat function calls
 			std::vector<std::string> float_parameter_strs;
@@ -146,6 +147,8 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					glyph_coord_str = "rotate(glyphuv, " + parameter_str + ")";
 				} else if(type == GAT_COLOR) {
 					color_parameter_strs.push_back(parameter_str);
+				} else if(type == GAT_OUTLINE) {
+					glyph_outline_str = parameter_str;
 				} else {
 					float_parameter_strs.push_back(parameter_str);
 				}
@@ -158,7 +161,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 			if(splat_func == "") {
 				// This is a generic glyph.
 				// It directly takes all the float parameters in the signed distance function call
-				// and only ever uses one color, which is give to the splat function.
+				// and only ever uses one color, which is given to the splat function.
 				std::string glyph_func = func_name_str + "(" + glyph_coord_str;
 				if(float_parameter_strs.size() > 0)
 					glyph_func += ", ";
@@ -169,7 +172,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				if(color_parameter_strs.size() > 0)
 					color_str = color_parameter_strs[0];
 
-				splat_func = "splat_generic_glyph(glyph.debug_info, " + glyph_func + ", " + color_str + ")";
+				splat_func = "splat_generic_glyph(glyph.debug_info, " + glyph_func + ", " + color_str + + ", " + glyph_outline_str + ")";
 			} else {
 				switch(shape_ptr->type()) {
 				case GT_COLOR:

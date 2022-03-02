@@ -171,6 +171,9 @@ void glyph_attribute_mapping::create_glyph_shape() {
 		case GAT_ORIENTATION:
 			ranges = vec4(0.0f, 1.0f, 0.0f, 360.0f);
 			break;
+		case GAT_OUTLINE:
+			ranges = vec4(0.0f, 1.0f, 0.0f, 0.0f);
+			break;
 		default:
 			ranges = vec4(0.0f, 1.0f, 0.0f, 1.0f);
 			break;
@@ -227,6 +230,7 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 	case GAT_ANGLE:
 	case GAT_DOUBLE_ANGLE:
 	case GAT_ORIENTATION: upper_limit = "360"; break;
+	case GAT_OUTLINE: upper_limit = "0.5"; break;
 	default: break;
 	}
 

@@ -808,7 +808,7 @@ float digit(vec2 uv, uint num) {
 	return seg;
 }
 
-vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color) {
+vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color, in float outline) {
 	
 	// debug only
 	// show otherwise not drawn glyphs
@@ -820,9 +820,16 @@ vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color)
 
 	// >> non-debuig implementation
 	// pre-filter the SDF for AA
-	const float antialias_width = general_settings.antialias_radius*fwidth(dist);
-	float alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist);
-	return vec4(glyph_color, alpha_fac * alpha);
+	vec2 dist2 = vec2(dist, dist - outline);
+	const vec2 antialias_width = general_settings.antialias_radius*fwidth(dist2);
+	vec2 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist2);
+	if(outline < 0.01) {
+		return vec4(glyph_color, alpha_fac * alpha.x);
+	} else {
+		vec4 color = vec4(vec3(0.0), alpha_fac * alpha.y);
+		return mix(color, vec4(glyph_color, 1.0), alpha_fac * alpha.x);
+	}
+
 	//return mix(glyph_color, color, smoothstep(-antialias_width, antialias_width, dist));
 	// <<
 }

@@ -35,20 +35,17 @@
       <Property name="color" attrib_name="velocity" color_map_name="bamako" in_range="0.001093, 12.578998" out_range="0.000000, 1.000000" />
     </Layer>
     <Layer glyph="violin" >
-      <Property name="value_0" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
       <Property name="color_0" color="1.000000, 1.000000, 1.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="value_1" attrib_name="battery_current" in_range="-0.151084, 40.792599" out_range="0.000000, 0.500000" />
+      <Property name="value_0" attrib_name="battery_current" in_range="-0.151084, 40.792599" out_range="0.000000, 0.500000" />
       <Property name="color_1" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="value_2" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="value_1" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
       <Property name="color_2" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="value_2" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
       <Property name="color_3" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
     </Layer>
     <Layer glyph="circle" >
-      <Property name="color" attrib_name="id" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 4.000000" out_range="0.000000, 1.000000" />
-      <Property name="radius" in_range="0.000000, 1.000000" out_range="0.000000, 0.280000" />
-    </Layer>
-    <Layer glyph="circle" >
+      <Property name="outline" in_range="0.000000, 1.000000" out_range="0.000000, 0.050000" />
       <Property name="color" attrib_name="id" color_map_name="hawaii" in_range="0.000000, 4.000000" out_range="0.000000, 1.000000" />
       <Property name="radius" in_range="0.000000, 359.000000" out_range="0.000000, 0.240000" />
     </Layer>
