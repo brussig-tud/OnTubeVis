@@ -1032,13 +1032,14 @@ cgv::base::object_registration_2<
 
 // Register handler for package delivery drone trajectory .csv files
 static const csv_descriptor csv_pkg_drone_streamline_desc("Delivery Drone Trajectory", ",", {
-	{ "timestamp", {"time", false, 0}, CSV::TIMESTAMP },
-	{ "position",  {{"position_x", false, 5}, {"position_y", false, 6}, {"position_z", false, 7}}, CSV::POS },
-	{ "velocity",  {{"velocity_x", false, 12}, {"velocity_y", false, 13}, {"velocity_z", false, 14}} },
-	{ "linear_acceleration",  {{"linear_acceleration_x", false, 18}, {"linear_acceleration_y", false, 19}, {"linear_acceleration_z", false, 20}} },
-	{ "battery_voltage",  {"battery_voltage", false, 3} },
-	{ "battery_current",  {"battery_current", false, 4} },
-	{ "wind_speed",  {"wind_speed", false, 1} }
+	{ "timestamp", {"time", false, 1}, CSV::TIMESTAMP },
+	{ "id",        {"id", false, 0}, CSV::TRAJ_ID },
+	{ "position",  {{"position_x", false, 6}, {"position_y", false, 7}, {"position_z", false, 8}}, CSV::POS },
+	{ "velocity",  {{"velocity_x", false, 13}, {"velocity_y", false, 14}, {"velocity_z", false, 15}} },
+	{ "linear_acceleration",  {{"linear_acceleration_x", false, 19}, {"linear_acceleration_y", false, 20}, {"linear_acceleration_z", false, 21}} },
+	//{ "battery_voltage",  {"battery_voltage", false, 4} },
+	//{ "battery_current",  {"battery_current", false, 5} },
+	//{ "wind_speed",  {"wind_speed", false, 2} }
 	}
 );
 
@@ -1051,7 +1052,7 @@ cgv::base::object_registration_2<
 			// increase radius a bit to get thicker tubes with more visible area
 			"position", attrib_transform<float>::vec3_to_vec3(
 				[](csv_handler<float>::Vec3 &out, const csv_handler<float>::Vec3 &in) {
-					float lat = cgv::math::deg2rad(in.y()); // latitude in degrees
+					/*float lat = cgv::math::deg2rad(in.y()); // latitude in degrees
 					float lon = cgv::math::deg2rad(in.x()); // longitude in degrees
 					float alt = in.z(); // altitude in meters above sea level
 
@@ -1074,7 +1075,8 @@ cgv::base::object_registration_2<
 					p.z() = cos(M_PI_2 - lat);
 
 					p = (earth_radius + alt_scale*alt) * p;
-					out = p - o;
+					out = p - o;*/
+					out = in;
 				}
 			)
 		 }},
@@ -1082,11 +1084,11 @@ cgv::base::object_registration_2<
 			// increase radius a bit to get thicker tubes with more visible area
 			"radius", attrib_transform<float>::real_to_real(
 				[](float &out, const float &in) {
-					out = 10.0f*in;
+					out = 4.0f*in;
 				}
 			)
 		}}
 		}
 		),
 	"csv handler (float) - " + csv_pkg_drone_streamline_desc.name()
-					);
+);
