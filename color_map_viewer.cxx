@@ -32,6 +32,9 @@ color_map_viewer::color_map_viewer() {
 
 void color_map_viewer::clear(cgv::render::context& ctx) {
 
+	msdf_font.destruct(ctx);
+	font_renderer.destruct(ctx);
+
 	canvas.destruct(ctx);
 	overlay_canvas.destruct(ctx);
 	fbc.clear(ctx);
@@ -73,6 +76,11 @@ bool color_map_viewer::init(cgv::render::context& ctx) {
 	success &= canvas.init(ctx);
 	success &= overlay_canvas.init(ctx);
 
+	success &= font_renderer.init(ctx);
+	success &= msdf_font.init(ctx);
+	texts.set_msdf_font(&msdf_font);
+	texts.set_font_size(font_size);
+
 	if(success)
 		init_styles(ctx);
 
@@ -84,6 +92,8 @@ void color_map_viewer::init_frame(cgv::render::context& ctx) {
 	if(ensure_overlay_layout(ctx)) {
 		ivec2 container_size = get_overlay_size();
 		layout.update(container_size);
+
+		update_texts();
 
 		fbc.set_size(container_size);
 		fbc.ensure(ctx);
@@ -97,6 +107,9 @@ void color_map_viewer::init_frame(cgv::render::context& ctx) {
 		last_theme_idx = theme_idx;
 		init_styles(ctx);
 	}
+
+	if(texts_out_of_date)
+		update_texts();
 }
 
 void color_map_viewer::draw(cgv::render::context& ctx) {
@@ -133,6 +146,14 @@ void color_map_viewer::draw(cgv::render::context& ctx) {
 	tex->disable(ctx);
 	canvas.disable_current_shader(ctx);
 	
+	// draw color scale names
+	auto& font_prog = font_renderer.ref_prog();
+	font_prog.enable(ctx);
+	text_style.apply(ctx, font_prog);
+	canvas.set_view(ctx, font_prog);
+	font_prog.disable(ctx);
+	font_renderer.render(ctx, get_overlay_size(), texts);
+
 	glDisable(GL_BLEND);
 
 	fbc.disable(ctx);
@@ -151,18 +172,23 @@ void color_map_viewer::draw(cgv::render::context& ctx) {
 void color_map_viewer::create_gui() {
 
 	create_overlay_gui();
-
-	//if(begin_tree_node("Settings", layout, false)) {
-	//	align("\a");
-		add_member_control(this, "Band Height", layout.band_height, "value_slider", "min=5;max=50;step=5;ticks=true");
-	//	align("\b");
-	//	end_tree_node(layout);
-	//}
+	add_member_control(this, "Band Height", layout.band_height, "value_slider", "min=5;max=50;step=5;ticks=true");
 }
 
 void color_map_viewer::create_gui(cgv::gui::provider& p) {
 
 	p.add_member_control(this, "Show", show, "check");
+}
+
+void color_map_viewer::set_color_map_names(const std::vector<std::string>& names) {
+
+	this->names = names;
+	texts_out_of_date = true;
+}
+
+void color_map_viewer::set_color_map_texture(texture* tex) {
+	this->tex = tex;
+	on_set(&layout.total_height);
 }
 
 void color_map_viewer::init_styles(context& ctx) {
@@ -191,6 +217,13 @@ void color_map_viewer::init_styles(context& ctx) {
 	color_map_style = border_style;
 	color_map_style.use_texture = true;
 
+	// configure text style
+	text_style.fill_color = rgba(rgb(1.0f), 0.666f);
+	text_style.border_color = rgba(rgb(0.0f), 0.666f);
+	text_style.border_radius = 0.25f;
+	text_style.border_width = 0.75f;
+	text_style.use_blending = true;
+
 	// configure style for final blitting of overlay into main frame buffer
 	cgv::glutil::shape2d_style final_style;
 	final_style.fill_color = rgba(1.0f);
@@ -201,4 +234,19 @@ void color_map_viewer::init_styles(context& ctx) {
 	auto& final_prog = overlay_canvas.enable_shader(ctx, "rectangle");
 	final_style.apply(ctx, final_prog);
 	overlay_canvas.disable_current_shader(ctx);
+}
+
+void color_map_viewer::update_texts() {
+
+	texts.clear();
+	int step = layout.color_map_rect.size().y() / names.size();
+	ivec2 base = layout.color_map_rect.pos() + ivec2(layout.color_map_rect.size().x() / 2, step / 2 - static_cast<int>(0.333f*font_size));
+	int i = 0;
+	for(const auto& name : names) {
+		ivec2 p = base;
+		p.y() += (names.size() - 1 - i)*step;
+		texts.add_text(name, p, TA_BOTTOM);
+		++i;
+	}
+	texts_out_of_date = false;
 }

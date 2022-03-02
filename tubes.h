@@ -17,12 +17,12 @@
 // CGV framework graphics utility
 #include <cgv_glutil/application_plugin.h>
 #include <cgv_glutil/box_render_data.h>
+#include <cgv_glutil/color_map_editor.h>
 #include <cgv_glutil/frame_buffer_container.h>
 #include <cgv_glutil/navigator.h>
 #include <cgv_glutil/radix_sort_4way.h>
 #include <cgv_glutil/shader_library.h>
 #include <cgv_glutil/sphere_render_data.h>
-#include <cgv_glutil/color_map_editor.h>
 #include <cgv_glutil/transfer_function_editor.h>
 
 // local includes

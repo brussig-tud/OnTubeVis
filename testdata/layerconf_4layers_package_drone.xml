@@ -49,5 +49,12 @@
       <Property name="color" attrib_name="id" color_map_name="hawaii" in_range="0.000000, 4.000000" out_range="0.000000, 1.000000" />
       <Property name="radius" in_range="0.000000, 359.000000" out_range="0.000000, 0.240000" />
     </Layer>
+    <Layer glyph="triangle_isosceles" >
+      <Property name="outline" in_range="0.000000, 1.000000" out_range="0.000000, 0.000000" />
+      <Property name="color" attrib_name="velocity" color="0.000000, 0.000000, 0.000000" in_range="0.001093, 12.578998" out_range="0.000000, 1.000000" />
+      <Property name="base_width" in_range="0.000000, 1.000000" out_range="0.000000, 0.220000" />
+      <Property name="height" in_range="0.000000, 1.000000" out_range="0.000000, 0.200000" />
+      <Property name="orientation" in_range="0.000000, 1.000000" out_range="0.000000, 360.000000" />
+    </Layer>
   </Layers>
 </GlyphConfiguration>

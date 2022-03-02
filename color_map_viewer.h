@@ -9,6 +9,7 @@
 #include <cgv_glutil/color_map.h>
 #include <cgv_glutil/2d/canvas.h>
 #include <cgv_glutil/2d/shape2d_styles.h>
+#include <cgv_glutil/msdf_gl_font_renderer.h>
 
 class color_map_viewer : public cgv::glutil::overlay {
 protected:
@@ -32,9 +33,29 @@ protected:
 		}
 	} layout;
 	
+	bool texts_out_of_date = false;
+	std::vector<std::string> names;
 	texture* tex;
 
+
+
+
+	// text appearance
+	float font_size = 14.0f;
+	cgv::render::TextAlignment text_align_h, text_align_v;
+
+	cgv::glutil::shape2d_style text_style;
+	cgv::glutil::msdf_font msdf_font;
+	cgv::glutil::msdf_text_geometry texts;
+	cgv::glutil::msdf_gl_font_renderer font_renderer;
+
+
+
+
+
+
 	void init_styles(context& ctx);
+	void update_texts();
 
 public:
 	color_map_viewer();
@@ -55,8 +76,7 @@ public:
 	void create_gui();
 	void create_gui(cgv::gui::provider& p);
 
-	void set_color_map_texture(texture* tex) {
-		this->tex = tex;
-		on_set(&layout.total_height);
-	}
+	void set_color_map_names(const std::vector<std::string>& names);
+
+	void set_color_map_texture(texture* tex);
 };

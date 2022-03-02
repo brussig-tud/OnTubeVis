@@ -26,9 +26,7 @@
 
 
 // TODO: reset glyph layer configuration when loading a new data set
-// TODO: add color map names to color map viewer overlay
 // TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
-// TODO: add option to change background color
 // TODO: star and violin glyphs: the first mapped entry will always get mapped to the first overall color
 	// Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
 
@@ -292,6 +290,11 @@ void tubes::on_set(void *member_ptr) {
 			update_attribute_bindings();
 			update_grid_ratios();
 
+			fh.file_name = "";
+			fh.has_unsaved_changes = false;
+			update_member(&fh.file_name);
+			on_set(&fh.has_unsaved_changes);
+			
 			// TODO: glyphs are not fully cleared when loading a new dataset
 			update_glyph_layer_manager();
 
@@ -370,8 +373,10 @@ void tubes::on_set(void *member_ptr) {
 
 			context& ctx = *get_context();
 			color_map_mgr.update_texture(ctx);
-			if(cm_viewer_ptr)
+			if(cm_viewer_ptr) {
+				cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
 				cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+			}
 
 			post_recreate_gui();
 		}
@@ -864,8 +869,10 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 
 	// update the dependant members
 	color_map_mgr.update_texture(*get_context());
-	if(cm_viewer_ptr)
+	if(cm_viewer_ptr) {
+		cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
 		cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+	}
 
 	glyph_layer_mgr.set_color_map_names(color_map_names);
 	glyph_layer_mgr.notify_configuration_change();
@@ -1398,20 +1405,15 @@ bool tubes::init (cgv::render::context &ctx)
 	}
 
 	color_map_mgr.update_texture(ctx);
-	if(cm_viewer_ptr)
+	if(cm_viewer_ptr) {
+		cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
 		cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
-
+	}
 
 	update_glyph_layer_manager();
 
 	compile_glyph_attribs();
 	ah_mgr.set_dataset(traj_mgr.dataset(0));
-
-
-
-
-
-
 
 	// done
 	return success;
@@ -1516,14 +1518,11 @@ void tubes::draw (cgv::render::context &ctx)
 	if(show_volume) {
 		draw_density_volume(ctx);
 	} else {
-		//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());
-
 		if(traj_mgr.has_data())
 			draw_trajectories(ctx);
-	}
 
-	//auto& sr = ref_sphere_renderer(ctx);
-	//srd.render(ctx, sr, sphere_render_style());
+		//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());
+	}
 
 	// display drag-n-drop information, if a dnd operation is in progress
 	if(!dnd.text.empty())
