@@ -25,9 +25,13 @@
 
 
 
+// TODO: reset glyph layer configuration when loading a new data set
+// TODO: add color map names to color map viewer overlay
 // TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
-// TODO: seting color of file input has no effect (may be due to recent gui changes)
 // TODO: add option to change background color
+// TODO: check calculation of arclength for package drone file 12
+// TODO: star and violin glyphs: the first mapped entry will always get mapped to the first overall color
+	// Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
 
 tubes::tubes() : application_plugin("Tubes")
 {
@@ -203,12 +207,23 @@ bool tubes::handle_event(cgv::gui::event &e) {
 		case cgv::gui::MA_RELEASE:
 		{
 			// process the files that where dropped onto the window
-			dataset.files.clear();
-			for(const std::string &filename : dnd.filenames)
-				dataset.files.emplace(filename);
+			bool try_load_dataset = true;
+			if(dnd.filenames.size() == 1) {
+				std::string extension = cgv::utils::file::get_extension(dnd.filenames[0]);
+				if(cgv::utils::to_upper(extension) == "XML") {
+					fh.file_name = dnd.filenames[0];
+					on_set(&fh.file_name);
+					try_load_dataset = false;
+				}
+			}
+			if(try_load_dataset) {
+				dataset.files.clear();
+				for(const std::string &filename : dnd.filenames)
+					dataset.files.emplace(filename);
+				on_set(&dataset);
+			}
 			dnd.filenames.clear();
 			dnd.text.clear();
-			on_set(&dataset);
 			return true;
 		}
 
@@ -1877,7 +1892,19 @@ void tubes::draw_dnd(context& ctx) {
 	// compile the text we're going to draw and gather its approximate dimensions at the same time
 	float w = 0, s = ctx.get_current_font_size();
 	std::stringstream dnd_drawtext;
-	dnd_drawtext << "Load dataset:" << std::endl;
+	dnd_drawtext << "Load ";
+
+	if(dnd.filenames.size() == 1) {
+		std::string extension = cgv::utils::file::get_extension(dnd.filenames[0]);
+		if(cgv::utils::to_upper(extension) == "XML")
+			dnd_drawtext << "glyph layer configuration";
+		else
+			dnd_drawtext << "dataset";
+	} else {
+		dnd_drawtext << "dataset";
+	}
+	
+	dnd_drawtext << ":" << std::endl;
 	{
 		std::string tmp;
 		for(const std::string &filename : dnd.filenames) {
