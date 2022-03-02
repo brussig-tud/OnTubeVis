@@ -29,7 +29,6 @@
 // TODO: add color map names to color map viewer overlay
 // TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
 // TODO: add option to change background color
-// TODO: check calculation of arclength for package drone file 12
 // TODO: star and violin glyphs: the first mapped entry will always get mapped to the first overall color
 	// Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
 

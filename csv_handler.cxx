@@ -1037,9 +1037,11 @@ static const csv_descriptor csv_pkg_drone_streamline_desc("Delivery Drone Trajec
 	{ "position",  {{"position_x", false, 6}, {"position_y", false, 7}, {"position_z", false, 8}}, CSV::POS },
 	{ "velocity",  {{"velocity_x", false, 13}, {"velocity_y", false, 14}, {"velocity_z", false, 15}} },
 	{ "linear_acceleration",  {{"linear_acceleration_x", false, 19}, {"linear_acceleration_y", false, 20}, {"linear_acceleration_z", false, 21}} },
-	//{ "battery_voltage",  {"battery_voltage", false, 4} },
-	//{ "battery_current",  {"battery_current", false, 5} },
-	//{ "wind_speed",  {"wind_speed", false, 2} }
+	// for reading raw files with GPS coordinates
+	/*{ "timestamp", {"time", false, 0}, CSV::TIMESTAMP },
+	{ "position",  {{"position_x", false, 5}, {"position_y", false, 6}, {"position_z", false, 7}}, CSV::POS },
+	{ "velocity",  {{"velocity_x", false, 12}, {"velocity_y", false, 13}, {"velocity_z", false, 14}} },
+	{ "linear_acceleration",  {{"linear_acceleration_x", false, 18}, {"linear_acceleration_y", false, 19}, {"linear_acceleration_z", false, 20}} },*/
 	}
 );
 

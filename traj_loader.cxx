@@ -1541,11 +1541,7 @@ struct traj_manager<flt_type>::Impl
 						Vec3 diff0 = P[id_mid] - P[id_1st], diff1 = P[id_2nd] - P[id_mid];
 						real len0 = diff0.length(), len1 = diff1.length(),
 						     len = std::max(R[id_mid]/real(2), std::min(len0, len1));
-						// check for zero-length tangent
-						if(abs(len0 + len1) < std::numeric_limits<real>::epsilon())
-							tangent = Vec3(0.0f);
-						else
-							tangent = cgv::math::normalize(diff0 + diff1) * len;
+						tangent = cgv::math::safe_normalize(diff0 + diff1) * len;
 						o[id_mid] = Vec4(tangent, 0);
 					}
 
