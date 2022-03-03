@@ -560,7 +560,7 @@ vec4 splat_color##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc
 		color = mix(c0, c1, t); \
 	} else { \
 		v0 = mix(v0, v1, t); \
-		color = map_to_color(v0, color_map_idx); \
+		color = color_map_idx < 0 ? vec3(0.0) : map_to_color(v0, color_map_idx); \
 	} \
 	return vec4(color, 1.0); \
 }

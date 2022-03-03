@@ -139,7 +139,7 @@ bool color_map_manager::create_or_replace_texture(cgv::render::context& ctx, uns
 		return tex.replace(ctx, 0, 0, dv);
 	} else {
 		tex.destruct(ctx);
-		tex = cgv::render::texture("uint8[R,G,B]", cgv::render::TF_LINEAR, cgv::render::TF_LINEAR, cgv::render::TW_CLAMP_TO_BORDER, cgv::render::TW_CLAMP_TO_BORDER);
+		tex = cgv::render::texture("uint8[R,G,B]", cgv::render::TF_LINEAR, cgv::render::TF_LINEAR, cgv::render::TW_CLAMP_TO_EDGE, cgv::render::TW_CLAMP_TO_EDGE);
 		tex.set_border_color(0.0f, 0.0f, 0.0f, 1.0f);
 		return tex.create(ctx, dv, 0);
 	}

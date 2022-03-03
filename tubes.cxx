@@ -25,7 +25,6 @@
 
 
 
-// TODO: check color interpolation (use propeller, map velocity to imola color map and reduce upper window limit; bright yellow areas suddenly get darker)
 // TODO: reset glyph layer configuration when loading a new data set
 // TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
 // TODO: star and violin glyphs: the first mapped entry will always get mapped to the first overall color
