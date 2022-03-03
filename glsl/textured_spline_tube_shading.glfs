@@ -711,7 +711,7 @@ DEF_SPLAT_COLOR(3)
 #endif
 
 #define DEF_SPLAT_VIOLIN(I, N) \
-vec4 splat_violin##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc##I gd_next, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx) { \
+vec4 splat_violin##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc##I gd_next, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline) { \
 	int idx = int(float(N) * (0.5*p.y + 0.5)); \
 	idx = min(idx, N - 1); \
 	\
@@ -736,14 +736,28 @@ vec4 splat_violin##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_des
 		v0 = clamp_remap(gd_next.v[idx], mapping_ranges); \
 		t = 1.0 - clamp_remap01(p.x, vec4(gd.s, gd_next.s, 0.0, 0.0)); \
 	} \
-	float vv = mix(v0, v1, t); \
-	float dist = p.y - vv; \
+	float v = mix(v0, v1, t); \
+	float dist = p.y - v; \
+	vec2 dist2 = vec2(dist, dist - outline); \
+	const vec2 antialias_width = general_settings.antialias_radius*fwidth(dist2); \
+	vec2 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist2); \
+	vec3 glyph_color = glyph_cc_param[color_base_idx + idx]; \
+	if(outline < 0.01) { \
+		return vec4(glyph_color, alpha.x); \
+	} else { \
+		vec4 color = vec4(vec3(0.0), alpha.y); \
+		return mix(color, vec4(glyph_color, 1.0), alpha.x); \
+	} \
+}
+
+/*
+float dist = p.y - vv; \
 	\
 	const float antialias_width = general_settings.antialias_radius*fwidth(dist); \
 	float alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist); \
 	\
 	return vec4(glyph_cc_param[color_base_idx + idx], alpha); \
-}
+*/
 
 #if L0_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
 DEF_SPLAT_VIOLIN(0, L0_MAPPED_ATTRIB_COUNT);
@@ -760,6 +774,94 @@ DEF_SPLAT_VIOLIN(2, L2_MAPPED_ATTRIB_COUNT);
 #if L3_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
 DEF_SPLAT_VIOLIN(3, L3_MAPPED_ATTRIB_COUNT);
 #endif
+
+// code for drawing digits from https://www.shadertoy.com/view/lsXXzN
+// adjusted to own needs
+float segment(vec2 uv, bool on) {
+	return on ? (1.0 - smoothstep(0.08, 0.09 + float(on)*0.02, abs(uv.x))) *
+			    (1.0 - smoothstep(0.46, 0.47 + float(on)*0.02, abs(uv.y) + abs(uv.x)))
+		        : 0.0;
+}
+
+float digit(vec2 uv, uint num) {
+	float seg = 0.0;
+    seg += segment(uv.yx + vec2(-1.0, +0.0), num!=1 && num!=4                    );
+	seg += segment(uv.xy + vec2(-0.5, -0.5), num!=1 && num!=2 && num!=3 && num!=7);
+	seg += segment(uv.xy + vec2(+0.5, -0.5), num!=5 && num!=6                    );
+   	seg += segment(uv.yx + vec2(+0.0, +0.0), num!=0 && num!=1 && num!=7          );
+	seg += segment(uv.xy + vec2(-0.5, +0.5), num==0 || num==2 || num==6 || num==8);
+	seg += segment(uv.xy + vec2(+0.5, +0.5), num!=2                              );
+    seg += segment(uv.yx + vec2(+1.0, +0.0), num!=1 && num!=4 && num!=7          );	
+	return seg;
+}
+
+vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color, in float outline) {
+	
+	// debug only
+	// show otherwise not drawn glyphs
+	float alpha_fac = 1.0;
+	if((debug_info & 0x1000) == 0) {
+		alpha_fac = 0.5; // make glyph half transparent
+		dist = op_onion(dist + 0.05, 0.05); // draw outline of glyph (keeps original size)
+	}
+
+	// >> non-debuig implementation
+	// pre-filter the SDF for AA
+	vec2 dist2 = vec2(dist, dist - outline);
+	const vec2 antialias_width = general_settings.antialias_radius*fwidth(dist2);
+	vec2 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist2);
+	if(outline < 0.01) {
+		return vec4(glyph_color, alpha_fac * alpha.x);
+	} else {
+		vec4 color = vec4(vec3(0.0), alpha_fac * alpha.y);
+		return mix(color, vec4(glyph_color, 1.0), alpha_fac * alpha.x);
+	}
+
+	//return mix(glyph_color, color, smoothstep(-antialias_width, antialias_width, dist));
+	// <<
+}
+
+void finalize_glyph(in uint debug_info, in vec2 uv, in vec4 glyph_color, inout vec3 color) {
+
+	// the following is for debugging only
+	uint main_attrib_idx = (debug_info>>2) & 0x0003;
+	uint interpolated_attrib_count = debug_info & 0x0003;
+	
+	// color according to main attribute (the one, that induced the placement of this glyph)
+	//glyph_color.rgb = vec3(0.0);
+	//glyph_color.rgb[main_attrib_idx] = 1.0;
+
+	// >> non-debug implementation
+	color = mix(color, glyph_color.rgb, glyph_color.a);
+	// <<
+
+	// number overlay (debug only)
+	// draw a digit showing the number of interpolated attributes for the current glyph
+	//vec2 digit_uv = -6.0 * uv;
+	//color = mix(color, 1.0-color, digit(digit_uv, interpolated_attrib_count));
+
+	/*color = mix(color, 1.0-color, digit(digit_uv, interpolated_attrib_count));
+	digit_uv = 2.0 * digit_uv;*/
+
+	/*float value = gd.radius;
+
+	float decimal_dot = sd_circle(digit_uv + vec2(0.0, 1.0), 0.15) < 0.0 ? 1.0 : 0.0;
+
+	float digit0 = digit(digit_uv - vec2(1.0, 0.0), uint(value));
+	value -= float(uint(value));
+	value *= 10.0;
+	float digit1 = digit(digit_uv + vec2(1.0, 0.0), uint(value));
+	value -= float(uint(value));
+	value *= 10.0;
+	float digit2 = digit(digit_uv + vec2(3.0, 0.0), uint(round(value)));
+
+	vec3 icol = 1.0 - color;
+
+	color = mix(color, icol, digit0);
+	color = mix(color, icol, digit1);
+	color = mix(color, icol, digit2);
+	color = mix(color, icol, decimal_dot);*/
+}
 
 float grid_texture_fuzzy(in vec2 p, in float n) {
 	// coordinates
@@ -915,115 +1017,11 @@ vec3 compute_grid_normal(vec2 uv) {
 	return normalize(mix(normal0, normal1, 1.0 - grid_blend_factor));
 }
 
-// code for drawing digits from https://www.shadertoy.com/view/lsXXzN
-// adjusted to own needs
-float segment(vec2 uv, bool on) {
-	return on ? (1.0 - smoothstep(0.08, 0.09 + float(on)*0.02, abs(uv.x))) *
-			    (1.0 - smoothstep(0.46, 0.47 + float(on)*0.02, abs(uv.y) + abs(uv.x)))
-		        : 0.0;
-}
 
-float digit(vec2 uv, uint num) {
-	float seg = 0.0;
-    seg += segment(uv.yx + vec2(-1.0, +0.0), num!=1 && num!=4                    );
-	seg += segment(uv.xy + vec2(-0.5, -0.5), num!=1 && num!=2 && num!=3 && num!=7);
-	seg += segment(uv.xy + vec2(+0.5, -0.5), num!=5 && num!=6                    );
-   	seg += segment(uv.yx + vec2(+0.0, +0.0), num!=0 && num!=1 && num!=7          );
-	seg += segment(uv.xy + vec2(-0.5, +0.5), num==0 || num==2 || num==6 || num==8);
-	seg += segment(uv.xy + vec2(+0.5, +0.5), num!=2                              );
-    seg += segment(uv.yx + vec2(+1.0, +0.0), num!=1 && num!=4 && num!=7          );	
-	return seg;
-}
 
-vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color, in float outline) {
-	
-	// debug only
-	// show otherwise not drawn glyphs
-	float alpha_fac = 1.0;
-	if((debug_info & 0x1000) == 0) {
-		alpha_fac = 0.5; // make glyph half transparent
-		dist = op_onion(dist + 0.05, 0.05); // draw outline of glyph (keeps original size)
-	}
 
-	// >> non-debuig implementation
-	// pre-filter the SDF for AA
-	vec2 dist2 = vec2(dist, dist - outline);
-	const vec2 antialias_width = general_settings.antialias_radius*fwidth(dist2);
-	vec2 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist2);
-	if(outline < 0.01) {
-		return vec4(glyph_color, alpha_fac * alpha.x);
-	} else {
-		vec4 color = vec4(vec3(0.0), alpha_fac * alpha.y);
-		return mix(color, vec4(glyph_color, 1.0), alpha_fac * alpha.x);
-	}
 
-	//return mix(glyph_color, color, smoothstep(-antialias_width, antialias_width, dist));
-	// <<
-}
 
-void finalize_glyph(in uint debug_info, in vec2 uv, in vec4 glyph_color, inout vec3 color) {
-
-	// the following is for debugging only
-	uint main_attrib_idx = (debug_info>>2) & 0x0003;
-	uint interpolated_attrib_count = debug_info & 0x0003;
-	
-	// color according to main attribute (the one, that induced the placement of this glyph)
-	//glyph_color.rgb = vec3(0.0);
-	//glyph_color.rgb[main_attrib_idx] = 1.0;
-
-	// >> non-debug implementation
-	color = mix(color, glyph_color.rgb, glyph_color.a);
-	// <<
-
-	// number overlay (debug only)
-	// draw a digit showing the number of interpolated attributes for the current glyph
-	//vec2 digit_uv = -6.0 * uv;
-	//color = mix(color, 1.0-color, digit(digit_uv, interpolated_attrib_count));
-}
-
-void splat_glyph2(in uint debug_info, in vec2 uv, in float dist, in vec3 glyph_color, inout vec3 color) {
-	// the following is for debugging only
-	uint main_attrib_idx = (debug_info>>2) & 0x0003;
-	uint interpolated_attrib_count = debug_info & 0x0003;
-	
-	glyph_color = vec3(0.0);
-	glyph_color[main_attrib_idx] = 1.0;
-
-	if((debug_info & 0x1000) == 0) {
-		// this is for showing otherwise not drawn glyphs
-		glyph_color = mix(color, glyph_color, 0.5); // make glyph half transparent
-		dist = op_onion(dist + 0.05, 0.05); // draw outline of glyph (keeps original size)
-	}
-
-	// pre-filter the SDF for AA
-	const float antialias_width = general_settings.antialias_radius*fwidth(dist);
-	color = mix(glyph_color, color, smoothstep(-antialias_width, antialias_width, dist));
-
-	// draw a digit showing the number of interpolated attributes for the current glyph
-	vec2 digit_uv = -6.0 * uv;
-	color = mix(color, 1.0-color, digit(digit_uv, interpolated_attrib_count));
-
-	digit_uv = 2.0 * digit_uv;
-
-	/*float value = gd.radius;
-
-	float decimal_dot = sd_circle(digit_uv + vec2(0.0, 1.0), 0.15) < 0.0 ? 1.0 : 0.0;
-
-	float digit0 = digit(digit_uv - vec2(1.0, 0.0), uint(value));
-	value -= float(uint(value));
-	value *= 10.0;
-	float digit1 = digit(digit_uv + vec2(1.0, 0.0), uint(value));
-	value -= float(uint(value));
-	value *= 10.0;
-	float digit2 = digit(digit_uv + vec2(3.0, 0.0), uint(round(value)));
-
-	vec3 icol = 1.0 - color;
-
-	color = mix(color, icol, digit0);
-	color = mix(color, icol, digit1);
-	color = mix(color, icol, digit2);
-	color = mix(color, icol, decimal_dot);*/
-}
 
 void main()
 {
@@ -1038,7 +1036,7 @@ void main()
 	float depth = texture(depth_tex, texcoord_fs).r;
 
 	if(depth == 1.0) {
-		// TODO: these fragments are never drawn tot he screen (because depth is one)
+		// TODO: these fragments are never drawn to the screen (because depth is one)
 		frag_color = vec4(vec3(0.0), 1.0);
 	} else {
 		vec2 uv = texcoord;

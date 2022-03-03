@@ -34,13 +34,22 @@ enum GlyphAttributeModifier {
 	GAM_NON_CONST = 2, // cannot be set to constant value
 };
 
+enum GuiHint {
+	GH_NONE = 0,
+	GH_GLOBAL_BLOCK_START = 1,
+	GH_BLOCK_START = 2,
+};
+
 struct glyph_attribute {
 	std::string name;
 	GlyphAttributeType type;
 	GlyphAttributeModifier modifiers = GAM_NONE;
+	GuiHint gui_hint = GH_NONE;
 
 	glyph_attribute(std::string name, GlyphAttributeType type) : name(name), type(type) {}
 	glyph_attribute(std::string name, GlyphAttributeType type, GlyphAttributeModifier modifiers) : name(name), type(type), modifiers(modifiers) {}
+	glyph_attribute(std::string name, GlyphAttributeType type, GuiHint gui_hint) : name(name), type(type), gui_hint(gui_hint) {}
+	glyph_attribute(std::string name, GlyphAttributeType type, GlyphAttributeModifier modifiers, GuiHint gui_hint) : name(name), type(type), modifiers(modifiers), gui_hint(gui_hint) {}
 };
 
 class glyph_shape : public cgv::render::render_types {
@@ -85,9 +94,9 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "interpolate", GAT_UNIT, GAM_GLOBAL },
+			{ "interpolate", GAT_UNIT, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "classification", GAT_UNIT, GAM_GLOBAL },
-			{ "color", GAT_COLOR }
+			{ "color", GAT_COLOR, GH_BLOCK_START }
 		};
 		return attributes;
 	}
@@ -121,8 +130,8 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
-			{ "color", GAT_COLOR },
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "color", GAT_COLOR, GH_BLOCK_START },
 			{ "radius", GAT_SIZE },
 		};
 		return attributes;
@@ -150,8 +159,8 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
-			{ "color", GAT_COLOR },
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "color", GAT_COLOR, GH_BLOCK_START },
 			{ "length", GAT_SIZE },
 			{ "height", GAT_SIZE }
 		};
@@ -180,8 +189,8 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
-			{ "color", GAT_COLOR },
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "color", GAT_COLOR, GH_BLOCK_START },
 			{ "radius", GAT_SIZE },
 			{ "aperture", GAT_DOUBLE_ANGLE },
 			{ "orientation", GAT_ORIENTATION }
@@ -212,8 +221,8 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
-			{ "color", GAT_COLOR },
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "color", GAT_COLOR, GH_BLOCK_START },
 			{ "radius", GAT_SIZE },
 			{ "thickness", GAT_SIZE },
 			{ "aperture", GAT_DOUBLE_ANGLE },
@@ -260,8 +269,8 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
-			{ "color", GAT_COLOR },
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "color", GAT_COLOR, GH_BLOCK_START },
 			{ "base_width", GAT_SIZE },
 			{ "height", GAT_SIZE },
 			{ "orientation", GAT_ORIENTATION }
@@ -327,8 +336,8 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
-			{ "color", GAT_COLOR },
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "color", GAT_COLOR, GH_BLOCK_START },
 			{ "base_radius", GAT_SIZE },
 			{ "tip_radius", GAT_SIZE },
 			{ "height", GAT_SIZE },
@@ -354,9 +363,9 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL },
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "size", GAT_SIZE, GAM_GLOBAL },
-			{ "color", GAT_COLOR },
+			{ "color", GAT_COLOR, GH_BLOCK_START },
 			{ "value", GAT_SIGNED_UNIT },
 		};
 		return attributes;
@@ -390,20 +399,20 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "radius", GAT_SIZE, GAM_GLOBAL },
+			{ "radius", GAT_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "secondary_color", GAT_COLOR, GAM_GLOBAL },
 			{ "color_setting", GAT_UNIT, GAM_GLOBAL },
 			{ "blend_factor", GAT_UNIT, GAM_GLOBAL },
 			{ "inner_transparency", GAT_UNIT, GAM_GLOBAL },
-			{ "color_0", GAT_COLOR, GAM_GLOBAL },
+			{ "color_0", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
 			{ "axis_0", GAT_SIZE, GAM_NON_CONST },
-			{ "color_1", GAT_COLOR, GAM_GLOBAL },
+			{ "color_1", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
 			{ "axis_1", GAT_SIZE, GAM_NON_CONST },
-			{ "color_2", GAT_COLOR, GAM_GLOBAL },
+			{ "color_2", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
 			{ "axis_2", GAT_SIZE, GAM_NON_CONST },
-			{ "color_3", GAT_COLOR, GAM_GLOBAL },
+			{ "color_3", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
 			{ "axis_3", GAT_SIZE, GAM_NON_CONST },
-			{ "color_4", GAT_COLOR, GAM_GLOBAL },
+			{ "color_4", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
 			{ "axis_4", GAT_SIZE, GAM_NON_CONST }
 		};
 		return attributes;
@@ -435,13 +444,14 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "color_0", GAT_COLOR, GAM_GLOBAL },
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "color_0", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
 			{ "value_0", GAT_SIZE, GAM_NON_CONST },
-			{ "color_1", GAT_COLOR, GAM_GLOBAL },
+			{ "color_1", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
 			{ "value_1", GAT_SIZE, GAM_NON_CONST },
-			{ "color_2", GAT_COLOR, GAM_GLOBAL },
+			{ "color_2", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
 			{ "value_2", GAT_SIZE, GAM_NON_CONST },
-			{ "color_3", GAT_COLOR, GAM_GLOBAL },
+			{ "color_3", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
 			{ "value_3", GAT_SIZE, GAM_NON_CONST }
 		};
 		return attributes;

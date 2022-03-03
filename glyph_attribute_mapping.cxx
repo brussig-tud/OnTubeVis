@@ -69,11 +69,26 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 		return;
 
 	std::string enums = glyph_type_registry::display_name_enums();
-	// Circle,Rectangle,Wedge,Arc Flat,Arc Rounded,Isosceles Triangle,Drop,Sign Blob,Star
 	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='" + enums + "'");
 	
-	for(size_t i = 0; i < shape_ptr->supported_attributes().size(); ++i)
-		create_attribute_gui(bp, p, i);
+	bool global_block = false;
+	for(size_t i = 0; i < shape_ptr->supported_attributes().size(); ++i) {
+		const glyph_attribute& attrib = shape_ptr->supported_attributes()[i];
+
+		bool separator_requested = false;
+		if(attrib.gui_hint == GH_BLOCK_START) {
+			separator_requested = true;
+			global_block = false;
+		} else if(attrib.gui_hint == GH_GLOBAL_BLOCK_START) {
+			separator_requested = true;
+			global_block = true;
+		}
+
+		if(i != 0 && separator_requested)
+			p.add_decorator("", "separator");
+
+		create_attribute_gui(bp, p, i, attrib, global_block);
+	}
 }
 
 void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr) {
@@ -129,19 +144,6 @@ void glyph_attribute_mapping::create_glyph_shape() {
 		delete shape_ptr;
 
 	shape_ptr = glyph_shape_factory::create(type);
-
-	/*switch(type) {
-	case GT_CIRCLE: shape_ptr = new circle_glyph(); break;
-	case GT_RECTANGLE: shape_ptr = new rectangle_glyph(); break;
-	case GT_WEDGE: shape_ptr = new wedge_glyph(); break;
-	case GT_ARC_FLAT: shape_ptr = new flat_arc_glyph(); break;
-	case GT_ARC_ROUNDED: shape_ptr = new rounded_arc_glyph(); break;
-	case GT_TRIANGLE: shape_ptr = new isoceles_triangle_glyph(); break;
-	case GT_DROP: shape_ptr = new drop_glyph(); break;
-	case GT_SIGN_BLOB: shape_ptr = new sign_blob_glyph(); break;
-	case GT_STAR: shape_ptr = new star_glyph(); break;
-	default: shape_ptr = new circle_glyph(); break;
-	}*/
 
 	attrib_source_indices.clear();
 	color_source_indices.clear();
@@ -219,8 +221,9 @@ std::string glyph_attribute_mapping::to_display_str(const std::string& name) con
 	return name;
 }
 
-void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i) {
-	const glyph_attribute& attrib = shape_ptr->supported_attributes()[i];
+//void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i) {
+void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i, const glyph_attribute& attrib, const bool global_block) {
+	//const glyph_attribute& attrib = shape_ptr->supported_attributes()[i];
 
 	std::string lower_limit = "0";
 	std::string upper_limit = "1";
@@ -245,8 +248,10 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 	std::string value_label = label;
 
 	if(is_global) {
-		value_label = "";
-		p.add_decorator(label, "heading", "level=4");
+		if(!global_block) {
+			value_label = "";
+			p.add_decorator(label, "heading", "level=4");
+		}
 	} else {
 		value_label = "Value";
 		p.add_decorator(label, "heading", "level=4");

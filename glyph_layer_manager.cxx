@@ -198,7 +198,8 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					splat_func += layer_id + "(glyph, glyphs" + layer_id + "[closest.prev], glyphs" + layer_id + "[closest.next], " + "uv" + ", ";
 					splat_func += std::to_string(last_constant_float_parameters_size) + ", ";
 					splat_func += std::to_string(last_constant_color_parameters_size) + ", ";
-					splat_func += std::to_string(last_mapping_parameters_size);
+					splat_func += std::to_string(last_mapping_parameters_size) + ", ";
+					splat_func += glyph_outline_str;
 					splat_func += ")";
 				} break;
 				default: break;
