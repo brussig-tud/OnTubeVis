@@ -539,7 +539,7 @@ DEF_SD_STAR(3, L3_MAPPED_ATTRIB_COUNT);
 DEF_SPLAT_STAR(3, L3_MAPPED_ATTRIB_COUNT);
 #endif
 
-#define DEF_SPLAT_COLOR(I) \
+/*#define DEF_SPLAT_COLOR(I) \
 vec4 splat_color##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc##I gd_next, in vec2 p, in int color_map_idx, in int float_base_idx, in int color_base_idx, in int mapping_base_idx) { \
 	vec4 mapping_range = glyph_m_param[mapping_base_idx]; \
 	float v0 = clamp_remap01(gd.v[0], mapping_range); \
@@ -563,7 +563,7 @@ vec4 splat_color##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc
 		color = color_map_idx < 0 ? vec3(0.0) : map_to_color(v0, color_map_idx); \
 	} \
 	return vec4(color, 1.0); \
-}
+}*/
 
 /*#define DEF_SPLAT_COLOR(I) \
 vec4 splat_color##I(in int gid, in vec2 p, in int color_map_idx, in int float_base_idx, in int color_base_idx, in int mapping_base_idx) { \
@@ -592,14 +592,8 @@ vec4 splat_color##I(in int gid, in vec2 p, in int color_map_idx, in int float_ba
 	return vec4(color, 1.0); \
 }*/
 
-/*float eval_cubic_hermite_spline(float t, in vec4 Bk)
+float eval_cubic_hermite(float t, in vec4 Bk)
 {
-	//mat4 Bk; // matrix of control points and tangents
-	//Bk[0] = vec4(c0, 0.0);
-	//Bk[1] = vec4(c1, 0.0);
-	//Bk[2] = vec4(t0, 0.0);
-	//Bk[3] = vec4(t1, 0.0);
-
 	mat4 Mh; // hermite matrix
 	Mh[0] = vec4( 2, -3,  0,  1);
 	Mh[1] = vec4(-2,  3,  0,  0);
@@ -636,19 +630,26 @@ vec4 splat_color##I(in int gid, in vec2 p, in int color_map_idx, in int float_ba
 	\
 	float m0 = (v.z - v.x) / (s.z - s.x); \
 	float m1 = (v.w - v.y) / (s.w - s.y); \
+	m0 = 1.0/6.0 * m0; \
+	m1 = 1.0/6.0 * m1; \
 	\
 	float t = clamp_remap01(p.x, vec4(s.y, s.z, 0.0, 0.0)); \
 	\
-	t = itype < 0.5 ? step(0.5, t) : t; \
-	vec3 color; \
-	float c = glyph_cf_param[float_base_idx + 1]; \
-	m0 *= c; \
-	m1 *= c; \
-	vec4 Bk = vec4(v.y, v.z, m0, m1); \
-	float val = eval_cubic_hermite_spline(t, Bk); \
-	val = clamp(val, 0.0, 1.0); \
+	float val; \
+	if(itype < 0.333) { \
+		val = mix(v.y, v.z, step(0.5, t)); \
+	} else if(itype < 0.666) { \
+		val = mix(v.y, v.z, t); \
+	} else { \
+		float c = glyph_cf_param[float_base_idx + 1]; \
+		m0 *= c; \
+		m1 *= c; \
+		vec4 Bk = vec4(v.y, v.z, m0, m1); \
+		val = eval_cubic_hermite(t, Bk); \
+		val = clamp(val, 0.0, 1.0); \
+	} \
 	return vec4(map_to_color(val, color_map_idx), 1.0); \
-}*/
+}
 	//return vec4(val < 0.0 ? vec3(-val, 0.0,  0.0) : vec3(0.0, val, 0.0), 1.0); \
 
 //
@@ -685,7 +686,7 @@ float s = glyphs##I[gid].s; \
 	t1 *= 0.5; \
 	vec4 Bk = vec4(v0, v1, t0, t1); \
 	float v; \
-	if(pp < 0.5) v = eval_cubic_hermite_spline(Bk, t); \
+	if(pp < 0.5) v = eval_cubic_hermite(Bk, t); \
 	else v = mix(v0, v1, t); \
 	v = clamp_remap01(v, glyph_m_param[mapping_base_idx]); \
 	color = map_to_color(v, color_map_idx); \
@@ -710,7 +711,117 @@ DEF_SPLAT_COLOR(2)
 DEF_SPLAT_COLOR(3)
 #endif
 
+/*#define DEF_SPLAT_VIOLIN(I, N) \
+vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline) { \
+	int idx = int(float(N) * (0.5*p.y + 0.5)); \
+	idx = min(idx, N - 1); \
+	\
+	float st = 2.0/float(N); \
+	float offset = -1.0 + st*float(idx) + 0.5*st; \
+	p.y += -offset; \
+	p.y *= float(N); \
+	p.y = abs(p.y); \
+	\
+	vec4 mapping_ranges = glyph_m_param[mapping_base_idx + idx]; \
+	float s0; \
+	float s1 = glyphs##I[gid].s; \
+	float v0; \
+	float v1 = clamp_remap(glyphs##I[gid].v[idx], mapping_ranges); \
+	float t; \
+	if(p.x < s1) { \
+		s0 = glyphs##I[gid - 1].s; \
+		v0 = clamp_remap(glyphs##I[gid - 1].v[idx], mapping_ranges); \
+		t = clamp_remap01(p.x, vec4(s0, s1, 0.0, 0.0)); \
+	} else { \
+		s0 = glyphs##I[gid + 1].s; \
+		v0 = clamp_remap(glyphs##I[gid + 1].v[idx], mapping_ranges); \
+		t = 1.0 - clamp_remap01(p.x, vec4(s1, s0, 0.0, 0.0)); \
+	} \
+	float v = mix(v0, v1, t); \
+	float dist = p.y - v; \
+	vec2 dist2 = vec2(dist, dist - outline); \
+	const vec2 antialias_width = general_settings.antialias_radius*fwidth(dist2); \
+	vec2 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist2); \
+	vec3 glyph_color = glyph_cc_param[color_base_idx + idx]; \
+	if(outline < 0.01) { \
+		return vec4(glyph_color, alpha.x); \
+	} else { \
+		vec4 color = vec4(vec3(0.0), alpha.y); \
+		return mix(color, vec4(glyph_color, 1.0), alpha.x); \
+	} \
+}*/
+
+
 #define DEF_SPLAT_VIOLIN(I, N) \
+vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline) { \
+	int idx = int(float(N) * (0.5*p.y + 0.5)); \
+	idx = min(idx, N - 1); \
+	\
+	float st = 2.0/float(N); \
+	float offset = -1.0 + st*float(idx) + 0.5*st; \
+	p.y += -offset; \
+	p.y *= float(N); \
+	p.y = abs(p.y); \
+	\
+	\
+	float itype = glyph_cf_param[float_base_idx + 1]; \
+	int i0, i1;\
+	if(p.x < glyphs##I[gid].s) { \
+		i0 = gid - 1; \
+		i1 = gid; \
+	} else { \
+		i0 = gid; \
+		i1 = gid + 1; \
+	} \
+	\
+	vec4 s, v; \
+	s.x = glyphs##I[i0-1].s; \
+	s.y = glyphs##I[i0+0].s; \
+	s.z = glyphs##I[i1+0].s; \
+	s.w = glyphs##I[i1+1].s; \
+	\
+	vec4 range = glyph_m_param[mapping_base_idx + idx]; \
+	v.x = clamp_remap01(glyphs##I[i0-1].v[idx], range); \
+	v.y = clamp_remap01(glyphs##I[i0+0].v[idx], range); \
+	v.z = clamp_remap01(glyphs##I[i1+0].v[idx], range); \
+	v.w = clamp_remap01(glyphs##I[i1+1].v[idx], range); \
+	\
+	float m0 = (v.z - v.x) / (s.z - s.x); \
+	float m1 = (v.w - v.y) / (s.w - s.y); \
+	m0 = 1.0/6.0 * m0; \
+	m1 = 1.0/6.0 * m1; \
+	\
+	float t = clamp_remap01(p.x, vec4(s.y, s.z, 0.0, 0.0)); \
+	\
+	float val; \
+	if(itype < 0.333) { \
+		val = mix(v.y, v.z, step(0.5, t)); \
+	} else if(itype < 0.666) { \
+		val = mix(v.y, v.z, t); \
+	} else { \
+		float c = glyph_cf_param[float_base_idx + 2]; \
+		m0 *= c; \
+		m1 *= c; \
+		vec4 Bk = vec4(v.y, v.z, m0, m1); \
+		val = eval_cubic_hermite(t, Bk); \
+		val = clamp(val, 0.0, 1.0); \
+	} \
+	\
+	\
+	float dist = p.y - val; \
+	vec2 dist2 = vec2(dist, dist - outline); \
+	const vec2 antialias_width = general_settings.antialias_radius*fwidth(dist2); \
+	vec2 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist2); \
+	vec3 glyph_color = glyph_cc_param[color_base_idx + idx]; \
+	if(outline < 0.01) { \
+		return vec4(glyph_color, alpha.x); \
+	} else { \
+		vec4 color = vec4(vec3(0.0), alpha.y); \
+		return mix(color, vec4(glyph_color, 1.0), alpha.x); \
+	} \
+}
+
+/*#define DEF_SPLAT_VIOLIN(I, N) \
 vec4 splat_violin##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc##I gd_next, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline) { \
 	int idx = int(float(N) * (0.5*p.y + 0.5)); \
 	idx = min(idx, N - 1); \
@@ -748,7 +859,7 @@ vec4 splat_violin##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_des
 		vec4 color = vec4(vec3(0.0), alpha.y); \
 		return mix(color, vec4(glyph_color, 1.0), alpha.x); \
 	} \
-}
+}*/
 
 /*
 float dist = p.y - vv; \

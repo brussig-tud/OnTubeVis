@@ -239,6 +239,9 @@ void color_map_viewer::init_styles(context& ctx) {
 void color_map_viewer::update_texts() {
 
 	texts.clear();
+	if(names.size() == 0)
+		return;
+
 	int step = layout.color_map_rect.size().y() / names.size();
 	ivec2 base = layout.color_map_rect.pos() + ivec2(layout.color_map_rect.size().x() / 2, step / 2 - static_cast<int>(0.333f*font_size));
 	int i = 0;

@@ -377,6 +377,8 @@ public:
 		float v = param_values[2];
 		float d_circle = 2.0f * 0.25f * s; // circle diameter
 		// s directly corresponds to the width of the plus or minus shape
+		if(v != 0.0f)
+			int iii = 0;
 		return v < 0.0 ?
 			cgv::math::lerp(s, d_circle, v + 1.0f) :
 			cgv::math::lerp(d_circle, s, v);
@@ -445,6 +447,8 @@ public:
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
 			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "interpolate", GAT_UNIT, GAM_GLOBAL },
+			{ "classification", GAT_UNIT, GAM_GLOBAL },
 			{ "color_0", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
 			{ "value_0", GAT_SIZE, GAM_NON_CONST },
 			{ "color_1", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },

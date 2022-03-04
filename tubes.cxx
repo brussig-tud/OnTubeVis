@@ -606,7 +606,13 @@ bool tubes::save_layer_configuration(const std::string& file_name) {
 
 				vec4 mr = mapping_ranges[j];
 				content += put("in_range", vec2_to_str(vec2(mr.x(), mr.y())));
-				content += put("out_range", vec2_to_str(vec2(mr.z(), mr.w())));
+				if(attrib.type != GAT_UNIT &&
+					attrib.type != GAT_SIGNED_UNIT &&
+					attrib.type != GAT_COLOR &&
+					attrib.type != GAT_OUTLINE
+					) {
+					content += put("out_range", vec2_to_str(vec2(mr.z(), mr.w())));
+				}
 				content += "/>\n";
 			}
 
@@ -809,6 +815,8 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 					// shape does not have this attribute
 					continue;
 
+				const auto& attrib = shape_ptr->supported_attributes()[shape_attrib_idx];
+
 				int attrib_idx = -1;
 				it = tag.attributes.find("attrib_name");
 				if(it != end) {
@@ -836,7 +844,14 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 				if(it != end) {
 					std::string str = (*it).second;
 					vec2 r = read_vec2(str);
-					gam.set_attrib_out_range(shape_attrib_idx, r);
+
+					if(attrib.type != GAT_UNIT &&
+						attrib.type != GAT_SIGNED_UNIT &&
+						attrib.type != GAT_COLOR &&
+						attrib.type != GAT_OUTLINE
+						) {
+						gam.set_attrib_out_range(shape_attrib_idx, r);
+					}
 				}
 
 				if(shape_ptr->supported_attributes()[shape_attrib_idx].type == GAT_COLOR) {
@@ -2107,6 +2122,7 @@ shader_define_map tubes::build_tube_shading_defines() {
 		shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
 		shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
 	}
+
 	return defines;
 }
 
@@ -2117,7 +2133,7 @@ cgv::base::object_registration<tubes> reg_tubes("");
 cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
 
 #ifdef CGV_FORCE_STATIC
-//#include <tubes_shader_inc.h>
+#include <tubes_shader_inc.h>
 
 #define REGISTER_SHADER_FILES
 #include <cgv_glutil/shader_inc.h>

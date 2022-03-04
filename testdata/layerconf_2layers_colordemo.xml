@@ -1,5 +1,23 @@
 <GlyphConfiguration>
   <ColorMaps>
+    <ColorMap name="acton" custom="0" />
+    <ColorMap name="bamako" custom="0" />
+    <ColorMap name="batlowK" custom="0" />
+    <ColorMap name="batlowW" custom="0" />
+    <ColorMap name="batlow" custom="0" />
+    <ColorMap name="bilbao" custom="0" />
+    <ColorMap name="buda" custom="0" />
+    <ColorMap name="davos" custom="0" />
+    <ColorMap name="devon" custom="0" />
+    <ColorMap name="grayC" custom="0" />
+    <ColorMap name="hawaii" custom="0" />
+    <ColorMap name="imola" custom="0" />
+    <ColorMap name="lajolla" custom="0" />
+    <ColorMap name="lapaz" custom="0" />
+    <ColorMap name="nuuk" custom="0" />
+    <ColorMap name="oslo" custom="0" />
+    <ColorMap name="tokyo" custom="0" />
+    <ColorMap name="turku" custom="0" />
     <ColorMap name="bam" custom="0" />
     <ColorMap name="vanimo" custom="0" />
     <ColorMap name="cork" custom="0" />
@@ -20,14 +38,15 @@
   </ColorMaps>
   <Layers>
     <Layer glyph="color" >
-      <Property name="interpolate" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="classification" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="color" attrib_name="scalar2" color_map_name="rainbow" in_range="-1.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="interpolate" in_range="0.000000, 1.000000" />
+      <Property name="classification" in_range="0.000000, 1.000000" />
+      <Property name="color" attrib_name="scalar" color_map_name="bam" in_range="-0.534629, 0.522465" />
     </Layer>
     <Layer glyph="sign_blob" >
-      <Property name="color" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="radius" in_range="0.000000, 1.000000" out_range="0.000000, 0.700000" />
-      <Property name="value" attrib_name="scalar2" in_range="-1.000000, 1.000000" out_range="0.000000, 0.000000" />
+      <Property name="outline" in_range="0.000000, 1.000000" />
+      <Property name="size" in_range="0.000000, 1.000000" out_range="0.000000, 0.660000" />
+      <Property name="color" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" />
+      <Property name="value" attrib_name="scalar" in_range="-0.534629, 0.522465" />
     </Layer>
   </Layers>
 </GlyphConfiguration>
