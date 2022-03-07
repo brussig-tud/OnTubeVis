@@ -1419,6 +1419,18 @@ bool tubes::init (cgv::render::context &ctx)
 		}
 	}
 
+	// load sequential RAINBOW color map
+	if(std::filesystem::exists(app_path+"res/color_maps/RAINBOW.xml")) {
+		std::vector<std::string> names;
+		std::vector<cgv::glutil::color_map> color_maps;
+		if(cgv::glutil::color_map_reader::read_from_xml(app_path+"res/color_maps/RAINBOW.xml", names, color_maps)) {
+			if(names.size() == color_maps.size()) {
+				for(size_t i = 0; i < names.size(); ++i)
+					color_map_mgr.add_color_map(names[i], color_maps[i], false);
+			}
+		}
+	}
+
 	color_map_mgr.update_texture(ctx);
 	if(cm_viewer_ptr) {
 		cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
