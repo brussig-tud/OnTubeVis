@@ -1233,6 +1233,12 @@ std::string& traj_dataset<flt_type>::name (void)
 }
 
 template <class flt_type>
+const std::string& traj_dataset<flt_type>::name (void) const
+{
+	return pimpl->name;
+}
+
+template <class flt_type>
 const std::string& traj_dataset<flt_type>::data_source (void) const
 {
 	return pimpl->data_source;
@@ -1267,6 +1273,12 @@ bool traj_dataset<flt_type>::has_attribute (const std::string &name) const
 {
 	const auto &impl = *pimpl;
 	return impl.attribs.find(name) != impl.attribs.end();
+}
+
+template <class flt_type>
+const attribute_map<flt_type>& traj_dataset<flt_type>::attributes (void) const
+{
+	return pimpl->attribs;
 }
 
 template <class flt_type>

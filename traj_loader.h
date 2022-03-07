@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <utility>
 #include <functional>
+#include <type_traits>
 
 // CGV framework core
 #include <cgv/base/base.h>
@@ -39,6 +40,8 @@ enum class VisualAttrib
 {
 	POSITION, TANGENT, RADIUS, COLOR
 };
+/// underlying integer type of \ref VisualAttrib
+typedef typename std::underlying_type<VisualAttrib>::type VisualAttrib_int;
 
 
 /// enumeration of all supported attribute types
@@ -46,6 +49,8 @@ enum class AttribType
 {
 	SCALAR, VEC2, VEC3, VEC4
 };
+/// underlying integer type of \ref AttribType
+typedef typename std::underlying_type<AttribType>::type AttribType_int;
 
 
 /// RAII-type helper that trajectory format handlers can use to ensure reset of the stream position after
@@ -484,6 +489,71 @@ public:
 
 	/// shallow consistency diagnostics for data point values and timestamps (essentially checks for equal amount)
 	bool check_timestamps_shallow (void) const;
+
+	/// creates a copy of this attribute in the underlying real number type
+	template <class real_type>
+	traj_attribute<real_type> convert (void) const
+	{
+		typedef traj_attribute<real_type> target_atype;
+		switch (_type)
+		{
+			case AttribType::SCALAR:
+			{
+				traj_attribute<real_type> ret(1);
+				const auto &data = get_data<real>();
+				auto &ret_data = ret.get_data<real_type>();
+				for (unsigned i=0; i<num(); i++)
+				{
+					const auto &sample = data[i];
+					ret_data.append(sample.val, sample.t);
+				}
+				return std::move(ret);
+			}
+			case AttribType::VEC2:
+			{
+				traj_attribute<real_type> ret(2);
+				const auto &data = get_data<Vec2>();
+				auto &ret_data = ret.get_data<target_atype::Vec2>();
+				for (unsigned i=0; i<num(); i++)
+				{
+					const auto &sample = data[i];
+					ret_data.append(sample.val, sample.t);
+				}
+				return std::move(ret);
+			}
+			case AttribType::VEC3:
+			{
+				traj_attribute<real_type> ret(3);
+				const auto &data = get_data<Vec3>();
+				auto &ret_data = ret.get_data<target_atype::Vec3>();
+				for (unsigned i=0; i<num(); i++)
+				{
+					const auto &sample = data[i];
+					ret_data.append(sample.val, sample.t);
+				}
+				return std::move(ret);
+			}
+			case AttribType::VEC4:
+			{
+				traj_attribute<real_type> ret(4);
+				const auto &data = get_data<Vec4>();
+				auto &ret_data = ret.get_data<target_atype::Vec4>();
+				for (unsigned i=0; i<num(); i++)
+				{
+					const auto &sample = data[i];
+					ret_data.append(sample.val, sample.t);
+				}
+				return std::move(ret);
+			}
+
+			default:
+				/* DoNothing() */;
+		}
+
+		// Shouldn't have arrived here!
+		assert(false);
+		return traj_attribute<real_type>(0);
+	}
 };
 
 /// a map of attribute names to their data
@@ -657,6 +727,9 @@ public:
 template <class flt_type>
 class visual_attribute_mapping
 {
+	// interfacing
+	friend class traj_dataset<float>;
+	friend class traj_dataset<double>;
 
 public:
 
@@ -835,6 +908,10 @@ class traj_dataset
 	friend class traj_format_handler<flt_type>;
 	friend class traj_manager<flt_type>;
 
+	// self-friending (seriously C++? WHYYY?????)
+	friend class traj_dataset<float>;
+	friend class traj_dataset<double>;
+
 public:
 
 	/// real number type
@@ -903,7 +980,21 @@ protected:
 		return attributes().emplace(name, std::forward<Args>(args)...).first->second;
 	}
 
-/// write-access the map containing all generic attributes (for use by trajectory format handlers)
+	/// Helper for derived classes to create a copy of some existing attribute in this dataset under the specified name,
+	/// returning a reference to the interface of the newly inserted attribute
+	traj_attribute<real>& add_attribute (const std::string& name, const traj_attribute<real> &attrib)
+	{
+		return attributes().emplace(name, attrib).first->second;
+	}
+
+	/// Helper for derived classes to move in an existing attribute to this dataset under the specified name, returning a
+	/// reference to the interface of the newly inserted attribute
+	traj_attribute<real>& add_attribute (const std::string& name, traj_attribute<real> &&attrib)
+	{
+		return attributes().emplace(name, std::move(attrib)).first->second;
+	}
+
+	/// write-access the map containing all generic attributes (for use by trajectory format handlers)
 	attribute_map<flt_type>& attributes (void);
 
 	/// set the average segment length (for use by trajectory format handlers)
@@ -946,6 +1037,9 @@ public:
 	/// write-access the dataset name
 	std::string& name (void);
 
+	/// read-only access the dataset name
+	const std::string& name (void) const;
+
 	/// access the source name (filename, description, etc.) the dataset was loaded / originated from
 	const std::string& data_source (void) const;
 
@@ -960,6 +1054,9 @@ public:
 
 	/// checks if an attribute of the given name is in the dataset
 	bool has_attribute (const std::string &name) const;
+
+	/// read-only access the map containing all generic attributes
+	const attribute_map<flt_type> &attributes (void) const;
 
 	/// returns an interface to the attribute of the given name if it exists in the dataset. If it doesn't exist, returns an explicitly
 	/// invalid attribute interface that acts "empty" on all relevant queries. To explicitely check if an attribute of some name
@@ -983,6 +1080,49 @@ public:
 
 	/// access the current visual attribute mapping
 	const visual_attribute_mapping<real>& mapping (void) const;
+
+	/// creates a copy of this dataset in the underlying real number type.
+	/// ATTENTION: not completely implemented yet! Does not convert transformations in the visual attribute mapping, which is non-trivial
+	/// because of the way it epmloys function objects.
+	/// ToDo: implement conversion of transformations in visual attribute mapping
+	template <class real_type>
+	traj_dataset<real_type> convert (void) const
+	{
+		// return container
+		traj_dataset<real_type> ret(name(), data_source());
+
+		// convert attributes
+		for (const auto &attrib_it : attributes())
+		{
+			// convenience shorthands
+			const auto &name = attrib_it.first;
+			const auto &attrib = attrib_it.second;
+
+			// convert values and timestamps
+			auto &attrib_conv = ret.add_attribute(name, attrib.convert<real_type>());
+
+			// copy trajectory info
+			const auto &trajs = trajectories(attrib);
+			ret.trajectories(attrib_conv) = trajs;
+		}
+		ret.set_avg_segment_length(avg_segment_length());
+
+		// replicate visual attribute mapping - ToDo: find a way to convert the transformations also
+		const auto &vm = mapping();
+		visual_attribute_mapping<real_type> vm_conv;
+		for (const auto &va_it : vm.map())
+		{
+			// convenience shorthands
+			const auto va = va_it.first;
+			const auto attrib_ref = va_it.second;
+			vm_conv.map_attribute(va, attrib_ref.name);
+		}
+		vm_conv.setup_colormap(vm.uses_colormap(), vm.get_colormap());
+		ret.set_mapping(std::move(vm_conv));
+
+		// done!
+		return std::move(ret);
+	}
 };
 
 
