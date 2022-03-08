@@ -61,7 +61,7 @@ struct stream_pos_guard
 	std::istream &stream;
 
 	/// the position the stream will be reset to
-	const std::istream::pos_type g;
+	std::istream::pos_type g;
 
 	/// construct the guard for the given stream
 	stream_pos_guard(std::istream& stream) : stream(stream), g(stream.tellg())
@@ -69,6 +69,9 @@ struct stream_pos_guard
 
 	/// the destructor
 	~stream_pos_guard() { stream.seekg(g); }
+
+	/// reset guard to current position in the stream
+	void reset (void) { g = stream.tellg(); }
 };
 
 
@@ -1367,13 +1370,6 @@ template <class vec_type>
 inline typename cgv::media::color<float, cgv::media::RGB, cgv::media::NO_ALPHA> vec3_to_rgb (const vec_type &v)
 {
 	return traj_format_handler<float>::Color((float)v.x(), (float)v.y(), (float)v.z());
-}
-
-/// truncates the last component from a 4-vector to create a 3-vector
-template <class vec4_type>
-inline cgv::math::fvec<typename vec4_type::value_type, 3> vec3_from_vec4(const vec4_type& v)
-{
-	return cgv::math::fvec<typename vec4_type::value_type, 3>(v.x(), v.y(), v.z());
 }
 
 /// dehomogenizes a 4-vector to obtain an equivalent 3-vector

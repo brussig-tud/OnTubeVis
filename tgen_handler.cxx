@@ -47,6 +47,7 @@
 // anonymous namespace begin
 namespace {
 
+// some no-op expression that can be optimized away
 #define DO_NOTHING (0)
 
 // Anonymous namespace end
@@ -173,7 +174,7 @@ template <class flt_type>
 bool tgen_handler<flt_type>::can_handle (std::istream &contents) const
 {
 	std::string str;
-	stream_pos_guard g(contents);
+	const stream_pos_guard g(contents);
 
 	// check for tell-tale stream contents
 	// - .tgen identifier
@@ -181,7 +182,7 @@ bool tgen_handler<flt_type>::can_handle (std::istream &contents) const
 	std::vector<std::string> idfields;
 	std::getline(contents, str);
 	cgv::utils::split_to_tokens(str, tokens, " \t", false);
-	if (   Impl::read_fields(tokens, " \t", &idfields) < 2
+	if (   Impl::read_fields(tokens, " \t", &idfields) != 2
 	    || idfields[0].compare("TGEN") != 0 || idfields[1][0] != 'v' || idfields[1].length() < 2)
 	{
 		//std::cout << "[tgen_handler] first line in stream must be \"TGEN v\"+version, but found \"" << str << "\" instead!" << std::endl;
@@ -246,11 +247,10 @@ traj_dataset<flt_type> tgen_handler<flt_type>::read (std::istream &contents)
 	}
 
 	// post-process parsed input
-	traj_dataset<real> ret;
 	if (!num_specified && !segs_specified)
 	{
 		std::cerr << "[tgen_handler] ERROR: not all necessary properties specified!" << std::endl;
-		return ret;
+		return traj_dataset<real>();
 	}
 	if (!seed_specified) seed = rnd(generator);
 

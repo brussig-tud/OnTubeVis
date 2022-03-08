@@ -170,7 +170,7 @@ template <class flt_type>
 bool bezdat_handler<flt_type>::can_handle (std::istream &contents) const
 {
 	std::string str;
-	stream_pos_guard g(contents);
+	const stream_pos_guard g(contents);
 
 	// check for tell-tale stream contents
 	// - .bezdat header

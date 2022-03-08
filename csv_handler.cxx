@@ -543,7 +543,7 @@ bool csv_handler<flt_type>::can_handle (std::istream &contents) const
 
 	// init
 	std::string line;
-	stream_pos_guard g(contents);
+	const stream_pos_guard g(contents);
 
 	// check for tell-tale stream contents
 	// - parse first row and check if there are enough columns

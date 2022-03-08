@@ -60,7 +60,8 @@ template <class flt_type>
 std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const traj_manager<flt_type> &mgr)
 {
 	typedef flt_type real;
-	typedef cgv::math::fvec<real, 4> rvec4;
+	typedef typename traj_manager<flt_type>::render_data::Vec3 vec3;
+	typedef typename traj_manager<flt_type>::render_data::Vec4 vec4;
 	std::vector<cgv::render::render_types::mat4> result;
 
 	// obtain render attributes and dataset topology
@@ -89,7 +90,7 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 				// segment geometry
 				const Bezier<real> b = Hermite<real>(
 					rd.positions[seg.i0], rd.positions[seg.i1],
-					vec3_from_vec4(rd.tangents[seg.i0]), vec3_from_vec4(rd.tangents[seg.i1])
+					vec3(rd.tangents[seg.i0]), vec3(rd.tangents[seg.i1])
 				).to_bezier();
 
 				// arc length
