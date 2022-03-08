@@ -5,6 +5,7 @@
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <fstream>
 #include <algorithm>
 #include <utility>
 #include <limits>
@@ -24,6 +25,12 @@
 
 /////
 // Some constant defines
+
+/// min supported version
+#define SEPIA_CSV_MIN_VERSION 5
+
+/// max supported version
+#define SEPIA_CSV_MAX_VERSION 5
 
 /// identifyier to use for position data
 #define SEPIA_POSITION_ATTRIB_NAME "position"
@@ -71,13 +78,23 @@ typedef DatasetInfo::Type DT;
 
 template <class flt_type>
 struct sepia_handler<flt_type>::Impl {
+	// types
+	typedef flt_type real;
+	typedef sepia_handler::Vec2 Vec2;
+	typedef sepia_handler::Vec3 Vec3;
+	typedef sepia_handler::Vec4 Vec4;
+
 	// fields
-	static const visual_attribute_mapping<flt_type> attrmap;
+	static const visual_attribute_mapping<real> attrmap;
 	inline static const std::string collection_seps=" \t", single_seps="|";
 
 	// helper methods
 
 	// infers type of file from the given header fields.
+	inline static bool check_version (unsigned version)
+	{
+		return version >= SEPIA_CSV_MIN_VERSION && version <= SEPIA_CSV_MAX_VERSION;
+	}
 	static DatasetInfo check_type (const std::vector<std::string> &fields)
 	{
 		// return value for unknown files
@@ -219,6 +236,23 @@ struct sepia_handler<flt_type>::Impl {
 		}
 		return false;
 	}
+
+	static bool load_trajectory (traj_dataset<real> *ds_out, unsigned format_version, std::istream &contents)
+	{
+		// parsing workspace
+		std::string line;
+		std::vector<cgv::utils::token> tokens;
+		std::vector<std::string> fields;
+
+		// find out dataset type
+		std::getline(contents, line);
+		cgv::utils::split_to_tokens(line, tokens, Impl::collection_seps, false);
+		Impl::read_fields(tokens, Impl::collection_seps, &fields);
+		const auto dsinfo = Impl::check_type(fields);
+
+		// done!
+		return false;
+	}
 };
 template <class flt_type>
 const visual_attribute_mapping<flt_type> sepia_handler<flt_type>::Impl::attrmap({
@@ -233,22 +267,15 @@ bool sepia_handler<flt_type>::can_handle (std::istream &contents) const
 	const stream_pos_guard g(contents);
 
 	// check for tell-tale stream contents
-	// - .sepia identifier
 	std::vector<cgv::utils::token> tokens;
 	std::vector<std::string> idfields;
 	std::getline(contents, str);
 	cgv::utils::split_to_tokens(str, tokens, Impl::collection_seps, false);
 	Impl::read_fields(tokens, Impl::collection_seps, &idfields);
 	const auto dsinfo = Impl::check_type(idfields);
-	if (dsinfo.type == DT::UNKNOWN)
-		return false;
 
-	// if not a collection, check supported version
-	if (dsinfo.type == DT::SINGLE && dsinfo.version != 5)
-		return false;
-
-	// we'll just say we can read it
-	return true;
+	// we'll just say we can read it if we could recognize its internal type
+	return dsinfo.type == DT::SINGLE || dsinfo.type == DT::COLLECTION;
 }
 
 template <class flt_type>
@@ -272,8 +299,12 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 
 	// decide how to proceed
 	if (dsinfo.type == DT::SINGLE)
+	{
+		if (!Impl::check_version(dsinfo.version))
+			std::cerr << "[sepia_handler] WARNING: trajectory format version "<<dsinfo.version<<" is unsupported!" << std::endl;
 		// delegate to individual trajectory loading code
-		DO_NOTHING;
+		Impl::load_trajectory(&ret, dsinfo.version, contents);
+	}
 	else
 	{
 		// Parse trajectory collection description
@@ -324,10 +355,31 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 		}
 		// - load individual trajectories
 		if (traj_files.empty())
-			std::cerr << "[sepia_handler] ERROR: trajectory collection does not specify any loadable files!" << std::endl;
+			std::cerr << "[sepia_handler] ERROR: trajectory collection does not specify any existent files!" << std::endl;
 		else
 			for (const auto file : traj_files)
-				DO_NOTHING;
+			{
+				std::ifstream contents(file);
+				if (contents.is_open())
+				{
+					line.clear(); tokens.clear(); fields.clear();
+					std::getline(contents, line);
+					cgv::utils::split_to_tokens(line, tokens, Impl::collection_seps, false);
+					Impl::read_fields(tokens, Impl::collection_seps, &fields);
+					const auto dsinfo = Impl::check_type(fields);
+					if (dsinfo.type == DT::SINGLE)
+					{
+						if (!Impl::check_version(dsinfo.version))
+							std::cerr << "[sepia_handler] WARNING: trajectory file '"<<file<<"' uses unsupported format version "<<dsinfo.version << std::endl;
+						if (!Impl::load_trajectory(&ret, dsinfo.version, contents))
+							std::cerr << "[sepia_handler] WARNING: trajectory file '"<<file<<"' could not be loaded properly" << std::endl;
+					}
+					else
+						std::cerr << "[sepia_handler] WARNING: file '"<<file<<"' does not appear to contain a SEPIA individual trajectory definition" << std::endl;
+				}
+				else
+					std::cerr << "[sepia_handler] WARNING: cannot open trajectory file '"<<file<<'\'' << std::endl;
+			}
 	}
 
 	// done!
