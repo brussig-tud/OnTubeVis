@@ -1561,7 +1561,7 @@ void tubes::create_gui(void) {
 	add_decorator("Dataset", "heading", "level=1");
 	//add_member_control(this, "data file/path", datapath);
 	add_gui("Data Path", datapath, "file_name", "title='Open Trajectory Data';"
-		"filter='Trajectory Files (bezdat, csv, tgen):*.bezdat;*.csv;*.tgen|All Files:*.*';"
+		"filter='Trajectory Files (bezdat, csv, sepia, tgen):*.bezdat;*.csv;*.sepia;*.tgen|All Files:*.*';"
 		"small_icon=true;w=168");
 
 	// rendering settings
@@ -2155,6 +2155,6 @@ cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
 // This is needed for systems with Nvidia Optimus technology.
 #define NOMINMAX
 #include <windows.h>
-	extern "C" {
-		_declspec(dllexport) DWORD NvOptimusEnablement = true;
-	}
+extern "C" {
+	_declspec(dllexport) DWORD NvOptimusEnablement = true;
+}

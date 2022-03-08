@@ -12,8 +12,11 @@
 
 // CGV framework core
 #include <cgv/base/register.h>
+
+// CGV framework utilities
 #include <cgv/utils/scan.h>
 #include <cgv/utils/advanced_scan.h>
+#include <cgv/utils/file.h>
 
 // implemented header
 #include "sepia_handler.h"
@@ -203,6 +206,19 @@ struct sepia_handler<flt_type>::Impl {
 		}
 		return false;
 	}
+	inline static bool parse_switch (
+		bool *out, const char *name, const std::vector<std::string> &fields, const std::string &line
+	)
+	{
+		if (cgv::utils::to_lower(fields[0].c_str()+1).compare(name) == 0)
+		{
+			if (fields.size() > 1)
+				std::cerr << "[sepia_handler] WARNING: switch '"<<name<<"' has additional arguments specified, ignoring! Line: "<<line << std::endl;
+			*out = true;
+			return true; 
+		}
+		return false;
+	}
 };
 template <class flt_type>
 const visual_attribute_mapping<flt_type> sepia_handler<flt_type>::Impl::attrmap({
@@ -240,26 +256,79 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 	std::istream &contents, DatasetOrigin source, const std::string& path
 )
 {
+	// return value
+	traj_dataset<real> ret;
+
 	// parsing workspace
 	std::string line;
 	std::vector<cgv::utils::token> tokens;
 	std::vector<std::string> fields;
 
-	// parsing loop
-	// - find out file type identifier
+	// find out dataset type
 	std::getline(contents, line);
 	cgv::utils::split_to_tokens(line, tokens, Impl::collection_seps, false);
 	Impl::read_fields(tokens, Impl::collection_seps, &fields);
 	const auto dsinfo = Impl::check_type(fields);
-	// - parse line by line
-	while (   !contents.eof()
-	       && Impl::read_next_nonempty_line(&line, &tokens, Impl::collection_seps, contents, &fields))
-	{
-		// ToDo: implement!
-	}
 
-	// post-process parsed input
-	traj_dataset<real> ret;
+	// decide how to proceed
+	if (dsinfo.type == DT::SINGLE)
+		// delegate to individual trajectory loading code
+		DO_NOTHING;
+	else
+	{
+		// Parse trajectory collection description
+		// - spec database
+		bool consistent_timestamps = false;
+		std::vector<std::string> traj_files;
+		// - parse line by line
+		while (   !contents.eof()
+		       && Impl::read_next_nonempty_line(&line, &tokens, Impl::collection_seps, contents, &fields))
+		{
+			// handle options
+			if (fields[0][0] == '!')
+			{
+				if (fields[0].size() < 2)
+				{
+					std::cerr << "[sepia_handler] WARNING: option specifier '!' encountered without option name, ignoring" << std::endl;
+					continue;
+				}
+
+				// parse option
+				if (Impl::parse_switch(&consistent_timestamps, "consistent_timestamps", fields, line)) DO_NOTHING;
+
+				// unknown declaration, print warning
+				else
+					std::cerr << "[sepia_handler] WARNING: unknown option: '"<<fields[0].c_str()+1<<"', ignoring" << std::endl;
+			}
+
+			// handle trajectory file entry
+			else
+			{
+				bool trajfile_not_found = true;
+				if (cgv::utils::file::exists(line))
+				{
+					trajfile_not_found = false;
+					traj_files.emplace_back(line);
+				}
+				else {
+					std::string possible_fn = cgv::utils::file::get_path(path)+"/"+line;
+					if (cgv::utils::file::exists(possible_fn))
+					{
+						trajfile_not_found = false;
+						traj_files.emplace_back(possible_fn);
+					}
+				}
+				if (trajfile_not_found)
+					std::cerr << "[sepia_handler] WARNING: trajectory file '"<<line<<"'could not be found, ignoring" << std::endl;
+			}
+		}
+		// - load individual trajectories
+		if (traj_files.empty())
+			std::cerr << "[sepia_handler] ERROR: trajectory collection does not specify any loadable files!" << std::endl;
+		else
+			for (const auto file : traj_files)
+				DO_NOTHING;
+	}
 
 	// done!
 	return std::move(ret);
