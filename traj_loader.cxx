@@ -1821,7 +1821,7 @@ unsigned traj_manager<flt_type>::load (const std::string &path)
 		auto h = _h->get_interface<traj_format_handler<flt_type> >();
 		if (h->can_handle(file))
 		{
-			new_dataset = h->read(file);
+			new_dataset = h->read(file, DOrig::FILE, path);
 			if (new_dataset.has_data() && new_dataset.mapping().is_mapped(VisualAttrib::POSITION))
 			{
 				Impl::ensure_dataset_defaults(new_dataset);

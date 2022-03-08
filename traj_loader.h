@@ -53,6 +53,15 @@ enum class AttribType
 typedef typename std::underlying_type<AttribType>::type AttribType_int;
 
 
+/// enumeration of possible origin of dataset contents
+enum class DatasetOrigin
+{
+	FILE, UNKNOWN
+};
+/// convenience shorthand for \ref DatasetSource
+typedef DatasetOrigin DOrig;
+
+
 /// RAII-type helper that trajectory format handlers can use to ensure reset of the stream position after
 /// can_handle() queries
 struct stream_pos_guard
@@ -1206,7 +1215,7 @@ public:
 
 	/// parse the given stream containing the file contents to load trajectories stored in it (optionally offsetting sample indices by
 	/// the specified amount) and report whether any data was loaded
-	virtual traj_dataset<real> read (std::istream &contents) = 0;
+	virtual traj_dataset<real> read (std::istream &contents, DatasetOrigin source, const std::string &path) = 0;
 };
 
 

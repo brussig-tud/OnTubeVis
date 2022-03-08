@@ -36,5 +36,5 @@ struct bezdat_handler : public traj_format_handler<flt_type>
 	virtual bool can_handle (std::istream &contents) const;
 
 	/// parse the given stream containing the .bezdat file contents and report whether any data was loaded
-	virtual traj_dataset<real> read (std::istream &contents);
+	virtual traj_dataset<real> read (std::istream &contents, DatasetOrigin source, const std::string &path);
 };

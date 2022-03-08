@@ -187,7 +187,9 @@ bool bezdat_handler<flt_type>::can_handle (std::istream &contents) const
 }
 
 template <class flt_type>
-traj_dataset<flt_type> bezdat_handler<flt_type>::read (std::istream &contents)
+traj_dataset<flt_type> bezdat_handler<flt_type>::read (
+	std::istream &contents, DatasetOrigin source, const std::string &path
+)
 {
 	// bezdat database
 	std::vector<bezdat_point<real> > points;

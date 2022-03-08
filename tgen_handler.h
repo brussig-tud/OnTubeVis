@@ -44,5 +44,5 @@ public:
 	virtual bool can_handle (std::istream &contents) const;
 
 	/// parse the given stream containing the .tgen file contents and report whether any data was loaded
-	virtual traj_dataset<real> read (std::istream &contents);
+	virtual traj_dataset<real> read (std::istream &contents, DatasetOrigin source, const std::string &path);
 };

@@ -375,7 +375,7 @@ public:
 	virtual bool can_handle (std::istream &contents) const;
 
 	/// parse the given stream containing the .csv file contents and report whether any data was loaded
-	virtual traj_dataset<real> read (std::istream &contents);
+	virtual traj_dataset<real> read (std::istream &contents, DatasetOrigin source, const std::string &path);
 
 	/// Check if a given csv description is valid. Note that this only performs superficial checks that are computationally
 	/// cheap - does not catch all inconsistencies possible in a \ref csv_descriptor !
