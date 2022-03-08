@@ -68,10 +68,18 @@ struct stream_pos_guard
 	{}
 
 	/// the destructor
-	~stream_pos_guard() { stream.seekg(g); }
+	~stream_pos_guard()
+	{
+		// ensure proper state if saved g is not EOF
+		if (stream.eof() && g != stream.tellg())
+			stream.clear();
+
+		// reset stream position
+		stream.seekg(g);
+	}
 
 	/// reset guard to current position in the stream
-	void reset (void) { g = stream.tellg(); }
+	void reset(void) { g = stream.tellg(); }
 };
 
 

@@ -1814,6 +1814,10 @@ unsigned traj_manager<flt_type>::load (const std::string &path)
 	traj_format_handler<real> *handler = nullptr;
 	for (auto &_h : handlers)
 	{
+		// make sure each handler gets handed the start of the file
+		stream_pos_guard g(file);
+
+		// delegate to handler
 		auto h = _h->get_interface<traj_format_handler<flt_type> >();
 		if (h->can_handle(file))
 		{
@@ -1825,8 +1829,7 @@ unsigned traj_manager<flt_type>::load (const std::string &path)
 				break;
 			}
 			else
-				std::cerr << "traj_loader: selected handler did not return usable data, trying next..."
-				          << std::endl << std::endl;
+				std::cerr << "traj_loader: selected handler did not return usable data, trying next..." << std::endl;
 		}
 	}
 
@@ -1837,6 +1840,7 @@ unsigned traj_manager<flt_type>::load (const std::string &path)
 		new_dataset.data_source() = path;
 		impl.datasets.emplace_back(new traj_dataset<real>(std::move(new_dataset)));
 		impl.dirty = true; // we will need to rebuild the render data
+		std::cerr << std::endl; // make console output spacing consistent with failure case below
 
 		// done
 		return (unsigned)impl.datasets.size()-1;
