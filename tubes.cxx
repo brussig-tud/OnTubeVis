@@ -2066,8 +2066,8 @@ void tubes::draw_trajectories(context& ctx) {
 		if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
 			const int attribs_handle = render.attribs_sbos[i].handle ? (const int&)render.attribs_sbos[i].handle - 1 : 0;
 			const int aindex_handle = render.aindex_sbos[i].handle ? (const int&)render.aindex_sbos[i].handle - 1 : 0;
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*i + 0, attribs_handle);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*i + 1, aindex_handle);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 0, attribs_handle);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 1, aindex_handle);
 		}
 	}
 
@@ -2075,8 +2075,8 @@ void tubes::draw_trajectories(context& ctx) {
 
 	for(size_t i = 0; i < 4; ++i) {
 		if(active_sbos[i]) {
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * i + 0, 0);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * i + 1, 0);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 0, 0);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 1, 0);
 		}
 	}
 
