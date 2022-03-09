@@ -257,7 +257,7 @@ float clamp_remap11(float v, vec4 r) {
 //vec3 map_to_color(float v, float map_idx_coord) {
 vec3 map_to_color(float v, int color_map_idx) {
 	vec2 ts = textureSize(color_maps_tex, 0);
-	float half_step = 0.5 * (1.0 / ts.y); 
+	float half_step = 0.5 * (1.0 / ts.y);
 	float map_coord = float(color_map_idx) / ts.y + half_step;
 	return texture(color_maps_tex, vec2(v, map_coord)).rgb;
 }
