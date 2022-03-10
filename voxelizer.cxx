@@ -1,4 +1,39 @@
 #include "voxelizer.h"
+#include <cgv_gl/renderer.h>
+
+bool voxelizer::load_shader_programs(cgv::render::context& ctx) {
+
+	bool res = true;
+	std::string where = "voxelizer::load_shader_programs()";
+
+	/*shader_define_map distance_defines;
+	shader_code::set_define(distance_defines, "ORDER", sort_order, SO_ASCENDING);
+	shader_code::set_define(distance_defines, "INITIALIZE_VALUES", value_init_override, true);
+	shader_code::set_define(distance_defines, "USE_AUXILIARY_BUFFER", auxiliary_type_def != "", false);
+	shader_code::set_define(distance_defines, "VALUE_TYPE_DEFINITION", value_type_def, std::string("uint"));
+
+	if(data_type_def != "")
+		distance_defines["DATA_TYPE_DEFINITION"] = data_type_def;
+	if(auxiliary_type_def != "")
+		distance_defines["AUXILIARY_TYPE_DEFINITION"] = auxiliary_type_def;
+	if(key_definition != "")
+		distance_defines["KEY_DEFINITION"] = key_definition;*/
+
+	res = res && cgv::glutil::shader_library::load(ctx, clear_prog, "clear", true, where);
+	res = res && cgv::glutil::shader_library::load(ctx, voxelize_prog, "voxelize", true, where);
+	res = res && cgv::glutil::shader_library::load(ctx, clamp_prog, "clamp", true, where);
+	res = res && cgv::glutil::shader_library::load(ctx, mipmap_prog, "mipmap", true, where);
+
+	return res;
+}
+
+bool voxelizer::init(cgv::render::context& ctx, size_t count) {
+
+	if(!load_shader_programs(ctx))
+		return false;
+
+	return true;
+}
 
 int voxelizer::sample_voxel(const ivec3& vidx, const quadratic_bezier_tube& qt) {
 	vec3 voxel_min = vg.bounds.ref_min_pnt() + vec3(vidx) * vg.voxel_size;
@@ -108,4 +143,100 @@ void voxelizer::compute_density_volume(const traj_manager<float>::render_data *d
 	}
 
 	clamp_density();
+}
+
+void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj_manager<float>::render_data *data_set, cgv::render::texture& tex) {
+
+	if(!data_set) {
+		std::cout << "Warning: compute_density_volume_gpu received nullptr for data_set." << std::endl;
+		return;
+	}
+
+	if(!tex.handle) {
+		std::cout << "Warning: compute_density_volume_gpu received invalid texture handle." << std::endl;
+		return;
+	}
+
+	// uncomment for benchmarking
+	/*GLuint time_query = 0;
+	GLuint64 elapsed_time;
+	glGenQueries(1, &time_query);
+
+	glBeginQuery(GL_TIME_ELAPSED, time_query);*/
+
+	const ivec3& res = vg.resolution;
+
+	// reset the values to zero
+	clear_prog.enable(ctx);
+	clear_prog.set_uniform(ctx, "res", res);
+
+	const int texture_handle = (const int&)tex.handle - 1;
+
+	glBindImageTexture(0, texture_handle, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R32F);
+
+	glDispatchCompute((GLuint)ceil(res.x() / 4.0f), (GLuint)ceil(res.y() / 4.0f), (GLuint)ceil(res.z() / 4.0f));
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+	clear_prog.disable(ctx);
+
+	/*// now voxelize the scene
+	const int primitive_count = static_cast<int>(data_set->indices.size() / 2);
+	
+	voxelize_prog.enable(ctx);
+	voxelize_prog.set_uniform(ctx, "primitive_count", primitive_count);
+	voxelize_prog.set_uniform(ctx, "vbox_min", vg.bounds.ref_min_pnt());
+	voxelize_prog.set_uniform(ctx, "vsize", vg.voxel_size);
+	voxelize_prog.set_uniform(ctx, "vrad", 0.5f * vg.voxel_size);
+	voxelize_prog.set_uniform(ctx, "vhalfdiag", vdinfo.vhalfdiag);
+	voxelize_prog.set_uniform(ctx, "voffset", vdinfo.vsize / 6.0f);
+	voxelize_prog.set_uniform(ctx, "vstep", vdinfo.vsize / 3.0f);
+	voxelize_prog.set_uniform(ctx, "vvol", vdinfo.vvol);
+	voxelize_prog.set_uniform(ctx, "lower_radius_limit", vdinfo.radius_lower_limit);
+	//voxelize_prog.set_uniform(ctx, "particle_radius_scale", radius_scale);
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, particle_vbo);
+
+	glDispatchCompute((GLuint)ceil(ds.positions.size() / 64.0f), 1, 1);
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+	voxelize_prog.disable(ctx);
+
+	// clamp the values to [0,1]
+	clamp_prog.enable(ctx);
+	clamp_prog.set_uniform(ctx, "particle_count", static_cast<int>(ds.positions.size()));
+	clamp_prog.set_uniform(ctx, "resx", static_cast<int>(res.x));
+	clamp_prog.set_uniform(ctx, "resy", static_cast<int>(res.y));
+	clamp_prog.set_uniform(ctx, "resz", static_cast<int>(res.z));
+
+	glDispatchCompute((GLuint)ceil(res.x / 4.0f), (GLuint)ceil(res.y / 4.0f), (GLuint)ceil(res.z / 4.0f));
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+	clamp_prog.disable(ctx);*/
+
+	glBindImageTexture(0, 0, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R32F);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
+
+	// calculate the mipmaps via compute shader
+	//generate_mipmap();
+
+	// uncomment for standard mipmap calculation
+	glBindTexture(GL_TEXTURE_3D, texture_handle);
+	glGenerateMipmap(GL_TEXTURE_3D);
+	glBindTexture(GL_TEXTURE_3D, 0);
+
+	// uncomment for benchmarking
+	/*glEndQuery(GL_TIME_ELAPSED);
+
+	GLint done = false;
+	while(!done) {
+	glGetQueryObjectiv(time_query, GL_QUERY_RESULT_AVAILABLE, &done);
+	}
+	glGetQueryObjectui64v(time_query, GL_QUERY_RESULT, &elapsed_time);
+
+	accumulated_time += elapsed_time / (1000000.0f);
+	++runs;
+
+	if(runs > 10) {
+		std::cout << "done in " << accumulated_time/static_cast<float>(runs) << " ms" << std::endl;
+	}*/
 }

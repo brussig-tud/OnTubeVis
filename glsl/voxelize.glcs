@@ -1,0 +1,135 @@
+#version 430
+
+#extension GL_NV_shader_atomic_float : enable
+
+#define PI 3.14159265
+
+struct Particle {
+    vec4 pos;
+    vec4 col;
+};
+
+layout(local_size_x = 64) in;
+layout(r32f, binding = 0) uniform coherent image3D vol_tex;
+
+layout(std140, binding = 1) buffer particle_buffer {
+    Particle particles[];
+};
+
+uniform int particle_count;
+
+uniform vec3 vbox_min;
+uniform float vsize;
+uniform float vrad;
+uniform float vhalfdiag;
+uniform float voffset;
+uniform float vstep;
+uniform float vvol;
+uniform float lower_radius_limit;
+uniform float particle_radius_scale;
+uniform float particle_opacity;
+
+void main() {
+
+    int idx = int(gl_GlobalInvocationID.x);
+    if(idx >= particle_count) return;
+
+    // Particle data
+    vec4 pos = particles[idx].pos;
+    float pdensity = particles[idx].col.w * particle_opacity;
+
+    // Radius varibles
+    float prad = particle_radius_scale * pos.w;
+    float prad3 = prad*prad*prad;
+    float nr = prad / vsize;
+    
+    // Particle bounds
+    vec3 pmin = pos.xyz - prad;
+    vec3 pmax = pos.xyz + prad - 0.01 * prad;
+
+    ivec3 si = ivec3(floor((pmin - vbox_min) / vsize));
+    ivec3 ei = ivec3(floor((pmax - vbox_min) / vsize));
+
+    if((ei.x - si.x) + (ei.y - si.y) + (ei.z - si.z) == 0) {
+        // Particle lies entirely within the voxel.
+        ivec3 tex_coords = ivec3(si.x, si.y, si.z);
+        float pvol = (4.0 / 3.0) * PI * prad3 * pdensity;
+
+        imageAtomicAdd(vol_tex, tex_coords, pvol / vvol);
+    } else {
+        // Particle occupies multiple Voxels.
+        for(int z = si.z; z <= ei.z; ++z) {
+            for(int y = si.y; y <= ei.y; ++y) {
+                for(int x = si.x; x <= ei.x; ++x) {
+                    ivec3 tex_coords = ivec3(x, y, z);
+
+                    vec3 voxel_corner = vec3(x, y, z) * vsize + vbox_min;
+                    vec3 voxel_center = voxel_corner + vrad;
+                    
+                    float dist = length(voxel_center - pos.xyz);
+
+                    // Subsampling 3x3x3
+                    /*if(dist + vhalfdiag < prad) {
+                        // voxel lies entirely within the particle
+                        imageAtomicExchange(vol_tex, tex_coords, pdensity);
+                    } else {
+                        float occupation = 0.0;
+
+                        for(int s = 0; s < 27; ++s) {
+                            int sx = s % 3;
+                            int sy = (s / 3) % 3;
+                            int sz = s / 9;
+
+                            vec3 spos = voxel_corner + vstep * vec3(sx, sy, sz) + voffset;
+
+                            if(length(pos.xyz - spos) <= prad) {
+                                occupation += 1.0/27.0;
+                            }
+                        }
+
+                        imageAtomicAdd(vol_tex, tex_coords, pdensity * occupation);
+                    }*/
+                    
+                    // Mapping
+                    if(dist + vhalfdiag < prad) {
+                        // Voxel lies entirely within the particle
+                        imageAtomicExchange(vol_tex, tex_coords, pdensity);
+                    } else if(dist - vhalfdiag < prad) {
+                        // Particle lies partly inside the voxel
+                        if(nr > lower_radius_limit) {
+                            // Linear approximation from Jones et al. can be used.
+                            float nr2 = nr * nr;
+                            float a = 1.0/12. - nr2;
+                            float st = sqrt(nr2 - 0.5);
+                            a *= atan((0.5 * st) / (0.5 - nr2));
+                            a += st/3.0;
+                            float b = (nr2 - 1.0/12.0);
+                            b *= atan(0.5 / st);
+                            a += b;
+                            b = (-4.0/3.0)*nr*nr2;
+                            a += b * atan(0.25 / (nr*st));
+
+                            float fr = a - nr + 0.5;
+
+                            float value = -((dist-prad) / vsize) + fr;
+                            imageAtomicAdd(vol_tex, tex_coords, max(pdensity * value, 0.0));
+                        } else {
+                            // Sphere segment has to be used
+                            float h = prad - dist + vrad;
+
+                            if(h > 0.0) {
+                                float volume = (PI / 3.0) * h*h * (3.0*prad - h);
+
+                                // Calculate the correction factor for ranges inbetween the applicability of the segemnt alone and the linear approximation.
+                                float ro = max((nr - 0.5) / (lower_radius_limit - 0.5), 0.0);
+                                float factor = (1.0 - ro) + ro * lower_radius_limit;
+
+                                imageAtomicAdd(vol_tex, tex_coords, factor * pdensity * volume / vvol);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

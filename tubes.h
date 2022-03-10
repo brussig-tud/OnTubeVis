@@ -58,52 +58,13 @@ public:
 		vec4 tangent;
 	};
 
-	/// data layout for an attribute value sampled independently from the geometry nodes
-	template <class T>
-	struct free_attrib
-	{
-		/// default constructor
-		inline free_attrib() {}
-		/// convenience constructor
-		inline free_attrib(float s, const T& value) : s(s), value(value) {}
-
-		/// arclength along trajectory at which the value was sampled
-		float s;
-		/// actual attribute value
-		T value;
-	};
-
-	/// data layout for glyph visual attribute values
-	struct glyph_attribs
-	{
-		/// arclength along trajectory at which the glyph should be placed
-		float s;
-		/// radius properties
-		float radius0, radius1;
-		// angle properties
-		float angle0, angle1;
-
-		/// infer glyph dimensions (ToDo: should be dependent on glyph type)
-		struct extent { float rad, diam; };
-		static extent calc_radius (glyph_attribs glyph, float length_scale)
-		{
-			extent e;
-			e.rad = std::min(glyph.radius0+glyph.radius1, 1.25f*glyph.radius0) / length_scale;
-			e.diam = e.rad + e.rad;
-			return e;
-		}
-	};
-
 	cgv::type::DummyEnum voxel_grid_resolution;
-
-	
 
 protected:
 	cgv::glutil::color_map_editor* cm_editor_ptr;
 	cgv::glutil::transfer_function_editor* tf_editor_ptr;
 	cgv::glutil::navigator* navigator_ptr;
 	color_map_viewer* cm_viewer_ptr;
-
 
 	enum GridMode {
 		GM_NONE = 0,

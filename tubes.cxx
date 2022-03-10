@@ -1326,6 +1326,8 @@ bool tubes::init (cgv::render::context &ctx)
 	// init shared attribute array manager
 	success &= render.aam.init(ctx);
 
+	success &= density_volume.init(ctx, 0);
+
 	render.sorter = new cgv::glutil::radix_sort_4way();
 	render.sorter->set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent;");
 	render.sorter->set_auxiliary_type_override("uint a_idx; uint b_idx;");
@@ -1762,8 +1764,6 @@ void tubes::update_attribute_bindings(void) {
 		calculate_bounding_box(); 
 		set_view();
 
-		create_density_volume(ctx, voxel_grid_resolution);
-
 		// Clear range and attribute buffers for glyph layers
 		for(size_t i = 0; i < render.aindex_sbos.size(); ++i)
 			render.aindex_sbos[i].destruct(ctx);
@@ -1828,6 +1828,9 @@ void tubes::update_attribute_bindings(void) {
 		if(!render.sorter->init(ctx, render.data->indices.size() / 2))
 			std::cout << "Could not initialize gpu sorter" << std::endl;
 
+		// Generate the density volume (uses GPU buffer data so we need to do this after upload)
+		create_density_volume(ctx, voxel_grid_resolution);
+
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 	}
 }
@@ -1869,7 +1872,7 @@ void tubes::calculate_bounding_box(void) {
 
 void tubes::create_density_volume(context& ctx, unsigned resolution) {
 
-	cgv::utils::stopwatch s(true);
+	/*cgv::utils::stopwatch s(true);
 
 	density_volume.initialize_voxel_grid(bbox, resolution);
 
@@ -1906,7 +1909,53 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 
 	tf_editor_ptr->set_histogram(hist);
 
+	ao_style.derive_voxel_grid_parameters(density_volume.ref_voxel_grid());*/
+
+
+
+
+
+
+
+	cgv::utils::stopwatch s(true);
+
+	density_volume.initialize_voxel_grid(bbox, resolution);
+
+	ivec3 res = density_volume.ref_voxel_grid().resolution;
+	std::cout << "Generating density volume with resolution (" << res.x() << ", " << res.y() << ", " << res.z() << ")... ";
+
+
+
+
+	if(!density_tex.is_created()) {
+		//density_tex.destruct(ctx);
+
+		std::vector<float> density_data(res.x()*res.y()*res.z(), 0.5f);
+
+		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res.x(), res.y(), res.z(), TI_FLT32, cgv::data::CF_R), density_data.data());
+		density_tex = texture("flt32[R,G,B]", TF_LINEAR, TF_LINEAR_MIPMAP_LINEAR, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER);
+		density_tex.create(ctx, dv, 0);
+		density_tex.set_border_color(0.0f, 0.0f, 0.0f, 0.0f);
+		density_tex.generate_mipmaps(ctx);
+	}
+
+
+
+	// prepare SSBO and index buffer handles
+	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+	const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0;
+	const int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
+	if(data_handle > 0 && node_idx_handle > 0)
+		density_volume.compute_density_volume_gpu(ctx, render.data, density_tex);
+
+	
+
+	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+
 	ao_style.derive_voxel_grid_parameters(density_volume.ref_voxel_grid());
+
+	
+
 }
 
 void tubes::draw_dnd(context& ctx) {
