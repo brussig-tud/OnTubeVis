@@ -3,11 +3,7 @@
 layout(local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
 layout(r32f, binding = 0) uniform image3D vol_tex;
 
-uniform int particle_count;
-
-uniform int resx;
-uniform int resy;
-uniform int resz;
+uniform ivec3 res;
 
 void main() {
 
@@ -18,7 +14,7 @@ void main() {
     int y = (idx / resx) % resy;
     int z = idx / (resx * resy);*/
 
-    if(idx.x < resx && idx.y < resy && idx.z < resz) {
+    if(idx.x < res.x && idx.y < res.y && idx.z < res.z) {
         float value = min(imageLoad(vol_tex, idx).r, 1.0);
         imageStore(vol_tex, idx, vec4(value));
     }

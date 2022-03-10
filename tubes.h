@@ -50,7 +50,6 @@ class tubes :
 	public cgv::glutil::application_plugin	// derive from application plugin, which is a node, drawable, gui provider and event handler and can handle overlays
 {
 public:
-
 	/// data layout for per-node attributes within the attribute render SSBO
 	struct node_attribs {
 		vec4 pos_rad;
@@ -227,6 +226,7 @@ protected:
 		bool has_unsaved_changes = false;
 	} fh;
 
+	bool voxelize_gpu = false;
 	bool show_volume = false;
 	box3 bbox;
 	texture density_tex;

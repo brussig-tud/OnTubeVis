@@ -2,134 +2,313 @@
 
 #extension GL_NV_shader_atomic_float : enable
 
-#define PI 3.14159265
-
-struct Particle {
-    vec4 pos;
-    vec4 col;
-};
+#define M_PI 3.14159265
 
 layout(local_size_x = 64) in;
 layout(r32f, binding = 0) uniform coherent image3D vol_tex;
 
-layout(std140, binding = 1) buffer particle_buffer {
-    Particle particles[];
+struct index_type {
+	uint a_idx;
+	uint b_idx;
 };
 
-uniform int particle_count;
+layout(std430, binding = 1) readonly buffer index_buffer {
+    index_type indices[];
+};
 
+struct data_type {
+	vec4 pos_rad;
+	vec4 color;
+	vec4 tangent;
+};
+
+layout(std430, binding = 2) readonly buffer data_buffer {
+    data_type data[];
+};
+
+struct TubeNode {
+	vec3 pos;
+	float rad;
+
+	vec3 pos_tan;
+	float rad_tan;
+};
+
+struct Tube {
+	TubeNode s;
+	TubeNode e;
+};
+
+struct QTubeNode {
+	vec3 pos;
+	float rad;
+};
+
+struct QTube {
+	QTubeNode s;
+	QTubeNode h;
+	QTubeNode e;
+};
+
+uniform int primitive_count;
+
+uniform ivec3 res;
 uniform vec3 vbox_min;
 uniform float vsize;
 uniform float vrad;
 uniform float vhalfdiag;
-uniform float voffset;
 uniform float vstep;
+uniform float voffset;
 uniform float vvol;
-uniform float lower_radius_limit;
-uniform float particle_radius_scale;
-uniform float particle_opacity;
+//uniform float lower_radius_limit;
+//uniform float particle_radius_scale;
+//uniform float particle_opacity;
 
-void main() {
 
-    int idx = int(gl_GlobalInvocationID.x);
-    if(idx >= particle_count) return;
 
-    // Particle data
-    vec4 pos = particles[idx].pos;
-    float pdensity = particles[idx].col.w * particle_opacity;
 
-    // Radius varibles
-    float prad = particle_radius_scale * pos.w;
-    float prad3 = prad*prad*prad;
-    float nr = prad / vsize;
-    
-    // Particle bounds
-    vec3 pmin = pos.xyz - prad;
-    vec3 pmax = pos.xyz + prad - 0.01 * prad;
 
-    ivec3 si = ivec3(floor((pmin - vbox_min) / vsize));
-    ivec3 ei = ivec3(floor((pmax - vbox_min) / vsize));
 
-    if((ei.x - si.x) + (ei.y - si.y) + (ei.z - si.z) == 0) {
-        // Particle lies entirely within the voxel.
-        ivec3 tex_coords = ivec3(si.x, si.y, si.z);
-        float pvol = (4.0 / 3.0) * PI * prad3 * pdensity;
 
-        imageAtomicAdd(vol_tex, tex_coords, pvol / vvol);
-    } else {
-        // Particle occupies multiple Voxels.
+
+
+#define DEF_SplitCurve(T)						\
+void SplitCurve(T v0, T d0, T v1, T d1,			\
+	out T v00_out, out T h0_out, out T v10_out,	\
+	out T v01_out, out T h1_out, out T v11_out)	\
+{												\
+	v00_out = v0;								\
+	h0_out = v0 + d0 * 0.25;					\
+	T h1 = v1 - d1 * 0.25;						\
+	v10_out = (h0_out + h1) * 0.5;				\
+												\
+	v01_out = v10_out;							\
+	h1_out = h1;								\
+	v11_out = v1;								\
+}
+
+DEF_SplitCurve(float)
+DEF_SplitCurve(vec3)
+
+#define SPLIT_CURVE(TUBE, MEM_V, MEM_D, QTUBE0, QTUBE1)		\
+SplitCurve(													\
+	TUBE.s.MEM_V, TUBE.s.MEM_D, TUBE.e.MEM_V, TUBE.e.MEM_D,	\
+	QTUBE0.s.MEM_V, QTUBE0.h.MEM_V, QTUBE0.e.MEM_V,			\
+	QTUBE1.s.MEM_V, QTUBE1.h.MEM_V, QTUBE1.e.MEM_V			\
+)
+
+void SplitTube(Tube tube, out QTube qTube0, out QTube qTube1)
+{
+	SPLIT_CURVE(tube, pos, pos_tan, qTube0, qTube1);
+	SPLIT_CURVE(tube, rad, rad_tan, qTube0, qTube1);
+}
+
+
+
+void control_points_to_poly_coeffs(float p0, float h, float p1, out float o_c[3]) {
+	o_c[0] = p0;
+	o_c[1] = -2.0f * p0 + 2.0f * h;
+	o_c[2] = p0 + p1 - 2.0f * h;
+}
+
+float eval_poly_d0(float x, float c[3]) {
+	return x * (x * c[2] + c[1]) + c[0];
+}
+
+
+struct box3 {
+	vec3 minp;
+	vec3 maxp;
+};
+
+
+// calculate the exact axis aligned bounding box of a quadratic bezier tube segment
+box3 calculate_exact_bounding_box(QTube qt) {
+	const vec3 p0 = qt.s.pos;
+	const vec3 p1 = qt.h.pos;
+	const vec3 p2 = qt.e.pos;
+
+	const float r0 = qt.s.rad;
+	const float r1 = qt.h.rad;
+	const float r2 = qt.e.rad;
+
+	vec3 mi = min(p0 - r0, p2 - r2);
+	vec3 ma = max(p0 + r0, p2 + r2);
+
+	vec3 p0r = p0 - r0;
+	vec3 p1r = p1 - r1;
+	vec3 p2r = p2 - r2;
+
+	vec3 t = clamp((p0r - p1r) / (p0r - 2.0 * p1r + p2r), 0.0, 1.0);
+	vec3 s = vec3(1.0) - t;
+	vec3 q = s * s * p0r + 2.0 * s * t * p1r + t * t * p2r;
+
+	mi = min(mi, q);
+	ma = max(ma, q);
+
+	p0r = p0 + r0;
+	p1r = p1 + r1;
+	p2r = p2 + r2;
+
+	t = clamp((p0r - p1r) / (p0r - 2.0 * p1r + p2r), 0.0, 1.0);
+	s = vec3(1.0) - t;
+	q = s * s * p0r + 2.0 * s * t * p1r + t * t * p2r;
+
+	mi = min(mi, q);
+	ma = max(ma, q);
+
+	return box3(mi, ma);
+}
+
+
+
+float dot2(in vec3 v) {
+	return dot(v,v);
+}
+
+// https://www.shadertoy.com/view/ldj3Wh
+float sd_quadratic_bezier_tube(QTube qt, vec3 pos) {
+	vec3 a = qt.h.pos - qt.s.pos;
+	vec3 b = qt.s.pos - 2.0*qt.h.pos + qt.e.pos;
+	vec3 c = a * 2.0;
+	vec3 d = qt.s.pos - pos;
+
+	float kk = 1.0 / dot(b, b);
+	float kx = kk * dot(a, b);
+	float ky = kk * (2.0*dot(a, a) + dot(d, b)) / 3.0;
+	float kz = kk * dot(d, a);
+
+	vec2 res;
+
+	float p = ky - kx * kx;
+	float p3 = p * p*p;
+	float q = kx * (2.0*kx*kx - 3.0*ky) + kz;
+	float h = q * q + 4.0*p3;
+
+	if(h >= 0.0) {
+		h = sqrt(h);
+		vec2 x = (vec2(h, -h) - q) / 2.0;
+		vec2 uv = sign(x)*pow(abs(x), vec2(1.0 / 3.0));
+		float t = clamp(uv.x + uv.y - kx, 0.0, 1.0);
+
+		// 1 root
+		res = vec2(dot2(d + (c + b * t)*t), t);
+	} else {
+		float z = sqrt(-p);
+		float v = acos(q / (p*z*2.0)) / 3.0;
+		float m = cos(v);
+		float n = sin(v)*1.732050808;
+		vec3 t = clamp(vec3(m + m, -n - m, n - m) * z - kx, 0.0, 1.0);
+
+		// 3 roots, but only need two
+		float dis = dot2(d + (c + b * t.x)*t.x);
+		res = vec2(dis, t.x);
+
+		dis = dot2(d + (c + b * t.y)*t.y);
+		if(dis < res.x) res = vec2(dis, t.y);
+	}
+
+	res.x = sqrt(res.x);
+
+	float rc[3];
+	control_points_to_poly_coeffs(qt.s.rad, qt.h.rad, qt.e.rad, rc);
+	float radius = eval_poly_d0(res.y, rc);
+
+	return res.x - radius;
+}
+
+
+
+void voxelize_q_tube(QTube qt) {
+
+	box3 bbox = calculate_exact_bounding_box(qt);
+
+	// 
+	//bbox.maxp -= 0.01 * vrad;
+
+	ivec3 si = ivec3((bbox.minp - vbox_min) / vsize);
+	ivec3 ei = ivec3((bbox.maxp - vbox_min) / vsize);
+
+	si = clamp(si, ivec3(0), res - 1);
+	ei = clamp(ei, ivec3(0), res - 1);
+
+
+	//ivec3 tex_coords2 = ivec3(si.x, si.y, si.z);
+	//imageAtomicAdd(vol_tex, tex_coords2, 1.0);
+	//return;
+
+    //if((ei.x - si.x) + (ei.y - si.y) + (ei.z - si.z) < 0) {
+    //    // primitive lies entirely within the voxel
+    //    ivec3 tex_coords = ivec3(si.x, si.y, si.z);
+    //    //float pvol = (4.0 / 3.0) * M_PI * prad3;
+	//
+    //    imageAtomicAdd(vol_tex, tex_coords, 1.0);//pvol / vvol);
+    //} else {
+        // primitive occupies multiple voxels
         for(int z = si.z; z <= ei.z; ++z) {
             for(int y = si.y; y <= ei.y; ++y) {
                 for(int x = si.x; x <= ei.x; ++x) {
                     ivec3 tex_coords = ivec3(x, y, z);
 
-                    vec3 voxel_corner = vec3(x, y, z) * vsize + vbox_min;
-                    vec3 voxel_center = voxel_corner + vrad;
+                    vec3 voxel_min = vbox_min + vec3(x, y, z) * vsize;
+                    vec3 voxel_center = voxel_min + vrad;
                     
-                    float dist = length(voxel_center - pos.xyz);
+                    // do 3x3x3 subsampling
+                    int count = 0;
 
-                    // Subsampling 3x3x3
-                    /*if(dist + vhalfdiag < prad) {
-                        // voxel lies entirely within the particle
-                        imageAtomicExchange(vol_tex, tex_coords, pdensity);
-                    } else {
-                        float occupation = 0.0;
+                    for(int s = 0; s < 27; ++s) {
+                        int sx = s % 3;
+                        int sy = (s / 3) % 3;
+                        int sz = s / 9;
 
-                        for(int s = 0; s < 27; ++s) {
-                            int sx = s % 3;
-                            int sy = (s / 3) % 3;
-                            int sz = s / 9;
+                        vec3 spos = voxel_min + vec3(sx, sy, sz) * vstep + voffset;
 
-                            vec3 spos = voxel_corner + vstep * vec3(sx, sy, sz) + voffset;
-
-                            if(length(pos.xyz - spos) <= prad) {
-                                occupation += 1.0/27.0;
-                            }
-                        }
-
-                        imageAtomicAdd(vol_tex, tex_coords, pdensity * occupation);
-                    }*/
-                    
-                    // Mapping
-                    if(dist + vhalfdiag < prad) {
-                        // Voxel lies entirely within the particle
-                        imageAtomicExchange(vol_tex, tex_coords, pdensity);
-                    } else if(dist - vhalfdiag < prad) {
-                        // Particle lies partly inside the voxel
-                        if(nr > lower_radius_limit) {
-                            // Linear approximation from Jones et al. can be used.
-                            float nr2 = nr * nr;
-                            float a = 1.0/12. - nr2;
-                            float st = sqrt(nr2 - 0.5);
-                            a *= atan((0.5 * st) / (0.5 - nr2));
-                            a += st/3.0;
-                            float b = (nr2 - 1.0/12.0);
-                            b *= atan(0.5 / st);
-                            a += b;
-                            b = (-4.0/3.0)*nr*nr2;
-                            a += b * atan(0.25 / (nr*st));
-
-                            float fr = a - nr + 0.5;
-
-                            float value = -((dist-prad) / vsize) + fr;
-                            imageAtomicAdd(vol_tex, tex_coords, max(pdensity * value, 0.0));
-                        } else {
-                            // Sphere segment has to be used
-                            float h = prad - dist + vrad;
-
-                            if(h > 0.0) {
-                                float volume = (PI / 3.0) * h*h * (3.0*prad - h);
-
-                                // Calculate the correction factor for ranges inbetween the applicability of the segemnt alone and the linear approximation.
-                                float ro = max((nr - 0.5) / (lower_radius_limit - 0.5), 0.0);
-                                float factor = (1.0 - ro) + ro * lower_radius_limit;
-
-                                imageAtomicAdd(vol_tex, tex_coords, factor * pdensity * volume / vvol);
-                            }
-                        }
+                        if(sd_quadratic_bezier_tube(qt, spos) <= 0.0)
+                            ++count;
                     }
+
+					imageAtomicAdd(vol_tex, tex_coords, float(count) * 1.0/27.0f);
+					
+
+					/*float val = 0.0;
+                    if(sd_quadratic_bezier_tube(qt, voxel_center) <= 0.0)
+                        val = 1.0;
+
+                    imageAtomicAdd(vol_tex, tex_coords, val);*/
                 }
             }
         }
-    }
+    //}
+}
+
+
+
+void main() {
+
+    int idx = int(gl_GlobalInvocationID.x);
+    if(idx >= primitive_count) return;
+
+	uvec2 node_idx = uvec2(indices[idx].a_idx, indices[idx].b_idx);
+
+	Tube tube;
+	
+	data_type n0 = data[node_idx.x];
+	
+	tube.s.pos = n0.pos_rad.xyz;
+	tube.s.rad = n0.pos_rad.w;// * radius_scale;
+	tube.s.pos_tan = n0.tangent.xyz;
+	tube.s.rad_tan = n0.tangent.w;
+
+	data_type n1 = data[node_idx.y];
+	
+	tube.e.pos = n1.pos_rad.xyz;
+	tube.e.rad = n1.pos_rad.w;// * radius_scale;
+	tube.e.pos_tan = n1.tangent.xyz;
+	tube.e.rad_tan = n1.tangent.w;
+
+	QTube qTube0, qTube1;
+	SplitTube(tube, qTube0, qTube1);
+
+	voxelize_q_tube(qTube0);
+	voxelize_q_tube(qTube1);    
 }

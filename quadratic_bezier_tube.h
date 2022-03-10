@@ -230,7 +230,7 @@ public:
 		float q = kx * (2.0f*kx*kx - 3.0f*ky) + kz;
 		float h = q * q + 4.0f*p3;
 
-		if(h >= 0.0) {
+		if(h >= 0.0f) {
 			h = sqrt(h);
 			vec2 x = (vec2(h, -h) - q) / 2.0f;
 			vec2 uv = sign(x)*cgv::math::pow(abs(x), vec2(1.0f / 3.0f));

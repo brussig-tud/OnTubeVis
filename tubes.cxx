@@ -25,7 +25,6 @@
 
 
 
-// TODO: reset glyph layer configuration when loading a new data set
 // TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
 // TODO: star and violin glyphs: the first mapped entry will always get mapped to the first overall color
 	// Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
@@ -325,7 +324,7 @@ void tubes::on_set(void *member_ptr) {
 	}
 
 	// voxelization settings
-	if(member_ptr == &voxel_grid_resolution) {
+	if(member_ptr == &voxel_grid_resolution || member_ptr == &voxelize_gpu) {
 		context& ctx = *get_context();
 		voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(cgv::math::clamp(static_cast<unsigned>(voxel_grid_resolution), 16u, 512u));
 		create_density_volume(ctx, voxel_grid_resolution);
@@ -1364,13 +1363,13 @@ bool tubes::init (cgv::render::context &ctx)
 	constexpr unsigned seed = 11;
 #ifdef _DEBUG
 	constexpr unsigned num_trajectories = 3;
-	constexpr unsigned num_segments = 16;
+	constexpr unsigned num_nodes = 4;
 #else
 	constexpr unsigned num_trajectories = 256;
-	constexpr unsigned num_segments = 256;
+	constexpr unsigned num_nodes = 256;
 #endif
 	for (unsigned i=0; i<num_trajectories; i++)
-		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_segments, seed+i));
+		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_nodes, seed+i));
 	traj_mgr.add_dataset(
 		demo::compile_dataset(dataset.demo_trajs)
 	);
@@ -1580,6 +1579,7 @@ void tubes::create_gui(void) {
 
 	if(begin_tree_node("AO Style", ao_style, false)) {
 		align("\a");
+		add_member_control(this, "Voxelize GPU", voxelize_gpu, "check");
 		add_member_control(this, "Voxel Grid Resolution", voxel_grid_resolution, "dropdown", "enums='16=16, 32=32, 64=64, 128=128, 256=256, 512=512'");
 		add_gui("ao_style", ao_style);
 		align("\b");
@@ -1587,7 +1587,6 @@ void tubes::create_gui(void) {
 	}
 
 	// attribute mapping settings
-	//add_decorator("Attribute Mapping", "heading", "level=1");
 	if(begin_tree_node("Grid", grids, false)) {
 		align("\a");
 		add_member_control(this, "Mode", grid_mode, "dropdown", "enums='None, Color, Normal, Color + Normal'");
@@ -1637,7 +1636,6 @@ void tubes::create_gui(void) {
 	if(begin_tree_node("Color Scales", cm_editor_ptr, false)) {
 		align("\a");
 		color_map_mgr.create_gui(this, *this);
-		//cs_editor_ptr->create_gui(*this);
 		inline_object_gui(cm_editor_ptr);
 		align("\b");
 		end_tree_node(cm_editor_ptr);
@@ -1652,7 +1650,6 @@ void tubes::create_gui(void) {
 
 	if(begin_tree_node("Navigator", navigator_ptr, false)) {
 		align("\a");
-		//navigator_ptr->create_gui(*this);
 		inline_object_gui(navigator_ptr);
 		align("\b");
 		end_tree_node(navigator_ptr);
@@ -1667,7 +1664,6 @@ void tubes::create_gui(void) {
 
 		if(begin_tree_node("Transfer Function Editor", tf_editor_ptr, false)) {
 			align("\a");
-			//tf_editor_ptr->create_gui(*this);
 			inline_object_gui(tf_editor_ptr);
 			align("\b");
 			end_tree_node(tf_editor_ptr);
@@ -1872,64 +1868,17 @@ void tubes::calculate_bounding_box(void) {
 
 void tubes::create_density_volume(context& ctx, unsigned resolution) {
 
-	/*cgv::utils::stopwatch s(true);
-
 	density_volume.initialize_voxel_grid(bbox, resolution);
-
 	ivec3 res = density_volume.ref_voxel_grid().resolution;
 	std::cout << "Generating density volume with resolution (" << res.x() << ", " << res.y() << ", " << res.z() << ")... ";
 
-	density_volume.compute_density_volume(render.data);
-
-	if(density_tex.is_created())
-		density_tex.destruct(ctx);
-
-	std::vector<float>& density_data = density_volume.ref_voxel_grid().data;
-
-	cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res.x(), res.y(), res.z(), TI_FLT32, cgv::data::CF_R), density_data.data());
-	density_tex = texture("flt32[R,G,B]", TF_LINEAR, TF_LINEAR_MIPMAP_LINEAR, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER);
-	density_tex.create(ctx, dv, 0);
-	density_tex.set_border_color(0.0f, 0.0f, 0.0f, 0.0f);
-	density_tex.generate_mipmaps(ctx);
-
-	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
-
-	// create histogram
-	// TODO: remove later. We dont need this or the transfer function editor for the paper.
-	unsigned n_bins = 256;
-	std::vector<unsigned> hist(n_bins, 0u);
-
-	float x = 0.0f;
-	for(int i = 0; i < density_data.size(); ++i) {
-		// don't count 0
-		unsigned bin = static_cast<unsigned>(density_data[i] * (n_bins - 1));
-		if(bin != 0)
-			hist[bin] += 1;
+	if(density_tex.is_created()) {
+		if(res.x() != density_tex.get_width() || res.y() != density_tex.get_height() || res.z() != density_tex.get_depth()) {
+			density_tex.destruct(ctx);
+		}
 	}
 
-	tf_editor_ptr->set_histogram(hist);
-
-	ao_style.derive_voxel_grid_parameters(density_volume.ref_voxel_grid());*/
-
-
-
-
-
-
-
-	cgv::utils::stopwatch s(true);
-
-	density_volume.initialize_voxel_grid(bbox, resolution);
-
-	ivec3 res = density_volume.ref_voxel_grid().resolution;
-	std::cout << "Generating density volume with resolution (" << res.x() << ", " << res.y() << ", " << res.z() << ")... ";
-
-
-
-
 	if(!density_tex.is_created()) {
-		//density_tex.destruct(ctx);
-
 		std::vector<float> density_data(res.x()*res.y()*res.z(), 0.5f);
 
 		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res.x(), res.y(), res.z(), TI_FLT32, cgv::data::CF_R), density_data.data());
@@ -1939,23 +1888,54 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 		density_tex.generate_mipmaps(ctx);
 	}
 
+	cgv::utils::stopwatch s(true);
+
+	if(voxelize_gpu) {
+		// prepare SSBO and index buffer handles
+		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+		const int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
+		const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0;
+		if(node_idx_handle > 0 && data_handle > 0)
+			density_volume.compute_density_volume_gpu(ctx, render.data, node_idx_handle, data_handle, density_tex);
+	} else {
+		density_volume.compute_density_volume(render.data);
+
+		//if(density_tex.is_created())
+		//	density_tex.destruct(ctx);
+
+		std::vector<float>& density_data = density_volume.ref_voxel_grid().data;
+
+		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res.x(), res.y(), res.z(), TI_FLT32, cgv::data::CF_R), density_data.data());
+		
+		//density_tex = texture("flt32[R,G,B]", TF_LINEAR, TF_LINEAR_MIPMAP_LINEAR, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER);
+		//density_tex.create(ctx, dv, 0);
+		//density_tex.set_border_color(0.0f, 0.0f, 0.0f, 0.0f);
 
 
-	// prepare SSBO and index buffer handles
-	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
-	const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0;
-	const int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
-	if(data_handle > 0 && node_idx_handle > 0)
-		density_volume.compute_density_volume_gpu(ctx, render.data, density_tex);
+		density_tex.replace(ctx, 0, 0, 0, dv);
+		density_tex.generate_mipmaps(ctx);
 
-	
+		
+
+		// create histogram
+		// TODO: remove later. We dont need this or the transfer function editor for the paper.
+		/*unsigned n_bins = 256;
+		std::vector<unsigned> hist(n_bins, 0u);
+
+		float x = 0.0f;
+		for(int i = 0; i < density_data.size(); ++i) {
+			// don't count 0
+			unsigned bin = static_cast<unsigned>(density_data[i] * (n_bins - 1));
+			if(bin != 0)
+				hist[bin] += 1;
+		}
+
+		tf_editor_ptr->set_histogram(hist);*/
+	}
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
 	ao_style.derive_voxel_grid_parameters(density_volume.ref_voxel_grid());
-
-	
-
 }
 
 void tubes::draw_dnd(context& ctx) {

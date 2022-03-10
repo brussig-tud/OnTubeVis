@@ -1,5 +1,4 @@
 #include "voxelizer.h"
-#include <cgv_gl/renderer.h>
 
 bool voxelizer::load_shader_programs(cgv::render::context& ctx) {
 
@@ -42,6 +41,9 @@ int voxelizer::sample_voxel(const ivec3& vidx, const quadratic_bezier_tube& qt) 
 	float dist = qt.signed_distance(spos);
 	if(dist > vg.voxel_half_diag)
 		return 0;
+	//if(dist <= 0.0f)
+	//	return 27;
+	//return 0;
 
 	int count = 0;
 
@@ -75,6 +77,7 @@ void voxelizer::voxelize_q_tube(const quadratic_bezier_tube& qt) {
 
 				int idx = x + res.x() * y + res.x() * res.y() * z;
 
+				//vg.data[idx] = 1.0f;
 #pragma omp atomic
 				vg.data[idx] += occupancy;
 			}
@@ -145,7 +148,7 @@ void voxelizer::compute_density_volume(const traj_manager<float>::render_data *d
 	clamp_density();
 }
 
-void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj_manager<float>::render_data *data_set, cgv::render::texture& tex) {
+void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj_manager<float>::render_data *data_set, GLuint index_buffer, GLuint data_buffer, cgv::render::texture& tex) {
 
 	if(!data_set) {
 		std::cout << "Warning: compute_density_volume_gpu received nullptr for data_set." << std::endl;
@@ -174,44 +177,52 @@ void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj
 
 	glBindImageTexture(0, texture_handle, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R32F);
 
-	glDispatchCompute((GLuint)ceil(res.x() / 4.0f), (GLuint)ceil(res.y() / 4.0f), (GLuint)ceil(res.z() / 4.0f));
+	GLuint num_groups[3] = {
+		(GLuint)ceil(res.x() / 4.0f),
+		(GLuint)ceil(res.y() / 4.0f),
+		(GLuint)ceil(res.z() / 4.0f)
+	};
+
+	//glDispatchCompute((GLuint)ceil(res.x() / 4.0f), (GLuint)ceil(res.y() / 4.0f), (GLuint)ceil(res.z() / 4.0f));
+	glDispatchCompute(num_groups[0], num_groups[1], num_groups[2]);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
 	clear_prog.disable(ctx);
 
-	/*// now voxelize the scene
+	// now voxelize the scene
 	const int primitive_count = static_cast<int>(data_set->indices.size() / 2);
 	
 	voxelize_prog.enable(ctx);
 	voxelize_prog.set_uniform(ctx, "primitive_count", primitive_count);
+	voxelize_prog.set_uniform(ctx, "res", res);
 	voxelize_prog.set_uniform(ctx, "vbox_min", vg.bounds.ref_min_pnt());
 	voxelize_prog.set_uniform(ctx, "vsize", vg.voxel_size);
 	voxelize_prog.set_uniform(ctx, "vrad", 0.5f * vg.voxel_size);
-	voxelize_prog.set_uniform(ctx, "vhalfdiag", vdinfo.vhalfdiag);
-	voxelize_prog.set_uniform(ctx, "voffset", vdinfo.vsize / 6.0f);
-	voxelize_prog.set_uniform(ctx, "vstep", vdinfo.vsize / 3.0f);
-	voxelize_prog.set_uniform(ctx, "vvol", vdinfo.vvol);
-	voxelize_prog.set_uniform(ctx, "lower_radius_limit", vdinfo.radius_lower_limit);
+	voxelize_prog.set_uniform(ctx, "vhalfdiag", vg.voxel_half_diag);
+	voxelize_prog.set_uniform(ctx, "vstep", vg.voxel_size / 3.0f);
+	voxelize_prog.set_uniform(ctx, "voffset", vg.voxel_size / 6.0f);
+	voxelize_prog.set_uniform(ctx, "vvol", vg.voxel_size*vg.voxel_size*vg.voxel_size);
+	//voxelize_prog.set_uniform(ctx, "lower_radius_limit", vdinfo.radius_lower_limit);
 	//voxelize_prog.set_uniform(ctx, "particle_radius_scale", radius_scale);
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, particle_vbo);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, index_buffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, data_buffer);
 
-	glDispatchCompute((GLuint)ceil(ds.positions.size() / 64.0f), 1, 1);
+	glDispatchCompute((GLuint)ceil(primitive_count / 64.0f), 1, 1);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
 	voxelize_prog.disable(ctx);
 
 	// clamp the values to [0,1]
 	clamp_prog.enable(ctx);
-	clamp_prog.set_uniform(ctx, "particle_count", static_cast<int>(ds.positions.size()));
-	clamp_prog.set_uniform(ctx, "resx", static_cast<int>(res.x));
-	clamp_prog.set_uniform(ctx, "resy", static_cast<int>(res.y));
-	clamp_prog.set_uniform(ctx, "resz", static_cast<int>(res.z));
+	clamp_prog.set_uniform(ctx, "particle_count", primitive_count);
+	clamp_prog.set_uniform(ctx, "res", res);
 
-	glDispatchCompute((GLuint)ceil(res.x / 4.0f), (GLuint)ceil(res.y / 4.0f), (GLuint)ceil(res.z / 4.0f));
+	//glDispatchCompute((GLuint)ceil(res.x() / 4.0f), (GLuint)ceil(res.y() / 4.0f), (GLuint)ceil(res.z() / 4.0f));
+	glDispatchCompute(num_groups[0], num_groups[1], num_groups[2]);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-	clamp_prog.disable(ctx);*/
+	clamp_prog.disable(ctx);
 
 	glBindImageTexture(0, 0, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R32F);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
