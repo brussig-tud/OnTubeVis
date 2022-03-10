@@ -155,6 +155,13 @@ struct sample_gearsel
 	int val;
 	inline operator flt_type (void) const { return (flt_type)val; }
 };
+// sample of scalar acceleration state. Needs its own special handling as acceleration can be stored in different units
+template <class flt_type>
+struct sample_accel
+{
+	flt_type val;
+	inline operator flt_type (void) const { return val; }
+};
 
 // ordered timestamp -> sample map (mainly for closest-point queries)
 template <class T>
@@ -599,6 +606,7 @@ struct sepia_handler<flt_type>::Impl {
 			*out = v;
 		return success;
 	}
+
 	inline static bool collection_parse_switch (
 		bool *out, const char *name, const std::vector<std::string> &fields, const std::string &line
 	) noexcept
@@ -668,6 +676,44 @@ struct sepia_handler<flt_type>::Impl {
 		}
 		return 0;
 	}
+	template <>
+	inline static unsigned traj_parse_sample<sample_accel<real>> (
+		double *ts, sample_accel<real> *out, const char* name, const std::vector<std::string> &fields, const std::string &line
+	) noexcept
+	{
+		if (cgv::utils::to_lower(fields[1]).compare(cgv::utils::to_lower(name)) == 0)
+		{
+			if (fields.size() > 2)
+			{
+				if (fields.size() > 4)
+					std::cerr << "[sepia_handler] WARNING: too many columns in '"<<name<<"' sample! Line: "<<line << std::endl;
+				double ts_local;
+				real val;
+				if (Impl::parse_value(&ts_local, fields[0]) && Impl::parse_value(&val, fields[2]))
+				{
+					if (fields.size() > 3)
+					{
+						std::string unit = cgv::utils::to_lower(fields[3]);
+						if (unit.compare("g") == 0)
+							val *= real(9.8067);
+						else
+							std::cerr << "[sepia_handler] WARNING: unknown unit specified for '"<<name<<"', committing value as-is. Line: "<<line << std::endl;
+					}
+					else
+						std::cerr << "[sepia_handler] WARNING: no unit specified for '"<<name<<"', committing value as-is. Line: "<<line << std::endl;
+					// commit values
+					*ts = ts_local; 
+					out->val = val;
+					return 1;
+				}
+			}
+			std::cerr << "[sepia_handler] WARNING: '"<<name<<"' value could not be parsed! Line: "<<line << std::endl;
+
+			// we were responsible for this field, so return non-zero even in case we couldn't parse it
+			return 2;
+		}
+		return 0;
+	}
 	template <class T, class sample_type>
 	inline static unsigned traj_parse_sample_and_commit (
 		ordered_samples_dict<T> *attrib_store, sample_type &reg, const char *name, const std::vector<std::string> &fields, const std::string &line
@@ -689,7 +735,8 @@ struct sepia_handler<flt_type>::Impl {
 			}
 			return 1;
 		}
-		return parse_result; // just pass on parsing result
+		// just pass on parsing result
+		return parse_result;
 	}
 
 	static trajectory<real> load_trajectory (unsigned format_version, std::istream &contents)
@@ -744,6 +791,7 @@ struct sepia_handler<flt_type>::Impl {
 		sample_open_closed<real> oc;
 		sample_left_right<real> lr;
 		sample_gearsel<real> gs;
+		sample_accel<real> a;
 		// - temporary attribute storage
 		trajectory<real> traj;
 		std::unordered_set<std::string> unknowns;
@@ -812,9 +860,9 @@ struct sepia_handler<flt_type>::Impl {
 			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Rad_n_HR", fields, line)) DO_NOTHING;
 			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "FZ_v", fields, line)) DO_NOTHING;
 			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "FZ_v_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "FZ_a_y", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "FZ_a_y_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "FZ_a_y_2", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, a, "FZ_a_y", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, a, "FZ_a_y_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, a, "FZ_a_y_2", fields, line)) DO_NOTHING;
 			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "FZ_Gierrate", fields, line)) DO_NOTHING;
 			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "DR_Gps_v", fields, line)) DO_NOTHING;
 			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "DR_Gierrate", fields, line)) DO_NOTHING;
@@ -824,6 +872,10 @@ struct sepia_handler<flt_type>::Impl {
 			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Temperatur_Aussen_1", fields, line)) DO_NOTHING;
 			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "KM", fields, line)) DO_NOTHING;
 			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "KM_1", fields, line)) DO_NOTHING;
+			// - percentages
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Gaspedal_W", fields, line) == 1) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Zusatz_Tankinhalt", fields, line) == 1) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Zusatz_Licht_Instrumente", fields, line) == 1) DO_NOTHING;
 			// - scalars that need additional attributes for deciding the sign
 			else if (Impl::traj_parse_sample(&ts, &scl, "Lenkrad_W_B", fields, line) == 1) {
 				auto &steering_pos = traj.attribs_scalar["Lenkrad_W"];
@@ -853,14 +905,10 @@ struct sepia_handler<flt_type>::Impl {
 				else
 					steering_vel[ts] *= lr;
 			}
-			// - percentages
-			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Gaspedal_W", fields, line) == 1) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Zusatz_Tankinhalt", fields, line) == 1) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Zusatz_Licht_Instrumente", fields, line) == 1) DO_NOTHING;
 			// - vectors
-			else if (Impl::traj_parse_sample(&ts, &scl, "DR_a_x", fields, line) == 1) traj.attribs_vec3["DR_a"][ts].x() = scl;
-			else if (Impl::traj_parse_sample(&ts, &scl, "DR_a_y", fields, line) == 1) traj.attribs_vec3["DR_a"][ts].y() = scl;
-			else if (Impl::traj_parse_sample(&ts, &scl, "DR_a_z", fields, line) == 1) traj.attribs_vec3["DR_a"][ts].z() = scl;
+			else if (Impl::traj_parse_sample(&ts, &a, "DR_a_x", fields, line) == 1) traj.attribs_vec3["DR_a"][ts].x() = a.val;
+			else if (Impl::traj_parse_sample(&ts, &a, "DR_a_y", fields, line) == 1) traj.attribs_vec3["DR_a"][ts].y() = a.val;
+			else if (Impl::traj_parse_sample(&ts, &a, "DR_a_z", fields, line) == 1) traj.attribs_vec3["DR_a"][ts].z() = a.val;
 			else if (Impl::traj_parse_sample(&ts, &dbl, "DR_Gps_Latitude", fields, line) == 1) traj.gps[ts].x() = dbl;
 			else if (Impl::traj_parse_sample(&ts, &dbl, "DR_Gps_Longitude", fields, line) == 1) traj.gps[ts].y() = dbl;
 
@@ -896,8 +944,7 @@ struct sepia_handler<flt_type>::Impl {
 };
 template <class flt_type>
 const visual_attribute_mapping<flt_type> sepia_handler<flt_type>::Impl::attrmap({
-	{VisualAttrib::POSITION, {SEPIA_POSITION_ATTRIB_NAME}}, {VisualAttrib::TANGENT, {SEPIA_TANGENT_ATTRIB_NAME}},
-	{VisualAttrib::RADIUS, {SEPIA_RADIUS_ATTRIB_NAME}}, {VisualAttrib::COLOR, {SEPIA_COLOR_ATTRIB_NAME}}
+	{VisualAttrib::POSITION, {SEPIA_POSITION_ATTRIB_NAME}}, {VisualAttrib::RADIUS, {SEPIA_RADIUS_ATTRIB_NAME}}
 });
 
 template <class flt_type>
@@ -940,10 +987,53 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 	// decide how to proceed
 	if (dsinfo.type == DT::SINGLE)
 	{
+		// version check
 		if (!Impl::check_version(dsinfo.version))
 			std::cerr << "[sepia_handler] WARNING: trajectory format version "<<dsinfo.version<<" is unsupported!" << std::endl;
+
 		// delegate to individual trajectory loading code
 		auto traj = Impl::load_trajectory(dsinfo.version, contents);
+
+		// compile dataset
+		// - "special" position attribute
+		auto P = add_attribute<Vec3>(ret, SEPIA_POSITION_ATTRIB_NAME);
+		typename trajectory<real>::gpsvec refpos(traj.gps.begin()->second.x(), traj.gps.begin()->second.y());
+		{ real seg_dist_accum = 0;
+		  for (auto gps_it=traj.gps.cbegin(); gps_it!=traj.gps.cend(); gps_it++)
+		  {
+		  	// ToDo: unproject from WGS84 ellipsoid and offset according to EGM96 geoid
+		  	auto gps = (gps_it->second - refpos)*10000;
+		  	Vec3 pos((real)gps.x(), (real)gps.y(), 0);
+		  	if (gps_it != traj.gps.cbegin())
+		  		seg_dist_accum += (pos - P.data.values.back()).length();
+		  	P.data.append(pos, (real)gps_it->first);
+		  }
+		  set_avg_segment_length(ret, seg_dist_accum/(P.data.num()-1));
+		}
+		trajectories(ret, P.attrib).emplace_back(range{0, P.data.num()});
+		// - scalar attributes
+		for (const auto &attrib : traj.attribs_scalar)
+		{
+			auto A = add_attribute<real>(ret, attrib.first);
+			for (const auto &sample : attrib.second)
+				A.data.append(sample.second, (real)sample.first);
+			trajectories(ret, A.attrib).emplace_back(range{0, A.data.num()});
+		}
+		// - vector attributes
+		for (const auto &attrib : traj.attribs_vec3)
+		{
+			auto A = add_attribute<Vec3>(ret, attrib.first);
+			for (const auto &sample : attrib.second)
+				A.data.append(sample.second, (real)sample.first);
+			trajectories(ret, A.attrib).emplace_back(range{0, A.data.num()});
+		}
+		// - invent radii
+		auto R = add_attribute<real>(ret, SEPIA_RADIUS_ATTRIB_NAME);
+		R.data.values = std::vector<real>(P.data.num(), ret.avg_segment_length()*real(0.25));
+		R.data.timestamps = P.data.timestamps;
+		trajectories(ret, R.attrib) = trajectories(ret, P.attrib);
+		// - visual attribute mapping
+		ret.set_mapping(Impl::attrmap);
 	}
 	else
 	{

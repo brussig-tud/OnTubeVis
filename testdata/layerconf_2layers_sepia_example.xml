@@ -1,0 +1,46 @@
+<GlyphConfiguration>
+  <ColorMaps>
+    <ColorMap name="acton" custom="0" />
+    <ColorMap name="bamako" custom="0" />
+    <ColorMap name="batlowK" custom="0" />
+    <ColorMap name="batlowW" custom="0" />
+    <ColorMap name="batlow" custom="0" />
+    <ColorMap name="bilbao" custom="0" />
+    <ColorMap name="buda" custom="0" />
+    <ColorMap name="davos" custom="0" />
+    <ColorMap name="devon" custom="0" />
+    <ColorMap name="grayC" custom="0" />
+    <ColorMap name="hawaii" custom="0" />
+    <ColorMap name="imola" custom="0" />
+    <ColorMap name="lajolla" custom="0" />
+    <ColorMap name="lapaz" custom="0" />
+    <ColorMap name="nuuk" custom="0" />
+    <ColorMap name="oslo" custom="0" />
+    <ColorMap name="tokyo" custom="0" />
+    <ColorMap name="turku" custom="0" />
+    <ColorMap name="bam" custom="0" />
+    <ColorMap name="vanimo" custom="0" />
+    <ColorMap name="cork" custom="0" />
+    <ColorMap name="tofino" custom="0" />
+    <ColorMap name="broc" custom="0" />
+    <ColorMap name="lisbon" custom="0" />
+    <ColorMap name="vik" custom="0" />
+    <ColorMap name="berlin" custom="0" />
+    <ColorMap name="roma" custom="0" />
+    <ColorMap name="RAINBOW" custom="0" />
+  </ColorMaps>
+  <Layers>
+    <Layer glyph="color" >
+      <Property name="interpolate" in_range="0.000000, 1.000000" />
+      <Property name="classification" in_range="0.000000, 1.000000" />
+      <Property name="color" attrib_name="DR_Gps" color_map_name="davos" in_range="0.000000, 20.519047" />
+    </Layer>
+    <Layer glyph="triangle_isosceles" >
+      <Property name="outline" in_range="0.000000, 1.000000" />
+      <Property name="color" attrib_name="DR_Gps" color_map_name="RAINBOW" in_range="0.000000, 20.519047" />
+      <Property name="base_width" in_range="0.000000, 1.000000" out_range="0.000000, 1.500000" />
+      <Property name="height" in_range="0.000000, 1.000000" out_range="0.000000, 1.860000" />
+      <Property name="orientation" in_range="0.000000, 1.000000" out_range="0.000000, 360.000000" />
+    </Layer>
+  </Layers>
+</GlyphConfiguration>
