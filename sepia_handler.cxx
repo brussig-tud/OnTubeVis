@@ -164,6 +164,49 @@ using ordered_samples = std::map<double, T>;
 template <class T>
 using ordered_samples_dict = std::unordered_map<std::string, ordered_samples<T>>;
 
+// internal trajectory representation
+template <class flt_type>
+struct trajectory
+{
+	// types
+	typedef flt_type real;
+	typedef cgv::math::fvec<double, 2> gpsvec;
+	typedef cgv::math::fvec<real, 3> vec3;
+
+	// fields
+	bool loaded;
+	ordered_samples<gpsvec> gps;
+	ordered_samples_dict<flt_type> attribs_scalar;
+	ordered_samples_dict<vec3> attribs_vec3;
+
+	// methods
+	trajectory() : loaded(false) {}
+	trajectory(const trajectory &other)
+		: loaded(other.loaded), gps(other.gps), attribs_vec3(other.attribs_vec3), attribs_scalar(other.attribs_scalar)
+	{}
+	trajectory(trajectory &&other)
+		: loaded(other.loaded), gps(std::move(other.gps)), attribs_vec3(std::move(other.attribs_vec3)), attribs_scalar(std::move(other.attribs_scalar))
+	{
+		other.loaded = false;
+	}
+	trajectory& operator= (const trajectory &other)
+	{
+		loaded = other.loaded;
+		gps = other.gps;
+		attribs_scalar = other.attribs_scalar;
+		attribs_vec3 = other.attribs_vec3;
+		return *this;
+	}
+	trajectory& operator= (trajectory &&other)
+	{
+		loaded = other.loaded; other.loaded = false;
+		gps = std::move(other.gps);
+		attribs_scalar = std::move(other.attribs_scalar);
+		attribs_vec3 = std::move(other.attribs_vec3);
+		return *this;
+	}
+};
+
 // Anonymous namespace end
 }
 
@@ -646,11 +689,10 @@ struct sepia_handler<flt_type>::Impl {
 			}
 			return 1;
 		}
-		// just pass on parsing result
-		return parse_result;
+		return parse_result; // just pass on parsing result
 	}
 
-	static bool load_trajectory (traj_dataset<real> *ds_out, unsigned format_version, std::istream &contents)
+	static trajectory<real> load_trajectory (unsigned format_version, std::istream &contents)
 	{
 		// parsing workspace
 		std::string line;
@@ -703,9 +745,7 @@ struct sepia_handler<flt_type>::Impl {
 		sample_left_right<real> lr;
 		sample_gearsel<real> gs;
 		// - temporary attribute storage
-		ordered_samples<cgv::math::fvec<double, 3>> GPS_pos;
-		ordered_samples_dict<Vec3> attribs_vec3;
-		ordered_samples_dict<real> attribs_scalar;
+		trajectory<real> traj;
 		std::unordered_set<std::string> unknowns;
 		// - parser loop
 		while (   !contents.eof()
@@ -713,116 +753,116 @@ struct sepia_handler<flt_type>::Impl {
 		{
 			// parse handled sample types
 			// - boolean states
-			if      (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Motor_KL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Blinker_L_S", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Blinker_R_S", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Blinker_Warnblinker_S", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Licht_Abblend_S", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Licht_Fern_S", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Licht_Hupe_S", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Licht_Nebelschluss_S", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Licht_Stand_S", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Zusatz_GW_Gurt_WL_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Zusatz_GW_Nebelschluss_KL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, rn, "ABS_E", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, rn, "ABS_E_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "ABS_WL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "GW_ABS_WL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "GW_ABS_WL_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, ai, "ESP_S", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, ai, "ESP_S_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, rn, "ESP_E", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, rn, "ESP_E_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "ESP_KL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "GW_ESP_KL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, ai, "Zusatz_Bremse_Licht_S", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, hn, "Zusatz_Kickdown", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, hn, "Bremse_Pedal_S", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, hn, "Bremse_Pedal_S_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, hn, "Bremse_Pedal_S_2", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, hb, "Bremse_Hand", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Airbag_WL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Airbag_WL_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, sb, "Gurt_VL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Zusatz_GW_Gurt_WL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Zusatz_GW_Batterie_WL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Zusatz_GW_KuehlMtemp_WL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Zusatz_GW_Oeldruck_WL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Zusatz_GW_Werkstatt_KL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "GW_ESP_KL_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "GW_ESP_KL_2", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Zusatz_Motor_Kuehlung_S", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Zusatz_Anlassschalter", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Zusatz_Heckscheibe_Heizung", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Zusatz_Klimaanlage", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oo, "Zusatz_Lueftung_Innenraum_S", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oc, "Zusatz_Tuer_links", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, oc, "Zusatz_Tuer_rechts", fields, line)) DO_NOTHING;
+			if      (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Motor_KL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Blinker_L_S", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Blinker_R_S", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Blinker_Warnblinker_S", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Licht_Abblend_S", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Licht_Fern_S", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Licht_Hupe_S", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Licht_Nebelschluss_S", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Licht_Stand_S", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Zusatz_GW_Gurt_WL_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Zusatz_GW_Nebelschluss_KL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, rn, "ABS_E", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, rn, "ABS_E_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "ABS_WL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "GW_ABS_WL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "GW_ABS_WL_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, ai, "ESP_S", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, ai, "ESP_S_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, rn, "ESP_E", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, rn, "ESP_E_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "ESP_KL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "GW_ESP_KL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, ai, "Zusatz_Bremse_Licht_S", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, hn, "Zusatz_Kickdown", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, hn, "Bremse_Pedal_S", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, hn, "Bremse_Pedal_S_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, hn, "Bremse_Pedal_S_2", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, hb, "Bremse_Hand", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Airbag_WL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Airbag_WL_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, sb, "Gurt_VL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Zusatz_GW_Gurt_WL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Zusatz_GW_Batterie_WL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Zusatz_GW_KuehlMtemp_WL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Zusatz_GW_Oeldruck_WL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Zusatz_GW_Werkstatt_KL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "GW_ESP_KL_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "GW_ESP_KL_2", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Zusatz_Motor_Kuehlung_S", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Zusatz_Anlassschalter", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Zusatz_Heckscheibe_Heizung", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Zusatz_Klimaanlage", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oo, "Zusatz_Lueftung_Innenraum_S", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oc, "Zusatz_Tuer_links", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, oc, "Zusatz_Tuer_rechts", fields, line)) DO_NOTHING;
 			// - discrete state
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, ival, "Gang_Wahl", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, ival, "Gang_Getriebe", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, gs, "Zusatz_Gang_Anzeige_KI", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, ival, "Gang_Wahl", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, ival, "Gang_Getriebe", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, gs, "Zusatz_Gang_Anzeige_KI", fields, line)) DO_NOTHING;
 			// - scalar values
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Motor_n", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Motor_n_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Zusatz_Motor_Temperatur", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Rad_n_VL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Rad_n_VR", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Rad_n_HL", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Rad_n_HR", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "FZ_v", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "FZ_v_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "FZ_a_y", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "FZ_a_y_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "FZ_a_y_2", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "FZ_Gierrate", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "DR_Gps_v", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "DR_Gierrate", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Zusatz_Bremse_Moment", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Batterie_U", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Temperatur_Aussen", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Temperatur_Aussen_1", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "KM", fields, line)) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "KM_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Motor_n", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Motor_n_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Zusatz_Motor_Temperatur", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Rad_n_VL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Rad_n_VR", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Rad_n_HL", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Rad_n_HR", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "FZ_v", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "FZ_v_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "FZ_a_y", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "FZ_a_y_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "FZ_a_y_2", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "FZ_Gierrate", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "DR_Gps_v", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "DR_Gierrate", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Zusatz_Bremse_Moment", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Batterie_U", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Temperatur_Aussen", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Temperatur_Aussen_1", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "KM", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "KM_1", fields, line)) DO_NOTHING;
 			// - scalars that need additional attributes for deciding the sign
 			else if (Impl::traj_parse_sample(&ts, &scl, "Lenkrad_W_B", fields, line) == 1) {
-				auto &steering_pos = attribs_scalar["Lenkrad_W"];
+				auto &steering_pos = traj.attribs_scalar["Lenkrad_W"];
 				if (steering_pos.find(ts) == steering_pos.end())
 					steering_pos[ts] = scl;
 				else
 					steering_pos[ts] *= scl;
 			}
 			else if (Impl::traj_parse_sample(&ts, &lr, "Lenkrad_W_R", fields, line) == 1) {
-				auto &steering_pos = attribs_scalar["Lenkrad_W"];
+				auto &steering_pos = traj.attribs_scalar["Lenkrad_W"];
 				if (steering_pos.find(ts) == steering_pos.end())
 					steering_pos[ts] = lr;
 				else
 					steering_pos[ts] *= lr;
 			}
 			else if (Impl::traj_parse_sample(&ts, &scl, "Lenkrad_W_v_B", fields, line) == 1) {
-				auto &steering_vel = attribs_scalar["Lenkrad_W_v"];
+				auto &steering_vel = traj.attribs_scalar["Lenkrad_W_v"];
 				if (steering_vel.find(ts) == steering_vel.end())
 					steering_vel[ts] = scl;
 				else
 					steering_vel[ts] *= scl;
 			}
 			else if (Impl::traj_parse_sample(&ts, &lr, "Lenkrad_W_v_R", fields, line) == 1) {
-				auto &steering_vel = attribs_scalar["Lenkrad_W_v"];
+				auto &steering_vel = traj.attribs_scalar["Lenkrad_W_v"];
 				if (steering_vel.find(ts) == steering_vel.end())
 					steering_vel[ts] = lr;
 				else
 					steering_vel[ts] *= lr;
 			}
 			// - percentages
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Gaspedal_W", fields, line) == 1) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Zusatz_Tankinhalt", fields, line) == 1) DO_NOTHING;
-			else if (Impl::traj_parse_sample_and_commit(&attribs_scalar, scl, "Zusatz_Licht_Instrumente", fields, line) == 1) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Gaspedal_W", fields, line) == 1) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Zusatz_Tankinhalt", fields, line) == 1) DO_NOTHING;
+			else if (Impl::traj_parse_sample_and_commit(&traj.attribs_scalar, scl, "Zusatz_Licht_Instrumente", fields, line) == 1) DO_NOTHING;
 			// - vectors
-			else if (Impl::traj_parse_sample(&ts, &scl, "DR_a_x", fields, line) == 1) attribs_vec3["DR_a"][ts].x() = scl;
-			else if (Impl::traj_parse_sample(&ts, &scl, "DR_a_y", fields, line) == 1) attribs_vec3["DR_a"][ts].y() = scl;
-			else if (Impl::traj_parse_sample(&ts, &scl, "DR_a_z", fields, line) == 1) attribs_vec3["DR_a"][ts].z() = scl;
-			else if (Impl::traj_parse_sample(&ts, &dbl, "DR_Gps_Latitude", fields, line) == 1) GPS_pos[ts].x() = dbl;
-			else if (Impl::traj_parse_sample(&ts, &dbl, "DR_Gps_Longitude", fields, line) == 1) GPS_pos[ts].y() = dbl;
+			else if (Impl::traj_parse_sample(&ts, &scl, "DR_a_x", fields, line) == 1) traj.attribs_vec3["DR_a"][ts].x() = scl;
+			else if (Impl::traj_parse_sample(&ts, &scl, "DR_a_y", fields, line) == 1) traj.attribs_vec3["DR_a"][ts].y() = scl;
+			else if (Impl::traj_parse_sample(&ts, &scl, "DR_a_z", fields, line) == 1) traj.attribs_vec3["DR_a"][ts].z() = scl;
+			else if (Impl::traj_parse_sample(&ts, &dbl, "DR_Gps_Latitude", fields, line) == 1) traj.gps[ts].x() = dbl;
+			else if (Impl::traj_parse_sample(&ts, &dbl, "DR_Gps_Longitude", fields, line) == 1) traj.gps[ts].y() = dbl;
 
 			// skip ignored properties
 			else if (Impl::traj_ignore_sample("Rad_n_VL_1", fields)) DO_NOTHING;
@@ -850,7 +890,8 @@ struct sepia_handler<flt_type>::Impl {
 		}
 
 		// done!
-		return false;
+		traj.loaded = true;
+		return std::move(traj);
 	}
 };
 template <class flt_type>
@@ -902,7 +943,7 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 		if (!Impl::check_version(dsinfo.version))
 			std::cerr << "[sepia_handler] WARNING: trajectory format version "<<dsinfo.version<<" is unsupported!" << std::endl;
 		// delegate to individual trajectory loading code
-		Impl::load_trajectory(&ret, dsinfo.version, contents);
+		auto traj = Impl::load_trajectory(dsinfo.version, contents);
 	}
 	else
 	{
@@ -973,9 +1014,12 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 						traj_dataset<real> new_ds;
 						if (!Impl::check_version(dsinfo.version))
 							std::cerr << "[sepia_handler] WARNING: trajectory file '"<<file<<"' uses unsupported format version "<<dsinfo.version << std::endl;
-						if (Impl::load_trajectory(&new_ds, dsinfo.version, contents))
-							attribs.emplace_back(std::move(attributes(new_ds)));
-						else
+						if (Impl::load_trajectory(dsinfo.version, contents).loaded)
+						{
+							// ToDo: unify trajectories into single dataset
+							//attribs.emplace_back(std::move(attributes(new_ds)));
+						}
+						//else
 							std::cerr << "[sepia_handler] WARNING: trajectory file '"<<file<<"' could not be loaded properly" << std::endl;
 					}
 					else
