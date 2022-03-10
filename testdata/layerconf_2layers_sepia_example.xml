@@ -33,13 +33,13 @@
     <Layer glyph="color" >
       <Property name="interpolate" in_range="0.000000, 1.000000" />
       <Property name="classification" in_range="0.000000, 1.000000" />
-      <Property name="color" attrib_name="DR_Gps" color_map_name="davos" in_range="0.000000, 20.519047" />
+      <Property name="color" attrib_name="DR_Gps" color_map_name="davos" in_range="0.000000, 32.143543" />
     </Layer>
     <Layer glyph="triangle_isosceles" >
       <Property name="outline" in_range="0.000000, 1.000000" />
-      <Property name="color" attrib_name="DR_Gps" color_map_name="RAINBOW" in_range="0.000000, 20.519047" />
-      <Property name="base_width" in_range="0.000000, 1.000000" out_range="0.000000, 1.500000" />
-      <Property name="height" in_range="0.000000, 1.000000" out_range="0.000000, 1.860000" />
+      <Property name="color" attrib_name="DR_Gps" color_map_name="RAINBOW" in_range="0.000000, 32.143543" />
+      <Property name="base_width" attrib_name="DR_Gps_v" in_range="0.000000, 57.599998" out_range="1.500000, 1.000000" />
+      <Property name="height" attrib_name="DR_Gps_v" in_range="0.000000, 57.599998" out_range="0.000000, 4.000000" />
       <Property name="orientation" in_range="0.000000, 1.000000" out_range="0.000000, 360.000000" />
     </Layer>
   </Layers>
