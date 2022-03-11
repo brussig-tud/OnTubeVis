@@ -42,16 +42,15 @@
   </ColorMaps>
   <Layers>
     <Layer glyph="color" >
-      <Property name="interpolate" in_range="0.000000, 1.000000" />
-      <Property name="classification" in_range="0.000000, 1.000000" />
+      <Property name="interpolate" value="1.000000" />
       <Property name="color" attrib_name="Lenkrad_W" color_map_name="steer" in_range="-75.000000, 75.000000" />
     </Layer>
     <Layer glyph="triangle_isosceles" >
-      <Property name="outline" in_range="0.000000, 1.000000" />
+      <Property name="outline" value="0.030000" />
       <Property name="color" attrib_name="FZ_a_y" color_map_name="accel" in_range="-2.000000, 2.000000" />
       <Property name="base_width" attrib_name="FZ_a_y" in_range="-2.000000, 2.000000" out_range="1.250000, 0.550000" />
       <Property name="height" attrib_name="FZ_v" in_range="0.000000, 44.650002" out_range="0.125000, 4.000000" />
-      <Property name="orientation" in_range="0.000000, 1.000000" out_range="0.000000, 360.000000" />
+      <Property name="orientation" in_range="0.000000, 57.599998" out_range="180.000000, 360.000000" />
     </Layer>
   </Layers>
 </GlyphConfiguration>

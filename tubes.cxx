@@ -25,6 +25,7 @@
 
 
 
+// TODO: compile glyph attribs will get stuck in an endless loop if the first attribute sample does not lie on the first segment
 // TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
 // TODO: star and violin glyphs: the first mapped entry will always get mapped to the first overall color
 	// Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
@@ -604,7 +605,12 @@ bool tubes::save_layer_configuration(const std::string& file_name) {
 				}
 
 				vec4 mr = mapping_ranges[j];
-				content += put("in_range", vec2_to_str(vec2(mr.x(), mr.y())));
+				if(attrib.modifiers && GAM_GLOBAL) {
+					if(attrib.type != GAT_COLOR)
+						content += put("value", std::to_string(mr.w()));
+				} else {
+					content += put("in_range", vec2_to_str(vec2(mr.x(), mr.y())));
+				}
 				if(attrib.type != GAT_UNIT &&
 					attrib.type != GAT_SIGNED_UNIT &&
 					attrib.type != GAT_COLOR &&
@@ -772,6 +778,8 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 	const glyph_shape* shape_ptr = nullptr;
 	std::vector<std::string> shape_attribute_names;
 
+	std::vector<std::pair<int, vec2>> input_ranges;
+
 	for(size_t i = 0; i < layer_data.size(); ++i) {
 		const cgv::utils::xml_tag& tag = layer_data[i];
 		
@@ -781,6 +789,7 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 				gam = glyph_attribute_mapping();
 				shape_ptr = nullptr;
 				shape_attribute_names.clear();
+				input_ranges.clear();
 
 				for(const auto& attrib : tag.attributes) {
 					if(attrib.first == "glyph") {
@@ -794,8 +803,13 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 				}
 			} else if(tag.type == cgv::utils::XTT_CLOSE) {
 				if(read_layer) {
-					// TODO: save layer to manager
 					glyph_layer_mgr.add_glyph_attribute_mapping(gam);
+
+					auto& last_gam = const_cast<glyph_attribute_mapping&>(glyph_layer_mgr.ref_glyph_attribute_mappings().back());
+
+					for(const auto& p : input_ranges)
+						if(p.first > -1)
+							last_gam.set_attrib_in_range(p.first, p.second);
 				}
 				read_layer = false;
 			}
@@ -832,23 +846,35 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 					gam.set_attrib_source_index(static_cast<size_t>(shape_attrib_idx), attrib_idx);
 				}
 
+				if(attrib.modifiers && GAM_GLOBAL) {
+					it = tag.attributes.find("value");
+					if(it != end) {
+						std::string str = (*it).second;
+						vec2 r(0.0f);
+						r.y() = std::strtof(str.c_str(), nullptr);
+						gam.set_attrib_out_range(shape_attrib_idx, r);
+					}
+				}
+				
 				it = tag.attributes.find("in_range");
 				if(it != end) {
 					std::string str = (*it).second;
 					vec2 r = read_vec2(str);
 					gam.set_attrib_in_range(shape_attrib_idx, r);
+					input_ranges.push_back({ shape_attrib_idx, r });
+				} else {
+					input_ranges.push_back({ -1, vec2(0.0f) });
 				}
 
-				it = tag.attributes.find("out_range");
-				if(it != end) {
-					std::string str = (*it).second;
-					vec2 r = read_vec2(str);
-
-					if(attrib.type != GAT_UNIT &&
-						attrib.type != GAT_SIGNED_UNIT &&
-						attrib.type != GAT_COLOR &&
-						attrib.type != GAT_OUTLINE
-						) {
+				if( attrib.type != GAT_UNIT &&
+					attrib.type != GAT_SIGNED_UNIT &&
+					attrib.type != GAT_COLOR &&
+					attrib.type != GAT_OUTLINE
+					) {
+					it = tag.attributes.find("out_range");
+					if(it != end) {
+						std::string str = (*it).second;
+						vec2 r = read_vec2(str);
 						gam.set_attrib_out_range(shape_attrib_idx, r);
 					}
 				}

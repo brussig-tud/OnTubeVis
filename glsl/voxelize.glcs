@@ -201,8 +201,6 @@ float sd_quadratic_bezier_tube(QTube qt, vec3 pos) {
 	return res.x - radius;
 }
 
-
-
 void voxelize_q_tube(QTube qt) {
 
 	box3 bbox = calculate_exact_bounding_box(qt);
