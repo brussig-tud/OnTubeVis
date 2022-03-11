@@ -40,7 +40,7 @@
     <Layer glyph="color" >
       <Property name="interpolate" in_range="0.000000, 1.000000" />
       <Property name="classification" in_range="0.000000, 1.000000" />
-      <Property name="color" attrib_name="scalar" color_map_name="bam" in_range="-0.1, 0.1" />
+      <Property name="color" attrib_name="scalar" color_map_name="bam" in_range="-0.4, 0.4" />
     </Layer>
     <Layer glyph="sign_blob" >
       <Property name="outline" in_range="0.000000, 1.000000" />

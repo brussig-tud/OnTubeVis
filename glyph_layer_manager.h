@@ -134,7 +134,7 @@ public:
 			base_ptr->on_set(this);
 	}
 
-	void add_glyph_attribute_mapping(const glyph_attribute_mapping& attribute_mapping, bool update_mapping_values = true) {
+	void add_glyph_attribute_mapping(const glyph_attribute_mapping& attribute_mapping) {
 		if(glyph_attribute_mappings.size() == 4) {
 			std::cout << "Cannot use more than 4 layers" << std::endl;
 			return;
