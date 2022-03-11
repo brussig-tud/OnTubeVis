@@ -95,7 +95,6 @@ public:
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
 			{ "interpolate", GAT_UNIT, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "classification", GAT_UNIT, GAM_GLOBAL },
 			{ "color", GAT_COLOR, GH_BLOCK_START }
 		};
 		return attributes;
@@ -448,7 +447,6 @@ public:
 		static const attribute_list attributes = {
 			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "interpolate", GAT_UNIT, GAM_GLOBAL },
-			{ "classification", GAT_UNIT, GAM_GLOBAL },
 			{ "color_0", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
 			{ "value_0", GAT_SIZE, GAM_NON_CONST },
 			{ "color_1", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },

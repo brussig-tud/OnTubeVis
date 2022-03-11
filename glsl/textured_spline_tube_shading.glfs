@@ -628,10 +628,8 @@ vec4 splat_color##I(in int gid, in vec2 p, in int color_map_idx, in int float_ba
 	v.z = clamp_remap01(glyphs##I[i1+0].v[0], range); \
 	v.w = clamp_remap01(glyphs##I[i1+1].v[0], range); \
 	\
-	float m0 = (v.z - v.x) / (s.z - s.x); \
-	float m1 = (v.w - v.y) / (s.w - s.y); \
-	m0 = 1.0/6.0 * m0; \
-	m1 = 1.0/6.0 * m1; \
+	float m0 = (1.0/6.0) * (v.z - v.x); \
+	float m1 = (1.0/6.0) * (v.w - v.y); \
 	\
 	float t = clamp_remap01(p.x, vec4(s.y, s.z, 0.0, 0.0)); \
 	\
@@ -641,14 +639,11 @@ vec4 splat_color##I(in int gid, in vec2 p, in int color_map_idx, in int float_ba
 	} else if(itype < 0.666) { \
 		val = mix(v.y, v.z, t); \
 	} else { \
-		float c = glyph_cf_param[float_base_idx + 1]; \
-		m0 *= c; \
-		m1 *= c; \
 		vec4 Bk = vec4(v.y, v.z, m0, m1); \
 		val = eval_cubic_hermite(t, Bk); \
 		val = clamp(val, 0.0, 1.0); \
 	} \
-	return vec4(map_to_color(val, color_map_idx), 1.0); \
+	return vec4(color_map_idx > -1 ? map_to_color(val, color_map_idx) : vec3(0.0), 1.0); \
 }
 	//return vec4(val < 0.0 ? vec3(-val, 0.0,  0.0) : vec3(0.0, val, 0.0), 1.0); \
 
@@ -781,15 +776,13 @@ vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_
 	s.w = glyphs##I[i1+1].s; \
 	\
 	vec4 range = glyph_m_param[mapping_base_idx + idx]; \
-	v.x = clamp_remap01(glyphs##I[i0-1].v[idx], range); \
-	v.y = clamp_remap01(glyphs##I[i0+0].v[idx], range); \
-	v.z = clamp_remap01(glyphs##I[i1+0].v[idx], range); \
-	v.w = clamp_remap01(glyphs##I[i1+1].v[idx], range); \
+	v.x = clamp_remap(glyphs##I[i0-1].v[idx], range); \
+	v.y = clamp_remap(glyphs##I[i0+0].v[idx], range); \
+	v.z = clamp_remap(glyphs##I[i1+0].v[idx], range); \
+	v.w = clamp_remap(glyphs##I[i1+1].v[idx], range); \
 	\
-	float m0 = (v.z - v.x) / (s.z - s.x); \
-	float m1 = (v.w - v.y) / (s.w - s.y); \
-	m0 = 1.0/6.0 * m0; \
-	m1 = 1.0/6.0 * m1; \
+	float m0 = (1.0/6.0) * (v.z - v.x); \
+	float m1 = (1.0/6.0) * (v.w - v.y); \
 	\
 	float t = clamp_remap01(p.x, vec4(s.y, s.z, 0.0, 0.0)); \
 	\
@@ -799,9 +792,6 @@ vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_
 	} else if(itype < 0.666) { \
 		val = mix(v.y, v.z, t); \
 	} else { \
-		float c = glyph_cf_param[float_base_idx + 2]; \
-		m0 *= c; \
-		m1 *= c; \
 		vec4 Bk = vec4(v.y, v.z, m0, m1); \
 		val = eval_cubic_hermite(t, Bk); \
 		val = clamp(val, 0.0, 1.0); \
