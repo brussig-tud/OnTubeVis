@@ -41,16 +41,13 @@ int voxelizer::sample_voxel(const ivec3& vidx, const quadratic_bezier_tube& qt) 
 	float dist = qt.signed_distance(spos);
 	if(dist > vg.voxel_half_diag)
 		return 0;
-	//if(dist <= 0.0f)
-	//	return 27;
-	//return 0;
-
+	
 	int count = 0;
 
 	for(unsigned k = 0; k < sample_position_offsets.size(); ++k) {
 		vec3 spos = voxel_min + sample_position_offsets[k];
 		float dist = qt.signed_distance(spos);
-
+		
 		if(dist <= 0.0f)
 			++count;
 	}
@@ -60,6 +57,7 @@ int voxelizer::sample_voxel(const ivec3& vidx, const quadratic_bezier_tube& qt) 
 
 void voxelizer::voxelize_q_tube(const quadratic_bezier_tube& qt) {
 	box3 box = qt.bounding_box(true);
+	box.ref_max_pnt() -= 0.005f * vg.voxel_size;
 
 	ivec3 sidx((box.get_min_pnt() - vg.bounds.ref_min_pnt()) / vg.voxel_size);
 	ivec3 eidx((box.get_max_pnt() - vg.bounds.ref_min_pnt()) / vg.voxel_size);
@@ -69,17 +67,33 @@ void voxelizer::voxelize_q_tube(const quadratic_bezier_tube& qt) {
 	sidx = cgv::math::clamp(sidx, ivec3(0), res - 1);
 	eidx = cgv::math::clamp(eidx, ivec3(0), res - 1);
 
-	for(int z = sidx.z(); z <= eidx.z(); ++z) {
-		for(int y = sidx.y(); y <= eidx.y(); ++y) {
-			for(int x = sidx.x(); x <= eidx.x(); ++x) {
-				int count = sample_voxel(ivec3(x, y, z), qt);
-				float occupancy = subsampling_normalization_factor * static_cast<float>(count);
+	if((eidx.x() - sidx.x()) + (eidx.y() - sidx.y()) + (eidx.z() - sidx.z()) == 0) {
+		// primitive lies entirely within the voxel
+		int idx = sidx.x() + res.x() * sidx.y() + res.x() * res.y() * sidx.z();
 
-				int idx = x + res.x() * y + res.x() * res.y() * z;
+		// approximate the volume of the quadratic bezier tube with two cylinders
+		float r0 = 0.5f*(qt.a.rad + qt.b.rad);
+		float r1 = 0.5f*(qt.b.rad + qt.c.rad);
 
-				//vg.data[idx] = 1.0f;
+		float h0 = length(qt.a.pos - qt.b.pos);
+		float h1 = length(qt.b.pos - qt.c.pos);
+
+		float v0 = h0 * M_PI*r0*r0;
+		float v1 = h1 * M_PI*r1*r1;
+
 #pragma omp atomic
-				vg.data[idx] += occupancy;
+		vg.data[idx] += (v0 + v1) / (vg.voxel_size*vg.voxel_size*vg.voxel_size);
+	} else {
+		for(int z = sidx.z(); z <= eidx.z(); ++z) {
+			for(int y = sidx.y(); y <= eidx.y(); ++y) {
+				for(int x = sidx.x(); x <= eidx.x(); ++x) {
+					int count = sample_voxel(ivec3(x, y, z), qt);
+					float occupancy = subsampling_normalization_factor * static_cast<float>(count);
+
+					int idx = x + res.x() * y + res.x() * res.y() * z;
+#pragma omp atomic
+					vg.data[idx] += occupancy;
+				}
 			}
 		}
 	}
@@ -96,7 +110,7 @@ void voxelizer::initialize_voxel_grid(const box3& bbox, unsigned request_resolut
 	vg.resize_data();
 }
 
-void voxelizer::compute_density_volume(const traj_manager<float>::render_data *data_set) {
+void voxelizer::compute_density_volume(const traj_manager<float>::render_data *data_set, const float radius_scale) {
 	if(!data_set) {
 		std::cout << "Warning: compute_density_volume received nullptr for data_set." << std::endl;
 		return;
@@ -117,7 +131,7 @@ void voxelizer::compute_density_volume(const traj_manager<float>::render_data *d
 		}
 	}
 
-	subsampling_normalization_factor = 1.0f / static_cast<float>(num_samples_per_dim);
+	subsampling_normalization_factor = 1.0f / static_cast<float>(num_samples_per_dim*num_samples_per_dim*num_samples_per_dim);
 
 	auto& positions = data_set->positions;
 	auto& tangents = data_set->tangents;
@@ -131,8 +145,8 @@ void voxelizer::compute_density_volume(const traj_manager<float>::render_data *d
 
 		vec3 p0 = positions[idx_a];
 		vec3 p1 = positions[idx_b];
-		float r0 = radii[idx_a];
-		float r1 = radii[idx_b];
+		float r0 = radii[idx_a] * radius_scale;
+		float r1 = radii[idx_b] * radius_scale;
 		vec4 t0 = tangents[idx_a];
 		vec4 t1 = tangents[idx_b];
 
@@ -148,7 +162,7 @@ void voxelizer::compute_density_volume(const traj_manager<float>::render_data *d
 	clamp_density();
 }
 
-void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj_manager<float>::render_data *data_set, GLuint index_buffer, GLuint data_buffer, cgv::render::texture& tex) {
+void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj_manager<float>::render_data *data_set, const float radius_scale, GLuint index_buffer, GLuint data_buffer, cgv::render::texture& tex) {
 
 	if(!data_set) {
 		std::cout << "Warning: compute_density_volume_gpu received nullptr for data_set." << std::endl;
@@ -202,8 +216,7 @@ void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj
 	voxelize_prog.set_uniform(ctx, "vstep", vg.voxel_size / 3.0f);
 	voxelize_prog.set_uniform(ctx, "voffset", vg.voxel_size / 6.0f);
 	voxelize_prog.set_uniform(ctx, "vvol", vg.voxel_size*vg.voxel_size*vg.voxel_size);
-	//voxelize_prog.set_uniform(ctx, "lower_radius_limit", vdinfo.radius_lower_limit);
-	//voxelize_prog.set_uniform(ctx, "particle_radius_scale", radius_scale);
+	voxelize_prog.set_uniform(ctx, "radius_scale", radius_scale);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, index_buffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, data_buffer);
@@ -227,27 +240,75 @@ void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj
 	glBindImageTexture(0, 0, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R32F);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
 
-	// calculate the mipmaps via compute shader
-	//generate_mipmap();
+	// calculate the mipmap via a compute shader
+	generate_mipmap(ctx, texture_handle);
 
 	// uncomment for standard mipmap calculation
-	glBindTexture(GL_TEXTURE_3D, texture_handle);
-	glGenerateMipmap(GL_TEXTURE_3D);
-	glBindTexture(GL_TEXTURE_3D, 0);
+	//glBindTexture(GL_TEXTURE_3D, texture_handle);
+	//glGenerateMipmap(GL_TEXTURE_3D);
+	//glBindTexture(GL_TEXTURE_3D, 0);
 
 	// uncomment for benchmarking
 	/*glEndQuery(GL_TIME_ELAPSED);
 
 	GLint done = false;
 	while(!done) {
-	glGetQueryObjectiv(time_query, GL_QUERY_RESULT_AVAILABLE, &done);
+		glGetQueryObjectiv(time_query, GL_QUERY_RESULT_AVAILABLE, &done);
 	}
 	glGetQueryObjectui64v(time_query, GL_QUERY_RESULT, &elapsed_time);
 
-	accumulated_time += elapsed_time / (1000000.0f);
+	std::cout << "done in " << (elapsed_time / 1000000.0f) / 1000.0f << " s" << std::endl;
+
+	/*accumulated_time += elapsed_time / (1000000.0f);
 	++runs;
 
 	if(runs > 10) {
 		std::cout << "done in " << accumulated_time/static_cast<float>(runs) << " ms" << std::endl;
 	}*/
+}
+
+void voxelizer::generate_mipmap(cgv::render::context& ctx, GLuint texture_handle) {
+
+	// manually generate a mipmap pyramid for all levels using a fast compute shader implementation
+	ivec3 res = vg.resolution;
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_3D, texture_handle);
+
+	mipmap_prog.enable(ctx);
+	mipmap_prog.set_uniform(ctx, "input_tex", 0);
+	mipmap_prog.set_uniform(ctx, "output_tex", 1);
+
+	int max_res = std::max(res.x(), std::max(res.y(), res.z()));
+	int max_level = std::min(static_cast<unsigned int>(log2f(max_res)), 8u);
+
+	ivec3 input_res = res;
+
+	for(int i = 0; i < max_level - 1; ++i) {
+		glBindImageTexture(1, texture_handle, i + 1, GL_TRUE, 0, GL_WRITE_ONLY, GL_R32F);
+
+		ivec3 output_res = res;
+		float divisor = pow(2, i + 1);
+
+		output_res.x() /= divisor;
+		output_res.y() /= divisor;
+		output_res.z() /= divisor;
+
+		mipmap_prog.set_uniform(ctx, "level", (unsigned)i);
+		mipmap_prog.set_uniform(ctx, "output_res", output_res);
+
+		GLuint work_groups_x = unsigned int(ceilf(output_res.x() / 4.0f));
+		GLuint work_groups_y = unsigned int(ceilf(output_res.y() / 4.0f));
+		GLuint work_groups_z = unsigned int(ceilf(output_res.z() / 4.0f));
+
+		glDispatchCompute(work_groups_x, work_groups_y, work_groups_z);
+		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+		input_res = output_res;
+	}
+
+	glBindImageTexture(0, 0, 0, GL_TRUE, 0, GL_READ_ONLY, GL_R32F);
+	glBindImageTexture(1, 0, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_R32F);
+
+	mipmap_prog.disable(ctx);
 }

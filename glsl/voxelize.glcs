@@ -2,7 +2,7 @@
 
 #extension GL_NV_shader_atomic_float : enable
 
-#define M_PI 3.14159265
+#define M_PI 3.14159265359
 
 layout(local_size_x = 64) in;
 layout(r32f, binding = 0) uniform coherent image3D vol_tex;
@@ -60,17 +60,7 @@ uniform float vhalfdiag;
 uniform float vstep;
 uniform float voffset;
 uniform float vvol;
-//uniform float lower_radius_limit;
-//uniform float particle_radius_scale;
-//uniform float particle_opacity;
-
-
-
-
-
-
-
-
+uniform float radius_scale;
 
 #define DEF_SplitCurve(T)						\
 void SplitCurve(T v0, T d0, T v1, T d1,			\
@@ -103,24 +93,20 @@ void SplitTube(Tube tube, out QTube qTube0, out QTube qTube1)
 	SPLIT_CURVE(tube, rad, rad_tan, qTube0, qTube1);
 }
 
-
-
 void control_points_to_poly_coeffs(float p0, float h, float p1, out float o_c[3]) {
 	o_c[0] = p0;
-	o_c[1] = -2.0f * p0 + 2.0f * h;
-	o_c[2] = p0 + p1 - 2.0f * h;
+	o_c[1] = -2.0 * p0 + 2.0 * h;
+	o_c[2] = p0 + p1 - 2.0 * h;
 }
 
 float eval_poly_d0(float x, float c[3]) {
 	return x * (x * c[2] + c[1]) + c[0];
 }
 
-
 struct box3 {
 	vec3 minp;
 	vec3 maxp;
 };
-
 
 // calculate the exact axis aligned bounding box of a quadratic bezier tube segment
 box3 calculate_exact_bounding_box(QTube qt) {
@@ -159,8 +145,6 @@ box3 calculate_exact_bounding_box(QTube qt) {
 
 	return box3(mi, ma);
 }
-
-
 
 float dot2(in vec3 v) {
 	return dot(v,v);
@@ -222,9 +206,7 @@ float sd_quadratic_bezier_tube(QTube qt, vec3 pos) {
 void voxelize_q_tube(QTube qt) {
 
 	box3 bbox = calculate_exact_bounding_box(qt);
-
-	// 
-	//bbox.maxp -= 0.01 * vrad;
+	bbox.maxp -= 0.005 * vsize;
 
 	ivec3 si = ivec3((bbox.minp - vbox_min) / vsize);
 	ivec3 ei = ivec3((bbox.maxp - vbox_min) / vsize);
@@ -232,19 +214,60 @@ void voxelize_q_tube(QTube qt) {
 	si = clamp(si, ivec3(0), res - 1);
 	ei = clamp(ei, ivec3(0), res - 1);
 
+	//ivec3 di = ei - si;
+	//di += 1;
+	//int voxel_count = di.x * di.y * di.z;
 
-	//ivec3 tex_coords2 = ivec3(si.x, si.y, si.z);
-	//imageAtomicAdd(vol_tex, tex_coords2, 1.0);
-	//return;
+    if((ei.x - si.x) + (ei.y - si.y) + (ei.z - si.z) == 0) {
+        // primitive lies entirely within the voxel
+        ivec3 tex_coords = ivec3(si.x, si.y, si.z);
 
-    //if((ei.x - si.x) + (ei.y - si.y) + (ei.z - si.z) < 0) {
-    //    // primitive lies entirely within the voxel
-    //    ivec3 tex_coords = ivec3(si.x, si.y, si.z);
-    //    //float pvol = (4.0 / 3.0) * M_PI * prad3;
-	//
-    //    imageAtomicAdd(vol_tex, tex_coords, 1.0);//pvol / vvol);
-    //} else {
+		// approximate the volume of the quadratic bezier tube with two cylinders
+		float r0 = 0.5*(qt.s.rad + qt.h.rad);
+		float r1 = 0.5*(qt.h.rad + qt.e.rad);
+
+		float h0 = length(qt.s.pos - qt.h.pos);
+		float h1 = length(qt.h.pos - qt.e.pos);
+
+		float v0 = h0*M_PI*r0*r0;
+		float v1 = h1*M_PI*r1*r1;
+
+        imageAtomicAdd(vol_tex, tex_coords, (v0+v1) / vvol);
+    } else {
         // primitive occupies multiple voxels
+
+		// this linearizes the voxel index to save loops (is actually not faster)
+		/*for(int vidx = 0; vidx < voxel_count; ++vidx) {
+			int x = vidx % di.x;
+            int y = (vidx / di.x) % di.y;
+            int z = vidx / (di.x * di.y);
+
+			x += si.x;
+			y += si.y;
+			z += si.z;
+
+			ivec3 tex_coords = ivec3(x, y, z);
+			
+            vec3 voxel_min = vbox_min + vec3(x, y, z) * vsize;
+            vec3 voxel_center = voxel_min + vrad;
+                    
+            // do 3x3x3 subsampling
+            int count = 0;
+
+            for(int s = 0; s < 27; ++s) {
+                int sx = s % 3;
+                int sy = (s / 3) % 3;
+                int sz = s / 9;
+
+                vec3 spos = voxel_min + vec3(sx, sy, sz) * vstep + voffset;
+
+				if(sd_quadratic_bezier_tube(qt, spos) <= 0.0)
+                    ++count;
+            }
+
+			imageAtomicAdd(vol_tex, tex_coords, float(count) * 1.0/27.0);
+		}*/
+
         for(int z = si.z; z <= ei.z; ++z) {
             for(int y = si.y; y <= ei.y; ++y) {
                 for(int x = si.x; x <= ei.x; ++x) {
@@ -263,25 +286,16 @@ void voxelize_q_tube(QTube qt) {
 
                         vec3 spos = voxel_min + vec3(sx, sy, sz) * vstep + voffset;
 
-                        if(sd_quadratic_bezier_tube(qt, spos) <= 0.0)
+						if(sd_quadratic_bezier_tube(qt, spos) <= 0.0)
                             ++count;
                     }
 
-					imageAtomicAdd(vol_tex, tex_coords, float(count) * 1.0/27.0f);
-					
-
-					/*float val = 0.0;
-                    if(sd_quadratic_bezier_tube(qt, voxel_center) <= 0.0)
-                        val = 1.0;
-
-                    imageAtomicAdd(vol_tex, tex_coords, val);*/
+					imageAtomicAdd(vol_tex, tex_coords, float(count) * 1.0/27.0);
                 }
             }
         }
-    //}
+    }
 }
-
-
 
 void main() {
 
@@ -295,14 +309,14 @@ void main() {
 	data_type n0 = data[node_idx.x];
 	
 	tube.s.pos = n0.pos_rad.xyz;
-	tube.s.rad = n0.pos_rad.w;// * radius_scale;
+	tube.s.rad = n0.pos_rad.w * radius_scale;
 	tube.s.pos_tan = n0.tangent.xyz;
 	tube.s.rad_tan = n0.tangent.w;
 
 	data_type n1 = data[node_idx.y];
 	
 	tube.e.pos = n1.pos_rad.xyz;
-	tube.e.rad = n1.pos_rad.w;// * radius_scale;
+	tube.e.rad = n1.pos_rad.w * radius_scale;
 	tube.e.pos_tan = n1.tangent.xyz;
 	tube.e.rad_tan = n1.tangent.w;
 

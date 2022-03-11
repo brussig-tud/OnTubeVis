@@ -77,7 +77,7 @@ struct ambient_occlusion_style_gui_creator : public gui_creator {
 		p->add_member_control(b, "Enable", s_ptr->enable, "check");
 		p->add_member_control(b, "Sample Offset", s_ptr->sample_offset, "value_slider", "min=0.0;step=0.0001;max=0.2;log=true;ticks=true");
 		p->add_member_control(b, "Sample Distance", s_ptr->sample_distance, "value_slider", "min=0.0;step=0.0001;max=1.0;log=true;ticks=true");
-		p->add_member_control(b, "Strength Scale", s_ptr->strength_scale, "value_slider", "min=0.0;step=0.0001;max=10.0;log=true;ticks=true");
+		p->add_member_control(b, "Strength Scale", s_ptr->strength_scale, "value_slider", "min=0.0;step=0.0001;max=100.0;log=true;ticks=true");
 
 		connect_copy(
 			p->add_member_control(b, "Cone Angle", s_ptr->cone_angle, "value_slider", "min=10.0;step=0.0001;max=90.0;ticks=true")->value_change,

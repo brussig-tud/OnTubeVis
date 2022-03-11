@@ -324,7 +324,7 @@ void tubes::on_set(void *member_ptr) {
 	}
 
 	// voxelization settings
-	if(member_ptr == &voxel_grid_resolution || member_ptr == &voxelize_gpu) {
+	if(member_ptr == &voxel_grid_resolution || member_ptr == &voxelize_gpu || member_ptr == &render.style.radius_scale) {
 		context& ctx = *get_context();
 		voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(cgv::math::clamp(static_cast<unsigned>(voxel_grid_resolution), 16u, 512u));
 		create_density_volume(ctx, voxel_grid_resolution);
@@ -1363,7 +1363,7 @@ bool tubes::init (cgv::render::context &ctx)
 	constexpr unsigned seed = 11;
 #ifdef _DEBUG
 	constexpr unsigned num_trajectories = 3;
-	constexpr unsigned num_nodes = 4;
+	constexpr unsigned num_nodes = 16;
 #else
 	constexpr unsigned num_trajectories = 256;
 	constexpr unsigned num_nodes = 256;
@@ -1375,9 +1375,6 @@ bool tubes::init (cgv::render::context &ctx)
 	);
 	update_attribute_bindings();
 	update_grid_ratios();
-
-	
-	
 
 	// load sequential color maps from the resource directory
 	std::string color_maps_path = app_path + "res/color_maps/sequential";
@@ -1396,9 +1393,6 @@ bool tubes::init (cgv::render::context &ctx)
 				}
 			}
 		}
-		//color_map_mgr.update_texture(ctx);
-		//if(cm_viewer_ptr)
-		//	cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 	}
 
 	// load diverging color maps from the resource directory
@@ -1455,6 +1449,17 @@ void tubes::init_frame (cgv::render::context &ctx)
 			// do one-time initialization that needs the view if necessary
 			set_view();
 			ensure_selected_in_tab_group_parent();
+
+			// set one of the loaded color maps as the transfer function for the volume renderer
+			if(tf_editor_ptr) {
+				auto& cmcs = color_map_mgr.ref_color_maps();
+				for(auto& cmc : cmcs) {
+					if(cmc.name == "imola") {
+						tf_editor_ptr->set_color_points(cmc.cm.ref_color_points());
+						break;
+					}
+				}
+			}
 		}
 	}
 
@@ -1896,41 +1901,16 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 		const int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
 		const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0;
 		if(node_idx_handle > 0 && data_handle > 0)
-			density_volume.compute_density_volume_gpu(ctx, render.data, node_idx_handle, data_handle, density_tex);
+			density_volume.compute_density_volume_gpu(ctx, render.data, render.style.radius_scale, node_idx_handle, data_handle, density_tex);
 	} else {
-		density_volume.compute_density_volume(render.data);
-
-		//if(density_tex.is_created())
-		//	density_tex.destruct(ctx);
+		density_volume.compute_density_volume(render.data, render.style.radius_scale);
 
 		std::vector<float>& density_data = density_volume.ref_voxel_grid().data;
 
 		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res.x(), res.y(), res.z(), TI_FLT32, cgv::data::CF_R), density_data.data());
 		
-		//density_tex = texture("flt32[R,G,B]", TF_LINEAR, TF_LINEAR_MIPMAP_LINEAR, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER);
-		//density_tex.create(ctx, dv, 0);
-		//density_tex.set_border_color(0.0f, 0.0f, 0.0f, 0.0f);
-
-
 		density_tex.replace(ctx, 0, 0, 0, dv);
 		density_tex.generate_mipmaps(ctx);
-
-		
-
-		// create histogram
-		// TODO: remove later. We dont need this or the transfer function editor for the paper.
-		/*unsigned n_bins = 256;
-		std::vector<unsigned> hist(n_bins, 0u);
-
-		float x = 0.0f;
-		for(int i = 0; i < density_data.size(); ++i) {
-			// don't count 0
-			unsigned bin = static_cast<unsigned>(density_data[i] * (n_bins - 1));
-			if(bin != 0)
-				hist[bin] += 1;
-		}
-
-		tf_editor_ptr->set_histogram(hist);*/
 	}
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
