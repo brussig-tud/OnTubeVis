@@ -632,10 +632,37 @@ struct sepia_handler<flt_type>::Impl {
 	{
 		if (cgv::utils::to_lower(fields[0]).compare(cgv::utils::to_lower(name)) == 0)
 		{
-			if ((fields.size()==2 || (fields.size() > 2)) && parse_value(&(out->val), fields[1]))
+			if (fields.size() >= 2 && parse_value(&(out->val), fields[1]))
 			{
+				if (fields.size() > 2)
+					std::cerr << "[sepia_handler] WARNING: property '"<<name<<"' has additional arguments specified, ignoring! Line: "<<line << std::endl;
 				if (out->encountered)
-					std::cerr << "[sepia_handler] WARNING: '"<<name<<"' specified more than once! Using new value: "<<out->val << std::endl;
+					std::cerr << "[sepia_handler] WARNING: property '"<<name<<"' specified more than once! Using new value: "<<out->val << std::endl;
+				out->encountered = true;
+			}
+			else
+				std::cerr << "[sepia_handler] WARNING: '"<<name<<"' value could not be parsed! Line: "<<line << std::endl;
+
+			// we were responsible for this field, so return 'true' even in case we couldn't parse it
+			return true;
+		}
+		return false;
+	}
+	template <>
+	inline static bool traj_parse_prop(
+		typename sepia_traj_prop<typename trajectory<real>::gpsvec> *out, const char* name, const std::vector<std::string> &fields, const std::string &line
+	) noexcept
+	{
+		if (cgv::utils::to_lower(fields[0]).compare(cgv::utils::to_lower(name)) == 0)
+		{
+			trajectory<real>::gpsvec::value_type c0, c1;
+			if (fields.size() >= 4 && parse_value(&c0, fields[2]) && parse_value(&c1, fields[3]))
+			{
+				out->val.set(c0, c1);
+				if (fields.size() > 4)
+					std::cerr << "[sepia_handler] WARNING: property '"<<name<<"' has additional arguments specified, ignoring! Line: "<<line << std::endl;
+				if (out->encountered)
+					std::cerr << "[sepia_handler] WARNING: property '"<<name<<"' specified more than once! Using new value: "<<out->val << std::endl;
 				out->encountered = true;
 			}
 			else
@@ -748,6 +775,7 @@ struct sepia_handler<flt_type>::Impl {
 
 		// properties
 		sepia_traj_prop<double_time> time0, timeN;
+		sepia_traj_prop<trajectory<real>::gpsvec> gps0, gpsN;
 
 		// trajectory properties
 		while (   !contents.eof()
@@ -756,6 +784,8 @@ struct sepia_handler<flt_type>::Impl {
 			// parse handled properties
 			if      (Impl::traj_parse_prop(&time0, "Timestamp Start", fields, line)) DO_NOTHING;
 			else if (Impl::traj_parse_prop(&timeN, "Timestamp Ende", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_prop(&gps0, "GPS Start", fields, line)) DO_NOTHING;
+			else if (Impl::traj_parse_prop(&gpsN, "GPS Ende", fields, line)) DO_NOTHING;
 
 			// skip ignored properties
 			else if (Impl::traj_ignore_prop("Triggernummer", fields)) DO_NOTHING;
@@ -763,8 +793,6 @@ struct sepia_handler<flt_type>::Impl {
 			else if (Impl::traj_ignore_prop("DD-Sensor", fields)) DO_NOTHING;
 			else if (Impl::traj_ignore_prop("Konfiguration", fields)) DO_NOTHING;
 			else if (Impl::traj_ignore_prop("Triggergrund", fields)) DO_NOTHING;
-			else if (Impl::traj_ignore_prop("GPS Start", fields)) DO_NOTHING;
-			else if (Impl::traj_ignore_prop("GPS Ende", fields)) DO_NOTHING;
 			else if (Impl::traj_ignore_prop("GPS Trigger", fields)) DO_NOTHING;
 			else if (Impl::traj_ignore_prop("GPS alt", fields)) DO_NOTHING;
 
@@ -775,6 +803,11 @@ struct sepia_handler<flt_type>::Impl {
 			/// unknown declaration, print warning
 			else
 				std::cerr << "[sepia_handler] WARNING: unknown property: '"<<fields[0]<<"', ignoring" << std::endl;
+		}
+		if (contents.eof())
+		{
+			std::cerr << "[sepia_handler] ERROR: reached end-of-file before any actual data!" << std::endl;
+			return trajectory<real>();
 		}
 
 		// samples
@@ -796,6 +829,9 @@ struct sepia_handler<flt_type>::Impl {
 		trajectory<real> traj;
 		std::unordered_set<std::string> unknowns;
 		// - parser loop
+		if (gps0.encountered)
+			// if we have a sample at initial GPS trigger, commit at relative timestamp ts=0
+			traj.gps[0] = gps0.val;
 		while (   !contents.eof()
 		       && Impl::read_next_nonempty_line(&line, &tokens, Impl::single_seps, "", contents, &fields))
 		{
