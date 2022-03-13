@@ -15,6 +15,7 @@ enum GlyphType {
 	GT_SIGN_BLOB,
 	GT_STAR,
 	GT_VIOLIN,
+	GT_TEMPORAL_HEAT_MAP,
 };
 
 enum GlyphAttributeType {
@@ -32,6 +33,7 @@ enum GlyphAttributeModifier {
 	GAM_NONE = 0,
 	GAM_GLOBAL = 1, // global attributes are always constant (overrides non-const)
 	GAM_NON_CONST = 2, // cannot be set to constant value
+	GAM_FORCE_MAPPABLE = 4,
 };
 
 enum GuiHint {
@@ -471,6 +473,45 @@ public:
 	}
 };
 
+class temporal_heat_map_glyph : public glyph_shape {
+public:
+	virtual temporal_heat_map_glyph* clone() const {
+		return new temporal_heat_map_glyph(*this);
+	}
+
+	virtual GlyphType type() const {
+		return GT_TEMPORAL_HEAT_MAP;
+	}
+
+	virtual std::string name() const {
+		return "temporal_heat_map";
+	}
+
+	virtual const attribute_list& supported_attributes() const {
+		static const attribute_list attributes = {
+			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "interpolate", GAT_UNIT, GAM_GLOBAL },
+			{ "color", GAT_COLOR, GlyphAttributeModifier(GAM_GLOBAL|GAM_FORCE_MAPPABLE), GH_BLOCK_START },
+			{ "value_0", GAT_SIZE, GAM_NON_CONST },
+			{ "value_1", GAT_SIZE, GAM_NON_CONST },
+			{ "value_2", GAT_SIZE, GAM_NON_CONST },
+			{ "value_3", GAT_SIZE, GAM_NON_CONST }
+		};
+		return attributes;
+	}
+
+	virtual float get_size(const std::vector<float>& param_values) const {
+		// a negative size tells the glyph layout algorithm to never skip these glyphs
+		// and that they are potentially infinite in size (the glyph will stretch as long
+		// as a next one is placed)
+		return -1.0f;
+	}
+
+	virtual std::string splat_func() const {
+		return "splat_temporal_heat_map";
+	}
+};
+
 struct glyph_type_registry {
 	static GlyphType type(const std::string& name) {
 		const auto& n = names();
@@ -485,7 +526,8 @@ struct glyph_type_registry {
 			{ n[7], GT_DROP },
 			{ n[8], GT_SIGN_BLOB },
 			{ n[9], GT_STAR },
-			{ n[10], GT_VIOLIN }
+			{ n[10], GT_VIOLIN },
+			{ n[11], GT_TEMPORAL_HEAT_MAP }
 		};
 
 		auto it = mapping.find(name);
@@ -506,7 +548,8 @@ struct glyph_type_registry {
 			"drop",
 			"sign_blob",
 			"star",
-			"violin"
+			"violin",
+			"temporal_heat_map"
 		};
 
 		return n;
@@ -524,7 +567,8 @@ struct glyph_type_registry {
 			"Drop",
 			"Sign Blob",
 			"Star",
-			"Violin"
+			"Violin",
+			"Temporal Heat Map"
 		};
 
 		return names;
@@ -560,6 +604,7 @@ struct glyph_shape_factory {
 		case GT_SIGN_BLOB: shape_ptr = new sign_blob_glyph(); break;
 		case GT_STAR: shape_ptr = new star_glyph(); break;
 		case GT_VIOLIN: shape_ptr = new violin_glyph(); break;
+		case GT_TEMPORAL_HEAT_MAP: shape_ptr = new temporal_heat_map_glyph(); break;
 		default: shape_ptr = new circle_glyph(); break;
 		}
 

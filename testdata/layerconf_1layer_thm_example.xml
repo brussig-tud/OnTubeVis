@@ -1,0 +1,43 @@
+<GlyphConfiguration>
+  <ColorMaps>
+    <ColorMap name="acton" custom="0" />
+    <ColorMap name="bamako" custom="0" />
+    <ColorMap name="batlowK" custom="0" />
+    <ColorMap name="batlowW" custom="0" />
+    <ColorMap name="batlow" custom="0" />
+    <ColorMap name="bilbao" custom="0" />
+    <ColorMap name="buda" custom="0" />
+    <ColorMap name="davos" custom="0" />
+    <ColorMap name="devon" custom="0" />
+    <ColorMap name="grayC" custom="0" />
+    <ColorMap name="hawaii" custom="0" />
+    <ColorMap name="imola" custom="0" />
+    <ColorMap name="lajolla" custom="0" />
+    <ColorMap name="lapaz" custom="0" />
+    <ColorMap name="nuuk" custom="0" />
+    <ColorMap name="oslo" custom="0" />
+    <ColorMap name="tokyo" custom="0" />
+    <ColorMap name="turku" custom="0" />
+    <ColorMap name="bam" custom="0" />
+    <ColorMap name="vanimo" custom="0" />
+    <ColorMap name="cork" custom="0" />
+    <ColorMap name="tofino" custom="0" />
+    <ColorMap name="broc" custom="0" />
+    <ColorMap name="lisbon" custom="0" />
+    <ColorMap name="vik" custom="0" />
+    <ColorMap name="berlin" custom="0" />
+    <ColorMap name="roma" custom="0" />
+    <ColorMap name="RAINBOW" custom="0" />
+  </ColorMaps>
+  <Layers>
+    <Layer glyph="temporal_heat_map" >
+      <Property name="outline" value="0.000000" />
+      <Property name="interpolate" value="1.000000" />
+      <Property name="color" color_map_name="bamako" />
+      <Property name="value_0" attrib_name="scalar" in_range="-0.534629, 0.522465" out_range="0.000000, 1.000000" />
+      <Property name="value_1" attrib_name="scalar1" in_range="-0.460438, 0.455924" out_range="0.000000, 1.000000" />
+      <Property name="value_2" attrib_name="scalar2" in_range="-0.462611, 0.525305" out_range="0.000000, 1.000000" />
+      <Property name="value_3" attrib_name="scalar2_2" in_range="-1.666537, 2.363361" out_range="0.000000, 1.000000" />
+    </Layer>
+  </Layers>
+</GlyphConfiguration>

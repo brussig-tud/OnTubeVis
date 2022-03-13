@@ -251,6 +251,19 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 		if(!global_block) {
 			value_label = "";
 			p.add_decorator(label, "heading", "level=4");
+
+			if(attrib.type == GAT_COLOR && attrib.modifiers & GAM_FORCE_MAPPABLE) {
+				std::string color_map_name_enums = "-,";
+				if(is_non_const)
+					color_map_name_enums = "(disabled),";
+				for(size_t i = 0; i < color_map_names.size(); ++i) {
+					color_map_name_enums += color_map_names[i];
+					if(i < color_map_names.size() - 1)
+						color_map_name_enums += ",";
+				}
+
+				add_local_member_control(p, bp, "Color Map", color_source_indices[i], "dropdown", "enums='" + color_map_name_enums + "'");
+			}
 		}
 	} else {
 		value_label = "Value";
@@ -286,7 +299,8 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 
 	if(selected_attrib_src_idx < 0 || is_global) {
 		if(attrib.type == GAT_COLOR) {
-			add_local_member_control(p, bp, value_label, attrib_colors[i]);
+			if(!(attrib.modifiers & GAM_FORCE_MAPPABLE))
+				add_local_member_control(p, bp, value_label, attrib_colors[i]);
 		} else {
 			add_local_member_control(p, bp, value_label, attrib_mapping_values[i][3], "value_slider", out_options_str);
 		}

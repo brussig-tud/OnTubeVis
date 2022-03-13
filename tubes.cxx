@@ -605,7 +605,7 @@ bool tubes::save_layer_configuration(const std::string& file_name) {
 				}
 
 				vec4 mr = mapping_ranges[j];
-				if(attrib.modifiers && GAM_GLOBAL) {
+				if(attrib.modifiers & GAM_GLOBAL) {
 					if(attrib.type != GAT_COLOR)
 						content += put("value", std::to_string(mr.w()));
 				} else {
