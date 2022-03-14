@@ -21,16 +21,16 @@ struct obd_handler : public traj_format_handler<flt_type>
 	typedef traj_format_handler::real real;
 
 	/// 2D vector type
-	typedef traj_format_handler::Vec2 Vec2;
+	typedef traj_format_handler::Vec2 vec2;
 
 	/// 3D vector type
-	typedef traj_format_handler::Vec3 Vec3;
+	typedef traj_format_handler::Vec3 vec3;
 
 	/// 4D vector type
-	typedef traj_format_handler::Vec4 Vec4;
+	typedef traj_format_handler::Vec4 vec4;
 
 	/// rgb color type
-	typedef traj_format_handler::Color Color;
+	typedef traj_format_handler::Color color;
 
 	/// test if the given data stream appears to be a .bezdat file
 	virtual bool can_handle (std::istream &contents) const;
