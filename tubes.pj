@@ -4,11 +4,17 @@ projectName="tubes";
 projectGUID="FB8C657D-2C3A-4FB1-A783-D31E3759B7AC";
 excludeSourceDirs=[INPUT_DIR."/testdata"];
 addProjectDirs=[CGV_DIR."/libs", CGV_DIR."/plugins", CGV_DIR."/3rd"];
-addIncDirs=[INPUT_DIR, CGV_DIR."/libs", INPUT_DIR."/arclength/fastgl", CGV_BUILD_DIR."/".projectName, CGV_BUILD_DIR."/cgv_glutil"];
+addIncDirs=[
+	INPUT_DIR, 
+	CGV_DIR."/libs", INPUT_DIR."/arclength/fastgl", 
+	CGV_BUILD_DIR."/".projectName, 
+	CGV_BUILD_DIR."/cgv_glutil",
+	INPUT_DIR."/nlohmann"
+];
 addProjectDeps=[
 	"cgv_utils", "cgv_type", "cgv_reflect", "cgv_data", "cgv_signal", "cgv_base", "cgv_media", 
 	"cgv_gui", "cgv_render", "cgv_os", "cgv_viewer", "glew", "cgv_gl", "cg_fltk", "cg_ext", 
-	"cmi_io", "crg_stereo_view", "crg_light", "cgv_glutil"
+	"cmi_io", "crg_stereo_view", "crg_light", "crg_grid", "cgv_glutil"
 ];
 
 addSharedDefines=["TUBES_EXPORTS"];
@@ -18,5 +24,5 @@ useOpenMP=1;
 
 addCommandLineArguments=[
 	'config:"'.INPUT_DIR.'/config.def"',
-	after("type(shader_config):shader_path='".INPUT_DIR."/glsl;".CGV_DIR."/libs/cgv_gl/glsl;".CGV_DIR."/libs/cgv_glutil/glsl'","cg_fltk")
+	after("type(shader_config):shader_path='".INPUT_DIR."/glsl;".CGV_DIR."/libs/cgv_gl/glsl;".CGV_DIR."/libs/cgv_glutil/glsl;".CGV_DIR."/libs/cgv_glutil/glsl/2d'","cg_fltk")
 ];
