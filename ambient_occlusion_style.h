@@ -10,8 +10,8 @@
 
 struct ambient_occlusion_style : cgv::render::render_types {
 	bool enable = false;
-	float sample_offset = 0.04f;
-	float sample_distance = 0.8f;
+	float sample_offset = 0.02f;
+	float sample_distance = 0.5f;
 	float strength_scale = 1.0f;
 
 	vec3 texture_offset = vec3(0.0f);

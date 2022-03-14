@@ -151,6 +151,7 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("grid_normal_settings", grid_normal_settings) &&
 		rh.reflect_member("grid_normal_inwards", grid_normal_inwards) &&
 		rh.reflect_member("grid_normal_variant", grid_normal_variant) &&
+		rh.reflect_member("voxelize_gpu", voxelize_gpu) &&
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy);
@@ -209,6 +210,7 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				std::string extension = cgv::utils::file::get_extension(dnd.filenames[0]);
 				if(cgv::utils::to_upper(extension) == "XML") {
 					fh.file_name = dnd.filenames[0];
+					update_member(&fh.file_name);
 					on_set(&fh.file_name);
 					try_load_dataset = false;
 				}
@@ -244,10 +246,10 @@ void tubes::on_set(void *member_ptr) {
 			dataset.files.clear();
 			dataset.files.emplace(datapath);
 			render.data = &(traj_mgr.get_render_data());
-			if (from_demo) {
-				ao_style = ao_style_bak;
-				update_member(&ao_style);
-			}
+			//if (from_demo) {
+			//	ao_style = ao_style_bak;
+			//	update_member(&ao_style);
+			//}
 			update_attribute_bindings();
 			update_grid_ratios();
 
@@ -283,10 +285,10 @@ void tubes::on_set(void *member_ptr) {
 		// update render state
 		if(loaded_something) {
 			render.data = &(traj_mgr.get_render_data());
-			if (from_demo) {
-				ao_style = ao_style_bak;
-				update_member(&ao_style);
-			}
+			//if (from_demo) {
+			//	ao_style = ao_style_bak;
+			//	update_member(&ao_style);
+			//}
 			update_attribute_bindings();
 			update_grid_ratios();
 
@@ -1375,16 +1377,19 @@ bool tubes::init (cgv::render::context &ctx)
 	// TODO: remove sphere renderer
 	srd.init(ctx);
 
+	// enable ambient occlusion
+	ao_style.enable = true;
+
 	// generate demo
 	// - demo AO settings
-	ao_style.enable = true;
-	ao_style.cone_angle = 60.f;
-	ao_style.sample_offset = 0.08f;
-	ao_style.sample_distance = 0.5f;
-	ao_style.strength_scale = 7.5f;
-	ao_style.generate_sample_directions();
-	ao_style_bak = ao_style;
-	update_member(&ao_style);
+	//ao_style.enable = true;
+	//ao_style.cone_angle = 60.f;
+	//ao_style.sample_offset = 0.08f;
+	//ao_style.sample_distance = 0.5f;
+	//ao_style.strength_scale = 7.5f;
+	//ao_style.generate_sample_directions();
+	//ao_style_bak = ao_style;
+	//update_member(&ao_style);
 	// - demo geometry
 	constexpr unsigned seed = 11;
 #ifdef _DEBUG

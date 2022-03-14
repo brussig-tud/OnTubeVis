@@ -340,6 +340,23 @@ struct csv_handler<flt_type>::Impl
 				return true;
 		return false;
 	}
+	static void remove_enclosing_quotes (std::vector<std::string> &fields)
+	{
+		for (auto& field : fields)
+		{
+			cgv::utils::trim(field);
+			size_t pos = field.find_first_of("\"");
+			if (pos == 0)
+				field = field.substr(1);
+			int len = field.length();
+			if (len > 0)
+			{
+				pos = field.rfind("\"");
+				if (pos + 1 == field.length())
+					field = field.substr(0, len - 1);
+			}
+		}
+	}
 	static unsigned read_fields (
 		const std::vector<cgv::utils::token> &tokens, const std::string &separators,
 		std::vector<std::string> *out=nullptr
@@ -554,6 +571,9 @@ bool csv_handler<flt_type>::can_handle (std::istream &contents) const
 	if (  Impl::read_next_nonempty_line(&line, &tokens, separators, contents, &columns)
 	    < props.max_col_id)
 		return false;
+
+	Impl::remove_enclosing_quotes(columns);
+
 	// - inspect contents more closely
 	if (props.header)
 	{
@@ -612,6 +632,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	{
 		// we know that we have a header because our attribute declaration requires one
 		header_present = true;
+		Impl::remove_enclosing_quotes(fields);
 
 		// find actual .csv columns belonging to each declared attribute
 		for (const auto &csv_attrib : csv_attribs)
@@ -638,6 +659,8 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	{
 		// store whether or not the file has a header
 		header_present = Impl::is_header(fields);
+		if(header_present)
+			Impl::remove_enclosing_quotes(fields);
 
 		// just commit the user-declared column numbers
 		for (const auto &csv_attrib : csv_attribs)
@@ -694,8 +717,6 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 			);
 		}
 
-
-
 		// determine trajectory id of this row
 		unsigned traj_id;
 		if (props.multi_traj)
@@ -718,9 +739,6 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		// make sure position traj exists for various kinds of forward queries
 		auto &P = Impl::ensure_traj(declared_attribs[props.pos_id].trajs, traj_id, 3).get_data<Vec3>().values;
 
-
-
-
 		// commit timestamp as actual data point if present
 		if(timestamp_id > -1) {
 			auto &ts_csv = declared_attribs[timestamp_id];
@@ -730,15 +748,6 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 			t = (flt_type)P.size();
 		}
 	
-
-
-
-
-
-
-
-
-
 		// read in all declared attributes
 		for (auto &attrib : declared_attribs)
 		{
@@ -1010,10 +1019,15 @@ csv_imldevice_reg(
 
 // Register handler for streamline .csv files exported from paraview
 static const csv_descriptor csv_paraview_streamline_desc("Paraview Streamline", ",", {
-	{ "timestamp", {"\"IntegrationTime\"", false, 4}, CSV::TIMESTAMP },
-	{ "position",  {{"\"Points:0\"", false, 13}, {"\"Points:1\"", false, 14}, {"\"Points:2\"", false, 15}}, CSV::POS },
-	{ "velocity",  {{"\"U:0\"", false, 0}, {"\"U:1\"", false, 1}, {"\"U:2\"", false, 2}} }}
+	{ "timestamp", {"IntegrationTime", false, 4}, CSV::TIMESTAMP },
+	{ "position",  {{"Points:0", false, 13}, {"Points:1", false, 14}, {"Points:2", false, 15}}, CSV::POS },
+	{ "velocity",  {{"U:0", false, 0}, {"U:1", false, 1}, {"U:2", false, 2}} }}
 );
+//static const csv_descriptor csv_paraview_streamline_desc("Paraview Streamline", ",", {
+//	{ "timestamp", {"\"IntegrationTime\"", false, 4}, CSV::TIMESTAMP },
+//	{ "position",  {{"\"Points:0\"", false, 13}, {"\"Points:1\"", false, 14}, {"\"Points:2\"", false, 15}}, CSV::POS },
+//	{ "velocity",  {{"\"U:0\"", false, 0}, {"\"U:1\"", false, 1}, {"\"U:2\"", false, 2}} } }
+//);
 
 cgv::base::object_registration_2<
 	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>
