@@ -1243,12 +1243,12 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 
 				// unify into common attribute trajectory structure
 				// - positions
-				auto &P = add_attribute<Vec3>(ret, SEPIA_POSITION_ATTRIB_NAME);
+				auto P = add_attribute<Vec3>(ret, SEPIA_POSITION_ATTRIB_NAME);
 				auto &Ptraj = trajectories(ret, P.attrib);
 				real seg_dist_accum = 0;
 				unsigned num_segs = 0;
 				const trajectory<real>::gpsvec refpos(trajs[0].gps.cbegin()->second.x(), trajs[0].gps.cbegin()->second.y());
-				for (auto &traj : trajs)
+				for (const auto &traj : trajs)
 				{
 					const unsigned offset = P.data.num();
 					for (auto sample=traj.gps.cbegin(); sample!=traj.gps.cend(); sample++)
