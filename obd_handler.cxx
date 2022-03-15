@@ -264,10 +264,14 @@ traj_dataset<flt_type> obd_handler<flt_type>::read (
 		offset += num_samples_this_traj;
 	}
 
+	// At this point, we know if we loaded something useful
+	if (num_segs < 1)
+		return traj_dataset<flt_type>(); // discard everything done up to now and just return an invalid dataset
+
 	// non-position trajectory infos
-	trajectories(ret, A.attrib) = Ptraj;	// all attributes are sampled in sync with position, so we
-	trajectories(ret, V.attrib) = Ptraj;	// can duplicate the trajectory info from the positions to
-	trajectories(ret, T.attrib) = Ptraj;	// altitude, speed and time as well
+	trajectories(ret, A.attrib) = Ptraj; // all attributes are sampled in sync with position, so we
+	trajectories(ret, V.attrib) = Ptraj; // can duplicate the trajectory info from the positions to
+	trajectories(ret, T.attrib) = Ptraj; // altitude, speed and time as well
 
 	// invent radii
 	set_avg_segment_length(ret, flt_type(seg_dist_accum/num_segs));
