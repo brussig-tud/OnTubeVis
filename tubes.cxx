@@ -1139,6 +1139,8 @@ bool tubes::compile_glyph_attribs_start(void) {
 
 			// stores the minimum t over all current attribute sample points in each iteration
 			float min_t;
+			// stores the index of the attribute with the minimum t
+			unsigned min_a_idx = 0;
 
 			bool run = true;
 			for(size_t i = 0; i < attrib_indices.size(); ++i) {
@@ -1149,16 +1151,14 @@ bool tubes::compile_glyph_attribs_start(void) {
 			}
 			run &= seg < num_segments;
 
+			
 
-
-			// following variables only needed for debugging
-			unsigned min_a_idx = 0;
+			// following variable only needed for debugging
 			unsigned glyph_idx = 0;
 
 
 
 			while(run) {
-				// TODO: do we need to test for monotone increasing values of t?
 				//if(i > 0) // enforce monotonicity
 				//	// TODO: this fails when using the debug-size dataset
 				//	assert(a.t >= mapped_attribs[0]->signed_magnitude_at(i - 1).t);
@@ -1310,6 +1310,11 @@ bool tubes::compile_glyph_attribs_start(void) {
 						prev_glyph_size = new_glyph_size;
 						last_commited_s = s;
 					}
+					
+				} else {
+					// If the attrib does not fall into the current segment something is out of order.
+					// We just increment the attribute index with the minimal timestamp.
+					has_sample[min_a_idx] = true;
 				}
 
 				// increment indices and check whether the indices of all attributes have reached the end
