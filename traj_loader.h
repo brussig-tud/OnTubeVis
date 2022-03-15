@@ -1202,6 +1202,8 @@ protected:
 	}
 
 public:
+	/// if you add extensions (use lower case letters only) to this member and extension of read file is not contained, can_handle() is assumed to be false without calling it
+	std::vector<std::string> handled_extensions;
 
 	/// default constructor
 	traj_format_handler() {};
@@ -1212,6 +1214,19 @@ public:
 	/// Test if the given data stream can be handled by this handler. At the minimum, the handler must be able to extract sample
 	/// positions from the data stream when reporting true.
 	virtual bool can_handle (std::istream &contents) const = 0;
+
+	/// first check file extension and if extension handled in principle, call can_handle()
+	bool can_handle_file(const std::string& file_extension, std::istream& contents) const {
+		if (!handled_extensions.empty()) {
+			bool handled = false;
+			for (auto he : handled_extensions)
+				if (he == file_extension)
+					handled = true;
+			if (!handled)
+				return false;
+		}
+		return can_handle(contents);
+	}
 
 	/// parse the given stream containing the file contents to load trajectories stored in it (optionally offsetting sample indices by
 	/// the specified amount) and report whether any data was loaded

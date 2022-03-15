@@ -510,6 +510,8 @@ csv_handler<flt_type>::csv_handler(
 )
 	: csv_handler()
 {
+	handled_extensions.push_back("csv");
+	handled_extensions.push_back("txt");
 	// shortcut for saving one indirection
 	auto &impl = *pimpl;
 
@@ -525,6 +527,9 @@ csv_handler<flt_type>::csv_handler(
 )
 	: csv_handler()
 {
+	handled_extensions.push_back("csv");
+	handled_extensions.push_back("txt");
+
 	// shortcut for saving one indirection
 	auto &impl = *pimpl;
 
@@ -1070,30 +1075,30 @@ cgv::base::object_registration_2<
 			// increase radius a bit to get thicker tubes with more visible area
 			"position", attrib_transform<float>::vec3_to_vec3(
 				[](csv_handler<float>::Vec3 &out, const csv_handler<float>::Vec3 &in) {
-					/*float lat = cgv::math::deg2rad(in.y()); // latitude in degrees
-					float lon = cgv::math::deg2rad(in.x()); // longitude in degrees
-					float alt = in.z(); // altitude in meters above sea level
-
-					const float earth_radius = 6371.0f * 1000.0f; // meter
-					const float alt_scale = 1.0f; // scale the altitude for visualization reasons
-
-					const float ref_lat = cgv::math::deg2rad(40.45804724f);
-					const float ref_lon = cgv::math::deg2rad(-79.78239570000002f);
-					const float ref_alt = 269.3324017f;
-					const csv_handler<float>::Vec3 o =
-						csv_handler<float>::Vec3(
-							sin(M_PI_2 - ref_lat) * cos(ref_lon),
-							sin(M_PI_2 - ref_lat) * sin(ref_lon),
-							cos(M_PI_2 - ref_lat)
-						) * earth_radius + alt_scale*ref_alt;
-
-					csv_handler<float>::Vec3 p;
-					p.x() = sin(M_PI_2 - lat) * cos(lon);
-					p.y() = sin(M_PI_2 - lat) * sin(lon);
-					p.z() = cos(M_PI_2 - lat);
-
-					p = (earth_radius + alt_scale*alt) * p;
-					out = p - o;*/
+					//float lat = cgv::math::deg2rad(in.y()); // latitude in degrees
+					//float lon = cgv::math::deg2rad(in.x()); // longitude in degrees
+					//float alt = in.z(); // altitude in meters above sea level
+					//
+					//const float earth_radius = 6371.0f * 1000.0f; // meter
+					//const float alt_scale = 1.0f; // scale the altitude for visualization reasons
+					//
+					//const float ref_lat = cgv::math::deg2rad(40.45804724f);
+					//const float ref_lon = cgv::math::deg2rad(-79.78239570000002f);
+					//const float ref_alt = 269.3324017f;
+					//const csv_handler<float>::Vec3 o =
+					//	csv_handler<float>::Vec3(
+					//		sin(M_PI_2 - ref_lat) * cos(ref_lon),
+					//		sin(M_PI_2 - ref_lat) * sin(ref_lon),
+					//		cos(M_PI_2 - ref_lat)
+					//	) * earth_radius + alt_scale*ref_alt;
+					//
+					//csv_handler<float>::Vec3 p;
+					//p.x() = sin(M_PI_2 - lat) * cos(lon);
+					//p.y() = sin(M_PI_2 - lat) * sin(lon);
+					//p.z() = cos(M_PI_2 - lat);
+					//
+					//p = (earth_radius + alt_scale*alt) * p;
+					//out = p - o;
 					out = in;
 				}
 			)

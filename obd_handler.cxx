@@ -41,6 +41,12 @@
 // whether to use ECEF coordinates instead of Mercator cartesian + altitude
 #define OBD_USE_ECEF_COORDINATES 0
 
+template <class flt_type>
+obd_handler<flt_type>::obd_handler()
+{
+	handled_extensions.push_back("ppcdf");
+	handled_extensions.push_back("ipcdf");
+}
 
 template <class flt_type>
 bool obd_handler<flt_type>::can_handle (std::istream &contents) const
@@ -122,6 +128,39 @@ std::vector<uint8_t> parse_bytes(const std::string& byte_str)
 	return bytes;
 }
 
+std::istream& safeGetline(std::istream& is, std::string& t)
+{
+	t.clear();
+
+	// The characters in the stream are read one-by-one using a std::streambuf.
+	// That is faster than reading them one-by-one using the std::istream.
+	// Code that uses streambuf this way must be guarded by a sentry object.
+	// The sentry object performs various tasks,
+	// such as thread synchronization and updating the stream state.
+
+	std::istream::sentry se(is, true);
+	std::streambuf* sb = is.rdbuf();
+
+	for (;;) {
+		int c = sb->sbumpc();
+		switch (c) {
+		case '\n':
+			return is;
+		case '\r':
+			if (sb->sgetc() == '\n')
+				sb->sbumpc();
+			return is;
+		case std::streambuf::traits_type::eof():
+			// Also handle the case when the last line has no line ending
+			if (t.empty())
+				is.setstate(std::ios::eofbit);
+			return is;
+		default:
+			t += (char)c;
+		}
+	}
+}
+
 template <class flt_type>
 traj_dataset<flt_type> obd_handler<flt_type>::read (
 	std::istream &contents, DatasetOrigin source, const std::string &path
@@ -134,7 +173,7 @@ traj_dataset<flt_type> obd_handler<flt_type>::read (
 	std::map<std::string, std::vector<gps_info_info>> gps_info_map;
 	do { 
 		// retrieve line containing single json object
-		std::getline(contents, line);
+		safeGetline(contents, line);
 		if (line.empty())
 			continue;
 		// parse with nlohmann json
