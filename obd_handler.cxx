@@ -182,7 +182,7 @@ traj_dataset<flt_type> obd_handler<flt_type>::read (
 	traj_dataset<flt_type> ret;
 	const visual_attribute_mapping<real> vamap({
 		{VisualAttrib::POSITION, {OBD_POSITION_ATTRIB_NAME}}, {VisualAttrib::RADIUS, {OBD_RADIUS_ATTRIB_NAME}}
-		});
+	});
 
 	// for single precision float compatibility, we make everything relative to the first sample of the first trajectory position-wise...
 #if defined(OBD_USE_ECEF_COORDINATES) && OBD_USE_ECEF_COORDINATES!=0

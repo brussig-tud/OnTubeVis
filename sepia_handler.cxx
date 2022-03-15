@@ -20,6 +20,10 @@
 #include <cgv/utils/advanced_scan.h>
 #include <cgv/utils/file.h>
 
+// 3rd party libs
+#include <peridetic.h>
+#include <WGS84toCartesian.hpp>
+
 // implemented header
 #include "sepia_handler.h"
 
@@ -41,6 +45,9 @@
 
 /// identifyier to use for timestamp attribute
 #define SEPIA_TIME_ATTRIB_NAME "time"
+
+// whether to use ECEF coordinates instead of Mercator cartesian + altitude
+#define SEPIA_USE_ECEF_COORDINATES 0
 
 
 ////
@@ -1048,7 +1055,11 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 	Impl::read_fields(tokens, Impl::collection_seps, &fields);
 	const auto dsinfo = Impl::check_type(fields);
 
-	// decide how to proceed
+	// loaded trajectories working database
+	std::vector<trajectory<real>> trajs;
+
+	// load single trajectory or collection
+	bool consistent_timestamps=false, retain_inconsistent_attribs=false;
 	if (dsinfo.type == DT::SINGLE)
 	{
 		// version check
@@ -1056,54 +1067,14 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 			std::cerr << "[sepia_handler] WARNING: trajectory format version "<<dsinfo.version<<" is unsupported!" << std::endl;
 
 		// delegate to individual trajectory loading code
-		auto traj = Impl::load_trajectory(dsinfo.version, contents);
-
-		// compile dataset
-		// - "special" position attribute
-		auto P = add_attribute<Vec3>(ret, SEPIA_POSITION_ATTRIB_NAME);
-		const trajectory<real>::gpsvec refpos(traj.gps.begin()->second.x(), traj.gps.begin()->second.y());
-		{ real seg_dist_accum = 0;
-		  for (auto gps_it=traj.gps.cbegin(); gps_it!=traj.gps.cend(); gps_it++)
-		  {
-		  	// ToDo: unproject from WGS84 ellipsoid and offset according to EGM96 geoid
-		  	const auto gps = (gps_it->second - refpos)*10000;
-		  	Vec3 pos((real)gps.x(), (real)gps.y(), 0);
-		  	if (gps_it != traj.gps.cbegin())
-		  		seg_dist_accum += (pos - P.data.values.back()).length();
-		  	P.data.append(pos, (real)gps_it->first);
-		  }
-		  set_avg_segment_length(ret, seg_dist_accum/(P.data.num()-1));
-		}
-		trajectories(ret, P.attrib).emplace_back(range{0, P.data.num()});
-		// - scalar attributes
-		for (const auto &attrib : traj.attribs_scalar)
-		{
-			auto A = add_attribute<real>(ret, attrib.first);
-			for (const auto &sample : attrib.second)
-				A.data.append(sample.second, (real)sample.first);
-			trajectories(ret, A.attrib).emplace_back(range{0, A.data.num()});
-		}
-		// - vector attributes
-		for (const auto &attrib : traj.attribs_vec3)
-		{
-			auto A = add_attribute<Vec3>(ret, attrib.first);
-			for (const auto &sample : attrib.second)
-				A.data.append(sample.second, (real)sample.first);
-			trajectories(ret, A.attrib).emplace_back(range{0, A.data.num()});
-		}
-		// - invent radii
-		auto R = add_attribute<real>(ret, SEPIA_RADIUS_ATTRIB_NAME);
-		R.data.values = std::vector<real>(P.data.num(), ret.avg_segment_length()*real(0.125));
-		R.data.timestamps = P.data.timestamps;
-		trajectories(ret, R.attrib) = trajectories(ret, P.attrib);
-		// - visual attribute mapping
-		ret.set_mapping(Impl::attrmap);
+		trajs.emplace_back(Impl::load_trajectory(dsinfo.version, contents));
+		if (!trajs.back().loaded)
+			return std::move(ret);
 	}
 	else
 	{
 		// Parse trajectory collection description
 		// - spec database
-		bool consistent_timestamps=false, retain_inconsistent_attribs=false;
 		std::vector<std::string> traj_files;
 		// - parse line by line
 		while (   !contents.eof()
@@ -1151,166 +1122,178 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 		}
 		// - load individual trajectories
 		if (traj_files.empty())
-			std::cerr << "[sepia_handler] ERROR: trajectory collection does not specify any existent files!" << std::endl;
-		else
 		{
-			// database
-			std::vector<trajectory<real>> trajs;
-			std::vector<attribute_map<real>> attribs;
+			std::cerr << "[sepia_handler] ERROR: trajectory collection does not specify any existent files!" << std::endl;
+			return std::move(ret);
+		}
 
-			// load all trajectory files in the collection
-			for (const auto file : traj_files)
+		// load all trajectory files in the collection
+		for (const auto file : traj_files)
+		{
+			std::ifstream contents(file);
+			if (contents.is_open())
 			{
-				std::ifstream contents(file);
-				if (contents.is_open())
+				line.clear(); tokens.clear(); fields.clear();
+				std::getline(contents, line);
+				cgv::utils::split_to_tokens(line, tokens, Impl::collection_seps, false);
+				Impl::read_fields(tokens, Impl::collection_seps, &fields);
+				const auto dsinfo = Impl::check_type(fields);
+				if (dsinfo.type == DT::SINGLE)
 				{
-					line.clear(); tokens.clear(); fields.clear();
-					std::getline(contents, line);
-					cgv::utils::split_to_tokens(line, tokens, Impl::collection_seps, false);
-					Impl::read_fields(tokens, Impl::collection_seps, &fields);
-					const auto dsinfo = Impl::check_type(fields);
-					if (dsinfo.type == DT::SINGLE)
-					{
-						if (!Impl::check_version(dsinfo.version))
-							std::cerr << "[sepia_handler] WARNING: trajectory file '"<<file<<"' uses unsupported format version "<<dsinfo.version << std::endl;
-						auto traj_new = Impl::load_trajectory(dsinfo.version, contents);
-						if (traj_new.loaded)
-							trajs.emplace_back(std::move(traj_new));
-						else
-							std::cerr << "[sepia_handler] WARNING: trajectory file '"<<file<<"' could not be loaded properly" << std::endl;
-					}
+					if (!Impl::check_version(dsinfo.version))
+						std::cerr << "[sepia_handler] WARNING: trajectory file '"<<file<<"' uses unsupported format version "<<dsinfo.version << std::endl;
+					auto traj_new = Impl::load_trajectory(dsinfo.version, contents);
+					if (traj_new.loaded)
+						trajs.emplace_back(std::move(traj_new));
 					else
-						std::cerr << "[sepia_handler] WARNING: file '"<<file<<"' does not appear to contain a SEPIA individual trajectory definition, ignoring" << std::endl;
+						std::cerr << "[sepia_handler] WARNING: trajectory file '"<<file<<"' could not be loaded properly" << std::endl;
 				}
 				else
-					std::cerr << "[sepia_handler] WARNING: cannot open trajectory file '"<<file<<'\'' << std::endl;
+					std::cerr << "[sepia_handler] WARNING: file '"<<file<<"' does not appear to contain a SEPIA individual trajectory definition, ignoring" << std::endl;
 			}
+			else
+				std::cerr << "[sepia_handler] WARNING: cannot open trajectory file '"<<file<<'\'' << std::endl;
+		}
+	}
 
-			// unify trajectories
-			// - prepare timestamp unification
-			if (consistent_timestamps)
+	// unify trajectories
+	// - for single precision float compatibility, we make every position relative to the first sample of the first trajectory
+	constexpr real altitude = 0;
+#if defined(SEPIA_USE_ECEF_COORDINATES) && SEPIA_USE_ECEF_COORDINATES!=0
+	const auto refpos = peri::xyzForLpa(peri::LPA{
+		trajs[0].gps.cbegin()->second.x(), trajs[0].gps.cbegin()->second.y(), altitude
+	});
+#else
+	typedef std::array<double, 2> latlong;
+	const latlong refpos = {trajs[0].gps.cbegin()->second.x(), trajs[0].gps.cbegin()->second.y()};
+#endif
+	// - prepare timestamp unification
+	if (consistent_timestamps)
+	{
+		double tstart_min =  std::numeric_limits<double>::infinity();
+		for (const auto &traj : trajs)
+			tstart_min = std::min(traj.start_time, tstart_min);
+		for (auto &traj : trajs)
+			traj.toffset = traj.start_time - tstart_min;
+	}
+	// - unifying of inconsistent attributes
+	/*if (retain_inconsistent_attribs)
+		// ToDo: implement!
+	else*/
+	{
+		std::unordered_set<std::string>
+			all_scalar_attribs, all_vec3_attribs, consistent_scalar_attribs, consistent_vec3_attribs;
+
+		// check attribute consistency
+		for (const auto &traj : trajs)
+		{
+			for (const auto &scl : traj.attribs_scalar)
+				all_scalar_attribs.emplace(scl.first);
+			for (const auto &v3 : traj.attribs_vec3)
+				all_vec3_attribs.emplace(v3.first);
+		}
+		for (const auto &aname : all_scalar_attribs)
+		{
+			bool consistent = true;
+			for (const auto &traj : trajs)
+				if (traj.attribs_scalar.find(aname) == traj.attribs_scalar.end())
+				{
+					consistent = false;
+					break;
+				}
+			if (consistent)
+				consistent_scalar_attribs.emplace(aname);
+			else
+				std::cerr << "[sepia_handler] throwing out inconsistent attribute '"<<aname<<"'!" << std::endl;
+		}
+		for (const auto &aname : all_vec3_attribs)
+		{
+			bool consistent = true;
+			for (const auto &traj : trajs)
+				if (traj.attribs_vec3.find(aname) == traj.attribs_vec3.end())
+				{
+					consistent = false;
+					break;
+				}
+			if (consistent)
+				consistent_vec3_attribs.emplace(aname);
+			else
+				std::cerr << "[sepia_handler] throwing out inconsistent attribute '"<<aname<<"'!" << std::endl;
+		}
+
+		// unify into common attribute trajectory structure
+		// - positions
+		auto P = add_attribute<Vec3>(ret, SEPIA_POSITION_ATTRIB_NAME);
+		auto &Ptraj = trajectories(ret, P.attrib);
+		real seg_dist_accum = 0;
+		unsigned num_segs = 0;
+		for (const auto &traj : trajs)
+		{
+			const unsigned offset = P.data.num();
+			for (auto sample=traj.gps.cbegin(); sample!=traj.gps.cend(); sample++)
 			{
-				double tstart_min =  std::numeric_limits<double>::infinity();
-				for (const auto &traj : trajs)
-					tstart_min = std::min(traj.start_time, tstart_min);
-				for (auto &traj : trajs)
-					traj.toffset = traj.start_time - tstart_min;
+				const auto &gpspos = sample->second;
+				#if defined(SEPIA_USE_ECEF_COORDINATES) && SEPIA_USE_ECEF_COORDINATES!=0
+					const auto xyzpos = peri::xyzForLpa(peri::LPA{gpspos.x(), gpspos.y(), altitude}),
+					           relpos = peri::LPA{xyzpos[0]-refpos[0], xyzpos[1]-refpos[1], xyzpos[2]-refpos[2]};
+					Vec3 pos((flt_type)relpos[0], (flt_type)relpos[1], (flt_type)relpos[2]);
+				#else
+					const auto mercator = wgs84::toCartesian(refpos, latlong{gpspos.x(), gpspos.y()});
+					Vec3 pos((flt_type)mercator[0], (flt_type)mercator[1], altitude);
+				#endif
+				if (sample != traj.gps.cbegin())
+				{
+					seg_dist_accum += (pos - P.data.values.back()).length();
+					num_segs++;
+				}
+				P.data.append(pos, (real)(sample->first + traj.toffset));
 			}
-			// - unifying of inconsistent attributes
-			/*if (retain_inconsistent_attribs)
-				// ToDo: implement!
-			else*/
+			Ptraj.emplace_back(range{offset, (unsigned)traj.gps.size()});
+		}
+		set_avg_segment_length(ret, seg_dist_accum / num_segs);
+		// - scalar attributes
+		for (const auto &aname : consistent_scalar_attribs)
+		{
+			auto A = add_attribute<real>(ret, aname);
+			auto &Atraj = trajectories(ret, A.attrib);
+			if (aname.compare(SEPIA_TIME_ATTRIB_NAME)) for (auto &traj : trajs)
 			{
-				std::unordered_set<std::string>
-					all_scalar_attribs, all_vec3_attribs, consistent_scalar_attribs, consistent_vec3_attribs;
-
-				// check attribute consistency
-				for (const auto &traj : trajs)
-				{
-					for (const auto &scl : traj.attribs_scalar)
-						all_scalar_attribs.emplace(scl.first);
-					for (const auto &v3 : traj.attribs_vec3)
-						all_vec3_attribs.emplace(v3.first);
-				}
-				for (const auto &aname : all_scalar_attribs)
-				{
-					bool consistent = true;
-					for (const auto &traj : trajs)
-						if (traj.attribs_scalar.find(aname) == traj.attribs_scalar.end())
-						{
-							consistent = false;
-							break;
-						}
-					if (consistent)
-						consistent_scalar_attribs.emplace(aname);
-					else
-						std::cerr << "[sepia_handler] throwing out inconsistent attribute '"<<aname<<"'!" << std::endl;
-				}
-				for (const auto &aname : all_vec3_attribs)
-				{
-					bool consistent = true;
-					for (const auto &traj : trajs)
-						if (traj.attribs_vec3.find(aname) == traj.attribs_vec3.end())
-						{
-							consistent = false;
-							break;
-						}
-					if (consistent)
-						consistent_vec3_attribs.emplace(aname);
-					else
-						std::cerr << "[sepia_handler] throwing out inconsistent attribute '"<<aname<<"'!" << std::endl;
-				}
-
-				// unify into common attribute trajectory structure
-				// - positions
-				auto P = add_attribute<Vec3>(ret, SEPIA_POSITION_ATTRIB_NAME);
-				auto &Ptraj = trajectories(ret, P.attrib);
-				real seg_dist_accum = 0;
-				unsigned num_segs = 0;
-				const trajectory<real>::gpsvec refpos(trajs[0].gps.cbegin()->second.x(), trajs[0].gps.cbegin()->second.y());
-				for (const auto &traj : trajs)
-				{
-					const unsigned offset = P.data.num();
-					for (auto sample=traj.gps.cbegin(); sample!=traj.gps.cend(); sample++)
-					{
-						// ToDo: unproject from WGS84 ellipsoid and offset according to EGM96 geoid
-						const auto gps = (sample->second - refpos)*10000;
-						Vec3 pos((real)gps.x(), (real)gps.y(), 0);
-						if (sample != traj.gps.cbegin())
-						{
-							seg_dist_accum += (pos - P.data.values.back()).length();
-							num_segs++;
-						}
-						P.data.append(pos, (real)(sample->first + traj.toffset));
-					}
-					Ptraj.emplace_back(range{offset, (unsigned)traj.gps.size()});
-				}
-				set_avg_segment_length(ret, seg_dist_accum / num_segs);
-				// - scalar attributes
-				for (const auto &aname : consistent_scalar_attribs)
-				{
-					auto A = add_attribute<real>(ret, aname);
-					auto &Atraj = trajectories(ret, A.attrib);
-					if (aname.compare(SEPIA_TIME_ATTRIB_NAME)) for (auto &traj : trajs)
-					{
-						const unsigned offset = A.data.num();
-						const auto &attrib_src = traj.attribs_scalar[aname];
-						for (const auto &sample : attrib_src)
-							A.data.append(sample.second, (real)(sample.first+traj.toffset));
-						Atraj.emplace_back(range{offset, (unsigned)attrib_src.size()});
-					}
-					else for (auto &traj : trajs)
-					{
-						const unsigned offset = A.data.num();
-						const auto &attrib_src = traj.attribs_scalar[aname];
-						for (const auto &sample : attrib_src)
-							A.data.append((real)(double(sample.second)+traj.toffset), (real)(sample.first+traj.toffset));
-						Atraj.emplace_back(range{offset, (unsigned)attrib_src.size()});
-					}
-				}
-				// - vec3 attributes
-				for (const auto &aname : consistent_vec3_attribs)
-				{
-					auto A = add_attribute<Vec3>(ret, aname);
-					auto &Atraj = trajectories(ret, A.attrib);
-					for (auto &traj : trajs)
-					{
-						const unsigned offset = A.data.num();
-						const auto &attrib_src = traj.attribs_vec3[aname];
-						for (const auto &sample : attrib_src)
-							A.data.append(sample.second, (real)(sample.first+traj.toffset));
-						Atraj.emplace_back(range{offset, (unsigned)attrib_src.size()});
-					}
-				}
-				// - invent radii
-				auto R = add_attribute<real>(ret, SEPIA_RADIUS_ATTRIB_NAME);
-				R.data.values = std::vector<real>(P.data.num(), ret.avg_segment_length()*real(0.125));
-				R.data.timestamps = P.data.timestamps;
-				trajectories(ret, R.attrib) = trajectories(ret, P.attrib);
-				// - visual attribute mapping
-				ret.set_mapping(Impl::attrmap);
+				const unsigned offset = A.data.num();
+				const auto &attrib_src = traj.attribs_scalar[aname];
+				for (const auto &sample : attrib_src)
+					A.data.append(sample.second, (real)(sample.first+traj.toffset));
+				Atraj.emplace_back(range{offset, (unsigned)attrib_src.size()});
+			}
+			else for (auto &traj : trajs)
+			{
+				const unsigned offset = A.data.num();
+				const auto &attrib_src = traj.attribs_scalar[aname];
+				for (const auto &sample : attrib_src)
+					A.data.append((real)(double(sample.second)+traj.toffset), (real)(sample.first+traj.toffset));
+				Atraj.emplace_back(range{offset, (unsigned)attrib_src.size()});
 			}
 		}
+		// - vec3 attributes
+		for (const auto &aname : consistent_vec3_attribs)
+		{
+			auto A = add_attribute<Vec3>(ret, aname);
+			auto &Atraj = trajectories(ret, A.attrib);
+			for (auto &traj : trajs)
+			{
+				const unsigned offset = A.data.num();
+				const auto &attrib_src = traj.attribs_vec3[aname];
+				for (const auto &sample : attrib_src)
+					A.data.append(sample.second, (real)(sample.first+traj.toffset));
+				Atraj.emplace_back(range{offset, (unsigned)attrib_src.size()});
+			}
+		}
+		// - invent radii
+		auto R = add_attribute<real>(ret, SEPIA_RADIUS_ATTRIB_NAME);
+		R.data.values = std::vector<real>(P.data.num(), ret.avg_segment_length()*real(0.125));
+		R.data.timestamps = P.data.timestamps;
+		trajectories(ret, R.attrib) = trajectories(ret, P.attrib);
+		// - visual attribute mapping
+		ret.set_mapping(Impl::attrmap);
 	}
 
 	// done!
