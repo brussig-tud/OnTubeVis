@@ -1186,7 +1186,7 @@ bool tubes::compile_glyph_attribs_start(void) {
 					if(ranges[global_seg - 1].n > 0) {
 						// using half size of previous glyph
 						if(prev_glyph_size < 0.0f) {
-							// "glpyhs" with a negative size value are possibly infinite in size and always overlap onto the next segment
+							// "glyphs" with a negative size value are possibly infinite in size and always overlap onto the next segment
 							ranges[global_seg].i0 = (int)attribs.glyph_count() - 1;
 							ranges[global_seg].n = 1;
 						} else {
@@ -1260,15 +1260,33 @@ bool tubes::compile_glyph_attribs_start(void) {
 							// first free attribute that falls into this segment
 							cur_range.i0 = (unsigned)attribs.glyph_count();
 							cur_range.n = 1;
-							// handle overlap to previous segment
-							if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size)
+
+							// handle overlap to previous segment (this only works for a single previous segment)
+							/*if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size) {
+								// if there have been no glyphs comitted to the previous segment until now, also update its start index
+								if(ranges[global_seg - 1].n == 0)
+									ranges[global_seg - 1].i0 = cur_range.i0;
 								ranges[global_seg - 1].n++;
+							}*/
+
+							// handle overlap to the previous segments
+							if(seg > 0) {
+								int prev_seg = static_cast<int>(global_seg - 1);
+								while(prev_seg >= 0 && alen[prev_seg][15] > s - 0.5f*new_glyph_size) {
+									// if there have been no glyphs comitted to the previous segment until now, also update its start index
+									auto& prev_range = ranges[prev_seg];
+									if(prev_range.n == 0)
+										prev_range.i0 = cur_range.i0;
+									prev_range.n++;
+									prev_seg -= 1;
+								}
+							}
 						} else {
 							// one more free attribute that falls into this segment
 							cur_range.n++;
-							// for infinitely sized "glyphs" there will always be overlap from the previous fragment, so the above branch wont't be executed
+							// for infinitely sized "glyphs" there always will have been overlap from the previous segment, so the above branch won't have been executed
 							if(global_seg > 0 && new_glyph_size < 0.0) {
-								// "glpyhs" with a negative size value are possibly infinite in size and always overlap onto the previous segment
+								// "glyphs" with a negative size value are possibly infinite in size and always overlap onto the previous segment
 								ranges[global_seg - 1].n++;
 							}
 						}
