@@ -97,6 +97,8 @@ tubes::tubes() : application_plugin("Tubes")
 	//fh.file_name = QUOTE_SYMBOL_VALUE(INPUT_DIR);
 	//fh.file_name += "/res/";
 	fh.file_name = "";
+
+	debug.segment_rs.rounded_caps = true;
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -126,10 +128,13 @@ void tubes::clear(cgv::render::context &ctx) {
 	// decrease reference count of the renderers by one
 	ref_textured_spline_tube_renderer(ctx, -1);
 	ref_box_renderer(ctx, -1);
+	ref_cone_renderer(ctx, -1);
 	ref_sphere_renderer(ctx, -1);
 	ref_volume_renderer(ctx, -1);
 
 	srd.destruct(ctx);
+	debug.node_rd.destruct(ctx);
+	debug.segment_rd.destruct(ctx);
 
 	shaders.clear(ctx);
 	fbc.clear(ctx);
@@ -312,7 +317,7 @@ void tubes::on_set(void *member_ptr) {
 	}
 
 	// render settings
-	if( member_ptr == &general_settings.debug_segments ||
+	if( member_ptr == &debug.highlight_segments ||
 		member_ptr == &grid_mode ||
 		member_ptr == &grid_normal_settings ||
 		member_ptr == &grid_normal_inwards ||
@@ -324,6 +329,24 @@ void tubes::on_set(void *member_ptr) {
 			tube_shading_defines = defines;
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
 		}
+	}
+	// - debug render setting
+	if(member_ptr == &debug.force_initial_order) {
+		update_attribute_bindings();
+	}
+
+	if(member_ptr == &debug.render_percentage) {
+		debug.render_count = static_cast<size_t>(debug.render_percentage * debug.segment_count);
+		update_member(&debug.render_count);
+	}
+
+	if(member_ptr == &debug.render_count) {
+		debug.render_percentage = static_cast<float>(debug.render_count) / static_cast<float>(debug.segment_count);
+		update_member(&debug.render_percentage);
+	}
+
+	if(member_ptr == &debug.render_mode) {
+		update_debug_attribute_bindings();
 	}
 
 	// voxelization settings
@@ -1373,9 +1396,12 @@ bool tubes::init (cgv::render::context &ctx)
 
 	render.sorter->set_key_definition_override(key_definition);
 
+	// initialize debug renderer
 	ref_sphere_renderer(ctx, 1);
-	// TODO: remove sphere renderer
+	ref_cone_renderer(ctx, 1);
 	srd.init(ctx);
+	debug.node_rd.init(ctx);
+	debug.segment_rd.init(ctx);
 
 	// enable ambient occlusion
 	ao_style.enable = true;
@@ -1582,8 +1608,29 @@ void tubes::draw (cgv::render::context &ctx)
 	if(show_volume) {
 		draw_density_volume(ctx);
 	} else {
-		if(traj_mgr.has_data())
-			draw_trajectories(ctx);
+		if(traj_mgr.has_data()) {
+
+			int debug_idx_count = static_cast<int>(render.data->indices.size());
+			if(debug.limit_render_count)
+				debug_idx_count = static_cast<int>(2 * debug.render_count);
+
+			switch(debug.render_mode) {
+			case DRM_NONE:
+				draw_trajectories(ctx);
+				break;
+			case DRM_NODES:
+				debug.node_rd.render(ctx, ref_sphere_renderer(ctx), debug.node_rs, 0, debug_idx_count);
+				break;
+			case DRM_SEGMENTS:
+				debug.segment_rd.render(ctx, ref_cone_renderer(ctx), debug.segment_rs, 0, debug_idx_count);
+				break;
+			case DRM_NODES_SEGMENTS:
+				debug.node_rd.render(ctx, ref_sphere_renderer(ctx), debug.node_rs, 0, debug_idx_count);
+				debug.segment_rd.render(ctx, ref_cone_renderer(ctx), debug.segment_rs, 0, debug_idx_count);
+				break;
+			default: break;
+			}
+		}
 
 		//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());
 	}
@@ -1606,9 +1653,6 @@ void tubes::create_gui(void) {
 	if(begin_tree_node("Tube Style", render.style, false)) {
 		align("\a");
 		add_gui("tube_style", render.style);
-		// render percentage exists for debug reasons only and can be removed at some point
-		add_member_control(this, "Render Percentage", render.percentage, "value_slider", "min=0.0;step=0.001;max=1.0;ticks=true");
-		add_member_control(this, "Sort by Distance", render.sort, "check");
 		align("\b");
 		end_tree_node(render.style);
 	}
@@ -1648,7 +1692,6 @@ void tubes::create_gui(void) {
 		add_member_control(this, "Curvature Correction", general_settings.use_curvature_correction, "check");
 		add_member_control(this, "Length Scale", general_settings.length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xb51c1c");
 		add_member_control(this, "Antialias Radius", general_settings.antialias_radius, "value_slider", "min=0;max=5;step=0.01;ticks=true");
-		add_member_control(this, "Debug Segments", general_settings.debug_segments, "check");
 		align("\b");
 		end_tree_node(glyph_layer_mgr);
 	}
@@ -1729,6 +1772,17 @@ void tubes::create_gui(void) {
 
 	if(begin_tree_node("(Debug)", benchmark, false)) {
 		align("\a");
+		add_member_control(this, "Render Mode", debug.render_mode, "dropdown", "enums='Default, Nodes, Segments, Nodes + Segments'");
+		add_member_control(this, "Show Segments", debug.highlight_segments, "check");
+
+		add_member_control(this, "Sort by Distance", debug.sort, "check");
+		add_member_control(this, "Force Initial Order", debug.force_initial_order, "check");
+
+		add_member_control(this, "Limit Render Count", debug.limit_render_count, "check");
+		add_member_control(this, "Render Percentage", debug.render_percentage, "value_slider", "min=0.0;step=0.001;max=1.0;ticks=true");
+		add_member_control(this, "Render Count", debug.render_count, "value", "w=70;min=0;step=1;max=" + std::to_string(debug.segment_count), " ");
+		add_member_control(this, "", debug.render_count, "wheel", "w=120;min=0;step=1;max=" + std::to_string(debug.segment_count));
+		
 		add_member_control(this, "Start Benchmark", benchmark.requested, "toggle", "");
 		create_vec3_gui("Eye Pos", test_eye, -10.0f, 10.0f);
 		create_vec3_gui("Eye Dir", test_dir, -1.0f, 1.0f);
@@ -1860,10 +1914,53 @@ void tubes::update_attribute_bindings(void) {
 		if(!render.sorter->init(ctx, render.data->indices.size() / 2))
 			std::cout << "Could not initialize gpu sorter" << std::endl;
 
+		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+
+		debug.segment_count = segment_count;
+		//if(render.render_count > segment_count)
+		debug.render_percentage = 1.0f;
+		debug.render_count = segment_count;
+		update_member(&debug.render_percentage);
+		update_member(&debug.render_count);
+
 		// Generate the density volume (uses GPU buffer data so we need to do this after upload)
 		create_density_volume(ctx, voxel_grid_resolution);
+	}
+}
 
-		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+void tubes::update_debug_attribute_bindings() {
+	auto &ctx = *get_context();
+
+	auto& nodes = debug.node_rd;
+	auto& segments = debug.segment_rd;
+
+	nodes.clear();
+	segments.clear();
+
+	if(traj_mgr.has_data()) {
+		float radius_scale = debug.render_mode == DRM_NODES_SEGMENTS ? 0.5f : 1.0f;
+
+		// Create render data for debug views if requested
+		if(debug.render_mode == DRM_NONE) {
+			// do an early transfer to free GPU memory, since the render function of this data will not be called anymore
+			nodes.early_transfer(ctx, ref_sphere_renderer(ctx));
+			segments.early_transfer(ctx, ref_cone_renderer(ctx));
+		} else {
+			const size_t num_nodes = render.data->positions.size();
+			for(size_t i = 0; i < num_nodes; i++) {
+				// convenience shortcut
+				const auto &col = render.data->colors[i];
+
+				nodes.add(render.data->positions[i], render.data->radii[i], col);
+				segments.adds(render.data->positions[i]);
+				segments.adds(radius_scale * render.data->radii[i]);
+				segments.adds(col);
+			}
+			// also use index buffer for nodes even though this means we render most nodes twice
+			// this is necessary for correct usage of the render count limit
+			nodes.ref_idx() = render.data->indices;
+			segments.ref_idx() = render.data->indices;
+		}
 	}
 }
 
@@ -2017,7 +2114,7 @@ void tubes::draw_trajectories(context& ctx) {
 	// sort the sgment indices
 	int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
 	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");	
-	if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && render.sort)
+	if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && debug.sort & !debug.force_initial_order)
 		//render.sorter->sort(ctx, data_handle, segment_idx_handle, test_eye, test_dir, node_idx_handle);
 		render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
 
@@ -2027,7 +2124,11 @@ void tubes::draw_trajectories(context& ctx) {
 	tstr.set_render_style(render.style);
 	tstr.enable_attribute_array_manager(ctx, render.aam);
 
-	int count = int(render.percentage * (render.data->indices.size()/2));
+	int count = static_cast<int>(render.data->indices.size() / 2);
+	if(debug.limit_render_count) {
+		//count = static_cast<int>(render.percentage * count);
+		count = static_cast<int>(debug.render_count);
+	}
 	
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, arclen_handle);
@@ -2152,7 +2253,7 @@ shader_define_map tubes::build_tube_shading_defines() {
 	shader_define_map defines;
 
 	// debug defines
-	shader_code::set_define(defines, "DEBUG_SEGMENTS", general_settings.debug_segments, false);
+	shader_code::set_define(defines, "DEBUG_SEGMENTS", debug.highlight_segments, false);
 
 	// grid defines
 	shader_code::set_define(defines, "GRID_MODE", grid_mode, GM_COLOR);

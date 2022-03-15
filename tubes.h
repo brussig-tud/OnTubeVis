@@ -17,6 +17,7 @@
 // CGV framework graphics utility
 #include <cgv_glutil/application_plugin.h>
 #include <cgv_glutil/box_render_data.h>
+#include <cgv_glutil/cone_render_data.h>
 #include <cgv_glutil/color_map_editor.h>
 #include <cgv_glutil/frame_buffer_container.h>
 #include <cgv_glutil/navigator.h>
@@ -87,20 +88,15 @@ protected:
 	std::vector<grid_parameters> grids;
 	bool enable_fuzzy_grid;
 
-	// global tube render settings
+	/// global tube render settings
 	struct {
 		bool use_curvature_correction = true;
 		float length_scale = 1.0;
 		float antialias_radius = 0.5f;
-		bool debug_segments = false;
 	} general_settings;
 	
+	/// shader defines for the deferred shading pass
 	shader_define_map tube_shading_defines;
-
-
-
-
-
 
 	/// store a pointer to the view for fast access
 	view* view_ptr = nullptr;
@@ -178,11 +174,6 @@ protected:
 
 		/// the gpu sorter used to reorder the indices according to their corresponding segment visibility order
 		cgv::glutil::gpu_sorter* sorter = nullptr;
-
-		/// whether to sort the segemnts, which is used to boost performance together with conservative depth testing
-		bool sort = true;
-
-		float percentage = 1.0f;
 	} render;
 
 	/// trajectory manager
@@ -197,7 +188,7 @@ protected:
 	/// color map manager
 	color_map_manager color_map_mgr;
 
-	/// rendering state fields
+	/// benchmark state fields
 	struct {
 		/// whether a benchmark run is requested
 		bool requested = false;
@@ -210,6 +201,41 @@ protected:
 		/// store last seconds since the start of the run
 		double last_seconds_since_start;
 	} benchmark;
+
+	/// the different debug render modes
+	enum DebugRenderMode {
+		DRM_NONE,
+		DRM_NODES,
+		DRM_SEGMENTS,
+		DRM_NODES_SEGMENTS
+	};
+
+	/// debug state fields
+	struct {
+		DebugRenderMode render_mode = DRM_NONE;
+
+		/// debug render data and styles
+		cgv::glutil::sphere_render_data<> node_rd;
+		cgv::glutil::cone_render_data<> segment_rd;
+		sphere_render_style node_rs;
+		cone_render_style segment_rs;
+
+		/// whether to higlight individual segments in the textured spline tube renderer
+		bool highlight_segments = false;
+
+		/// whether to sort the segments, which is used to boost performance together with conservative depth testing
+		bool sort = true;
+		/// whether to foirce the initial draw order of segments as defined in the data set (overrides sort setting)
+		bool force_initial_order = false;
+		/// whether to limit the render count
+		bool limit_render_count = false;
+		/// percentage of rendered segments
+		float render_percentage = 1.0f;
+		/// amount of rendered segments
+		size_t render_count = 0;
+		/// total segment count
+		size_t segment_count = 0;
+	} debug;
 
 	/// members for rendering eye position and direction used to test sorting
 	cgv::glutil::sphere_render_data<> srd;
@@ -251,6 +277,7 @@ protected:
 	void set_view(void);
 	void update_grid_ratios(void);
 	void update_attribute_bindings(void);
+	void update_debug_attribute_bindings(void);
 	void calculate_bounding_box(void);
 
 	void create_density_volume(context& ctx, unsigned resolution);
