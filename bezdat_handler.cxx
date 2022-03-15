@@ -167,6 +167,12 @@ const visual_attribute_mapping<flt_type> Impl<flt_type>::attrmap({
 });
 
 template <class flt_type>
+bezdat_handler<flt_type>::bezdat_handler()
+{
+	handled_extensions.push_back("bezdat");
+}
+
+template <class flt_type>
 bool bezdat_handler<flt_type>::can_handle (std::istream &contents) const
 {
 	std::string str;

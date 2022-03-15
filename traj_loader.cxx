@@ -1770,6 +1770,8 @@ bool traj_manager<flt_type>::can_load (const std::string &path) const
 
 	// assume it's a file that can just be opened
 	std::ifstream file(path);
+	std::string ext = cgv::utils::to_lower(cgv::utils::file::get_extension(path));
+
 	if (!file.is_open())
 	{
 		std::cout << "traj_loader: cannot open file:" << std::endl << '"'<<path<<'"' << std::endl << std::endl;
@@ -1779,7 +1781,7 @@ bool traj_manager<flt_type>::can_load (const std::string &path) const
 	// test if we find a suitable handler
 	auto &handlers = trajectory_handler_registry<real>::handlers();
 	for (auto &h : handlers)
-		if (h->get_interface<traj_format_handler<flt_type> >()->can_handle(file))
+		if (h->get_interface<traj_format_handler<flt_type> >()->can_handle_file(ext, file))
 			// yes we can...
 			return true;
 	// no we can't...
@@ -1802,6 +1804,8 @@ unsigned traj_manager<flt_type>::load (const std::string &path)
 
 	// assume it's a file that can just be opened
 	std::ifstream file(path);
+	std::string ext = cgv::utils::to_lower(cgv::utils::file::get_extension(path));
+
 	if (!file.is_open())
 	{
 		std::cout << "traj_loader: cannot open file:" << std::endl << '"'<<path<<'"' << std::endl << std::endl;
@@ -1819,7 +1823,7 @@ unsigned traj_manager<flt_type>::load (const std::string &path)
 
 		// delegate to handler
 		auto h = _h->get_interface<traj_format_handler<flt_type> >();
-		if (h->can_handle(file))
+		if (h->can_handle_file(ext, file))
 		{
 			new_dataset = h->read(file, DOrig::FILE, path);
 			if (new_dataset.has_data() && new_dataset.mapping().is_mapped(VisualAttrib::POSITION))

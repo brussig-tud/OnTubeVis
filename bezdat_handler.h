@@ -32,9 +32,12 @@ struct bezdat_handler : public traj_format_handler<flt_type>
 	/// rgb color type
 	typedef traj_format_handler::Color Color;
 
+	/// define handled extensions
+	bezdat_handler();
+
 	/// test if the given data stream appears to be a .bezdat file
-	virtual bool can_handle (std::istream &contents) const;
+	bool can_handle (std::istream &contents) const;
 
 	/// parse the given stream containing the .bezdat file contents and report whether any data was loaded
-	virtual traj_dataset<real> read (std::istream &contents, DatasetOrigin source, const std::string &path);
+	traj_dataset<real> read (std::istream &contents, DatasetOrigin source, const std::string &path);
 };

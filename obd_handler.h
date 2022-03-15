@@ -32,6 +32,9 @@ struct obd_handler : public traj_format_handler<flt_type>
 	/// rgb color type
 	typedef traj_format_handler::Color color;
 
+	/// define handled extensions
+	obd_handler();
+
 	/// test if the given data stream appears to be a .bezdat file
 	virtual bool can_handle (std::istream &contents) const;
 
