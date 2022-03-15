@@ -2,7 +2,7 @@
 projectType="application_plugin";
 projectName="tubes";
 projectGUID="FB8C657D-2C3A-4FB1-A783-D31E3759B7AC";
-excludeSourceDirs=[INPUT_DIR."/testdata", INPUT_DIR."/peridetic/examples"];
+excludeSourceDirs=[INPUT_DIR."/testdata", INPUT_DIR."/3rd/peridetic/examples"];
 addProjectDirs=[CGV_DIR."/libs", CGV_DIR."/plugins", CGV_DIR."/3rd"];
 addIncDirs=[
 	INPUT_DIR, 
@@ -10,7 +10,8 @@ addIncDirs=[
 	CGV_BUILD_DIR."/".projectName, 
 	CGV_BUILD_DIR."/cgv_glutil",
 	CGV_DIR."/3rd/json/nlohmann",
-	INPUT_DIR."/peridetic"
+	INPUT_DIR."/3rd/peridetic",
+	INPUT_DIR."/3rd/wgs84mercator"
 ];
 addProjectDeps=[
 	"cgv_utils", "cgv_type", "cgv_reflect", "cgv_data", "cgv_signal", "cgv_base", "cgv_media", 

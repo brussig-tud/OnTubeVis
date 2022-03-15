@@ -17,25 +17,29 @@
 // 3rd party libs
 #include <json.hpp>
 #include <peridetic.h>
+#include <WGS84toCartesian.hpp>
 
 // implemented header
 #include "obd_handler.h"
 
 
-/// identifyier to use for position data
+// identifyier to use for position data
 #define OBD_POSITION_ATTRIB_NAME "position"
 
-/// identifyier to use for radius data
+// identifyier to use for radius data
 #define OBD_ALTITUDE_ATTRIB_NAME "altitude"
 
-/// identifyier to use for radius data
+// identifyier to use for radius data
 #define OBD_SPEED_ATTRIB_NAME "speed"
 
-/// identifyier to use for radius data
+// identifyier to use for radius data
 #define OBD_RADIUS_ATTRIB_NAME "radius"
 
-/// identifyier to use for timestamp attribute
+// identifyier to use for timestamp attribute
 #define OBD_TIME_ATTRIB_NAME "time"
+
+// whether to use ECEF coordinates instead of Mercator cartesian + altitude
+#define OBD_USE_ECEF_COORDINATES 0
 
 
 template <class flt_type>
@@ -181,15 +185,20 @@ traj_dataset<flt_type> obd_handler<flt_type>::read (
 		});
 
 	// for single precision float compatibility, we make everything relative to the first sample of the first trajectory position-wise...
+#if defined(OBD_USE_ECEF_COORDINATES) && OBD_USE_ECEF_COORDINATES!=0
 	const auto refpos = peri::xyzForLpa(peri::LPA{
 		gps_info_map.cbegin()->second[0].latitude,
 		gps_info_map.cbegin()->second[0].longitude,
 		gps_info_map.cbegin()->second[0].altitude
 	});
+#else
+	typedef std::array<double, 2> latlong;
+	const latlong refpos = {gps_info_map.cbegin()->second[0].latitude, gps_info_map.cbegin()->second[0].longitude};
+#endif
 	// ...and relative to the earliest sample among all trajectories time-wise
 	double reftime = std::numeric_limits<double>::infinity();
 	for (const auto &e : gps_info_map)
-		reftime = std::min(e.second[0].timestamp, (size_t)reftime);
+		reftime = (double)std::min(e.second[0].timestamp, (size_t)reftime);
 
 	// create attributes
 	auto P = add_attribute<vec3>(ret, OBD_POSITION_ATTRIB_NAME);
@@ -214,10 +223,20 @@ traj_dataset<flt_type> obd_handler<flt_type>::read (
 		unsigned num_samples_this_traj = 0;
 		for (unsigned i=0; i<(unsigned)gps_infos.size(); i++)
 		{
+			// convenience shorthand
 			const auto &gps_info = gps_infos[i];
-			const auto xyzpos = peri::xyzForLpa(peri::LPA{gps_info.latitude, gps_info.longitude, gps_info.altitude}),
-			           relpos = peri::LPA{xyzpos[0]-refpos[0], xyzpos[1]-refpos[1], xyzpos[2]-refpos[2]};
-			vec3 pos((flt_type)relpos[0], (flt_type)relpos[1], (flt_type)relpos[2]);
+
+			// convert from lattitude/longitude
+			#if defined(OBD_USE_ECEF_COORDINATES) && OBD_USE_ECEF_COORDINATES!=0
+				const auto xyzpos = peri::xyzForLpa(peri::LPA{gps_info.latitude, gps_info.longitude, gps_info.altitude}),
+				           relpos = peri::LPA{xyzpos[0]-refpos[0], xyzpos[1]-refpos[1], xyzpos[2]-refpos[2]};
+				vec3 pos((flt_type)relpos[0], (flt_type)relpos[1], (flt_type)relpos[2]);
+			#else
+				const auto mercator = wgs84::toCartesian(refpos, latlong{gps_info.latitude, gps_info.longitude});
+				vec3 pos((flt_type)mercator[0], (flt_type)mercator[1], (flt_type)gps_info.altitude);
+			#endif
+
+			// keep track of segment length
 			if (i > 0)
 			{
 				const auto& prev = P.data.values.back();
@@ -227,18 +246,22 @@ traj_dataset<flt_type> obd_handler<flt_type>::read (
 				seg_dist_accum += (pos - P.data.values.back()).length();
 				num_segs++;
 			}
+
+			// commit to storage
 			// ToDo: what do the timestamps mean? They're either in nanoseconds or there is centuries in between samples...
 			flt_type time = (flt_type)((gps_info.timestamp - reftime)/1000000000.0);
 			P.data.append(pos, time);
 			A.data.append((flt_type)gps_info.altitude, time);
 			V.data.append((flt_type)gps_info.gps_speed, time);
 			T.data.append(time, time);
+
+			// book-keeping for building trajectory information after this loop
 			num_samples_this_traj++;
 		}
 
-		// create trajectory info
+		// store trajectory info
 		Ptraj.emplace_back(range{offset, num_samples_this_traj});
-		offset += Ptraj.back().n;
+		offset += num_samples_this_traj;
 	}
 
 	// non-position trajectory infos
@@ -251,7 +274,7 @@ traj_dataset<flt_type> obd_handler<flt_type>::read (
 	auto R = add_attribute<flt_type>(ret, OBD_RADIUS_ATTRIB_NAME);
 	R.data.values = std::vector<flt_type>(P.data.num(), ret.avg_segment_length()*real(0.125));
 	R.data.timestamps = P.data.timestamps;
-	trajectories(ret, R.attrib) = Ptraj;
+	trajectories(ret, R.attrib) = Ptraj;	// invented radius "samples" are again in sync with positions, so just copy traj info
 
 	// visual attribute mapping
 	ret.set_mapping(vamap);
