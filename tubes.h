@@ -16,7 +16,7 @@
 
 // CGV framework graphics utility
 #include <cgv_glutil/application_plugin.h>
-#include <cgv_glutil/box_render_data.h>
+#include <cgv_glutil/box_wire_render_data.h>
 #include <cgv_glutil/cone_render_data.h>
 #include <cgv_glutil/color_map_editor.h>
 #include <cgv_glutil/frame_buffer_container.h>
@@ -144,6 +144,9 @@ protected:
 	cgv::glutil::frame_buffer_container fbc;
 	cgv::glutil::shader_library shaders;
 	volume_render_style vstyle;
+
+	bool show_bbox = true;
+	cgv::glutil::box_wire_render_data<> bbox_rd;
 
 	/// rendering state fields
 	struct {
