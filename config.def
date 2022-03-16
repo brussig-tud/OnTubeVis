@@ -8,12 +8,16 @@ type(tubes):datapath=""
 //type(tubes):layer_config_file="./testdata/layerconf_4layers_interpolationdemo.xml"
 
 // Visualization and general settings
+// - Bounding box visibility
+type(tubes):show_bounding_box=true
 // - Grid mode: 0 - none, 1 - color only, 2 - normals only, 3 - color and normals
 type(tubes):grid_mode=0
 type(tubes):show_hidden_glyphs=false
 // - Voxelization device
 type(tubes):voxelize_gpu=false
 
-// Framework settings (make persistent in your local .cfg)
+// Framework settings
+name(stereo interactor):clip_relative_to_extent=true
+// - make persistent in your local .cfg
 type(tubes):instant_redraw_proxy=false
 type(tubes):fix_view_up_dir_proxy=false
