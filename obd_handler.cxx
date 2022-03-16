@@ -12,6 +12,7 @@
 // CGV framework core
 #include <cgv/base/register.h>
 #include <cgv/utils/scan.h>
+#include <cgv/os/line_break.h>
 #include <cgv/utils/advanced_scan.h>
 
 // 3rd party libs
@@ -88,81 +89,8 @@ struct gps_info_info
 	double gps_speed;
 };
 
-uint8_t hex2int(char c)
-{
-	switch (c) {
-	case '0':
-	case '1':
-	case '2':
-	case '3':
-	case '4':
-	case '5':
-	case '6':
-	case '7':
-	case '8':
-	case '9':
-		return c - '0';
-	case 'A':
-	case 'B':
-	case 'C':
-	case 'D':
-	case 'E':
-	case 'F':
-		return c - 'A';
-	case 'a':
-	case 'b':
-	case 'c':
-	case 'd':
-	case 'e':
-	case 'f':
-		return c - 'a';
-	}
-	return 0;
-}
-
-std::vector<uint8_t> parse_bytes(const std::string& byte_str)
-{
-	std::vector<uint8_t> bytes;
-	for (size_t i = 0; i < byte_str.size(); i += 2)
-		bytes.push_back(16 * hex2int(byte_str[i]) + hex2int(byte_str[i + 1]));
-	return bytes;
-}
-
-std::istream& safeGetline(std::istream& is, std::string& t)
-{
-	t.clear();
-
-	// The characters in the stream are read one-by-one using a std::streambuf.
-	// That is faster than reading them one-by-one using the std::istream.
-	// Code that uses streambuf this way must be guarded by a sentry object.
-	// The sentry object performs various tasks,
-	// such as thread synchronization and updating the stream state.
-
-	std::istream::sentry se(is, true);
-	std::streambuf* sb = is.rdbuf();
-
-	for (;;) {
-		int c = sb->sbumpc();
-		switch (c) {
-		case '\n':
-			return is;
-		case '\r':
-			if (sb->sgetc() == '\n')
-				sb->sbumpc();
-			return is;
-		case std::streambuf::traits_type::eof():
-			// Also handle the case when the last line has no line ending
-			if (t.empty())
-				is.setstate(std::ios::eofbit);
-			return is;
-		default:
-			t += (char)c;
-		}
-	}
-}
-
 template <class flt_type>
-traj_dataset<flt_type> obd_handler<flt_type>::read (
+traj_dataset<flt_type> obd_handler<flt_type>::read(
 	std::istream &contents, DatasetOrigin source, const std::string &path
 )
 {
@@ -173,7 +101,7 @@ traj_dataset<flt_type> obd_handler<flt_type>::read (
 	std::map<std::string, std::vector<gps_info_info>> gps_info_map;
 	do { 
 		// retrieve line containing single json object
-		safeGetline(contents, line);
+		cgv::os::safe_getline(contents, line);
 		if (line.empty())
 			continue;
 		// parse with nlohmann json
@@ -188,7 +116,7 @@ traj_dataset<flt_type> obd_handler<flt_type>::read (
 			responses.push_back({ 
 				j["source"].get<std::string>(), 
 				j["timestamp"].get<size_t>(), 
-				parse_bytes(j["data"]["bytes"].get<std::string>())
+				cgv::utils::parse_hex_bytes(j["data"]["bytes"].get<std::string>())
 			});
 		// handle unknown types
 		else if (j["type"] == "GPS") {
@@ -212,7 +140,6 @@ traj_dataset<flt_type> obd_handler<flt_type>::read (
 	std::cout << "nr unknown parsed objects: " << nr_objects << std::endl;
 	for (auto tc : type_counts)
 		std::cout << "  " << tc.first << ": " << tc.second << std::endl;
-
 
 	////
 	// transform loaded data into traj_mgr dataset
