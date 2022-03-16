@@ -75,6 +75,7 @@ tubes::tubes() : application_plugin("Tubes")
 	navigator_ptr->set_visibility(false);
 	navigator_ptr->gui_options.show_heading = false;
 	navigator_ptr->gui_options.show_layout_options = false;
+	navigator_ptr->set_overlay_alignment(cgv::glutil::overlay::AO_START, cgv::glutil::overlay::AO_END);
 	
 	cm_viewer_ptr = register_overlay<color_map_viewer>("Color Scale Viewer");
 	cm_viewer_ptr->gui_options.show_heading = false;
@@ -127,10 +128,12 @@ void tubes::handle_args (std::vector<std::string> &args)
 void tubes::clear(cgv::render::context &ctx) {
 	// decrease reference count of the renderers by one
 	ref_textured_spline_tube_renderer(ctx, -1);
-	ref_box_renderer(ctx, -1);
+	ref_box_wire_renderer(ctx, -1);
 	ref_cone_renderer(ctx, -1);
 	ref_sphere_renderer(ctx, -1);
 	ref_volume_renderer(ctx, -1);
+
+	bbox_rd.destruct(ctx);
 
 	srd.destruct(ctx);
 	debug.node_rd.destruct(ctx);
@@ -152,6 +155,7 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("layer_config_file", fh.file_name) && // ToDo: figure out proper reflection name
 		rh.reflect_member("show_hidden_glyphs", include_hidden_glyphs) && // ToDo: which of these two names is better?
 		rh.reflect_member("render_style", render.style) &&
+		rh.reflect_member("show_bounding_box", show_bbox) &&
 		rh.reflect_member("grid_mode", grid_mode) &&
 		rh.reflect_member("grid_normal_settings", grid_normal_settings) &&
 		rh.reflect_member("grid_normal_inwards", grid_normal_inwards) &&
@@ -267,6 +271,13 @@ void tubes::on_set(void *member_ptr) {
 			tube_shading_defines = build_tube_shading_defines();
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
+			// reset glyph layer configuration file
+			fh.file_name = "";
+			fh.has_unsaved_changes = false;
+			update_member(&fh.file_name);
+			on_set(&fh.has_unsaved_changes);
+			std::cout << "datapath" << std::endl;
+
 			post_recreate_gui();
 		}
 	}
@@ -297,12 +308,6 @@ void tubes::on_set(void *member_ptr) {
 			update_attribute_bindings();
 			update_grid_ratios();
 
-			fh.file_name = "";
-			fh.has_unsaved_changes = false;
-			update_member(&fh.file_name);
-			on_set(&fh.has_unsaved_changes);
-			
-			// TODO: glyphs are not fully cleared when loading a new dataset
 			update_glyph_layer_manager();
 
 			compile_glyph_attribs();
@@ -311,6 +316,14 @@ void tubes::on_set(void *member_ptr) {
 			context &ctx = *get_context();
 			tube_shading_defines = build_tube_shading_defines();
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
+
+			// reset glyph layer configuration file
+			fh.file_name = "";
+			fh.has_unsaved_changes = false;
+			update_member(&fh.file_name);
+			on_set(&fh.has_unsaved_changes);
+
+			std::cout << "data set" << std::endl;
 
 			post_recreate_gui();
 		}
@@ -1419,6 +1432,9 @@ bool tubes::init (cgv::render::context &ctx)
 
 	render.sorter->set_key_definition_override(key_definition);
 
+	ref_box_wire_renderer(ctx, 1);
+	bbox_rd.init(ctx);
+
 	// initialize debug renderer
 	ref_sphere_renderer(ctx, 1);
 	ref_cone_renderer(ctx, 1);
@@ -1653,6 +1669,9 @@ void tubes::draw (cgv::render::context &ctx)
 				break;
 			default: break;
 			}
+
+			if(show_bbox)
+				bbox_rd.render(ctx, ref_box_wire_renderer(ctx), box_wire_render_style());
 		}
 
 		//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());
@@ -1673,6 +1692,7 @@ void tubes::create_gui(void) {
 
 	// rendering settings
 	add_decorator("Rendering", "heading", "level=1");
+	add_member_control(this, "Show Bounds", show_bbox, "check");
 	if(begin_tree_node("Tube Style", render.style, false)) {
 		align("\a");
 		add_gui("tube_style", render.style);
@@ -2017,6 +2037,9 @@ void tubes::calculate_bounding_box(void) {
 			bbox.add_axis_aligned_box(hst.bounding_box(true));
 		}
 	}
+
+	bbox_rd.clear();
+	bbox_rd.add(bbox.get_center(), bbox.get_extent(), rgb(0.75f));
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 	std::cout << "Bounding box min: " << bbox.get_min_pnt() << "| max: " << bbox.get_max_pnt() << "| extent: " << bbox.get_extent() << std::endl;
