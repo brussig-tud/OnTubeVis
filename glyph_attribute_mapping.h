@@ -10,6 +10,11 @@
 
 
 
+enum AttributeSamplingStrategy {
+	ASS_UNIFORM,
+	ASS_AT_SAMPLES,
+};
+
 class glyph_attribute_mapping : public cgv::render::render_types {
 protected:
 	ActionType last_action_type = AT_NONE;
@@ -18,6 +23,8 @@ protected:
 	std::vector<vec2> attribute_ranges;
 	std::vector<std::string> color_map_names;
 
+	AttributeSamplingStrategy sampling_strategy = ASS_AT_SAMPLES;
+	float sampling_step = 1.0f;
 	GlyphType type = GT_CIRCLE;
 	glyph_shape* shape_ptr = nullptr;
 
@@ -44,7 +51,6 @@ protected:
 
 	std::string to_display_str(const std::string& name) const;
 
-	//void create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i);
 	void create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i, const glyph_attribute& attrib, const bool global_block);
 
 public:
@@ -57,6 +63,14 @@ public:
 	~glyph_attribute_mapping();
 
 	ActionType action_type();
+
+	const AttributeSamplingStrategy get_sampling_strategy() const { return sampling_strategy; }
+	
+	const float get_sampling_step() const { return sampling_step; }
+
+	void set_sampling_strategy(AttributeSamplingStrategy strategy) { sampling_strategy = strategy; }
+
+	void set_sampling_step(float step) { sampling_step = step; }
 
 	const glyph_shape* get_shape_ptr() const { return shape_ptr; }
 

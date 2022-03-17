@@ -27,6 +27,8 @@ public:
 		};
 
 		struct layer_configuration {
+			AttributeSamplingStrategy sampling_strategy;
+			float sampling_step;
 			const glyph_shape* shape_ptr;
 			std::vector<int> mapped_attributes;
 			std::vector<glyph_mapping_triple> glyph_mapping_parameters;
@@ -81,7 +83,17 @@ protected:
 	//
 	ActionType last_action_type = AT_NONE;
 
-	// TODO: use a cgv::signal::managed_list for this?
+	/*struct layer_settings {
+		AttributeSamplingStrategy sampling_strategy;
+		float sample_step = 1.0f;
+	};
+
+	struct layer{
+		layer_settings settings;
+		glyph_attribute_mapping gam;
+	};
+	
+	std::vector<layer> layers;*/
 	std::vector<glyph_attribute_mapping> glyph_attribute_mappings;
 
 	std::vector<std::string> attribute_names;
@@ -111,6 +123,10 @@ public:
 		return glyph_attribute_mappings;
 	}
 
+	//const std::vector<layer>& ref_layers() {
+	//	return layers;
+	//}
+
 	void set_attribute_names(const std::vector<std::string>& names);
 
 	void set_attribute_ranges(const std::vector<vec2>& ranges);
@@ -122,11 +138,6 @@ public:
 	ActionType action_type();
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
-
-	
-
-
-
 
 	void notify_configuration_change() {
 		last_action_type = AT_CONFIGURATION_CHANGE;
@@ -146,4 +157,17 @@ public:
 		gam.set_attribute_ranges(attribute_ranges);
 		gam.set_color_map_names(color_map_names);
 	}
+
+	/*void add_layer(const layer_settings& settings, const glyph_attribute_mapping& attribute_mapping) {
+		if(layers.size() == 4) {
+			std::cout << "Cannot use more than 4 layers" << std::endl;
+			return;
+		}
+
+		layers.push_back({ settings, attribute_mapping });
+		auto& gam = layers.back().gam;
+		gam.set_attribute_names(attribute_names);
+		gam.set_attribute_ranges(attribute_ranges);
+		gam.set_color_map_names(color_map_names);
+	}*/
 };

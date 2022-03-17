@@ -61,6 +61,9 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 		config.layer_configs.push_back(configuration::layer_configuration());
 		auto& layer_config = config.layer_configs.back();
 
+		layer_config.sampling_strategy = gam.get_sampling_strategy();
+		layer_config.sampling_step = gam.get_sampling_step();
+
 		if(shape_ptr) {
 			// TODO: this may be unsafe (make a copy? needs to be deleted afterwards)
 			layer_config.shape_ptr = shape_ptr;
@@ -284,15 +287,24 @@ void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p)
 
 void glyph_layer_manager::on_set(void* member_ptr) {
 
-	last_action_type = AT_VALUE_CHANGE;
+	last_action_type = AT_MAPPING_VALUE_CHANGE;
 
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
 		if(member_ptr == &gam) {
+			//if(gam.action_type() == AT_CONFIGURATION_CHANGE)
+			//	last_action_type = AT_CONFIGURATION_CHANGE;
+			last_action_type = gam.action_type();
+		}
+	}
+
+	/*for(size_t i = 0; i < layers.size(); ++i) {
+		glyph_attribute_mapping& gam = layers[i].gam;
+		if(member_ptr == &gam) {
 			if(gam.action_type() == AT_CONFIGURATION_CHANGE)
 				last_action_type = AT_CONFIGURATION_CHANGE;
 		}
-	}
+	}*/
 
 	if(base_ptr)
 		base_ptr->on_set(this);

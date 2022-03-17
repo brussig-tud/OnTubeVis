@@ -1,0 +1,58 @@
+<GlyphConfiguration>
+  <ColorMaps>
+    <ColorMap name="acton" custom="0" />
+    <ColorMap name="bamako" custom="0" />
+    <ColorMap name="batlowK" custom="0" />
+    <ColorMap name="batlowW" custom="0" />
+    <ColorMap name="batlow" custom="0" />
+    <ColorMap name="bilbao" custom="0" />
+    <ColorMap name="buda" custom="0" />
+    <ColorMap name="davos" custom="0" />
+    <ColorMap name="devon" custom="0" />
+    <ColorMap name="grayC" custom="0" />
+    <ColorMap name="hawaii" custom="0" />
+    <ColorMap name="imola" custom="0" />
+    <ColorMap name="lajolla" custom="0" />
+    <ColorMap name="lapaz" custom="0" />
+    <ColorMap name="nuuk" custom="0" />
+    <ColorMap name="oslo" custom="0" />
+    <ColorMap name="tokyo" custom="0" />
+    <ColorMap name="turku" custom="0" />
+    <ColorMap name="bam" custom="0" />
+    <ColorMap name="vanimo" custom="0" />
+    <ColorMap name="cork" custom="0" />
+    <ColorMap name="tofino" custom="0" />
+    <ColorMap name="broc" custom="0" />
+    <ColorMap name="lisbon" custom="0" />
+    <ColorMap name="vik" custom="0" />
+    <ColorMap name="berlin" custom="0" />
+    <ColorMap name="roma" custom="0" />
+    <ColorMap name="RAINBOW" custom="0" />
+  </ColorMaps>
+  <Layers>
+    <Layer glyph="rectangle" sampling="original" >
+      <Property name="outline" value="0.000000" />
+      <Property name="color" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" />
+      <Property name="length" attrib_name="scalar2_1" in_range="-0.740125, 0.814854" out_range="0.100000, 2.200000" />
+      <Property name="height" attrib_name="scalar2" in_range="-0.462611, 0.525305" out_range="0.100000, 2.200000" />
+    </Layer>
+    <Layer glyph="rectangle" sampling="uniform" sampling_step="0.200000" >
+      <Property name="outline" value="0.000000" />
+      <Property name="color" color="0.365714, 0.365714, 0.365714" in_range="0.000000, 1.000000" />
+      <Property name="length" attrib_name="scalar2_1" in_range="-0.740125, 0.814854" out_range="0.100000, 2.000000" />
+      <Property name="height" attrib_name="scalar2" in_range="-0.462611, 0.525305" out_range="0.100000, 2.000000" />
+    </Layer>
+    <Layer glyph="rectangle" sampling="original" >
+      <Property name="outline" value="0.000000" />
+      <Property name="color" color="1.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" />
+      <Property name="length" in_range="0.000000, 1.000000" out_range="0.000000, 0.050000" />
+      <Property name="height" attrib_name="scalar2" in_range="-0.462611, 0.525305" out_range="0.100000, 2.000000" />
+    </Layer>
+    <Layer glyph="rectangle" sampling="original" >
+      <Property name="outline" value="0.000000" />
+      <Property name="color" color="0.000000, 1.000000, 0.000000" in_range="0.000000, 1.000000" />
+      <Property name="length" attrib_name="scalar2_1" in_range="-0.740125, 0.814854" out_range="0.100000, 2.000000" />
+      <Property name="height" in_range="0.000000, 1.000000" out_range="0.000000, 0.050000" />
+    </Layer>
+  </Layers>
+</GlyphConfiguration>

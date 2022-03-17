@@ -5,6 +5,8 @@ glyph_attribute_mapping::glyph_attribute_mapping() {
 }
 
 glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& r) {
+	sampling_strategy = r.sampling_strategy;
+	sampling_step = r.sampling_step;
 	type = r.type;
 	if(r.shape_ptr)
 		shape_ptr = r.shape_ptr->clone();
@@ -18,6 +20,8 @@ glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& 
 }
 
 glyph_attribute_mapping& glyph_attribute_mapping::operator=(const glyph_attribute_mapping& r) {
+	sampling_strategy = r.sampling_strategy;
+	sampling_step = r.sampling_step;
 	type = r.type;
 	delete shape_ptr;
 	shape_ptr = nullptr;
@@ -68,6 +72,10 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 	if(!shape_ptr)
 		return;
 
+	add_local_member_control(p, bp, "Sampling Strategy", sampling_strategy, "dropdown", "enums='Uniform,Original Samples'");
+	add_local_member_control(p, bp, "Sampling Step", sampling_step, "value_slider", "min=0;max=10;step=0.001;ticks=true;log=true");
+	p.add_decorator("", "separator");
+
 	std::string enums = glyph_type_registry::display_name_enums();
 	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='" + enums + "'");
 	
@@ -92,7 +100,16 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 }
 
 void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr) {
-	last_action_type = AT_VALUE_CHANGE;
+	last_action_type = AT_MAPPING_VALUE_CHANGE;
+
+	if(member_ptr == &sampling_strategy) {
+		last_action_type = AT_CONFIGURATION_CHANGE;
+	}
+
+	if(member_ptr == &sampling_step) {
+		sampling_step = std::max(sampling_step, 0.0f);
+		last_action_type = AT_CONFIGURATION_VALUE_CHANGE;
+	}
 
 	if(member_ptr == &type) {
 		last_action_type = AT_CONFIGURATION_CHANGE;
@@ -221,10 +238,7 @@ std::string glyph_attribute_mapping::to_display_str(const std::string& name) con
 	return name;
 }
 
-//void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i) {
 void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i, const glyph_attribute& attrib, const bool global_block) {
-	//const glyph_attribute& attrib = shape_ptr->supported_attributes()[i];
-
 	std::string lower_limit = "0";
 	std::string upper_limit = "1";
 	switch(attrib.type) {
