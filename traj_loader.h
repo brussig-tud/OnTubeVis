@@ -1104,7 +1104,6 @@ public:
 	/// creates a copy of this dataset in the underlying real number type.
 	/// ATTENTION: not completely implemented yet! Does not convert transformations in the visual attribute mapping, which is non-trivial
 	/// because of the way it epmloys function objects.
-	/// ToDo: implement conversion of transformations in visual attribute mapping
 	template <class real_type>
 	traj_dataset<real_type> convert (void) const
 	{
@@ -1201,9 +1200,8 @@ protected:
 		return dataset.add_attribute<T>(name, std::forward<Args>(args)...);
 	}
 
+
 public:
-	/// if you add extensions (use lower case letters only) to this member and extension of read file is not contained, can_handle() is assumed to be false without calling it
-	std::vector<std::string> handled_extensions;
 
 	/// default constructor
 	traj_format_handler() {};
@@ -1211,22 +1209,16 @@ public:
 	/// virtual base destructor - causes vtable creation
 	virtual ~traj_format_handler() {};
 
+	/// reports the file extensions the handler recognizes (lower case letters only). If the list is non-empty but does not contain
+	/// the extension of the file being read, \ref can_handle is assumed to report 'false' without calling it
+	const std::vector<std::string>& handled_extensions (void) const;
+
 	/// Test if the given data stream can be handled by this handler. At the minimum, the handler must be able to extract sample
 	/// positions from the data stream when reporting true.
 	virtual bool can_handle (std::istream &contents) const = 0;
 
 	/// first check file extension and if extension handled in principle, call can_handle()
-	bool can_handle_file(const std::string& file_extension, std::istream& contents) const {
-		if (!handled_extensions.empty()) {
-			bool handled = false;
-			for (auto he : handled_extensions)
-				if (he == file_extension)
-					handled = true;
-			if (!handled)
-				return false;
-		}
-		return can_handle(contents);
-	}
+	bool can_handle_file (const std::string &file_extension, std::istream &contents) const;
 
 	/// parse the given stream containing the file contents to load trajectories stored in it (optionally offsetting sample indices by
 	/// the specified amount) and report whether any data was loaded

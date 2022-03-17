@@ -1377,6 +1377,28 @@ std::vector<range>& traj_format_handler<flt_type>::trajectories (traj_dataset<re
 	return dataset.trajectories(attribute);
 }
 
+template <class flt_type>
+const std::vector<std::string>& traj_format_handler<flt_type>::handled_extensions (void) const
+{
+	static const std::vector<std::string> empty;
+	return empty;
+}	
+
+template <class flt_type>
+bool traj_format_handler<flt_type>::can_handle_file (const std::string &file_extension, std::istream &contents) const
+{
+	auto &hexts = handled_extensions();
+	if (!hexts.empty())
+	{
+		bool handled = false;
+		for (auto &he : hexts)
+			if (cgv::utils::to_lower(he).compare(file_extension) == 0)
+				handled = true;
+		return handled;
+	}
+	return can_handle(contents);
+}
+
 
 ////
 // Class implementation - traj_manager

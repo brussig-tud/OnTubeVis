@@ -371,6 +371,9 @@ public:
 	/// the destructor
 	virtual ~csv_handler();
 
+	/// reports the file extensions the handler will claim. Currently always empty (ToDo: make customizable via \ref csv_descriptor )
+	const std::vector<std::string>& handled_extensions (void) const;
+
 	/// test if the given data stream appears to be a .csv file we can interpret
 	virtual bool can_handle (std::istream &contents) const;
 

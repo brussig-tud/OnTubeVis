@@ -42,11 +42,12 @@
 // whether to use ECEF coordinates instead of Mercator cartesian + altitude
 #define OBD_USE_ECEF_COORDINATES 0
 
+
 template <class flt_type>
-obd_handler<flt_type>::obd_handler()
+const std::vector<std::string>& obd_handler<flt_type>::handled_extensions (void) const
 {
-	handled_extensions.push_back("ppcdf");
-	handled_extensions.push_back("ipcdf");
+	static const std::vector<std::string> exts = {"ppcdf", "ipcdf"};
+	return exts;
 }
 
 template <class flt_type>

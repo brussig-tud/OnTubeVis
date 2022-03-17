@@ -166,10 +166,12 @@ const visual_attribute_mapping<flt_type> Impl<flt_type>::attrmap({
 	{VisualAttrib::RADIUS, {BEZDAT_RADIUS_ATTRIB_NAME}}, {VisualAttrib::COLOR, {BEZDAT_COLOR_ATTRIB_NAME}}
 });
 
+
 template <class flt_type>
-bezdat_handler<flt_type>::bezdat_handler()
+const std::vector<std::string>& bezdat_handler<flt_type>::handled_extensions(void) const
 {
-	handled_extensions.push_back("bezdat");
+	static const std::vector<std::string> exts = { "bezdat" };
+	return exts;
 }
 
 template <class flt_type>

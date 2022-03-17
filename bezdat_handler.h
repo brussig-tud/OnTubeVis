@@ -13,7 +13,8 @@
 #include "traj_loader.h"
 
 
-/// provides read and write capabilites for Hermite splines in .bezdat format
+/// provides read capabilites for Hermite splines in .bezdat format. Individual trajectories are being inferred from
+/// parametric continuity between segments according to certain (currently hardcoded) thresholds.
 template <class flt_type>
 struct bezdat_handler : public traj_format_handler<flt_type>
 {
@@ -32,8 +33,8 @@ struct bezdat_handler : public traj_format_handler<flt_type>
 	/// rgb color type
 	typedef traj_format_handler::Color Color;
 
-	/// define handled extensions
-	bezdat_handler();
+	/// reports a list with just "bezdat" in it - the handler will always claim files with this extension
+	const std::vector<std::string>& handled_extensions (void) const;
 
 	/// test if the given data stream appears to be a .bezdat file
 	bool can_handle (std::istream &contents) const;

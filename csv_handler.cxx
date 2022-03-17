@@ -348,7 +348,7 @@ struct csv_handler<flt_type>::Impl
 			size_t pos = field.find_first_of("\"");
 			if (pos == 0)
 				field = field.substr(1);
-			int len = field.length();
+			int len = (int)field.length();
 			if (len > 0)
 			{
 				pos = field.rfind("\"");
@@ -510,8 +510,6 @@ csv_handler<flt_type>::csv_handler(
 )
 	: csv_handler()
 {
-	handled_extensions.push_back("csv");
-	handled_extensions.push_back("txt");
 	// shortcut for saving one indirection
 	auto &impl = *pimpl;
 
@@ -527,9 +525,6 @@ csv_handler<flt_type>::csv_handler(
 )
 	: csv_handler()
 {
-	handled_extensions.push_back("csv");
-	handled_extensions.push_back("txt");
-
 	// shortcut for saving one indirection
 	auto &impl = *pimpl;
 
@@ -544,6 +539,14 @@ csv_handler<flt_type>::~csv_handler()
 {
 	if (pimpl)
 		delete pimpl;
+}
+
+template <class flt_type>
+const std::vector<std::string>& csv_handler<flt_type>::handled_extensions (void) const
+{
+	// for now, we don't claim any file extensions
+	// ToDo: add option to csv_descriptor to specify file extensions, which will then be reported to callers here
+	return traj_format_handler::handled_extensions();
 }
 
 template <class flt_type>
