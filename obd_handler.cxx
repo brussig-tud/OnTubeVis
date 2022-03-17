@@ -31,7 +31,7 @@
 #define OBD_ALTITUDE_ATTRIB_NAME "altitude"
 
 // identifyier to use for radius data
-#define OBD_SPEED_ATTRIB_NAME "speed"
+#define OBD_GPSSPEED_ATTRIB_NAME "gps_speed"
 
 // identifyier to use for radius data
 #define OBD_RADIUS_ATTRIB_NAME "radius"
@@ -94,11 +94,12 @@ struct string_info
 	size_t timestamp;
 	std::string value;
 };
+template <class flt_type>
 struct float_info
 {
 	int pid;
 	size_t timestamp;
-	float value;
+	flt_type value;
 };
 struct int_info
 {
@@ -124,7 +125,7 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 	std::vector<obd_response_info> responses;
 	std::map<std::string, std::vector<gps_info>> gps_info_map;
 	std::map<std::string, std::vector<string_info>> string_series;
-	std::map<std::string, std::vector<float_info>> float_series;
+	std::map<std::string, std::vector<float_info<flt_type>>> float_series;
 	std::map<std::string, std::vector<int_info>> int_series;
 	std::map<std::string, std::vector<bool_info>> bool_series;
 	do {
@@ -164,7 +165,14 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 					if (i.value().is_string())
 						string_series[i.key()].push_back({ pid, responses.back().timestamp, i.value().get<std::string>() });
 					if (i.value().is_number_float())
-						float_series[i.key()].push_back({ pid, responses.back().timestamp, i.value().get<float>() });
+					{
+						std::string key = i.key();
+						// special handling for throttle / brake
+						if (cgv::utils::to_lower(key).compare("throttlePosition")==0)
+							if (pid==17)
+								key = "brakePosition";
+						float_series[key].push_back({ pid, responses.back().timestamp, i.value().get<flt_type>() });
+					}
 					else if (i.value().is_number_integer())
 						int_series[i.key()].push_back({ pid, responses.back().timestamp, i.value().get<int>() });
 					else if (i.value().is_boolean())
@@ -205,7 +213,7 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 
 	// perpare dataset container object
 	traj_dataset<flt_type> ret;
-	const visual_attribute_mapping<real> vamap({
+	static const visual_attribute_mapping<real> vamap({
 		{VisualAttrib::POSITION, {OBD_POSITION_ATTRIB_NAME}}, {VisualAttrib::RADIUS, {OBD_RADIUS_ATTRIB_NAME}}
 	});
 
@@ -224,11 +232,15 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 	double reftime = std::numeric_limits<double>::infinity();
 	for (const auto &e : gps_info_map)
 		reftime = (double)std::min(e.second[0].timestamp, (size_t)reftime);
+	auto convert_time = [&reftime] (size_t timestamp) -> flt_type {
+		// ToDo: what do the timestamps mean? They're either in nanoseconds or there is centuries in between samples...
+		return (flt_type)((double(timestamp) - reftime)/1000000000.0);
+	};
 
-	// create attributes
+	// create synchronous attributes
 	auto P = add_attribute<vec3>(ret, OBD_POSITION_ATTRIB_NAME);
 	auto A = add_attribute<flt_type>(ret, OBD_ALTITUDE_ATTRIB_NAME);
-	auto V = add_attribute<flt_type>(ret, OBD_SPEED_ATTRIB_NAME);
+	auto V = add_attribute<flt_type>(ret, OBD_GPSSPEED_ATTRIB_NAME);
 	auto T = add_attribute<flt_type>(ret, OBD_TIME_ATTRIB_NAME); // for now, commiting timestamps as their own attribute is the only way to have them selectable in the layers
 	auto &Ptraj = trajectories(ret, P.attrib);
 
@@ -261,20 +273,23 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 				vec3 pos((flt_type)mercator[0], (flt_type)mercator[1], (flt_type)gps_info.altitude);
 			#endif
 
-			// keep track of segment length
+			// keep track of segment length and throw out non-monotone samples
+			flt_type time = convert_time(gps_info.timestamp);
 			if (i > 0)
 			{
-				const auto& prev = P.data.values.back();
+				// ToDo: this very crude approach is far from optimal
+				if (time <= P.data.timestamps.back())
+					continue;
+
+				const auto &prev = P.data.values.back();
 				// eliminate duplicates - ToDo: why are there so many?
 				if ((pos - prev).sqr_length() < (flt_type)std::numeric_limits<float>::epsilon()*2)
 					continue;
-				seg_dist_accum += (pos - P.data.values.back()).length();
+				seg_dist_accum += (pos - prev).length();
 				num_segs++;
 			}
 
 			// commit to storage
-			// ToDo: what do the timestamps mean? They're either in nanoseconds or there is centuries in between samples...
-			flt_type time = (flt_type)((gps_info.timestamp - reftime)/1000000000.0);
 			P.data.append(pos, time);
 			A.data.append((flt_type)gps_info.altitude, time);
 			V.data.append((flt_type)gps_info.gps_speed, time);
@@ -304,6 +319,30 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 	R.data.values = std::vector<flt_type>(P.data.num(), ret.avg_segment_length()*real(0.125));
 	R.data.timestamps = P.data.timestamps;
 	trajectories(ret, R.attrib) = Ptraj;	// invented radius "samples" are again in sync with positions, so just copy traj info
+
+	// commit async attributes
+	// ToDo: THIS ASSUMES THERE CAN ONLY EVER BE ONE TRAJECTORY IN AN OBD FILE!!! (which all evidence points to)
+	for (const auto &e : float_series)
+	{
+		auto F = add_attribute<flt_type>(ret, e.first);
+		for (const auto &f : e.second)
+			F.data.append(f.value, convert_time(f.timestamp));
+		trajectories(ret, F.attrib).emplace_back(range{0, (unsigned)e.second.size()});
+	}
+	for (const auto &e : int_series)
+	{
+		auto I = add_attribute<flt_type>(ret, e.first);
+		for (const auto &i : e.second)
+			I.data.append((flt_type)i.value, convert_time(i.timestamp));
+		trajectories(ret, I.attrib).emplace_back(range{0, (unsigned)e.second.size()});
+	}
+	for (const auto &e : bool_series)
+	{
+		auto B = add_attribute<flt_type>(ret, e.first);
+		for (const auto &b : e.second)
+			B.data.append((flt_type)b.value, convert_time(b.timestamp));
+		trajectories(ret, B.attrib).emplace_back(range{0, (unsigned)e.second.size()});
+	}
 
 	// visual attribute mapping
 	ret.set_mapping(vamap);
