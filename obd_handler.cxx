@@ -79,7 +79,7 @@ struct obd_response_info
 	std::vector<uint8_t> bytes;
 };
 
-struct gps_info_info
+struct gps_info
 {
 	std::string source;
 	size_t timestamp;
@@ -87,6 +87,30 @@ struct gps_info_info
 	double latitude;
 	double altitude;
 	double gps_speed;
+};
+struct string_info
+{
+	int pid;
+	size_t timestamp;
+	std::string value;
+};
+struct float_info
+{
+	int pid;
+	size_t timestamp;
+	float value;
+};
+struct int_info
+{
+	int pid;
+	size_t timestamp;
+	int value;
+};
+struct bool_info
+{
+	int pid;
+	size_t timestamp;
+	bool value;
 };
 
 template <class flt_type>
@@ -98,8 +122,12 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 	std::string line;
 	std::map<std::string, size_t> type_counts;
 	std::vector<obd_response_info> responses;
-	std::map<std::string, std::vector<gps_info_info>> gps_info_map;
-	do { 
+	std::map<std::string, std::vector<gps_info>> gps_info_map;
+	std::map<std::string, std::vector<string_info>> string_series;
+	std::map<std::string, std::vector<float_info>> float_series;
+	std::map<std::string, std::vector<int_info>> int_series;
+	std::map<std::string, std::vector<bool_info>> bool_series;
+	do {
 		// retrieve line containing single json object
 		cgv::os::safe_getline(contents, line);
 		if (line.empty())
@@ -112,12 +140,43 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 		if (!j.is_object() || !j.contains("type"))
 			continue;
 		// extract data of known types
-		if (j["type"] == "OBD_RESPONSE")
-			responses.push_back({ 
-				j["source"].get<std::string>(), 
-				j["timestamp"].get<size_t>(), 
+		if (j["type"] == "OBD_RESPONSE") {
+			responses.push_back({
+				j["source"].get<std::string>(),
+				j["timestamp"].get<size_t>(),
 				cgv::utils::parse_hex_bytes(j["data"]["bytes"].get<std::string>())
-			});
+				});
+			if (j["data"].contains("mode")) {
+				for (auto i : j["data"].items()) {
+					if (i.key() == "mode")
+						continue;
+					if (i.key() == "pid")
+						continue;
+					if (i.key() == "bytes")
+						continue;
+					if (i.key() == "supported_pids")
+						continue;
+					if (i.key() == "mode")
+						continue;
+					int pid = -1;
+					if (j["data"].contains("pid"))
+						pid = j["data"]["pid"].get<int>();
+					if (i.value().is_string())
+						string_series[i.key()].push_back({ pid, responses.back().timestamp, i.value().get<std::string>() });
+					if (i.value().is_number_float())
+						float_series[i.key()].push_back({ pid, responses.back().timestamp, i.value().get<float>() });
+					else if (i.value().is_number_integer())
+						int_series[i.key()].push_back({ pid, responses.back().timestamp, i.value().get<int>() });
+					else if (i.value().is_boolean())
+						bool_series[i.key()].push_back({ pid, responses.back().timestamp, i.value().get<bool>() });
+					else
+						if (type_counts.find(i.key()) == type_counts.end())
+							type_counts[i.key()] = 1;
+						else
+							++type_counts[i.key()];
+				}
+			}
+		}
 		// handle unknown types
 		else if (j["type"] == "GPS") {
 			gps_info_map[j["source"].get<std::string>()].push_back({
