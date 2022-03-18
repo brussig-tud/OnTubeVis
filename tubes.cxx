@@ -1161,13 +1161,12 @@ bool tubes::compile_glyph_attribs_front(void) {
 
 		if(sampling_strategy == ASS_UNIFORM) {
 			// uniform sampling
-			// create an index pair for each attribute
+			// stores an index pair for each attribute
 			std::vector<uvec2> attrib_indices(attrib_count, uvec2(0, 1));
+			// stores the count of each attribute
 			std::vector<unsigned> attrib_index_counts(attrib_count, 0);
 			// create storage for attribute and glyph parameter values
-			//std::vector<traj_attribute<float>::datapoint_mag> data_points(attrib_count);
 			std::vector<float> attrib_values(attrib_count);
-			//std::vector<bool> has_sample(attrib_count);
 			std::vector<float> glyph_params(current_shape->num_size_attribs());
 
 			// - compile data
@@ -1187,12 +1186,9 @@ bool tubes::compile_glyph_attribs_front(void) {
 				// index for the current segment
 				unsigned seg = 0;
 
-				// reset the sample availability status
-				//std::fill(has_sample.begin(), has_sample.end(), false);
-
 				// stores the current t at which we want to sample the attributes
 				float sample_t = 0.0f;
-				const float sample_step = layer_config.sampling_step;// 1.0f;
+				const float sample_step = layer_config.sampling_step;
 				// stores the minimum t over all current attribute sample points in each iteration
 				//float min_t;
 				// stores the index of the attribute with the minimum t
@@ -1308,7 +1304,7 @@ bool tubes::compile_glyph_attribs_front(void) {
 						// compute segment-relative t and arclength
 						const float t_seg = (sample_t - segtime.t0) / (segtime.t1 - segtime.t0),
 							s = arclen::eval(alen[global_seg], t_seg);
-
+						
 						for(size_t i = 0; i < attrib_count; ++i) {
 							const uvec2& attrib_idx = attrib_indices[i];
 							//unsigned attrib_idx = attrib_indices[i];
