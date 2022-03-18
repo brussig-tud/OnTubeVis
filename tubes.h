@@ -262,7 +262,7 @@ protected:
 	texture tf_tex;
 
 	voxelizer density_volume;
-	ambient_occlusion_style ao_style;// , ao_style_bak; // the latter is used to restore defaults after demo data is unloaded
+	ambient_occlusion_style ao_style, ao_style_bak; // the latter is used to restore defaults after demo data is unloaded
 
 	glyph_layer_manager::configuration glyph_layers_config;
 	bool include_hidden_glyphs = false;
