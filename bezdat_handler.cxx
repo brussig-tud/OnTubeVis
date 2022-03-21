@@ -346,15 +346,17 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (
 		unsigned i0, i1;
 		unsigned n0, n1;
 	};
+	std::vector<std::vector<trajblock>> traj_blocks; traj_blocks.reserve(trajs.size());
 	for (auto &traj : trajs)
 	{
-		std::vector<trajblock> blocks; blocks.reserve(2);
+		traj_blocks.emplace_back();
+		auto &blocks = traj_blocks.back(); blocks.reserve(2);
 		blocks.emplace_back(trajblock{0, 0, traj.front().n0, traj.front().n1});
 		for (unsigned i=1; i<traj.size(); i++)
 		{
 			auto &block = blocks.back();
 			const auto &seg = traj[i];
-			if (seg.n0 == traj[block.i1].n1)
+			if (seg.n0 == traj[block.i1].n1 && seg.n0 < seg.n1)
 			{
 				// segment belongs to current block
 				block.i1 = i;
@@ -364,7 +366,24 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (
 				// a new block begins
 				blocks.emplace_back(trajblock{i, i, seg.n0, seg.n1});
 		}
-		std::cout.flush();
+	}
+	// - current workaround: split trajectories according to detected contiguous blocks
+	{ auto trajs_old = std::move(trajs);
+	  for (unsigned tr=0; tr<(unsigned)traj_blocks.size(); tr++)
+	  {
+	  	for (const auto &block : traj_blocks[tr])
+	  	{
+			const unsigned num = block.i1-block.i0 + 1, last = num-1;
+	  		auto &traj = trajs.emplace_back();
+			traj.reserve(num);
+	  		for (unsigned i=0; i<num; i++)
+	  		{
+				 auto &seg = traj.emplace_back();
+				 seg.n0 = block.n0+i;
+				 seg.n1 = i<last ? seg.n0+1 : block.n1;
+	  		}
+	  	}
+	  }
 	}
 
 	// commit attributes to common curve representation
