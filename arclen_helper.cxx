@@ -57,7 +57,7 @@ struct curve_segment
 namespace arclen {
 
 template <class flt_type>
-std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const traj_manager<flt_type> &mgr)
+parametrization compute_parametrization<flt_type> (const traj_manager<flt_type> &mgr)
 {
 	typedef flt_type real;
 	typedef typename traj_manager<flt_type>::render_data::Vec3 vec3;
@@ -138,12 +138,10 @@ std::vector<cgv::render::render_types::mat4> compile_renderdata<flt_type> (const
 	}
 
 	// done
-	return result;
+	return {result, result};
 }
 
-cgv::render::vertex_buffer upload_renderdata (
-	cgv::render::context& ctx, const std::vector<cgv::render::render_types::mat4> &approximations
-)
+cgv::render::vertex_buffer upload_renderdata (cgv::render::context& ctx, const std::vector<cgv::render::render_types::mat4> &approximations)
 {
 	// init new buffer object
 	cgv::render::vertex_buffer new_sbo(cgv::render::VBT_STORAGE, cgv::render::VBU_STATIC_READ);
@@ -170,8 +168,8 @@ float eval (const cgv::render::render_types::mat4 &approx, float t)
 //
 
 // Only float and double variants are intended
-template std::vector<cgv::render::render_types::mat4> compile_renderdata<float>(const traj_manager<float>&);
-template std::vector<cgv::render::render_types::mat4> compile_renderdata<double>(const traj_manager<double>&);
+template parametrization compute_parametrization<float>(const traj_manager<float>&);
+template parametrization compute_parametrization<double>(const traj_manager<double>&);
 
 // namespace close
 };

@@ -1144,7 +1144,7 @@ bool tubes::compile_glyph_attribs_front(void) {
 			unsigned traj_offset = 0;
 			for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
 				const auto &tube_traj = tube_trajs[trj];
-				const auto *alen = render.arclen_data.data();
+				const auto *alen = render.arclen_data.t_to_s.data();
 				const unsigned num_segments = tube_traj.n - 1;
 				const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count();
 
@@ -1384,7 +1384,7 @@ bool tubes::compile_glyph_attribs_front(void) {
 			unsigned traj_offset = 0;
 			for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
 				const auto &tube_traj = tube_trajs[trj];
-				const auto *alen = render.arclen_data.data();
+				const auto *alen = render.arclen_data.t_to_s.data();
 				const unsigned num_segments = tube_traj.n - 1;
 				const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count();
 
@@ -2190,8 +2190,8 @@ void tubes::update_attribute_bindings(void) {
 		std::cout << "Computing arclength parametrization... ";
 
 		render.arclen_sbo.destruct(ctx);
-		render.arclen_data = arclen::compile_renderdata(traj_mgr);
-		render.arclen_sbo = arclen::upload_renderdata(ctx, render.arclen_data);
+		render.arclen_data = arclen::compute_parametrization(traj_mgr);
+		render.arclen_sbo = arclen::upload_renderdata(ctx, render.arclen_data.t_to_s);
 		
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 

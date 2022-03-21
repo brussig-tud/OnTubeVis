@@ -28,6 +28,7 @@
 
 // local includes
 #include "traj_loader.h"
+#include "arclen_helper.h"
 #include "demo.h" // interactive testbed helper classes and data
 #include "attrib_handle_manager.h"
 #include "voxelizer.h"
@@ -158,7 +159,7 @@ protected:
 
 		/// segment-wise arclength approximations (set of 4 cubic bezier curves returning global
 		/// trajectory arclength at the segment, packed into the columns of a 4x4 matrix)
-		std::vector<mat4> arclen_data;
+		arclen::parametrization arclen_data;
 
 		/// GPU-side storage buffer mirroring the \ref #arclen_data .
 		vertex_buffer arclen_sbo;
