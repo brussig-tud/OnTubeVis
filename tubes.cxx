@@ -99,6 +99,9 @@ tubes::tubes() : application_plugin("Tubes")
 	fh.file_name = "";
 
 	debug.segment_rs.rounded_caps = true;
+
+	// easy setup for benchmarking runs
+	//benchmark_mode = true;
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -170,13 +173,98 @@ void tubes::stream_help (std::ostream &os)
 	os << "tubes" << std::endl;
 }
 
+#define SET_MEMBER(m, v) m = v; update_member(&m);
+
 bool tubes::handle_event(cgv::gui::event &e) {
 
-	if(e.get_kind() == cgv::gui::EID_KEY) {
-		// do nothing for now
+	unsigned et = e.get_kind();
+	unsigned char modifiers = e.get_modifiers();
+
+	if(et == cgv::gui::EID_KEY) {
+		cgv::gui::key_event& ke = (cgv::gui::key_event&) e;
+		cgv::gui::KeyAction ka = ke.get_action();
+
+		bool handled = false;
+
+		if(ka == cgv::gui::KA_PRESS) {
+			switch(ke.get_key()) {
+			case '1':
+				std::cout << "Benchmark setup: previous (proxy gemometry = full box; conservative depth = off; sorting = off; AO = off)" << std::endl;
+				SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_BOX);
+				SET_MEMBER(render.style.use_cubic_tangents, false);
+				SET_MEMBER(render.style.use_conservative_depth, false);
+				SET_MEMBER(debug.sort, false);
+				SET_MEMBER(ao_style.enable, false);
+				handled = true;
+				break;
+			case '2':
+				std::cout << "Benchmark setup: ours plain (no sorting) (proxy gemometry = aligned box billboard; conservative depth = on; sorting = off; AO = off)" << std::endl;
+				SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
+				SET_MEMBER(render.style.use_cubic_tangents, true);
+				SET_MEMBER(render.style.use_conservative_depth, true);
+				SET_MEMBER(debug.sort, false);
+				SET_MEMBER(ao_style.enable, false);
+				handled = true;
+				break;
+			case '3':
+				std::cout << "Benchmark setup: ours plain (sorting) (proxy gemometry = aligned box billboard; conservative depth = on; sorting = on; AO = off)" << std::endl;
+				SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
+				SET_MEMBER(render.style.use_cubic_tangents, true);
+				SET_MEMBER(render.style.use_conservative_depth, true);
+				SET_MEMBER(debug.sort, true);
+				SET_MEMBER(ao_style.enable, false);
+				handled = true;
+				break;
+			case '4':
+				std::cout << "Benchmark setup: ours full (proxy gemometry = aligned box billboard; conservative depth = on; sorting = on; AO = on)" << std::endl;
+				SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
+				SET_MEMBER(render.style.use_cubic_tangents, true);
+				SET_MEMBER(render.style.use_conservative_depth, true);
+				SET_MEMBER(debug.sort, true);
+				SET_MEMBER(ao_style.enable, true);
+				handled = true;
+				break;
+			case 'A':
+				ao_style.enable = !ao_style.enable;
+				std::cout << "Ambient occlusion: " << (ao_style.enable ? "on" : "off") << std::endl;
+				update_member(&ao_style.enable);
+				handled = true;
+				break;
+			case 'B':
+				if(modifiers == cgv::gui::EM_CTRL) {
+					std::cout << "Starting benchmark..." << std::endl;
+					benchmark.requested = true;
+				} else {
+					show_bbox = !show_bbox;
+				}
+				handled = true;
+				break;
+			case 'N':
+				if(navigator_ptr) {
+					bool visible = navigator_ptr->is_visible();
+					navigator_ptr->set_visibility(!visible);
+					handled = true;
+				}
+				break;
+			case 'M':
+				if(cm_viewer_ptr) {
+					bool visible = cm_viewer_ptr->is_visible();
+					cm_viewer_ptr->set_visibility(!visible);
+					handled = true;
+				}
+				break;
+			default:
+				break;
+			}
+		}
+
+		if(handled) {
+			post_redraw();
+			return true;
+		}
 	}
 
-	if(e.get_kind() == cgv::gui::EID_MOUSE) {
+	if(et == cgv::gui::EID_MOUSE) {
 		cgv::gui::mouse_event &me = static_cast<cgv::gui::mouse_event&>(e);
 		// select drag and drop events only
 		if((me.get_flags() & cgv::gui::EF_DND) != 0) switch(me.get_action()) {
@@ -1914,8 +2002,12 @@ void tubes::init_frame (cgv::render::context &ctx)
 			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 	}
 
-	//srd.clear();
-	//srd.add(vec3(0.0f), 1.0f, rgb(1, 0, 0));
+	if(!benchmark_mode_setup && benchmark_mode) {
+		show_bbox = false;
+		update_member(&show_bbox);
+		cm_viewer_ptr->set_visibility(false);
+		navigator_ptr->set_visibility(false);
+	}
 }
 
 void tubes::draw (cgv::render::context &ctx)

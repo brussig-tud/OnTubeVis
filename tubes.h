@@ -241,6 +241,9 @@ protected:
 		size_t segment_count = 0;
 	} debug;
 
+	bool benchmark_mode = false;
+	bool benchmark_mode_setup = false;
+	
 	/// members for rendering eye position and direction used to test sorting
 	cgv::glutil::sphere_render_data<> srd;
 	vec3 test_eye = vec3(5.0f, 0.5f, 5.0f);
