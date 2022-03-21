@@ -239,6 +239,8 @@ protected:
 		size_t render_count = 0;
 		/// total segment count
 		size_t segment_count = 0;
+
+		bool near_view = false;
 	} debug;
 
 	bool benchmark_mode = false;

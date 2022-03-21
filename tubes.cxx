@@ -188,6 +188,16 @@ bool tubes::handle_event(cgv::gui::event &e) {
 
 		if(ka == cgv::gui::KA_PRESS) {
 			switch(ke.get_key()) {
+			case ',':
+				std::cout << "View setting: far" << std::endl;
+				debug.near_view = false;
+				set_view();
+				break;
+			case '.':
+				std::cout << "View setting: near" << std::endl;
+				debug.near_view = true;
+				set_view();
+				break;
 			case '1':
 				std::cout << "Benchmark setup: previous (proxy gemometry = full box; conservative depth = off; sorting = off; AO = off)" << std::endl;
 				SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_BOX);
@@ -1928,12 +1938,12 @@ void tubes::init_frame (cgv::render::context &ctx)
 		}
 	}
 
-	if (misc_cfg.fix_view_up_dir_proxy)
+	if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
 		// ToDo: make stereo view interactors reflect this property
 		/*dynamic_cast<stereo_view_interactor*>(find_view_as_node())->set(
 			"fix_view_up_dir", misc_cfg.fix_view_up_dir_proxy
 		);*/
-		find_view_as_node()->set_view_up_dir(0, 1, 0);
+		view_ptr->set_view_up_dir(0, 1, 0);
 
 	// keep the frame buffer up to date with the viewport size
 	fbc.ensure(ctx);
@@ -2226,6 +2236,8 @@ void tubes::set_view(void)
 
 	view_ptr->set_focus(bbox.get_center());
 	double extent_factor = 0.8;
+	if(debug.near_view)
+	extent_factor = 0.333f;
 	view_ptr->set_y_extent_at_focus(extent_factor * (double)length(bbox.get_extent()));
 }
 
