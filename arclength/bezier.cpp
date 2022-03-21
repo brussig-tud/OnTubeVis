@@ -448,15 +448,15 @@ template <typename FLOAT_TYPE> FLOAT_TYPE ParameterizationBezierApproximation<FL
 }
 
 template <typename FLOAT_TYPE>
-ParameterizationBezierApproximation<FLOAT_TYPE> *
+ParameterizationBezierApproximation<FLOAT_TYPE>
 Bezier<FLOAT_TYPE>::parameterization_bezier_approximation(int numSegments, int numSamples) const {
     if (numSegments < 1) {
-        return nullptr;
+        return ParameterizationBezierApproximation<FLOAT_TYPE>();
     }
 
-    auto result = new ParameterizationBezierApproximation<FLOAT_TYPE>();
-    result->totalLength = arc_length_legendre_gauss(1.0, numSamples);
-    result->t.push_back(0.0);
+    ParameterizationBezierApproximation<FLOAT_TYPE> result;
+    result.totalLength = arc_length_legendre_gauss(1.0, numSamples);
+    result.t.push_back(0.0);
 
     auto approx = parameterization_subdivision_bezier_approximation(numSamples, numSegments);
 
@@ -466,24 +466,24 @@ Bezier<FLOAT_TYPE>::parameterization_bezier_approximation(int numSegments, int n
         auto dCur = static_cast<FLOAT_TYPE>(i + 1) * dStep;
         auto dDiff = dCur - dPrev;
 
-        auto tPrev = result->t.back();
-        auto tCur = approx.evaluate(dCur * result->totalLength);
+        auto tPrev = result.t.back();
+        auto tCur = approx.evaluate(dCur * result.totalLength);
         auto tDiff = tCur - tPrev;
 
-        FLOAT_TYPE sample1 = (dPrev + dDiff * (FLOAT_TYPE(1) / FLOAT_TYPE(3))) * result->totalLength;
+        FLOAT_TYPE sample1 = (dPrev + dDiff * (FLOAT_TYPE(1) / FLOAT_TYPE(3))) * result.totalLength;
         auto s1over3 = approx.evaluate(sample1);
         auto s1over3Scaled = (s1over3 - tPrev) / tDiff;
 
-        FLOAT_TYPE sample2 = (dPrev + dDiff * (FLOAT_TYPE(2) / FLOAT_TYPE(3))) * result->totalLength;
+        FLOAT_TYPE sample2 = (dPrev + dDiff * (FLOAT_TYPE(2) / FLOAT_TYPE(3))) * result.totalLength;
         auto s2over3 = approx.evaluate(sample2);
         auto s2over3Scaled = (s2over3 - tPrev) / tDiff;
 
         auto y1 = (18.0 * s1over3Scaled - 9.0 * s2over3Scaled + 2.0) / 6.0;
         auto y2 = (-9.0 * s1over3Scaled + 18.0 * s2over3Scaled - 5.0) / 6.0;
 
-        result->y1.push_back((FLOAT_TYPE)y1);
-        result->y2.push_back((FLOAT_TYPE)y2);
-        result->t.push_back((FLOAT_TYPE)tCur);
+        result.y1.push_back((FLOAT_TYPE)y1);
+        result.y2.push_back((FLOAT_TYPE)y2);
+        result.t.push_back((FLOAT_TYPE)tCur);
     }
 
     return result;

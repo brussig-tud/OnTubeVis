@@ -98,23 +98,26 @@ parametrization compute_parametrization<flt_type> (const traj_manager<flt_type> 
 				// arc length
 				// - fit beziers
 				const auto alen_approx = b.arc_length_bezier_approximation(4);
-				const std::unique_ptr<ParameterizationBezierApproximation<real>> inv_approx(b.parameterization_bezier_approximation(4));
+				const auto inv_approx = b.parameterization_bezier_approximation(4);
 				// - convert to trajectory-global arclength at segment
 				for (unsigned j=0; j<4; j++) {
+					// - important values
 					const real length_j = alen_approx.lengths[j+1] - alen_approx.lengths[j],
 					           length_jsum = length_sum + alen_approx.lengths[j],
-					           t0 = real(k)+real(j)*real(0.25);
+					           dt_j = inv_approx.t[j+1] - inv_approx.t[j],
+					           t_sum = real(k), t_jsum = t_sum+inv_approx.t[j];
 					// - offset arclength by current trajectory length
 					seg.param.t_to_s[j].points[0].y = length_jsum;
 					seg.param.t_to_s[j].points[1].y = length_jsum + alen_approx.y1[j]*length_j;
 					seg.param.t_to_s[j].points[2].y = length_jsum + alen_approx.y2[j]*length_j;
 					seg.param.t_to_s[j].points[3].y = length_sum  + alen_approx.lengths[j+1];
 					// - offset t by current trajectory segment number
-					seg.param.s_to_t[j].points[0].y = t0;
-					seg.param.s_to_t[j].points[1].y = t0 + inv_approx->y1[j]*real(0.25);
-					seg.param.s_to_t[j].points[2].y = t0 + inv_approx->y2[j]*real(0.25);
-					seg.param.s_to_t[j].points[3].y = t0 + real(0.25);
+					seg.param.s_to_t[j].points[0].y = t_jsum;
+					seg.param.s_to_t[j].points[1].y = t_jsum + inv_approx.y1[j]*dt_j;
+					seg.param.s_to_t[j].points[2].y = t_jsum + inv_approx.y2[j]*dt_j;
+					seg.param.s_to_t[j].points[3].y = t_sum  + inv_approx.t[j+1];
 				}
+				seg.param.s_to_t[3].points[3].y = real(k+1); // snap it to exactly 1
 				// - update global trajectory length
 				length_sum += alen_approx.totalLength;
 

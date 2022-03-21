@@ -205,7 +205,7 @@ template <typename FLOAT_TYPE> struct Bezier {
         return result;
     }
 
-    [[nodiscard]] ParameterizationBezierApproximation<FLOAT_TYPE> *
+    [[nodiscard]] ParameterizationBezierApproximation<FLOAT_TYPE>
     parameterization_bezier_approximation(int numSegments, int numSamples = 100) const;
 
     void to_csv(const std::string &fileName, int numTestPoints = 100, bool evenPointDistribution = false) const;
