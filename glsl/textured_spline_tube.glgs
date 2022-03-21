@@ -1013,11 +1013,8 @@ void emit_aligned_box_billboard(int segment_idx, QTube qTube) {
 	qTube.e.pos -= center;
 
 	// project positions onto local axes, i.e. rotate them into local system
-	// (this is a bit faster than constructing a matrix first)
-	//vec3 p0 = vec3(dot(a.pos, local_x), dot(a.pos, local_y), dot(a.pos, local_z));
-	//vec3 p1 = vec3(dot(b.pos, local_x), dot(b.pos, local_y), dot(b.pos, local_z));
-	//vec3 p2 = vec3(dot(c.pos, local_x), dot(c.pos, local_y), dot(c.pos, local_z));
-
+	// by applying the inverse rotation
+	// this is a bit faster than constructing a matrix first: mat3 R = transpose(mat3(local_x, local_y, local_z))
 	vec3 p0 = vec3(dot(qTube.s.pos, local_x), dot(qTube.s.pos, local_y), dot(qTube.s.pos, local_z));
 	vec3 p1 = vec3(dot(qTube.h.pos, local_x), dot(qTube.h.pos, local_y), dot(qTube.h.pos, local_z));
 	vec3 p2 = vec3(dot(qTube.e.pos, local_x), dot(qTube.e.pos, local_y), dot(qTube.e.pos, local_z));

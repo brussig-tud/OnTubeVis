@@ -283,7 +283,7 @@ protected:
 	void update_glyph_layer_manager(void);
 	void glyphs_out_of_date(bool state);
 	bool compile_glyph_attribs(void);
-	bool compile_glyph_attribs_front(void);
+	//bool compile_glyph_attribs_front(void);
 
 	void set_view(void);
 	void update_grid_ratios(void);

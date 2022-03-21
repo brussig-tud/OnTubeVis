@@ -22,6 +22,7 @@
 
 // local includes
 #include "arclen_helper.h"
+#include "glyph_compiler.h"
 
 
 
@@ -1099,7 +1100,51 @@ bool tubes::compile_glyph_attribs (void)
 {
 	bool success = false;
 	if(glyph_layers_config.layer_configs.size() > 0) {
+#if 0
 		success = compile_glyph_attribs_front();
+#else
+		cgv::utils::stopwatch s(true);
+		std::cout << "Compiling glyph attributes... ";
+
+		glyph_compiler gc;
+		gc.length_scale = general_settings.length_scale;
+		gc.include_hidden_glyphs = include_hidden_glyphs;
+
+		const auto &dataset = traj_mgr.dataset(0);
+
+		success = gc.compile_glyph_attributes(dataset, render.arclen_data.t_to_s, glyph_layers_config);
+
+		// get context
+		const auto &ctx = *get_context();
+
+		for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
+			if(gc.layer_filled[layer_idx]) {
+				const auto& ranges = gc.layer_ranges[layer_idx];
+				const auto& attribs = gc.layer_attribs[layer_idx];
+				// - sanity check
+				{
+					const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size()) / 2;
+					assert(num_ranges == num_segs);
+				}
+
+				// - upload
+				vertex_buffer& attribs_sbo = render.attribs_sbos[layer_idx];
+				vertex_buffer& aindex_sbo = render.aindex_sbos[layer_idx];
+
+				// ...attrib nodes
+				attribs_sbo.destruct(ctx);
+				if(!attribs_sbo.create(ctx, attribs.data))
+					std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
+
+				// ...index ranges
+				aindex_sbo.destruct(ctx);
+				if(!aindex_sbo.create(ctx, ranges))
+					std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
+			}
+		}
+
+		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+#endif
 		glyphs_out_of_date(false);
 	}
 
@@ -1109,7 +1154,7 @@ bool tubes::compile_glyph_attribs (void)
 	return success;
 }
 
-bool tubes::compile_glyph_attribs_front(void) {
+/*bool tubes::compile_glyph_attribs_front(void) {
 	cgv::utils::stopwatch s(true);
 	std::cout << "Compiling glyph attributes... ";
 
@@ -1186,7 +1231,7 @@ bool tubes::compile_glyph_attribs_front(void) {
 		const glyph_shape* current_shape = layer_config.shape_ptr;
 		std::vector<const traj_attribute<float>*> mapped_attribs;
 		std::vector<const std::vector<range>*> attribs_trajs;
-		std::vector<vec2> attrib_data_ranges;
+		//std::vector<vec2> attrib_data_ranges;
 
 		for(size_t i = 0; i < layer_config.mapped_attributes.size(); ++i) {
 			int attrib_idx = layer_config.mapped_attributes[i];
@@ -1204,8 +1249,8 @@ bool tubes::compile_glyph_attribs_front(void) {
 			// no trajectory information for the attribute
 			attribs_trajs.push_back(&dataset.trajectories(attrib));
 
-			vec2 range(attrib.min(), attrib.max());
-			attrib_data_ranges.push_back(range);
+			//vec2 range(attrib.min(), attrib.max());
+			//attrib_data_ranges.push_back(range);
 
 			//std::cout << attrib_names[attrib_idx] << std::endl;
 		}
@@ -1631,7 +1676,7 @@ bool tubes::compile_glyph_attribs_front(void) {
 									if(ranges[global_seg - 1].n == 0)
 										ranges[global_seg - 1].i0 = cur_range.i0;
 									ranges[global_seg - 1].n++;
-								}*/
+								}*
 
 								// handle overlap to the previous segments
 								if(seg > 0) {
@@ -1770,7 +1815,7 @@ bool tubes::compile_glyph_attribs_front(void) {
 
 	// done!
 	return true;
-}
+}*/
 
 bool tubes::init (cgv::render::context &ctx)
 {
@@ -2091,9 +2136,9 @@ void tubes::create_gui(void) {
 
 	if(begin_tree_node("AO Style", ao_style, false)) {
 		align("\a");
-		add_member_control(this, "Voxelize GPU", voxelize_gpu, "check");
-		add_member_control(this, "Voxel Grid Resolution", voxel_grid_resolution, "dropdown", "enums='16=16, 32=32, 64=64, 128=128, 256=256, 512=512'");
 		add_gui("ao_style", ao_style);
+		add_member_control(this, "Voxel Grid Resolution", voxel_grid_resolution, "dropdown", "enums='16=16, 32=32, 64=64, 128=128, 256=256, 512=512'");
+		add_member_control(this, "Voxelize using GPU", voxelize_gpu, "check");
 		align("\b");
 		end_tree_node(ao_style);
 	}
