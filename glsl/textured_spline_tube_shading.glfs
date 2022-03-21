@@ -993,7 +993,7 @@ vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_
 		return vec4(glyph_color, alpha.x); \
 	} else { \
 		vec4 color = vec4(vec3(0.0), alpha.y); \
-		return mix(color, vec4(glyph_color, gv), alpha.x); \
+		return mix(color, vec4(glyph_color, 1.0), alpha.x); \
 	} \
 }
 
