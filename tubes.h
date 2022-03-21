@@ -240,6 +240,8 @@ protected:
 		/// total segment count
 		size_t segment_count = 0;
 
+		double far_extent_factor = 0.8;
+		double near_extent_factor = 0.3;
 		bool near_view = false;
 	} debug;
 

@@ -192,11 +192,13 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				std::cout << "View setting: far" << std::endl;
 				debug.near_view = false;
 				set_view();
+				handled = true;
 				break;
 			case '.':
 				std::cout << "View setting: near" << std::endl;
 				debug.near_view = true;
 				set_view();
+				handled = true;
 				break;
 			case '1':
 				std::cout << "Benchmark setup: previous (proxy gemometry = full box; conservative depth = off; sorting = off; AO = off)" << std::endl;
@@ -2013,10 +2015,14 @@ void tubes::init_frame (cgv::render::context &ctx)
 	}
 
 	if(!benchmark_mode_setup && benchmark_mode) {
+		benchmark_mode_setup = true;
 		show_bbox = false;
 		update_member(&show_bbox);
 		cm_viewer_ptr->set_visibility(false);
 		navigator_ptr->set_visibility(false);
+		debug.far_extent_factor = 0.4;
+		debug.near_extent_factor = 0.333333*debug.far_extent_factor;
+		set_view();
 	}
 }
 
@@ -2235,9 +2241,7 @@ void tubes::set_view(void)
 	if(!view_ptr || !traj_mgr.has_data()) return;
 
 	view_ptr->set_focus(bbox.get_center());
-	double extent_factor = 0.8;
-	if(debug.near_view)
-	extent_factor = 0.333f;
+	double extent_factor = debug.near_view ? debug.near_extent_factor : debug.far_extent_factor;
 	view_ptr->set_y_extent_at_focus(extent_factor * (double)length(bbox.get_extent()));
 }
 
