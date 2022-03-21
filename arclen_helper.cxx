@@ -30,7 +30,8 @@ struct curve_segment
 {
 	unsigned i0, i1;
 	struct {
-		Bezier<flt_type> t_to_s [4]; /// 4 cubic Bezier segments approximate a the arclength with respect to t
+		Bezier<flt_type> t_to_s [4]; // 4 cubic Bezier segments approximating the arclength with respect to t
+		Bezier<flt_type> s_to_t [4]; // 4 cubic Bezier segments approximating the inverse mapping of t_to_s
 	} param;
 	flt_type alen (flt_type t=1)
 	{
@@ -62,11 +63,12 @@ parametrization compute_parametrization<flt_type> (const traj_manager<flt_type> 
 	typedef flt_type real;
 	typedef typename traj_manager<flt_type>::render_data::Vec3 vec3;
 	typedef typename traj_manager<flt_type>::render_data::Vec4 vec4;
-	std::vector<cgv::render::render_types::mat4> result;
+	std::vector<cgv::render::render_types::mat4> t_to_s, s_to_t;
 
 	// obtain render attributes and dataset topology
 	const auto &rd = mgr.get_render_data();
-	result.resize(rd.indices.size()/2);
+	t_to_s.resize(rd.indices.size()/2);
+	s_to_t.resize(rd.indices.size()/2);
 
 	// approximate arclength for all datasets
 	for (const auto &dataset : rd.datasets)
@@ -83,7 +85,7 @@ parametrization compute_parametrization<flt_type> (const traj_manager<flt_type> 
 			               idx_n = idx_offset + traj.n;
 			// compute individual segment global (w.r.t. current trajectory) arclength approximation 
 			real length_sum = 0;
-			for (unsigned i=idx_offset; i<idx_n; i+=2)
+			for (unsigned i=idx_offset, k=0; i<idx_n; i+=2, k++)
 			{
 				// global segment node indices
 				curve_segment<real> seg{rd.indices[i], rd.indices[i+1]};
@@ -96,32 +98,29 @@ parametrization compute_parametrization<flt_type> (const traj_manager<flt_type> 
 				// arc length
 				// - fit beziers
 				const auto alen_approx = b.arc_length_bezier_approximation(4);
-				// - convert to calculation of trajectory-global arclength at segment
+				const std::unique_ptr<ParameterizationBezierApproximation<real>> inv_approx(b.parameterization_bezier_approximation(4));
+				// - convert to trajectory-global arclength at segment
 				for (unsigned j=0; j<4; j++) {
-					const flt_type length_j = alen_approx.lengths[j+1] - alen_approx.lengths[j];
-					const flt_type length_jsum = length_sum + alen_approx.lengths[j];
+					const real length_j = alen_approx.lengths[j+1] - alen_approx.lengths[j],
+					           length_jsum = length_sum + alen_approx.lengths[j],
+					           t0 = real(k)+real(j)*real(0.25);
+					// - offset arclength by current trajectory length
 					seg.param.t_to_s[j].points[0].y = length_jsum;
 					seg.param.t_to_s[j].points[1].y = length_jsum + alen_approx.y1[j]*length_j;
-					// - offset by current global trajectory length
 					seg.param.t_to_s[j].points[2].y = length_jsum + alen_approx.y2[j]*length_j;
 					seg.param.t_to_s[j].points[3].y = length_sum  + alen_approx.lengths[j+1];
+					// - offset t by current trajectory segment number
+					seg.param.s_to_t[j].points[0].y = t0;
+					seg.param.s_to_t[j].points[1].y = t0 + inv_approx->y1[j]*real(0.25);
+					seg.param.s_to_t[j].points[2].y = t0 + inv_approx->y2[j]*real(0.25);
+					seg.param.s_to_t[j].points[3].y = t0 + real(0.25);
 				}
 				// - update global trajectory length
 				length_sum += alen_approx.totalLength;
-				// - testing
-				/*const real _l[] = {seg.alen(0.f),
-				                   seg.alen(0.125f),
-				                   seg.alen(0.25f),
-				                   seg.alen(0.375f),
-				                   seg.alen(0.5f),
-				                   seg.alen(0.625f),
-				                   seg.alen(0.75f),
-				                   seg.alen(0.875f),
-				                   seg.alen(1.f)};*/
 
 				// output control points
-				// - construct temp array
-				const float tmp[16] = {
+				// - construct temp storage
+				const float tmp[32] = {
 					/* col1 */ (float)seg.param.t_to_s[0].points[0].y, (float)seg.param.t_to_s[0].points[1].y,
 					           (float)seg.param.t_to_s[0].points[2].y, (float)seg.param.t_to_s[0].points[3].y,
 					/* col2 */ (float)seg.param.t_to_s[1].points[0].y, (float)seg.param.t_to_s[1].points[1].y,
@@ -129,16 +128,25 @@ parametrization compute_parametrization<flt_type> (const traj_manager<flt_type> 
 					/* col3 */ (float)seg.param.t_to_s[2].points[0].y, (float)seg.param.t_to_s[2].points[1].y,
 					           (float)seg.param.t_to_s[2].points[2].y, (float)seg.param.t_to_s[2].points[3].y,
 					/* col4 */ (float)seg.param.t_to_s[3].points[0].y, (float)seg.param.t_to_s[3].points[1].y,
-					           (float)seg.param.t_to_s[3].points[2].y, (float)seg.param.t_to_s[3].points[3].y
+					           (float)seg.param.t_to_s[3].points[2].y, (float)seg.param.t_to_s[3].points[3].y,
+					/* col1 */ (float)seg.param.s_to_t[0].points[0].y, (float)seg.param.s_to_t[0].points[1].y,
+					           (float)seg.param.s_to_t[0].points[2].y, (float)seg.param.s_to_t[0].points[3].y,
+					/* col2 */ (float)seg.param.s_to_t[1].points[0].y, (float)seg.param.s_to_t[1].points[1].y,
+					           (float)seg.param.s_to_t[1].points[2].y, (float)seg.param.s_to_t[1].points[3].y,
+					/* col3 */ (float)seg.param.s_to_t[2].points[0].y, (float)seg.param.s_to_t[2].points[1].y,
+					           (float)seg.param.s_to_t[2].points[2].y, (float)seg.param.s_to_t[2].points[3].y,
+					/* col4 */ (float)seg.param.s_to_t[3].points[0].y, (float)seg.param.s_to_t[3].points[1].y,
+					           (float)seg.param.s_to_t[3].points[2].y, (float)seg.param.s_to_t[3].points[3].y
 				};
-				// - in-place construct matrix in list
-				std::copy_n(tmp, 16, (float*)result[i/2]);
+				// - in-place construct matrices in list
+				std::copy_n(tmp, 16, (float*)t_to_s[i/2]);
+				std::copy_n(tmp+16, 16, (float*)s_to_t[i/2]);
 			}
 		}
 	}
 
 	// done
-	return {result, result};
+	return {std::move(t_to_s), std::move(s_to_t)};
 }
 
 cgv::render::vertex_buffer upload_renderdata (cgv::render::context& ctx, const std::vector<cgv::render::render_types::mat4> &approximations)

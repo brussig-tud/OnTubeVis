@@ -267,8 +267,8 @@ void Bezier<FLOAT_TYPE>::to_csv(const std::string &fileName, const int numTestPo
     auto approx = parameterization_subdivision_bezier_approximation();
     for (int i = 0; i < numTestPoints; i++) {
         FLOAT_TYPE d = static_cast<FLOAT_TYPE>(i) / static_cast<FLOAT_TYPE>(numTestPoints);
-        d *= approx->length();
-        FLOAT_TYPE t = approx->evaluate(d);
+        d *= approx.length();
+        FLOAT_TYPE t = approx.evaluate(d);
         if (t > 1.0) {
             continue;
         }
@@ -458,7 +458,7 @@ Bezier<FLOAT_TYPE>::parameterization_bezier_approximation(int numSegments, int n
     result->totalLength = arc_length_legendre_gauss(1.0, numSamples);
     result->t.push_back(0.0);
 
-    auto *legendreGauss = parameterization_subdivision_legendre_gauss(numSamples);
+    auto approx = parameterization_subdivision_bezier_approximation(numSamples, numSegments);
 
     auto dStep = FLOAT_TYPE(1) / static_cast<FLOAT_TYPE>(numSegments);
     for (int i = 0; i < numSegments; i++) {
@@ -467,15 +467,15 @@ Bezier<FLOAT_TYPE>::parameterization_bezier_approximation(int numSegments, int n
         auto dDiff = dCur - dPrev;
 
         auto tPrev = result->t.back();
-        auto tCur = legendreGauss->evaluate(dCur * result->totalLength);
+        auto tCur = approx.evaluate(dCur * result->totalLength);
         auto tDiff = tCur - tPrev;
 
         FLOAT_TYPE sample1 = (dPrev + dDiff * (FLOAT_TYPE(1) / FLOAT_TYPE(3))) * result->totalLength;
-        auto s1over3 = legendreGauss->evaluate(sample1);
+        auto s1over3 = approx.evaluate(sample1);
         auto s1over3Scaled = (s1over3 - tPrev) / tDiff;
 
         FLOAT_TYPE sample2 = (dPrev + dDiff * (FLOAT_TYPE(2) / FLOAT_TYPE(3))) * result->totalLength;
-        auto s2over3 = legendreGauss->evaluate(sample2);
+        auto s2over3 = approx.evaluate(sample2);
         auto s2over3Scaled = (s2over3 - tPrev) / tDiff;
 
         auto y1 = (18.0 * s1over3Scaled - 9.0 * s2over3Scaled + 2.0) / 6.0;

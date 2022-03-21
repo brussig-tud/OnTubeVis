@@ -197,11 +197,11 @@ template <typename FLOAT_TYPE> struct Bezier {
      * arc length.
      * Uses the Bézier-Approximation algorithm to calculate the length at each point.
      */
-    ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE> *
+    ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>
     parameterization_subdivision_bezier_approximation(int depth = 100, int numSegments = 3) const {
-        auto result = new ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>();
-        result->depth = depth;
-        result->arcLength = arc_length_bezier_approximation(numSegments);
+        ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE> result;
+        result.depth = depth;
+        result.arcLength = arc_length_bezier_approximation(numSegments);
         return result;
     }
 
