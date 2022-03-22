@@ -589,7 +589,7 @@ protected:
 			unsigned seg = 0;
 
 			// stores the current t at which we want to sample the attributes
-			float sample_t = 0.0f;
+			float sample_t = 0, sample_s = 0;
 			const float sample_step = layer_config.sampling_step;
 
 			// initializa all attribute index pairs to point to the first two attributes
@@ -778,8 +778,23 @@ protected:
 				//if(glyph_idx >= max_glyph_count)
 				//	run = false;
 
-				// increment the sample time point
-				sample_t += sample_step;
+				// increment the sample point
+				sample_s += sample_step;
+
+				// update current sample_t
+				unsigned next_seg = seg, next_seg_global = global_seg;
+				// - find segment the next point is in
+				while (next_seg < num_segments && sample_s > param.t_to_s[next_seg_global][15])
+				{ next_seg++; next_seg_global++; }
+				// - terminate immediatly if next sample point is beyond trajectory bound
+				if (next_seg >= num_segments)
+					break;
+				// - query arclenght parametrization for segment t and offset to get actual global timestamp
+				const float sample_t_local = arclen::map(param.t_to_s[next_seg_global], param.s_to_t[next_seg_global], sample_s);
+				assert(sample_t_local >= 0 && sample_t_local <= 1);
+				segtime = segment_time_get(P, tube_traj, next_seg);
+				sample_t = segtime.t0 + sample_t_local*(segtime.t1-segtime.t0);
+				std::cerr.flush();
 			}
 
 			// update auxiliary indices
