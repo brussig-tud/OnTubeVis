@@ -787,14 +787,11 @@ protected:
 				while (next_seg < num_segments && sample_s > param.t_to_s[next_seg_global][15])
 				{ next_seg++; next_seg_global++; }
 				// - terminate immediatly if next sample point is beyond trajectory bound
-				if (next_seg >= num_segments)
-					break;
+				if (next_seg >= num_segments) break;
 				// - query arclenght parametrization for segment t and offset to get actual global timestamp
 				const float sample_t_local = arclen::map(param.t_to_s[next_seg_global], param.s_to_t[next_seg_global], sample_s);
-				assert(sample_t_local >= 0 && sample_t_local <= 1);
 				segtime = segment_time_get(P, tube_traj, next_seg);
 				sample_t = segtime.t0 + sample_t_local*(segtime.t1-segtime.t0);
-				std::cerr.flush();
 			}
 
 			// update auxiliary indices
