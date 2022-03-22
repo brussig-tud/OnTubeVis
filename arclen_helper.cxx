@@ -18,6 +18,7 @@
 // implemented header
 #include "arclen_helper.h"
 
+
 ////
 // Local types and variables
 
@@ -33,18 +34,6 @@ struct curve_segment
 		Bezier<flt_type> t_to_s [4]; // 4 cubic Bezier segments approximating the arclength with respect to t
 		Bezier<flt_type> s_to_t [4]; // 4 cubic Bezier segments approximating the inverse mapping of t_to_s
 	} param;
-	flt_type alen (flt_type t=1)
-	{
-		const flt_type _4t = 4*t,
-		               _4tb4 = _4t / 4,
-		               _4tb4x4 = _4tb4 * 4;
-		const unsigned i = std::clamp((int)_4tb4x4, 0, 3);
-		const flt_type inner_start = i*flt_type(0.25),
-		               t_inner = (t-inner_start)*flt_type(4);
-		const auto &approx = param.t_to_s[i];
-		const auto result = approx.evaluate(t_inner).y;
-		return result;
-	}
 };
 
 // Anonymous namespace end
@@ -74,7 +63,6 @@ parametrization compute_parametrization<flt_type> (const traj_manager<flt_type> 
 	for (const auto &dataset : rd.datasets)
 	{
 		// approximate arclength for each trajectory in order
-		//for (const auto &traj : trajs)
 #ifndef _DEBUG
 #pragma omp parallel for
 #endif
@@ -105,19 +93,19 @@ parametrization compute_parametrization<flt_type> (const traj_manager<flt_type> 
 					const real length_j = alen_approx.lengths[j+1] - alen_approx.lengths[j],
 					           length_jsum = length_sum + alen_approx.lengths[j],
 					           dt_j = inv_approx.t[j+1] - inv_approx.t[j],
-					           t_sum = real(k), t_jsum = t_sum+inv_approx.t[j];
+					           inv_approx_tj = inv_approx.t[j];
 					// - offset arclength by current trajectory length
 					seg.param.t_to_s[j].points[0].y = length_jsum;
 					seg.param.t_to_s[j].points[1].y = length_jsum + alen_approx.y1[j]*length_j;
 					seg.param.t_to_s[j].points[2].y = length_jsum + alen_approx.y2[j]*length_j;
 					seg.param.t_to_s[j].points[3].y = length_sum  + alen_approx.lengths[j+1];
 					// - offset t by current trajectory segment number
-					seg.param.s_to_t[j].points[0].y = t_jsum;
-					seg.param.s_to_t[j].points[1].y = t_jsum + inv_approx.y1[j]*dt_j;
-					seg.param.s_to_t[j].points[2].y = t_jsum + inv_approx.y2[j]*dt_j;
-					seg.param.s_to_t[j].points[3].y = t_sum  + inv_approx.t[j+1];
+					seg.param.s_to_t[j].points[0].y = inv_approx_tj;
+					seg.param.s_to_t[j].points[1].y = inv_approx_tj + inv_approx.y1[j]*dt_j;
+					seg.param.s_to_t[j].points[2].y = inv_approx_tj + inv_approx.y2[j]*dt_j;
+					seg.param.s_to_t[j].points[3].y = inv_approx.t[j+1];
 				}
-				seg.param.s_to_t[3].points[3].y = real(k+1); // snap it to exactly 1
+				seg.param.s_to_t[3].points[3].y = 1; // snap it to exactly 1
 				// - update global trajectory length
 				length_sum += alen_approx.totalLength;
 
@@ -142,8 +130,16 @@ parametrization compute_parametrization<flt_type> (const traj_manager<flt_type> 
 					           (float)seg.param.s_to_t[3].points[2].y, (float)seg.param.s_to_t[3].points[3].y
 				};
 				// - in-place construct matrices in list
-				std::copy_n(tmp, 16, (float*)t_to_s[i/2]);
+				std::copy_n(tmp,    16, (float*)t_to_s[i/2]);
 				std::copy_n(tmp+16, 16, (float*)s_to_t[i/2]);
+				// - testing
+				/*{ const auto &cur_t2s = t_to_s[i/2], &cur_s2t = s_to_t[i/2];
+				  // t, approximated s, t from s-parametrization, error
+				  const float t[5] = {0,                           1.f/3,                       .5f,                         2.f/3,                       1},
+				              s[5] = {eval(cur_t2s, t[0]),         eval(cur_t2s, t[1]),         eval(cur_t2s, t[2]),         eval(cur_t2s, t[3]),         eval(cur_t2s, t[4])},
+				              T[5] = {map(cur_t2s, cur_s2t, s[0]), map(cur_t2s, cur_s2t, s[1]), map(cur_t2s, cur_s2t, s[2]), map(cur_t2s, cur_s2t, s[3]), map(cur_t2s, cur_s2t, s[4])},
+				              e[5] = {T[0]-t[0],                   T[1]-t[1],                   T[2]-t[2],                   T[3]-t[3],                   T[4]-t[4]};
+				  std::cerr.flush(); }*/
 			}
 		}
 	}
@@ -165,18 +161,16 @@ cgv::render::vertex_buffer upload_renderdata (cgv::render::context& ctx, const s
 
 float eval (const cgv::render::render_types::mat4 &approx, float t)
 {
-	// determine sub-segment and 
+	// determine sub-segment
 	const float t4 = t+t+t+t;
-	const unsigned seg = std::max(std::min((signed)t4, 3), 0);
+	const unsigned seg = std::clamp((signed)t4, 0, 3);
 	const float t_inner = t4 - (float)seg;
 	return evalBezier(approx.col(seg), t_inner);
 }
 
 
 //////
-//
 // Explicit template instantiations
-//
 
 // Only float and double variants are intended
 template parametrization compute_parametrization<float>(const traj_manager<float>&);
