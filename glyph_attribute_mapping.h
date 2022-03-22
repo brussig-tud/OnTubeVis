@@ -12,6 +12,7 @@
 
 enum AttributeSamplingStrategy {
 	ASS_UNIFORM,
+	ASS_EQUIDIST,
 	ASS_AT_SAMPLES,
 };
 

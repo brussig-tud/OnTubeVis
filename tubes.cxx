@@ -710,6 +710,10 @@ bool tubes::save_layer_configuration(const std::string& file_name) {
 				content += put("sampling", "uniform");
 				content += put("sampling_step", std::to_string(gam.get_sampling_step()));
 				break;
+			case ASS_EQUIDIST:
+				content += put("sampling", "equidist");
+				content += put("sampling_step", std::to_string(gam.get_sampling_step()));
+				break;
 			}
 
 			content += ">\n";
@@ -940,6 +944,8 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 						gam.set_sampling_strategy(ASS_AT_SAMPLES);
 					} else if(str == "uniform") {
 						gam.set_sampling_strategy(ASS_UNIFORM);
+					} else if (str == "equidist") {
+						gam.set_sampling_strategy(ASS_EQUIDIST);
 					}
 				}
 
