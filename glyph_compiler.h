@@ -555,7 +555,7 @@ protected:
 		}
 	}
 
-	void compile_glyph_layer(size_t layer_idx, const traj_dataset<float>& data_set, const std::vector<mat4>& arc_length, const std::vector<std::string>& attrib_names, const glyph_layer_manager::configuration::layer_configuration& layer_config, const traj_attribute<float>& P, const std::vector<range>& tube_trajs) {
+	void compile_glyph_layer(size_t layer_idx, const traj_dataset<float>& data_set, const arclen::parametrization &parametrization, const std::vector<std::string>& attrib_names, const glyph_layer_manager::configuration::layer_configuration& layer_config, const traj_attribute<float>& P, const std::vector<range>& tube_trajs) {
 
 		const AttributeSamplingStrategy sampling_strategy = layer_config.sampling_strategy;
 		layer_compile_info lci(layer_config.shape_ptr);
@@ -585,9 +585,9 @@ protected:
 		lci.ranges.reserve(P.num() - tube_trajs.size());
 
 		if(sampling_strategy == ASS_UNIFORM) {
-			compile_glyphs_front_uniform_time(P, tube_trajs, arc_length, layer_config, lci);
+			compile_glyphs_front_uniform_time(P, tube_trajs, parametrization.t_to_s, layer_config, lci);
 		} else {
-			compile_glyphs_front_at_samples(P, tube_trajs, arc_length, layer_config, lci);
+			compile_glyphs_front_at_samples(P, tube_trajs, parametrization.t_to_s, layer_config, lci);
 		}
 
 		layer_filled[layer_idx] = true;
@@ -595,7 +595,7 @@ protected:
 		layer_attribs[layer_idx] = lci.attribs;
 	}
 
-	void compile_glyph_attributes_impl(const traj_dataset<float>& data_set, const std::vector<mat4>& arc_length, const glyph_layer_manager::configuration& layers_config) {
+	void compile_glyph_attributes_impl(const traj_dataset<float> &data_set, const arclen::parametrization &parametrization, const glyph_layer_manager::configuration &layers_config) {
 		const auto &P = data_set.positions().attrib;
 		const auto &tube_trajs = data_set.trajectories(P);
 
@@ -622,7 +622,7 @@ protected:
 				continue;
 			}
 
-			compile_glyph_layer(layer_idx, data_set, arc_length, attrib_names, layer_config, P, tube_trajs);
+			compile_glyph_layer(layer_idx, data_set, parametrization, attrib_names, layer_config, P, tube_trajs);
 		}
 	}
 
@@ -636,13 +636,13 @@ public:
 	bool include_hidden_glyphs;
 	float length_scale;
 	
-	bool compile_glyph_attributes(const traj_dataset<float>& data_set, const std::vector<mat4>& arc_length, const glyph_layer_manager::configuration& layers_config) {
+	bool compile_glyph_attributes(const traj_dataset<float> &data_set, const arclen::parametrization &parametrization, const glyph_layer_manager::configuration &layers_config) {
 		bool success = false;
 		layer_filled.clear();
 		layer_ranges.clear();
 		layer_attribs.clear();
 		if(layers_config.layer_configs.size() > 0) {
-			compile_glyph_attributes_impl(data_set, arc_length, layers_config);
+			compile_glyph_attributes_impl(data_set, parametrization, layers_config);
 			success = true;
 		}
 		return success;

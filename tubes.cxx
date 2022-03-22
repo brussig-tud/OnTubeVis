@@ -1112,7 +1112,7 @@ bool tubes::compile_glyph_attribs (void)
 
 		const auto &dataset = traj_mgr.dataset(0);
 
-		success = gc.compile_glyph_attributes(dataset, render.arclen_data.t_to_s, glyph_layers_config);
+		success = gc.compile_glyph_attributes(dataset, render.arclen_data, glyph_layers_config);
 
 		// get context
 		const auto &ctx = *get_context();
@@ -1752,7 +1752,6 @@ bool tubes::compile_glyph_attribs (void)
 
 
 
-		
 
 
 
