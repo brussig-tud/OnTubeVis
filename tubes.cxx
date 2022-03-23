@@ -61,7 +61,8 @@ tubes::tubes() : application_plugin("Tubes")
 	fbc.add_attachment("position", "flt32[R,G,B]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
-	fbc.add_attachment("info", "uint32[R,G,B,A]");
+	// disabled for performance testing since it is unused for now
+	//fbc.add_attachment("info", "uint32[R,G,B,A]");
 
 	cm_editor_ptr = register_overlay<cgv::glutil::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
@@ -102,7 +103,7 @@ tubes::tubes() : application_plugin("Tubes")
 	debug.segment_rs.rounded_caps = true;
 
 	// easy setup for benchmarking runs
-	//benchmark_mode = true;
+	benchmark_mode = true;
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -2681,7 +2682,8 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.enable_attachment(ctx, "position", 1);
 	fbc.enable_attachment(ctx, "normal", 2);
 	fbc.enable_attachment(ctx, "tangent", 3);
-	fbc.enable_attachment(ctx, "info", 4);
+	// disabled for performance testing since it is unused for now
+	//fbc.enable_attachment(ctx, "info", 4);
 	fbc.enable_attachment(ctx, "depth", 5);
 	density_tex.enable(ctx, 6);
 	color_map_mgr.ref_texture().enable(ctx, 7);
@@ -2710,7 +2712,8 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.disable_attachment(ctx, "position");
 	fbc.disable_attachment(ctx, "normal");
 	fbc.disable_attachment(ctx, "tangent");
-	fbc.disable_attachment(ctx, "info");
+	// disabled for performance testing since it is unused for now
+	//fbc.disable_attachment(ctx, "info");
 	fbc.disable_attachment(ctx, "depth");
 	density_tex.disable(ctx);
 	color_map_mgr.ref_texture().disable(ctx);
