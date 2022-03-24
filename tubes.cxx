@@ -103,7 +103,7 @@ tubes::tubes() : application_plugin("Tubes")
 	debug.segment_rs.rounded_caps = true;
 
 	// easy setup for benchmarking runs
-	benchmark_mode = true;
+	//benchmark_mode = true;
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
