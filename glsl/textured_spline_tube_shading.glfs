@@ -1262,7 +1262,12 @@ void finalize_glyph(in uint debug_info, in vec2 uv, in vec4 glyph_color, inout v
 
 
 
-
+vec3 hash31(float p)
+{
+   vec3 p3 = fract(vec3(p) * vec3(.1031, .1030, .0973));
+   p3 += dot(p3, p3.yzx+33.33);
+   return fract((p3.xxy+p3.yzz)*p3.zyx); 
+}
 
 
 
@@ -1421,7 +1426,13 @@ void main()
 		if(ambient_occlusion.enable)
 			frag_color.rgb *= compute_ambient_occlusion_factor(pos_eye, normal_eye);
 
-		//frag_color = vec4(vec3(texcoord.xy, 0.0), 1.0);
+		// Debug outputs:
+		//frag_color = vec4((pos_eye + 5.0)/10.0, 1.0); // position (adjusted for HotRoom)
+		//frag_color = vec4(0.5*normal_eye + 0.5, 1.0); // normal
+		//frag_color = vec4(0.5*tangent_eye + 0.5, 1.0); // tangent
+		//frag_color = vec4(vec3(depth), 1.0); // tangent
+		//frag_color = vec4(0.1*texcoord.x, texcoord.y, 0.0, 1.0); // texcoords
+		//frag_color = vec4(hash31(segment_id), 1.0); // segment_id
 	}
 
 	if(use_gamma)
