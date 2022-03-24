@@ -45,6 +45,9 @@ tubes::tubes() : application_plugin("Tubes")
 	render.style.material.set_specular_reflectance({ 0.05f, 0.05f, 0.05f });
 	render.style.use_conservative_depth = true;
 	
+	brs.culling_mode = cgv::render::CM_FRONTFACE;
+	brs.illumination_mode = cgv::render::IM_TWO_SIDED;
+
 	vstyle.enable_depth_test = false;
 
 #ifdef _DEBUG
@@ -155,7 +158,9 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("layer_config_file", fh.file_name) && // ToDo: figure out proper reflection name
 		rh.reflect_member("show_hidden_glyphs", include_hidden_glyphs) && // ToDo: which of these two names is better?
 		rh.reflect_member("render_style", render.style) &&
+		rh.reflect_member("bounding_box_color", box_color) &&
 		rh.reflect_member("show_bounding_box", show_bbox) &&
+		rh.reflect_member("show_wire_box", show_wire_bbox) &&
 		rh.reflect_member("grid_mode", grid_mode) &&
 		rh.reflect_member("grid_normal_settings", grid_normal_settings) &&
 		rh.reflect_member("grid_normal_inwards", grid_normal_inwards) &&
@@ -168,13 +173,33 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 
 void tubes::stream_help (std::ostream &os)
 {
-	os << "tubes" << std::endl;
+	os << "tubes: adapt <R>adius, toggle <B>ounds, <W>ire bounds" << std::endl;
 }
 
 bool tubes::handle_event(cgv::gui::event &e) {
 
 	if(e.get_kind() == cgv::gui::EID_KEY) {
 		// do nothing for now
+		auto& ke = static_cast<cgv::gui::key_event&>(e);
+		if (ke.get_action() != cgv::gui::KA_RELEASE) {
+			switch (ke.get_key()) {
+			case 'R':
+				if (ke.get_modifiers() == 0)
+					render.style.radius_scale *= 2.0f;
+				else
+					render.style.radius_scale *= 0.5f;
+				on_set(&render.style.radius_scale);
+				return true;
+			case 'B':
+				show_bbox = !show_bbox;
+				on_set(&show_bbox);
+				return true;
+			case 'W':
+				show_wire_bbox = !show_wire_bbox;
+				on_set(&show_wire_bbox);
+				return true;
+			}
+		}
 	}
 
 	if(e.get_kind() == cgv::gui::EID_MOUSE) {
@@ -2042,8 +2067,16 @@ void tubes::draw (cgv::render::context &ctx)
 			default: break;
 			}
 
-			if(show_bbox)
+			if (show_wire_bbox)
 				bbox_rd.render(ctx, ref_box_wire_renderer(ctx), box_wire_render_style());
+			if (show_bbox) {
+				auto& br = cgv::render::ref_box_renderer(ctx);
+				br.set_render_style(brs);
+				ctx.set_color(box_color);
+				br.set_color(ctx, box_color);
+				br.set_box(ctx, bbox);
+				br.render(ctx, 0, 1);
+			}
 		}
 
 		//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());
@@ -2064,7 +2097,20 @@ void tubes::create_gui(void) {
 
 	// rendering settings
 	add_decorator("Rendering", "heading", "level=1");
-	add_member_control(this, "Show Bounds", show_bbox, "check");
+	if (begin_tree_node("Bounds", show_bbox, false)) {
+		align("\a");
+		add_member_control(this, "color", box_color);
+		add_member_control(this, "show", show_bbox, "check");
+		add_member_control(this, "show wires", show_wire_bbox, "check");
+		if (begin_tree_node("Bounds", brs, false)) {
+			align("\a");
+			add_gui("box style", brs);
+			align("\b");
+			end_tree_node(brs);
+		}
+		align("\b");
+		end_tree_node(show_bbox);
+	}
 	if(begin_tree_node("Tube Style", render.style, false)) {
 		align("\a");
 		add_gui("tube_style", render.style);
@@ -2221,11 +2267,15 @@ void tubes::create_vec3_gui(const std::string& name, vec3& value, float min, flo
 
 void tubes::set_view(void)
 {
-	if(!view_ptr || !traj_mgr.has_data()) return;
+	if (!view_ptr || !traj_mgr.has_data()) return;
 
 	view_ptr->set_focus(bbox.get_center());
 	double extent_factor = 0.8;
 	view_ptr->set_y_extent_at_focus(extent_factor * (double)length(bbox.get_extent()));
+
+	auto* cview_ptr = dynamic_cast<cgv::render::clipped_view*>(view_ptr);
+	if (cview_ptr)
+		cview_ptr->set_scene_extent(bbox);
 }
 
 void tubes::update_grid_ratios(void) {
