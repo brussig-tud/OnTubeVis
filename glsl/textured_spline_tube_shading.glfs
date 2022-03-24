@@ -968,8 +968,8 @@ vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_
 	v.z = clamp_remap(glyphs##I[i1+0].v[idx], range); \
 	v.w = clamp_remap(glyphs##I[i1+1].v[idx], range); \
 	\
-	float m0 = (1.0/6.0) * (v.z - v.x); \
-	float m1 = (1.0/6.0) * (v.w - v.y); \
+	float m0 = (v.z - v.x) / (s.z - s.x); \
+	float m1 = (v.w - v.y) / (s.w - s.y); \
 	\
 	float t = clamp_remap01(p.x, vec4(s.y, s.z, 0.0, 0.0)); \
 	\

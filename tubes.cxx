@@ -251,6 +251,11 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				}
 				handled = true;
 				break;
+			case 'G':
+				grid_mode = static_cast<GridMode>((static_cast<int>(grid_mode) + 1) % 4);
+				on_set(&grid_mode);
+				handled = true;
+				break;
 			case 'N':
 				if(navigator_ptr) {
 					bool visible = navigator_ptr->is_visible();
@@ -446,6 +451,11 @@ void tubes::on_set(void *member_ptr) {
 		context& ctx = *get_context();
 		voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(cgv::math::clamp(static_cast<unsigned>(voxel_grid_resolution), 16u, 512u));
 		create_density_volume(ctx, voxel_grid_resolution);
+
+		if(member_ptr == &render.style.radius_scale) {
+			update_grid_ratios();
+			glyphs_out_of_date(true);
+		}
 	}
 
 	// visualization settings
@@ -2315,6 +2325,8 @@ void tubes::update_grid_ratios(void) {
 			sum += ds.irange.n * double(ds.irange.med_radius);
 		}
 		double mean_rad = sum / double(num);
+		// adjust by the current radius scale
+		mean_rad *= render.style.radius_scale;
 		// we base everything on the mean of all trajectory median radii
 		grids[0].scaling.x() = general_settings.length_scale = 1.f / float(mean_rad);
 		//grids[0].scaling.y() = grids[0].scaling.x()/4;
@@ -2326,8 +2338,8 @@ void tubes::update_grid_ratios(void) {
 		{
 			update_member(&(grids[i].scaling[0]));
 			update_member(&(grids[i].scaling[1]));
-			update_member(&general_settings.length_scale);
 		}
+		update_member(&general_settings.length_scale);
 	}
 }
 
