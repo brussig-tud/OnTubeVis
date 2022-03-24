@@ -80,7 +80,7 @@ protected:
 		float blend_factor;
 	};
 
-	GridMode grid_mode, previous_grid_mode;
+	GridMode grid_mode;
 	rgba grid_color;
 	cgv::type::DummyEnum grid_normal_settings;
 	bool grid_normal_inwards;

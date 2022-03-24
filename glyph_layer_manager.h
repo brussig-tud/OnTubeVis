@@ -1,5 +1,6 @@
 #pragma once
 
+#include <list>
 #include <vector>
 
 #include <cgv/base/base.h>
@@ -27,6 +28,7 @@ public:
 		};
 
 		struct layer_configuration {
+			bool visible;
 			AttributeSamplingStrategy sampling_strategy;
 			float sampling_step;
 			const glyph_shape* shape_ptr;
@@ -92,8 +94,13 @@ protected:
 		layer_settings settings;
 		glyph_attribute_mapping gam;
 	};
-	
-	std::vector<layer> layers;*/
+	*/
+	// wrap bool to prevent vector specialization
+	struct Bool {
+		bool v;
+		Bool(bool v) : v(v) {}
+	};
+	std::vector<Bool> visible;
 	std::vector<glyph_attribute_mapping> glyph_attribute_mappings;
 
 	std::vector<std::string> attribute_names;
@@ -156,6 +163,8 @@ public:
 		gam.set_attribute_names(attribute_names);
 		gam.set_attribute_ranges(attribute_ranges);
 		gam.set_color_map_names(color_map_names);
+		
+		visible.push_back(true);
 	}
 
 	/*void add_layer(const layer_settings& settings, const glyph_attribute_mapping& attribute_mapping) {

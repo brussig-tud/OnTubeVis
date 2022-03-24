@@ -2778,6 +2778,7 @@ shader_define_map tubes::build_tube_shading_defines() {
 	
 	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
 		const auto& lc = glyph_layers_config.layer_configs[i];
+		shader_code::set_define(defines, "L" + std::to_string(i) + "_VISIBLE", lc.visible, true);
 		shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
 		shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
 	}
