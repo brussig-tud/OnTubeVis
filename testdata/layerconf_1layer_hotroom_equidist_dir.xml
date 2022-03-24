@@ -1,0 +1,41 @@
+<GlyphConfiguration>
+  <ColorMaps>
+    <ColorMap name="acton" custom="0" />
+    <ColorMap name="bamako" custom="0" />
+    <ColorMap name="batlowK" custom="0" />
+    <ColorMap name="batlowW" custom="0" />
+    <ColorMap name="batlow" custom="0" />
+    <ColorMap name="bilbao" custom="0" />
+    <ColorMap name="buda" custom="0" />
+    <ColorMap name="davos" custom="0" />
+    <ColorMap name="devon" custom="0" />
+    <ColorMap name="grayC" custom="0" />
+    <ColorMap name="hawaii" custom="0" />
+    <ColorMap name="imola" custom="0" />
+    <ColorMap name="lajolla" custom="0" />
+    <ColorMap name="lapaz" custom="0" />
+    <ColorMap name="nuuk" custom="0" />
+    <ColorMap name="oslo" custom="0" />
+    <ColorMap name="tokyo" custom="0" />
+    <ColorMap name="turku" custom="0" />
+    <ColorMap name="bam" custom="0" />
+    <ColorMap name="vanimo" custom="0" />
+    <ColorMap name="cork" custom="0" />
+    <ColorMap name="tofino" custom="0" />
+    <ColorMap name="broc" custom="0" />
+    <ColorMap name="lisbon" custom="0" />
+    <ColorMap name="vik" custom="0" />
+    <ColorMap name="berlin" custom="0" />
+    <ColorMap name="roma" custom="0" />
+    <ColorMap name="RAINBOW" custom="0" />
+  </ColorMaps>
+  <Layers>
+    <Layer glyph="triangle_isosceles" sampling="equidist" sampling_step="0.333000" >
+      <Property name="outline" value="0.062500" />
+      <Property name="color" attrib_name="position" color_map_name="roma" in_range="4.000000, 15.000000" />
+      <Property name="base_width" in_range="0.000000, 1.000000" out_range="0.000000, 0.750000" />
+      <Property name="height" in_range="0.000000, 1.000000" out_range="0.000000, 1.250000" />
+      <Property name="orientation" in_range="0.000000, 1.000000" out_range="0.000000, 360.000000" />
+    </Layer>
+  </Layers>
+</GlyphConfiguration>

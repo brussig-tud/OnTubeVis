@@ -72,7 +72,7 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 	if(!shape_ptr)
 		return;
 
-	add_local_member_control(p, bp, "Sampling Strategy", sampling_strategy, "dropdown", "enums='Uniform Time,Original Samples'");
+	add_local_member_control(p, bp, "Sampling Strategy", sampling_strategy, "dropdown", "enums='Uniform Time,Equidistant,Original Samples'");
 	add_local_member_control(p, bp, "Sampling Step", sampling_step, "value_slider", "min=0;max=10;step=0.001;ticks=true;log=true");
 	p.add_decorator("", "separator");
 
@@ -318,7 +318,6 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 		} else {
 			add_local_member_control(p, bp, value_label, attrib_mapping_values[i][3], "value_slider", out_options_str);
 		}
-		//add_local_member_control(p, bp, value_label, *reinterpret_cast<rgb*>(&attrib_mapping_values[i]));
 	} else {
 		const vec2& range = attribute_ranges[selected_attrib_src_idx];
 		std::string in_options_str = "min=" + std::to_string(range.x()) + ";max=" + std::to_string(range.y()) + ";step=0.001;ticks=true";

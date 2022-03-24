@@ -28,6 +28,7 @@
 
 // local includes
 #include "traj_loader.h"
+#include "arclen_helper.h"
 #include "demo.h" // interactive testbed helper classes and data
 #include "attrib_handle_manager.h"
 #include "voxelizer.h"
@@ -161,7 +162,7 @@ protected:
 
 		/// segment-wise arclength approximations (set of 4 cubic bezier curves returning global
 		/// trajectory arclength at the segment, packed into the columns of a 4x4 matrix)
-		std::vector<mat4> arclen_data;
+		arclen::parametrization arclen_data;
 
 		/// GPU-side storage buffer mirroring the \ref #arclen_data .
 		vertex_buffer arclen_sbo;
@@ -241,8 +242,15 @@ protected:
 		size_t render_count = 0;
 		/// total segment count
 		size_t segment_count = 0;
+
+		double far_extent_factor = 0.8;
+		double near_extent_factor = 0.3;
+		bool near_view = false;
 	} debug;
 
+	bool benchmark_mode = false;
+	bool benchmark_mode_setup = false;
+	
 	/// members for rendering eye position and direction used to test sorting
 	cgv::glutil::sphere_render_data<> srd;
 	vec3 test_eye = vec3(5.0f, 0.5f, 5.0f);
@@ -265,7 +273,7 @@ protected:
 	texture tf_tex;
 
 	voxelizer density_volume;
-	ambient_occlusion_style ao_style;// , ao_style_bak; // the latter is used to restore defaults after demo data is unloaded
+	ambient_occlusion_style ao_style, ao_style_bak; // the latter is used to restore defaults after demo data is unloaded
 
 	glyph_layer_manager::configuration glyph_layers_config;
 	bool include_hidden_glyphs = false;
@@ -278,7 +286,7 @@ protected:
 	void update_glyph_layer_manager(void);
 	void glyphs_out_of_date(bool state);
 	bool compile_glyph_attribs(void);
-	bool compile_glyph_attribs_front(void);
+	//bool compile_glyph_attribs_front(void);
 
 	void set_view(void);
 	void update_grid_ratios(void);

@@ -22,10 +22,10 @@
 
 // local includes
 #include "arclen_helper.h"
+#include "glyph_compiler.h"
 
 
 
-// TODO: compile glyph attribs will get stuck in an endless loop if the first attribute sample does not lie on the first segment
 // TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
 // TODO: star and violin glyphs: the first mapped entry will always get mapped to the first overall color
 	// Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
@@ -64,7 +64,8 @@ tubes::tubes() : application_plugin("Tubes")
 	fbc.add_attachment("position", "flt32[R,G,B]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
-	fbc.add_attachment("info", "uint32[R,G,B,A]");
+	// disabled for performance testing since it is unused for now
+	//fbc.add_attachment("info", "uint32[R,G,B,A]");
 
 	cm_editor_ptr = register_overlay<cgv::glutil::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
@@ -168,29 +169,120 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("voxelize_gpu", voxelize_gpu) &&
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
-		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy);
+		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
+		rh.reflect_member("benchmark_mode", benchmark_mode);
 }
 
 void tubes::stream_help (std::ostream &os)
 {
-	os << "tubes: adapt <R>adius, toggle <B>ounds, <W>ire bounds" << std::endl;
+	os << "tubes: adapt <R>adius, toggle b<O>unds, <W>ire bounds" << std::endl;
 }
+
+#define SET_MEMBER(m, v) m = v; update_member(&m);
 
 bool tubes::handle_event(cgv::gui::event &e) {
 
-	if(e.get_kind() == cgv::gui::EID_KEY) {
-		// do nothing for now
-		auto& ke = static_cast<cgv::gui::key_event&>(e);
-		if (ke.get_action() != cgv::gui::KA_RELEASE) {
-			switch (ke.get_key()) {
+	unsigned et = e.get_kind();
+	unsigned char modifiers = e.get_modifiers();
+
+	if(et == cgv::gui::EID_KEY) {
+		cgv::gui::key_event& ke = (cgv::gui::key_event&) e;
+		cgv::gui::KeyAction ka = ke.get_action();
+
+		bool handled = false;
+
+		if(ka == cgv::gui::KA_PRESS) {
+			switch(ke.get_key()) {
+			case ',':
+				std::cout << "View setting: far" << std::endl;
+				debug.near_view = false;
+				set_view();
+				handled = true;
+				break;
+			case '.':
+				std::cout << "View setting: near" << std::endl;
+				debug.near_view = true;
+				set_view();
+				handled = true;
+				break;
+			case '1':
+				std::cout << "Benchmark setup: previous (proxy gemometry = full box; conservative depth = off; sorting = off; AO = off)" << std::endl;
+				SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_BOX);
+				SET_MEMBER(render.style.use_cubic_tangents, false);
+				SET_MEMBER(render.style.use_conservative_depth, false);
+				SET_MEMBER(debug.sort, false);
+				SET_MEMBER(ao_style.enable, false);
+				handled = true;
+				break;
+			case '2':
+				std::cout << "Benchmark setup: ours plain (no sorting) (proxy gemometry = aligned box billboard; conservative depth = on; sorting = off; AO = off)" << std::endl;
+				SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
+				SET_MEMBER(render.style.use_cubic_tangents, true);
+				SET_MEMBER(render.style.use_conservative_depth, true);
+				SET_MEMBER(debug.sort, false);
+				SET_MEMBER(ao_style.enable, false);
+				handled = true;
+				break;
+			case '3':
+				std::cout << "Benchmark setup: ours plain (sorting) (proxy gemometry = aligned box billboard; conservative depth = on; sorting = on; AO = off)" << std::endl;
+				SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
+				SET_MEMBER(render.style.use_cubic_tangents, true);
+				SET_MEMBER(render.style.use_conservative_depth, true);
+				SET_MEMBER(debug.sort, true);
+				SET_MEMBER(ao_style.enable, false);
+				handled = true;
+				break;
+			case '4':
+				std::cout << "Benchmark setup: ours full (proxy gemometry = aligned box billboard; conservative depth = on; sorting = on; AO = on)" << std::endl;
+				SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
+				SET_MEMBER(render.style.use_cubic_tangents, true);
+				SET_MEMBER(render.style.use_conservative_depth, true);
+				SET_MEMBER(debug.sort, true);
+				SET_MEMBER(ao_style.enable, true);
+				handled = true;
+				break;
+			case 'A':
+				ao_style.enable = !ao_style.enable;
+				std::cout << "Ambient occlusion: " << (ao_style.enable ? "on" : "off") << std::endl;
+				update_member(&ao_style.enable);
+				handled = true;
+				break;
+			case 'B':
+				if(modifiers == cgv::gui::EM_CTRL) {
+					std::cout << "Starting benchmark..." << std::endl;
+					benchmark.requested = true;
+				} else {
+					show_bbox = !show_bbox;
+				}
+				handled = true;
+				break;
+			case 'G':
+				grid_mode = static_cast<GridMode>((static_cast<int>(grid_mode) + 1) % 4);
+				on_set(&grid_mode);
+				handled = true;
+				break;
+			case 'N':
+				if(navigator_ptr) {
+					bool visible = navigator_ptr->is_visible();
+					navigator_ptr->set_visibility(!visible);
+					handled = true;
+				}
+				break;
+			case 'M':
+				if(cm_viewer_ptr) {
+					bool visible = cm_viewer_ptr->is_visible();
+					cm_viewer_ptr->set_visibility(!visible);
+					handled = true;
+				}
+				break;
 			case 'R':
 				if (ke.get_modifiers() == 0)
 					render.style.radius_scale *= 2.0f;
-				else
+				else if (ke.get_modifiers() == cgv::gui::EM_SHIFT)
 					render.style.radius_scale *= 0.5f;
 				on_set(&render.style.radius_scale);
 				return true;
-			case 'B':
+			case 'O':
 				show_bbox = !show_bbox;
 				on_set(&show_bbox);
 				return true;
@@ -198,11 +290,18 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				show_wire_bbox = !show_wire_bbox;
 				on_set(&show_wire_bbox);
 				return true;
+			default:
+				break;
 			}
+		}
+
+		if(handled) {
+			post_redraw();
+			return true;
 		}
 	}
 
-	if(e.get_kind() == cgv::gui::EID_MOUSE) {
+	if(et == cgv::gui::EID_MOUSE) {
 		cgv::gui::mouse_event &me = static_cast<cgv::gui::mouse_event&>(e);
 		// select drag and drop events only
 		if((me.get_flags() & cgv::gui::EF_DND) != 0) switch(me.get_action()) {
@@ -269,9 +368,11 @@ bool tubes::handle_event(cgv::gui::event &e) {
 
 void tubes::on_set(void *member_ptr) {
 	// dataset settings
+	bool data_set_changed = false;
+	bool from_demo = false;
 	// - configurable datapath
 	if(member_ptr == &datapath && !datapath.empty()) {
-		const bool from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
+		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		traj_mgr.clear();
 		cgv::utils::stopwatch s(true);
 		std::cout << "Reading data set from " << datapath << " ..." << std::endl;
@@ -279,37 +380,14 @@ void tubes::on_set(void *member_ptr) {
 			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 			dataset.files.clear();
 			dataset.files.emplace(datapath);
-			render.data = &(traj_mgr.get_render_data());
-			//if (from_demo) {
-			//	ao_style = ao_style_bak;
-			//	update_member(&ao_style);
-			//}
-			update_attribute_bindings();
-			update_grid_ratios();
 
-			update_glyph_layer_manager();
-
-			compile_glyph_attribs();
-			ah_mgr.set_dataset(traj_mgr.dataset(0));
-
-			context &ctx = *get_context();
-			tube_shading_defines = build_tube_shading_defines();
-			shaders.reload(ctx, "tube_shading", tube_shading_defines);
-
-			// reset glyph layer configuration file
-			fh.file_name = "";
-			fh.has_unsaved_changes = false;
-			update_member(&fh.file_name);
-			on_set(&fh.has_unsaved_changes);
-			std::cout << "datapath" << std::endl;
-
-			post_recreate_gui();
+			data_set_changed = true;
 		}
 	}
 	// - non-configurable dataset logic
 	else if(member_ptr == &dataset) {
+		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		// clear current dataset
-		const bool from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		datapath.clear();
 		traj_mgr.clear();
 
@@ -324,34 +402,35 @@ void tubes::on_set(void *member_ptr) {
 		update_member(&datapath);
 
 		// update render state
-		if(loaded_something) {
-			render.data = &(traj_mgr.get_render_data());
-			//if (from_demo) {
-			//	ao_style = ao_style_bak;
-			//	update_member(&ao_style);
-			//}
-			update_attribute_bindings();
-			update_grid_ratios();
+		if(loaded_something)
+			data_set_changed = true;
+	}
 
-			update_glyph_layer_manager();
-
-			compile_glyph_attribs();
-			ah_mgr.set_dataset(traj_mgr.dataset(0));
-
-			context &ctx = *get_context();
-			tube_shading_defines = build_tube_shading_defines();
-			shaders.reload(ctx, "tube_shading", tube_shading_defines);
-
-			// reset glyph layer configuration file
-			fh.file_name = "";
-			fh.has_unsaved_changes = false;
-			update_member(&fh.file_name);
-			on_set(&fh.has_unsaved_changes);
-
-			std::cout << "data set" << std::endl;
-
-			post_recreate_gui();
+	if(data_set_changed) {
+		render.data = &(traj_mgr.get_render_data());
+		if(from_demo) {
+			ao_style = ao_style_bak;
+			update_member(&ao_style);
 		}
+		update_attribute_bindings();
+		update_grid_ratios();
+
+		update_glyph_layer_manager();
+
+		compile_glyph_attribs();
+		ah_mgr.set_dataset(traj_mgr.dataset(0));
+
+		context &ctx = *get_context();
+		tube_shading_defines = build_tube_shading_defines();
+		shaders.reload(ctx, "tube_shading", tube_shading_defines);
+
+		// reset glyph layer configuration file
+		fh.file_name = "";
+		fh.has_unsaved_changes = false;
+		update_member(&fh.file_name);
+		on_set(&fh.has_unsaved_changes);
+
+		post_recreate_gui();
 	}
 
 	// render settings
@@ -392,6 +471,11 @@ void tubes::on_set(void *member_ptr) {
 		context& ctx = *get_context();
 		voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(cgv::math::clamp(static_cast<unsigned>(voxel_grid_resolution), 16u, 512u));
 		create_density_volume(ctx, voxel_grid_resolution);
+
+		if(member_ptr == &render.style.radius_scale) {
+			update_grid_ratios();
+			glyphs_out_of_date(true);
+		}
 	}
 
 	// visualization settings
@@ -655,6 +739,10 @@ bool tubes::save_layer_configuration(const std::string& file_name) {
 				content += put("sampling", "uniform");
 				content += put("sampling_step", std::to_string(gam.get_sampling_step()));
 				break;
+			case ASS_EQUIDIST:
+				content += put("sampling", "equidist");
+				content += put("sampling_step", std::to_string(gam.get_sampling_step()));
+				break;
 			}
 
 			content += ">\n";
@@ -719,13 +807,11 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 	if(!cgv::utils::file::exists(file_name) || cgv::utils::to_upper(cgv::utils::file::get_extension(file_name)) != "XML")
 		return false;
 
-
 	bool read_color_maps = false;
 	std::vector<std::string> color_map_lines;
 
 	bool read_layers = false;
 	std::vector<cgv::utils::xml_tag> layer_data;
-
 
 	std::string content;
 	cgv::utils::file::read(file_name, content, true);
@@ -777,10 +863,6 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 		}
 	}
 
-
-
-
-	
 	std::vector<std::string> color_map_names;
 	std::vector<cgv::glutil::color_map> color_maps;
 	if(cgv::glutil::color_map_reader::read_from_xml(color_map_lines, color_map_names, color_maps)) {
@@ -817,7 +899,6 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 		return idx;
 	};
 	
-
 	const auto read_vec2 = [](const std::string& str) {
 		size_t space_pos = str.find_first_of(" ");
 		size_t last_space_pos = 0;
@@ -892,6 +973,8 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 						gam.set_sampling_strategy(ASS_AT_SAMPLES);
 					} else if(str == "uniform") {
 						gam.set_sampling_strategy(ASS_UNIFORM);
+					} else if (str == "equidist") {
+						gam.set_sampling_strategy(ASS_EQUIDIST);
 					}
 				}
 
@@ -1052,7 +1135,51 @@ bool tubes::compile_glyph_attribs (void)
 {
 	bool success = false;
 	if(glyph_layers_config.layer_configs.size() > 0) {
+#if 0
 		success = compile_glyph_attribs_front();
+#else
+		cgv::utils::stopwatch s(true);
+		std::cout << "Compiling glyph attributes... ";
+
+		glyph_compiler gc;
+		gc.length_scale = general_settings.length_scale;
+		gc.include_hidden_glyphs = include_hidden_glyphs;
+
+		const auto &dataset = traj_mgr.dataset(0);
+
+		success = gc.compile_glyph_attributes(dataset, render.arclen_data, glyph_layers_config);
+
+		// get context
+		const auto &ctx = *get_context();
+
+		for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
+			if(gc.layer_filled[layer_idx]) {
+				const auto& ranges = gc.layer_ranges[layer_idx];
+				const auto& attribs = gc.layer_attribs[layer_idx];
+				// - sanity check
+				{
+					const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size()) / 2;
+					assert(num_ranges == num_segs);
+				}
+
+				// - upload
+				vertex_buffer& attribs_sbo = render.attribs_sbos[layer_idx];
+				vertex_buffer& aindex_sbo = render.aindex_sbos[layer_idx];
+
+				// ...attrib nodes
+				attribs_sbo.destruct(ctx);
+				if(!attribs_sbo.create(ctx, attribs.data))
+					std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
+
+				// ...index ranges
+				aindex_sbo.destruct(ctx);
+				if(!aindex_sbo.create(ctx, ranges))
+					std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
+			}
+		}
+
+		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+#endif
 		glyphs_out_of_date(false);
 	}
 
@@ -1062,12 +1189,11 @@ bool tubes::compile_glyph_attribs (void)
 	return success;
 }
 
-bool tubes::compile_glyph_attribs_front(void) {
+/*bool tubes::compile_glyph_attribs_front(void) {
 	cgv::utils::stopwatch s(true);
 	std::cout << "Compiling glyph attributes... ";
 
 	// TODO: support multiple data sets? Out of scope for current paper/implementation.
-	// TODO: color glyphs still show some discontinuities (use debug data set and roma or berlin color map to see them)
 
 	// helper struct for range entries with start index i0 and count n
 	struct irange { int i0, n; };
@@ -1140,7 +1266,7 @@ bool tubes::compile_glyph_attribs_front(void) {
 		const glyph_shape* current_shape = layer_config.shape_ptr;
 		std::vector<const traj_attribute<float>*> mapped_attribs;
 		std::vector<const std::vector<range>*> attribs_trajs;
-		std::vector<vec2> attrib_data_ranges;
+		//std::vector<vec2> attrib_data_ranges;
 
 		for(size_t i = 0; i < layer_config.mapped_attributes.size(); ++i) {
 			int attrib_idx = layer_config.mapped_attributes[i];
@@ -1158,8 +1284,8 @@ bool tubes::compile_glyph_attribs_front(void) {
 			// no trajectory information for the attribute
 			attribs_trajs.push_back(&dataset.trajectories(attrib));
 
-			vec2 range(attrib.min(), attrib.max());
-			attrib_data_ranges.push_back(range);
+			//vec2 range(attrib.min(), attrib.max());
+			//attrib_data_ranges.push_back(range);
 
 			//std::cout << attrib_names[attrib_idx] << std::endl;
 		}
@@ -1198,7 +1324,7 @@ bool tubes::compile_glyph_attribs_front(void) {
 			unsigned traj_offset = 0;
 			for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
 				const auto &tube_traj = tube_trajs[trj];
-				const auto *alen = render.arclen_data.data();
+				const auto *alen = render.arclen_data.t_to_s.data();
 				const unsigned num_segments = tube_traj.n - 1;
 				const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count();
 
@@ -1214,46 +1340,33 @@ bool tubes::compile_glyph_attribs_front(void) {
 				// stores the current t at which we want to sample the attributes
 				float sample_t = 0.0f;
 				const float sample_step = layer_config.sampling_step;
-				// stores the minimum t over all current attribute sample points in each iteration
-				//float min_t;
-				// stores the index of the attribute with the minimum t
-				unsigned min_a_idx = 0;
 
+				// initializa all attribute index pairs to point to the first two attributes
+				// and gather the total count of attributes for this trajectory
 				bool run = true;
-				for(size_t i = 0; i < attrib_indices.size(); ++i) {
+				for(size_t i = 0; i < attrib_count; ++i) {
 					const auto &traj_range = attribs_trajs[i]->at(trj);
 					unsigned idx = traj_range.i0;
 					attrib_indices[i] = uvec2(idx, idx + 1);
+					attrib_index_counts[i] = traj_range.i0 + traj_range.n;
+
 					if(traj_range.n < 2) // single-sample trajectory, assignment doesn't make sense here
 						run &= false;
 				}
 				run &= seg < num_segments;
 
 				// TODO: make this adapt to data set?
-				if(sample_step < 0.01) {
+				if(sample_step < 0.005) {
 					std::cout << "sample step too low" << std::endl;
 					run = false;
 				}
 
-
-
-
-				for(size_t i = 0; i < attrib_count; ++i) {
-					const auto &traj_range = attribs_trajs[i]->at(trj);
-					attrib_index_counts[i] = traj_range.i0 + traj_range.n;
-				}
-
-
-
-
+				// test if the first sample time point is before the first attribute sample for each attribute
 				for(size_t i = 0; i < attrib_count; ++i) {
 					auto a = mapped_attribs[i]->signed_magnitude_at(attrib_indices[i].x());
-					//data_points[i] = a;
-					if(sample_t < a.t) {
+					if(sample_t < a.t) // if yes, set the indices of this attribute to both point to the very first sample
 						attrib_indices[i].y() = attrib_indices[i].x();
-					}
 				}
-
 
 
 
@@ -1267,14 +1380,13 @@ bool tubes::compile_glyph_attribs_front(void) {
 					//	// TODO: this fails when using the debug-size dataset
 					//	assert(a.t >= mapped_attribs[0]->signed_magnitude_at(i - 1).t);
 
-
-					
-					
+					// iterate over each attribute
 					for(size_t i = 0; i < attrib_count; ++i) {
 						const auto& mapped_attrib = mapped_attribs[i];
 						uvec2& indices = attrib_indices[i];
 						const unsigned count = attrib_index_counts[i];
 						
+						// increment indices until the sample time point lies between the first and second attribute sample
 						while(
 							sample_t > mapped_attrib->signed_magnitude_at(indices.y()).t &&
 							indices.x() < count - 1
@@ -1283,20 +1395,6 @@ bool tubes::compile_glyph_attribs_front(void) {
 							indices.y() = std::min(indices.x() + 1, count - 1);
 						}
 					}
-
-
-
-
-					//min_t = std::numeric_limits<float>::max();
-
-					/*for(size_t i = 0; i < attrib_count; ++i) {
-						auto a = mapped_attribs[i]->signed_magnitude_at(attrib_indices[i]);
-						data_points[i] = a;
-						if(a.t < min_t) {
-							min_a_idx = (unsigned)i;
-							min_t = a.t;
-						}
-					}*/
 
 					// advance segment pointer
 					auto segtime = segment_time_get(P, tube_traj, seg);
@@ -1324,35 +1422,25 @@ bool tubes::compile_glyph_attribs_front(void) {
 					const unsigned global_seg = traj_offset + seg;
 
 					// commit the attribute if it falls into the current segment
-					if((sample_t >= segtime.t0 && sample_t < segtime.t1)
-						|| (seg == num_segments - 1 && sample_t <= segtime.t1)) {
+					if((seg == num_segments - 1 || sample_t >= segtime.t0) && sample_t <= segtime.t1) {
 						// compute segment-relative t and arclength
 						const float t_seg = (sample_t - segtime.t0) / (segtime.t1 - segtime.t0),
 							s = arclen::eval(alen[global_seg], t_seg);
-						
+
+						// interpolate each mapped attribute value
 						for(size_t i = 0; i < attrib_count; ++i) {
 							const uvec2& attrib_idx = attrib_indices[i];
-							//unsigned attrib_idx = attrib_indices[i];
 
-							float val = 0.0f;
+							auto a0 = mapped_attribs[i]->signed_magnitude_at(attrib_idx.x());
+							auto a1 = mapped_attribs[i]->signed_magnitude_at(attrib_idx.y());
 
-							//if(attrib_idx.x() == attrib_idx.y()) {
-							//	auto a0 = mapped_attribs[i]->signed_magnitude_at(attrib_idx.y());
-							//	val = a0.val;
-							//} else {
-								auto a0 = mapped_attribs[i]->signed_magnitude_at(attrib_idx.x());
-								auto a1 = mapped_attribs[i]->signed_magnitude_at(attrib_idx.y());
+							float denom = a1.t - a0.t;
 
-								float denom = a1.t - a0.t;
+							float t = 0.0f;
+							if(abs(denom) > std::numeric_limits<float>::epsilon())
+								t = (sample_t - a0.t) / denom;
 
-								float t = 0.0f;
-								if(abs(denom) > std::numeric_limits<float>::epsilon())
-									t = (sample_t - a0.t) / denom;
-
-								val = cgv::math::lerp(a0.val, a1.val, t);
-							//}
-
-							attrib_values[i] = val;
+							attrib_values[i] = cgv::math::lerp(a0.val, a1.val, t);
 						}
 
 						// setup parameters of potential glyph
@@ -1387,14 +1475,6 @@ bool tubes::compile_glyph_attribs_front(void) {
 								cur_range.i0 = (unsigned)attribs.glyph_count();
 								cur_range.n = 1;
 
-								// handle overlap to previous segment (this only works for a single previous segment)
-								/*if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size) {
-									// if there have been no glyphs comitted to the previous segment until now, also update its start index
-									if(ranges[global_seg - 1].n == 0)
-										ranges[global_seg - 1].i0 = cur_range.i0;
-									ranges[global_seg - 1].n++;
-								}*/
-
 								// handle overlap to the previous segments
 								if(seg > 0) {
 									int prev_seg = static_cast<int>(global_seg - 1);
@@ -1420,9 +1500,6 @@ bool tubes::compile_glyph_attribs_front(void) {
 							attribs.add(s);
 							int debug_info = 0;
 
-							debug_info |= 0;// num_interpolated;
-							debug_info |= min_a_idx << 2;
-
 							if(include_glyph)
 								debug_info |= 0x1000;
 
@@ -1437,29 +1514,20 @@ bool tubes::compile_glyph_attribs_front(void) {
 							last_commited_s = s;
 						}
 
-					} else {
-						// If the attrib does not fall into the current segment something is out of order.
-						// We just increment the attribute index with the minimal timestamp.
-						//has_sample[min_a_idx] = true;
 					}
 
-					// increment indices and check whether the indices of all attributes have reached the end
+					// check whether the indices of all attributes have reached the end
 					for(size_t i = 0; i < attrib_count; ++i) {
-						//const auto &traj_range = attribs_trajs[i]->at(trj);
-						//const unsigned max_attrib_index = traj_range.i0 + traj_range.n;
-						//// only increment indices of attributes that have a sample at the current location (min_a.t)
-						//if(has_sample[i])
-						//	attrib_indices[i] = std::min(max_attrib_index, ++attrib_indices[i]);
 						if(attrib_indices[i].x() >= attrib_index_counts[i] - 1)
 							run &= false;
 					}
 
 					run &= seg < num_segments;
-					++glyph_idx;
+					//++glyph_idx;
 					//if(glyph_idx >= max_glyph_count)
 					//	run = false;
 
-
+					// increment the sample time point
 					sample_t += sample_step;
 				}
 
@@ -1496,7 +1564,7 @@ bool tubes::compile_glyph_attribs_front(void) {
 			unsigned traj_offset = 0;
 			for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
 				const auto &tube_traj = tube_trajs[trj];
-				const auto *alen = render.arclen_data.data();
+				const auto *alen = render.arclen_data.t_to_s.data();
 				const unsigned num_segments = tube_traj.n - 1;
 				const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count();
 
@@ -1575,8 +1643,9 @@ bool tubes::compile_glyph_attribs_front(void) {
 					const unsigned global_seg = traj_offset + seg;
 
 					// commit the attribute if it falls into the current segment
-					if((min_t >= segtime.t0 && min_t < segtime.t1)
-						|| (seg == num_segments - 1 && min_t <= segtime.t1)) {
+					//if((min_t >= segtime.t0 && min_t < segtime.t1)
+					//	|| (seg == num_segments - 1 && min_t <= segtime.t1)) {
+					if((seg == num_segments - 1 || min_t >= segtime.t0) && min_t <= segtime.t1) {
 						// compute segment-relative t and arclength
 						const float t_seg = (min_t - segtime.t0) / (segtime.t1 - segtime.t0),
 							s = arclen::eval(alen[global_seg], t_seg);
@@ -1642,7 +1711,7 @@ bool tubes::compile_glyph_attribs_front(void) {
 									if(ranges[global_seg - 1].n == 0)
 										ranges[global_seg - 1].i0 = cur_range.i0;
 									ranges[global_seg - 1].n++;
-								}*/
+								}*
 
 								// handle overlap to the previous segments
 								if(seg > 0) {
@@ -1718,7 +1787,6 @@ bool tubes::compile_glyph_attribs_front(void) {
 
 
 
-		
 
 
 
@@ -1781,7 +1849,7 @@ bool tubes::compile_glyph_attribs_front(void) {
 
 	// done!
 	return true;
-}
+}*/
 
 bool tubes::init (cgv::render::context &ctx)
 {
@@ -1844,14 +1912,9 @@ bool tubes::init (cgv::render::context &ctx)
 
 	// generate demo
 	// - demo AO settings
-	//ao_style.enable = true;
-	//ao_style.cone_angle = 60.f;
-	//ao_style.sample_offset = 0.08f;
-	//ao_style.sample_distance = 0.5f;
-	//ao_style.strength_scale = 7.5f;
-	//ao_style.generate_sample_directions();
-	//ao_style_bak = ao_style;
-	//update_member(&ao_style);
+	ao_style_bak = ao_style;
+	ao_style.strength_scale = 15.0f;
+	update_member(&ao_style);
 	// - demo geometry
 	constexpr unsigned seed = 11;
 #ifdef _DEBUG
@@ -1956,12 +2019,12 @@ void tubes::init_frame (cgv::render::context &ctx)
 		}
 	}
 
-	if (misc_cfg.fix_view_up_dir_proxy)
+	if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
 		// ToDo: make stereo view interactors reflect this property
 		/*dynamic_cast<stereo_view_interactor*>(find_view_as_node())->set(
 			"fix_view_up_dir", misc_cfg.fix_view_up_dir_proxy
 		);*/
-		find_view_as_node()->set_view_up_dir(0, 1, 0);
+		view_ptr->set_view_up_dir(0, 1, 0);
 
 	// keep the frame buffer up to date with the viewport size
 	fbc.ensure(ctx);
@@ -2010,10 +2073,14 @@ void tubes::init_frame (cgv::render::context &ctx)
 	}
 
 	if(benchmark.requested) {
-		misc_cfg.instant_redraw_proxy = true;
-		misc_cfg.vsync_proxy = false;
-		on_set(&misc_cfg.instant_redraw_proxy);
-		on_set(&misc_cfg.vsync_proxy);
+		if(!misc_cfg.instant_redraw_proxy) {
+			misc_cfg.instant_redraw_proxy = true;
+			on_set(&misc_cfg.instant_redraw_proxy);
+		}
+		if(misc_cfg.vsync_proxy) {
+			misc_cfg.vsync_proxy = false;
+			on_set(&misc_cfg.vsync_proxy);
+		}
 
 		if(!benchmark.running) {
 			benchmark.running = true;
@@ -2030,8 +2097,20 @@ void tubes::init_frame (cgv::render::context &ctx)
 			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 	}
 
-	//srd.clear();
-	//srd.add(vec3(0.0f), 1.0f, rgb(1, 0, 0));
+	if(!benchmark_mode_setup && benchmark_mode) {
+		misc_cfg.instant_redraw_proxy = true;
+		on_set(&misc_cfg.instant_redraw_proxy);
+		misc_cfg.vsync_proxy = false;
+		on_set(&misc_cfg.vsync_proxy);
+		show_bbox = false;
+		update_member(&show_bbox);
+		cm_viewer_ptr->set_visibility(false);
+		navigator_ptr->set_visibility(false);
+		debug.far_extent_factor = 0.4;
+		debug.near_extent_factor = 0.333333*debug.far_extent_factor;
+		set_view();
+		benchmark_mode_setup = true;
+	}
 }
 
 void tubes::draw (cgv::render::context &ctx)
@@ -2120,9 +2199,9 @@ void tubes::create_gui(void) {
 
 	if(begin_tree_node("AO Style", ao_style, false)) {
 		align("\a");
-		add_member_control(this, "Voxelize GPU", voxelize_gpu, "check");
-		add_member_control(this, "Voxel Grid Resolution", voxel_grid_resolution, "dropdown", "enums='16=16, 32=32, 64=64, 128=128, 256=256, 512=512'");
 		add_gui("ao_style", ao_style);
+		add_member_control(this, "Voxel Grid Resolution", voxel_grid_resolution, "dropdown", "enums='16=16, 32=32, 64=64, 128=128, 256=256, 512=512'");
+		add_member_control(this, "Voxelize using GPU", voxelize_gpu, "check");
 		align("\b");
 		end_tree_node(ao_style);
 	}
@@ -2270,7 +2349,7 @@ void tubes::set_view(void)
 	if (!view_ptr || !traj_mgr.has_data()) return;
 
 	view_ptr->set_focus(bbox.get_center());
-	double extent_factor = 0.8;
+	double extent_factor = debug.near_view ? debug.near_extent_factor : debug.far_extent_factor;
 	view_ptr->set_y_extent_at_focus(extent_factor * (double)length(bbox.get_extent()));
 
 	auto* cview_ptr = dynamic_cast<cgv::render::clipped_view*>(view_ptr);
@@ -2291,6 +2370,8 @@ void tubes::update_grid_ratios(void) {
 			sum += ds.irange.n * double(ds.irange.med_radius);
 		}
 		double mean_rad = sum / double(num);
+		// adjust by the current radius scale
+		mean_rad *= render.style.radius_scale;
 		// we base everything on the mean of all trajectory median radii
 		grids[0].scaling.x() = general_settings.length_scale = 1.f / float(mean_rad);
 		//grids[0].scaling.y() = grids[0].scaling.x()/4;
@@ -2302,8 +2383,8 @@ void tubes::update_grid_ratios(void) {
 		{
 			update_member(&(grids[i].scaling[0]));
 			update_member(&(grids[i].scaling[1]));
-			update_member(&general_settings.length_scale);
 		}
+		update_member(&general_settings.length_scale);
 	}
 }
 
@@ -2331,8 +2412,8 @@ void tubes::update_attribute_bindings(void) {
 		std::cout << "Computing arclength parametrization... ";
 
 		render.arclen_sbo.destruct(ctx);
-		render.arclen_data = arclen::compile_renderdata(traj_mgr);
-		render.arclen_sbo = arclen::upload_renderdata(ctx, render.arclen_data);
+		render.arclen_data = arclen::compute_parametrization(traj_mgr);
+		render.arclen_sbo = arclen::upload_renderdata(ctx, render.arclen_data.t_to_s);
 		
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
@@ -2664,7 +2745,8 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.enable_attachment(ctx, "position", 1);
 	fbc.enable_attachment(ctx, "normal", 2);
 	fbc.enable_attachment(ctx, "tangent", 3);
-	fbc.enable_attachment(ctx, "info", 4);
+	// disabled for performance testing since it is unused for now
+	//fbc.enable_attachment(ctx, "info", 4);
 	fbc.enable_attachment(ctx, "depth", 5);
 	density_tex.enable(ctx, 6);
 	color_map_mgr.ref_texture().enable(ctx, 7);
@@ -2693,7 +2775,8 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.disable_attachment(ctx, "position");
 	fbc.disable_attachment(ctx, "normal");
 	fbc.disable_attachment(ctx, "tangent");
-	fbc.disable_attachment(ctx, "info");
+	// disabled for performance testing since it is unused for now
+	//fbc.disable_attachment(ctx, "info");
 	fbc.disable_attachment(ctx, "depth");
 	density_tex.disable(ctx);
 	color_map_mgr.ref_texture().disable(ctx);
@@ -2740,6 +2823,7 @@ shader_define_map tubes::build_tube_shading_defines() {
 	
 	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
 		const auto& lc = glyph_layers_config.layer_configs[i];
+		shader_code::set_define(defines, "L" + std::to_string(i) + "_VISIBLE", lc.visible, true);
 		shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
 		shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
 	}

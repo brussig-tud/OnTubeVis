@@ -197,15 +197,15 @@ template <typename FLOAT_TYPE> struct Bezier {
      * arc length.
      * Uses the Bézier-Approximation algorithm to calculate the length at each point.
      */
-    ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE> *
+    ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>
     parameterization_subdivision_bezier_approximation(int depth = 100, int numSegments = 3) const {
-        auto result = new ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>();
-        result->depth = depth;
-        result->arcLength = arc_length_bezier_approximation(numSegments);
+        ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE> result;
+        result.depth = depth;
+        result.arcLength = arc_length_bezier_approximation(numSegments);
         return result;
     }
 
-    [[nodiscard]] ParameterizationBezierApproximation<FLOAT_TYPE> *
+    [[nodiscard]] ParameterizationBezierApproximation<FLOAT_TYPE>
     parameterization_bezier_approximation(int numSegments, int numSamples = 100) const;
 
     void to_csv(const std::string &fileName, int numTestPoints = 100, bool evenPointDistribution = false) const;

@@ -78,7 +78,8 @@ layout (location = 0) out vec4 frag_albedo;
 layout (location = 1) out vec3 frag_position;
 layout (location = 2) out vec3 frag_normal;
 layout (location = 3) out vec3 frag_tangent;
-layout (location = 4) out uvec4 frag_info;
+// disabled for performance testing since it is unused for now
+//layout (location = 4) out uvec4 frag_info;
 
 // arclen approximations SBO
 layout (std430, binding = 1) readonly buffer arclen_buffer { 
@@ -788,8 +789,14 @@ void main()
 		// transform the tangent from object space to eye space
 		tangent = normalize(get_normal_matrix() * tangent);
 #endif
+		// calculate a bitangent which is orthogonal to the plane defined by the tangent and the vector from the eye position to the hit position
 		vec3 b = normalize(cross(tangent, hit.sp));
-		float v = acos(dot(b, hit.normal)) * M_INV_PI * 0.5;
+		// the texture coordinate around the tubes perimeter is the acos of the dot product between the normal and the bitangent
+		// normalized to [0,1]
+		// since we are only interested in the eye-facing side of the tube, acos is sufficient here
+		float v = acos(dot(b, hit.normal)) * M_INV_PI;
+
+		//float v = -dot(b, hit.normal);
 		
 		// Activate to use radius correction (deactivate transformation in screen pass fragment shader)
 		/*v *= 2.0;
@@ -807,7 +814,8 @@ void main()
 		frag_position = vec3(hit_pos_eye);
 		frag_normal = hit.normal;
 		frag_tangent = tangent;
-		frag_info = uvec4(gl_FragCoord.x, gl_FragCoord.y, 0, 1); // CPU-side debugging for now - should eventually store ID(s) that enable tracking the front-most segment covering the pixel
+		// disabled for performance testing since it is unused for now
+		//frag_info = uvec4(gl_FragCoord.x, gl_FragCoord.y, 0, 1); // CPU-side debugging for now - should eventually store ID(s) that enable tracking the front-most segment covering the pixel
 	}
 #endif
 }

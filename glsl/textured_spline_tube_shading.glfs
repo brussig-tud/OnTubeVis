@@ -10,12 +10,16 @@
 #define CONSTANT_FLOAT_UNIFORM_COUNT 0
 #define CONSTANT_COLOR_UNIFORM_COUNT 0
 #define MAPPING_PARAMETER_UNIFORM_COUNT 0
+#define L0_VISIBLE 1
 #define L0_MAPPED_ATTRIB_COUNT 0
 #define L0_GLYPH_DEFINITION
+#define L1_VISIBLE 1
 #define L1_MAPPED_ATTRIB_COUNT 0
 #define L1_GLYPH_DEFINITION
+#define L2_VISIBLE 1
 #define L2_MAPPED_ATTRIB_COUNT 0
 #define L2_GLYPH_DEFINITION
+#define L3_VISIBLE 1
 #define L3_MAPPED_ATTRIB_COUNT 0
 #define L3_GLYPH_DEFINITION
 
@@ -37,7 +41,8 @@ layout (binding = 0) uniform sampler2D albedo_tex;
 layout (binding = 1) uniform sampler2D position_tex;
 layout (binding = 2) uniform sampler2D normal_tex;
 layout (binding = 3) uniform sampler2D tangent_tex;
-layout (binding = 4) uniform sampler2D info_tex; // TODO: is this needed?
+// disabled for performance testing since it is unused for now
+//layout (binding = 4) uniform sampler2D info_tex;
 layout (binding = 5) uniform sampler2D depth_tex;
 layout (binding = 6) uniform sampler3D density_tex;
 layout (binding = 7) uniform sampler2D color_maps_tex;
@@ -83,7 +88,7 @@ uniform vec4 glyph_m_param[MAPPING_PARAMETER_UNIFORM_COUNT];
 
 uniform struct {
 	bool use_curvature_correction;
-	float length_scale; // only for testing purposes
+	float length_scale;
 	float antialias_radius;
 } general_settings;
 
@@ -218,6 +223,193 @@ float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
 
 	return 1.0 - clamp(ambient_occlusion.strength_scale * ao / 3.0, 0.0, 1.0);
 }
+
+
+
+
+
+
+
+
+
+
+
+float grid_texture_fuzzy(in vec2 p, in float n) {
+	// coordinates
+	vec2 s = fract(p + 0.5*n);
+	vec2 t = clamp(s / n, 0.0, 1.0);
+
+	vec2 i = sin(M_PI*t);
+	return max(i.x, i.y);
+}
+
+float grid_texture_aa(in vec2 p, in float n, float aa_strength) {
+	// pre-filter AA preparations
+	const float na = n*0.5, nb = 1.0-n*0.5;
+	const vec2 p_frac = fract(p), w = aa_strength*fwidth(p);
+
+	// coordinates
+	const vec2 i = vec2(1) - smoothstep(na-w, na+w, p_frac) + smoothstep(nb-w, nb+w, p_frac);
+
+	//pattern (from https://www.shadertoy.com/view/XtBfzz)
+	return 1.0 - (1.0-i.s)*(1.0-i.t);	// grid
+	//return 1.0-i.s*i.t;				// squares
+	//return 1.0-i.s-i.t+2.0*i.s*i.t;	// checker
+}
+
+float checker_texture_aa(in vec2 p, in float n, float aa_strength) {
+	// pre-filter AA preparations
+	const float na = n*0.5, nb = 1.0-n*0.5;
+	const vec2 p_frac = fract(p), w = aa_strength*fwidth(p);
+
+	// coordinates
+	const vec2 i = vec2(1) - smoothstep(na-w, na+w, p_frac) + smoothstep(nb-w, nb+w, p_frac);
+
+	//pattern (from https://www.shadertoy.com/view/XtBfzz)
+	return 1.0-i.s-i.t+2.0*i.s*i.t;	// checker
+}
+
+float grid_texture(in vec2 p, in float n) {
+#if ENABLE_FUZZY_GRID == 1
+	return grid_texture_fuzzy(p, n);
+#else
+	return grid_texture_aa(p, n , 1);
+#endif
+}
+
+float aa_texture(in vec2 p, in float n, float aa_strength) {
+	// pre-filter AA preparations
+	const float na = n*0.5, nb = 1.0-n*0.5;
+	const vec2 p_frac = fract(p), w = 2*aa_strength*fwidth(p);
+
+	// coordinates
+	const vec2 i = vec2(1) - smoothstep(na-w, vec2(na), p_frac) + smoothstep(vec2(nb), nb+w, p_frac);
+
+	//pattern (from https://www.shadertoy.com/view/XtBfzz)
+	return 1.0 - (1.0-i.s)*(1.0-i.t);	// grid
+	//return 1.0-i.s*i.t;				// squares
+	//return 1.0-i.s-i.t+2.0*i.s*i.t;	// checker
+}
+
+vec3 grid_normal(in vec2 p, in float n) {
+
+	// coordinates
+	vec2 s = fract(p + 0.5*n);
+	vec2 t = clamp(s / n, 0.0, 1.0);
+
+#if (GRID_NORMAL_SETTINGS & 3) == 0
+#if GRID_NORMAL_SETTINGS & 8
+	vec2 xy = sin(0.5*M_PI*sin(2.0*M_PI*t));
+	vec2 z = 0.5*sin(0.5*M_PI*cos(2.0*M_PI*t)) + 0.5;
+#else
+	vec2 xy = sin(2.0*M_PI*t);
+	vec2 z = 0.5*cos(2.0*M_PI*t) + 0.5;
+#endif
+	vec3 normal = normalize(vec3(-xy.x, xy.y, max(z.x, z.y)));
+#elif (GRID_NORMAL_SETTINGS & 3) == 1
+	vec2 i = sin(M_PI*t);
+	vec2 xy = sin(2.0*M_PI*t);
+
+	vec3 normal = vec3(0.0, 0.0, 0.0);
+#if GRID_NORMAL_SETTINGS & 8
+	vec3 n0 = vec3(-xy.x, 0.0, 0.0);
+	vec3 n1 = vec3(0.0, xy.y, 0.0);
+
+	float d = abs(i.x - i.y);
+	float sum = i.x + i.y;
+
+	if(i.x > i.y) normal = n0;
+	else normal = n1;
+
+	if(d < 0.2) {
+		float a = 1.0 - d / 0.2;
+		vec3 n2 = 0.5*(n0 + n1);
+		normal = mix(normal, n2, a);
+	}
+	float v = normal.x*normal.x + normal.y*normal.y;
+	normal.z = (v >= 0.99999) ? 0.0 : sqrt(1.0 - v);
+#else
+	if(i.x > i.y) normal.x = -xy.x;
+	else normal.y = xy.y;
+
+	float v = normal.x + normal.y;
+	v *= v;
+	normal.z = (v >= 0.99999) ? 0.0 : sqrt(1.0 - v);
+#endif
+
+#elif (GRID_NORMAL_SETTINGS & 3) == 2
+	vec2 i = sin(M_PI*t);
+#if GRID_NORMAL_SETTINGS & 8
+	vec2 xy = sin(0.5*M_PI*sin(2.0*M_PI*t));
+	vec2 z = 0.5*sin(0.5*M_PI*cos(2.0*M_PI*t)) + 0.5;
+#else
+	vec2 xy = sin(2.0*M_PI*t);
+	vec2 z = 0.5*cos(2.0*M_PI*t) + 0.5;
+#endif
+
+	vec3 normal;
+	if(i.x > i.y) normal = vec3(-xy.x, 0.0, z.x);
+	else normal = vec3(0.0, xy.y, z.y);
+
+    normal = normalize(normal);
+#elif (GRID_NORMAL_SETTINGS & 3) == 3
+	vec2 i = sin(M_PI*t);
+#if GRID_NORMAL_SETTINGS & 8
+	vec2 xy = sin(0.5*M_PI*sin(2.0*M_PI*t));
+	vec2 z = 0.5*sin(0.5*M_PI*cos(2.0*M_PI*t)) + 0.5;
+#else
+	vec2 xy = sin(2.0*M_PI*t);
+	vec2 z = 0.5*cos(2.0*M_PI*t) + 0.5;
+#endif
+	
+	vec3 normal = vec3(0.0, 0.0, max(z.x, z.y));
+	if(i.x > i.y) normal.x = -xy.x;
+	else normal.y = xy.y;
+
+    normal = normalize(normal);
+#endif
+
+#if GRID_NORMAL_SETTINGS & 4
+	normal.xy = -normal.xy;
+#endif
+
+    return normal;
+}
+
+float compute_grid_factor(vec2 uv) {
+	float l = general_settings.length_scale;
+	//if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
+	//	return 0.0;
+
+	float grid_factor = 0.0;
+	grid_factor = grids[0].blend_factor * grid_texture(grids[0].scaling*uv, grids[0].thickness);
+	grid_factor = max(grid_factor, grids[1].blend_factor * grid_texture(grids[1].scaling*uv, grids[1].thickness));
+	return min(grid_factor, 1.0);
+}
+
+vec3 compute_grid_normal(vec2 uv) {
+	float l = general_settings.length_scale;
+	//if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
+	//	return vec3(0.0, 0.0, 1.0);
+	
+	vec3 normal = vec3(0.0, 0.0, 1.0);
+	vec3 normal0 = mix(normal, grid_normal(grids[0].scaling*uv, grids[0].thickness), grids[0].blend_factor);
+	vec3 normal1 = mix(normal, grid_normal(grids[1].scaling*uv, grids[1].thickness), grids[1].blend_factor);
+
+	float grid_blend_factor = grid_texture(grids[0].scaling*uv, grids[0].thickness);
+	return normalize(mix(normal0, normal1, 1.0 - grid_blend_factor));
+}
+
+
+
+
+
+
+
+
+
+
+
 
 // remap value v from range [r.x,r.y] to [r.z,r.w]
 float remap(float v, vec4 r) {
@@ -801,6 +993,7 @@ vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_
 	const vec2 antialias_width = general_settings.antialias_radius*fwidth(dist2); \
 	vec2 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist2); \
 	vec3 glyph_color = glyph_cc_param[color_base_idx + idx]; \
+	\
 	if(outline < 0.01) { \
 		return vec4(glyph_color, alpha.x); \
 	} else { \
@@ -808,6 +1001,17 @@ vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_
 		return mix(color, vec4(glyph_color, 1.0), alpha.x); \
 	} \
 }
+
+// other form of violin shows absolute value in width and shows negative values with checker board texture
+// change clamp_remap on v to clamp_remap11
+// change val = clamp(val, 0.0, 1.0); to val = clamp(val, -1.0, 1.0);
+// add after interpolation step:
+//bool neg = val < 0.0; \
+//val = mix(range.z, range.w, abs(val)); \
+// add after glyph_color:
+//float gv = neg ? checker_texture_aa(vec2(general_settings.length_scale*4.0, 4.0)*p, 0.5, 1.0) : 1.0;\
+// change return vec4(glyph_color, alpha.x); to return vec4(glyph_color, gv * alpha.x);
+// change return mix(color, vec4(glyph_color, 1.0), alpha.x); to return mix(color, vec4(glyph_color, gv), alpha.x);
 
 /*#define DEF_SPLAT_VIOLIN(I, N) \
 vec4 splat_violin##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc##I gd_next, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline) { \
@@ -1056,159 +1260,7 @@ void finalize_glyph(in uint debug_info, in vec2 uv, in vec4 glyph_color, inout v
 	color = mix(color, icol, decimal_dot);*/
 }
 
-float grid_texture_fuzzy(in vec2 p, in float n) {
-	// coordinates
-	vec2 s = fract(p + 0.5*n);
-	vec2 t = clamp(s / n, 0.0, 1.0);
 
-	vec2 i = sin(M_PI*t);
-	return max(i.x, i.y);
-}
-
-float grid_texture_aa(in vec2 p, in float n, float aa_strength) {
-	// pre-filter AA preparations
-	const float na = n*0.5, nb = 1.0-n*0.5;
-	const vec2 p_frac = fract(p), w = aa_strength*fwidth(p);
-
-	// coordinates
-	const vec2 i = vec2(1) - smoothstep(na-w, na+w, p_frac) + smoothstep(nb-w, nb+w, p_frac);
-
-	//pattern (from https://www.shadertoy.com/view/XtBfzz)
-	return 1.0 - (1.0-i.s)*(1.0-i.t);	// grid
-	//return 1.0-i.s*i.t;				// squares
-	//return 1.0-i.s-i.t+2.0*i.s*i.t;	// checker
-}
-
-float grid_texture(in vec2 p, in float n) {
-#if ENABLE_FUZZY_GRID == 1
-	return grid_texture_fuzzy(p, n);
-#else
-	return grid_texture_aa(p, n , 1);
-#endif
-}
-
-float aa_texture(in vec2 p, in float n, float aa_strength) {
-	// pre-filter AA preparations
-	const float na = n*0.5, nb = 1.0-n*0.5;
-	const vec2 p_frac = fract(p), w = 2*aa_strength*fwidth(p);
-
-	// coordinates
-	const vec2 i = vec2(1) - smoothstep(na-w, vec2(na), p_frac) + smoothstep(vec2(nb), nb+w, p_frac);
-
-	//pattern (from https://www.shadertoy.com/view/XtBfzz)
-	return 1.0 - (1.0-i.s)*(1.0-i.t);	// grid
-	//return 1.0-i.s*i.t;				// squares
-	//return 1.0-i.s-i.t+2.0*i.s*i.t;	// checker
-}
-
-vec3 grid_normal(in vec2 p, in float n) {
-
-	// coordinates
-	vec2 s = fract(p + 0.5*n);
-	vec2 t = clamp(s / n, 0.0, 1.0);
-
-#if (GRID_NORMAL_SETTINGS & 3) == 0
-#if GRID_NORMAL_SETTINGS & 8
-	vec2 xy = sin(0.5*M_PI*sin(2.0*M_PI*t));
-	vec2 z = 0.5*sin(0.5*M_PI*cos(2.0*M_PI*t)) + 0.5;
-#else
-	vec2 xy = sin(2.0*M_PI*t);
-	vec2 z = 0.5*cos(2.0*M_PI*t) + 0.5;
-#endif
-	vec3 normal = normalize(vec3(-xy.x, xy.y, max(z.x, z.y)));
-#elif (GRID_NORMAL_SETTINGS & 3) == 1
-	vec2 i = sin(M_PI*t);
-	vec2 xy = sin(2.0*M_PI*t);
-
-	vec3 normal = vec3(0.0, 0.0, 0.0);
-#if GRID_NORMAL_SETTINGS & 8
-	vec3 n0 = vec3(-xy.x, 0.0, 0.0);
-	vec3 n1 = vec3(0.0, xy.y, 0.0);
-
-	float d = abs(i.x - i.y);
-	float sum = i.x + i.y;
-
-	if(i.x > i.y) normal = n0;
-	else normal = n1;
-
-	if(d < 0.2) {
-		float a = 1.0 - d / 0.2;
-		vec3 n2 = 0.5*(n0 + n1);
-		normal = mix(normal, n2, a);
-	}
-	float v = normal.x*normal.x + normal.y*normal.y;
-	normal.z = (v >= 0.99999) ? 0.0 : sqrt(1.0 - v);
-#else
-	if(i.x > i.y) normal.x = -xy.x;
-	else normal.y = xy.y;
-
-	float v = normal.x + normal.y;
-	v *= v;
-	normal.z = (v >= 0.99999) ? 0.0 : sqrt(1.0 - v);
-#endif
-
-#elif (GRID_NORMAL_SETTINGS & 3) == 2
-	vec2 i = sin(M_PI*t);
-#if GRID_NORMAL_SETTINGS & 8
-	vec2 xy = sin(0.5*M_PI*sin(2.0*M_PI*t));
-	vec2 z = 0.5*sin(0.5*M_PI*cos(2.0*M_PI*t)) + 0.5;
-#else
-	vec2 xy = sin(2.0*M_PI*t);
-	vec2 z = 0.5*cos(2.0*M_PI*t) + 0.5;
-#endif
-
-	vec3 normal;
-	if(i.x > i.y) normal = vec3(-xy.x, 0.0, z.x);
-	else normal = vec3(0.0, xy.y, z.y);
-
-    normal = normalize(normal);
-#elif (GRID_NORMAL_SETTINGS & 3) == 3
-	vec2 i = sin(M_PI*t);
-#if GRID_NORMAL_SETTINGS & 8
-	vec2 xy = sin(0.5*M_PI*sin(2.0*M_PI*t));
-	vec2 z = 0.5*sin(0.5*M_PI*cos(2.0*M_PI*t)) + 0.5;
-#else
-	vec2 xy = sin(2.0*M_PI*t);
-	vec2 z = 0.5*cos(2.0*M_PI*t) + 0.5;
-#endif
-	
-	vec3 normal = vec3(0.0, 0.0, max(z.x, z.y));
-	if(i.x > i.y) normal.x = -xy.x;
-	else normal.y = xy.y;
-
-    normal = normalize(normal);
-#endif
-
-#if GRID_NORMAL_SETTINGS & 4
-	normal.xy = -normal.xy;
-#endif
-
-    return normal;
-}
-
-float compute_grid_factor(vec2 uv) {
-	float l = general_settings.length_scale;
-	//if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
-	//	return 0.0;
-
-	float grid_factor = 0.0;
-	grid_factor = grids[0].blend_factor * grid_texture(grids[0].scaling*uv, grids[0].thickness);
-	grid_factor = max(grid_factor, grids[1].blend_factor * grid_texture(grids[1].scaling*uv, grids[1].thickness));
-	return min(grid_factor, 1.0);
-}
-
-vec3 compute_grid_normal(vec2 uv) {
-	float l = general_settings.length_scale;
-	//if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
-	//	return vec3(0.0, 0.0, 1.0);
-	
-	vec3 normal = vec3(0.0, 0.0, 1.0);
-	vec3 normal0 = mix(normal, grid_normal(grids[0].scaling*uv, grids[0].thickness), grids[0].blend_factor);
-	vec3 normal1 = mix(normal, grid_normal(grids[1].scaling*uv, grids[1].thickness), grids[1].blend_factor);
-
-	float grid_blend_factor = grid_texture(grids[0].scaling*uv, grids[0].thickness);
-	return normalize(mix(normal0, normal1, 1.0 - grid_blend_factor));
-}
 
 
 
@@ -1234,14 +1286,14 @@ void main()
 	} else {
 		vec2 uv = texcoord;
 
-		// Transform the texture coordinate v to go around the tube twice, i.e. from [0,1] to [0,2].
-		// That way the front side of the tube (half the radius), that is always visible to the camera,
-		// has coordinates in [0,1], while the back side lies in [1,2].
-		uv.t *= 2.0;
+		// The texture coordinate v (around the tube) lies in [0,1] at the front side (camera facing side) of the tube,
+		// with 0 at the top and 1 at the bottom of the visible part of the tube (if the bitangent is pointing up in screen space).
+		// The back side of the tube is parameterized in the same way, but we are only interested in the front side anyway.
+		
 		// Move the origin (0,0) to the center of the front side and scale the v coordinate to [-1,1]
 		uv.t = 2.0 * uv.t - 1.0;
 
-		// Correct the perspective shift caused by the curved tube surface by rescaling the v coordinate around the tube.
+		// Correct the perspective distortion caused by the curved tube surface by rescaling the v coordinate around the tube.
 		if(general_settings.use_curvature_correction)
 			uv.t = sin(0.5*M_PI*uv.t);
 
@@ -1265,7 +1317,7 @@ void main()
 
 		
 		// glyph layer 0
-#if L0_MAPPED_ATTRIB_COUNT > 0
+#if L0_VISIBLE > 0 && L0_MAPPED_ATTRIB_COUNT > 0
 		{
 			closest_glyphs_info closest;
 			vec2 glyphuv = uv;
@@ -1283,7 +1335,7 @@ void main()
 		}
 #endif
 		// glyph layer 1
-#if L1_MAPPED_ATTRIB_COUNT > 0
+#if L1_VISIBLE > 0 && L1_MAPPED_ATTRIB_COUNT > 0
 		{
 			closest_glyphs_info closest;
 			vec2 glyphuv = uv;
@@ -1301,7 +1353,7 @@ void main()
 		}
 #endif
 		// glyph layer 2
-#if L2_MAPPED_ATTRIB_COUNT > 0
+#if L2_VISIBLE > 0 && L2_MAPPED_ATTRIB_COUNT > 0
 		{
 			closest_glyphs_info closest;
 			vec2 glyphuv = uv;
@@ -1319,7 +1371,7 @@ void main()
 		}
 #endif
 		// glyph layer 3
-#if L3_MAPPED_ATTRIB_COUNT > 0
+#if L3_VISIBLE > 0 && L3_MAPPED_ATTRIB_COUNT > 0
 		{
 			closest_glyphs_info closest;
 			vec2 glyphuv = uv;
