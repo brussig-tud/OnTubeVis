@@ -45,8 +45,9 @@ tubes::tubes() : application_plugin("Tubes")
 	render.style.material.set_specular_reflectance({ 0.05f, 0.05f, 0.05f });
 	render.style.use_conservative_depth = true;
 	
-	brs.culling_mode = cgv::render::CM_FRONTFACE;
-	brs.illumination_mode = cgv::render::IM_TWO_SIDED;
+	bbox_style.culling_mode = cgv::render::CM_FRONTFACE;
+	bbox_style.illumination_mode = cgv::render::IM_TWO_SIDED;
+	bbox_style.surface_color = rgb(0.7f);
 
 	vstyle.enable_depth_test = false;
 
@@ -132,12 +133,14 @@ void tubes::handle_args (std::vector<std::string> &args)
 void tubes::clear(cgv::render::context &ctx) {
 	// decrease reference count of the renderers by one
 	ref_textured_spline_tube_renderer(ctx, -1);
+	ref_box_renderer(ctx, -1);
 	ref_box_wire_renderer(ctx, -1);
 	ref_cone_renderer(ctx, -1);
 	ref_sphere_renderer(ctx, -1);
 	ref_volume_renderer(ctx, -1);
 
 	bbox_rd.destruct(ctx);
+	bbox_wire_rd.destruct(ctx);
 
 	srd.destruct(ctx);
 	debug.node_rd.destruct(ctx);
@@ -159,9 +162,9 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("layer_config_file", fh.file_name) && // ToDo: figure out proper reflection name
 		rh.reflect_member("show_hidden_glyphs", include_hidden_glyphs) && // ToDo: which of these two names is better?
 		rh.reflect_member("render_style", render.style) &&
-		rh.reflect_member("bounding_box_color", box_color) &&
+		rh.reflect_member("bounding_box_color", bbox_style.surface_color) &&
 		rh.reflect_member("show_bounding_box", show_bbox) &&
-		rh.reflect_member("show_wire_box", show_wire_bbox) &&
+		rh.reflect_member("show_wireframe_box", show_wireframe_bbox) &&
 		rh.reflect_member("grid_mode", grid_mode) &&
 		rh.reflect_member("grid_normal_settings", grid_normal_settings) &&
 		rh.reflect_member("grid_normal_inwards", grid_normal_inwards) &&
@@ -251,8 +254,6 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				if(modifiers == cgv::gui::EM_CTRL) {
 					std::cout << "Starting benchmark..." << std::endl;
 					benchmark.requested = true;
-				} else {
-					show_bbox = !show_bbox;
 				}
 				handled = true;
 				break;
@@ -276,20 +277,23 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				}
 				break;
 			case 'R':
-				if (ke.get_modifiers() == 0)
+				if (modifiers == 0)
 					render.style.radius_scale *= 2.0f;
-				else if (ke.get_modifiers() == cgv::gui::EM_SHIFT)
+				else if (modifiers == cgv::gui::EM_SHIFT)
 					render.style.radius_scale *= 0.5f;
 				on_set(&render.style.radius_scale);
-				return true;
+				handled = true;
+				break;
 			case 'O':
 				show_bbox = !show_bbox;
 				on_set(&show_bbox);
-				return true;
+				handled = true;
+				break;
 			case 'W':
-				show_wire_bbox = !show_wire_bbox;
-				on_set(&show_wire_bbox);
-				return true;
+				show_wireframe_bbox = !show_wireframe_bbox;
+				on_set(&show_wireframe_bbox);
+				handled = true;
+				break;
 			default:
 				break;
 			}
@@ -1897,8 +1901,10 @@ bool tubes::init (cgv::render::context &ctx)
 
 	render.sorter->set_key_definition_override(key_definition);
 
+	ref_box_renderer(ctx, 1);
 	ref_box_wire_renderer(ctx, 1);
 	bbox_rd.init(ctx);
+	bbox_wire_rd.init(ctx);
 
 	// initialize debug renderer
 	ref_sphere_renderer(ctx, 1);
@@ -2104,11 +2110,15 @@ void tubes::init_frame (cgv::render::context &ctx)
 		on_set(&misc_cfg.vsync_proxy);
 		show_bbox = false;
 		update_member(&show_bbox);
+		show_wireframe_bbox = false;
+		update_member(&show_wireframe_bbox);
 		cm_viewer_ptr->set_visibility(false);
 		navigator_ptr->set_visibility(false);
 		debug.far_extent_factor = 0.4;
 		debug.near_extent_factor = 0.333333*debug.far_extent_factor;
 		set_view();
+		//grid_mode = GM_COLOR_NORMAL;
+		//on_set(&grid_mode);
 		benchmark_mode_setup = true;
 	}
 }
@@ -2146,16 +2156,11 @@ void tubes::draw (cgv::render::context &ctx)
 			default: break;
 			}
 
-			if (show_wire_bbox)
-				bbox_rd.render(ctx, ref_box_wire_renderer(ctx), box_wire_render_style());
-			if (show_bbox) {
-				auto& br = cgv::render::ref_box_renderer(ctx);
-				br.set_render_style(brs);
-				ctx.set_color(box_color);
-				br.set_color(ctx, box_color);
-				br.set_box(ctx, bbox);
-				br.render(ctx, 0, 1);
-			}
+			if (show_wireframe_bbox)
+				bbox_wire_rd.render(ctx, ref_box_wire_renderer(ctx), box_wire_render_style());
+
+			if (show_bbox)
+				bbox_rd.render(ctx, ref_box_renderer(ctx), bbox_style);
 		}
 
 		//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());
@@ -2178,14 +2183,14 @@ void tubes::create_gui(void) {
 	add_decorator("Rendering", "heading", "level=1");
 	if (begin_tree_node("Bounds", show_bbox, false)) {
 		align("\a");
-		add_member_control(this, "color", box_color);
-		add_member_control(this, "show", show_bbox, "check");
-		add_member_control(this, "show wires", show_wire_bbox, "check");
-		if (begin_tree_node("Bounds", brs, false)) {
+		add_member_control(this, "Color", bbox_style.surface_color);
+		add_member_control(this, "Show", show_bbox, "check");
+		add_member_control(this, "Show Wireframe", show_wireframe_bbox, "check");
+		if (begin_tree_node("Bounds", bbox_style, false)) {
 			align("\a");
-			add_gui("box style", brs);
+			add_gui("box style", bbox_style);
 			align("\b");
-			end_tree_node(brs);
+			end_tree_node(bbox_style);
 		}
 		align("\b");
 		end_tree_node(show_bbox);
@@ -2463,7 +2468,6 @@ void tubes::update_attribute_bindings(void) {
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
 		debug.segment_count = segment_count;
-		//if(render.render_count > segment_count)
 		debug.render_percentage = 1.0f;
 		debug.render_count = segment_count;
 		update_member(&debug.render_percentage);
@@ -2541,8 +2545,11 @@ void tubes::calculate_bounding_box(void) {
 		}
 	}
 
+	bbox_wire_rd.clear();
+	bbox_wire_rd.add(bbox.get_center(), bbox.get_extent(), rgb(0.75f));
+
 	bbox_rd.clear();
-	bbox_rd.add(bbox.get_center(), bbox.get_extent(), rgb(0.75f));
+	bbox_rd.add(bbox.get_center(), bbox.get_extent());
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 	std::cout << "Bounding box min: " << bbox.get_min_pnt() << "| max: " << bbox.get_max_pnt() << "| extent: " << bbox.get_extent() << std::endl;

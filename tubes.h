@@ -147,10 +147,10 @@ protected:
 	volume_render_style vstyle;
 
 	bool show_bbox = true;
-	cgv::render::box_render_style brs;
-	rgb box_color = rgb(0.7f, 0.7f, 0.7f);
-	bool show_wire_bbox = true;
-	cgv::glutil::box_wire_render_data<> bbox_rd;
+	bool show_wireframe_bbox = true;
+	cgv::render::box_render_style bbox_style;
+	cgv::glutil::box_render_data<> bbox_rd;
+	cgv::glutil::box_wire_render_data<> bbox_wire_rd;
 
 	/// rendering state fields
 	struct {
