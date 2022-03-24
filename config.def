@@ -8,6 +8,8 @@ type(tubes):datapath=""
 //type(tubes):layer_config_file="./testdata/layerconf_4layers_interpolationdemo.xml"
 
 // Visualization and general settings
+// - Enable benchmark mode if desired
+//type(tubes):benchmark_mode=true
 // - Bounding box visibility
 type(tubes):show_bounding_box=true
 // - Grid mode: 0 - none, 1 - color only, 2 - normals only, 3 - color and normals

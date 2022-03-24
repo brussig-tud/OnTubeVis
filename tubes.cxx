@@ -101,9 +101,6 @@ tubes::tubes() : application_plugin("Tubes")
 	fh.file_name = "";
 
 	debug.segment_rs.rounded_caps = true;
-
-	// easy setup for benchmarking runs
-	//benchmark_mode = true;
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -167,7 +164,8 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("voxelize_gpu", voxelize_gpu) &&
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
-		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy);
+		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
+		rh.reflect_member("benchmark_mode", benchmark_mode);
 }
 
 void tubes::stream_help (std::ostream &os)
@@ -2045,10 +2043,14 @@ void tubes::init_frame (cgv::render::context &ctx)
 	}
 
 	if(benchmark.requested) {
-		misc_cfg.instant_redraw_proxy = true;
-		misc_cfg.vsync_proxy = false;
-		on_set(&misc_cfg.instant_redraw_proxy);
-		on_set(&misc_cfg.vsync_proxy);
+		if(!misc_cfg.instant_redraw_proxy) {
+			misc_cfg.instant_redraw_proxy = true;
+			on_set(&misc_cfg.instant_redraw_proxy);
+		}
+		if(misc_cfg.vsync_proxy) {
+			misc_cfg.vsync_proxy = false;
+			on_set(&misc_cfg.vsync_proxy);
+		}
 
 		if(!benchmark.running) {
 			benchmark.running = true;
@@ -2066,7 +2068,10 @@ void tubes::init_frame (cgv::render::context &ctx)
 	}
 
 	if(!benchmark_mode_setup && benchmark_mode) {
-		benchmark_mode_setup = true;
+		misc_cfg.instant_redraw_proxy = true;
+		on_set(&misc_cfg.instant_redraw_proxy);
+		misc_cfg.vsync_proxy = false;
+		on_set(&misc_cfg.vsync_proxy);
 		show_bbox = false;
 		update_member(&show_bbox);
 		cm_viewer_ptr->set_visibility(false);
@@ -2074,6 +2079,7 @@ void tubes::init_frame (cgv::render::context &ctx)
 		debug.far_extent_factor = 0.4;
 		debug.near_extent_factor = 0.333333*debug.far_extent_factor;
 		set_view();
+		benchmark_mode_setup = true;
 	}
 }
 
