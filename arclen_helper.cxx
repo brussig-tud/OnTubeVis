@@ -83,6 +83,14 @@ parametrization compute_parametrization<flt_type> (const traj_manager<flt_type> 
 					vec3(rd.tangents[seg.i0]), vec3(rd.tangents[seg.i1])
 				).to_bezier();
 
+				// --- UNCOMMENT BELOW FOR GETTING COPY-PASTABLE ARRAY OF PRECISE ARCLENGTH SAMPLES ---
+				/*#define NUM_LG_SAMPLES 64
+				real _t[NUM_LG_SAMPLES], _l[NUM_LG_SAMPLES];
+				for (unsigned K=0; K< NUM_LG_SAMPLES; K++) {
+					_t[K] = real(K)/ real(NUM_LG_SAMPLES-1);
+					_l[K] = b.arc_length_legendre_gauss(_t[K], 8192);
+				}*/
+
 				// arc length
 				// - fit beziers
 				const auto alen_approx = b.arc_length_bezier_approximation(4);
