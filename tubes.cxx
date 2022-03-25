@@ -214,6 +214,8 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(render.style.use_cubic_tangents, false);
 				SET_MEMBER(render.style.use_conservative_depth, false);
 				SET_MEMBER(debug.sort, false);
+				SET_MEMBER(debug.force_initial_order, true);
+				on_set(&debug.force_initial_order);
 				SET_MEMBER(ao_style.enable, false);
 				handled = true;
 				break;
@@ -223,6 +225,8 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(render.style.use_cubic_tangents, true);
 				SET_MEMBER(render.style.use_conservative_depth, true);
 				SET_MEMBER(debug.sort, false);
+				SET_MEMBER(debug.force_initial_order, true);
+				on_set(&debug.force_initial_order);
 				SET_MEMBER(ao_style.enable, false);
 				handled = true;
 				break;
@@ -232,6 +236,8 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(render.style.use_cubic_tangents, true);
 				SET_MEMBER(render.style.use_conservative_depth, true);
 				SET_MEMBER(debug.sort, true);
+				SET_MEMBER(debug.force_initial_order, false);
+				on_set(&debug.force_initial_order);
 				SET_MEMBER(ao_style.enable, false);
 				handled = true;
 				break;
@@ -241,6 +247,8 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(render.style.use_cubic_tangents, true);
 				SET_MEMBER(render.style.use_conservative_depth, true);
 				SET_MEMBER(debug.sort, true);
+				SET_MEMBER(debug.force_initial_order, false);
+				on_set(&debug.force_initial_order);
 				SET_MEMBER(ao_style.enable, true);
 				handled = true;
 				break;
