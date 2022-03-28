@@ -59,13 +59,13 @@
       <Property name="color_3" color="0.000000, 0.000000, 0.000000" />
       <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
     </Layer>
-    <Layer glyph="circle" sampling="original" >
-      <Property name="outline" value="0.000000" />
+    <Layer glyph="circle" sampling="equidist" sampling_step="0.500000" >
+      <Property name="outline" value="0.015000" />
       <Property name="color" attrib_name="scalar" color_map_name="berlin" in_range="-0.550992, 0.551041" />
-      <Property name="radius" in_range="-0.534629, 0.522465" out_range="0.020000, 0.150000" />
+      <Property name="radius" in_range="-0.534629, 0.522465" out_range="0.020000, 0.125000" />
     </Layer>
-    <Layer glyph="star" sampling="original" >
-      <Property name="radius" value="1.125000" out_range="0.000000, 1.125000" />
+    <Layer glyph="star" sampling="equidist" sampling_step="0.500000" >
+      <Property name="radius" value="0.999000" out_range="0.000000, 0.999000" />
       <Property name="secondary_color" color="0.058769, 0.042055, 0.108911" />
       <Property name="color_setting" value="0.000000" />
       <Property name="blend_factor" value="0.666000" />
