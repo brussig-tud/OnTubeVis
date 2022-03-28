@@ -347,18 +347,18 @@ void glyph_layer_manager::remove_glyph_attribute_mapping(const size_t index) {
 
 void glyph_layer_manager::move_glyph_attribute_mapping(const size_t index, int offset) {
 	if(index < glyph_attribute_mappings.size()) {
-		int offset = 0;
+		int index1 = index;
 		if(offset < 0 && index > 0) {
 			// move up if not the first element
-			offset = -1;
+			index1--;
 		} else if(offset > 0 && index < glyph_attribute_mappings.size() - 1) {
 			// move down if not the last element
-			offset = 1;
+			index1++;
 		}
 
-		if(offset != 0) {
-			std::swap(visible[index], visible[index + offset]);
-			std::swap(glyph_attribute_mappings[index], glyph_attribute_mappings[index  + offset]);
+		if(index != index1) {
+			std::swap(visible[index], visible[index1]);
+			std::swap(glyph_attribute_mappings[index], glyph_attribute_mappings[index1]);
 			notify_configuration_change();
 		}
 	}
