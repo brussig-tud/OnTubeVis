@@ -820,8 +820,8 @@ vec4 splat_color##I(in int gid, in vec2 p, in int color_map_idx, in int float_ba
 	v.z = clamp_remap01(glyphs##I[i1+0].v[0], range); \
 	v.w = clamp_remap01(glyphs##I[i1+1].v[0], range); \
 	\
-	float m0 = (1.0/6.0) * (v.z - v.x); \
-	float m1 = (1.0/6.0) * (v.w - v.y); \
+	float m0 = 0.5 * (v.z - v.x); \
+	float m1 = 0.5 * (v.w - v.y); \
 	\
 	float t = clamp_remap01(p.x, vec4(s.y, s.z, 0.0, 0.0)); \
 	\
@@ -972,8 +972,8 @@ vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_
 	v.z = clamp_remap(glyphs##I[i1+0].v[idx], range); \
 	v.w = clamp_remap(glyphs##I[i1+1].v[idx], range); \
 	\
-	float m0 = (1.0/6.0) * (v.z - v.x); \
-	float m1 = (1.0/6.0) * (v.w - v.y); \
+	float m0 = 0.5 * (v.z - v.x); \
+	float m1 = 0.5 * (v.w - v.y); \
 	\
 	float t = clamp_remap01(p.x, vec4(s.y, s.z, 0.0, 0.0)); \
 	\
@@ -1121,8 +1121,8 @@ vec4 splat_temporal_heat_map##I(in int gid, in vec2 p, in int color_map_idx, in 
 	v.z = clamp_remap(glyphs##I[i1+0].v[idx], range); \
 	v.w = clamp_remap(glyphs##I[i1+1].v[idx], range); \
 	\
-	float m0 = (1.0/6.0) * (v.z - v.x); \
-	float m1 = (1.0/6.0) * (v.w - v.y); \
+	float m0 = 0.5 * (v.z - v.x); \
+	float m1 = 0.5 * (v.w - v.y); \
 	\
 	float t = clamp_remap01(p.x, vec4(s.y, s.z, 0.0, 0.0)); \
 	\
