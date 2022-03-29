@@ -205,8 +205,24 @@ template <typename FLOAT_TYPE> struct Bezier {
         return result;
     }
 
+    /**
+     * Creates an arc length parameterization that does a binary search to find the correct parameter t for a given
+     * arc length.
+     * Re-uses the given Bézier-Approximation to calculate arc length at each point.
+     */
+    ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>
+    parameterization_subdivision_bezier_approximation(const ArcLengthBezierApproximation<FLOAT_TYPE> &arcLength, int depth = 100) const {
+        ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE> result;
+        result.depth = depth;
+        result.arcLength = arcLength;
+        return result;
+    }
+
     [[nodiscard]] ParameterizationBezierApproximation<FLOAT_TYPE>
     parameterization_bezier_approximation(int numSegments, int numSamples = 100) const;
+
+    [[nodiscard]] ParameterizationBezierApproximation<FLOAT_TYPE>
+    parameterization_bezier_approximation(const ArcLengthBezierApproximation<FLOAT_TYPE> &arcLength, int numSamples = 100) const;
 
     void to_csv(const std::string &fileName, int numTestPoints = 100, bool evenPointDistribution = false) const;
     Hermite<FLOAT_TYPE> to_hermite() const;

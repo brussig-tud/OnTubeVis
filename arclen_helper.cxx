@@ -94,7 +94,7 @@ parametrization compute_parametrization<flt_type> (const traj_manager<flt_type> 
 				// arc length
 				// - fit beziers
 				const auto alen_approx = b.arc_length_bezier_approximation(4);
-				const auto inv_approx = b.parameterization_bezier_approximation(4);
+				const auto inv_approx = b.parameterization_bezier_approximation(alen_approx);
 				// - convert to trajectory-global arclength at segment
 				for (unsigned j=0; j<4; j++) {
 					// - important values
