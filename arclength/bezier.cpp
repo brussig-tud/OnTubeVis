@@ -490,6 +490,45 @@ Bezier<FLOAT_TYPE>::parameterization_bezier_approximation(int numSegments, int n
 }
 
 template <typename FLOAT_TYPE>
+ParameterizationBezierApproximation<FLOAT_TYPE>
+Bezier<FLOAT_TYPE>::parameterization_bezier_approximation(const ArcLengthBezierApproximation<FLOAT_TYPE> &arcLength, int numSamples) const {
+    ParameterizationBezierApproximation<FLOAT_TYPE> result;
+    result.totalLength = arcLength.totalLength;
+    result.t.push_back(0.0);
+
+    auto approx = parameterization_subdivision_bezier_approximation(arcLength, numSamples);
+
+    const int numSegments = (unsigned)arcLength.y1.size();
+    auto dStep = FLOAT_TYPE(1) / static_cast<FLOAT_TYPE>(numSegments);
+    for (int i = 0; i < numSegments; i++) {
+        auto dPrev = static_cast<FLOAT_TYPE>(i) * dStep;
+        auto dCur = static_cast<FLOAT_TYPE>(i + 1) * dStep;
+        auto dDiff = dCur - dPrev;
+
+        auto tPrev = result.t.back();
+        auto tCur = approx.evaluate(dCur * result.totalLength);
+        auto tDiff = tCur - tPrev;
+
+        FLOAT_TYPE sample1 = (dPrev + dDiff * (FLOAT_TYPE(1) / FLOAT_TYPE(3))) * result.totalLength;
+        auto s1over3 = approx.evaluate(sample1);
+        auto s1over3Scaled = (s1over3 - tPrev) / tDiff;
+
+        FLOAT_TYPE sample2 = (dPrev + dDiff * (FLOAT_TYPE(2) / FLOAT_TYPE(3))) * result.totalLength;
+        auto s2over3 = approx.evaluate(sample2);
+        auto s2over3Scaled = (s2over3 - tPrev) / tDiff;
+
+        auto y1 = (18.0 * s1over3Scaled - 9.0 * s2over3Scaled + 2.0) / 6.0;
+        auto y2 = (-9.0 * s1over3Scaled + 18.0 * s2over3Scaled - 5.0) / 6.0;
+
+        result.y1.push_back((FLOAT_TYPE)y1);
+        result.y2.push_back((FLOAT_TYPE)y2);
+        result.t.push_back((FLOAT_TYPE)tCur);
+    }
+
+    return result;
+}
+
+template <typename FLOAT_TYPE>
 FLOAT_TYPE ParameterizationSubdivisionBezierApproximation<FLOAT_TYPE>::evaluate(FLOAT_TYPE d) const {
     FLOAT_TYPE t0 = 0.0;
     FLOAT_TYPE t1 = 1.0;
