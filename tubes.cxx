@@ -2007,6 +2007,9 @@ bool tubes::init (cgv::render::context &ctx)
 	compile_glyph_attribs();
 	ah_mgr.set_dataset(traj_mgr.dataset(0));
 
+	// use white background for paper screenshots
+	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
+
 	// done
 	return success;
 }
@@ -2366,8 +2369,14 @@ void tubes::set_view(void)
 	view_ptr->set_y_extent_at_focus(extent_factor * (double)length(bbox.get_extent()));
 
 	auto* cview_ptr = dynamic_cast<cgv::render::clipped_view*>(view_ptr);
-	if (cview_ptr)
-		cview_ptr->set_scene_extent(bbox);
+	if(cview_ptr) {
+		// extent the bounding box to prevent accidental clipping of proxy geometry which could happen incertain scenarios.
+		box3 clip_bbox = bbox;
+		vec3 extent = bbox.get_extent();
+		clip_bbox.ref_min_pnt() -= 0.25f*extent;
+		clip_bbox.ref_max_pnt() += 0.25f*extent;
+		cview_ptr->set_scene_extent(clip_bbox);
+	}
 }
 
 void tubes::update_grid_ratios(void) {

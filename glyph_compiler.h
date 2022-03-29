@@ -247,13 +247,17 @@ protected:
 							// handle overlap to the previous segments
 							if(seg > 0) {
 								int prev_seg = static_cast<int>(global_seg - 1);
-								while(prev_seg >= 0 && alen[prev_seg][15] > s - 0.5f*new_glyph_size) {
-									// if there have been no glyphs comitted to the previous segment until now, also update its start index
-									auto& prev_range = ranges[prev_seg];
-									if(prev_range.n == 0)
-										prev_range.i0 = cur_range.i0;
-									prev_range.n++;
-									prev_seg -= 1;
+								int min_global_seg = static_cast<int>(traj_offset);
+								float min_s = s - 0.5f*new_glyph_size;
+								if(min_s >= 0.0f) {
+									while(prev_seg >= min_global_seg && alen[prev_seg][15] > min_s) {
+										// if there have been no glyphs comitted to the previous segment until now, also update its start index
+										auto& prev_range = ranges[prev_seg];
+										if(prev_range.n == 0)
+											prev_range.i0 = cur_range.i0;
+										prev_range.n++;
+										prev_seg--;
+									}
 								}
 							}
 						} else {
@@ -497,13 +501,17 @@ protected:
 							// handle overlap to the previous segments
 							if(seg > 0) {
 								int prev_seg = static_cast<int>(global_seg - 1);
-								while(prev_seg >= 0 && alen[prev_seg][15] > s - 0.5f*new_glyph_size) {
-									// if there have been no glyphs comitted to the previous segment until now, also update its start index
-									auto& prev_range = ranges[prev_seg];
-									if(prev_range.n == 0)
-										prev_range.i0 = cur_range.i0;
-									prev_range.n++;
-									prev_seg -= 1;
+								int min_global_seg = static_cast<int>(traj_offset);
+								float min_s = s - 0.5f*new_glyph_size;
+								if(min_s >= 0.0f) {
+									while(prev_seg >= min_global_seg && alen[prev_seg][15] > min_s) {
+										// if there have been no glyphs comitted to the previous segment until now, also update its start index
+										auto& prev_range = ranges[prev_seg];
+										if(prev_range.n == 0)
+											prev_range.i0 = cur_range.i0;
+										prev_range.n++;
+										prev_seg--;
+									}
 								}
 							}
 						} else {
@@ -729,13 +737,17 @@ protected:
 							// handle overlap to the previous segments
 							if(seg > 0) {
 								int prev_seg = static_cast<int>(global_seg - 1);
-								while(prev_seg >= 0 && param.t_to_s[prev_seg][15] > s - 0.5f*new_glyph_size) {
-									// if there have been no glyphs comitted to the previous segment until now, also update its start index
-									auto& prev_range = ranges[prev_seg];
-									if(prev_range.n == 0)
-										prev_range.i0 = cur_range.i0;
-									prev_range.n++;
-									prev_seg -= 1;
+								int min_global_seg = static_cast<int>(traj_offset);
+								float min_s = s - 0.5f*new_glyph_size;
+								if(min_s >= 0.0f) {
+									while(prev_seg >= min_global_seg && param.t_to_s[prev_seg][15] > min_s) {
+										// if there have been no glyphs comitted to the previous segment until now, also update its start index
+										auto& prev_range = ranges[prev_seg];
+										if(prev_range.n == 0)
+											prev_range.i0 = cur_range.i0;
+										prev_range.n++;
+										prev_seg--;
+									}
 								}
 							}
 						} else {

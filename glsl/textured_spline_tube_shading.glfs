@@ -1319,8 +1319,6 @@ void main()
 			GLYPH_LAYER_DEFINITION
 		}*/
 
-
-		
 		// glyph layer 0
 #if L0_VISIBLE > 0 && L0_MAPPED_ATTRIB_COUNT > 0
 		{
@@ -1394,6 +1392,10 @@ void main()
 		}
 #endif
 
+		// enable to highlight segments with a glyph count greater than given value
+		//if(ranges0[segment_id].n > 2)
+		//color = vec3(1.0, 0.0, 0.0);
+		
 #if DEBUG_SEGMENTS > 0
 		// highlight individual segments
 		if((segment_id&1) > 0) color *= 0.5;
