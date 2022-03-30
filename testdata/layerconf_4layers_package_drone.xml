@@ -34,7 +34,7 @@
       <Property name="interpolate" value="1.000000" />
       <Property name="color" attrib_name="velocity" color_map_name="bamako" in_range="0.001093, 12.578998" />
     </Layer>
-    <Layer glyph="violin" >
+    <Layer glyph="line_plot" >
       <Property name="outline" value="0.000000" />
       <Property name="interpolate" value="1.000000" />
       <Property name="color_0" color="1.000000, 1.000000, 1.000000" />

@@ -34,7 +34,7 @@
       <Property name="interpolate" value="1.000000" />
       <Property name="color" attrib_name="radius" color_map_name="acton" in_range="1.759783, 1.759783" />
     </Layer>
-    <Layer glyph="violin" sampling="original" >
+    <Layer glyph="line_plot" sampling="original" >
       <Property name="outline" value="0.000000" />
       <Property name="interpolate" value="1.000000" />
       <Property name="color_0" color="0.000000, 0.000000, 0.000000" />

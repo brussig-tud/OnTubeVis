@@ -47,7 +47,7 @@
       <Property name="interpolate" value="1.000000" />
       <Property name="color" attrib_name="scalar3" color_map_name="roma" in_range="-0.550711, 0.551063" />
     </Layer>
-    <Layer glyph="violin" sampling="original" >
+    <Layer glyph="line_plot" sampling="original" >
       <Property name="outline" value="0.000000" />
       <Property name="interpolate" value="1.000000" />
       <Property name="color_0" color="0.397139, 0.345652, 0.425743" />

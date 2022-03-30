@@ -18,7 +18,7 @@
     <Layer glyph="color" >
       <Property name="color" attrib_name="scalar3" color_map_name="roma" in_range="-0.529609, 0.441430" out_range="0.000000, 1.000000" />
     </Layer>
-    <Layer glyph="violin" >
+    <Layer glyph="line_plot" >
       <Property name="value_0" attrib_name="scalar2" in_range="-0.434125, 0.525305" out_range="0.000000, 1.000000" />
       <Property name="color_0" color="0.762376, 0.467993, 0.720322" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
       <Property name="value_1" attrib_name="scalar2_1" in_range="-0.578605, 0.782003" out_range="0.000000, 1.000000" />

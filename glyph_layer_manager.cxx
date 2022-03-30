@@ -204,7 +204,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					splat_func += index_params_string;
 					splat_func += ")";
 				} break;
-				case GT_VIOLIN:
+				case GT_LINE_PLOT:
 				{
 					//splat_func += layer_id + "(glyph, glyphs" + layer_id + "[closest.prev], glyphs" + layer_id + "[closest.next], " + "uv" + ", ";
 					splat_func += layer_id + "(closest.id, uv, ";

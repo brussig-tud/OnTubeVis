@@ -43,7 +43,7 @@
   <Layers>
     <Layer glyph="color" sampling="original" >
       <Property name="interpolate" value="1.000000" />
-      <Property name="color" attrib_name="Lenkrad_W" color_map_name="berlin" in_range="-75.000000, 75.000000" />
+      <Property name="color" attrib_name="Lenkrad_W" color_map_name="berlin" in_range="-180.000000, 180.000000" />
     </Layer>
     <Layer glyph="triangle_isosceles" sampling="original" >
       <Property name="outline" value="0.030000" />
@@ -56,7 +56,7 @@
       <Property name="outline" value="0.050000" />
       <Property name="color" color="1.000000, 0.776646, 0.171429" in_range="0.000000, 1.000000" />
       <Property name="length" in_range="0.000000, 1.000000" out_range="0.000000, 0.100000" />
-      <Property name="height" attrib_name="Gaspedal_W" in_range="0.000000, 100.000000" out_range="0.000000, 2.000000" />
+      <Property name="height" attrib_name="Gaspedal_W" in_range="0.000000, 100.000000" out_range="0.000000, 1.600000" />
     </Layer>
   </Layers>
 </GlyphConfiguration>

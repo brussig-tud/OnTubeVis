@@ -14,7 +14,7 @@ enum GlyphType {
 	GT_DROP,
 	GT_SIGN_BLOB,
 	GT_STAR,
-	GT_VIOLIN,
+	GT_LINE_PLOT,
 	GT_TEMPORAL_HEAT_MAP,
 };
 
@@ -431,18 +431,18 @@ public:
 	}
 };
 
-class violin_glyph : public glyph_shape {
+class line_plot_glyph : public glyph_shape {
 public:
-	virtual violin_glyph* clone() const {
-		return new violin_glyph(*this);
+	virtual line_plot_glyph* clone() const {
+		return new line_plot_glyph(*this);
 	}
 
 	virtual GlyphType type() const {
-		return GT_VIOLIN;
+		return GT_LINE_PLOT;
 	}
 
 	virtual std::string name() const {
-		return "violin";
+		return "line_plot";
 	}
 
 	virtual const attribute_list& supported_attributes() const {
@@ -469,7 +469,7 @@ public:
 	}
 
 	virtual std::string splat_func() const {
-		return "splat_violin";
+		return "splat_line_plot";
 	}
 };
 
@@ -526,7 +526,7 @@ struct glyph_type_registry {
 			{ n[7], GT_DROP },
 			{ n[8], GT_SIGN_BLOB },
 			{ n[9], GT_STAR },
-			{ n[10], GT_VIOLIN },
+			{ n[10], GT_LINE_PLOT },
 			{ n[11], GT_TEMPORAL_HEAT_MAP }
 		};
 
@@ -548,7 +548,7 @@ struct glyph_type_registry {
 			"drop",
 			"sign_blob",
 			"star",
-			"violin",
+			"line_plot",
 			"temporal_heat_map"
 		};
 
@@ -567,7 +567,7 @@ struct glyph_type_registry {
 			"Drop",
 			"Sign Blob",
 			"Star",
-			"Violin",
+			"Line Plot",
 			"Temporal Heat Map"
 		};
 
@@ -603,7 +603,7 @@ struct glyph_shape_factory {
 		case GT_DROP: shape_ptr = new drop_glyph(); break;
 		case GT_SIGN_BLOB: shape_ptr = new sign_blob_glyph(); break;
 		case GT_STAR: shape_ptr = new star_glyph(); break;
-		case GT_VIOLIN: shape_ptr = new violin_glyph(); break;
+		case GT_LINE_PLOT: shape_ptr = new line_plot_glyph(); break;
 		case GT_TEMPORAL_HEAT_MAP: shape_ptr = new temporal_heat_map_glyph(); break;
 		default: shape_ptr = new circle_glyph(); break;
 		}

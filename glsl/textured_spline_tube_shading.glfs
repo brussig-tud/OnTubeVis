@@ -898,8 +898,8 @@ DEF_SPLAT_COLOR(2)
 DEF_SPLAT_COLOR(3)
 #endif
 
-/*#define DEF_SPLAT_VIOLIN(I, N) \
-vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline) { \
+/*#define DEF_SPLAT_LINE_PLOT(I, N) \
+vec4 splat_line_plot##I(in int gid, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline) { \
 	int idx = int(float(N) * (0.5*p.y + 0.5)); \
 	idx = min(idx, N - 1); \
 	\
@@ -939,8 +939,8 @@ vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_
 }*/
 
 
-#define DEF_SPLAT_VIOLIN(I, N) \
-vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline) { \
+#define DEF_SPLAT_LINE_PLOT(I, N) \
+vec4 splat_line_plot##I(in int gid, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline) { \
 	int idx = int(float(N) * (0.5*p.y + 0.5)); \
 	idx = min(idx, N - 1); \
 	\
@@ -1002,7 +1002,7 @@ vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_
 	} \
 }
 
-// other form of violin shows absolute value in width and shows negative values with checker board texture
+// other form of line plot shows absolute value in width and shows negative values with checker board texture
 // change clamp_remap on v to clamp_remap11
 // change val = clamp(val, 0.0, 1.0); to val = clamp(val, -1.0, 1.0);
 // add after interpolation step:
@@ -1013,8 +1013,8 @@ vec4 splat_violin##I(in int gid, in vec2 p, in int float_base_idx, in int color_
 // change return vec4(glyph_color, alpha.x); to return vec4(glyph_color, gv * alpha.x);
 // change return mix(color, vec4(glyph_color, 1.0), alpha.x); to return mix(color, vec4(glyph_color, gv), alpha.x);
 
-/*#define DEF_SPLAT_VIOLIN(I, N) \
-vec4 splat_violin##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc##I gd_next, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline) { \
+/*#define DEF_SPLAT_LINE_PLOT(I, N) \
+vec4 splat_line_plot##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_desc##I gd_next, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline) { \
 	int idx = int(float(N) * (0.5*p.y + 0.5)); \
 	idx = min(idx, N - 1); \
 	\
@@ -1063,19 +1063,19 @@ float dist = p.y - vv; \
 */
 
 #if L0_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
-DEF_SPLAT_VIOLIN(0, L0_MAPPED_ATTRIB_COUNT);
+DEF_SPLAT_LINE_PLOT(0, L0_MAPPED_ATTRIB_COUNT);
 #endif
 
 #if L1_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
-DEF_SPLAT_VIOLIN(1, L1_MAPPED_ATTRIB_COUNT);
+DEF_SPLAT_LINE_PLOT(1, L1_MAPPED_ATTRIB_COUNT);
 #endif
 
 #if L2_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
-DEF_SPLAT_VIOLIN(2, L2_MAPPED_ATTRIB_COUNT);
+DEF_SPLAT_LINE_PLOT(2, L2_MAPPED_ATTRIB_COUNT);
 #endif
 
 #if L3_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
-DEF_SPLAT_VIOLIN(3, L3_MAPPED_ATTRIB_COUNT);
+DEF_SPLAT_LINE_PLOT(3, L3_MAPPED_ATTRIB_COUNT);
 #endif
 
 

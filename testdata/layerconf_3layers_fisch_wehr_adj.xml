@@ -30,15 +30,15 @@
     <ColorMap name="RAINBOW" custom="0" />
   </ColorMaps>
   <Layers>
-    <Layer glyph="color" >
+    <Layer glyph="color" sampling="original" >
       <Property name="interpolate" value="1.000000" />
       <Property name="color" attrib_name="velocity" color_map_name="bilbao" in_range="0.000000, 3.459400" />
     </Layer>
-    <Layer glyph="line_plot" >
+    <Layer glyph="line_plot" sampling="original" >
       <Property name="outline" value="0.000000" />
       <Property name="interpolate" value="1.000000" />
       <Property name="color_0" color="0.333333, 0.333333, 0.333333" />
-      <Property name="value_0" attrib_name="p" in_range="-1600.000000, 2600.000000" out_range="0.000000, 0.540000" />
+      <Property name="value_0" attrib_name="p" in_range="2000.000000, 8000.000000" out_range="0.000000, 0.540000" />
       <Property name="color_1" color="0.000000, 0.000000, 0.000000" />
       <Property name="value_1" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
       <Property name="color_2" color="0.000000, 0.000000, 0.000000" />
@@ -46,7 +46,7 @@
       <Property name="color_3" color="0.000000, 0.000000, 0.000000" />
       <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
     </Layer>
-    <Layer glyph="sign_blob" >
+    <Layer glyph="sign_blob" sampling="original" >
       <Property name="outline" value="0.020000" />
       <Property name="size" value="1.000000" out_range="0.000000, 1.000000" />
       <Property name="color" attrib_name="AngularVelocity" color_map_name="vik" in_range="-50.000000, 50.000000" />
