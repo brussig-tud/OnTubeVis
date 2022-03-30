@@ -37,7 +37,7 @@
     <Layer glyph="line_plot" sampling="original" >
       <Property name="outline" value="0.040000" />
       <Property name="interpolate" value="1.000000" />
-      <Property name="color_0" color="0.000000, 0.000000, 0.000000" />
+      <Property name="color_0" color="0.485714, 0.097095, 0.024980" />
       <Property name="value_0" attrib_name="nox_sensor_1_1" in_range="0.000000, 200.000000" out_range="0.000000, 1.000000" />
       <Property name="color_1" color="0.074449, 0.255171, 0.685714" />
       <Property name="value_1" attrib_name="engine_fuel_rate" in_range="0.000000, 42.450001" out_range="0.000000, 1.000000" />
@@ -46,13 +46,13 @@
       <Property name="color_3" color="0.000000, 0.000000, 0.000000" />
       <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
     </Layer>
-    <Layer glyph="rectangle" sampling="original" >
+    <Layer glyph="rectangle" sampling="uniform" sampling_step="1.000000" >
       <Property name="outline" value="0.000000" />
       <Property name="color" color="1.000000, 1.000000, 1.000000" in_range="0.000000, 1.000000" />
       <Property name="length" in_range="0.000000, 1.000000" out_range="0.000000, 0.100000" />
       <Property name="height" attrib_name="throttlePosition" in_range="0.000000, 1.000000" out_range="0.000000, 2.000000" />
     </Layer>
-    <Layer glyph="triangle_isosceles" sampling="original" >
+    <Layer glyph="triangle_isosceles" sampling="uniform" sampling_step="2.000000" >
       <Property name="outline" value="0.000000" />
       <Property name="color" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 141.000000" />
       <Property name="base_width" in_range="0.000000, 1.000000" out_range="0.000000, 0.150000" />

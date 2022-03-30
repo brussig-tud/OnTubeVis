@@ -32,12 +32,12 @@
   <Layers>
     <Layer glyph="color" sampling="original" >
       <Property name="interpolate" value="1.000000" />
-      <Property name="color" attrib_name="radius" color_map_name="acton" in_range="1.759783, 1.759783" />
+      <Property name="color" attrib_name="radius" color_map_name="lajolla" in_range="1.759783, 1.759783" />
     </Layer>
     <Layer glyph="line_plot" sampling="original" >
       <Property name="outline" value="0.000000" />
       <Property name="interpolate" value="1.000000" />
-      <Property name="color_0" color="0.000000, 0.000000, 0.000000" />
+      <Property name="color_0" color="0.100506, 0.302162, 0.462857" />
       <Property name="value_0" attrib_name="radius" in_range="1.759783, 1.759783" out_range="0.500000, 1.000000" />
       <Property name="color_1" color="0.000000, 0.000000, 0.000000" />
       <Property name="value_1" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
