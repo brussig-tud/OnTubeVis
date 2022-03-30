@@ -26,6 +26,7 @@
 
 
 
+// TODO: there seems to be a bug when using the uniform sampling (check with NOx data set)
 // TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
 // TODO: star and violin glyphs: the first mapped entry will always get mapped to the first overall color
 	// Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
@@ -1935,8 +1936,8 @@ bool tubes::init (cgv::render::context &ctx)
 	constexpr unsigned num_trajectories = 3;
 	constexpr unsigned num_nodes = 16;
 #else
-	constexpr unsigned num_trajectories = 256;
-	constexpr unsigned num_nodes = 256;
+	constexpr unsigned num_trajectories = 256; // 1
+	constexpr unsigned num_nodes = 256; // 32
 #endif
 	for (unsigned i=0; i<num_trajectories; i++)
 		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_nodes, seed+i));
@@ -2008,7 +2009,7 @@ bool tubes::init (cgv::render::context &ctx)
 	ah_mgr.set_dataset(traj_mgr.dataset(0));
 
 	// use white background for paper screenshots
-	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
+	ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
 
 	// done
 	return success;
@@ -2370,7 +2371,7 @@ void tubes::set_view(void)
 
 	auto* cview_ptr = dynamic_cast<cgv::render::clipped_view*>(view_ptr);
 	if(cview_ptr) {
-		// extent the bounding box to prevent accidental clipping of proxy geometry which could happen incertain scenarios.
+		// extent the bounding box to prevent accidental clipping of proxy geometry which could happen in certain scenarios.
 		box3 clip_bbox = bbox;
 		vec3 extent = bbox.get_extent();
 		clip_bbox.ref_min_pnt() -= 0.25f*extent;

@@ -1,0 +1,62 @@
+<GlyphConfiguration>
+  <ColorMaps>
+    <ColorMap name="acton" custom="0" />
+    <ColorMap name="bamako" custom="0" />
+    <ColorMap name="batlowK" custom="0" />
+    <ColorMap name="batlowW" custom="0" />
+    <ColorMap name="batlow" custom="0" />
+    <ColorMap name="bilbao" custom="0" />
+    <ColorMap name="buda" custom="0" />
+    <ColorMap name="davos" custom="0" />
+    <ColorMap name="devon" custom="0" />
+    <ColorMap name="grayC" custom="0" />
+    <ColorMap name="hawaii" custom="0" />
+    <ColorMap name="imola" custom="0" />
+    <ColorMap name="lajolla" custom="0" />
+    <ColorMap name="lapaz" custom="0" />
+    <ColorMap name="nuuk" custom="0" />
+    <ColorMap name="oslo" custom="0" />
+    <ColorMap name="tokyo" custom="0" />
+    <ColorMap name="turku" custom="0" />
+    <ColorMap name="bam" custom="0" />
+    <ColorMap name="vanimo" custom="0" />
+    <ColorMap name="cork" custom="0" />
+    <ColorMap name="tofino" custom="0" />
+    <ColorMap name="broc" custom="0" />
+    <ColorMap name="lisbon" custom="0" />
+    <ColorMap name="vik" custom="0" />
+    <ColorMap name="berlin" custom="0" />
+    <ColorMap name="roma" custom="0" />
+    <ColorMap name="RAINBOW" custom="0" />
+    <ColorMap name="steer" custom="1" >
+      <Point x="0.000000" o="1" r="0.000000" g="0.500000" b="1.000000"/>
+      <Point x="0.450000" o="1" r="1.000000" g="1.000000" b="1.000000"/>
+      <Point x="0.550000" o="1" r="1.000000" g="1.000000" b="1.000000"/>
+      <Point x="1.000000" o="1" r="1.000000" g="0.500000" b="0.000000"/>
+    </ColorMap>
+    <ColorMap name="accel" custom="1" >
+      <Point x="0.000000" o="1" r="1.000000" g="0.000000" b="0.000000"/>
+      <Point x="0.500000" o="1" r="0.633000" g="0.633000" b="0.633000"/>
+      <Point x="1.000000" o="1" r="0.000000" g="1.000000" b="0.000000"/>
+    </ColorMap>
+  </ColorMaps>
+  <Layers>
+    <Layer glyph="color" sampling="original" >
+      <Property name="interpolate" value="1.000000" />
+      <Property name="color" attrib_name="Lenkrad_W" color_map_name="berlin" in_range="-75.000000, 75.000000" />
+    </Layer>
+    <Layer glyph="triangle_isosceles" sampling="original" >
+      <Property name="outline" value="0.030000" />
+      <Property name="color" attrib_name="FZ_a_y" color_map_name="bam" in_range="-2.000000, 2.000000" />
+      <Property name="base_width" attrib_name="FZ_a_y" in_range="-2.000000, 2.000000" out_range="1.250000, 0.550000" />
+      <Property name="height" attrib_name="FZ_v" in_range="0.000000, 44.650002" out_range="0.125000, 4.000000" />
+      <Property name="orientation" in_range="0.000000, 1.000000" out_range="0.000000, 360.000000" />
+    </Layer>
+    <Layer glyph="rectangle" sampling="uniform" sampling_step="0.300000" >
+      <Property name="outline" value="0.050000" />
+      <Property name="color" color="1.000000, 0.776646, 0.171429" in_range="0.000000, 1.000000" />
+      <Property name="length" in_range="0.000000, 1.000000" out_range="0.000000, 0.100000" />
+      <Property name="height" attrib_name="Gaspedal_W" in_range="0.000000, 100.000000" out_range="0.000000, 2.000000" />
+    </Layer>
+  </Layers>
+</GlyphConfiguration>
