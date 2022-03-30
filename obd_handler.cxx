@@ -169,8 +169,8 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 					{
 						std::string key = i.key();
 						// special handling for throttle / brake
-						if (cgv::utils::to_lower(key).compare("throttlePosition")==0)
-							if (pid==17)
+						if (cgv::utils::to_lower(key).compare("throttleposition")==0)
+							if (pid==69)
 								key = "brakePosition";
 						float_series[key].push_back({ pid, responses.back().timestamp, i.value().get<flt_type>() });
 					}
