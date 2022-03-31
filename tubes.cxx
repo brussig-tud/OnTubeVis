@@ -5,6 +5,8 @@
 // CGV framework core
 #include <cgv/defines/quote.h>
 #include <cgv/gui/dialog.h>
+#include <cgv/gui/trigger.h>
+#include <cgv/signal/rebind.h>
 #include <cgv/gui/theme_info.h>
 #include <cgv/math/ftransform.h>
 #include <cgv/media/image/image_reader.h>
@@ -105,6 +107,8 @@ tubes::tubes() : application_plugin("Tubes")
 	fh.file_name = "";
 
 	debug.segment_rs.rounded_caps = true;
+
+	connect(cgv::gui::get_animation_trigger().shoot, this, &tubes::timer_event);
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -1137,8 +1141,22 @@ void tubes::update_glyph_layer_manager() {
 	glyph_layer_mgr.set_color_map_names(color_map_mgr.get_names());
 }
 
-void tubes::glyphs_out_of_date(bool state) {
+void tubes::timer_event(double t, double dt)
+{
+	if (has_changed && t > change_time + recalc_delay)
+		compile_glyph_attribs();
+}
+
+void tubes::glyphs_out_of_date(bool state) 
+{
 	auto ctrl = find_element("Compile Attributes");
+	if (state) {
+		change_time = cgv::gui::get_animation_trigger().get_current_time();
+		has_changed = true;
+	}
+	else {
+		has_changed = false;
+	}
 	if(ctrl)
 		ctrl->set("color", state ? cgv::gui::theme_info::instance().warning_hex() : "");
 }
