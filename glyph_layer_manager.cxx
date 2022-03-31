@@ -239,6 +239,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 	config.create_uniforms_definition();
 
+#ifdef _DEBUG
 	std::cout << std::endl << ">>> SHADER DEFINES <<<" << std::endl;
 	std::cout << config.uniforms_definition << std::endl << std::endl;
 	int i = 0;
@@ -248,6 +249,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 		std::cout << lc.glyph_definition << std::endl << std::endl;
 	}
 	std::cout << ">>> ============== <<<" << std::endl << std::endl;
+#endif
 
 	return config;
 }
