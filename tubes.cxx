@@ -2026,7 +2026,7 @@ bool tubes::init (cgv::render::context &ctx)
 	ah_mgr.set_dataset(traj_mgr.dataset(0));
 
 	// use white background for paper screenshots
-	ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
+	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
 
 	// done
 	return success;
