@@ -1,0 +1,65 @@
+<GlyphConfiguration>
+  <ColorMaps>
+    <ColorMap name="acton" custom="0" />
+    <ColorMap name="bamako" custom="0" />
+    <ColorMap name="batlowK" custom="0" />
+    <ColorMap name="batlowW" custom="0" />
+    <ColorMap name="batlow" custom="0" />
+    <ColorMap name="bilbao" custom="0" />
+    <ColorMap name="buda" custom="0" />
+    <ColorMap name="davos" custom="0" />
+    <ColorMap name="devon" custom="0" />
+    <ColorMap name="grayC" custom="0" />
+    <ColorMap name="hawaii" custom="0" />
+    <ColorMap name="imola" custom="0" />
+    <ColorMap name="lajolla" custom="0" />
+    <ColorMap name="lapaz" custom="0" />
+    <ColorMap name="nuuk" custom="0" />
+    <ColorMap name="oslo" custom="0" />
+    <ColorMap name="tokyo" custom="0" />
+    <ColorMap name="turku" custom="0" />
+    <ColorMap name="bam" custom="0" />
+    <ColorMap name="vanimo" custom="0" />
+    <ColorMap name="cork" custom="0" />
+    <ColorMap name="tofino" custom="0" />
+    <ColorMap name="broc" custom="0" />
+    <ColorMap name="lisbon" custom="0" />
+    <ColorMap name="vik" custom="0" />
+    <ColorMap name="berlin" custom="0" />
+    <ColorMap name="roma" custom="0" />
+    <ColorMap name="RAINBOW" custom="0" />
+  </ColorMaps>
+  <Layers>
+    <Layer glyph="temporal_heat_map" sampling="original" >
+      <Property name="outline" value="0.000000" />
+      <Property name="interpolate" value="1.000000" />
+      <Property name="color" color_map_name="imola" />
+      <Property name="value_0" attrib_name="Bremse_Pedal_S" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="value_1" attrib_name="Gaspedal_W" in_range="0.000000, 100.000000" out_range="0.000000, 1.000000" />
+      <Property name="value_2" attrib_name="Motor_n" in_range="0.000000, 3128.000000" out_range="0.000000, 1.000000" />
+      <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+    </Layer>
+    <Layer glyph="star" sampling="original" >
+      <Property name="radius" value="1.000000" out_range="0.000000, 1.000000" />
+      <Property name="secondary_color" color="1.000000, 1.000000, 1.000000" />
+      <Property name="color_setting" value="0.000000" />
+      <Property name="blend_factor" value="0.000000" />
+      <Property name="inner_transparency" value="0.000000" />
+      <Property name="color_0" color="1.000000, 1.000000, 1.000000" />
+      <Property name="axis_0" attrib_name="Blinker_L_S" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="color_1" color="0.000000, 0.000000, 0.000000" />
+      <Property name="axis_1" attrib_name="Blinker_L_S" in_range="0.000000, 1.000000" out_range="0.100000, 0.100000" />
+      <Property name="color_2" color="1.000000, 1.000000, 1.000000" />
+      <Property name="axis_2" attrib_name="Blinker_R_S" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="color_3" color="0.000000, 0.000000, 0.000000" />
+      <Property name="axis_3" attrib_name="Blinker_R_S" in_range="0.000000, 1.000000" out_range="0.100000, 0.100000" />
+      <Property name="color_4" color="0.000000, 0.000000, 0.000000" />
+      <Property name="axis_4" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+    </Layer>
+    <Layer glyph="circle" sampling="equidist" sampling_step="5.400000" >
+      <Property name="outline" value="0.030000" />
+      <Property name="color" attrib_name="Gang_Getriebe" color_map_name="hawaii" in_range="1.000000, 4.000000" />
+      <Property name="radius" in_range="1.000000, 4.000000" out_range="0.000000, 0.100000" />
+    </Layer>
+  </Layers>
+</GlyphConfiguration>
