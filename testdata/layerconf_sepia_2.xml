@@ -45,6 +45,8 @@
       <Property name="color_setting" value="0.000000" />
       <Property name="blend_factor" value="0.000000" />
       <Property name="inner_transparency" value="0.000000" />
+      <Property name="axes_setting" value="1.000000" />
+      <Property name="orientation" value="270.000000" out_range="0.000000, 270.000000" />
       <Property name="color_0" color="1.000000, 1.000000, 1.000000" />
       <Property name="axis_0" attrib_name="Blinker_L_S" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
       <Property name="color_1" color="0.000000, 0.000000, 0.000000" />

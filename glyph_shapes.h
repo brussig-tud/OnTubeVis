@@ -407,6 +407,8 @@ public:
 			{ "color_setting", GAT_UNIT, GAM_GLOBAL },
 			{ "blend_factor", GAT_UNIT, GAM_GLOBAL },
 			{ "inner_transparency", GAT_UNIT, GAM_GLOBAL },
+			{ "axes_setting", GAT_UNIT, GAM_GLOBAL },
+			{ "orientation", GAT_ORIENTATION, GAM_GLOBAL },
 			{ "color_0", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
 			{ "axis_0", GAT_SIZE, GAM_NON_CONST },
 			{ "color_1", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
