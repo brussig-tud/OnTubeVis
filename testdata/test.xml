@@ -1,0 +1,15 @@
+<GlyphConfiguration>
+  <ColorMaps>
+<ColorMap name="red" >
+  <ColorPoint x="0.000000" r="1.000000" g="0.000000" b="0.000000"/>
+  <ColorPoint x="0.495789" r="1.000000" g="0.382559" b="0.348571"/>
+  <ColorPoint x="0.977368" r="1.000000" g="1.000000" b="0.000000"/>
+</ColorMap>
+<ColorMap name="green" >
+  <ColorPoint x="0.000000" r="0.000000" g="1.000000" b="1.000000"/>
+  <ColorPoint x="1.000000" r="0.000000" g="1.000000" b="0.000000"/>
+</ColorMap>
+  </ColorMaps>
+  <Layers>
+  </Layers>
+</GlyphConfiguration>

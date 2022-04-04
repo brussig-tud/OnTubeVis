@@ -180,6 +180,8 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 				splat_func = "splat_generic_glyph(glyph.debug_info, " + glyph_func + ", " + color_str + + ", " + glyph_outline_str + ")";
 			} else {
+				// This is a special glyph.
+				// It uses its own splat function and value handling is fully manual.
 				std::string index_params_string =
 					std::to_string(last_constant_float_parameters_size) + ", " +
 					std::to_string(last_constant_color_parameters_size) + ", " +
@@ -188,7 +190,6 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				switch(shape_ptr->type()) {
 				case GT_COLOR:
 				{
-					//splat_func += layer_id + "(glyph, glyphs" + layer_id + "[closest.prev], glyphs" + layer_id + "[closest.next], " + "uv, " + std::to_string(color_map_indices[2]) + ", ";
 					splat_func += layer_id + "(closest.id, uv, " + std::to_string(color_map_indices[1]) + ", ";
 					splat_func += index_params_string;
 					splat_func += ")";
@@ -201,7 +202,6 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				} break;
 				case GT_LINE_PLOT:
 				{
-					//splat_func += layer_id + "(glyph, glyphs" + layer_id + "[closest.prev], glyphs" + layer_id + "[closest.next], " + "uv" + ", ";
 					splat_func += layer_id + "(closest.id, uv, ";
 					splat_func += index_params_string + ", ";
 					splat_func += glyph_outline_str;
@@ -209,7 +209,6 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				} break;
 				case GT_TEMPORAL_HEAT_MAP:
 				{
-					//splat_func += layer_id + "(glyph, glyphs" + layer_id + "[closest.prev], glyphs" + layer_id + "[closest.next], " + "uv" + ", ";
 					splat_func += layer_id + "(closest.id, uv, " + std::to_string(color_map_indices[2]) + ", ";
 					splat_func += index_params_string + ", ";
 					splat_func += glyph_outline_str;

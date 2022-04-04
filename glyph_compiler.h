@@ -181,8 +181,6 @@ protected:
 					const float t_seg = (min_t - segtime.t0) / (segtime.t1 - segtime.t0),
 						s = arclen::eval(alen[global_seg], t_seg);
 
-					// store the number of interpolated attributes for this glyph (debug only)
-					unsigned num_interpolated = 0;
 					for(size_t i = 0; i < attrib_count; ++i) {
 						unsigned attrib_idx = attrib_indices[i];
 
@@ -198,7 +196,6 @@ protected:
 							auto a_prev = mapped_attribs[i]->signed_magnitude_at(attrib_idx - 1);
 							float t = (min_t - a_prev.t) / (a_curr.t - a_prev.t);
 							val = cgv::math::lerp(a_prev.val, val, t);
-							++num_interpolated;
 						}
 
 						attrib_values[i] = val;
@@ -271,13 +268,7 @@ protected:
 						}
 						// store the new glyph
 						attribs.add(s);
-						int debug_info = 0;
-
-						debug_info |= num_interpolated;
-						debug_info |= min_a_idx << 2;
-
-						if(include_glyph)
-							debug_info |= 0x1000;
+						int debug_info = include_glyph ? 0 : 1;
 
 						attribs.add(*reinterpret_cast<float*>(&debug_info));
 
@@ -525,10 +516,7 @@ protected:
 						}
 						// store the new glyph
 						attribs.add(s);
-						int debug_info = 0;
-
-						if(include_glyph)
-							debug_info |= 0x1000;
+						int debug_info = include_glyph ? 0 : 1;
 
 						attribs.add(*reinterpret_cast<float*>(&debug_info));
 
@@ -761,10 +749,7 @@ protected:
 						}
 						// store the new glyph
 						attribs.add(s);
-						int debug_info = 0;
-
-						if(include_glyph)
-							debug_info |= 0x1000;
+						int debug_info = include_glyph ? 0 : 1;
 
 						attribs.add(*reinterpret_cast<float*>(&debug_info));
 

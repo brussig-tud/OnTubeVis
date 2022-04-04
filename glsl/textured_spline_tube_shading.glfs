@@ -639,7 +639,7 @@ float sd_segment(in vec2 p, in vec2 a, in vec2 b) {
     return length( pa - ba*h );
 }
 
-#define DEF_SD_POLYGON(I, N) \
+/*#define DEF_SD_POLYGON(I, N) \
 float sd_polygon##I(in vec2 p, in vec2[N] v) { \
     float d = dot(p-v[0],p-v[0]); \
     float s = 1.0; \
@@ -652,7 +652,7 @@ float sd_polygon##I(in vec2 p, in vec2[N] v) { \
         if(all(c) || all(not(c))) s *= -1.0; \
     } \
     return s * sqrt(d); \
-}
+}*/
 
 /*#define DEF_SD_STAR(I, N) \
 vec2 sd_star##I(vec2 p, float r, in glyph_desc##I gd, in int mapping_base_idx) { \
@@ -680,10 +680,9 @@ vec4 splat_star##I(in glyph_desc##I gd, in vec2 p, in int float_base_idx, in int
 	vec2 dist = sd_star##I(p, glyph_cf_param[float_base_idx], gd, mapping_base_idx); \
 	float alpha_fac = 1.0; \
 	\
-	if((gd.debug_info & 0x1000) == 0) { \
+	if(gd.debug_info > 0) \
 		alpha_fac = 0.5; \
-		dist.y = op_onion(dist.y + 0.05, 0.05); \
-	} \
+	\
 	vec3 dist3 = vec3(dist, op_onion(dist.y + 0.01, 0.01)); \
 	\
 	const vec3 antialias_width = general_settings.antialias_radius*fwidth(dist3); \
@@ -772,10 +771,8 @@ vec4 splat_star##I(in glyph_desc##I gd, in vec2 p, in int float_base_idx, in int
 	vec3 dist3 = sd_star##I(p, gd, ci0, ci1, float_base_idx, mapping_base_idx); \
 	float alpha_fac = 1.0; \
 	\
-	if((gd.debug_info & 0x1000) == 0) { \
+	if(gd.debug_info > 0) \
 		alpha_fac = 0.5; \
-		dist3.y = dist3.y+0.0*op_onion(dist3.y + 0.05, 0.05); \
-	} \
 	\
 	\
 	const vec3 antialias_width = general_settings.antialias_radius*fwidth(dist3); \
@@ -799,25 +796,25 @@ vec4 splat_star##I(in glyph_desc##I gd, in vec2 p, in int float_base_idx, in int
 
 
 #if L0_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_FLOAT_UNIFORM_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
-DEF_SD_POLYGON(0, L0_MAPPED_ATTRIB_COUNT);
+//DEF_SD_POLYGON(0, L0_MAPPED_ATTRIB_COUNT);
 DEF_SD_STAR(0, L0_MAPPED_ATTRIB_COUNT);
 DEF_SPLAT_STAR(0, L0_MAPPED_ATTRIB_COUNT);
 #endif
 
 #if L1_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_FLOAT_UNIFORM_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
-DEF_SD_POLYGON(1, L1_MAPPED_ATTRIB_COUNT);
+//DEF_SD_POLYGON(1, L1_MAPPED_ATTRIB_COUNT);
 DEF_SD_STAR(1, L1_MAPPED_ATTRIB_COUNT);
 DEF_SPLAT_STAR(1, L1_MAPPED_ATTRIB_COUNT);
 #endif
 
 #if L2_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_FLOAT_UNIFORM_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
-DEF_SD_POLYGON(2, L2_MAPPED_ATTRIB_COUNT);
+//DEF_SD_POLYGON(2, L2_MAPPED_ATTRIB_COUNT);
 DEF_SD_STAR(2, L2_MAPPED_ATTRIB_COUNT);
 DEF_SPLAT_STAR(2, L2_MAPPED_ATTRIB_COUNT);
 #endif
 
 #if L3_MAPPED_ATTRIB_COUNT > 0 && CONSTANT_FLOAT_UNIFORM_COUNT > 0 && CONSTANT_COLOR_UNIFORM_COUNT > 0
-DEF_SD_POLYGON(3, L3_MAPPED_ATTRIB_COUNT);
+//DEF_SD_POLYGON(3, L3_MAPPED_ATTRIB_COUNT);
 DEF_SD_STAR(3, L3_MAPPED_ATTRIB_COUNT);
 DEF_SPLAT_STAR(3, L3_MAPPED_ATTRIB_COUNT);
 #endif
@@ -1284,7 +1281,7 @@ float digit(vec2 uv, uint num) {
 }
 
 /* To show hidden glyphs only as a ring:
-	if((debug_info & 0x1000) == 0) {
+	if(debug_info > 0) {
 		alpha_fac = 0.5; // make glyph half transparent
 		dist = op_onion(dist + 0.05, 0.05); // draw outline of glyph (keeps original size)
 	}
@@ -1295,7 +1292,7 @@ vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color,
 	// debug only
 	// show otherwise not drawn glyphs
 	float alpha_fac = 1.0;
-	if((debug_info & 0x1000) == 0)
+	if(debug_info > 0)
 		alpha_fac = 0.5; // make glyph half transparent
 
 	// >> non-debuig implementation
@@ -1320,14 +1317,6 @@ vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color,
 }
 
 void finalize_glyph(in uint debug_info, in vec2 uv, in vec4 glyph_color, inout vec3 color) {
-
-	// the following is for debugging only
-	uint main_attrib_idx = (debug_info>>2) & 0x0003;
-	uint interpolated_attrib_count = debug_info & 0x0003;
-	
-	// color according to main attribute (the one, that induced the placement of this glyph)
-	//glyph_color.rgb = vec3(0.0);
-	//glyph_color.rgb[main_attrib_idx] = 1.0;
 
 	// >> non-debug implementation
 	color = mix(color, glyph_color.rgb, glyph_color.a);

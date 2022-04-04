@@ -15,6 +15,7 @@
 
 // CGV framework graphics utility
 #include <cgv_glutil/color_map_reader.h>
+#include <cgv_glutil/color_map_writer.h>
 
 // fltk_gl_view for controlling instant redraw
 #include <plugins/cg_fltk/fltk_gl_view.h>
@@ -711,6 +712,11 @@ bool tubes::save_layer_configuration(const std::string& file_name) {
 
 	for(size_t i = 0; i < color_maps.size(); ++i) {
 		const auto& cmc = color_maps[i];
+		if(cmc.custom) {
+			content += cgv::glutil::color_map_writer::to_xml(cmc.name, cmc.cm, false);
+		}
+
+		/*const auto& cmc = color_maps[i];
 		content += t + "<ColorMap " + put("name", cmc.name) + put("custom", std::to_string(cmc.custom));
 		if(cmc.custom) {
 			content += ">\n";
@@ -733,7 +739,7 @@ bool tubes::save_layer_configuration(const std::string& file_name) {
 			content += t + "</ColorMap>\n";
 		} else {
 			content += "/>\n";
-		}
+		}*/
 	}
 
 	t = tab;
