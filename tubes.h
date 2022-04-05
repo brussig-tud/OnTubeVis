@@ -24,7 +24,7 @@
 #include <cgv_glutil/radix_sort_4way.h>
 #include <cgv_glutil/shader_library.h>
 #include <cgv_glutil/sphere_render_data.h>
-#include <cgv_glutil/transfer_function_editor.h>
+//#include <cgv_glutil/transfer_function_editor.h>
 
 // local includes
 #include "traj_loader.h"
@@ -63,7 +63,7 @@ public:
 
 protected:
 	cgv::glutil::color_map_editor* cm_editor_ptr;
-	cgv::glutil::transfer_function_editor* tf_editor_ptr;
+	cgv::glutil::color_map_editor* tf_editor_ptr;
 	cgv::glutil::navigator* navigator_ptr;
 	color_map_viewer* cm_viewer_ptr;
 
@@ -145,6 +145,7 @@ protected:
 	cgv::glutil::frame_buffer_container fbc;
 	cgv::glutil::shader_library shaders;
 	volume_render_style vstyle;
+	cgv::glutil::gl_color_map volume_tf;
 
 	bool show_bbox = true;
 	bool show_wireframe_bbox = true;

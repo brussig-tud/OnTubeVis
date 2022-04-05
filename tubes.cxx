@@ -76,9 +76,10 @@ tubes::tubes() : application_plugin("Tubes")
 	cm_editor_ptr->set_visibility(false);
 	cm_editor_ptr->gui_options.show_heading = false;
 
-	tf_editor_ptr = register_overlay<cgv::glutil::transfer_function_editor>("Volume TF");
+	tf_editor_ptr = register_overlay<cgv::glutil::color_map_editor>("Volume TF");
 	tf_editor_ptr->set_visibility(false);
 	tf_editor_ptr->gui_options.show_heading = false;
+	tf_editor_ptr->set_opacity_support(true);
 
 	navigator_ptr = register_overlay<cgv::glutil::navigator>("Navigator");
 	navigator_ptr->set_visibility(false);
@@ -2032,6 +2033,8 @@ bool tubes::init (cgv::render::context &ctx)
 	compile_glyph_attribs();
 	ah_mgr.set_dataset(traj_mgr.dataset(0));
 
+	volume_tf.init(ctx);
+
 	// use white background for paper screenshots
 	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
 
@@ -2053,7 +2056,13 @@ void tubes::init_frame (cgv::render::context &ctx)
 				auto& cmcs = color_map_mgr.ref_color_maps();
 				for(auto& cmc : cmcs) {
 					if(cmc.name == "imola") {
-						tf_editor_ptr->set_color_points(cmc.cm.ref_color_points());
+						for(const auto& p : cmc.cm.ref_color_points())
+							volume_tf.add_color_point(p.first, p.second);
+
+						volume_tf.add_opacity_point(0.0f, 0.0f);
+						volume_tf.add_opacity_point(1.0f, 1.0f);
+
+						tf_editor_ptr->set_color_map(&volume_tf);
 						break;
 					}
 				}
@@ -2137,6 +2146,10 @@ void tubes::init_frame (cgv::render::context &ctx)
 		color_map_mgr.update_texture(ctx);
 		if(cm_viewer_ptr)
 			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+	}
+
+	if(tf_editor_ptr && tf_editor_ptr->was_updated()) {
+		volume_tf.generate_texture(ctx);
 	}
 
 	if(!benchmark_mode_setup && benchmark_mode) {
@@ -2840,8 +2853,7 @@ void tubes::draw_density_volume(context& ctx) {
 	auto& vr = ref_volume_renderer(ctx);
 	vr.set_render_style(vstyle);
 	vr.set_volume_texture(&density_tex);
-	//vr.set_transfer_function_texture(&tf_tex);
-	vr.set_transfer_function_texture(&tf_editor_ptr->ref_tex());
+	vr.set_transfer_function_texture(&volume_tf.ref_texture());
 	
 	vr.set_bounding_box(density_volume.ref_voxel_grid().bounds);
 	vr.transform_to_bounding_box(true);
