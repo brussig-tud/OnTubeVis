@@ -79,25 +79,15 @@ bool color_map_viewer::init(cgv::render::context& ctx) {
 	success &= font_renderer.init(ctx);
 	if (success)
 		init_styles(ctx);
-#ifndef CGV_FORCE_STATIC 
 	if (msdf_font.init(ctx)) {
 		texts.set_msdf_font(&msdf_font);
 		texts.set_font_size(font_size);
 	}
-#endif
 	return success;
 }
 
 void color_map_viewer::init_frame(cgv::render::context& ctx) 
 {
-#ifdef CGV_FORCE_STATIC 
-	if (!msdf_font.is_initialized()) {
-		if (msdf_font.init(ctx)) {
-			texts.set_msdf_font(&msdf_font);
-			texts.set_font_size(font_size);
-		}
-	}
-#endif
 	if(ensure_overlay_layout(ctx)) {
 		ivec2 container_size = get_overlay_size();
 		layout.update(container_size);
