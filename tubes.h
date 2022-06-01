@@ -62,10 +62,10 @@ public:
 	cgv::type::DummyEnum voxel_grid_resolution;
 
 protected:
-	cgv::glutil::color_map_editor* cm_editor_ptr;
-	cgv::glutil::color_map_editor* tf_editor_ptr;
-	cgv::glutil::navigator* navigator_ptr;
-	color_map_viewer* cm_viewer_ptr;
+	cgv::glutil::color_map_editor_ptr cm_editor_ptr;
+	cgv::glutil::color_map_editor_ptr tf_editor_ptr;
+	cgv::data::ref_ptr<cgv::glutil::navigator> navigator_ptr;
+	cgv::data::ref_ptr <color_map_viewer> cm_viewer_ptr;
 
 	enum GridMode {
 		GM_NONE = 0,

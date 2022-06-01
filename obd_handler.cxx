@@ -186,7 +186,6 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 				}
 			}
 		}
-		// handle unknown types
 		else if (j["type"] == "GPS") {
 			gps_info_map[j["source"].get<std::string>()].push_back({
 				j["source"].get<std::string>(),
@@ -197,6 +196,7 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 				j["data"]["gps_speed"].get<double>()
 			});
 		}
+		// handle unknown types
 		else {
 			if (type_counts.find(j["type"]) == type_counts.end())
 				type_counts[j["type"]] = 1;
