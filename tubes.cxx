@@ -339,7 +339,8 @@ bool tubes::handle_event(cgv::gui::event &e) {
 		case cgv::gui::MA_DRAG:
 		{
 			// during dragging keep track of drop position and redraw
-			dnd.pos = ivec2(me.get_x(), me.get_y());
+			if(auto ctx_ptr = get_context())
+				dnd.pos = ivec2(me.get_x(), ctx_ptr->get_height() - me.get_y() - 1);
 			post_redraw();
 			return true;
 		}

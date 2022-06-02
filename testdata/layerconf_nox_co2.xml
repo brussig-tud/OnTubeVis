@@ -1,0 +1,29 @@
+<GlyphConfiguration>
+  <ColorMaps>
+  </ColorMaps>
+  <Layers>
+    <Layer glyph="color" sampling="original" >
+      <Property name="interpolate" value="1.000000" />
+      <Property name="color" attrib_name="speed" color_map_name="lajolla" in_range="0.000000, 141.000000" />
+    </Layer>
+    <Layer glyph="line_plot" sampling="original" >
+      <Property name="outline" value="0.000000" />
+      <Property name="interpolate" value="1.000000" />
+      <Property name="color_0" color="1.000000, 0.000000, 0.000000" />
+      <Property name="value_0" attrib_name="nox_mass_flow" in_range="0.000000, 0.007000" out_range="0.000000, 1.080000" />
+      <Property name="color_1" color="0.000000, 1.000000, 1.000000" />
+      <Property name="value_1" attrib_name="co2_mass_flow" in_range="0.000000, 16.000000" out_range="0.000000, 1.000000" />
+      <Property name="color_2" color="0.000000, 0.000000, 0.000000" />
+      <Property name="value_2" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="color_3" color="0.000000, 0.000000, 0.000000" />
+      <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+    </Layer>
+    <Layer glyph="triangle_isosceles" sampling="original" >
+      <Property name="outline" value="0.000000" />
+      <Property name="color" attrib_name="vis_environment" color_map_name="bamako" in_range="50.000000, 150.000000" />
+      <Property name="base_width" in_range="0.000000, 1.000000" out_range="0.000000, 0.340000" />
+      <Property name="height" in_range="0.000000, 1.000000" out_range="0.000000, 0.340000" />
+      <Property name="orientation" in_range="0.000000, 1.000000" out_range="0.000000, 360.000000" />
+    </Layer>
+  </Layers>
+</GlyphConfiguration>
