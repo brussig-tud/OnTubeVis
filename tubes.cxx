@@ -888,28 +888,26 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 		}
 	}
 
-	std::vector<std::string> color_map_names;
-	std::vector<cgv::glutil::color_map> color_maps;
-	if(cgv::glutil::color_map_reader::read_from_xml(color_map_lines, color_map_names, color_maps)) {
-		if(color_map_names.size() == color_maps.size()) {
-			// clear previous custom color maps
-			std::vector<std::string> current_names;
-			const auto& current_color_maps = color_map_mgr.ref_color_maps();
-			for(size_t i = 0; i < current_color_maps.size(); ++i) {
-				if(current_color_maps[i].custom)
-					current_names.push_back(current_color_maps[i].name);
-			}
-
-			for(size_t i = 0; i < current_names.size(); ++i)
-				color_map_mgr.remove_color_map_by_name(current_names[i]);
-
-			for(size_t i = 0; i < color_map_names.size(); ++i)
-				color_map_mgr.add_color_map(color_map_names[i], color_maps[i], true);
+	cgv::glutil::color_map_reader::result color_maps;
+	if(cgv::glutil::color_map_reader::read_from_xml(color_map_lines, color_maps)) {
+		// clear previous custom color maps
+		std::vector<std::string> current_names;
+		const auto& current_color_maps = color_map_mgr.ref_color_maps();
+		for(size_t i = 0; i < current_color_maps.size(); ++i) {
+			if(current_color_maps[i].custom)
+				current_names.push_back(current_color_maps[i].name);
 		}
+
+		for(size_t i = 0; i < current_names.size(); ++i)
+			color_map_mgr.remove_color_map_by_name(current_names[i]);
+
+		// add new custom color maps
+		for(const auto& entry : color_maps)
+			color_map_mgr.add_color_map(entry.first, entry.second, true);
 	}
 	
-	// update the list of color map names
-	color_map_names = color_map_mgr.get_names();
+	// get a list of color map names
+	std::vector<std::string> color_map_names = color_map_mgr.get_names();
 
 	const auto index_of = [](const std::vector<std::string>& v, const std::string& elem) {
 		int idx = -1;
@@ -1980,14 +1978,10 @@ bool tubes::init (cgv::render::context &ctx)
 			std::filesystem::path entry_path = entry.path();
 			// only take xml files
 			if(entry_path.extension() == ".xml") {
-				std::vector<std::string> names;
-				std::vector<cgv::glutil::color_map> color_maps;
-				if(cgv::glutil::color_map_reader::read_from_xml(entry_path.string(), names, color_maps)) {
-					if(names.size() == color_maps.size()) {
-						for(size_t i = 0; i < names.size(); ++i)
-							color_map_mgr.add_color_map(names[i], color_maps[i], false);
-					}
-				}
+				cgv::glutil::color_map_reader::result color_maps;
+				if(cgv::glutil::color_map_reader::read_from_xml(entry_path.string(), color_maps))
+					for(const auto& entry : color_maps)
+						color_map_mgr.add_color_map(entry.first, entry.second, false);
 			}
 		}
 	}
@@ -1999,28 +1993,20 @@ bool tubes::init (cgv::render::context &ctx)
 			std::filesystem::path entry_path = entry.path();
 			// only take xml files
 			if(entry_path.extension() == ".xml") {
-				std::vector<std::string> names;
-				std::vector<cgv::glutil::color_map> color_maps;
-				if(cgv::glutil::color_map_reader::read_from_xml(entry_path.string(), names, color_maps)) {
-					if(names.size() == color_maps.size()) {
-						for(size_t i = 0; i < names.size(); ++i)
-							color_map_mgr.add_color_map(names[i], color_maps[i], false);
-					}
-				}
+				cgv::glutil::color_map_reader::result color_maps;
+				if(cgv::glutil::color_map_reader::read_from_xml(entry_path.string(), color_maps))
+					for(const auto& entry : color_maps)
+						color_map_mgr.add_color_map(entry.first, entry.second, false);
 			}
 		}
 	}
 
 	// load sequential RAINBOW color map
 	if(std::filesystem::exists(app_path+"res/color_maps/RAINBOW.xml")) {
-		std::vector<std::string> names;
-		std::vector<cgv::glutil::color_map> color_maps;
-		if(cgv::glutil::color_map_reader::read_from_xml(app_path+"res/color_maps/RAINBOW.xml", names, color_maps)) {
-			if(names.size() == color_maps.size()) {
-				for(size_t i = 0; i < names.size(); ++i)
-					color_map_mgr.add_color_map(names[i], color_maps[i], false);
-			}
-		}
+		cgv::glutil::color_map_reader::result color_maps;
+		if(cgv::glutil::color_map_reader::read_from_xml(app_path + "res/color_maps/RAINBOW.xml", color_maps))
+			for(const auto& entry : color_maps)
+				color_map_mgr.add_color_map(entry.first, entry.second, false);
 	}
 
 	color_map_mgr.update_texture(ctx);
