@@ -287,7 +287,6 @@ protected:
 	void update_glyph_layer_manager(void);
 	void glyphs_out_of_date(bool state);
 	bool compile_glyph_attribs(void);
-	//bool compile_glyph_attribs_front(void);
 	double change_time = 0.0;
 	double recalc_delay = 0.2;
 	bool has_changed = false;
