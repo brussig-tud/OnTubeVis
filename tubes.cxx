@@ -2033,8 +2033,8 @@ void tubes::draw_trajectories(context& ctx) {
 	vec3 eye_pos = view_ptr->get_eye();
 	const vec3& view_dir = view_ptr->get_view_dir();
 
-	fbc.enable(ctx);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//fbc.enable(ctx);
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 
@@ -2062,17 +2062,65 @@ void tubes::draw_trajectories(context& ctx) {
 		count = static_cast<int>(debug.render_count);
 	}
 	
+
+
+
+
+	auto& prog = tstr.ref_prog();
+	prog.enable(ctx);
+
+	// set ambient occlusion parameters
+	prog.set_uniform(ctx, "ambient_occlusion.enable", ao_style.enable);
+	prog.set_uniform(ctx, "ambient_occlusion.sample_offset", ao_style.sample_offset);
+	prog.set_uniform(ctx, "ambient_occlusion.sample_distance", ao_style.sample_distance);
+	prog.set_uniform(ctx, "ambient_occlusion.strength_scale", ao_style.strength_scale);
+
+	prog.set_uniform(ctx, "ambient_occlusion.tex_offset", ao_style.texture_offset);
+	prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", ao_style.texture_scaling);
+	prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", ao_style.texcoord_scaling);
+	prog.set_uniform(ctx, "ambient_occlusion.texel_size", ao_style.texel_size);
+
+	prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
+	prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
+
+	// set grid parameters
+	prog.set_uniform(ctx, "grid_color", grid_color);
+	prog.set_uniform(ctx, "normal_mapping_scale", normal_mapping_scale);
+	for(size_t i = 0; i < grids.size(); ++i) {
+		std::string base_name = "grids[" + std::to_string(i) + "].";
+		prog.set_uniform(ctx, base_name + "scaling", grids[i].scaling);
+		prog.set_uniform(ctx, base_name + "thickness", grids[i].thickness);
+		prog.set_uniform(ctx, base_name + "blend_factor", grids[i].blend_factor);
+	}
+
+	prog.disable(ctx);
+
+
+
+
+
+
+
+
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, arclen_handle);
+
+	density_tex.enable(ctx, 0);
+	color_map_mgr.ref_texture().enable(ctx, 1);
+
 	tstr.render(ctx, 0, count);
+
+	density_tex.disable(ctx);
+	color_map_mgr.ref_texture().disable(ctx);
+
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
 
 	tstr.disable_attribute_array_manager(ctx, render.aam);
 
-	fbc.disable(ctx);
+	//fbc.disable(ctx);
 
-	shader_program& prog = shaders.get("tube_shading");
+	/*shader_program& prog = shaders.get("tube_shading");
 	prog.enable(ctx);
 	// set render parameters
 	prog.set_uniform(ctx, "use_gamma", true);
@@ -2166,7 +2214,7 @@ void tubes::draw_trajectories(context& ctx) {
 
 	//glDepthFunc(GL_LESS);
 
-	prog.disable(ctx);
+	prog.disable(ctx);*/
 }
 
 void tubes::draw_density_volume(context& ctx) {
