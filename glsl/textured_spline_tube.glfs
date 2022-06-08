@@ -59,7 +59,6 @@
 
 
 
-
 //***** begin interface of view.glsl ***********************************
 mat4 get_modelview_matrix();
 mat4 get_projection_matrix();
@@ -75,11 +74,6 @@ mat3 get_inverse_normal_matrix();
 vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color, int side);
 //***** end interface of surface.glsl ***********************************
 
-//***** begin interface of fragment.glfs ***********************************
-uniform float gamma = 2.2;
-void finish_fragment(vec4 color);
-void finish_fragment(vec4 color, float depth);
-//***** end interface of fragment.glfs ***********************************
 
 
 
@@ -193,6 +187,7 @@ uniform struct {
 layout (depth_greater) out float gl_FragDepth;
 #endif
 
+layout (location = 0) out vec4 frag_color;
 //layout (location = 0) out vec4 frag_albedo;
 //layout (location = 1) out vec3 frag_position;
 //layout (location = 2) out vec3 frag_normal;
@@ -1219,10 +1214,9 @@ void main()
 
 
 
-
+		
 		// apply the visual mappings to the tube base color
-		vec4 frag_color;
-		vec3 color = apply_visual_mappings(base_color);
+		vec4 final_color = vec4(apply_visual_mappings(base_color), 1.0);
 
 		// highlight segments in debug mode if requested
 #if DEBUG_SEGMENTS > 0
@@ -1231,10 +1225,14 @@ void main()
 
 		// apply grid
 #if GRID_MODE & 1
-		color = mix(color, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
+		final_color.rgb = mix(color.rgb, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
 #endif
 
-		frag_color = compute_reflected_appearance(hit_pos_eye, hit.normal, vec4(color, 1.0), 1);
+		// using the framework built-in lighting system costs about 2 ms for the fisch-wehr data set (impact reduces for larger data sets, possibly due to less overdraw)
+		// basic diffuse lighting with light position at eye
+		float diffuse = max(dot(-normalize(hit_pos_eye), hit.normal), 0.0);
+		//final_color.rgb *= diffuse;
+		final_color = compute_reflected_appearance(hit_pos_eye, hit.normal, final_color, 1);
 
 #if GRID_MODE & 2
 		//vec3 gn = compute_grid_normal(uv);
@@ -1247,10 +1245,22 @@ void main()
 #endif
 
 		//apply ambient occlusion
+		// change if to a define for maximum performance when ambient occlusion is disabled
 		if(ambient_occlusion.enable)
-			frag_color.rgb *= compute_ambient_occlusion_factor(hit_pos_eye, hit.normal);
+			final_color.rgb *= compute_ambient_occlusion_factor(hit_pos_eye, hit.normal);
+		
 
-		finish_fragment(frag_color);
+		
+		frag_color = vec4(clamp(pow(final_color.rgb, vec3(2.2)), 0.0, 0.999999), final_color.a);
+
+		/*
+		fragment_file:fragment.glfs
+		fragment_file:side.glsl
+		fragment_file:lights.glsl
+		fragment_file:bump_map.glfs
+		fragment_file:surface.glsl
+		fragment_file:brdf.glsl
+		*/
 	}
 #endif
 }

@@ -2082,7 +2082,7 @@ void tubes::draw_trajectories(context& ctx) {
 
 	prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
 	prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
-
+	
 	// set grid parameters
 	prog.set_uniform(ctx, "grid_color", grid_color);
 	prog.set_uniform(ctx, "normal_mapping_scale", normal_mapping_scale);
