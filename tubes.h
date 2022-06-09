@@ -91,6 +91,7 @@ protected:
 
 	/// global tube render settings
 	struct {
+		bool use_framework_lighting = true;
 		bool use_curvature_correction = true;
 		float length_scale = 1.0;
 		float antialias_radius = 0.5f;

@@ -31,6 +31,7 @@
 
 #define DEBUG_SEGMENTS 0
 
+#define ENABLE_FRAMEWORK_LIGHTING 1
 #define ENABLE_AMBIENT_OCCLUSION 1
 
 #define GRID_MODE 0
@@ -1038,11 +1039,14 @@ void main()
 		final_color.rgb = mix(color.rgb, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
 #endif
 
+#if ENABLE_FRAMEWORK_LIGHTING == 1
 		// using the framework built-in lighting system costs about 2 ms for the fisch-wehr data set (impact reduces for larger data sets, possibly due to less overdraw)
+		final_color = compute_reflected_appearance(hit_pos_eye, hit.normal, final_color, 1);
+#else
 		// basic diffuse lighting with light position at eye
 		float diffuse = max(dot(-normalize(hit_pos_eye), hit.normal), 0.0);
-		final_color.rgb *= diffuse;
-		//final_color = compute_reflected_appearance(hit_pos_eye, hit.normal, final_color, 1);
+		final_color.rgb *= 0.25 + 0.75*diffuse; // 25% ambient light
+#endif
 
 #if GRID_MODE & 2
 		//vec3 gn = compute_grid_normal(uv);

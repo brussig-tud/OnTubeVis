@@ -264,7 +264,7 @@ bool tubes::handle_event(cgv::gui::event &e) {
 			case 'A':
 				ao_style.enable = !ao_style.enable;
 				std::cout << "Ambient occlusion: " << (ao_style.enable ? "on" : "off") << std::endl;
-				on_set(&ao_style.enable);
+				update_member(&ao_style.enable);
 				handled = true;
 				break;
 			case 'B':
@@ -457,7 +457,6 @@ void tubes::on_set(void *member_ptr) {
 
 	// render settings
 	if( member_ptr == &debug.highlight_segments ||
-		member_ptr == &ao_style.enable ||
 		member_ptr == &grid_mode ||
 		member_ptr == &grid_normal_settings ||
 		member_ptr == &grid_normal_inwards ||
@@ -1297,8 +1296,8 @@ bool tubes::init (cgv::render::context &ctx)
 	constexpr unsigned num_trajectories = 3;
 	constexpr unsigned num_nodes = 16;
 #else
-	constexpr unsigned num_trajectories = 256; // 1
-	constexpr unsigned num_nodes = 256; // 32
+	constexpr unsigned num_trajectories = 4*256; // 1
+	constexpr unsigned num_nodes = 2*256; // 32
 #endif
 	for (unsigned i=0; i<num_trajectories; i++)
 		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_nodes, seed+i));
@@ -1421,7 +1420,7 @@ void tubes::init_frame (cgv::render::context &ctx)
 
 	if(benchmark.running) {
 		++benchmark.total_frames;
-		double benchmark_time = 10.0;
+		double benchmark_time = 4.0;
 
 		double seconds_since_start = benchmark.timer.get_elapsed_time();
 		double alpha = (seconds_since_start - benchmark.last_seconds_since_start) / benchmark_time;
@@ -1574,6 +1573,8 @@ void tubes::create_gui(void) {
 		align("\b");
 		end_tree_node(render.style);
 	}
+
+	add_member_control(this, "Framework Lighting", general_settings.use_framework_lighting, "check");
 
 	if(begin_tree_node("AO Style", ao_style, false)) {
 		align("\a");
@@ -2054,6 +2055,7 @@ void tubes::draw_trajectories(context& ctx) {
 		render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
 
 	shader_define_map defines;
+	shader_code::set_define(defines, "ENABLE_FRAMEWORK_LIGHTING", general_settings.use_framework_lighting, true);
 	shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
 	tstr.set_additional_defines(defines);
 
