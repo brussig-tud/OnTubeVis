@@ -31,6 +31,8 @@
 
 #define DEBUG_SEGMENTS 0
 
+#define ENABLE_AMBIENT_OCCLUSION 1
+
 #define GRID_MODE 0
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
@@ -77,7 +79,9 @@ vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color
 
 
 
+#if ENABLE_AMBIENT_OCCLUSION == 1
 layout (binding = 0) uniform sampler3D density_tex;
+#endif
 layout (binding = 1) uniform sampler2D color_maps_tex;
 
 
@@ -188,25 +192,11 @@ layout (depth_greater) out float gl_FragDepth;
 #endif
 
 layout (location = 0) out vec4 frag_color;
-//layout (location = 0) out vec4 frag_albedo;
-//layout (location = 1) out vec3 frag_position;
-//layout (location = 2) out vec3 frag_normal;
-//layout (location = 3) out vec3 frag_tangent;
-// disabled for performance testing since it is unused for now
-//layout (location = 4) out uvec4 frag_info;
 
 // arclen approximations SBO
 layout (std430, binding = 1) readonly buffer arclen_buffer { 
   mat4 b[]; // 4 cubic beziers packed into colums of mat4
 };
-
-/*float eval_cubic_bezier(float t, vec4 cp) {
-	float t0 = (1.0 - t) * (1.0 - t) * (1.0 - t) * cp[0];
-    float t1 = 3.0 * (1.0 - t) * (1.0 - t) * t * cp[1];
-    float t2 = 3.0 * (1.0 - t) * t * t * cp[2];
-    float t3 = t * t * t * cp[3];
-    return t0 + t1 + t2 + t3;
-}*/
 
 float eval_cubic_bezier(float t, vec4 cp) {
 	const mat4 Mc = mat4(
@@ -217,17 +207,6 @@ float eval_cubic_bezier(float t, vec4 cp) {
 	);
 	return dot(vec4(1.0, t, t*t, t*t*t), Mc * cp);
 }
-
-/*void control_points_to_poly_coeffs_b3(vec4 b, out float o_c[4]) {
-	o_c[0] = b[0];
-	o_c[1] = -3.0 * b[0] + 3.0 * b[1];
-	o_c[2] = 3.0 * b[0] - 6.0 * b[1] + 3.0 * b[2];
-	o_c[3] = -b[0] + 3.0 * b[1] - 3.0 * b[2] + b[3];
-}
-
-float eval_poly_3(float x, float c[4]) {
-	return x * (x * (x * c[3] + c[2]) + c[1]) + c[0];
-}*/
 
 // arclength evaluation
 // length scale should be set to 1/radius with curvature correction on
@@ -702,63 +681,6 @@ vec3 eval_cubic_hermite_tangent(float t)
 }
 #endif
 
-/*vec3 EvalSplineBinormal(float t)
-{
-	vec4 tvec = vec4(6.0*t, 2.0, 0.0, 0.0);
-	return (mg_fs * tvec).xyz;
-}*/
-
-
-
-
-bool intersect_plane(vec3 n, vec3 p0, vec3 l0, const vec3 l, out float t)
-{
-    // assuming vectors are all normalized
-    float denom = dot(n, l);
-    if (denom > 1e-6) {
-        vec3 p0l0 = p0 - l0;
-        t = dot(p0l0, n) / denom;
-        return (t >= 0);
-    }
-
-    return false;
-}
-
-bool intersect_disk(vec3 n, vec3 p0, float radius, vec3 l0, vec3 l, out float t)
-{
-    //float t = 0;
-    if(intersect_plane(n, p0, l0, l, t)) {
-        vec3 p = l0 + l * t;
-        vec3 v = p - p0;
-        float d2 = dot(v, v);
-        return (sqrt(d2) <= radius);
-        // or you can use the following optimisation (and precompute radius^2)
-        // return d2 <= radius2; // where radius2 = radius * radius
-     }
-
-     return false;
-} 
-
-vec3 project_to_plane(vec3 p, vec3 n) {
-
-	//return p - dot(n, p) * n;
-
-	return p - n * dot(p, n) / dot(n, n);
-}
-
-
-
-
-
-void control_points_to_poly_coeffs(float p0, float h, float p1, out float o_c[3]) {
-	o_c[0] = p0;
-	o_c[1] = -2.0 * p0 + 2.0 * h;
-	o_c[2] = p0 + p1 - 2.0 * h;
-}
-
-float eval_poly_d0(float x, float c[3]) {
-	return x * (x * c[2] + c[1]) + c[0];
-}
 
 
 
@@ -782,9 +704,7 @@ float eval_poly_d0(float x, float c[3]) {
 
 
 
-
-
-
+#if ENABLE_AMBIENT_OCCLUSION == 1
 float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
 	vec3 pos = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
 	vec3 normal = normalize(get_inverse_normal_matrix() * normal_eye);
@@ -827,7 +747,7 @@ float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
 
 	return 1.0 - clamp(ambient_occlusion.strength_scale * ao / 3.0, 0.0, 1.0);
 }
-
+#endif
 
 
 
@@ -1031,11 +951,6 @@ void main()
 	discard;
 	return;
 #elif MODE == 1
-	//frag_albedo = vec4(uintBitsToFloat(0xFF0000FF), 0.0, 0.0, intBitsToFloat(0));
-	//frag_position = vec3(0.0, 0.0, 1.0);
-	//frag_normal = vec3(0.0, 0.0, 1.0);
-	//frag_tangent = vec3(1.0, 0.0, 0.0);
-
 	finish_fragment(vec4(1.0, 0.0, 0.0, 1.0));
 	return;
 #else
@@ -1067,92 +982,15 @@ void main()
 
 	if(hit.t == POS_INF || (hit.cap && hit.t > cap_clip_distance)) {
 #if MODE == 2
-		//frag_albedo = vec4(uintBitsToFloat(0xFF0000FF), 0.0, 0.0, intBitsToFloat(0));
-		//frag_position = vec3(0.0, 0.0, 1.0);
-		//frag_normal = vec3(0.0, 0.0, 1.0);
-		//frag_tangent = vec3(1.0, 0.0, 0.0);
 		finish_fragment(vec4(1.0, 0.0, 0.0, 1.0));
 #else
 		discard;
 #endif
 	} else {
-		//vec3 col = EvalCSpline(color0.rgb, vec3(0.0), unpackUnorm4x8(color1_fs).rgb, vec3(0.0), hit.l * 0.5 + 0.5*color0.a);
-		// with zero tangents the cubic hermite interpolation is reduced to a linear problem
-		//vec3 col = mix(color0_fs.rgb, color1_fs.rgb, hit.l * 0.5 + 0.5*color0.a);
-
 		vec3 hit_pos_eye = direction * hit.t;
 		float spline_t = hit.l * 0.5 + l_offset_fs;
+		// with zero tangents the cubic hermite interpolation is reduced to a linear problem
 		vec3 base_color = mix(unpackUnorm4x8(color0_fs).rgb, unpackUnorm4x8(color1_fs).rgb, spline_t);
-
-		// Testing intersections with the end caps. Removing, placing disks, etc...
-		/*
-			vec3 dir0 = normalize(qTube_fs.h.pos - qTube_fs.s.pos);
-			
-			/*float t = 0.0;
-			if(intersect_disk(dir0, qTube_fs.s.pos, qTube_fs.s.rad, vec3(0.0), direction, t)) {
-			//float t = 0.0;
-			//if(intersect_plane(dir0, qTube_fs.s.pos, vec3(0.0), direction, t)) {
-
-				if(t < hit.t) {
-					hit.t = t;
-					hit_pos_eye = direction * hit.t;
-				}
-
-				//vec3 p = project_to_plane(hit_pos_eye - qTube_fs.s.pos, dir0);
-				//if(dot(p, p) <= qTube_fs.s.rad*qTube_fs.s.rad) {
-				//	discard;
-				//	return;
-				//}
-
-				//discard;
-				//return;
-			}*
-
-			if(dot(hit_pos_eye - qTube_fs.s.pos, dir0) < 0) {
-				vec3 p = project_to_plane(hit_pos_eye - qTube_fs.s.pos, dir0);
-				if(dot(p, p) <= qTube_fs.s.rad*qTube_fs.s.rad) {
-					discard;
-					return;
-				}
-				//col = vec4(1.0, 0.0, 0.0, 1.0);
-				//col = vec4(length(p), 0.0, 0.0, 1.0);
-			}
-		
-			vec3 dir1 = normalize(qTube_fs.h.pos - qTube_fs.e.pos);
-			
-			////if(intersect_disk(dir0, qTube_fs.s.pos, qTube_fs.s.rad, vec3(0.0), direction)) {
-			//float t = 0.0;
-			//if(intersect_plane(dir0, qTube_fs.s.pos, vec3(0.0), direction, t)) {
-			//	discard;
-			//	return;
-			//}
-
-			if(dot(hit_pos_eye - qTube_fs.e.pos, dir1) < 0) {
-				vec3 p = project_to_plane(hit_pos_eye - qTube_fs.e.pos, dir1);
-				if(dot(p, p) <= qTube_fs.e.rad) {
-					discard;
-					return;
-				}
-				//col = vec4(1.0, 0.0, 0.0, 1.0);
-				//col = vec4(length(p), 0.0, 0.0, 1.0);
-			}
-
-
-		/*{
-			vec3 dir1 = normalize(qTube_fs.h.pos - qTube_fs.e.pos);
-			
-			////if(intersect_disk(dir1, qTube_fs.e.pos, qTube_fs.e.rad, vec3(0.0), direction)) {
-			//float t = 0.0;
-			//if(intersect_plane(dir1, qTube_fs.e.pos, vec3(0.0), direction, t)) {
-			//	discard;
-			//	return;
-			//}
-
-			//if(dot(hit_pos_eye - qTube_fs.e.pos, dir1) < 0) {
-			//	discard;
-			//	return;
-			//}
-		}*/
 
 		vec4 v_eye = vec4(hit_pos_eye, 1.0);
 		vec4 depth = get_projection_matrix() * v_eye;
@@ -1174,29 +1012,6 @@ void main()
 		// since we are only interested in the eye-facing side of the tube, acos is sufficient here
 		float v = acos(dot(b, hit.normal)) * M_INV_PI;
 
-		//float v = -dot(b, hit.normal);
-		
-		// Activate to use radius correction (deactivate transformation in screen pass fragment shader)
-		/*v *= 2.0;
-		v = 2.0 * v - 1.0;
-
-		float c[3];
-		control_points_to_poly_coeffs(qTube_fs.s.rad, qTube_fs.h.rad, qTube_fs.e.rad, c);
-		float radius = eval_poly_d0(hit.l, c);
-
-		v *= radius/0.2;
-		*/
-
-		//frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(col)), spline_t, v, intBitsToFloat(segment_id_fs));
-		//frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(col)), alen(spline_t), v, intBitsToFloat(segment_id_fs));
-		//frag_position = vec3(hit_pos_eye);
-		//frag_normal = hit.normal;
-		//frag_tangent = tangent;
-		// disabled for performance testing since it is unused for now
-		//frag_info = uvec4(gl_FragCoord.x, gl_FragCoord.y, 0, 1); // CPU-side debugging for now - should eventually store ID(s) that enable tracking the front-most segment covering the pixel
-
-
-
 		vec2 uv = vec2(alen(spline_t), v);
 
 		// The texture coordinate v (around the tube) lies in [0,1] at the front side (camera facing side) of the tube,
@@ -1210,14 +1025,6 @@ void main()
 		if(general_settings.use_curvature_correction)
 			uv.t = sin(0.5*M_PI*uv.t);
 
-
-
-
-
-
-
-
-		
 		// apply the visual mappings to the tube base color
 		vec4 final_color = vec4(apply_visual_mappings(base_color), 1.0);
 
@@ -1249,9 +1056,10 @@ void main()
 
 		//apply ambient occlusion
 		// change if to a define for maximum performance when ambient occlusion is disabled
-		if(ambient_occlusion.enable)
-			final_color.rgb *= compute_ambient_occlusion_factor(hit_pos_eye, hit.normal);
-		
+#if ENABLE_AMBIENT_OCCLUSION == 1
+		final_color.rgb *= compute_ambient_occlusion_factor(hit_pos_eye, hit.normal);
+#endif
+
 
 		/*	!!!
 		*	enabling either compute_reflected_appearance or compute_ambient_occlusion_factor seems to disable the conservative depth test
@@ -1260,15 +1068,6 @@ void main()
 
 		
 		finish_fragment(final_color);
-
-		/*
-		fragment_file:fragment.glfs
-		fragment_file:side.glsl
-		fragment_file:lights.glsl
-		fragment_file:bump_map.glfs
-		fragment_file:surface.glsl
-		fragment_file:brdf.glsl
-		*/
 	}
 #endif
 }

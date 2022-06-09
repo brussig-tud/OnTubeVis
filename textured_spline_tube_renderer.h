@@ -60,17 +60,14 @@ namespace cgv { // @<
 			bool has_radii;
 			/// whether tangents are specified
 			bool has_tangents;
-
-
-
-			///
+			/// position of the eye point
 			vec3 eye_pos;
-			///
+			/// camera view direction
 			vec3 view_dir;
-			///
+			/// viewport rectangle (offset and size)
 			vec4 viewport;
-
-
+			/// additional defines not dependant on the style and set from outside the renderer
+			shader_define_map additional_defines;
 			/// overload to allow instantiation of box_renderer
 			render_style* create_render_style() const;
 			/// update shader defines based on render style
@@ -90,6 +87,8 @@ namespace cgv { // @<
 			void set_view_dir(const vec3& view_dir) { this->view_dir = view_dir; }
 			///
 			void set_viewport(const vec4& viewport) { this->viewport = viewport; }
+			/// set additional defines that do not depend on the style
+			void set_additional_defines(shader_define_map& defines);
 			///
 			template <typename T = float>
 			void set_node_id_array(const context& ctx, const std::vector<T>& node_ids) { has_node_ids = true; set_attribute_array(ctx, "node_ids", node_ids); }
