@@ -987,91 +987,91 @@ void main()
 #else
 		discard;
 #endif
-	} else {
-		vec3 hit_pos_eye = direction * hit.t;
-		float spline_t = hit.l * 0.5 + l_offset_fs;
-		// with zero tangents the cubic hermite interpolation is reduced to a linear problem
-		vec3 base_color = mix(unpackUnorm4x8(color0_fs).rgb, unpackUnorm4x8(color1_fs).rgb, spline_t);
+	}
 
-		vec4 v_eye = vec4(hit_pos_eye, 1.0);
-		vec4 depth = get_projection_matrix() * v_eye;
-		gl_FragDepth = 0.5*(depth.z / depth.w) + 0.5;
+	vec3 hit_pos_eye = direction * hit.t;
+	float spline_t = hit.l * 0.5 + l_offset_fs;
+	// with zero tangents the cubic hermite interpolation is reduced to a linear problem
+	vec3 base_color = mix(unpackUnorm4x8(color0_fs).rgb, unpackUnorm4x8(color1_fs).rgb, spline_t);
+
+	vec4 v_eye = vec4(hit_pos_eye, 1.0);
+	vec4 depth = get_projection_matrix() * v_eye;
+	gl_FragDepth = 0.5*(depth.z / depth.w) + 0.5;
 
 #if USE_CUBIC_TANGENTS == 0
-		// tangent is already given in eye space
-		vec3 tangent = normalize(eval_quadratic_bezier_tangent(hit.l));
+	// tangent is already given in eye space
+	vec3 tangent = normalize(eval_quadratic_bezier_tangent(hit.l));
 #else
-		// tangent is given in object space
-		vec3 tangent = eval_cubic_hermite_tangent(spline_t);
-		// transform the tangent from object space to eye space
-		tangent = normalize(get_normal_matrix() * tangent);
+	// tangent is given in object space
+	vec3 tangent = eval_cubic_hermite_tangent(spline_t);
+	// transform the tangent from object space to eye space
+	tangent = normalize(get_normal_matrix() * tangent);
 #endif
-		// calculate a bitangent which is orthogonal to the plane defined by the tangent and the vector from the eye position to the hit position
-		vec3 b = normalize(cross(tangent, hit.sp));
-		// the texture coordinate around the tubes perimeter is the acos of the dot product between the normal and the bitangent
-		// normalized to [0,1]
-		// since we are only interested in the eye-facing side of the tube, acos is sufficient here
-		float v = acos(dot(b, hit.normal)) * M_INV_PI;
+	// calculate a bitangent which is orthogonal to the plane defined by the tangent and the vector from the eye position to the hit position
+	vec3 b = normalize(cross(tangent, hit.sp));
+	// the texture coordinate around the tubes perimeter is the acos of the dot product between the normal and the bitangent
+	// normalized to [0,1]
+	// since we are only interested in the eye-facing side of the tube, acos is sufficient here
+	float v = acos(dot(b, hit.normal)) * M_INV_PI;
 
-		vec2 uv = vec2(alen(spline_t), v);
+	vec2 uv = vec2(alen(spline_t), v);
 
-		// The texture coordinate v (around the tube) lies in [0,1] at the front side (camera facing side) of the tube,
-		// with 0 at the top and 1 at the bottom of the visible part of the tube (if the bitangent is pointing up in screen space).
-		// The back side of the tube is parameterized in the same way, but we are only interested in the front side anyway.
+	// The texture coordinate v (around the tube) lies in [0,1] at the front side (camera facing side) of the tube,
+	// with 0 at the top and 1 at the bottom of the visible part of the tube (if the bitangent is pointing up in screen space).
+	// The back side of the tube is parameterized in the same way, but we are only interested in the front side anyway.
 		
-		// Move the origin (0,0) to the center of the front side and scale the v coordinate to [-1,1]
-		uv.t = 2.0 * uv.t - 1.0;
+	// Move the origin (0,0) to the center of the front side and scale the v coordinate to [-1,1]
+	uv.t = 2.0 * uv.t - 1.0;
 
-		// Correct the perspective distortion caused by the curved tube surface by rescaling the v coordinate around the tube.
-		if(general_settings.use_curvature_correction)
-			uv.t = sin(0.5*M_PI*uv.t);
+	// Correct the perspective distortion caused by the curved tube surface by rescaling the v coordinate around the tube.
+	if(general_settings.use_curvature_correction)
+		uv.t = sin(0.5*M_PI*uv.t);
 
-		// apply the visual mappings to the tube base color
-		vec4 final_color = vec4(apply_visual_mappings(base_color), 1.0);
+	// apply the visual mappings to the tube base color
+	vec4 final_color = vec4(apply_visual_mappings(base_color), 1.0);
 
-		// highlight segments in debug mode if requested
+	// highlight segments in debug mode if requested
 #if DEBUG_SEGMENTS > 0
-		if((segment_id&1) > 0) color *= 0.5;
+	if((segment_id&1) > 0) color *= 0.5;
 #endif
 
-		// apply grid
+	// apply grid
 #if GRID_MODE & 1
-		final_color.rgb = mix(color.rgb, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
+	final_color.rgb = mix(color.rgb, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
 #endif
 
 #if ENABLE_FRAMEWORK_LIGHTING == 1
-		// using the framework built-in lighting system costs about 2 ms for the fisch-wehr data set (impact reduces for larger data sets, possibly due to less overdraw)
-		final_color = compute_reflected_appearance(hit_pos_eye, hit.normal, final_color, 1);
+	// using the framework built-in lighting system costs about 2 ms for the fisch-wehr data set (impact reduces for larger data sets, possibly due to less overdraw)
+	final_color = compute_reflected_appearance(hit_pos_eye, hit.normal, final_color, 1);
 #else
-		// basic diffuse lighting with light position at eye
-		float diffuse = max(dot(-normalize(hit_pos_eye), hit.normal), 0.0);
-		final_color.rgb *= 0.25 + 0.75*diffuse; // 25% ambient light
+	// basic diffuse lighting with light position at eye
+	float diffuse = max(dot(-normalize(hit_pos_eye), hit.normal), 0.0);
+	final_color.rgb *= 0.25 + 0.75*diffuse; // 25% ambient light
 #endif
 
 #if GRID_MODE & 2
-		//vec3 gn = compute_grid_normal(uv);
-		//vec3 bitangent_eye = cross(normal_eye, tangent_eye);
-		//mat3 TBN = mat3(tangent_eye, bitangent_eye, normal_eye);
-		//vec3 normal_eye_bump = mix(normal_eye, normalize(TBN * gn), normal_mapping_scale);
-		//vec4 frag_color_bump = compute_reflected_appearance(pos_eye, normal_eye_bump, vec4(color, 1.0), 1);
-		//float aa_factor = min(aa_texture(grids[0].scaling*uv, grids[0].thickness, 0.5) + aa_texture(grids[1].scaling*uv, grids[1].thickness, 0.5), 1);
-		//frag_color = mix(frag_color, frag_color_bump, aa_factor);
+	//vec3 gn = compute_grid_normal(uv);
+	//vec3 bitangent_eye = cross(normal_eye, tangent_eye);
+	//mat3 TBN = mat3(tangent_eye, bitangent_eye, normal_eye);
+	//vec3 normal_eye_bump = mix(normal_eye, normalize(TBN * gn), normal_mapping_scale);
+	//vec4 frag_color_bump = compute_reflected_appearance(pos_eye, normal_eye_bump, vec4(color, 1.0), 1);
+	//float aa_factor = min(aa_texture(grids[0].scaling*uv, grids[0].thickness, 0.5) + aa_texture(grids[1].scaling*uv, grids[1].thickness, 0.5), 1);
+	//frag_color = mix(frag_color, frag_color_bump, aa_factor);
 #endif
 
-		//apply ambient occlusion
-		// change if to a define for maximum performance when ambient occlusion is disabled
+	//apply ambient occlusion
+	// change if to a define for maximum performance when ambient occlusion is disabled
 #if ENABLE_AMBIENT_OCCLUSION == 1
-		final_color.rgb *= compute_ambient_occlusion_factor(hit_pos_eye, hit.normal);
+	final_color.rgb *= compute_ambient_occlusion_factor(hit_pos_eye, hit.normal);
 #endif
 
 
-		/*	!!!
-		*	enabling either compute_reflected_appearance or compute_ambient_occlusion_factor seems to disable the conservative depth test
-		*	!!!
-		*/
+	/*	!!!
+	*	enabling either compute_reflected_appearance or compute_ambient_occlusion_factor seems to disable the conservative depth test
+	*	!!!
+	*/
 
 		
-		finish_fragment(final_color);
-	}
+	finish_fragment(final_color);
 #endif
 }
