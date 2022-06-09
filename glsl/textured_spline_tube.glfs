@@ -1020,7 +1020,10 @@ vec3 apply_visual_mappings(in vec3 color) {
 
 
 
-
+// use a custom finish fragment method since the framework built-in one imposes a performance loss
+void finish_fragment(vec4 color) {
+	frag_color = vec4(clamp(pow(color.rgb, vec3(2.2)), 0.0, 0.999999), color.a);
+}
 
 void main()
 {
@@ -1231,8 +1234,8 @@ void main()
 		// using the framework built-in lighting system costs about 2 ms for the fisch-wehr data set (impact reduces for larger data sets, possibly due to less overdraw)
 		// basic diffuse lighting with light position at eye
 		float diffuse = max(dot(-normalize(hit_pos_eye), hit.normal), 0.0);
-		//final_color.rgb *= diffuse;
-		final_color = compute_reflected_appearance(hit_pos_eye, hit.normal, final_color, 1);
+		final_color.rgb *= diffuse;
+		//final_color = compute_reflected_appearance(hit_pos_eye, hit.normal, final_color, 1);
 
 #if GRID_MODE & 2
 		//vec3 gn = compute_grid_normal(uv);
@@ -1250,8 +1253,13 @@ void main()
 			final_color.rgb *= compute_ambient_occlusion_factor(hit_pos_eye, hit.normal);
 		
 
+		/*	!!!
+		*	enabling either compute_reflected_appearance or compute_ambient_occlusion_factor seems to disable the conservative depth test
+		*	!!!
+		*/
+
 		
-		frag_color = vec4(clamp(pow(final_color.rgb, vec3(2.2)), 0.0, 0.999999), final_color.a);
+		finish_fragment(final_color);
 
 		/*
 		fragment_file:fragment.glfs
