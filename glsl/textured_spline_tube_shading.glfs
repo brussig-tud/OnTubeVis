@@ -3,6 +3,8 @@
 
 #define DEBUG_SEGMENTS 0
 
+#define ENABLE_AMBIENT_OCCLUSION 1
+
 #define GRID_MODE 1
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
@@ -43,7 +45,9 @@ layout (binding = 1) uniform sampler2D position_tex;
 layout (binding = 2) uniform sampler2D normal_tex;
 layout (binding = 3) uniform sampler2D tangent_tex;
 layout (binding = 4) uniform sampler2D depth_tex;
+#if ENABLE_AMBIENT_OCCLUSION == 1
 layout (binding = 5) uniform sampler3D density_tex;
+#endif
 layout (binding = 6) uniform sampler2D color_maps_tex;
 
 // general rendering parameters
@@ -51,7 +55,7 @@ uniform bool use_gamma = false;
 
 // ambient occlusion parameters
 uniform struct {
-	bool enable;
+	//bool enable;
 	float sample_offset;
 	float sample_distance;
 	float strength_scale;
@@ -180,6 +184,7 @@ DEF_CLOSEST_SAMPLES(3, ranges3, glyphs3)
 	return false;
 }*/
 
+#if ENABLE_AMBIENT_OCCLUSION == 1
 float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
 	vec3 pos = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
 	vec3 normal = normalize(get_inverse_normal_matrix() * normal_eye);
@@ -222,6 +227,7 @@ float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
 
 	return 1.0 - clamp(ambient_occlusion.strength_scale * ao / 3.0, 0.0, 1.0);
 }
+#endif
 
 
 
@@ -1392,21 +1398,6 @@ void main()
 
 		//frag_color = vec4(uv.s, uv.t, 0.0, 1.0);
 
-		/*closest_glyphs_info closest;
-		
-		if (get_closest_samples(closest, segment_id, uv.s))
-		{
-			glyph_desc current_glyph = glyphs[closest.id];
-
-			vec2 glyphuv = vec2(
-				  (closest.dp <= closest.dn ? closest.dp : -closest.dn)
-				* general_settings.length_scale, // <-- ToDo: replace with automatic uv re-projection method
-				uv.t
-			);
-
-			GLYPH_LAYER_DEFINITION
-		}*/
-
 		// glyph layer 0
 #if L0_VISIBLE > 0 && L0_MAPPED_ATTRIB_COUNT > 0
 		{
@@ -1484,17 +1475,10 @@ void main()
 		//if(ranges0[segment_id].n > 2)
 		//color = vec3(1.0, 0.0, 0.0);
 		
-#if DEBUG_SEGMENTS > 0
+#if DEBUG_SEGMENTS == 1
 		// highlight individual segments
 		if((segment_id&1) > 0) color *= 0.5;
 #endif
-
-		/*glyph_desc current_glyph;
-		vec2 glyphuv = uv;
-		if(get_current_glyph(current_glyph, segment_id, glyphuv)) {
-			GLYPH_LAYER_DEFINITION
-		}*/
-
 
 #if GRID_MODE & 1
 		color = mix(color, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
@@ -1513,8 +1497,10 @@ void main()
 		frag_color = mix(frag_color, frag_color_bump, aa_factor);
 #endif
 
-		if(ambient_occlusion.enable)
-			frag_color.rgb *= compute_ambient_occlusion_factor(pos_eye, normal_eye);
+		//if(ambient_occlusion.enable)
+#if ENABLE_AMBIENT_OCCLUSION == 1
+		frag_color.rgb *= compute_ambient_occlusion_factor(pos_eye, normal_eye);
+#endif
 
 		// Debug outputs:
 		//frag_color = vec4((pos_eye + 5.0)/10.0, 1.0); // position (adjusted for HotRoom)

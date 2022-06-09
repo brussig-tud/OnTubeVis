@@ -222,6 +222,7 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(debug.force_initial_order, true);
 				on_set(&debug.force_initial_order);
 				SET_MEMBER(ao_style.enable, false);
+				on_set(&ao_style.enable);
 				handled = true;
 				break;
 			case '2':
@@ -233,6 +234,7 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(debug.force_initial_order, true);
 				on_set(&debug.force_initial_order);
 				SET_MEMBER(ao_style.enable, false);
+				on_set(&ao_style.enable);
 				handled = true;
 				break;
 			case '3':
@@ -244,6 +246,7 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(debug.force_initial_order, false);
 				on_set(&debug.force_initial_order);
 				SET_MEMBER(ao_style.enable, false);
+				on_set(&ao_style.enable);
 				handled = true;
 				break;
 			case '4':
@@ -255,12 +258,13 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(debug.force_initial_order, false);
 				on_set(&debug.force_initial_order);
 				SET_MEMBER(ao_style.enable, true);
+				on_set(&ao_style.enable);
 				handled = true;
 				break;
 			case 'A':
 				ao_style.enable = !ao_style.enable;
 				std::cout << "Ambient occlusion: " << (ao_style.enable ? "on" : "off") << std::endl;
-				update_member(&ao_style.enable);
+				on_set(&ao_style.enable);
 				handled = true;
 				break;
 			case 'B':
@@ -453,6 +457,7 @@ void tubes::on_set(void *member_ptr) {
 
 	// render settings
 	if( member_ptr == &debug.highlight_segments ||
+		member_ptr == &ao_style.enable ||
 		member_ptr == &grid_mode ||
 		member_ptr == &grid_normal_settings ||
 		member_ptr == &grid_normal_inwards ||
@@ -2076,19 +2081,21 @@ void tubes::draw_trajectories(context& ctx) {
 	prog.set_uniform(ctx, "use_gamma", true);
 	
 	// set ambient occlusion parameters
-	prog.set_uniform(ctx, "ambient_occlusion.enable", ao_style.enable);
-	prog.set_uniform(ctx, "ambient_occlusion.sample_offset", ao_style.sample_offset);
-	prog.set_uniform(ctx, "ambient_occlusion.sample_distance", ao_style.sample_distance);
-	prog.set_uniform(ctx, "ambient_occlusion.strength_scale", ao_style.strength_scale);
+	if(ao_style.enable) {
+		//prog.set_uniform(ctx, "ambient_occlusion.enable", ao_style.enable);
+		prog.set_uniform(ctx, "ambient_occlusion.sample_offset", ao_style.sample_offset);
+		prog.set_uniform(ctx, "ambient_occlusion.sample_distance", ao_style.sample_distance);
+		prog.set_uniform(ctx, "ambient_occlusion.strength_scale", ao_style.strength_scale);
 
-	prog.set_uniform(ctx, "ambient_occlusion.tex_offset", ao_style.texture_offset);
-	prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", ao_style.texture_scaling);
-	prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", ao_style.texcoord_scaling);
-	prog.set_uniform(ctx, "ambient_occlusion.texel_size", ao_style.texel_size);
+		prog.set_uniform(ctx, "ambient_occlusion.tex_offset", ao_style.texture_offset);
+		prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", ao_style.texture_scaling);
+		prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", ao_style.texcoord_scaling);
+		prog.set_uniform(ctx, "ambient_occlusion.texel_size", ao_style.texel_size);
 
-	prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
-	prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
-	
+		prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
+		prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
+	}
+
 	// set grid parameters
 	prog.set_uniform(ctx, "grid_color", grid_color);
 	prog.set_uniform(ctx, "normal_mapping_scale", normal_mapping_scale);
@@ -2125,7 +2132,8 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.enable_attachment(ctx, "normal", 2);
 	fbc.enable_attachment(ctx, "tangent", 3);
 	fbc.enable_attachment(ctx, "depth", 4);
-	density_tex.enable(ctx, 5);
+	if(ao_style.enable)
+		density_tex.enable(ctx, 5);
 	color_map_mgr.ref_texture().enable(ctx, 6);
 
 	// bind range attribute sbos of active glyph layers
@@ -2153,7 +2161,8 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc.disable_attachment(ctx, "normal");
 	fbc.disable_attachment(ctx, "tangent");
 	fbc.disable_attachment(ctx, "depth");
-	density_tex.disable(ctx);
+	if(ao_style.enable)
+		density_tex.disable(ctx);
 	color_map_mgr.ref_texture().disable(ctx);
 
 	prog.disable(ctx);
@@ -2177,6 +2186,9 @@ shader_define_map tubes::build_tube_shading_defines() {
 
 	// debug defines
 	shader_code::set_define(defines, "DEBUG_SEGMENTS", debug.highlight_segments, false);
+
+	// ambient occlusion defines
+	shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
 
 	// grid defines
 	shader_code::set_define(defines, "GRID_MODE", grid_mode, GM_COLOR);
