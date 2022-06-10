@@ -2054,9 +2054,9 @@ void tubes::draw_trajectories(context& ctx) {
 		//render.sorter->sort(ctx, data_handle, segment_idx_handle, test_eye, test_dir, node_idx_handle);
 		render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
 
-	shader_define_map defines;
+	shader_define_map defines = build_tube_shading_defines();
 	shader_code::set_define(defines, "ENABLE_FRAMEWORK_LIGHTING", general_settings.use_framework_lighting, true);
-	shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
+	//shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
 	tstr.set_additional_defines(defines);
 
 	tstr.set_eye_pos(eye_pos);
@@ -2104,30 +2104,62 @@ void tubes::draw_trajectories(context& ctx) {
 		prog.set_uniform(ctx, base_name + "blend_factor", grids[i].blend_factor);
 	}
 
+	// set attribute mapping parameters
+	for(const auto& p : glyph_layers_config.constant_float_parameters)
+		prog.set_uniform(ctx, p.first, *p.second);
+
+	for(const auto& p : glyph_layers_config.constant_color_parameters)
+		prog.set_uniform(ctx, p.first, *p.second);
+
+	for(const auto& p : glyph_layers_config.mapping_parameters)
+		prog.set_uniform(ctx, p.first, *p.second);
+
+	// map global settings
+	prog.set_uniform(ctx, "general_settings.use_curvature_correction", general_settings.use_curvature_correction);
+	prog.set_uniform(ctx, "general_settings.length_scale", general_settings.length_scale);
+	prog.set_uniform(ctx, "general_settings.antialias_radius", general_settings.antialias_radius);
+
+	const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
+
+	prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
+	prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
+	prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
+
 	prog.disable(ctx);
 
-
-
-
-
-
-
-
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, arclen_handle);
-
+	// bind range attribute sbos of active glyph layers
+	bool active_sbos[4] = { false, false, false, false };
+	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
+		if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
+			const int attribs_handle = render.attribs_sbos[i].handle ? (const int&)render.attribs_sbos[i].handle - 1 : 0;
+			const int aindex_handle = render.aindex_sbos[i].handle ? (const int&)render.aindex_sbos[i].handle - 1 : 0;
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 2, attribs_handle);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 3, aindex_handle);
+		}
+	}
+	
 	if(ao_style.enable)
 		density_tex.enable(ctx, 0);
 	color_map_mgr.ref_texture().enable(ctx, 1);
 
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, arclen_handle);
+
 	tstr.render(ctx, 0, count);
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+
+	for(size_t i = 0; i < 4; ++i) {
+		if(active_sbos[i]) {
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 2, 0);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 3, 0);
+		}
+	}
 
 	if(ao_style.enable)
 		density_tex.disable(ctx);
 	color_map_mgr.ref_texture().disable(ctx);
-
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
 
 	tstr.disable_attribute_array_manager(ctx, render.aam);
 
@@ -2259,7 +2291,7 @@ shader_define_map tubes::build_tube_shading_defines() {
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
 	// glyph layer defines
-	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
+	//shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
 
 	shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
 	shader_code::set_define(defines, "CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
