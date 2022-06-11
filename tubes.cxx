@@ -61,8 +61,6 @@ tubes::tubes() : application_plugin("Tubes")
 	voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(128u);
 #endif
 
-	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
-
 	// add frame buffer attachments needed for deferred rendering
 	fbc.add_attachment("depth", "[D]");
 	fbc.add_attachment("albedo", "flt32[R,G,B,A]");
@@ -264,7 +262,7 @@ bool tubes::handle_event(cgv::gui::event &e) {
 			case 'A':
 				ao_style.enable = !ao_style.enable;
 				std::cout << "Ambient occlusion: " << (ao_style.enable ? "on" : "off") << std::endl;
-				update_member(&ao_style.enable);
+				on_set(&ao_style.enable);
 				handled = true;
 				break;
 			case 'B':
@@ -443,8 +441,7 @@ void tubes::on_set(void *member_ptr) {
 		ah_mgr.set_dataset(traj_mgr.dataset(0));
 
 		context &ctx = *get_context();
-		tube_shading_defines = build_tube_shading_defines();
-		shaders.reload(ctx, "tube_shading", tube_shading_defines);
+		set_tube_shading_defines(ctx);
 
 		// reset glyph layer configuration file
 		fh.file_name = "";
@@ -457,17 +454,15 @@ void tubes::on_set(void *member_ptr) {
 
 	// render settings
 	if( member_ptr == &debug.highlight_segments ||
+		member_ptr == &general_settings.use_framework_lighting ||
+		member_ptr == &ao_style.enable ||
 		member_ptr == &grid_mode ||
 		member_ptr == &grid_normal_settings ||
 		member_ptr == &grid_normal_inwards ||
 		member_ptr == &grid_normal_variant ||
 		member_ptr == &enable_fuzzy_grid) {
-		shader_define_map defines = build_tube_shading_defines();
-		if(defines != tube_shading_defines) {
-			context& ctx = *get_context();
-			tube_shading_defines = defines;
-			shaders.reload(ctx, "tube_shading", tube_shading_defines);
-		}
+		context& ctx = *get_context();
+		set_tube_shading_defines(ctx);
 	}
 	// - debug render setting
 	if(member_ptr == &debug.force_initial_order) {
@@ -508,8 +503,7 @@ void tubes::on_set(void *member_ptr) {
 			glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 			context& ctx = *get_context();
-			tube_shading_defines = build_tube_shading_defines();
-			shaders.reload(ctx, "tube_shading", tube_shading_defines);
+			set_tube_shading_defines(ctx);
 
 			compile_glyph_attribs();
 
@@ -675,13 +669,6 @@ bool tubes::on_exit_request() {
 	}
 #endif
 	return true;
-}
-
-
-void tubes::reload_shader() {
-
-	shaders.reload(*get_context(), "tube_shading", tube_shading_defines);
-	post_redraw();
 }
 
 bool tubes::save_layer_configuration(const std::string& file_name) {
@@ -1244,8 +1231,7 @@ bool tubes::init (cgv::render::context &ctx)
 	color_map_mgr.init(ctx);
 	glyph_layers_config = glyph_layer_mgr.get_configuration();
 
-	tube_shading_defines = build_tube_shading_defines();
-	shaders.reload(ctx, "tube_shading", tube_shading_defines);
+	set_tube_shading_defines(ctx);
 
 	// init shared attribute array manager
 	success &= render.aam.init(ctx);
@@ -1622,7 +1608,6 @@ void tubes::create_gui(void) {
 		add_gui("File", fh.file_name, "file_name", "title='Open Transfer Function';filter='" + filter + "';save=false;w=136;small_icon=true;align_gui=' '" + (fh.has_unsaved_changes ? ";text_color=" + cgv::gui::theme_info::instance().warning_hex() : ""));
 		add_gui("save_file_name", fh.save_file_name, "file_name", "title='Save Transfer Function';filter='" + filter + "';save=true;control=false;small_icon=true");
 		add_decorator("", "separator", "level=3");
-		connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &tubes::reload_shader));
 		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
 		add_member_control(this, "Max Count (Debug)", max_glyph_count, "value_slider", "min=1;max=100;step=1;ticks=true");
 		add_member_control(this, "Show Hidden Glyphs", include_hidden_glyphs, "check");
@@ -2037,11 +2022,8 @@ void tubes::draw_trajectories(context& ctx) {
 	vec3 eye_pos = view_ptr->get_eye();
 	const vec3& view_dir = view_ptr->get_view_dir();
 
-	//fbc.enable(ctx);
-	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
-
+	
 	// prepare SSBO handles
 	const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0,
 			  arclen_handle = render.arclen_sbo.handle ? (const int&)render.arclen_sbo.handle - 1 : 0;
@@ -2053,11 +2035,6 @@ void tubes::draw_trajectories(context& ctx) {
 	if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && debug.sort & !debug.force_initial_order)
 		//render.sorter->sort(ctx, data_handle, segment_idx_handle, test_eye, test_dir, node_idx_handle);
 		render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
-
-	shader_define_map defines = build_tube_shading_defines();
-	shader_code::set_define(defines, "ENABLE_FRAMEWORK_LIGHTING", general_settings.use_framework_lighting, true);
-	//shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
-	tstr.set_additional_defines(defines);
 
 	tstr.set_eye_pos(eye_pos);
 	tstr.set_view_dir(view_dir);
@@ -2071,10 +2048,6 @@ void tubes::draw_trajectories(context& ctx) {
 		count = static_cast<int>(debug.render_count);
 	}
 	
-
-
-
-
 	auto& prog = tstr.ref_prog();
 	prog.enable(ctx);
 
@@ -2162,102 +2135,6 @@ void tubes::draw_trajectories(context& ctx) {
 	color_map_mgr.ref_texture().disable(ctx);
 
 	tstr.disable_attribute_array_manager(ctx, render.aam);
-
-	//fbc.disable(ctx);
-
-	/*shader_program& prog = shaders.get("tube_shading");
-	prog.enable(ctx);
-	// set render parameters
-	prog.set_uniform(ctx, "use_gamma", true);
-	
-	// set ambient occlusion parameters
-	if(ao_style.enable) {
-		//prog.set_uniform(ctx, "ambient_occlusion.enable", ao_style.enable);
-		prog.set_uniform(ctx, "ambient_occlusion.sample_offset", ao_style.sample_offset);
-		prog.set_uniform(ctx, "ambient_occlusion.sample_distance", ao_style.sample_distance);
-		prog.set_uniform(ctx, "ambient_occlusion.strength_scale", ao_style.strength_scale);
-
-		prog.set_uniform(ctx, "ambient_occlusion.tex_offset", ao_style.texture_offset);
-		prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", ao_style.texture_scaling);
-		prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", ao_style.texcoord_scaling);
-		prog.set_uniform(ctx, "ambient_occlusion.texel_size", ao_style.texel_size);
-
-		prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
-		prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
-	}
-
-	// set grid parameters
-	prog.set_uniform(ctx, "grid_color", grid_color);
-	prog.set_uniform(ctx, "normal_mapping_scale", normal_mapping_scale);
-	for(size_t i = 0; i < grids.size(); ++i) {
-		std::string base_name = "grids[" + std::to_string(i) + "].";
-		prog.set_uniform(ctx, base_name + "scaling", grids[i].scaling);
-		prog.set_uniform(ctx, base_name + "thickness", grids[i].thickness);
-		prog.set_uniform(ctx, base_name + "blend_factor", grids[i].blend_factor);
-	}
-
-	// set attribute mapping parameters
-	for(const auto& p : glyph_layers_config.constant_float_parameters)
-		prog.set_uniform(ctx, p.first, *p.second);
-
-	for(const auto& p : glyph_layers_config.constant_color_parameters)
-		prog.set_uniform(ctx, p.first, *p.second);
-
-	for(const auto& p : glyph_layers_config.mapping_parameters)
-		prog.set_uniform(ctx, p.first, *p.second);
-
-	// map global settings
-	prog.set_uniform(ctx, "general_settings.use_curvature_correction", general_settings.use_curvature_correction);
-	prog.set_uniform(ctx, "general_settings.length_scale", general_settings.length_scale);
-	prog.set_uniform(ctx, "general_settings.antialias_radius", general_settings.antialias_radius);
-
-	const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
-	
-	prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
-	prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
-	prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
-
-	fbc.enable_attachment(ctx, "albedo", 0);
-	fbc.enable_attachment(ctx, "position", 1);
-	fbc.enable_attachment(ctx, "normal", 2);
-	fbc.enable_attachment(ctx, "tangent", 3);
-	fbc.enable_attachment(ctx, "depth", 4);
-	if(ao_style.enable)
-		density_tex.enable(ctx, 5);
-	color_map_mgr.ref_texture().enable(ctx, 6);
-
-	// bind range attribute sbos of active glyph layers
-	bool active_sbos[4] = { false, false, false, false };
-	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
-		if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
-			const int attribs_handle = render.attribs_sbos[i].handle ? (const int&)render.attribs_sbos[i].handle - 1 : 0;
-			const int aindex_handle = render.aindex_sbos[i].handle ? (const int&)render.aindex_sbos[i].handle - 1 : 0;
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 0, attribs_handle);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 1, aindex_handle);
-		}
-	}
-
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-	for(size_t i = 0; i < 4; ++i) {
-		if(active_sbos[i]) {
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 0, 0);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 1, 0);
-		}
-	}
-
-	fbc.disable_attachment(ctx, "albedo");
-	fbc.disable_attachment(ctx, "position");
-	fbc.disable_attachment(ctx, "normal");
-	fbc.disable_attachment(ctx, "tangent");
-	fbc.disable_attachment(ctx, "depth");
-	if(ao_style.enable)
-		density_tex.disable(ctx);
-	color_map_mgr.ref_texture().disable(ctx);
-
-	//glDepthFunc(GL_LESS);
-
-	prog.disable(ctx);*/
 }
 
 void tubes::draw_density_volume(context& ctx) {
@@ -2273,11 +2150,14 @@ void tubes::draw_density_volume(context& ctx) {
 	vr.render(ctx, 0, 0);
 }
 
-shader_define_map tubes::build_tube_shading_defines() {
+void tubes::set_tube_shading_defines(context& ctx) {
 	shader_define_map defines;
 
 	// debug defines
 	shader_code::set_define(defines, "DEBUG_SEGMENTS", debug.highlight_segments, false);
+
+	// generaldefines
+	shader_code::set_define(defines, "ENABLE_FRAMEWORK_LIGHTING", general_settings.use_framework_lighting, true);
 
 	// ambient occlusion defines
 	shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
@@ -2291,8 +2171,6 @@ shader_define_map tubes::build_tube_shading_defines() {
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
 	// glyph layer defines
-	//shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
-
 	shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
 	shader_code::set_define(defines, "CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
 	shader_code::set_define(defines, "MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
@@ -2304,7 +2182,8 @@ shader_define_map tubes::build_tube_shading_defines() {
 		shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
 	}
 
-	return defines;
+	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+	tstr.set_additional_defines(defines);
 }
 
 ////

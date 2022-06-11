@@ -97,9 +97,6 @@ protected:
 		float antialias_radius = 0.5f;
 	} general_settings;
 	
-	/// shader defines for the deferred shading pass
-	shader_define_map tube_shading_defines;
-
 	/// store a pointer to the view for fast access
 	view* view_ptr = nullptr;
 	
@@ -281,7 +278,6 @@ protected:
 	bool include_hidden_glyphs = false;
 	unsigned max_glyph_count = 10;
 	
-	void reload_shader();
 	bool save_layer_configuration(const std::string& file_name);
 	bool read_layer_configuration(const std::string& file_name);
 
@@ -307,7 +303,7 @@ protected:
 	void draw_density_volume(context& ctx);
 
 	/// helper methods
-	shader_define_map build_tube_shading_defines();
+	void set_tube_shading_defines(context& ctx);
 
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
 

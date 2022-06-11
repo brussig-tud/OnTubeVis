@@ -34,7 +34,7 @@
 #define ENABLE_FRAMEWORK_LIGHTING 1
 #define ENABLE_AMBIENT_OCCLUSION 1
 
-#define GRID_MODE 0
+#define GRID_MODE 1
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
 #define OUTLINE_INWARDS 0
@@ -867,6 +867,20 @@ float grid_texture(in vec2 p, in float n) {
 #else
 	return grid_texture_aa(p, n , 1);
 #endif
+}
+
+float aa_texture(in vec2 p, in float n, float aa_strength) {
+	// pre-filter AA preparations
+	const float na = n*0.5, nb = 1.0-n*0.5;
+	const vec2 p_frac = fract(p), w = 2*aa_strength*fwidth(p);
+
+	// coordinates
+	const vec2 i = vec2(1) - smoothstep(na-w, vec2(na), p_frac) + smoothstep(vec2(nb), nb+w, p_frac);
+
+	//pattern (from https://www.shadertoy.com/view/XtBfzz)
+	return 1.0 - (1.0-i.s)*(1.0-i.t);	// grid
+	//return 1.0-i.s*i.t;				// squares
+	//return 1.0-i.s-i.t+2.0*i.s*i.t;	// checker
 }
 
 vec3 grid_normal(in vec2 p, in float n) {
@@ -2147,12 +2161,12 @@ void main()
 
 	// highlight segments in debug mode if requested
 #if DEBUG_SEGMENTS > 0
-	if((segment_id&1) > 0) color *= 0.5;
+	if((segment_id_fs&1) > 0) final_color.rgb *= 0.5;
 #endif
 
 	// apply grid
 #if GRID_MODE & 1
-	final_color.rgb = mix(color.rgb, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
+	final_color.rgb = mix(final_color.rgb, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
 #endif
 
 #if ENABLE_FRAMEWORK_LIGHTING == 1
@@ -2165,13 +2179,13 @@ void main()
 #endif
 
 #if GRID_MODE & 2
-	//vec3 gn = compute_grid_normal(uv);
-	//vec3 bitangent_eye = cross(normal_eye, tangent_eye);
-	//mat3 TBN = mat3(tangent_eye, bitangent_eye, normal_eye);
-	//vec3 normal_eye_bump = mix(normal_eye, normalize(TBN * gn), normal_mapping_scale);
-	//vec4 frag_color_bump = compute_reflected_appearance(pos_eye, normal_eye_bump, vec4(color, 1.0), 1);
-	//float aa_factor = min(aa_texture(grids[0].scaling*uv, grids[0].thickness, 0.5) + aa_texture(grids[1].scaling*uv, grids[1].thickness, 0.5), 1);
-	//frag_color = mix(frag_color, frag_color_bump, aa_factor);
+	vec3 gn = compute_grid_normal(uv);
+	vec3 bitangent_eye = cross(hit.normal, tangent);
+	mat3 TBN = mat3(tangent, bitangent_eye, hit.normal);
+	vec3 normal_eye_bump = mix(hit.normal, normalize(TBN * gn), normal_mapping_scale);
+	vec4 final_color_bump = compute_reflected_appearance(hit_pos_eye, normal_eye_bump, final_color, 1);
+	float aa_factor = min(aa_texture(grids[0].scaling*uv, grids[0].thickness, 0.5) + aa_texture(grids[1].scaling*uv, grids[1].thickness, 0.5), 1);
+	final_color = mix(final_color, final_color_bump, aa_factor);
 #endif
 
 	//apply ambient occlusion
