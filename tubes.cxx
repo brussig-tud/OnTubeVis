@@ -62,13 +62,22 @@ tubes::tubes() : application_plugin("Tubes")
 #endif
 
 	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
+	shaders.add("taa", "taa.glpr");
 
 	// add frame buffer attachments needed for deferred rendering
-	fbc.add_attachment("depth", "[D]");
-	fbc.add_attachment("albedo", "flt32[R,G,B,A]");
-	fbc.add_attachment("position", "flt32[R,G,B]");
-	fbc.add_attachment("normal", "flt32[R,G,B]");
-	fbc.add_attachment("tangent", "flt32[R,G,B]");
+	fbc0.add_attachment("depth", "[D]");
+	fbc0.add_attachment("albedo", "flt32[R,G,B,A]");
+	fbc0.add_attachment("position", "flt32[R,G,B]");
+	fbc0.add_attachment("normal", "flt32[R,G,B]");
+	fbc0.add_attachment("tangent", "flt32[R,G,B]");
+
+	fbc1.add_attachment("depth", "[D]");
+	fbc1.add_attachment("albedo", "flt32[R,G,B,A]");
+	fbc1.add_attachment("position", "flt32[R,G,B]");
+	fbc1.add_attachment("normal", "flt32[R,G,B]");
+	fbc1.add_attachment("tangent", "flt32[R,G,B]");
+
+	fbc_storage.add_attachment("color", "flt32[R,G,B]");
 
 	cm_editor_ptr = register_overlay<cgv::glutil::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
@@ -152,7 +161,9 @@ void tubes::clear(cgv::render::context &ctx) {
 	debug.segment_rd.destruct(ctx);
 
 	shaders.clear(ctx);
-	fbc.clear(ctx);
+	fbc0.clear(ctx);
+	fbc1.clear(ctx);
+	fbc_storage.clear(ctx);
 
 	color_map_mgr.destruct(ctx);
 
@@ -1402,7 +1413,10 @@ void tubes::init_frame (cgv::render::context &ctx)
 		view_ptr->set_view_up_dir(0, 1, 0);
 
 	// keep the frame buffer up to date with the viewport size
-	fbc.ensure(ctx);
+	// TODO: check for changes and reset accumulation
+	fbc0.ensure(ctx);
+	fbc1.ensure(ctx);
+	fbc_storage.ensure(ctx);
 
 	// query the current viewport dimensions as this is needed for multiple draw methods
 	glGetIntegerv(GL_VIEWPORT, viewport);
@@ -2033,10 +2047,16 @@ void tubes::draw_dnd(context& ctx) {
 
 void tubes::draw_trajectories(context& ctx) {
 
+	// select current and previous frame buffer container
+	cgv::glutil::frame_buffer_container& curr_fbc = fbc0_active ? fbc0 : fbc1;
+	cgv::glutil::frame_buffer_container& prev_fbc = fbc0_active ? fbc1 : fbc0;
+	// swap for next frame
+	fbc0_active = !fbc0_active;
+
 	vec3 eye_pos = view_ptr->get_eye();
 	const vec3& view_dir = view_ptr->get_view_dir();
 
-	fbc.enable(ctx);
+	curr_fbc.enable(ctx);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
@@ -2073,7 +2093,7 @@ void tubes::draw_trajectories(context& ctx) {
 
 	tstr.disable_attribute_array_manager(ctx, render.aam);
 
-	fbc.disable(ctx);
+	curr_fbc.disable(ctx);
 
 	shader_program& prog = shaders.get("tube_shading");
 	prog.enable(ctx);
@@ -2127,11 +2147,11 @@ void tubes::draw_trajectories(context& ctx) {
 	prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
 	prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
 
-	fbc.enable_attachment(ctx, "albedo", 0);
-	fbc.enable_attachment(ctx, "position", 1);
-	fbc.enable_attachment(ctx, "normal", 2);
-	fbc.enable_attachment(ctx, "tangent", 3);
-	fbc.enable_attachment(ctx, "depth", 4);
+	curr_fbc.enable_attachment(ctx, "albedo", 0);
+	curr_fbc.enable_attachment(ctx, "position", 1);
+	curr_fbc.enable_attachment(ctx, "normal", 2);
+	curr_fbc.enable_attachment(ctx, "tangent", 3);
+	curr_fbc.enable_attachment(ctx, "depth", 4);
 	if(ao_style.enable)
 		density_tex.enable(ctx, 5);
 	color_map_mgr.ref_texture().enable(ctx, 6);
@@ -2156,16 +2176,50 @@ void tubes::draw_trajectories(context& ctx) {
 		}
 	}
 
-	fbc.disable_attachment(ctx, "albedo");
-	fbc.disable_attachment(ctx, "position");
-	fbc.disable_attachment(ctx, "normal");
-	fbc.disable_attachment(ctx, "tangent");
-	fbc.disable_attachment(ctx, "depth");
+	curr_fbc.disable_attachment(ctx, "albedo");
+	curr_fbc.disable_attachment(ctx, "position");
+	curr_fbc.disable_attachment(ctx, "normal");
+	curr_fbc.disable_attachment(ctx, "tangent");
+	curr_fbc.disable_attachment(ctx, "depth");
 	if(ao_style.enable)
 		density_tex.disable(ctx);
 	color_map_mgr.ref_texture().disable(ctx);
 
 	prog.disable(ctx);
+
+
+
+
+
+
+	// blit the final image to the storage frame buffer
+	// from gl_context.cxx get_gl_id() -> return (const GLuint&)handle - 1;
+	const GLuint storage_fb_id = (const GLuint&)fbc_storage.ref_frame_buffer().handle - 1;
+	GLint blit_width = static_cast<GLint>(fbc_storage.ref_frame_buffer().get_width());
+	GLint blit_height = static_cast<GLint>(fbc_storage.ref_frame_buffer().get_height());
+	glBlitNamedFramebuffer(0, storage_fb_id, 0, 0, blit_width, blit_height, 0, 0, blit_width, blit_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+
+	// TODO: add storage for the final image from the previous frame
+
+
+	glDepthFunc(GL_ALWAYS);
+
+	// TODO: implement actual temporal filter. For now the shader just consists of placeholder code that does some blurring.
+	auto& taa_prog = shaders.get("taa");
+	taa_prog.enable(ctx);
+
+	fbc_storage.enable_attachment(ctx, "color", 0);
+	curr_fbc.enable_attachment(ctx, "depth", 1);
+
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	fbc_storage.disable_attachment(ctx, "color");
+	curr_fbc.disable_attachment(ctx, "depth");
+
+	taa_prog.disable(ctx);
+
+	glDepthFunc(GL_LESS);
 }
 
 void tubes::draw_density_volume(context& ctx) {

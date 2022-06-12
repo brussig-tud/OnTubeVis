@@ -142,7 +142,8 @@ protected:
 	} dataset;
 
 	// TODO: comment and cleanup members
-	cgv::glutil::frame_buffer_container fbc;
+	bool fbc0_active = true;
+	cgv::glutil::frame_buffer_container fbc0, fbc1, fbc_storage;
 	cgv::glutil::shader_library shaders;
 	volume_render_style vstyle;
 	cgv::glutil::gl_color_map volume_tf;

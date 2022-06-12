@@ -1,0 +1,37 @@
+#version 430
+
+layout (binding = 0) uniform sampler2D color_tex;
+layout (binding = 1) uniform sampler2D depth_tex;
+
+in vec2 texcoord_fs;
+
+out vec4 frag_color;
+
+void main()
+{
+	vec4 color = texture(color_tex, texcoord_fs);
+	float depth = texture(depth_tex, texcoord_fs).r;
+
+	ivec2 size = textureSize(color_tex, 0);
+
+	vec2 offset = 1.0 / vec2(size);
+
+	color += texture(color_tex, texcoord_fs + vec2(offset.x, 0.0));
+	color += texture(color_tex, texcoord_fs + vec2(-offset.x, 0.0));
+	color += texture(color_tex, texcoord_fs + vec2(0.0, offset.y));
+	color += texture(color_tex, texcoord_fs + vec2(0.0, -offset.y));
+
+	color *= 0.2;
+
+	frag_color = color;// * vec4(1.0, 0.0, 0.0, 1.0);
+
+	/*if(depth == 1.0) {
+		frag_color = vec4(vec3(0.0), 1.0);
+	} else {
+		frag_color = 1.0 - color * vec4(1.0, 0.0, 1.0, 1.0);
+		//frag_color.rgb = pow(frag_color.rgb, vec3(2.2));
+	}*/
+
+	// write the frag depth to enable the framework view to work properly
+	gl_FragDepth = depth;
+}
