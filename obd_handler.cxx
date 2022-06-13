@@ -25,6 +25,9 @@
 
 
 // identifyier to use for position data
+#define OBD_MERCATOR_SCALEDOWN_FACTOR 64
+
+// identifyier to use for position data
 #define OBD_POSITION_ATTRIB_NAME "position"
 
 // identifyier to use for radius data
@@ -246,8 +249,12 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 	auto &Ptraj = trajectories(ret, P.attrib);
 
 	// commit samples of each trajectory
+	// - prepare scale factor for mercator-projected cartesian positions
+	constexpr flt_type mscale = 1/(flt_type)OBD_MERCATOR_SCALEDOWN_FACTOR;
+	// - various bookkeeping
 	double seg_dist_accum = 0;
 	unsigned num_segs=0, offset=0;
+	// - the loop
 	for (const auto &e : gps_info_map)
 	{
 		// convenience shorthand
@@ -271,7 +278,7 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 				vec3 pos((flt_type)relpos[0], (flt_type)relpos[1], (flt_type)relpos[2]);
 			#else
 				const auto mercator = wgs84::toCartesian(refpos, latlong{gps_info.latitude, gps_info.longitude});
-				vec3 pos((flt_type)mercator[0], (flt_type)mercator[1], (flt_type)gps_info.altitude);
+				vec3 pos((flt_type)mercator[0]*mscale, (flt_type)mercator[1]*mscale, (flt_type)gps_info.altitude*mscale);
 			#endif
 
 			// keep track of segment length and throw out non-monotone samples
