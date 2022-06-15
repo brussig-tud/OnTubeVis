@@ -142,8 +142,13 @@ protected:
 	} dataset;
 
 	// TODO: comment and cleanup members
+	vec3 prev_eye_pos = vec3(0.0f);
+	vec3 prev_view_dir = vec3(0.0f);
+	bool accumulate = false;
+	unsigned accumulate_count = 1;
+	std::mt19937 rng;
 	bool fbc0_active = true;
-	cgv::glutil::frame_buffer_container fbc0, fbc1, fbc_storage;
+	cgv::glutil::frame_buffer_container fbc0, fbc1, fbc_final0, fbc_final1;
 	cgv::glutil::shader_library shaders;
 	volume_render_style vstyle;
 	cgv::glutil::gl_color_map volume_tf;

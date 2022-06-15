@@ -70,14 +70,17 @@ tubes::tubes() : application_plugin("Tubes")
 	fbc0.add_attachment("position", "flt32[R,G,B]");
 	fbc0.add_attachment("normal", "flt32[R,G,B]");
 	fbc0.add_attachment("tangent", "flt32[R,G,B]");
+	fbc0.add_attachment("position_screen", "flt32[R,G,B]");
 
 	fbc1.add_attachment("depth", "[D]");
 	fbc1.add_attachment("albedo", "flt32[R,G,B,A]");
 	fbc1.add_attachment("position", "flt32[R,G,B]");
 	fbc1.add_attachment("normal", "flt32[R,G,B]");
 	fbc1.add_attachment("tangent", "flt32[R,G,B]");
+	fbc1.add_attachment("position_screen", "flt32[R,G,B]");
 
-	fbc_storage.add_attachment("color", "flt32[R,G,B]");
+	fbc_final0.add_attachment("color", "flt32[R,G,B]");
+	fbc_final1.add_attachment("color", "flt32[R,G,B]");
 
 	cm_editor_ptr = register_overlay<cgv::glutil::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
@@ -163,7 +166,8 @@ void tubes::clear(cgv::render::context &ctx) {
 	shaders.clear(ctx);
 	fbc0.clear(ctx);
 	fbc1.clear(ctx);
-	fbc_storage.clear(ctx);
+	fbc_final0.clear(ctx);
+	fbc_final1.clear(ctx);
 
 	color_map_mgr.destruct(ctx);
 
@@ -1414,9 +1418,13 @@ void tubes::init_frame (cgv::render::context &ctx)
 
 	// keep the frame buffer up to date with the viewport size
 	// TODO: check for changes and reset accumulation
-	fbc0.ensure(ctx);
-	fbc1.ensure(ctx);
-	fbc_storage.ensure(ctx);
+	bool updated = false;
+	updated |= fbc0.ensure(ctx);
+	updated |= fbc1.ensure(ctx);
+	updated |= fbc_final0.ensure(ctx);
+	updated |= fbc_final1.ensure(ctx);
+	if(updated)
+		accumulate = false;
 
 	// query the current viewport dimensions as this is needed for multiple draw methods
 	glGetIntegerv(GL_VIEWPORT, viewport);
@@ -2050,15 +2058,63 @@ void tubes::draw_trajectories(context& ctx) {
 	// select current and previous frame buffer container
 	cgv::glutil::frame_buffer_container& curr_fbc = fbc0_active ? fbc0 : fbc1;
 	cgv::glutil::frame_buffer_container& prev_fbc = fbc0_active ? fbc1 : fbc0;
+	cgv::glutil::frame_buffer_container& curr_final_fbc = fbc0_active ? fbc_final0 : fbc_final1;
+	cgv::glutil::frame_buffer_container& prev_final_fbc = fbc0_active ? fbc_final1 : fbc_final0;
 	// swap for next frame
 	fbc0_active = !fbc0_active;
+
+
+
+
+
+
+
 
 	vec3 eye_pos = view_ptr->get_eye();
 	const vec3& view_dir = view_ptr->get_view_dir();
 
+	//if(eye_pos != prev_eye_pos || view_dir != prev_view_dir)
+	//	accumulate = false;
+
 	curr_fbc.enable(ctx);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	
+
+
+
+
+
+	/*dmat4 m;
+	m.identity();
+	double dx, dy;
+	
+	std::uniform_real_distribution<double> distr(-0.5, 0.5);
+	dx = distr(rng);
+	dy = distr(rng);
+
+	//GLint vp[4];
+	//glGetIntegerv(GL_VIEWPORT, vp);
+	//double pixel_scale_y = 2 * tan(.8726646262e-2*view_ptr->get_y_view_angle()) / vp[3];
+	//double pixel_scale_x = pixel_scale_y * vp[2] / vp[3];
+	//
+	//m(0, 2) = -dx * pixel_scale_x;
+	//m(1, 2) = -dy * pixel_scale_y;
+
+	GLint vp[4];
+	glGetIntegerv(GL_VIEWPORT, vp);
+	
+	m(0, 2) = -dx / (vp[2] - vp[0]);
+	m(1, 2) = -dy / (vp[3] - vp[1]);
+	ctx.push_projection_matrix();
+	ctx.mul_projection_matrix(m);*/
+
+
+
+
+
+
+
+
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 
 	// prepare SSBO handles
@@ -2093,7 +2149,24 @@ void tubes::draw_trajectories(context& ctx) {
 
 	tstr.disable_attribute_array_manager(ctx, render.aam);
 
+
+
+	//ctx.pop_projection_matrix();
+
+
+
 	curr_fbc.disable(ctx);
+
+
+
+
+
+
+
+	if(accumulate) {
+		curr_final_fbc.enable(ctx);
+		glClear(GL_COLOR_BUFFER_BIT);
+	}
 
 	shader_program& prog = shaders.get("tube_shading");
 	prog.enable(ctx);
@@ -2192,32 +2265,77 @@ void tubes::draw_trajectories(context& ctx) {
 
 
 
-	// blit the final image to the storage frame buffer
-	// from gl_context.cxx get_gl_id() -> return (const GLuint&)handle - 1;
-	const GLuint storage_fb_id = (const GLuint&)fbc_storage.ref_frame_buffer().handle - 1;
-	GLint blit_width = static_cast<GLint>(fbc_storage.ref_frame_buffer().get_width());
-	GLint blit_height = static_cast<GLint>(fbc_storage.ref_frame_buffer().get_height());
-	glBlitNamedFramebuffer(0, storage_fb_id, 0, 0, blit_width, blit_height, 0, 0, blit_width, blit_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
 
-	// TODO: add storage for the final image from the previous frame
+
+	const GLuint blit_fb_id = (const GLuint&)curr_final_fbc.ref_frame_buffer().handle - 1;
+	GLint blit_width = static_cast<GLint>(curr_final_fbc.ref_frame_buffer().get_width());
+	GLint blit_height = static_cast<GLint>(curr_final_fbc.ref_frame_buffer().get_height());
+
+	if(accumulate) {
+		curr_final_fbc.disable(ctx);
+	} else {
+		// blit the final image to a frame buffer
+		// from gl_context.cxx get_gl_id() -> return (const GLuint&)handle - 1;
+		glBlitNamedFramebuffer(0, blit_fb_id, 0, 0, blit_width, blit_height, 0, 0, blit_width, blit_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	}
 
 
-	glDepthFunc(GL_ALWAYS);
 
-	// TODO: implement actual temporal filter. For now the shader just consists of placeholder code that does some blurring.
-	auto& taa_prog = shaders.get("taa");
-	taa_prog.enable(ctx);
 
-	fbc_storage.enable_attachment(ctx, "color", 0);
-	curr_fbc.enable_attachment(ctx, "depth", 1);
+	//// blit the final image to a frame buffer
+	//// from gl_context.cxx get_gl_id() -> return (const GLuint&)handle - 1;
+	//const GLuint blit_fb_id = (const GLuint&)curr_final_fbc.ref_frame_buffer().handle - 1;
+	//GLint blit_width = static_cast<GLint>(curr_final_fbc.ref_frame_buffer().get_width());
+	//GLint blit_height = static_cast<GLint>(curr_final_fbc.ref_frame_buffer().get_height());
+	//glBlitNamedFramebuffer(0, blit_fb_id, 0, 0, blit_width, blit_height, 0, 0, blit_width, blit_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-	fbc_storage.disable_attachment(ctx, "color");
-	curr_fbc.disable_attachment(ctx, "depth");
+	
+	if(accumulate) {
 
-	taa_prog.disable(ctx);
+		glDepthFunc(GL_ALWAYS);
+
+		//if(accumulate_count > 64)
+		//	accumulate_count = 1;
+
+		auto& taa_prog = shaders.get("taa");
+		taa_prog.enable(ctx);
+		taa_prog.set_uniform(ctx, "alpha", 1.0f / static_cast<float>(accumulate_count));
+		++accumulate_count;
+		
+		curr_final_fbc.enable_attachment(ctx, "color", 0);
+		prev_final_fbc.enable_attachment(ctx, "color", 1);
+		curr_fbc.enable_attachment(ctx, "depth", 2);
+
+		curr_fbc.enable_attachment(ctx, "position_screen", 3);
+		prev_fbc.enable_attachment(ctx, "position_screen", 4);
+
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+		curr_final_fbc.disable_attachment(ctx, "color");
+		prev_final_fbc.disable_attachment(ctx, "color");
+		curr_fbc.disable_attachment(ctx, "depth");
+
+		curr_fbc.disable_attachment(ctx, "position_screen");
+		prev_fbc.disable_attachment(ctx, "position_screen");
+
+		taa_prog.disable(ctx);
+
+
+
+
+
+		glBlitNamedFramebuffer(0, blit_fb_id, 0, 0, blit_width, blit_height, 0, 0, blit_width, blit_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+		
+	} else {
+		accumulate = true;
+		accumulate_count = 1;
+	}
+
+	prev_eye_pos = eye_pos;
+	prev_view_dir = view_dir;
 
 	glDepthFunc(GL_LESS);
 }
