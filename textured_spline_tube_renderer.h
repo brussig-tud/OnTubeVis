@@ -32,11 +32,15 @@ namespace cgv { // @<
 			} fragment_mode;
 			/// specifies the type of bounding geometry to use for ray casting
 			enum BoundingGeometry {
-				BG_BOX = 0, // not implemented yet
+				BG_BOX = 0, // use oriented bounding boxes
 				BG_APPROXIMATE_BILLBOARD = 1, // quadrilateral billboard built from encapsulating the bounding box in a rounded cone and using the rounded cone billboard
 				BG_EXACT_POLYGON = 2, // a single polygon with 4 or 6 corners covering exactly the bounding box silhouette in screen space
 				BG_BOX_BILLBOARD = 3, // a single quadrilateral covering the full bounding box
-				BG_ALIGNED_BOX_BILLBOARD = 4 // a single quadrilateral calculated as the front side of a view-aligned bounding box
+				BG_ALIGNED_BOX_BILLBOARD = 4, // a single quadrilateral calculated as the front side of a view-aligned bounding box
+				BG_BOX_SPLITSIMUL1 = 5, // same as BG_BOX, but subdivide the box into 2 equally sized boxes using a SINGLE triangle strip to simulate geometry load of splitting at inflection points, // a single quadrilateral calculated as the front side of a view-aligned bounding box
+				BG_BOX_SPLITSIMUL2 = 6, // same as BG_BOX, but subdivide the box into 2 equally sized segments using TWO triangle strips to simulate geometry load of splitting at inflection points
+				BG_ALIGNED_BOX_BILLBOARD_SPLITSIMUL1 = 7, // same as BG_ALIGNED_BOX_BILLBOARD, but subdividing the billboard 2 quads using a SINGLE triangle strip to simulate geometry load of splitting at inflection points
+				BG_ALIGNED_BOX_BILLBOARD_SPLITSIMUL2 = 8 // same as BG_ALIGNED_BOX_BILLBOARD, but subdividing the billboard 2 quads using TWO triangle strips to simulate geometry load of splitting at inflection points
 			} bounding_geometry;
 			/// whether to use conservative depth extension to re-enable early depth testing
 			bool use_conservative_depth;

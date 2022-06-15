@@ -173,7 +173,7 @@ namespace cgv {
 
 			if(p->begin_tree_node("Debug Options", rs_ptr->fragment_mode)) {
 				p->align("\a");
-				p->add_member_control(b, "Bounding Geometry", rs_ptr->bounding_geometry, "dropdown", "enums='Box (disable cubic tangents!), Approximate Billboard, Exact Polygon, Box Billboard, Aligned Box Billboard'");
+				p->add_member_control(b, "Bounding Geometry", rs_ptr->bounding_geometry, "dropdown", "enums='Box (disable cubic tangents!),Approximate Billboard,Exact Polygon,Box Billboard,Aligned Box Billboard,Box simulated split (single triangle strip),Box simulated split (two triangle strips),ABB simulated split (single triangle strip),ABB simulated split (two triangle strips)'");
 				p->add_member_control(b, "Fragment Mode", rs_ptr->fragment_mode, "dropdown", "enums='No-Op, Rasterize Debug, Ray Cast Debug, Ray Cast'");
 				p->align("\b");
 				p->end_tree_node(rs_ptr->fragment_mode);
