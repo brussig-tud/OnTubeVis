@@ -1,0 +1,113 @@
+#version 430
+
+layout (binding = 0) uniform sampler2D curr_color_tex;
+layout (binding = 1) uniform sampler2D prev_color_tex;
+layout (binding = 2) uniform sampler2D position_tex;
+//layout (binding = 3) uniform sampler2D velocity_tex;
+layout (binding = 3) uniform sampler2D depth_tex;
+
+uniform float alpha;
+uniform mat4 curr_projection_matrix;
+uniform mat4 curr_inverse_modelview_matrix;
+uniform mat4 prev_modelview_projection_matrix;
+
+in vec2 texcoord_fs;
+
+out layout(location = 0) vec4 frag_color;
+
+ivec2 closest_fragment(in float depth, in vec2 uv) {
+
+	const ivec2 offsets[8] = ivec2[](
+		ivec2(-1,-1),
+		ivec2(0,-1),
+		ivec2(1,-1),
+		ivec2(-1,0),
+		ivec2(1,0),
+		ivec2(-1,1),
+		ivec2(0,1),
+		ivec2(1,1)
+	);
+
+	ivec2 closest_offset = ivec2(0);
+	float closest_depth = depth;
+	for(int i = 0; i < 8; ++i) {
+		ivec2 offset = offsets[i];
+		float sample_depth = textureOffset(depth_tex, texcoord_fs, offset).r;	
+		if(sample_depth < closest_depth) {
+			closest_depth = sample_depth;
+			closest_offset = offset;
+		}
+	}
+	return closest_offset;
+}
+
+vec3 clip(in vec3 p, in vec3 q, in vec3 aabb_min, in vec3 aabb_max) {
+
+	vec3 p_clip = 0.5 * (aabb_max + aabb_min);
+	vec3 e_clip = 0.5 * (aabb_max - aabb_min);
+
+	vec3 v_clip = q - p_clip;
+	vec3 v_unit = v_clip / e_clip;
+	vec3 a_unit = abs(v_unit);
+	float ma_unit = max(a_unit.x, max(a_unit.y, a_unit.z));
+
+	if(ma_unit > 1.0)
+		return p_clip + v_clip / ma_unit;
+	else
+		return q;
+}
+
+vec2 calcualte_velocity_from_position(in vec3 position) {
+
+	vec4 curr_pos_eye = vec4(position, 1.0);
+	
+	vec4 curr_pos_clip = curr_projection_matrix * curr_pos_eye;
+	curr_pos_clip /= curr_pos_clip.w;
+
+	vec4 curr_pos_obj = curr_inverse_modelview_matrix * curr_pos_eye;
+	curr_pos_obj.w = 1.0;
+
+	vec4 prev_pos_clip = prev_modelview_projection_matrix * curr_pos_obj;
+	prev_pos_clip /= prev_pos_clip.w;
+
+	curr_pos_clip.xy = 0.5 * curr_pos_clip.xy + 0.5;
+	prev_pos_clip.xy = 0.5 * prev_pos_clip.xy + 0.5;
+
+	return curr_pos_clip.xy - prev_pos_clip.xy;
+}
+
+void main()
+{
+	float depth = texture(depth_tex, texcoord_fs).r;
+	
+	if(depth < 1.0) {
+		vec3 curr_color = texture(curr_color_tex, texcoord_fs).rgb;
+
+		//vec3 position = texture(position_tex, texcoord_fs).xyz;
+		vec3 position = textureOffset(position_tex, texcoord_fs, closest_fragment(depth, texcoord_fs)).xyz;
+		vec2 velocity = calcualte_velocity_from_position(position);
+
+		//vec2 velocity = texture(velocity_tex, texcoord_fs).rg;
+	
+		//vec2 velocity = textureOffset(velocity_tex, texcoord_fs, closest_fragment(depth, texcoord_fs)).rg;
+
+		vec3 prev_color = texture(prev_color_tex, texcoord_fs - velocity).rgb;
+		//vec3 prev_color = texture(prev_color_tex, texcoord_fs).rgb;
+	
+		vec3 cn_0 = textureOffset(curr_color_tex, texcoord_fs, ivec2(1, 0)).rgb;
+		vec3 cn_1 = textureOffset(curr_color_tex, texcoord_fs, ivec2(0, 1)).rgb;
+		vec3 cn_2 = textureOffset(curr_color_tex, texcoord_fs, ivec2(-1, 0)).rgb;
+		vec3 cn_3 = textureOffset(curr_color_tex, texcoord_fs, ivec2(0, -1)).rgb;
+
+		vec3 cn_min = min(curr_color, min(cn_0, min(cn_1, min(cn_2, cn_3))));
+		vec3 cn_max = max(curr_color, max(cn_0, max(cn_1, max(cn_2, cn_3))));
+    
+		//prev_color = clamp(prev_color, cn_min, cn_max);
+		prev_color = clip(curr_color, prev_color, cn_min, cn_max);
+	
+
+		frag_color.rgb = mix(prev_color, curr_color, alpha);
+	}
+
+	gl_FragDepth = depth;
+}

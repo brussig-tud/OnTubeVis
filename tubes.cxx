@@ -63,24 +63,21 @@ tubes::tubes() : application_plugin("Tubes")
 
 	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
 	shaders.add("taa", "taa.glpr");
+	shaders.add("taa_resolve", "taa_resolve.glpr");
+	shaders.add("screen", "screen.glpr");
 
-	// add frame buffer attachments needed for deferred rendering
-	fbc0.add_attachment("depth", "[D]");
-	fbc0.add_attachment("albedo", "flt32[R,G,B,A]");
-	fbc0.add_attachment("position", "flt32[R,G,B]");
-	fbc0.add_attachment("normal", "flt32[R,G,B]");
-	fbc0.add_attachment("tangent", "flt32[R,G,B]");
-	fbc0.add_attachment("position_screen", "flt32[R,G,B]");
+	// add framebuffer attachments needed for deferred rendering
+	fbc.add_attachment("depth", "[D]");
+	fbc.add_attachment("albedo", "flt32[R,G,B,A]");
+	fbc.add_attachment("position", "flt32[R,G,B]");
+	fbc.add_attachment("normal", "flt32[R,G,B]");
+	fbc.add_attachment("tangent", "flt32[R,G,B]");
 
-	fbc1.add_attachment("depth", "[D]");
-	fbc1.add_attachment("albedo", "flt32[R,G,B,A]");
-	fbc1.add_attachment("position", "flt32[R,G,B]");
-	fbc1.add_attachment("normal", "flt32[R,G,B]");
-	fbc1.add_attachment("tangent", "flt32[R,G,B]");
-	fbc1.add_attachment("position_screen", "flt32[R,G,B]");
+	fbc_shading.add_attachment("color", "flt32[R,G,B]");
 
-	fbc_final0.add_attachment("color", "flt32[R,G,B]");
-	fbc_final1.add_attachment("color", "flt32[R,G,B]");
+	fbc_hist.add_attachment("color", "flt32[R,G,B]", TF_LINEAR);
+
+	fbc_final.add_attachment("color", "flt32[R,G,B]");
 
 	cm_editor_ptr = register_overlay<cgv::glutil::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
@@ -164,10 +161,10 @@ void tubes::clear(cgv::render::context &ctx) {
 	debug.segment_rd.destruct(ctx);
 
 	shaders.clear(ctx);
-	fbc0.clear(ctx);
-	fbc1.clear(ctx);
-	fbc_final0.clear(ctx);
-	fbc_final1.clear(ctx);
+	fbc.clear(ctx);
+	fbc_shading.clear(ctx);
+	fbc_hist.clear(ctx);
+	fbc_final.clear(ctx);
 
 	color_map_mgr.destruct(ctx);
 
@@ -485,6 +482,18 @@ void tubes::on_set(void *member_ptr) {
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
 		}
 	}
+	
+	if(member_ptr == &enable_taa) {
+		accumulate = false;
+		post_redraw();
+	}
+
+	if(member_ptr == &taa_mix_factor) {
+		taa_mix_factor = cgv::math::clamp(taa_mix_factor, 0.0f, 1.0f);
+		accumulate = false;
+		post_redraw();
+	}
+
 	// - debug render setting
 	if(member_ptr == &debug.force_initial_order) {
 		update_attribute_bindings();
@@ -1416,15 +1425,27 @@ void tubes::init_frame (cgv::render::context &ctx)
 		);*/
 		view_ptr->set_view_up_dir(0, 1, 0);
 
-	// keep the frame buffer up to date with the viewport size
+	// keep the framebuffer up to date with the viewport size
 	// TODO: check for changes and reset accumulation
 	bool updated = false;
-	updated |= fbc0.ensure(ctx);
-	updated |= fbc1.ensure(ctx);
-	updated |= fbc_final0.ensure(ctx);
-	updated |= fbc_final1.ensure(ctx);
-	if(updated)
+	updated |= fbc.ensure(ctx);
+	updated |= fbc_shading.ensure(ctx);
+	updated |= fbc_hist.ensure(ctx);
+	updated |= fbc_final.ensure(ctx);
+	if(updated) {
 		accumulate = false;
+
+		float w = static_cast<float>(fbc.ref_frame_buffer().get_width());
+		float h = static_cast<float>(fbc.ref_frame_buffer().get_height());
+		vec2 view_size(w, h);
+
+		jitter_offsets.clear();
+		for(size_t i = 0; i < n_jitter_samples; ++i) {
+			vec2 sample = sample_halton_2d(static_cast<unsigned>(i), 2, 3);
+			vec2 offset = (2.0f * sample - 1.0f) / view_size;
+			jitter_offsets.push_back(offset);
+		}
+	}
 
 	// query the current viewport dimensions as this is needed for multiple draw methods
 	glGetIntegerv(GL_VIEWPORT, viewport);
@@ -1590,11 +1611,21 @@ void tubes::create_gui(void) {
 		align("\b");
 		end_tree_node(show_bbox);
 	}
+
 	if(begin_tree_node("Tube Style", render.style, false)) {
 		align("\a");
 		add_gui("tube_style", render.style);
 		align("\b");
 		end_tree_node(render.style);
+	}
+
+	if(begin_tree_node("TAA", enable_taa, false)) {
+		align("\a");
+		add_member_control(this, "Enable", enable_taa, "toggle");
+		add_member_control(this, "Mix Factor", taa_mix_factor, "value_slider", "min=0;max=1;step=0.001");
+		add_member_control(this, "Jitter Scale", jitter_scale, "value_slider", "min=0;max=1;step=0.001");
+		align("\b");
+		end_tree_node(enable_taa);
 	}
 
 	if(begin_tree_node("AO Style", ao_style, false)) {
@@ -2003,6 +2034,25 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 	ao_style.derive_voxel_grid_parameters(density_volume.ref_voxel_grid());
 }
 
+tubes::vec2 tubes::sample_halton_2d(unsigned k, int base1, int base2) {
+
+	return vec2(van_der_corput(k, base1), van_der_corput(k, base2));
+}
+float tubes::van_der_corput(int n, int base) {
+
+	float vdc = 0.0f;
+	int denominator = 1;
+
+	while(n > 0) {
+		denominator *= base;
+		int remainder = n % base;
+		n /= base;
+		vdc += remainder / static_cast<float>(denominator);
+	}
+
+	return vdc;
+}
+
 void tubes::draw_dnd(context& ctx) {
 	const auto& ti = cgv::gui::theme_info::instance();
 
@@ -2055,66 +2105,25 @@ void tubes::draw_dnd(context& ctx) {
 
 void tubes::draw_trajectories(context& ctx) {
 
-	// select current and previous frame buffer container
-	cgv::glutil::frame_buffer_container& curr_fbc = fbc0_active ? fbc0 : fbc1;
-	cgv::glutil::frame_buffer_container& prev_fbc = fbc0_active ? fbc1 : fbc0;
-	cgv::glutil::frame_buffer_container& curr_final_fbc = fbc0_active ? fbc_final0 : fbc_final1;
-	cgv::glutil::frame_buffer_container& prev_final_fbc = fbc0_active ? fbc_final1 : fbc_final0;
-	// swap for next frame
-	fbc0_active = !fbc0_active;
-
-
-
-
-
-
-
-
 	vec3 eye_pos = view_ptr->get_eye();
 	const vec3& view_dir = view_ptr->get_view_dir();
 
-	//if(eye_pos != prev_eye_pos || view_dir != prev_view_dir)
-	//	accumulate = false;
-
-	curr_fbc.enable(ctx);
+	// enable drawing framebuffer
+	fbc.enable(ctx);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	
-
-
-
-
-
-	/*dmat4 m;
+	// shear the projection matrix to jitter vertex positions
+	dmat4 m;
 	m.identity();
-	double dx, dy;
-	
-	std::uniform_real_distribution<double> distr(-0.5, 0.5);
-	dx = distr(rng);
-	dy = distr(rng);
 
-	//GLint vp[4];
-	//glGetIntegerv(GL_VIEWPORT, vp);
-	//double pixel_scale_y = 2 * tan(.8726646262e-2*view_ptr->get_y_view_angle()) / vp[3];
-	//double pixel_scale_x = pixel_scale_y * vp[2] / vp[3];
-	//
-	//m(0, 2) = -dx * pixel_scale_x;
-	//m(1, 2) = -dy * pixel_scale_y;
+	vec2 jitter_offset = jitter_scale * jitter_offsets[accumulate_count];
+	m(0, 2) = jitter_offset.x();
+	m(1, 2) = jitter_offset.y();
 
-	GLint vp[4];
-	glGetIntegerv(GL_VIEWPORT, vp);
-	
-	m(0, 2) = -dx / (vp[2] - vp[0]);
-	m(1, 2) = -dy / (vp[3] - vp[1]);
 	ctx.push_projection_matrix();
-	ctx.mul_projection_matrix(m);*/
+	ctx.mul_projection_matrix(m);
 
-
-
-
-
-
-
-
+	// render tubes
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 
 	// prepare SSBO handles
@@ -2149,24 +2158,21 @@ void tubes::draw_trajectories(context& ctx) {
 
 	tstr.disable_attribute_array_manager(ctx, render.aam);
 
+	// store the current matrices to use as the previous for the next frame
+	mat4 curr_modelview_matrix = ctx.get_modelview_matrix();
 
+	ctx.pop_projection_matrix();
 
-	//ctx.pop_projection_matrix();
+	// need to store the projection matrix without jitter
+	mat4 curr_projection_matrix = ctx.get_projection_matrix();
+	
+	// disable the drawing framebuffer
+	fbc.disable(ctx);
 
-
-
-	curr_fbc.disable(ctx);
-
-
-
-
-
-
-
-	if(accumulate) {
-		curr_final_fbc.enable(ctx);
-		glClear(GL_COLOR_BUFFER_BIT);
-	}
+	// perform the deferred shading pass and draw the image into the shading framebuffer
+	fbc_shading.enable(ctx);
+	// TODO: remove because it may not be necessary since we draw a full screen quad
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	shader_program& prog = shaders.get("tube_shading");
 	prog.enable(ctx);
@@ -2220,11 +2226,11 @@ void tubes::draw_trajectories(context& ctx) {
 	prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
 	prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
 
-	curr_fbc.enable_attachment(ctx, "albedo", 0);
-	curr_fbc.enable_attachment(ctx, "position", 1);
-	curr_fbc.enable_attachment(ctx, "normal", 2);
-	curr_fbc.enable_attachment(ctx, "tangent", 3);
-	curr_fbc.enable_attachment(ctx, "depth", 4);
+	fbc.enable_attachment(ctx, "albedo", 0);
+	fbc.enable_attachment(ctx, "position", 1);
+	fbc.enable_attachment(ctx, "normal", 2);
+	fbc.enable_attachment(ctx, "tangent", 3);
+	fbc.enable_attachment(ctx, "depth", 4);
 	if(ao_style.enable)
 		density_tex.enable(ctx, 5);
 	color_map_mgr.ref_texture().enable(ctx, 6);
@@ -2249,17 +2255,19 @@ void tubes::draw_trajectories(context& ctx) {
 		}
 	}
 
-	curr_fbc.disable_attachment(ctx, "albedo");
-	curr_fbc.disable_attachment(ctx, "position");
-	curr_fbc.disable_attachment(ctx, "normal");
-	curr_fbc.disable_attachment(ctx, "tangent");
-	curr_fbc.disable_attachment(ctx, "depth");
+	fbc.disable_attachment(ctx, "albedo");
+	fbc.disable_attachment(ctx, "position");
+	fbc.disable_attachment(ctx, "normal");
+	fbc.disable_attachment(ctx, "tangent");
+	fbc.disable_attachment(ctx, "depth");
 	if(ao_style.enable)
 		density_tex.disable(ctx);
 	color_map_mgr.ref_texture().disable(ctx);
 
 	prog.disable(ctx);
 
+	// disable the shading framebuffer
+	fbc_shading.disable(ctx);
 
 
 
@@ -2268,76 +2276,76 @@ void tubes::draw_trajectories(context& ctx) {
 
 
 
-	const GLuint blit_fb_id = (const GLuint&)curr_final_fbc.ref_frame_buffer().handle - 1;
-	GLint blit_width = static_cast<GLint>(curr_final_fbc.ref_frame_buffer().get_width());
-	GLint blit_height = static_cast<GLint>(curr_final_fbc.ref_frame_buffer().get_height());
 
+
+
+	//
+	/* TODO: somehow produces black artifacts !!!
+	 * They don't stem from the clamp or clip step in the resolve shader.
+	 */
+
+	// TODO: comment
+	bool first = !accumulate;
 	if(accumulate) {
-		curr_final_fbc.disable(ctx);
-	} else {
-		// blit the final image to a frame buffer
-		// from gl_context.cxx get_gl_id() -> return (const GLuint&)handle - 1;
-		glBlitNamedFramebuffer(0, blit_fb_id, 0, 0, blit_width, blit_height, 0, 0, blit_width, blit_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-	}
+		// enable the final framebuffer to draw the resolved image into
+		fbc_final.enable(ctx);
+		// TODO: remove because it may not be necessary since we draw a full screen quad
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		auto& resolve_prog = shaders.get("taa_resolve");
+		resolve_prog.enable(ctx);
 
-
-
-	//// blit the final image to a frame buffer
-	//// from gl_context.cxx get_gl_id() -> return (const GLuint&)handle - 1;
-	//const GLuint blit_fb_id = (const GLuint&)curr_final_fbc.ref_frame_buffer().handle - 1;
-	//GLint blit_width = static_cast<GLint>(curr_final_fbc.ref_frame_buffer().get_width());
-	//GLint blit_height = static_cast<GLint>(curr_final_fbc.ref_frame_buffer().get_height());
-	//glBlitNamedFramebuffer(0, blit_fb_id, 0, 0, blit_width, blit_height, 0, 0, blit_width, blit_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-
-	
-	if(accumulate) {
-
-		glDepthFunc(GL_ALWAYS);
-
-		//if(accumulate_count > 64)
-		//	accumulate_count = 1;
-
-		auto& taa_prog = shaders.get("taa");
-		taa_prog.enable(ctx);
-		taa_prog.set_uniform(ctx, "alpha", 1.0f / static_cast<float>(accumulate_count));
+		resolve_prog.set_uniform(ctx, "alpha", taa_mix_factor);
 		++accumulate_count;
-		
-		curr_final_fbc.enable_attachment(ctx, "color", 0);
-		prev_final_fbc.enable_attachment(ctx, "color", 1);
-		curr_fbc.enable_attachment(ctx, "depth", 2);
+		if(accumulate_count > n_jitter_samples - 1)
+			accumulate_count = 0;
 
-		curr_fbc.enable_attachment(ctx, "position_screen", 3);
-		prev_fbc.enable_attachment(ctx, "position_screen", 4);
+		resolve_prog.set_uniform(ctx, "curr_projection_matrix", curr_projection_matrix);
+		resolve_prog.set_uniform(ctx, "curr_inverse_modelview_matrix", inv(curr_modelview_matrix));
+		resolve_prog.set_uniform(ctx, "prev_modelview_projection_matrix", prev_projection_matrix * prev_modelview_matrix);
+
+		fbc_shading.enable_attachment(ctx, "color", 0);
+		fbc_hist.enable_attachment(ctx, "color", 1);
+		fbc.enable_attachment(ctx, "position", 2);
+		fbc.enable_attachment(ctx, "depth", 3);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-		curr_final_fbc.disable_attachment(ctx, "color");
-		prev_final_fbc.disable_attachment(ctx, "color");
-		curr_fbc.disable_attachment(ctx, "depth");
+		fbc_shading.disable_attachment(ctx, "color");
+		fbc_hist.disable_attachment(ctx, "color");
+		fbc.disable_attachment(ctx, "position");
+		fbc.disable_attachment(ctx, "depth");
 
-		curr_fbc.disable_attachment(ctx, "position_screen");
-		prev_fbc.disable_attachment(ctx, "position_screen");
+		resolve_prog.disable(ctx);
 
-		taa_prog.disable(ctx);
-
-
-
-
-
-		glBlitNamedFramebuffer(0, blit_fb_id, 0, 0, blit_width, blit_height, 0, 0, blit_width, blit_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-		
+		// disable the final framebuffer
+		fbc_final.disable(ctx);
 	} else {
-		accumulate = true;
-		accumulate_count = 1;
+		accumulate = enable_taa;
+		accumulate_count = 0;
 	}
 
-	prev_eye_pos = eye_pos;
-	prev_view_dir = view_dir;
+	auto& color_src_fbc = first ? fbc_shading : fbc_final;
 
-	glDepthFunc(GL_LESS);
+	auto& screen_prog = shaders.get("screen");
+	screen_prog.enable(ctx);
+
+	color_src_fbc.enable_attachment(ctx, "color", 0);
+	fbc.enable_attachment(ctx, "depth", 1);
+
+	fbc_hist.enable(ctx);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	fbc_hist.disable(ctx);
+
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	color_src_fbc.disable_attachment(ctx, "color");
+	fbc.disable_attachment(ctx, "depth");
+
+	screen_prog.disable(ctx);
+	
+	prev_projection_matrix = curr_projection_matrix;
+	prev_modelview_matrix = curr_modelview_matrix;
 }
 
 void tubes::draw_density_volume(context& ctx) {

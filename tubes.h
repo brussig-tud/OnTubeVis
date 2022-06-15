@@ -145,10 +145,15 @@ protected:
 	vec3 prev_eye_pos = vec3(0.0f);
 	vec3 prev_view_dir = vec3(0.0f);
 	bool accumulate = false;
-	unsigned accumulate_count = 1;
-	std::mt19937 rng;
-	bool fbc0_active = true;
-	cgv::glutil::frame_buffer_container fbc0, fbc1, fbc_final0, fbc_final1;
+	unsigned accumulate_count = 0;
+	float jitter_scale = 0.333f;
+	size_t n_jitter_samples = 16;
+	std::vector<vec2> jitter_offsets;
+	float taa_mix_factor = 0.1f;
+	mat4 prev_projection_matrix;
+	mat4 prev_modelview_matrix;
+	bool enable_taa = true;
+	cgv::glutil::frame_buffer_container fbc, fbc_shading, fbc_hist, fbc_final;
 	cgv::glutil::shader_library shaders;
 	volume_render_style vstyle;
 	cgv::glutil::gl_color_map volume_tf;
@@ -305,6 +310,9 @@ protected:
 	void calculate_bounding_box(void);
 
 	void create_density_volume(context& ctx, unsigned resolution);
+
+	vec2 sample_halton_2d(unsigned index, int base1, int base2);
+	float van_der_corput(int n, int base);
 
 	/// draw methods
 	void draw_dnd(context& ctx);
