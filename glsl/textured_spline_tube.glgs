@@ -32,6 +32,13 @@ const vec4 corners[4] = {
 	vec4(-0.5, +0.5, -0.5, 1.0),
 	vec4(-0.5, -0.5, +0.5, 1.0)
 };
+#elif BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
+const vec4 corners[4] = {
+	vec4(-0.5, -0.5, -0.5, 1.0),
+	vec4( 0,   -0.5, -0.5, 1.0),
+	vec4(-0.5, +0.5, -0.5, 1.0),
+	vec4(-0.5, -0.5, +0.5, 1.0)
+};
 #elif BOUNDING_GEOMETRY_TYPE == 1
 const vec4 corners[4] = {
 	vec4(-0.5, +0.0, +0.0, 1.0),
@@ -68,10 +75,29 @@ struct QTube {
 layout(points) in;
 #if BOUNDING_GEOMETRY_TYPE == 0
 layout(triangle_strip, max_vertices = 28) out;
+#elif BOUNDING_GEOMETRY_TYPE == 5
+	// include 2x 2 redundent vertices causing 2x 4 degenerate triangles needed to separate objects within a strip,
+	// which would amount to 60 vertices in total. Unfortunately, we can only use 44 (with view-space positions) or 51 (without) on NVIDIA hardware :(
+	#if USE_VIEW_SPACE_POSITION == 1
+		layout(triangle_strip, max_vertices = 44) out; 
+	#else
+		layout(triangle_strip, max_vertices = 51) out;
+	#endif
+#elif BOUNDING_GEOMETRY_TYPE == 6
+	// we would need 2*28 == 56 vertices in total, unfortunately, we can only use 44 (with view-space positions) or 51 (without) on NVIDIA hardware :(
+	#if USE_VIEW_SPACE_POSITION == 1
+		layout(triangle_strip, max_vertices = 44) out;
+	#else
+		layout(triangle_strip, max_vertices = 51) out;
+	#endif
 #elif BOUNDING_GEOMETRY_TYPE == 1
 layout(triangle_strip, max_vertices = 8) out;
 #elif BOUNDING_GEOMETRY_TYPE == 2
 layout(triangle_strip, max_vertices = 12) out;
+#elif BOUNDING_GEOMETRY_TYPE == 7
+layout(triangle_strip, max_vertices = 20) out; // includes 2x 2 redundent vertices causing 2x 4 degenerate triangles needed to separate quads within a strip
+#elif BOUNDING_GEOMETRY_TYPE == 8
+layout(triangle_strip, max_vertices = 16) out;
 #else
 layout(triangle_strip, max_vertices = 8) out;
 #endif
@@ -184,7 +210,7 @@ float EvalPolyD0(float x, float c[3]) {
 	return x * (x * c[2] + c[1]) + c[0];
 }
 
-#if BOUNDING_GEOMETRY_TYPE < 2
+#if BOUNDING_GEOMETRY_TYPE<2 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
 mat4 calculate_transformation_matrix(QTube qTube) {
 
 	vec3 x, y, z;
@@ -481,7 +507,7 @@ mat4x3 quad(vec4 start, vec4 end) {
 	return ret;
 }
 
-#if BOUNDING_GEOMETRY_TYPE == 0
+#if BOUNDING_GEOMETRY_TYPE==0 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
 void emit_bounding_box(int segment_idx, QTube qTube) {
 
 	mat4 M = calculate_transformation_matrix(qTube);
@@ -509,6 +535,9 @@ void emit_bounding_box(int segment_idx, QTube qTube) {
 	p001 = MVP * p001;
 
 	// calculate remaining corners
+	#if BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
+		vec4 dx = p100 - p000;
+	#endif
 	vec4 dy = p010 - p000;
 	vec4 dz = p001 - p000;
 
@@ -531,6 +560,45 @@ void emit_bounding_box(int segment_idx, QTube qTube) {
 	gl_Position = p100; EmitVertex();
 	gl_Position = p010; EmitVertex();
 	gl_Position = p110; EmitVertex();
+	#if BOUNDING_GEOMETRY_TYPE > 4
+		#if BOUNDING_GEOMETRY_TYPE == 5
+			// use degenerate triangles for sub-box separation:
+			// create 1st degenerate triangle, using last vertex of first sub-box
+			EmitVertex();  // <-- 1st parity flip
+		#else
+			// actually start a new triangle strip for second sub-box
+			EndPrimitive();
+		#endif
+		// update vertex position for second sub-box
+		p000 = p000 + dx;
+		p100 = p100 + dx;
+		p010 = p010 + dx;
+		p001 = p001 + dx;
+		p110 = p110 + dx;
+		p101 = p101 + dx;
+		p011 = p011 + dx;
+		p111 = p111 + dx;
+		// emit second sub-box
+		gl_Position = p011; EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 2nd degenerate triangle
+		#if BOUNDING_GEOMETRY_TYPE == 5
+			// one more degenerate inter-object triangle (3rd degenerate triangle in total)
+			EmitVertex();  // <-- 2nd parity flip, also starts off new sub-strip
+		#endif
+		// remaining new box triangles
+		gl_Position = p111; EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 4th and last degenerate triangle
+		gl_Position = p001; EmitVertex();
+		gl_Position = p101; EmitVertex();
+		gl_Position = p100; EmitVertex();
+		gl_Position = p111; EmitVertex();
+		gl_Position = p110; EmitVertex();
+		gl_Position = p011; EmitVertex();
+		gl_Position = p010; EmitVertex();
+		gl_Position = p001; EmitVertex();
+		gl_Position = p000; EmitVertex();
+		gl_Position = p100; EmitVertex();
+		gl_Position = p010; EmitVertex();
+		gl_Position = p110; EmitVertex();
+	#endif
 #else
 	// generate transformed base vector corners of the box
 	p000 = MV * p000;
@@ -539,6 +607,9 @@ void emit_bounding_box(int segment_idx, QTube qTube) {
 	p001 = MV * p001;
 
 	// calculate remaining corners
+	#if BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
+		vec4 dx = p100 - p000;
+	#endif
 	vec4 dy = p010 - p000;
 	vec4 dz = p001 - p000;
 
@@ -577,6 +648,59 @@ void emit_bounding_box(int segment_idx, QTube qTube) {
 	gl_Position = P * p010; EmitVertex();
 	position_fs = p110.xyz;
 	gl_Position = P * p110; EmitVertex();
+	#if BOUNDING_GEOMETRY_TYPE > 4
+		#if BOUNDING_GEOMETRY_TYPE == 5
+			// use degenerate triangles for sub-box separation:
+			// create 1st degenerate triangle, using last vertex of first sub-box
+			EmitVertex();  // <-- 1st parity flip
+		#else
+			// actually start a new triangle strip for second sub-box
+			EndPrimitive();
+		#endif
+		// update vertex position for second sub-box
+		p000 = p000 + dx;
+		p100 = p100 + dx;
+		p010 = p010 + dx;
+		p001 = p001 + dx;
+		p110 = p110 + dx;
+		p101 = p101 + dx;
+		p011 = p011 + dx;
+		p111 = p111 + dx;
+		// emit second sub-box
+		position_fs = p011.xyz;
+		gl_Position = P*p011; EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 2nd degenerate triangle
+		#if BOUNDING_GEOMETRY_TYPE == 5
+			// one more degenerate inter-object triangle (3rd degenerate triangle in total)
+			EmitVertex();  // <-- 2nd parity flip, also starts off new sub-strip
+		#endif
+		// remaining new box triangles
+		position_fs = p111.xyz;
+		gl_Position = P * p111; EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 4th and last degenerate triangle
+		position_fs = p001.xyz;
+		gl_Position = P * p001; EmitVertex();
+		position_fs = p101.xyz;
+		gl_Position = P * p101; EmitVertex();
+		position_fs = p100.xyz;
+		gl_Position = P * p100; EmitVertex();
+		position_fs = p111.xyz;
+		gl_Position = P * p111; EmitVertex();
+		position_fs = p110.xyz;
+		gl_Position = P * p110; EmitVertex();
+		position_fs = p011.xyz;
+		gl_Position = P * p011; EmitVertex();
+		position_fs = p010.xyz;
+		gl_Position = P * p010; EmitVertex();
+		position_fs = p001.xyz;
+		gl_Position = P * p001; EmitVertex();
+		position_fs = p000.xyz;
+		gl_Position = P * p000; EmitVertex();
+		position_fs = p100.xyz;
+		gl_Position = P * p100; EmitVertex();
+		position_fs = p010.xyz;
+		gl_Position = P * p010; EmitVertex();
+		position_fs = p110.xyz;
+		gl_Position = P * p110; EmitVertex();
+	#endif
 #endif
 	EndPrimitive();
 }
@@ -1150,25 +1274,81 @@ void emit_aligned_box_billboard(int segment_idx, QTube qTube) {
 
 	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
 
+#if BOUNDING_GEOMETRY_TYPE==7 || BOUNDING_GEOMETRY_TYPE==8
+	vec3 cpm[2];
+	cpm[0] = 0.5*(cp[0]+cp[1]);
+	cpm[1] = 0.5*(cp[2]+cp[3]);
+#endif
+
 #if USE_VIEW_SPACE_POSITION == 0
 	mat4 MVP = get_modelview_projection_matrix();
 
 	gl_Position = MVP * vec4(cp[0], 1.0); EmitVertex();
-	gl_Position = MVP * vec4(cp[1], 1.0); EmitVertex();
 	gl_Position = MVP * vec4(cp[2], 1.0); EmitVertex();
+	#if BOUNDING_GEOMETRY_TYPE > 6
+		// finish first sub-quad at mid-point
+		gl_Position = MVP * vec4(cpm[0], 1.0); EmitVertex();
+		gl_Position = MVP * vec4(cpm[1], 1.0); EmitVertex();
+		#if BOUNDING_GEOMETRY_TYPE == 7
+			// use degenerate triangles for sub-quad separation:
+			// create 1st degenerate triangle, using last vertex of first sub-quad
+			EmitVertex();  // <-- 1st parity flip
+		#else
+			// actually start a new triangle strip for second sub-quad
+			EndPrimitive();
+		#endif
+		// emit second sub-box
+		gl_Position = MVP * vec4(cpm[0], 1.0); EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 2nd degenerate triangle
+		#if BOUNDING_GEOMETRY_TYPE == 7
+			// one more degenerate inter-quad triangle (3rd degenerate triangle in total)
+			EmitVertex();  // <-- 2nd parity flip, also starts off new sub-strip
+		#endif
+		// remaining new box triangles
+		gl_Position = MVP * vec4(cpm[1], 1.0); EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 4th and last degenerate triangle
+	#endif
+	gl_Position = MVP * vec4(cp[1], 1.0); EmitVertex();
 	gl_Position = MVP * vec4(cp[3], 1.0); EmitVertex();
 #else
 	mat4 PM = get_projection_matrix();
 
 	vec4 p00 = MV * vec4(cp[0], 1.0);
-	vec4 p10 = MV * vec4(cp[1], 1.0);
-	vec4 p01 = MV * vec4(cp[2], 1.0);
+	vec4 p10 = MV * vec4(cp[2], 1.0);
+	vec4 p01 = MV * vec4(cp[1], 1.0);
 	vec4 p11 = MV * vec4(cp[3], 1.0);
+	#if BOUNDING_GEOMETRY_TYPE==7 || BOUNDING_GEOMETRY_TYPE==8
+		const vec4 mid1 = MV * vec4(cpm[0], 1.0);
+		const vec4 mid2 = MV * vec4(cpm[1], 1.0);
+	#endif
 
 	position_fs = p00.xyz;
 	gl_Position = PM * p00; EmitVertex();
 	position_fs = p10.xyz;
 	gl_Position = PM * p10; EmitVertex();
+	#if BOUNDING_GEOMETRY_TYPE > 6
+		// finish first sub-quad at mid-point
+		position_fs = mid1.xyz;
+		gl_Position = PM * mid1; EmitVertex();
+		position_fs = mid2.xyz;
+		gl_Position = PM * mid2; EmitVertex();
+		#if BOUNDING_GEOMETRY_TYPE == 7
+			// use degenerate triangles for sub-quad separation:
+			// create 1st degenerate triangle, using last vertex of first sub-quad
+			EmitVertex();  // <-- 1st parity flip
+		#else
+			// actually start a new triangle strip for second sub-quad
+			EndPrimitive();
+		#endif
+		// emit second sub-box
+		position_fs = mid1.xyz;
+		gl_Position = PM * mid1; EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 2nd degenerate triangle
+		#if BOUNDING_GEOMETRY_TYPE == 7
+			// one more degenerate inter-quad triangle (3rd degenerate triangle in total)
+			EmitVertex();  // <-- 2nd parity flip, also starts off new sub-strip
+		#endif
+		// remaining new box triangles
+		position_fs = mid2.xyz;
+		gl_Position = PM * mid2; EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 4th and last degenerate triangle
+	#endif
 	position_fs = p01.xyz;
 	gl_Position = PM * p01; EmitVertex();
 	position_fs = p11.xyz;
@@ -1220,7 +1400,7 @@ void main()
 	SM_fs = Bk * Mh;
 #endif
 
-#if BOUNDING_GEOMETRY_TYPE == 0
+#if BOUNDING_GEOMETRY_TYPE==0 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
 	emit_bounding_box(0, qTube0);
 	emit_bounding_box(1, qTube1);
 #elif BOUNDING_GEOMETRY_TYPE == 1
