@@ -74,9 +74,9 @@
 		}                                                                    \
 	} while (false)
 
-static void context_log_cb (unsigned int level, const char* tag, const char* message, void* /*cbdata */)
+static void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* cbdata */)
 {
-	std::cerr << "[" << std::setw(2) << level << "][" << std::setw(12) << tag << "]: " << message << "\n";
+	std::cerr << "["<<std::setw(2)<<lvl<<"]["<<std::setw(12)<<tag<<"]: " << msg << std::endl;
 }
 
 // ###############################
@@ -174,7 +174,7 @@ tubes::~tubes()
 	// ###############################
 
 	// shutdown optix
-	OPTIX_CHECK(optixDeviceContextDestroy(otx_context));
+	OPTIX_CHECK(optixDeviceContextDestroy(optix.context));
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -244,6 +244,7 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("grid_normal_inwards", grid_normal_inwards) &&
 		rh.reflect_member("grid_normal_variant", grid_normal_variant) &&
 		rh.reflect_member("voxelize_gpu", voxelize_gpu) &&
+		rh.reflect_member("use_optix", optix.enabled) &&
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
@@ -1315,14 +1316,14 @@ bool tubes::init (cgv::render::context &ctx)
 
 	// Specify context options
 	OptixDeviceContextOptions options = {};
-	options.logCallbackFunction = &context_log_cb;
+	options.logCallbackFunction = &optix_log_cb;
 	options.logCallbackLevel = 4;
 	std::cerr << std::endl; // <-- Make sure the initial CUDA/OptiX message stream is preceded by an empty line
 
 	// Associate a CUDA context (and therefore a specific GPU) with this
 	// device context
 	CUcontext cuCtx = 0;  // zero means take the current context
-	OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &options, &otx_context));
+	OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &options, &optix.context));
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -1649,6 +1650,12 @@ void tubes::create_gui(void) {
 
 	// rendering settings
 	add_decorator("Rendering", "heading", "level=1");
+	if (begin_tree_node("OptiX", optix.enabled, false)) {
+		align("\a");
+		add_member_control(this, "Use OptiX for tube rendering", optix.enabled, "check");
+		align("\b");
+		end_tree_node(optix.enabled);
+	}
 	if (begin_tree_node("Bounds", show_bbox, false)) {
 		align("\a");
 		add_member_control(this, "Color", bbox_style.surface_color);

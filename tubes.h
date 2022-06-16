@@ -59,20 +59,6 @@ class tubes :
 	public cgv::glutil::application_plugin	// derive from application plugin, which is a node, drawable, gui provider and event handler and can handle overlays
 {
 public:
-
-	// ###############################
-	// ### BEGIN: OptiX integration
-	// ###############################
-
-	// OptiX device context
-	OptixDeviceContext otx_context = nullptr;
-
-	// ###############################
-	// ###  END:  OptiX integration
-	// ###############################
-
-
-
 	/// data layout for per-node attributes within the attribute render SSBO
 	struct node_attribs {
 		vec4 pos_rad;
@@ -83,6 +69,26 @@ public:
 	cgv::type::DummyEnum voxel_grid_resolution;
 
 protected:
+
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	// State
+	struct
+	{
+		// Use OptiX instead of OpenGL rasterization
+		bool enabled = false;
+
+		// OptiX device context
+		OptixDeviceContext context = nullptr;
+	} optix;
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
+
+
 	cgv::glutil::color_map_editor_ptr cm_editor_ptr;
 	cgv::glutil::color_map_editor_ptr tf_editor_ptr;
 	cgv::data::ref_ptr<cgv::glutil::navigator> navigator_ptr;
