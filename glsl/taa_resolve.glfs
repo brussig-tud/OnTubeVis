@@ -3,13 +3,19 @@
 layout (binding = 0) uniform sampler2D curr_color_tex;
 layout (binding = 1) uniform sampler2D prev_color_tex;
 layout (binding = 2) uniform sampler2D position_tex;
-//layout (binding = 3) uniform sampler2D velocity_tex;
-layout (binding = 3) uniform sampler2D depth_tex;
+layout (binding = 4) uniform sampler2D depth_tex;
 
 uniform float alpha;
 uniform mat4 curr_projection_matrix;
 uniform mat4 curr_inverse_modelview_matrix;
 uniform mat4 prev_modelview_projection_matrix;
+
+uniform struct {
+	bool use_velocity;
+	bool closest_depth;
+	bool clamp_color;
+	bool clip_color;
+} settings;
 
 in vec2 texcoord_fs;
 
@@ -79,35 +85,35 @@ vec2 calcualte_velocity_from_position(in vec3 position) {
 void main()
 {
 	float depth = texture(depth_tex, texcoord_fs).r;
+	vec3 curr_color = texture(curr_color_tex, texcoord_fs).rgb;
+
+	vec3 position = vec3(0.0);
+	if(settings.closest_depth)
+		position = textureOffset(position_tex, texcoord_fs, closest_fragment(depth, texcoord_fs)).xyz;
+	else
+		position = texture(position_tex, texcoord_fs).xyz;
+
+	vec2 velocity = calcualte_velocity_from_position(position);
 	
-	if(depth < 1.0) {
-		vec3 curr_color = texture(curr_color_tex, texcoord_fs).rgb;
+	vec3 prev_color = vec3(0.0);
 
-		//vec3 position = texture(position_tex, texcoord_fs).xyz;
-		vec3 position = textureOffset(position_tex, texcoord_fs, closest_fragment(depth, texcoord_fs)).xyz;
-		vec2 velocity = calcualte_velocity_from_position(position);
-
-		//vec2 velocity = texture(velocity_tex, texcoord_fs).rg;
+	if(settings.use_velocity)
+		prev_color = texture(prev_color_tex, texcoord_fs - velocity).rgb;
+	else
+		prev_color = texture(prev_color_tex, texcoord_fs).rgb;
 	
-		//vec2 velocity = textureOffset(velocity_tex, texcoord_fs, closest_fragment(depth, texcoord_fs)).rg;
+	vec3 cn_0 = textureOffset(curr_color_tex, texcoord_fs, ivec2(1, 0)).rgb;
+	vec3 cn_1 = textureOffset(curr_color_tex, texcoord_fs, ivec2(0, 1)).rgb;
+	vec3 cn_2 = textureOffset(curr_color_tex, texcoord_fs, ivec2(-1, 0)).rgb;
+	vec3 cn_3 = textureOffset(curr_color_tex, texcoord_fs, ivec2(0, -1)).rgb;
 
-		vec3 prev_color = texture(prev_color_tex, texcoord_fs - velocity).rgb;
-		//vec3 prev_color = texture(prev_color_tex, texcoord_fs).rgb;
-	
-		vec3 cn_0 = textureOffset(curr_color_tex, texcoord_fs, ivec2(1, 0)).rgb;
-		vec3 cn_1 = textureOffset(curr_color_tex, texcoord_fs, ivec2(0, 1)).rgb;
-		vec3 cn_2 = textureOffset(curr_color_tex, texcoord_fs, ivec2(-1, 0)).rgb;
-		vec3 cn_3 = textureOffset(curr_color_tex, texcoord_fs, ivec2(0, -1)).rgb;
-
-		vec3 cn_min = min(curr_color, min(cn_0, min(cn_1, min(cn_2, cn_3))));
-		vec3 cn_max = max(curr_color, max(cn_0, max(cn_1, max(cn_2, cn_3))));
+	vec3 cn_min = min(curr_color, min(cn_0, min(cn_1, min(cn_2, cn_3))));
+	vec3 cn_max = max(curr_color, max(cn_0, max(cn_1, max(cn_2, cn_3))));
     
-		//prev_color = clamp(prev_color, cn_min, cn_max);
+	if(settings.clamp_color)
+		prev_color = clamp(prev_color, cn_min, cn_max);
+	if(settings.clip_color)
 		prev_color = clip(curr_color, prev_color, cn_min, cn_max);
 	
-
-		frag_color.rgb = mix(prev_color, curr_color, alpha);
-	}
-
-	gl_FragDepth = depth;
+	frag_color.rgb = mix(prev_color, curr_color, alpha);
 }

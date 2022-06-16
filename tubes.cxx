@@ -62,7 +62,8 @@ tubes::tubes() : application_plugin("Tubes")
 #endif
 
 	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
-	shaders.add("taa", "taa.glpr");
+	//shaders.add("taa", "taa.glpr");
+	shaders.add("fxaa", "fxaa.glpr");
 	shaders.add("taa_resolve", "taa_resolve.glpr");
 	shaders.add("screen", "screen.glpr");
 
@@ -73,11 +74,16 @@ tubes::tubes() : application_plugin("Tubes")
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
 
-	fbc_shading.add_attachment("color", "flt32[R,G,B]");
+	const std::string color_format = "flt32[R,G,B]";
+	//const std::string color_format = "uint8[R,G,B]";
 
-	fbc_hist.add_attachment("color", "flt32[R,G,B]", TF_LINEAR);
+	fbc_shading.add_attachment("color", color_format);
 
-	fbc_final.add_attachment("color", "flt32[R,G,B]");
+	fbc_post.add_attachment("color", color_format);
+
+	fbc_hist.add_attachment("color", color_format, TF_LINEAR);
+
+	fbc_final.add_attachment("color", color_format);
 
 	cm_editor_ptr = register_overlay<cgv::glutil::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
@@ -163,6 +169,7 @@ void tubes::clear(cgv::render::context &ctx) {
 	shaders.clear(ctx);
 	fbc.clear(ctx);
 	fbc_shading.clear(ctx);
+	fbc_post.clear(ctx);
 	fbc_hist.clear(ctx);
 	fbc_final.clear(ctx);
 
@@ -1430,6 +1437,7 @@ void tubes::init_frame (cgv::render::context &ctx)
 	bool updated = false;
 	updated |= fbc.ensure(ctx);
 	updated |= fbc_shading.ensure(ctx);
+	updated |= fbc_post.ensure(ctx);
 	updated |= fbc_hist.ensure(ctx);
 	updated |= fbc_final.ensure(ctx);
 	if(updated) {
@@ -1624,6 +1632,15 @@ void tubes::create_gui(void) {
 		add_member_control(this, "Enable", enable_taa, "toggle");
 		add_member_control(this, "Mix Factor", taa_mix_factor, "value_slider", "min=0;max=1;step=0.001");
 		add_member_control(this, "Jitter Scale", jitter_scale, "value_slider", "min=0;max=1;step=0.001");
+
+		add_member_control(this, "Enable FXAA", enable_fxaa, "toggle");
+		add_member_control(this, "FXAA Mix Factor", fxaa_mix_factor, "value_slider", "min=0;max=1;step=0.0001");
+
+		add_decorator("Resolve Settings", "heading", "level=3");
+		add_member_control(this, "Use Velocity", settings.use_velocity, "check");
+		add_member_control(this, "Use Closest Depth", settings.closest_depth, "check");
+		add_member_control(this, "Clamp Color", settings.clamp_color, "check");
+		add_member_control(this, "Clip Color", settings.clip_color, "check");
 		align("\b");
 		end_tree_node(enable_taa);
 	}
@@ -2107,6 +2124,10 @@ void tubes::draw_trajectories(context& ctx) {
 
 	vec3 eye_pos = view_ptr->get_eye();
 	const vec3& view_dir = view_ptr->get_view_dir();
+	vec2 viewport_size(
+		static_cast<float>(fbc.ref_frame_buffer().get_width()),
+		static_cast<float>(fbc.ref_frame_buffer().get_height())
+	);
 
 	// enable drawing framebuffer
 	fbc.enable(ctx);
@@ -2169,10 +2190,15 @@ void tubes::draw_trajectories(context& ctx) {
 	// disable the drawing framebuffer
 	fbc.disable(ctx);
 
+	
+
+
+
 	// perform the deferred shading pass and draw the image into the shading framebuffer
 	fbc_shading.enable(ctx);
+	glDepthFunc(GL_ALWAYS);
 	// TODO: remove because it may not be necessary since we draw a full screen quad
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	shader_program& prog = shaders.get("tube_shading");
 	prog.enable(ctx);
@@ -2273,6 +2299,27 @@ void tubes::draw_trajectories(context& ctx) {
 
 
 
+	if(enable_fxaa) {
+		fbc_post.enable(ctx);
+
+		auto& fxaa_prog = shaders.get("fxaa");
+		fxaa_prog.enable(ctx);
+		fxaa_prog.set_uniform(ctx, "inverse_viewport_size", vec2(1.0f) / viewport_size);
+		fxaa_prog.set_uniform(ctx, "mix_factor", fxaa_mix_factor);
+
+		fbc_shading.enable_attachment(ctx, "color", 0);
+
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+		fbc_shading.disable_attachment(ctx, "color");
+
+		fxaa_prog.disable(ctx);
+
+		fbc_post.disable(ctx);
+	}
+
+
+
 
 
 
@@ -2285,12 +2332,14 @@ void tubes::draw_trajectories(context& ctx) {
 	 */
 
 	// TODO: comment
+	
+
 	bool first = !accumulate;
 	if(accumulate) {
 		// enable the final framebuffer to draw the resolved image into
 		fbc_final.enable(ctx);
 		// TODO: remove because it may not be necessary since we draw a full screen quad
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		auto& resolve_prog = shaders.get("taa_resolve");
 		resolve_prog.enable(ctx);
@@ -2304,14 +2353,21 @@ void tubes::draw_trajectories(context& ctx) {
 		resolve_prog.set_uniform(ctx, "curr_inverse_modelview_matrix", inv(curr_modelview_matrix));
 		resolve_prog.set_uniform(ctx, "prev_modelview_projection_matrix", prev_projection_matrix * prev_modelview_matrix);
 
-		fbc_shading.enable_attachment(ctx, "color", 0);
+		resolve_prog.set_uniform(ctx, "settings.use_velocity", settings.use_velocity);
+		resolve_prog.set_uniform(ctx, "settings.closest_depth", settings.closest_depth);
+		resolve_prog.set_uniform(ctx, "settings.clamp_color", settings.clamp_color);
+		resolve_prog.set_uniform(ctx, "settings.clip_color", settings.clip_color);
+
+		auto& color_src_fbc = enable_fxaa ? fbc_post : fbc_shading;
+
+		color_src_fbc.enable_attachment(ctx, "color", 0);
 		fbc_hist.enable_attachment(ctx, "color", 1);
 		fbc.enable_attachment(ctx, "position", 2);
 		fbc.enable_attachment(ctx, "depth", 3);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-		fbc_shading.disable_attachment(ctx, "color");
+		color_src_fbc.disable_attachment(ctx, "color");
 		fbc_hist.disable_attachment(ctx, "color");
 		fbc.disable_attachment(ctx, "position");
 		fbc.disable_attachment(ctx, "depth");
@@ -2325,7 +2381,7 @@ void tubes::draw_trajectories(context& ctx) {
 		accumulate_count = 0;
 	}
 
-	auto& color_src_fbc = first ? fbc_shading : fbc_final;
+	auto& color_src_fbc = first ? (enable_fxaa ? fbc_post : fbc_shading) : fbc_final;
 
 	auto& screen_prog = shaders.get("screen");
 	screen_prog.enable(ctx);
@@ -2346,6 +2402,8 @@ void tubes::draw_trajectories(context& ctx) {
 	
 	prev_projection_matrix = curr_projection_matrix;
 	prev_modelview_matrix = curr_modelview_matrix;
+
+	glDepthFunc(GL_LESS);
 }
 
 void tubes::draw_density_volume(context& ctx) {

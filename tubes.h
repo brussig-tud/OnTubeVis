@@ -146,14 +146,24 @@ protected:
 	vec3 prev_view_dir = vec3(0.0f);
 	bool accumulate = false;
 	unsigned accumulate_count = 0;
-	float jitter_scale = 0.333f;
+	float jitter_scale = 0.25f;
 	size_t n_jitter_samples = 16;
 	std::vector<vec2> jitter_offsets;
+
+	struct {
+		bool use_velocity = false; // enabling this will produce artifacts
+		bool closest_depth = true;
+		bool clamp_color = false;
+		bool clip_color = true;
+	} settings;
+
+	bool enable_fxaa = true;
+	float fxaa_mix_factor = 0.5f;
 	float taa_mix_factor = 0.1f;
 	mat4 prev_projection_matrix;
 	mat4 prev_modelview_matrix;
 	bool enable_taa = true;
-	cgv::glutil::frame_buffer_container fbc, fbc_shading, fbc_hist, fbc_final;
+	cgv::glutil::frame_buffer_container fbc, fbc_shading, fbc_post, fbc_hist, fbc_final;
 	cgv::glutil::shader_library shaders;
 	volume_render_style vstyle;
 	cgv::glutil::gl_color_map volume_tf;
