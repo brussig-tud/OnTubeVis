@@ -170,13 +170,13 @@ namespace cgv {
 			p->add_member_control(b, "View Space Position", rs_ptr->use_view_space_position, "check");
 
 			p->add_member_control(b, "Cap Clip Distance", rs_ptr->cap_clip_distance, "value_slider", "min=0.0;max=100.0;step=0.01;ticks=true");
-			p->add_member_control(b, "Attribute Mode", rs_ptr->attrib_mode, "dropdown", "enums='All,No curve data,No node color,Attribute-less'");
+			p->add_member_control(b, "Attribute-less mode", rs_ptr->attrib_mode, "dropdown", "enums='Off,No curve data,No node color,Attribute-less'");
 
 			p->add_gui("surface_render_style", *static_cast<cgv::render::surface_render_style*>(rs_ptr));
 
 			if(p->begin_tree_node("Debug Options", rs_ptr->fragment_mode)) {
 				p->align("\a");
-				p->add_member_control(b, "Bounding Geometry", rs_ptr->bounding_geometry, "dropdown", "enums='Oriented box,Approximate billboard,Exact oriented box flat polygon,Oriented box billboard,View-aligned box billboard,Oriented box simulated split (1 triangle strip),Oriented box simulated split (2 triangle strips),VABB simulated split (1 triangle strip),VABB simulated split (2 triangle strips)'");
+				p->add_member_control(b, "Bounding Geometry", rs_ptr->bounding_geometry, "dropdown", "enums='Oriented box (use attribute-less mode),Approximate billboard,Exact oriented box flat polygon,Oriented box billboard,View-aligned box billboard,Oriented box simulated split (1 triangle strip),Oriented box simulated split (2 triangle strips),VABB simulated split (1 triangle strip),VABB simulated split (2 triangle strips)'");
 				p->add_member_control(b, "Fragment Mode", rs_ptr->fragment_mode, "dropdown", "enums='No-Op, Rasterize Debug, Ray Cast Debug, Ray Cast'");
 				p->align("\b");
 				p->end_tree_node(rs_ptr->fragment_mode);
