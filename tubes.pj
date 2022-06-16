@@ -11,20 +11,32 @@ addIncDirs=[
 	CGV_BUILD_DIR."/cgv_glutil",
 	CGV_DIR."/3rd/json/nlohmann",
 	INPUT_DIR."/3rd/peridetic",
-	INPUT_DIR."/3rd/wgs84mercator"
+	INPUT_DIR."/3rd/wgs84mercator",
+	env["CUDA_PATH"]."/include",
+	env["OPTIX74_PATH"]."/include",
+	env["OPTIX74_PATH"]."/SDK"
+];
+addLibDirs=[ [env["CUDA_PATH"]."/lib/x64", "all"] ];
+addMapDeps=[
+	[["cuda", ["cuda", "cuda", "cuda", "cuda"]], "all"],
+	[["cudart", ["cudart", "cudart", "cudart", "cudart"]], "all"]
+];
+addDependencies=[
+	["cuda", "all"],
+	["cudart", "all"]
 ];
 addProjectDeps=[
 	"cgv_utils", "cgv_type", "cgv_reflect", "cgv_data", "cgv_signal", "cgv_base", "cgv_media", 
 	"cgv_gui", "cgv_render", "cgv_os", "cgv_viewer", "glew", "cgv_gl", "cg_fltk", "cg_ext", 
 	"cmi_io", "crg_stereo_view", "crg_light", "crg_grid", "cgv_glutil"
 ];
-
 addSharedDefines=["TUBES_EXPORTS"];
-
 cppLanguageStandard="stdcpp17";
 useOpenMP=1;
-
 addCommandLineArguments=[
 	'config:"'.INPUT_DIR.'/config.def"',
-	after("type(shader_config):shader_path='".INPUT_DIR."/glsl;".CGV_DIR."/libs/cgv_gl/glsl;".CGV_DIR."/libs/cgv_glutil/glsl;".CGV_DIR."/libs/cgv_glutil/glsl/2d'","cg_fltk")
+	after(
+		"type(shader_config):shader_path='".INPUT_DIR."/glsl;".CGV_DIR."/libs/cgv_gl/glsl;".CGV_DIR."/libs/cgv_glutil/glsl;".CGV_DIR."/libs/cgv_glutil/glsl/2d'",
+		"cg_fltk"
+	)
 ];

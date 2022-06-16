@@ -38,6 +38,13 @@
 #include "textured_spline_tube_renderer.h"
 #include "color_map_viewer.h"
 
+// OptiX & CUDA
+#include <optix.h>
+#include <optix_function_table_definition.h>
+#include <optix_stack_size.h>
+#include <optix_stubs.h>
+#include <cuda_runtime.h>
+
 
 
 using namespace cgv::render;
@@ -52,6 +59,20 @@ class tubes :
 	public cgv::glutil::application_plugin	// derive from application plugin, which is a node, drawable, gui provider and event handler and can handle overlays
 {
 public:
+
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	// OptiX device context
+	OptixDeviceContext otx_context = nullptr;
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
+
+
+
 	/// data layout for per-node attributes within the attribute render SSBO
 	struct node_attribs {
 		vec4 pos_rad;
@@ -312,6 +333,8 @@ protected:
 
 public:
 	tubes();
+	~tubes();
+
 	std::string get_type_name() const { return "tubes"; }
 	void handle_args(std::vector<std::string> &args);
 

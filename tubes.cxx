@@ -29,10 +29,65 @@
 
 
 
+// ###############################
+// ### BEGIN: OptiX integration
+// ###############################
+
+#define CUDA_CHECK(call)                                                     \
+	do                                                                       \
+	{                                                                        \
+		cudaError_t error = call;                                            \
+		if (error != cudaSuccess)                                            \
+		{                                                                    \
+			std::cerr << "CUDA call (" << #call << " ) failed with error: '" \
+			          << cudaGetErrorString(error)                           \
+			          << "' (" __FILE__ << ":" << __LINE__ << ")"            \
+			          << std::endl << std::endl;                             \
+		}                                                                    \
+	} while (false)
+
+
+#define CUDA_SYNC_CHECK()                                                    \
+	do                                                                       \
+	{                                                                        \
+		cudaDeviceSynchronize();                                             \
+		cudaError_t error = cudaGetLastError();                              \
+		if (error != cudaSuccess)                                            \
+		{                                                                    \
+			std::cerr << "CUDA error on synchronize: '"                      \
+			          << cudaGetErrorString(error)                           \
+			          << "' (" __FILE__ << ":" << __LINE__ << ")"            \
+			          << std::endl << std::endl;                             \
+	    }                                                                    \
+	} while (false)
+
+#define OPTIX_CHECK(call)                                                    \
+	do                                                                       \
+	{                                                                        \
+		OptixResult res = call;                                              \
+		if (res != OPTIX_SUCCESS)                                            \
+		{                                                                    \
+			std::stringstream ss;                                            \
+			std::cerr << "Optix call '" << #call << "' failed: "             \
+			          << __FILE__ << ":" << __LINE__ << ")\n"                \
+			          << std::endl << std::endl;                             \
+		}                                                                    \
+	} while (false)
+
+static void context_log_cb (unsigned int level, const char* tag, const char* message, void* /*cbdata */)
+{
+	std::cerr << "[" << std::setw(2) << level << "][" << std::setw(12) << tag << "]: " << message << "\n";
+}
+
+// ###############################
+// ###  END:  OptiX integration
+// ###############################
+
+
 // TODO: grid_mode enum does not get set properly thorugh config, because it is reflected as a boolean
 // TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
 // TODO: star and line plot: the first mapped entry will always get mapped to the first overall color
-	// Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
+// Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
 
 tubes::tubes() : application_plugin("Tubes")
 {
@@ -110,6 +165,20 @@ tubes::tubes() : application_plugin("Tubes")
 	debug.segment_rs.rounded_caps = true;
 
 	connect(cgv::gui::get_animation_trigger().shoot, this, &tubes::timer_event);
+}
+
+tubes::~tubes()
+{
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	// shutdown optix
+	OPTIX_CHECK(optixDeviceContextDestroy(otx_context));
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -1233,6 +1302,32 @@ bool tubes::init (cgv::render::context &ctx)
 	std::string app_path = QUOTE_SYMBOL_VALUE(INPUT_DIR);
 	app_path += "/";
 #endif
+
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	// Initialize CUDA
+	CUDA_CHECK(cudaFree(0));
+
+	// Initialize the OptiX API, loading all API entry points
+	OPTIX_CHECK(optixInit());
+
+	// Specify context options
+	OptixDeviceContextOptions options = {};
+	options.logCallbackFunction = &context_log_cb;
+	options.logCallbackLevel = 4;
+	std::cerr << std::endl; // <-- Make sure the initial CUDA/OptiX message stream is preceded by an empty line
+
+	// Associate a CUDA context (and therefore a specific GPU) with this
+	// device context
+	CUcontext cuCtx = 0;  // zero means take the current context
+	OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &options, &otx_context));
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
+
 
 	// increase reference count of the renderers by one
 	auto &tstr = ref_textured_spline_tube_renderer(ctx, 1);
