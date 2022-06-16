@@ -23,6 +23,7 @@ namespace cgv {
 			radius = 1.0f;
 			fragment_mode = FM_RAY_CAST;
 			bounding_geometry = BG_ALIGNED_BOX_BILLBOARD;
+			attrib_mode = AM_ALL;
 			use_conservative_depth = false;
 			use_cubic_tangents = true;
 			use_view_space_position = true;
@@ -84,6 +85,7 @@ namespace cgv {
 			shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
 			shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
 			shader_code::set_define(defines, "USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
+			shader_code::set_define(defines, "ATTRIB_MODE", rs.attrib_mode, textured_spline_tube_render_style::AM_ALL);
 			shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
 			shader_code::set_define(defines, "MODE", rs.fragment_mode, textured_spline_tube_render_style::FM_RAY_CAST);
 
@@ -168,12 +170,13 @@ namespace cgv {
 			p->add_member_control(b, "View Space Position", rs_ptr->use_view_space_position, "check");
 
 			p->add_member_control(b, "Cap Clip Distance", rs_ptr->cap_clip_distance, "value_slider", "min=0.0;max=100.0;step=0.01;ticks=true");
-			
+			p->add_member_control(b, "Attribute Mode", rs_ptr->attrib_mode, "dropdown", "enums='All,No curve data,No node color,Attribute-less'");
+
 			p->add_gui("surface_render_style", *static_cast<cgv::render::surface_render_style*>(rs_ptr));
 
 			if(p->begin_tree_node("Debug Options", rs_ptr->fragment_mode)) {
 				p->align("\a");
-				p->add_member_control(b, "Bounding Geometry", rs_ptr->bounding_geometry, "dropdown", "enums='Box (disable cubic tangents!),Approximate Billboard,Exact Polygon,Box Billboard,Aligned Box Billboard,Box simulated split (single triangle strip),Box simulated split (two triangle strips),ABB simulated split (single triangle strip),ABB simulated split (two triangle strips)'");
+				p->add_member_control(b, "Bounding Geometry", rs_ptr->bounding_geometry, "dropdown", "enums='Oriented box,Approximate billboard,Exact oriented box flat polygon,Oriented box billboard,View-aligned box billboard,Oriented box simulated split (1 triangle strip),Oriented box simulated split (2 triangle strips),VABB simulated split (1 triangle strip),VABB simulated split (2 triangle strips)'");
 				p->add_member_control(b, "Fragment Mode", rs_ptr->fragment_mode, "dropdown", "enums='No-Op, Rasterize Debug, Ray Cast Debug, Ray Cast'");
 				p->align("\b");
 				p->end_tree_node(rs_ptr->fragment_mode);

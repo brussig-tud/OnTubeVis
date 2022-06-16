@@ -2067,7 +2067,13 @@ void tubes::draw_trajectories(context& ctx) {
 	
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, arclen_handle);
-	tstr.render(ctx, 0, count);
+	if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, node_idx_handle);
+		tstr.render(ctx, 0, count);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, 0);
+	}
+	else
+		tstr.render(ctx, 0, count);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
 

@@ -1,5 +1,6 @@
 #version 460
 #define M_INV_PI 0.31830988618
+#define ONE_OVER_THREE (1.0/3.0)
 
 #define USE_CONSERVATIVE_DEPTH 0
 #define USE_CUBIC_TANGENTS 1
@@ -9,13 +10,17 @@
 #extension GL_ARB_conservative_depth : enable
 #endif
 
-/*
-	0: NO_OP
-	1: RASTERIZE_DEBUG
-	2: RAYCAST_DEBUG
-	3: RAYCAST
-*/
+/* 0: NO_OP
+   1: RASTERIZE_DEBUG
+   2: RAYCAST_DEBUG
+   3: RAYCAST */
 #define MODE 3
+
+/* 0: All attributes in geom->frag interface
+   1: No curve attributes in geom->frag interface
+   2: No color attributes in geom->frag interface
+   3: Attribute-less (except segment and sub-curve ids) */
+#define ATTRIB_MODE 0
 
 #define ITERATION_COUNT 10
 #define FLT_EPS 1.19209290e-07
@@ -34,6 +39,19 @@ mat4 get_inverse_modelview_projection_matrix();
 mat3 get_normal_matrix();
 mat3 get_inverse_normal_matrix();
 //***** end interface of view.glsl ***********************************
+
+struct TubeNode {
+	vec3 pos;
+	float rad;
+
+	vec3 pos_tan;
+	float rad_tan;
+};
+
+struct Tube {
+	TubeNode s;
+	TubeNode e;
+};
 
 struct QTubeNode {
 	vec3 pos;
@@ -54,17 +72,36 @@ struct Hit {
 	bool cap;
 };
 
+uniform float radius_scale;
 uniform vec3 eye_pos;
 uniform vec4 viewport;
 uniform float cap_clip_distance;
+
+struct node_data_type {
+	vec4 pos_rad;
+	vec4 color;
+	vec4 tangent;
+};
+
+layout(std430, binding = 0) readonly buffer data_buffer {
+    node_data_type nodes[];
+};
+
+layout(std430, binding = 2) readonly buffer nid_buffer {
+    uvec2 node_ids[];
+};
 
 #if USE_VIEW_SPACE_POSITION == 1
 in vec3 position_fs;
 #endif
 in flat float l_offset_fs;
-in flat uint color0_fs;
-in flat uint color1_fs;
-in flat QTube qTube_fs;
+#if !(ATTRIB_MODE & 2)
+	in flat uint color0_fs;
+	in flat uint color1_fs;
+#endif
+#if !(ATTRIB_MODE & 1)
+	in flat QTube qTube_fs;
+#endif
 in flat int segment_id_fs;
 #if USE_CUBIC_TANGENTS == 1
 in flat mat4 SM_fs; // spline matrix
@@ -176,6 +213,53 @@ vec3 EvalCSpline(vec3 p1, vec3 t1, vec3 p2, vec3 t2, float l)
 	vec3 b2 = mix(a2, a3, l);
 	
 	return mix(b1, b2, l);
+}
+
+#define DEF_SplitCurve0(T)						\
+void SplitCurve0(T v0, T d0, T v1, T d1,		\
+	out T v00_out, out T h0_out, out T v10_out)	\
+{												\
+	v00_out = v0;								\
+	h0_out = v0 + d0 * ONE_OVER_THREE;			\
+	const T h1 = v1 - d1 * ONE_OVER_THREE;		\
+	v10_out = (h0_out + h1) * 0.5;				\
+}
+
+#define DEF_SplitCurve1(T)						\
+void SplitCurve1(T v0, T d0, T v1, T d1,		\
+	out T v01_out, out T h1_out, out T v11_out)	\
+{												\
+	const T h0 = v0 + d0 * ONE_OVER_THREE;		\
+	h1_out = v1 - d1 * ONE_OVER_THREE;			\
+	v01_out = (h0 + h1_out) * 0.5;				\
+	v11_out = v1;								\
+}
+
+DEF_SplitCurve0(float)
+DEF_SplitCurve0(vec3)
+DEF_SplitCurve1(float)
+DEF_SplitCurve1(vec3)
+
+#define SPLIT_CURVE0(TUBE, MEM_V, MEM_D, QTUBE)				\
+SplitCurve0(												\
+	TUBE.s.MEM_V, TUBE.s.MEM_D, TUBE.e.MEM_V, TUBE.e.MEM_D,	\
+	QTUBE.s.MEM_V, QTUBE.h.MEM_V, QTUBE.e.MEM_V				\
+)
+#define SPLIT_CURVE1(TUBE, MEM_V, MEM_D, QTUBE)				\
+SplitCurve1(												\
+	TUBE.s.MEM_V, TUBE.s.MEM_D, TUBE.e.MEM_V, TUBE.e.MEM_D,	\
+	QTUBE.s.MEM_V, QTUBE.h.MEM_V, QTUBE.e.MEM_V				\
+)
+
+void SplitTube0(Tube tube, out QTube qTube)
+{
+	SPLIT_CURVE0(tube, pos, pos_tan, qTube);
+	SPLIT_CURVE0(tube, rad, rad_tan, qTube);
+}
+void SplitTube1(Tube tube, out QTube qTube)
+{
+	SPLIT_CURVE1(tube, pos, pos_tan, qTube);
+	SPLIT_CURVE1(tube, rad, rad_tan, qTube);
 }
 
 #define DEF_FINDROOTS(N, D)                                                                         \
@@ -540,12 +624,12 @@ Hit EvalSplineISect(vec3 dir, vec3 s, vec3 h, vec3 t, float rs, float rh, float 
 	return hit;
 }
 
-vec3 eval_quadratic_bezier_tangent(float t)
+vec3 eval_quadratic_bezier_tangent(QTube qtube, float t)
 {
 	mat3 Bk; // control point matrix
-	Bk[0] = qTube_fs.s.pos;
-	Bk[1] = qTube_fs.h.pos;
-	Bk[2] = qTube_fs.e.pos;
+	Bk[0] = qtube.s.pos;
+	Bk[1] = qtube.h.pos;
+	Bk[2] = qtube.e.pos;
 	
 	mat3 Mb; // quadratic bezier matrix
 	Mb[0] = vec3( 1,  0,  0);
@@ -569,6 +653,73 @@ vec3 eval_cubic_hermite_tangent(float t)
 
 void main()
 {
+	////
+	// Retrieve segment curve data
+
+	#if ATTRIB_MODE > 0
+		const node_data_type n0 = nodes[node_ids[segment_id_fs].x];
+		const node_data_type n1 = nodes[node_ids[segment_id_fs].y];
+		vec3 color0, color1;
+
+		#if ATTRIB_MODE & 1
+			// compile hermite tube info
+			Tube tube;
+			tube.s.pos = n0.pos_rad.xyz;
+			tube.s.rad = n0.pos_rad.w * radius_scale;
+			tube.s.pos_tan = n0.tangent.xyz;
+			tube.s.rad_tan = n0.tangent.w;
+
+			tube.e.pos = n1.pos_rad.xyz;
+			tube.e.rad = n1.pos_rad.w * radius_scale;
+			tube.e.pos_tan = n1.tangent.xyz;
+			tube.e.rad_tan = n1.tangent.w;
+
+			// prepare for quadratic split further down
+			const mat4 MV = get_modelview_matrix();
+			QTube qtube;
+		#else
+			const QTube qtube = qTube_fs;
+		#endif
+		if (l_offset_fs == 0) // Select "our" quadratic sub segment
+		{
+		#if ATTRIB_MODE & 1
+			// perform quadratic split
+			SplitTube0(tube, qtube);
+			qtube.s.pos = (MV * vec4(qtube.s.pos, 1.0)).xyz;
+			qtube.h.pos = (MV * vec4(qtube.h.pos, 1.0)).xyz;
+			qtube.e.pos = (MV * vec4(qtube.e.pos, 1.0)).xyz;
+			qtube.s.rad = qtube.s.rad;
+			qtube.h.rad = qtube.h.rad;
+			qtube.e.rad = qtube.e.rad;
+		#endif
+		#if ATTRIB_MODE & 2
+			// fetch color from SBO
+			color0 = n0.color.rgb;
+			color1 = mix(n0.color.rgb, n1.color.rgb, 0.5);
+		#endif
+		}
+		else
+		{
+		#if ATTRIB_MODE & 1
+			// perform quadratic split
+			SplitTube1(tube, qtube);
+			qtube.s.pos = (MV * vec4(qtube.s.pos, 1.0)).xyz;
+			qtube.h.pos = (MV * vec4(qtube.h.pos, 1.0)).xyz;
+			qtube.e.pos = (MV * vec4(qtube.e.pos, 1.0)).xyz;
+			qtube.s.rad = qtube.s.rad;
+			qtube.h.rad = qtube.h.rad;
+			qtube.e.rad = qtube.e.rad;
+		#endif
+		#if ATTRIB_MODE & 2
+			// fetch color from SBO
+			color0 = mix(n0.color.rgb, n1.color.rgb, 0.5);
+			color1 = n1.color.rgb;
+		#endif
+		}
+	#else
+		const QTube qtube = qTube_fs;
+	#endif
+
 #if MODE == 0
 	discard;
 	return;
@@ -597,8 +748,8 @@ void main()
 #endif
 
 	Hit hit = EvalSplineISect(direction,
-		qTube_fs.s.pos, qTube_fs.h.pos, qTube_fs.e.pos,
-		qTube_fs.s.rad, qTube_fs.h.rad, qTube_fs.e.rad
+		qtube.s.pos, qtube.h.pos, qtube.e.pos,
+		qtube.s.rad, qtube.h.rad, qtube.e.rad
 	);
 
 #if MODE == 3
@@ -617,8 +768,12 @@ void main()
 	} else {
 		vec3 hit_pos_eye = direction * hit.t;
 		float spline_t = hit.l * 0.5 + l_offset_fs;
-		// with zero tangents the cubic hermite interpolation is reduced to a linear problem
-		vec4 col = vec4(mix(unpackUnorm4x8(color0_fs).rgb, unpackUnorm4x8(color1_fs).rgb, spline_t), 1.0);
+		// determine color - since we ignore the tangents, interpolation is just linear
+		#if ATTRIB_MODE & 2
+			const vec4 col = vec4(mix(color0, color1, spline_t), 1.0);
+		#else
+			const vec4 col = vec4(mix(unpackUnorm4x8(color0_fs).rgb, unpackUnorm4x8(color1_fs).rgb, spline_t), 1.0); 
+		#endif
 
 		vec4 v_eye = vec4(hit_pos_eye, 1.0);
 		vec4 depth = get_projection_matrix() * v_eye;
@@ -626,7 +781,7 @@ void main()
 
 #if USE_CUBIC_TANGENTS == 0
 		// tangent is already given in eye space
-		vec3 tangent = normalize(eval_quadratic_bezier_tangent(hit.l));
+		vec3 tangent = normalize(eval_quadratic_bezier_tangent(qtube, hit.l));
 #else
 		// tangent is given in object space
 		vec3 tangent = eval_cubic_hermite_tangent(spline_t);

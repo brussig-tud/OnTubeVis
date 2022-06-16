@@ -42,6 +42,14 @@ namespace cgv { // @<
 				BG_ALIGNED_BOX_BILLBOARD_SPLITSIMUL1 = 7, // same as BG_ALIGNED_BOX_BILLBOARD, but subdividing the billboard 2 quads using a SINGLE triangle strip to simulate geometry load of splitting at inflection points
 				BG_ALIGNED_BOX_BILLBOARD_SPLITSIMUL2 = 8 // same as BG_ALIGNED_BOX_BILLBOARD, but subdividing the billboard 2 quads using TWO triangle strips to simulate geometry load of splitting at inflection points
 			} bounding_geometry;
+			/// specifies the degree of attributeless-ness the renderer should be.
+			enum AttribMode
+			{
+				AM_ALL = 0,                                 // store all shader-generated data in proxy geometry attributes
+				AM_CURVELESS = 1,                           // don't store curve data in proxy geometry attributes - original cubic curve data will be fetched from SBO and sub-curve subdivision will be re-calculated in the fragment shader
+				AM_COLORLESS = 2,                           // don't store node color in proxy geometry attributes - original node colors will be fetched from SBO and color at sub-curve split will be calculated in the fragment shader
+				AM_ATTRIBLESS = AM_CURVELESS | AM_COLORLESS // don't store any shader-generated data in proxy geometry attributes (only segment ID and subcurve index will be stored)
+			} attrib_mode;
 			/// whether to use conservative depth extension to re-enable early depth testing
 			bool use_conservative_depth;
 			/// whether to calculate tangents from the cubic hermite definition or from the two quadratic bezier segments
