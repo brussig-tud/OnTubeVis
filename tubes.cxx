@@ -194,37 +194,36 @@ std::string flipped_backslashes(const std::string &path)
 	return ret;
 }
 
-std::vector<unsigned char> compile_cu_tu_ptx (
-	const std::string &filename,       // Cuda C input file name
-	const std::string &name,           // arbitrary name the compiled code should be assigned in CUDA
-	size_t *dataSize,
-	const std::vector<const char*> &compilerOptions = {CUDA_NVRTC_OPTIONS} // Optional vector of CUDA compiler options
+#define CUR_SRC_FILE_DIR flipped_backslashes(std::filesystem::absolute(__FILE__"\\..").string())
+
+std::vector<char> compile_cu_tu_ptx (
+	const std::string &filename,                      // Cuda C input file name
+	const std::string &name,                          // arbitrary name the compiled code should be assigned in CUDA
+	const std::vector<const char*> &compiler_options, // CUDA compiler options
+	std::string *log_out                              // [out] the compilation log
 )
 {
 	// CUDA runtime compiler include directories
-	static const std::string mydir = flipped_backslashes(std::filesystem::absolute(__FILE__"\\..").string());
-	static const std::vector<std::string> include_dirs = {
-		CUDA_RUNTIME_COMPILER__INC_DIR_CUDA, CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX,
-		mydir
+	static const std::string mydir = CUR_SRC_FILE_DIR;
+	static const std::vector<std::string> include_args = {
+		"-I" CUDA_RUNTIME_COMPILER__INC_DIR_CUDA, "-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX,
+		"-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK, "-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK_CUDA,
+		"-I"+mydir
 	};
-	char log [2048];  // For runtime compiler output
 
-	std::string *ptx;
-	/*std::string                                   key = std::string(filename) + ";" + (sample ? sample : "");
-	std::map<std::string, std::string*>::iterator elem = g_ptxSourceCache.map.find(key);*/
-
-	ptx = new std::string();
 	//getCuStringFromFile(cu, location, sampleDir, filename)
 	std::string cu;
 	{
 		const std::string filepath = mydir+"/"+filename;
 		std::ifstream file(filepath, std::ios::binary);
 		if (!file.good())
-			return std::vector<unsigned char>();
+			return std::vector<char>();
 		std::vector<unsigned char> buffer = std::vector<unsigned char>(std::istreambuf_iterator<char>(file), {});
 		cu.assign(buffer.begin(), buffer.end());
 	}
+
 	//getPtxFromCuString(*ptx, sampleDir, cu.c_str(), location.c_str(), log, compilerOptions)
+	std::vector<char> ptx;
 	{
 		// create program
 		nvrtcProgram prog = 0;
@@ -232,10 +231,64 @@ std::vector<unsigned char> compile_cu_tu_ptx (
 
 		// gather compiler options
 		std::vector<const char*> options;
+		for (const auto &inc : include_args)
+			options.emplace_back(inc.c_str());
+		std::copy(compiler_options.begin(), compiler_options.end(), std::back_inserter(options));
+
+		// JIT compile CU to PTX
+		// - the compile call
+		const nvrtcResult compileRes = nvrtcCompileProgram(prog, (int)options.size(), options.data());
+		// - retrieve log output
+		size_t log_size = 0;
+		NVRTC_CHECK(nvrtcGetProgramLogSize(prog, &log_size));
+		if (log_out && log_size > 1)
+		{
+			log_out->resize(log_size);
+			NVRTC_CHECK(nvrtcGetProgramLog(prog, log_out->data()));
+		}
+		// - retrieve PTX code if compilation successful
+		if (compileRes == NVRTC_SUCCESS)
+		{
+			size_t ptx_size = 0;
+			NVRTC_CHECK(nvrtcGetPTXSize(prog, &ptx_size));
+			ptx.resize(ptx_size);
+			NVRTC_CHECK(nvrtcGetPTX(prog, ptx.data()));
+		}
+		// - cleanup
+		NVRTC_CHECK(nvrtcDestroyProgram(&prog));
 	}
 
-	//*dataSize = ptx->size();
-	//return ptx->c_str();
+	// done!
+	return std::move(ptx);
+}
+
+// version with no log output and default compiler options
+inline std::vector<char> compile_cu_tu_ptx (
+	const std::string &filename,  // Cuda C input file name
+	const std::string &name       // arbitrary name the compiled code should be assigned in CUDA
+)
+{
+	return compile_cu_tu_ptx(filename, name, {CUDA_NVRTC_OPTIONS}, nullptr);
+}
+
+// version with log output and default compiler options
+inline std::vector<char> compile_cu_tu_ptx (
+	const std::string &filename,  // Cuda C input file name
+	const std::string &name,      // arbitrary name the compiled code should be assigned in CUDA
+	std::string *log_out          // string that will receive the compilation log
+)
+{
+	return compile_cu_tu_ptx(filename, name, {CUDA_NVRTC_OPTIONS}, log_out);
+}
+
+// version with custom compiler options and no log output
+inline std::vector<char> compile_cu_tu_ptx (
+	const std::string &filename,                     // Cuda C input file name
+	const std::string &name,                         // arbitrary name the compiled code should be assigned in CUDA
+	const std::vector<const char*> &compiler_options // CUDA compiler options
+)
+{
+	return compile_cu_tu_ptx(filename, name, {CUDA_NVRTC_OPTIONS}, nullptr);
 }
 
 // ###############################
@@ -1776,8 +1829,15 @@ void tubes::optix_update_accelds(void)
 			  OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
 			: OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_CATMULLROM;
 
-		size_t      input_size = 0;
-		auto        input = compile_cu_tu_ptx("optixCurves.cu", "optixCurves", &input_size);
+		std::string compiler_log;
+		const std::vector<char> ptx = compile_cu_tu_ptx("optixCurves.cu", "optixCurves", &compiler_log);
+		const size_t            ptx_size = ptx.size();
+		if (!ptx_size)
+		{
+			std::cerr << "ERROR compiling OptiX device code! Log:" << std::endl
+			          << compiler_log << std::endl<<std::endl;
+			return;
+		}
 		/*size_t      sizeof_log = sizeof(log);
 		OPTIX_CHECK_LOG(optixModuleCreateFromPTX(context, &module_compile_options, &pipeline_compile_options,
 			input, inputSize, log, &sizeof_log, &shading_module));
