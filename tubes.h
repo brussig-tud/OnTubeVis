@@ -96,18 +96,21 @@ protected:
 
 		// curve tracing pipeline resources
 		// - pipeline object
-		OptixPipeline pipeline;
+		OptixPipeline pipeline = nullptr;
 		// - SBT program groups
-		OptixProgramGroup hitgroup_prog_group;
-		OptixProgramGroup miss_prog_group;
-		OptixProgramGroup raygen_prog_group;
+		OptixProgramGroup hitgroup_prog_group = nullptr;
+		OptixProgramGroup miss_prog_group = nullptr;
+		OptixProgramGroup raygen_prog_group = nullptr;
 		// - modules
-		OptixModule shading_module;
-		OptixModule geometry_module;
+		OptixModule mod_shading = nullptr;
+		OptixModule mod_geom = nullptr;
 	} optix;
 
-	void destroy_accelds (void);
-	void update_accelds (void);
+	void optix_update_accelds (void);
+	void optix_update_pipeline (void);
+
+	void optix_destroy_accelds (void);
+	void optix_destroy_pipeline(void);
 
 	// ###############################
 	// ###  END:  OptiX integration

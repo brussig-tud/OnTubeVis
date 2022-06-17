@@ -1,6 +1,11 @@
 #include "tubes.h"
 
+// C++ STL
+#include <fstream>
 #include <filesystem>
+
+// CUDA
+#include <nvrtc.h>
 
 // CGV framework core
 #include <cgv/defines/quote.h>
@@ -33,92 +38,204 @@
 // ### BEGIN: OptiX integration
 // ###############################
 
-#define CUDA_CHECK(call)                                                     \
-	do                                                                       \
-	{                                                                        \
-		cudaError_t error = call;                                            \
-		if (error != cudaSuccess)                                            \
-		{                                                                    \
-			std::cerr << "CUDA call (" << #call << " ) failed with error: '" \
-			          << cudaGetErrorString(error)                           \
-			          << "' (" __FILE__ << ":" << __LINE__ << ")"            \
-			          << std::endl << std::endl;                             \
-		}                                                                    \
+#define CUDA_NVRTC_OPTIONS  \
+  "-std=c++11", \
+  "-arch", \
+  "compute_50", \
+  "-use_fast_math", \
+  "-lineinfo", \
+  "-default-device", \
+  "-rdc", \
+  "true", \
+  "-D__x86_64"
+
+#define CUDA_CHECK(call)                                                         \
+	do                                                                           \
+	{                                                                            \
+		const cudaError_t error = call;                                          \
+		if (error != cudaSuccess)                                                \
+		{                                                                        \
+			std::cerr << "CUDA call (" << #call << " ) failed with error: '"     \
+			          << cudaGetErrorString(error)                               \
+			          << "' (" __FILE__ << ":" << __LINE__ << ")"                \
+			          << std::endl << std::endl;                                 \
+		}                                                                        \
 	} while (false)
 
-#define CUDA_CHECK_SET(call, success_var)                                    \
-	do                                                                       \
-	{                                                                        \
-		cudaError_t error = call;                                            \
-		if (error != cudaSuccess)                                            \
-		{                                                                    \
-			std::cerr << "CUDA call (" << #call << " ) failed with error: '" \
-			          << cudaGetErrorString(error)                           \
-			          << "' (" __FILE__ << ":" << __LINE__ << ")"            \
-			          << std::endl << std::endl;                             \
-			success_var &= false;                                            \
-		}                                                                    \
+#define CUDA_CHECK_SET(call, success_var)                                        \
+	do                                                                           \
+	{                                                                            \
+		const cudaError_t error = call;                                          \
+		if (error != cudaSuccess)                                                \
+		{                                                                        \
+			std::cerr << "CUDA call (" << #call << " ) failed with error: '"     \
+			          << cudaGetErrorString(error)                               \
+			          << "' (" __FILE__ << ":" << __LINE__ << ")"                \
+			          << std::endl << std::endl;                                 \
+			success_var &= false;                                                \
+		}                                                                        \
 	} while (false)
 
-#define CUDA_SYNC_CHECK()                                                    \
-	do                                                                       \
-	{                                                                        \
-		cudaDeviceSynchronize();                                             \
-		cudaError_t error = cudaGetLastError();                              \
-		if (error != cudaSuccess)                                            \
-		{                                                                    \
-			std::cerr << "CUDA error on synchronize: '"                      \
-			          << cudaGetErrorString(error)                           \
-			          << "' (" __FILE__ << ":" << __LINE__ << ")"            \
-			          << std::endl << std::endl;                             \
-	    }                                                                    \
+#define CUDA_SYNC_CHECK()                                                        \
+	do                                                                           \
+	{                                                                            \
+		cudaDeviceSynchronize();                                                 \
+		const cudaError_t error = cudaGetLastError();                            \
+		if (error != cudaSuccess)                                                \
+		{                                                                        \
+			std::cerr << "CUDA error on synchronize: '"                          \
+			          << cudaGetErrorString(error)                               \
+			          << "' (" __FILE__ << ":" << __LINE__ << ")"                \
+			          << std::endl << std::endl;                                 \
+	    }                                                                        \
 	} while (false)
 
-#define CUDA_SYNC_CHECK_SET(success_var)                                     \
-	do                                                                       \
-	{                                                                        \
-		cudaDeviceSynchronize();                                             \
-		cudaError_t error = cudaGetLastError();                              \
-		if (error != cudaSuccess)                                            \
-		{                                                                    \
-			std::cerr << "CUDA error on synchronize: '"                      \
-			          << cudaGetErrorString(error)                           \
-			          << "' (" __FILE__ << ":" << __LINE__ << ")"            \
-			          << std::endl << std::endl;                             \
-			success_var &= false;                                            \
-		}                                                                    \
+#define CUDA_SYNC_CHECK_SET(success_var)                                         \
+	do                                                                           \
+	{                                                                            \
+		cudaDeviceSynchronize();                                                 \
+		cudaError_t error = cudaGetLastError();                                  \
+		if (error != cudaSuccess)                                                \
+		{                                                                        \
+			std::cerr << "CUDA error on synchronize: '"                          \
+			          << cudaGetErrorString(error)                               \
+			          << "' (" __FILE__ << ":" << __LINE__ << ")"                \
+			          << std::endl << std::endl;                                 \
+			success_var &= false;                                                \
+		}                                                                        \
 	} while (false)
 
-#define OPTIX_CHECK(call)                                                    \
-	do                                                                       \
-	{                                                                        \
-		OptixResult res = call;                                              \
-		if (res != OPTIX_SUCCESS)                                            \
-		{                                                                    \
-			std::stringstream ss;                                            \
-			std::cerr << "Optix call '" << #call << "' failed: "             \
-			          << __FILE__ << ":" << __LINE__ << ")\n"                \
-			          << std::endl << std::endl;                             \
-		}                                                                    \
+#define NVRTC_CHECK(call)                                                        \
+	do                                                                           \
+	{                                                                            \
+		const nvrtcResult result = call;                                         \
+		if (result != NVRTC_SUCCESS)                                             \
+			std::cerr << "CUDA Compiler error: '" << nvrtcGetErrorString(result) \
+			          << "' (" __FILE__ << ":" << __LINE__ << ")"                \
+			          << std::endl << std::endl;                                 \
+	} while(false)
+
+#define NVRTC_CHECK_SET(call, success_var)                                       \
+	do                                                                           \
+	{                                                                            \
+		const nvrtcResult result = call;                                         \
+		if (result != NVRTC_SUCCESS)                                             \
+			std::cerr << "CUDA Compiler error: '" << nvrtcGetErrorString(result) \
+			          << "' (" __FILE__ << ":" << __LINE__ << ")"                \
+			          << std::endl << std::endl;                                 \
+			success_var &= false;                                                \
+	} while(false)
+
+#define OPTIX_CHECK(call)                                                        \
+	do                                                                           \
+	{                                                                            \
+		OptixResult res = call;                                                  \
+		if (res != OPTIX_SUCCESS)                                                \
+		{                                                                        \
+			std::stringstream ss;                                                \
+			std::cerr << "Optix call '" << #call << "' failed: "                 \
+			          << __FILE__ << ":" << __LINE__ << ")\n"                    \
+			          << std::endl << std::endl;                                 \
+		}                                                                        \
 	} while (false)
 
-#define OPTIX_CHECK_SET(call, success_var)                                   \
-	do                                                                       \
-	{                                                                        \
-		OptixResult res = call;                                              \
-		if (res != OPTIX_SUCCESS)                                            \
-		{                                                                    \
-			std::stringstream ss;                                            \
-			std::cerr << "Optix call '" << #call << "' failed: "             \
-			          << __FILE__ << ":" << __LINE__ << ")\n"                \
-			          << std::endl << std::endl;                             \
-			success_var &= false;                                            \
-		}                                                                    \
+#define OPTIX_CHECK_SET(call, success_var)                                       \
+	do                                                                           \
+	{                                                                            \
+		OptixResult res = call;                                                  \
+		if (res != OPTIX_SUCCESS)                                                \
+		{                                                                        \
+			std::stringstream ss;                                                \
+			std::cerr << "Optix call '" << #call << "' failed: "                 \
+			          << __FILE__ << ":" << __LINE__ << ")\n"                    \
+			          << std::endl << std::endl;                                 \
+			success_var &= false;                                                \
+		}                                                                        \
 	} while (false)
 
-static void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* cbdata */)
+#define CUDA_SAFE_FREE(memptr)                                                   \
+	if (memptr) {                                                                \
+		CUDA_CHECK(cudaFree(reinterpret_cast<void*>(memptr)));                   \
+		memptr = 0;                                                              \
+	}
+
+#define OPTIX_SAFE_DESTROY_PIPELINE(pl)                                          \
+	if (pl) {                                                                    \
+		OPTIX_CHECK(optixPipelineDestroy(pl));                                   \
+		pl = nullptr;                                                            \
+	}
+
+#define OPTIX_SAFE_DESTROY_PROGGROUP(proggroup)                                  \
+	if (proggroup) {                                                             \
+		OPTIX_CHECK(optixProgramGroupDestroy(proggroup));                        \
+		proggroup = nullptr;                                                     \
+	}
+
+#define OPTIX_SAFE_DESTROY_MODULE(mod)                                           \
+	if (mod) {                                                                   \
+		OPTIX_CHECK(optixModuleDestroy(mod));                                    \
+		mod = nullptr;                                                           \
+	}
+
+void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* cbdata */)
 {
 	std::cerr << "["<<std::setw(2)<<lvl<<"]["<<std::setw(12)<<tag<<"]: " << msg << std::endl;
+}
+
+std::string flipped_backslashes(const std::string &path)
+{
+	const size_t len = path.length();
+	std::string ret; ret.reserve(len);
+	for (unsigned i=0; i< len; i++)
+	{
+		const std::string::value_type &ch = path[i];
+		ret.push_back(ch != '\\' ? ch : '/');
+	}
+	return ret;
+}
+
+std::vector<unsigned char> compile_cu_tu_ptx (
+	const std::string &filename,       // Cuda C input file name
+	const std::string &name,           // arbitrary name the compiled code should be assigned in CUDA
+	size_t *dataSize,
+	const std::vector<const char*> &compilerOptions = {CUDA_NVRTC_OPTIONS} // Optional vector of CUDA compiler options
+)
+{
+	// CUDA runtime compiler include directories
+	static const std::string mydir = flipped_backslashes(std::filesystem::absolute(__FILE__"\\..").string());
+	static const std::vector<std::string> include_dirs = {
+		CUDA_RUNTIME_COMPILER__INC_DIR_CUDA, CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX,
+		mydir
+	};
+	char log [2048];  // For runtime compiler output
+
+	std::string *ptx;
+	/*std::string                                   key = std::string(filename) + ";" + (sample ? sample : "");
+	std::map<std::string, std::string*>::iterator elem = g_ptxSourceCache.map.find(key);*/
+
+	ptx = new std::string();
+	//getCuStringFromFile(cu, location, sampleDir, filename)
+	std::string cu;
+	{
+		const std::string filepath = mydir+"/"+filename;
+		std::ifstream file(filepath, std::ios::binary);
+		if (!file.good())
+			return std::vector<unsigned char>();
+		std::vector<unsigned char> buffer = std::vector<unsigned char>(std::istreambuf_iterator<char>(file), {});
+		cu.assign(buffer.begin(), buffer.end());
+	}
+	//getPtxFromCuString(*ptx, sampleDir, cu.c_str(), location.c_str(), log, compilerOptions)
+	{
+		// create program
+		nvrtcProgram prog = 0;
+		NVRTC_CHECK(nvrtcCreateProgram(&prog, cu.c_str(), name.c_str(), 0, nullptr, nullptr));
+
+		// gather compiler options
+		std::vector<const char*> options;
+	}
+
+	//*dataSize = ptx->size();
+	//return ptx->c_str();
 }
 
 // ###############################
@@ -216,7 +333,8 @@ tubes::~tubes()
 	// ###############################
 
 	// perform cleanup routine
-	destroy_accelds();
+	optix_destroy_pipeline();
+	optix_destroy_accelds();
 
 	// shutdown optix
 	if (optix.context)
@@ -572,7 +690,7 @@ void tubes::on_set(void *member_ptr) {
 		on_set(&fh.has_unsaved_changes);
 
 		// OPTIX
-		update_accelds();
+		optix_update_accelds();
 
 		post_recreate_gui();
 	}
@@ -1506,7 +1624,7 @@ bool tubes::init (cgv::render::context &ctx)
 	OPTIX_CHECK_SET(optixDeviceContextCreate(cuCtx, &options, &optix.context), success);
 
 	// upload the initial data
-	update_accelds();
+	optix_update_accelds();
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -1521,19 +1639,26 @@ bool tubes::init (cgv::render::context &ctx)
 // ### BEGIN: OptiX integration
 // ###############################
 
-void tubes::destroy_accelds (void)
+void tubes::optix_destroy_accelds (void)
 {
-	if (optix.accelds_outbuf)
-	{
-		CUDA_CHECK(cudaFree(reinterpret_cast<void*>(optix.accelds_outbuf)));
-		optix.accelds_outbuf = 0;
-	}
+	CUDA_SAFE_FREE(optix.accelds_outbuf);
 }
 
-void tubes::update_accelds (void)
+void tubes::optix_destroy_pipeline (void)
+{
+	OPTIX_SAFE_DESTROY_PIPELINE(optix.pipeline);
+	OPTIX_SAFE_DESTROY_MODULE(optix.mod_shading);
+	OPTIX_SAFE_DESTROY_MODULE(optix.mod_geom);
+	
+	/*OPTIX_CHECK(optixProgramGroupDestroy(hitgroup_prog_group));
+	OPTIX_CHECK(optixProgramGroupDestroy(miss_prog_group));
+	OPTIX_CHECK(optixProgramGroupDestroy(raygen_prog_group));*/
+}
+
+void tubes::optix_update_accelds(void)
 {
 	// make sure we start with a blank slate
-	destroy_accelds();
+	optix_destroy_accelds();
 
 	// use default options for simplicity (ToDo: enable compaction)
 	OptixAccelBuildOptions accel_options = {};
@@ -1623,6 +1748,58 @@ void tubes::update_accelds (void)
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(tmpbuf)));
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(positions_dev)));
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(radii_dev)));
+
+
+
+	//
+	// Create modules
+	//
+	OptixPipelineCompileOptions compile_options = {};
+	{
+		OptixModuleCompileOptions mod_options = {};
+		mod_options.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+		mod_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+		mod_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
+
+		compile_options.usesMotionBlur = false;  // disable motion-blur in pipeline
+		compile_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+		compile_options.numPayloadValues = 3;
+		compile_options.numAttributeValues = 1;
+#ifdef _DEBUG  // Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
+		compile_options.exceptionFlags =
+			OPTIX_EXCEPTION_FLAG_DEBUG | OPTIX_EXCEPTION_FLAG_TRACE_DEPTH | OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
+#else
+		compile_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
+#endif
+		compile_options.pipelineLaunchParamsVariableName = "params";
+		compile_options.usesPrimitiveTypeFlags = optix.subdivide ?
+			  OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
+			: OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_CATMULLROM;
+
+		size_t      input_size = 0;
+		auto        input = compile_cu_tu_ptx("optixCurves.cu", "optixCurves", &input_size);
+		/*size_t      sizeof_log = sizeof(log);
+		OPTIX_CHECK_LOG(optixModuleCreateFromPTX(context, &module_compile_options, &pipeline_compile_options,
+			input, inputSize, log, &sizeof_log, &shading_module));
+
+		OptixBuiltinISOptions builtinISOptions = {};
+		switch (degree)
+		{
+		case 1:
+			builtinISOptions.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR;
+			break;
+		case 2:
+			builtinISOptions.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_ROUND_QUADRATIC_BSPLINE;
+			break;
+		case 3:
+			builtinISOptions.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_ROUND_CUBIC_BSPLINE;
+			break;
+		}
+		builtinISOptions.usesMotionBlur = motion_blur;  // enable motion-blur for built-in intersector
+		OPTIX_CHECK(optixBuiltinISModuleGet(context, &module_compile_options, &pipeline_compile_options,
+			&builtinISOptions, &geometry_module));*/
+		std::cerr.flush();
+	}
 }
 
 // ###############################
