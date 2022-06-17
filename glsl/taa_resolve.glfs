@@ -7,8 +7,7 @@ layout (binding = 4) uniform sampler2D depth_tex;
 
 uniform float alpha;
 uniform mat4 curr_projection_matrix;
-uniform mat4 curr_inverse_modelview_matrix;
-uniform mat4 prev_modelview_projection_matrix;
+uniform mat4 curr_eye_to_prev_clip_matrix;
 
 uniform struct {
 	bool use_velocity;
@@ -70,16 +69,10 @@ vec2 calcualte_velocity_from_position(in vec3 position) {
 	vec4 curr_pos_clip = curr_projection_matrix * curr_pos_eye;
 	curr_pos_clip /= curr_pos_clip.w;
 
-	vec4 curr_pos_obj = curr_inverse_modelview_matrix * curr_pos_eye;
-	curr_pos_obj.w = 1.0;
-
-	vec4 prev_pos_clip = prev_modelview_projection_matrix * curr_pos_obj;
+	vec4 prev_pos_clip = curr_eye_to_prev_clip_matrix * curr_pos_eye;
 	prev_pos_clip /= prev_pos_clip.w;
 
-	curr_pos_clip.xy = 0.5 * curr_pos_clip.xy + 0.5;
-	prev_pos_clip.xy = 0.5 * prev_pos_clip.xy + 0.5;
-
-	return curr_pos_clip.xy - prev_pos_clip.xy;
+	return 0.5*(curr_pos_clip.xy - prev_pos_clip.xy);
 }
 
 void main()
@@ -98,7 +91,7 @@ void main()
 	vec3 prev_color = vec3(0.0);
 
 	if(settings.use_velocity)
-		prev_color = texture(prev_color_tex, texcoord_fs - velocity).rgb;
+		prev_color = texture(prev_color_tex, clamp(texcoord_fs - velocity, 0.0, 1.0)).rgb;
 	else
 		prev_color = texture(prev_color_tex, texcoord_fs).rgb;
 	

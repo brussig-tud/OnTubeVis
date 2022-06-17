@@ -1449,7 +1449,7 @@ void tubes::init_frame (cgv::render::context &ctx)
 
 		jitter_offsets.clear();
 		for(size_t i = 0; i < n_jitter_samples; ++i) {
-			vec2 sample = sample_halton_2d(static_cast<unsigned>(i), 2, 3);
+			vec2 sample = sample_halton_2d(static_cast<unsigned>(i+1), 2, 3);
 			vec2 offset = (2.0f * sample - 1.0f) / view_size;
 			jitter_offsets.push_back(offset);
 		}
@@ -2329,6 +2329,7 @@ void tubes::draw_trajectories(context& ctx) {
 	//
 	/* TODO: somehow produces black artifacts !!!
 	 * They don't stem from the clamp or clip step in the resolve shader.
+	 * Instead they possibly originate from errors in the velocity calculation.
 	 */
 
 	// TODO: comment
@@ -2350,8 +2351,7 @@ void tubes::draw_trajectories(context& ctx) {
 			accumulate_count = 0;
 
 		resolve_prog.set_uniform(ctx, "curr_projection_matrix", curr_projection_matrix);
-		resolve_prog.set_uniform(ctx, "curr_inverse_modelview_matrix", inv(curr_modelview_matrix));
-		resolve_prog.set_uniform(ctx, "prev_modelview_projection_matrix", prev_projection_matrix * prev_modelview_matrix);
+		resolve_prog.set_uniform(ctx, "curr_eye_to_prev_clip_matrix", prev_projection_matrix * prev_modelview_matrix * inv(curr_modelview_matrix));
 
 		resolve_prog.set_uniform(ctx, "settings.use_velocity", settings.use_velocity);
 		resolve_prog.set_uniform(ctx, "settings.closest_depth", settings.closest_depth);
