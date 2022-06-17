@@ -74,15 +74,40 @@ protected:
 	// ### BEGIN: OptiX integration
 	// ###############################
 
-	// State
+	// state
 	struct
 	{
-		// Use OptiX instead of OpenGL rasterization
+		// use OptiX instead of OpenGL rasterization
 		bool enabled = false;
+
+		// subdivide into quadratic beziers for higher ray tracing performance
+		bool subdivide = false;
 
 		// OptiX device context
 		OptixDeviceContext context = nullptr;
+
+		// acceleration datastructure resources
+		OptixTraversableHandle accelds = 0;
+		CUdeviceptr            accelds_outbuf = 0;
+
+		/*sbt.raygenRecord;
+		sbt.missRecordBase;
+		sbt.hitgroupRecordBase;*/
+
+		// curve tracing pipeline resources
+		// - pipeline object
+		OptixPipeline pipeline;
+		// - SBT program groups
+		OptixProgramGroup hitgroup_prog_group;
+		OptixProgramGroup miss_prog_group;
+		OptixProgramGroup raygen_prog_group;
+		// - modules
+		OptixModule shading_module;
+		OptixModule geometry_module;
 	} optix;
+
+	void destroy_accelds (void);
+	void update_accelds (void);
 
 	// ###############################
 	// ###  END:  OptiX integration

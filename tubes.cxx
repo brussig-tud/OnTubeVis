@@ -46,6 +46,19 @@
 		}                                                                    \
 	} while (false)
 
+#define CUDA_CHECK_SET(call, success_var)                                    \
+	do                                                                       \
+	{                                                                        \
+		cudaError_t error = call;                                            \
+		if (error != cudaSuccess)                                            \
+		{                                                                    \
+			std::cerr << "CUDA call (" << #call << " ) failed with error: '" \
+			          << cudaGetErrorString(error)                           \
+			          << "' (" __FILE__ << ":" << __LINE__ << ")"            \
+			          << std::endl << std::endl;                             \
+			success_var &= false;                                            \
+		}                                                                    \
+	} while (false)
 
 #define CUDA_SYNC_CHECK()                                                    \
 	do                                                                       \
@@ -61,6 +74,21 @@
 	    }                                                                    \
 	} while (false)
 
+#define CUDA_SYNC_CHECK_SET(success_var)                                     \
+	do                                                                       \
+	{                                                                        \
+		cudaDeviceSynchronize();                                             \
+		cudaError_t error = cudaGetLastError();                              \
+		if (error != cudaSuccess)                                            \
+		{                                                                    \
+			std::cerr << "CUDA error on synchronize: '"                      \
+			          << cudaGetErrorString(error)                           \
+			          << "' (" __FILE__ << ":" << __LINE__ << ")"            \
+			          << std::endl << std::endl;                             \
+			success_var &= false;                                            \
+		}                                                                    \
+	} while (false)
+
 #define OPTIX_CHECK(call)                                                    \
 	do                                                                       \
 	{                                                                        \
@@ -71,6 +99,20 @@
 			std::cerr << "Optix call '" << #call << "' failed: "             \
 			          << __FILE__ << ":" << __LINE__ << ")\n"                \
 			          << std::endl << std::endl;                             \
+		}                                                                    \
+	} while (false)
+
+#define OPTIX_CHECK_SET(call, success_var)                                   \
+	do                                                                       \
+	{                                                                        \
+		OptixResult res = call;                                              \
+		if (res != OPTIX_SUCCESS)                                            \
+		{                                                                    \
+			std::stringstream ss;                                            \
+			std::cerr << "Optix call '" << #call << "' failed: "             \
+			          << __FILE__ << ":" << __LINE__ << ")\n"                \
+			          << std::endl << std::endl;                             \
+			success_var &= false;                                            \
 		}                                                                    \
 	} while (false)
 
@@ -173,8 +215,15 @@ tubes::~tubes()
 	// ### BEGIN: OptiX integration
 	// ###############################
 
+	// perform cleanup routine
+	destroy_accelds();
+
 	// shutdown optix
-	OPTIX_CHECK(optixDeviceContextDestroy(optix.context));
+	if (optix.context)
+	{
+		OPTIX_CHECK(optixDeviceContextDestroy(optix.context));
+		optix.context = nullptr;
+	}
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -521,6 +570,9 @@ void tubes::on_set(void *member_ptr) {
 		fh.has_unsaved_changes = false;
 		update_member(&fh.file_name);
 		on_set(&fh.has_unsaved_changes);
+
+		// OPTIX
+		update_accelds();
 
 		post_recreate_gui();
 	}
@@ -1304,32 +1356,6 @@ bool tubes::init (cgv::render::context &ctx)
 	app_path += "/";
 #endif
 
-	// ###############################
-	// ### BEGIN: OptiX integration
-	// ###############################
-
-	// Initialize CUDA
-	CUDA_CHECK(cudaFree(0));
-
-	// Initialize the OptiX API, loading all API entry points
-	OPTIX_CHECK(optixInit());
-
-	// Specify context options
-	OptixDeviceContextOptions options = {};
-	options.logCallbackFunction = &optix_log_cb;
-	options.logCallbackLevel = 4;
-	std::cerr << std::endl; // <-- Make sure the initial CUDA/OptiX message stream is preceded by an empty line
-
-	// Associate a CUDA context (and therefore a specific GPU) with this
-	// device context
-	CUcontext cuCtx = 0;  // zero means take the current context
-	OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &options, &optix.context));
-
-	// ###############################
-	// ###  END:  OptiX integration
-	// ###############################
-
-
 	// increase reference count of the renderers by one
 	auto &tstr = ref_textured_spline_tube_renderer(ctx, 1);
 	auto &vr = ref_volume_renderer(ctx, 1);
@@ -1458,9 +1484,150 @@ bool tubes::init (cgv::render::context &ctx)
 	// use white background for paper screenshots
 	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
 
+
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	// initialize CUDA
+	CUDA_CHECK_SET(cudaFree(0), success);
+
+	// initialize the OptiX API, loading all API entry points
+	OPTIX_CHECK_SET(optixInit(), success);
+
+	// specify OptiX device context options
+	OptixDeviceContextOptions options = {};
+	options.logCallbackFunction = &optix_log_cb;
+	options.logCallbackLevel = 4;
+	std::cerr << std::endl; // <-- Make sure the initial CUDA/OptiX message stream is preceded by an empty line
+
+	// associate a CUDA context (and therefore a specific GPU) with this device context
+	CUcontext cuCtx = 0;  // zero means take the default context(i.e. first best compatible device)
+	OPTIX_CHECK_SET(optixDeviceContextCreate(cuCtx, &options, &optix.context), success);
+
+	// upload the initial data
+	update_accelds();
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
+
+
 	// done
 	return success;
 }
+
+// ###############################
+// ### BEGIN: OptiX integration
+// ###############################
+
+void tubes::destroy_accelds (void)
+{
+	if (optix.accelds_outbuf)
+	{
+		CUDA_CHECK(cudaFree(reinterpret_cast<void*>(optix.accelds_outbuf)));
+		optix.accelds_outbuf = 0;
+	}
+}
+
+void tubes::update_accelds (void)
+{
+	// make sure we start with a blank slate
+	destroy_accelds();
+
+	// use default options for simplicity (ToDo: enable compaction)
+	OptixAccelBuildOptions accel_options = {};
+	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS;
+	accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
+
+	// stage geometry for upload - we don't use the available render data directly since we can use a more
+	// compact representation for OptiX due to the available special curve segment indexing mode
+	unsigned num;
+	std::vector<float3> positions;
+	std::vector<unsigned> indices;
+	if (optix.subdivide)
+		// ToDo: not yet implemented!!!
+		num = 0;
+	else
+	{
+		// prepare CPU-side vertex staging area
+		num = (unsigned)render.data->positions.size();
+		positions.reserve(num);
+
+		// convert to device float3
+		for (const auto &pos : render.data->positions)
+			positions.emplace_back(make_float3(pos.x(), pos.y(), pos.z()));
+
+		// prepare indices
+		const auto &rdi = render.data->indices;
+		indices.reserve(rdi.size()/2);
+		for (unsigned i=0; i<rdi.size(); i+=2)
+			indices.push_back(rdi[i]);
+	}
+	CUdeviceptr positions_dev=0, radii_dev=0;
+	const size_t positions_size = num*sizeof(float3), radii_size = num*sizeof(float);
+	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&positions_dev), positions_size));
+	CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(positions_dev), positions.data(), positions_size, cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&radii_dev), radii_size));
+	CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(radii_dev), render.data->radii.data(), radii_size, cudaMemcpyHostToDevice));
+
+	// upload segment indices
+	CUdeviceptr indices_dev = 0;
+	const size_t indices_size = indices.size()*sizeof(unsigned);
+	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&indices_dev), indices_size));
+	CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(indices_dev), indices.data(), indices_size, cudaMemcpyHostToDevice));
+
+	// OptiX accel-ds build input descriptor
+	OptixBuildInput input_desc = {};
+	input_desc.type = OPTIX_BUILD_INPUT_TYPE_CURVES;
+	input_desc.curveArray.curveType = optix.subdivide ?
+		  OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
+		: OPTIX_PRIMITIVE_TYPE_ROUND_CATMULLROM;
+	input_desc.curveArray.numPrimitives = (unsigned)indices.size();
+	input_desc.curveArray.vertexBuffers = &positions_dev;
+	input_desc.curveArray.numVertices = num;
+	input_desc.curveArray.vertexStrideInBytes = sizeof(float3);
+	input_desc.curveArray.widthBuffers = &radii_dev;
+	input_desc.curveArray.widthStrideInBytes = sizeof(float);
+	input_desc.curveArray.normalBuffers = 0;
+	input_desc.curveArray.normalStrideInBytes = 0;
+	input_desc.curveArray.indexBuffer = indices_dev;
+	input_desc.curveArray.indexStrideInBytes = sizeof(unsigned);
+	input_desc.curveArray.flag = OPTIX_GEOMETRY_FLAG_NONE;
+	input_desc.curveArray.primitiveIndexOffset = 0;
+
+	OptixAccelBufferSizes accelds_buffer_sizes = {0};
+	OPTIX_CHECK(optixAccelComputeMemoryUsage(optix.context, &accel_options, &input_desc,
+		1,  // Number of build inputs
+		&accelds_buffer_sizes)
+	);
+
+	CUdeviceptr tmpbuf = 0;
+	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&tmpbuf), accelds_buffer_sizes.tempSizeInBytes));
+	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&optix.accelds_outbuf), accelds_buffer_sizes.outputSizeInBytes));
+
+	OPTIX_CHECK(optixAccelBuild(
+		optix.context,
+		0,  // CUDA stream
+		&accel_options, &input_desc,
+		1,  // num build inputs
+		tmpbuf, accelds_buffer_sizes.tempSizeInBytes,
+		optix.accelds_outbuf, accelds_buffer_sizes.outputSizeInBytes,
+		&optix.accelds, // <-- our acceleration datastructure!!!
+		nullptr, // emitted property list
+		0        // num emitted properties
+	));
+
+	// We can now free the scratch space buffer used during build and the vertex
+	// inputs, since they are not needed by our trivial shading method
+	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(tmpbuf)));
+	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(positions_dev)));
+	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(radii_dev)));
+}
+
+// ###############################
+// ###  END:  OptiX integration
+// ###############################
 
 void tubes::init_frame (cgv::render::context &ctx)
 {
