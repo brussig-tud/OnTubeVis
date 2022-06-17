@@ -129,12 +129,11 @@
 #define OPTIX_CHECK(call)                                                        \
 	do                                                                           \
 	{                                                                            \
-		OptixResult res = call;                                                  \
-		if (res != OPTIX_SUCCESS)                                                \
+		OptixResult result = call;                                               \
+		if (result != OPTIX_SUCCESS)                                             \
 		{                                                                        \
-			std::stringstream ss;                                                \
 			std::cerr << "Optix call '" << #call << "' failed: "                 \
-			          << __FILE__ << ":" << __LINE__ << ")\n"                    \
+			          << __FILE__ << ":" << __LINE__ << ")"                      \
 			          << std::endl << std::endl;                                 \
 		}                                                                        \
 	} while (false)
@@ -142,16 +141,50 @@
 #define OPTIX_CHECK_SET(call, success_var)                                       \
 	do                                                                           \
 	{                                                                            \
-		OptixResult res = call;                                                  \
-		if (res != OPTIX_SUCCESS)                                                \
+		OptixResult result = call;                                               \
+		if (result != OPTIX_SUCCESS)                                             \
 		{                                                                        \
-			std::stringstream ss;                                                \
 			std::cerr << "Optix call '" << #call << "' failed: "                 \
-			          << __FILE__ << ":" << __LINE__ << ")\n"                    \
+			          << __FILE__ << ":" << __LINE__ << ")"                      \
 			          << std::endl << std::endl;                                 \
 			success_var &= false;                                                \
 		}                                                                        \
 	} while (false)
+
+#define OPTIX_CHECK_LOG(call, log, sizeof_log)                                   \
+	do                                                                           \
+	{                                                                            \
+		const size_t sizeof_log_user = sizeof_log;                               \
+		const OptixResult result = call;                                         \
+		const size_t log_needed_size = sizeof_log;                               \
+		sizeof_log = sizeof_log_user; /* hide side-effect to user */             \
+		if (result != OPTIX_SUCCESS)                                             \
+		{                                                                        \
+			std::cerr << "Optix call '" << #call << "' failed: "                 \
+			          << __FILE__ << ":" << __LINE__ << ")" << std::endl         \
+			          << "Log:" << std::endl << log                              \
+			          << (log_needed_size>sizeof_log_user ? "<TRUNCATED>" : "" ) \
+			          << std::endl << std::endl;                                 \
+		}                                                                        \
+	} while(false)
+
+#define OPTIX_CHECK_LOG_SET(call, log, success_var)                              \
+	do                                                                           \
+	{                                                                             \
+		const size_t sizeof_log_user = sizeof_log;                               \
+		const OptixResult result = call;                                         \
+		const size_t log_needed_size = sizeof_log;                               \
+		sizeof_log = sizeof_log_user; /* hide side-effect to user */             \
+		if (result != OPTIX_SUCCESS)                                             \
+		{                                                                        \
+			std::cerr << "Optix call '" << #call << "' failed: "                 \
+			          << __FILE__ << ":" << __LINE__ << ")" << std::endl         \
+			          << "Log:" << std::endl << log                              \
+			          << (log_needed_size>sizeof_log_user ? "<TRUNCATED>" : "" ) \
+			          << std::endl << std::endl;                                 \
+			success_var &= false;                                                \
+		}                                                                        \
+	} while(false)
 
 #define CUDA_SAFE_FREE(memptr)                                                   \
 	if (memptr) {                                                                \
@@ -744,6 +777,7 @@ void tubes::on_set(void *member_ptr) {
 
 		// OPTIX
 		optix_update_accelds();
+		optix_update_pipeline();
 
 		post_recreate_gui();
 	}
@@ -1678,6 +1712,7 @@ bool tubes::init (cgv::render::context &ctx)
 
 	// upload the initial data
 	optix_update_accelds();
+	optix_update_pipeline();
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -1687,6 +1722,7 @@ bool tubes::init (cgv::render::context &ctx)
 	// done
 	return success;
 }
+
 
 // ###############################
 // ### BEGIN: OptiX integration
@@ -1708,10 +1744,11 @@ void tubes::optix_destroy_pipeline (void)
 	OPTIX_CHECK(optixProgramGroupDestroy(raygen_prog_group));*/
 }
 
-void tubes::optix_update_accelds(void)
+void tubes::optix_update_accelds (void)
 {
 	// make sure we start with a blank slate
 	optix_destroy_accelds();
+	optix_destroy_pipeline();
 
 	// use default options for simplicity (ToDo: enable compaction)
 	OptixAccelBuildOptions accel_options = {};
@@ -1807,25 +1844,25 @@ void tubes::optix_update_accelds(void)
 	//
 	// Create modules
 	//
-	OptixPipelineCompileOptions compile_options = {};
+	OptixPipelineCompileOptions pipeline_options = {};
 	{
 		OptixModuleCompileOptions mod_options = {};
 		mod_options.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
 		mod_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
 		mod_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
 
-		compile_options.usesMotionBlur = false;  // disable motion-blur in pipeline
-		compile_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-		compile_options.numPayloadValues = 3;
-		compile_options.numAttributeValues = 1;
+		pipeline_options.usesMotionBlur = false;  // disable motion-blur in pipeline
+		pipeline_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+		pipeline_options.numPayloadValues = 3;
+		pipeline_options.numAttributeValues = 1;
 #ifdef _DEBUG  // Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
-		compile_options.exceptionFlags =
+		pipeline_options.exceptionFlags =
 			OPTIX_EXCEPTION_FLAG_DEBUG | OPTIX_EXCEPTION_FLAG_TRACE_DEPTH | OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
 #else
-		compile_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
+		pipeline_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
 #endif
-		compile_options.pipelineLaunchParamsVariableName = "params";
-		compile_options.usesPrimitiveTypeFlags = optix.subdivide ?
+		pipeline_options.pipelineLaunchParamsVariableName = "params";
+		pipeline_options.usesPrimitiveTypeFlags = optix.subdivide ?
 			  OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
 			: OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_CATMULLROM;
 
@@ -1838,33 +1875,35 @@ void tubes::optix_update_accelds(void)
 			          << compiler_log << std::endl<<std::endl;
 			return;
 		}
-		/*size_t      sizeof_log = sizeof(log);
-		OPTIX_CHECK_LOG(optixModuleCreateFromPTX(context, &module_compile_options, &pipeline_compile_options,
-			input, inputSize, log, &sizeof_log, &shading_module));
+		compiler_log.resize(8192);
+		char* log = compiler_log.data();
+		size_t sizeof_log = compiler_log.size();
+		OPTIX_CHECK_LOG(
+			optixModuleCreateFromPTX(
+				optix.context, &mod_options, &pipeline_options, ptx.data(), ptx_size, log, &sizeof_log, &optix.mod_shading
+			),
+			log, sizeof_log
+		);
 
-		OptixBuiltinISOptions builtinISOptions = {};
-		switch (degree)
-		{
-		case 1:
-			builtinISOptions.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR;
-			break;
-		case 2:
-			builtinISOptions.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_ROUND_QUADRATIC_BSPLINE;
-			break;
-		case 3:
-			builtinISOptions.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_ROUND_CUBIC_BSPLINE;
-			break;
-		}
-		builtinISOptions.usesMotionBlur = motion_blur;  // enable motion-blur for built-in intersector
-		OPTIX_CHECK(optixBuiltinISModuleGet(context, &module_compile_options, &pipeline_compile_options,
-			&builtinISOptions, &geometry_module));*/
+		OptixBuiltinISOptions builtin_isectshader_options = {};
+		builtin_isectshader_options.builtinISModuleType = optix.subdivide ?
+			  OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
+			: OPTIX_PRIMITIVE_TYPE_ROUND_CATMULLROM;
+		builtin_isectshader_options.usesMotionBlur = false;
+		OPTIX_CHECK(optixBuiltinISModuleGet(
+			optix.context, &mod_options, &pipeline_options, &builtin_isectshader_options, &optix.mod_geom
+		));
 		std::cerr.flush();
 	}
 }
 
+void tubes::optix_update_pipeline (void)
+{}
+
 // ###############################
 // ###  END:  OptiX integration
 // ###############################
+
 
 void tubes::init_frame (cgv::render::context &ctx)
 {
