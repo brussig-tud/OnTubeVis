@@ -37,13 +37,7 @@
 #include "color_map_manager.h"
 #include "textured_spline_tube_renderer.h"
 #include "color_map_viewer.h"
-
-// OptiX & CUDA
-#include <optix.h>
-#include <optix_function_table_definition.h>
-#include <optix_stack_size.h>
-#include <optix_stubs.h>
-#include <cuda_runtime.h>
+#include "optix_integration.h"
 
 
 
@@ -97,17 +91,17 @@ protected:
 		// curve tracing pipeline resources
 		// - pipeline object
 		OptixPipeline pipeline = nullptr;
-		// - SBT program groups
-		OptixProgramGroup hitgroup_prog_group = nullptr;
-		OptixProgramGroup miss_prog_group = nullptr;
-		OptixProgramGroup raygen_prog_group = nullptr;
+		// - program groups
+		OptixProgramGroup prg_hit = nullptr;
+		OptixProgramGroup prg_miss = nullptr;
+		OptixProgramGroup prg_raygen = nullptr;
 		// - modules
 		OptixModule mod_shading = nullptr;
 		OptixModule mod_geom = nullptr;
 	} optix;
 
-	void optix_update_accelds (void);
-	void optix_update_pipeline (void);
+	bool optix_update_accelds (void);
+	bool optix_update_pipeline (void);
 
 	void optix_destroy_accelds (void);
 	void optix_destroy_pipeline(void);
