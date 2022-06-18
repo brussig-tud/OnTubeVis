@@ -428,13 +428,18 @@ template <class pxl_fmt>
 class cuda_output_buffer
 {
 public:
+	/// Default-constructed instances will be unusable until reset() is called!
+	cuda_output_buffer();
+
 	cuda_output_buffer(CUDAOutputBufferType type, int width, int height);
 	~cuda_output_buffer();
+
+	bool reset (CUDAOutputBufferType type, int width, int height);
 
 	void set_device (int device_idx) { m_device_idx = device_idx; }
 	void set_stream (CUstream stream) { m_stream = stream; }
 
-	void resize (int width, int height);
+	bool resize (int width, int height);
 
 	// Allocate or update device pointer as necessary for CUDA access
 	pxl_fmt* map (void);
@@ -458,14 +463,15 @@ public:
 	}
 
 private:
-	void make_current() { CUDA_CHECK(cudaSetDevice(m_device_idx)); }
+	bool make_current() { CUDA_CHECK_FAIL(cudaSetDevice(m_device_idx)); return true; }
+
+	bool initialized;
 
 	CUDAOutputBufferType m_type;
 	int m_width = 0u;
 	int m_height = 0u;
 
 	cudaGraphicsResource* m_cuda_gfx_resource = nullptr;
-
 	GLuint m_pbo = 0u;
 	pxl_fmt* m_device_pixels = nullptr;
     pxl_fmt* m_host_zcopy_pixels = nullptr;

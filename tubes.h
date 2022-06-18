@@ -96,6 +96,9 @@ protected:
 		OptixModule mod_geom = nullptr;
 		// - shader binding table
 		OptixShaderBindingTable sbt;
+
+		// GL interop
+		cuda_output_buffer<uchar4> output;
 	} optix;
 
 	bool optix_update_accelds (void);

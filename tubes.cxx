@@ -1430,6 +1430,7 @@ bool tubes::init (cgv::render::context &ctx)
 	// upload the initial data
 	success = success && optix_update_accelds();
 	success = success && optix_update_pipeline();
+	success = success && optix.output.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -1495,7 +1496,7 @@ bool tubes::optix_update_accelds (void)
 			indices.push_back(rdi[i]);
 	}
 
-	// track success - we don't immediatly fail and return since the code in this function is not robust to failure
+	// track success - we don't immediately fail and return since the code in this function is not robust to failure
 	// (i.e. doesn't use RAII) so doing that would result in both host and device memory leaks
 	bool success = true;
 
@@ -1583,7 +1584,7 @@ bool tubes::optix_update_pipeline (void)
 	constexpr unsigned max_trace_depth = 1;
 	OptixPipelineCompileOptions pipeline_options = {};
 
-	// track success - we don't immediatly fail and return since the code in this function is not robust to failure
+	// track success - we don't immediately fail and return since the code in this function is not robust to failure
 	// (i.e. doesn't use RAII) so doing that would result in both host and device memory leaks
 	bool success = true;
 
