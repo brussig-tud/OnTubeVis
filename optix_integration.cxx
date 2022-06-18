@@ -25,7 +25,7 @@
 // Function implementations
 //
 
-std::vector<char> compile_cu_tu_ptx (
+std::vector<char> compile_cu2ptx (
 	const std::string &filename,                      // Cuda C input file name
 	const std::string &name,                          // arbitrary name the compiled code should be assigned in CUDA
 	const std::vector<const char*> &compiler_options, // CUDA compiler options
@@ -44,9 +44,13 @@ std::vector<char> compile_cu_tu_ptx (
 	std::string cu;
 	{
 		std::ifstream file(filename, std::ios::binary);
-		if (!file.good())
+		if (!file.good()) {
+			if (log_out)
+				*log_out = "Could not open file '"+filename+"'";
 			return std::vector<char>();
-		std::vector<unsigned char> buffer = std::vector<unsigned char>(std::istreambuf_iterator<char>(file), {});
+		}
+		std::vector<unsigned char> buffer =
+			std::vector<unsigned char>(std::istreambuf_iterator<char>(file), {});
 		cu.assign(buffer.begin(), buffer.end());
 	}
 
@@ -369,6 +373,14 @@ template class cuda_output_buffer<int3>;
 template class cuda_output_buffer<uint3>;
 template class cuda_output_buffer<int4>;
 template class cuda_output_buffer<uint4>;
+template class cuda_output_buffer<long1>;
+template class cuda_output_buffer<ulong1>;
+template class cuda_output_buffer<long2>;
+template class cuda_output_buffer<ulong2>;
+template class cuda_output_buffer<long3>;
+template class cuda_output_buffer<ulong3>;
+template class cuda_output_buffer<long4>;
+template class cuda_output_buffer<ulong4>;
 // - eight-byte components
 template class cuda_output_buffer<longlong1>;
 template class cuda_output_buffer<ulonglong1>;

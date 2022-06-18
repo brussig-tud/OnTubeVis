@@ -27,7 +27,7 @@
 //
 #include <optix.h>
 
-#include "optixCurves.h"
+#include "optix_curves.h"
 #include <cuda/helpers.h>
 #include <random.h>
 
@@ -35,7 +35,7 @@
 
 
 extern "C" {
-__constant__ Params params;
+__constant__ curve_rt_params params;
 }
 
 
@@ -139,8 +139,8 @@ extern "C" __global__ void __raygen__motion_blur()
 
 extern "C" __global__ void __miss__ms()
 {
-    MissData* miss_data  = reinterpret_cast<MissData*>( optixGetSbtDataPointer() );
-    setPayload(  miss_data->bg_color );
+    data_miss* data  = reinterpret_cast<data_miss*>( optixGetSbtDataPointer() );
+    setPayload(data->bg_color);
 }
 
 

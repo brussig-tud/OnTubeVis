@@ -28,6 +28,7 @@
 // local includes
 #include "arclen_helper.h"
 #include "glyph_compiler.h"
+#include "optix_curves.h"
 
 
 
@@ -1413,7 +1414,7 @@ bool tubes::init (cgv::render::context &ctx)
 	// initialize CUDA
 	CUDA_CHECK_SET(cudaFree(0), success);
 
-	// initialize the OptiX API, loading all API entry points
+	// initialize OptiX
 	OPTIX_CHECK_SET(optixInit(), success);
 
 	// specify OptiX device context options
@@ -1423,12 +1424,12 @@ bool tubes::init (cgv::render::context &ctx)
 	std::cerr << std::endl; // <-- Make sure the initial CUDA/OptiX message stream is preceded by an empty line
 
 	// associate a CUDA context (and therefore a specific GPU) with this device context
-	CUcontext cuCtx = 0;  // zero means take the default context(i.e. first best compatible device)
+	CUcontext cuCtx = 0;  // zero means take the default context (i.e. first best compatible device)
 	OPTIX_CHECK_SET(optixDeviceContextCreate(cuCtx, &options, &optix.context), success);
 
 	// upload the initial data
-	optix_update_accelds();
-	optix_update_pipeline();
+	success = success && optix_update_accelds();
+	success = success && optix_update_pipeline();
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -1611,7 +1612,7 @@ bool tubes::optix_update_pipeline (void)
 			  OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
 			: OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_CATMULLROM;
 
-		const std::vector<char> ptx = compile_cu_tu_ptx(CUR_SRC_FILE_DIR+"/optixCurves.cu", "optixCurves", &compiler_log);
+		const std::vector<char> ptx = compile_cu2ptx(CUR_SRC_FILE_DIR+"/optix_curves.cu", "optix_curves", &compiler_log);
 		const size_t            ptx_size = ptx.size();
 		if (!ptx_size)
 		{
@@ -1733,6 +1734,51 @@ bool tubes::optix_update_pipeline (void)
 			),
 			success
 		);
+	}
+
+
+	////
+	// Set up shader binding table
+
+	/* local scope */ {
+		// our SBT record types
+		typedef sbt_record<data_raygen> sbt_record_raygen;
+		typedef sbt_record<data_miss>   sbt_record_miss;
+		typedef sbt_record<data_hit>    sbt_record_hit;
+
+		// prepare entries
+		// - raygen shaders
+		CUdeviceptr  raygen_record;
+		const size_t raygen_record_size = sizeof(sbt_record_raygen);
+		CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&raygen_record), raygen_record_size), success);
+		sbt_record_raygen rg_sbt;
+		OPTIX_CHECK_SET(optixSbtRecordPackHeader(optix.prg_raygen, &rg_sbt), success);
+		CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(raygen_record), &rg_sbt, raygen_record_size, cudaMemcpyHostToDevice), success);
+		// - miss shaders
+		CUdeviceptr miss_record;
+		size_t      miss_record_size = sizeof(sbt_record_miss);
+		CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&miss_record), miss_record_size), success);
+		sbt_record_miss ms_sbt;
+		ms_sbt.data = { 0.0f, 0.2f, 0.6f };  // background color (blue)
+		OPTIX_CHECK_SET(optixSbtRecordPackHeader(optix.prg_miss, &ms_sbt), success);
+		CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(miss_record), &ms_sbt, miss_record_size, cudaMemcpyHostToDevice), success);
+		// - hit shaders
+		CUdeviceptr hitgroup_record;
+		size_t      hitgroup_record_size = sizeof(sbt_record_hit);
+		CUDA_CHECK_SET (cudaMalloc(reinterpret_cast<void**>(&hitgroup_record), hitgroup_record_size), success);
+		sbt_record_hit hg_sbt;
+		OPTIX_CHECK_SET(optixSbtRecordPackHeader(optix.prg_hit, &hg_sbt), success);
+		CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(hitgroup_record), &hg_sbt, hitgroup_record_size, cudaMemcpyHostToDevice), success);
+
+		// build up the SBT
+		optix.sbt = {};
+		optix.sbt.raygenRecord = raygen_record;
+		optix.sbt.missRecordBase = miss_record;
+		optix.sbt.missRecordStrideInBytes = sizeof(sbt_record_miss);
+		optix.sbt.missRecordCount = 1;
+		optix.sbt.hitgroupRecordBase = hitgroup_record;
+		optix.sbt.hitgroupRecordStrideInBytes = sizeof(sbt_record_hit);
+		optix.sbt.hitgroupRecordCount = 1;
 	}
 
 	// done!

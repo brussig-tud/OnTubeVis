@@ -26,7 +26,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-struct Params
+struct curve_rt_params
 {
     uchar4*                image;
     unsigned int           image_width;
@@ -37,19 +37,19 @@ struct Params
 };
 
 
-struct RayGenData
+struct data_raygen
 {
     // No data needed
 };
 
 
-struct MissData
+struct data_miss
 {
     float3 bg_color;
 };
 
 
-struct HitGroupData
+struct data_hit
 {
     // No data needed
 };

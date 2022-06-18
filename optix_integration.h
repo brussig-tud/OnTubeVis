@@ -29,8 +29,8 @@
 
 // provide default CUDA compiler options if the including file doesn't provide its own
 #ifndef CUDA_NVRTC_OPTIONS
-	/// default CUDA compiler options used when compile_cu_tu_ptx is called without
-	/// explicit compiler options
+	/// default CUDA compiler options that will be used when compile_cu2ptx is called without
+	/// explicitly specifying them
 	#define CUDA_NVRTC_OPTIONS                                                   \
 		"-std=c++11", "-arch", "compute_50", "-use_fast_math", "-lineinfo",      \
 		"-default-device", "-rdc", "true", "-D__x86_64"
@@ -312,8 +312,7 @@
 		mod = nullptr;                                                           \
 	}
 
-/// resolves to an expression creating an std::string that contains the directory the current
-/// source file resides in
+/// resolves to an expression creating an std::string that contains the directory of the current source file
 #define CUR_SRC_FILE_DIR flipped_backslashes(std::filesystem::absolute(__FILE__"\\..").string())
 
 
@@ -333,6 +332,14 @@ enum class CUDAOutputBufferType
 
 /// shorthand alias for CUDAOutputBufferType
 typedef CUDAOutputBufferType CUOutBuf;
+
+/// Shader binding table record template
+template <typename T>
+struct sbt_record
+{
+	__align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+	T data;
+};
 
 
 
@@ -355,40 +362,40 @@ inline std::string flipped_backslashes (const std::string &path)
 }
 
 /// compiles the given .cu file to a device code PTX object
-std::vector<char> compile_cu_tu_ptx (
+std::vector<char> compile_cu2ptx (
 	const std::string &filename,                      // Cuda C input file name
 	const std::string &name,                          // arbitrary name the compiled code should be assigned in CUDA
 	const std::vector<const char*> &compiler_options, // CUDA compiler options
 	std::string *log_out                              // [out] the compilation log
 );
 
-/// version of compile_cu_tu_ptx with no log output and default compiler options
-inline std::vector<char> compile_cu_tu_ptx (
+/// version of compile_cu2ptx with no log output and default compiler options
+inline std::vector<char> compile_cu_to_ptx(
 	const std::string &filename,  // Cuda C input file name
 	const std::string &name       // arbitrary name the compiled code should be assigned in CUDA
 )
 {
-	return compile_cu_tu_ptx(filename, name, {CUDA_NVRTC_OPTIONS}, nullptr);
+	return compile_cu2ptx(filename, name, {CUDA_NVRTC_OPTIONS}, nullptr);
 }
 
-/// version of compile_cu_tu_ptx with log output and default compiler options
-inline std::vector<char> compile_cu_tu_ptx (
+/// version of compile_cu2ptx with log output and default compiler options
+inline std::vector<char> compile_cu2ptx (
 	const std::string &filename,  // Cuda C input file name
 	const std::string &name,      // arbitrary name the compiled code should be assigned in CUDA
 	std::string *log_out          // string that will receive the compilation log
 )
 {
-	return compile_cu_tu_ptx(filename, name, {CUDA_NVRTC_OPTIONS}, log_out);
+	return compile_cu2ptx(filename, name, {CUDA_NVRTC_OPTIONS}, log_out);
 }
 
-/// version of compile_cu_tu_ptx with custom compiler options and no log output
-inline std::vector<char> compile_cu_tu_ptx (
+/// version of compile_cu2ptx with custom compiler options and no log output
+inline std::vector<char> compile_cu2ptx (
 	const std::string &filename,                     // Cuda C input file name
 	const std::string &name,                         // arbitrary name the compiled code should be assigned in CUDA
 	const std::vector<const char*> &compiler_options // CUDA compiler options
 )
 {
-	return compile_cu_tu_ptx(filename, name, {CUDA_NVRTC_OPTIONS}, nullptr);
+	return compile_cu2ptx(filename, name, {CUDA_NVRTC_OPTIONS}, nullptr);
 }
 
 /// utility for obtaining a human-readable representation of an OpenGL error value
@@ -458,6 +465,7 @@ private:
 	int m_height = 0u;
 
 	cudaGraphicsResource* m_cuda_gfx_resource = nullptr;
+
 	GLuint m_pbo = 0u;
 	pxl_fmt* m_device_pixels = nullptr;
     pxl_fmt* m_host_zcopy_pixels = nullptr;

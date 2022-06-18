@@ -84,10 +84,6 @@ protected:
 		OptixTraversableHandle accelds = 0;
 		CUdeviceptr            accelds_outbuf = 0;
 
-		/*sbt.raygenRecord;
-		sbt.missRecordBase;
-		sbt.hitgroupRecordBase;*/
-
 		// curve tracing pipeline resources
 		// - pipeline object
 		OptixPipeline pipeline = nullptr;
@@ -98,6 +94,8 @@ protected:
 		// - modules
 		OptixModule mod_shading = nullptr;
 		OptixModule mod_geom = nullptr;
+		// - shader binding table
+		OptixShaderBindingTable sbt;
 	} optix;
 
 	bool optix_update_accelds (void);
