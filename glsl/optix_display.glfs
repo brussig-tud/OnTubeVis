@@ -1,0 +1,16 @@
+#version 330 core
+
+// samplers
+uniform sampler2D optix_tex;
+
+// attribute inputs
+in vec2 texcoord_fs;
+
+// fragment outputs
+out vec4 frag_color;
+
+// shader entry point
+void main()
+{
+	frag_color = texture2D(optix_tex, texcoord_fs);
+}

@@ -20,6 +20,9 @@
 #include <optix_stubs.h>
 #include <cuda_runtime.h>
 
+// CGV framework
+#include <cgv/render/texture.h>
+
 
 
 //////
@@ -294,6 +297,12 @@
 		memptr = 0;                                                              \
 	}
 
+#define CUDA_SAFE_DESTROY_STREAM(strm)                                           \
+	if (strm) {                                                                  \
+		CUDA_CHECK(cudaStreamDestroy(strm));                                     \
+		strm = 0;                                                                \
+	}
+
 #define OPTIX_SAFE_DESTROY_PIPELINE(pl)                                          \
 	if (pl) {                                                                    \
 		OPTIX_CHECK(optixPipelineDestroy(pl));                                   \
@@ -453,6 +462,9 @@ public:
 	void     delete_pbo (void);
 	pxl_fmt* get_host_ptr (void);
 
+	// transfer output buffer to given texture
+	bool into_texture (cgv::render::context &ctx, cgv::render::texture &tex);
+
 	static void ensure_min_size (int &width, int &height) {
 		if (width <= 0) width = 1;
 		if (height <= 0) height = 1;
@@ -477,6 +489,6 @@ private:
     pxl_fmt* m_host_zcopy_pixels = nullptr;
 	std::vector<pxl_fmt>  m_host_pixels;
 
-	CUstream m_stream = 0u;
+	CUstream m_stream = nullptr;
 	int m_device_idx = 0;
 };

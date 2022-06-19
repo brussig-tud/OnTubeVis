@@ -97,15 +97,22 @@ protected:
 		// - shader binding table
 		OptixShaderBindingTable sbt;
 
+		// device memory for our launch parameters
+		CUdeviceptr params_buf = 0;
+
 		// GL interop
-		cuda_output_buffer<uchar4> output;
+		CUstream stream = nullptr;
+		cuda_output_buffer<uchar4> outbuf;
+		texture result_tex;
 	} optix;
 
 	bool optix_update_accelds (void);
 	bool optix_update_pipeline (void);
 
 	void optix_destroy_accelds (void);
-	void optix_destroy_pipeline(void);
+	void optix_destroy_pipeline (void);
+
+	void optix_draw_trajectories (context &ctx);
 
 	// ###############################
 	// ###  END:  OptiX integration

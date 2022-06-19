@@ -28,28 +28,28 @@
 
 struct curve_rt_params
 {
-    uchar4*                image;
-    unsigned int           image_width;
-    unsigned int           image_height;
-    float3                 cam_eye;
-    float3                 cam_u, cam_v, cam_w;
-    OptixTraversableHandle handle;
+	uchar4*                image;
+	unsigned int           image_width;
+	unsigned int           image_height;
+	float3                 cam_eye;
+	float3                 cam_u, cam_v, cam_w;
+	OptixTraversableHandle handle;
 };
 
 
 struct data_raygen
 {
-    // No data needed
+	// No data needed
 };
 
 
 struct data_miss
 {
-    float3 bg_color;
+	float4 bg_color;
 };
 
 
 struct data_hit
 {
-    // No data needed
+	// No data needed
 };

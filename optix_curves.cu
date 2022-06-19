@@ -35,122 +35,91 @@
 
 
 extern "C" {
-__constant__ curve_rt_params params;
+	__constant__ curve_rt_params params;
+}
+
+__forceinline__ __device__ uchar4 make_rgba (const float4 &c)
+{
+	// first apply gamma, then convert to unsigned char
+	//float3 srgb = toSRGB(clamp(c, 0.0f, 1.0f));
+	return make_uchar4(quantizeUnsigned8Bits(c.x), quantizeUnsigned8Bits(c.y), quantizeUnsigned8Bits(c.z), quantizeUnsigned8Bits(c.w));
+}
+
+static __forceinline__ __device__ void setPayload (float4 p)
+{
+	optixSetPayload_0(float_as_int(p.x));
+	optixSetPayload_1(float_as_int(p.y));
+	optixSetPayload_2(float_as_int(p.z));
+	optixSetPayload_3(float_as_int(p.w));
 }
 
 
-static __forceinline__ __device__ void setPayload( float3 p )
+static __forceinline__ __device__ void computeRay (uint3 idx, uint3 dim, float3& origin, float3& direction)
 {
-    optixSetPayload_0( float_as_int( p.x ) );
-    optixSetPayload_1( float_as_int( p.y ) );
-    optixSetPayload_2( float_as_int( p.z ) );
+	const float3 U = params.cam_u;
+	const float3 V = params.cam_v;
+	const float3 W = params.cam_w;
+	const float2 d = 2.0f * make_float2(
+		static_cast<float>(idx.x) / static_cast<float>(dim.x),
+		static_cast<float>(idx.y) / static_cast<float>(dim.y)
+	) - 1.0f;
+
+	origin    = params.cam_eye;
+	direction = normalize(d.x * U + d.y * V + W);
 }
 
 
-static __forceinline__ __device__ void computeRay( uint3 idx, uint3 dim, float3& origin, float3& direction )
+extern "C" __global__ void __raygen__basic (void)
 {
-    const float3 U = params.cam_u;
-    const float3 V = params.cam_v;
-    const float3 W = params.cam_w;
-    const float2 d = 2.0f * make_float2(
-            static_cast<float>( idx.x ) / static_cast<float>( dim.x ),
-            static_cast<float>( idx.y ) / static_cast<float>( dim.y )
-            ) - 1.0f;
+	// Lookup our location within the launch grid
+	const uint3 idx = optixGetLaunchIndex();
+	const uint3 dim = optixGetLaunchDimensions();
 
-    origin    = params.cam_eye;
-    direction = normalize( d.x * U + d.y * V + W );
+	// Map our launch idx to a screen location and create a ray from the camera
+	// location through the screen
+	float3 ray_origin, ray_direction;
+	computeRay(idx, dim, ray_origin, ray_direction);
+
+	// Trace the ray against our scene hierarchy
+	unsigned int p0, p1, p2, p3;
+	optixTrace(
+		params.handle,
+		ray_origin,
+		ray_direction,
+		0.0f,                // Min intersection distance
+		1e16f,               // Max intersection distance
+		0.0f,                // rayTime -- used for motion blur
+		OptixVisibilityMask( 255 ), // Specify always visible
+		OPTIX_RAY_FLAG_NONE,
+		0,                   // SBT offset   -- See SBT discussion
+		1,                   // SBT stride   -- See SBT discussion
+		0,                   // missSBTIndex -- See SBT discussion
+		p0, p1, p2, p3);
+	float4 result;
+	result.x = int_as_float(p0);
+	result.y = int_as_float(p1);
+	result.z = int_as_float(p2);
+	result.w = int_as_float(p3);
+
+	// Record results in our output raster
+	params.image[idx.y*params.image_width + idx.x] = make_rgba(result);
 }
 
 
-extern "C" __global__ void __raygen__basic()
+extern "C" __global__ void __miss__ms (void)
 {
-    // Lookup our location within the launch grid
-    const uint3 idx = optixGetLaunchIndex();
-    const uint3 dim = optixGetLaunchDimensions();
-
-    // Map our launch idx to a screen location and create a ray from the camera
-    // location through the screen
-    float3 ray_origin, ray_direction;
-    computeRay( idx, dim, ray_origin, ray_direction );
-
-    // Trace the ray against our scene hierarchy
-    unsigned int p0, p1, p2;
-    optixTrace(
-            params.handle,
-            ray_origin,
-            ray_direction,
-            0.0f,                // Min intersection distance
-            1e16f,               // Max intersection distance
-            0.0f,                // rayTime -- used for motion blur
-            OptixVisibilityMask( 255 ), // Specify always visible
-            OPTIX_RAY_FLAG_NONE,
-            0,                   // SBT offset   -- See SBT discussion
-            1,                   // SBT stride   -- See SBT discussion
-            0,                   // missSBTIndex -- See SBT discussion
-            p0, p1, p2 );
-    float3 result;
-    result.x = int_as_float( p0 );
-    result.y = int_as_float( p1 );
-    result.z = int_as_float( p2 );
-
-    // Record results in our output raster
-    params.image[idx.y * params.image_width + idx.x] = make_color( result );
+	data_miss *data  = reinterpret_cast<data_miss*>(optixGetSbtDataPointer());
+	setPayload(data->bg_color);
 }
 
 
-extern "C" __global__ void __raygen__motion_blur()
+extern "C" __global__ void __closesthit__ch (void)
 {
-    // Lookup our location within the launch grid
-    const uint3 idx = optixGetLaunchIndex();
-    const uint3 dim = optixGetLaunchDimensions();
+	// When built-in curve intersection is used, the curve parameter u is provided
+	// by the OptiX API. The parameter’s range is [0,1] over the curve segment,
+	// with u=0 or u=1 only on the end caps.
+	float u = optixGetCurveParameter();
 
-    // Map our launch idx to a screen location and create a ray from the camera
-    // location through the screen
-    float3 ray_origin, ray_direction;
-    computeRay( idx, dim, ray_origin, ray_direction );
-
-    // Trace the ray against our scene hierarchy
-    unsigned int p0, p1, p2;
-    const int NUM_SAMPLES = 100;
-    float3 result = {};
-    unsigned int seed = tea<4>(idx.y * dim.y + dim.x, idx.x);
-    for( int i = 0; i < NUM_SAMPLES; ++i )
-    {
-        const float ray_time = rnd(seed); // compute next random ray time in [0, 1[
-        optixTrace( params.handle, ray_origin, ray_direction,
-                    0.0f,                        // Min intersection distance
-                    1e16f,                       // Max intersection distance
-                    ray_time,                    // rayTime -- used for motion blur
-                    OptixVisibilityMask( 255 ),  // Specify always visible
-                    OPTIX_RAY_FLAG_NONE,
-                    0,  // SBT offset   -- See SBT discussion
-                    1,  // SBT stride   -- See SBT discussion
-                    0,  // missSBTIndex -- See SBT discussion
-                    p0, p1, p2 );
-        result.x += int_as_float( p0 );
-        result.y += int_as_float( p1 );
-        result.z += int_as_float( p2 );
-    }
-
-    // Record results in our output raster
-    params.image[idx.y * params.image_width + idx.x] = make_color( result / NUM_SAMPLES );
-}
-
-
-extern "C" __global__ void __miss__ms()
-{
-    data_miss* data  = reinterpret_cast<data_miss*>( optixGetSbtDataPointer() );
-    setPayload(data->bg_color);
-}
-
-
-extern "C" __global__ void __closesthit__ch()
-{
-    // When built-in curve intersection is used, the curve parameter u is provided
-    // by the OptiX API. The parameter’s range is [0,1] over the curve segment,
-    // with u=0 or u=1 only on the end caps.
-    float u = optixGetCurveParameter();
-
-    // linearly interpolate from black to orange
-    setPayload( make_float3( u, u / 3.0f, 0.0f ) );
+	// linearly interpolate from red to green
+	setPayload(make_float4(1.0f-u, u, 0.0f, 1.0f));
 }

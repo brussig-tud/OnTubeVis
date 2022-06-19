@@ -127,6 +127,17 @@ tubes::tubes() : application_plugin("Tubes")
 	debug.segment_rs.rounded_caps = true;
 
 	connect(cgv::gui::get_animation_trigger().shoot, this, &tubes::timer_event);
+
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	// add display shader to library
+	shaders.add("optix_display", "optix_display.glpr");
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
 }
 
 tubes::~tubes()
@@ -492,9 +503,16 @@ void tubes::on_set(void *member_ptr) {
 		update_member(&fh.file_name);
 		on_set(&fh.has_unsaved_changes);
 
-		// OPTIX
+		// ###############################
+		// ### BEGIN: OptiX integration
+		// ###############################
+
 		optix_update_accelds();
 		optix_update_pipeline();
+
+		// ###############################
+		// ###  END:  OptiX integration
+		// ###############################
 
 		post_recreate_gui();
 	}
@@ -1427,10 +1445,10 @@ bool tubes::init (cgv::render::context &ctx)
 	CUcontext cuCtx = 0;  // zero means take the default context (i.e. first best compatible device)
 	OPTIX_CHECK_SET(optixDeviceContextCreate(cuCtx, &options, &optix.context), success);
 
-	// upload the initial data
+	// setup optix launch environment
+	success = success && optix.outbuf.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
 	success = success && optix_update_accelds();
 	success = success && optix_update_pipeline();
-	success = success && optix.output.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -1453,6 +1471,8 @@ void tubes::optix_destroy_accelds (void)
 
 void tubes::optix_destroy_pipeline (void)
 {
+	CUDA_SAFE_DESTROY_STREAM(optix.stream);
+	CUDA_SAFE_FREE(optix.params_buf);
 	OPTIX_SAFE_DESTROY_PIPELINE(optix.pipeline);
 	OPTIX_SAFE_DESTROY_MODULE(optix.mod_shading);
 	OPTIX_SAFE_DESTROY_MODULE(optix.mod_geom);
@@ -1475,6 +1495,7 @@ bool tubes::optix_update_accelds (void)
 	// compact representation for OptiX due to the available special curve segment indexing mode
 	unsigned num;
 	std::vector<float3> positions;
+	//std::vector<float> radii;
 	std::vector<unsigned> indices;
 	if (optix.subdivide)
 		// ToDo: not yet implemented!!!
@@ -1494,6 +1515,15 @@ bool tubes::optix_update_accelds (void)
 		indices.reserve(rdi.size()/2);
 		for (unsigned i=0; i<rdi.size(); i+=2)
 			indices.push_back(rdi[i]);
+		/*const vec3 &minp = bbox.get_min_pnt(), &maxp = bbox.get_max_pnt();
+		const vec3 p1(0.5f*(minp.x()+maxp.x()), maxp.y(), 0.5f*(minp.z()+maxp.z())),
+		           p2(        maxp.x(),         minp.y(),         maxp.z()        );
+		positions.reserve(num); //radii.reserve(num);
+		positions.emplace_back(make_float3(minp.x(), minp.y(), minp.z())); //radii.push_back(.5f);
+		positions.emplace_back(make_float3(maxp.x(), maxp.y(), maxp.z())); //radii.push_back(.5f);
+		//positions.emplace_back(make_float3(  p2.x(),   p2.y(),   p2.z()));
+		indices.reserve(1);
+		indices.push_back(0); //indices.push_back(1);// indices.push_back(2);*/
 	}
 
 	// track success - we don't immediately fail and return since the code in this function is not robust to failure
@@ -1519,7 +1549,7 @@ bool tubes::optix_update_accelds (void)
 	input_desc.type = OPTIX_BUILD_INPUT_TYPE_CURVES;
 	input_desc.curveArray.curveType = optix.subdivide ?
 		  OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
-		: OPTIX_PRIMITIVE_TYPE_ROUND_CATMULLROM;
+		: OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR/*OPTIX_PRIMITIVE_TYPE_ROUND_CATMULLROM*/;
 	input_desc.curveArray.numPrimitives = (unsigned)indices.size();
 	input_desc.curveArray.vertexBuffers = &positions_dev;
 	input_desc.curveArray.numVertices = num;
@@ -1561,6 +1591,7 @@ bool tubes::optix_update_accelds (void)
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(tmpbuf)));
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(positions_dev)));
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(radii_dev)));
+	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(indices_dev)));
 
 	// done!
 	return success;
@@ -1600,7 +1631,7 @@ bool tubes::optix_update_pipeline (void)
 
 		pipeline_options.usesMotionBlur = false;  // disable motion-blur in pipeline
 		pipeline_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-		pipeline_options.numPayloadValues = 3;
+		pipeline_options.numPayloadValues = 4;
 		pipeline_options.numAttributeValues = 1;
 	#ifdef _DEBUG  // Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
 		pipeline_options.exceptionFlags =
@@ -1611,7 +1642,7 @@ bool tubes::optix_update_pipeline (void)
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
 		pipeline_options.usesPrimitiveTypeFlags = optix.subdivide ?
 			  OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
-			: OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_CATMULLROM;
+			: OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR/*OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_CATMULLROM*/;
 
 		const std::vector<char> ptx = compile_cu2ptx(CUR_SRC_FILE_DIR+"/optix_curves.cu", "optix_curves", &compiler_log);
 		const size_t            ptx_size = ptx.size();
@@ -1631,7 +1662,7 @@ bool tubes::optix_update_pipeline (void)
 		OptixBuiltinISOptions builtin_isectshader_options = {};
 		builtin_isectshader_options.builtinISModuleType = optix.subdivide ?
 			  OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
-			: OPTIX_PRIMITIVE_TYPE_ROUND_CATMULLROM;
+			: OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR/*OPTIX_PRIMITIVE_TYPE_ROUND_CATMULLROM*/;
 		builtin_isectshader_options.usesMotionBlur = false;
 		OPTIX_CHECK_SET(
 			optixBuiltinISModuleGet(optix.context, &mod_options, &pipeline_options, &builtin_isectshader_options, &optix.mod_geom),
@@ -1760,7 +1791,7 @@ bool tubes::optix_update_pipeline (void)
 		size_t      miss_record_size = sizeof(sbt_record_miss);
 		CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&miss_record), miss_record_size), success);
 		sbt_record_miss ms_sbt;
-		ms_sbt.data = { 0.0f, 0.2f, 0.6f };  // background color (blue)
+		ms_sbt.data = {0.0f, 0.0f, 0.0f, 0.0f};  // background color (fully transparent black)
 		OPTIX_CHECK_SET(optixSbtRecordPackHeader(optix.prg_miss, &ms_sbt), success);
 		CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(miss_record), &ms_sbt, miss_record_size, cudaMemcpyHostToDevice), success);
 		// - hit shaders
@@ -1782,8 +1813,78 @@ bool tubes::optix_update_pipeline (void)
 		optix.sbt.hitgroupRecordCount = 1;
 	}
 
+	// Create the device memory for our launch params
+	// ToDo: not necessarily the best place for this here!
+	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&optix.params_buf), sizeof(curve_rt_params)), success);
+
+	// Create the cuda async stream for result retrieval
+	// ToDo: not necessarily the best place for this here!
+	CUDA_CHECK_SET(cudaStreamCreate(&optix.stream), success);
+	optix.outbuf.set_stream(optix.stream);
+
 	// done!
 	return success;
+}
+
+void tubes::optix_draw_trajectories (context &ctx)
+{
+	////
+	// Launch OptiX
+
+	/* local scope */ {
+		// prepare camera info
+		const float aspect = float(ctx.get_width())/float(ctx.get_height()),
+		            optixV_len = (float)view_ptr->get_tan_of_half_of_fovy(true),
+		            optixU_len = optixV_len * aspect;
+		const vec3 &eye = view_ptr->get_eye(),
+		           optixW = cgv::math::normalize(view_ptr->get_view_dir()),
+		           optixV = cgv::math::normalize(view_ptr->get_view_up_dir()) * optixV_len,
+		           optixU = cgv::math::normalize(cgv::math::cross(optixW, optixV)) * optixU_len;
+
+		// setup params for our launch
+		// - set parameter values
+		curve_rt_params params;
+		params.image = optix.outbuf.map();
+		params.image_width = optix.outbuf.width();
+		params.image_height = optix.outbuf.height();
+		params.handle = optix.accelds;
+		params.cam_eye = make_float3(eye.x(), eye.y(), eye.z());
+		params.cam_u = make_float3(optixU.x(), optixU.y(), optixU.z());
+		params.cam_v = make_float3(optixV.x(), optixV.y(), optixV.z());
+		params.cam_w = make_float3(optixW.x(), optixW.y(), optixW.z());
+		// - upload to device
+		CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(optix.params_buf), &params, sizeof(params), cudaMemcpyHostToDevice));
+
+		// Launch!
+		OPTIX_CHECK(optixLaunch(
+			optix.pipeline, optix.stream, optix.params_buf, sizeof(curve_rt_params), &optix.sbt, params.image_width, params.image_height, /*depth=*/1
+		));
+		CUDA_SYNC_CHECK();
+		optix.outbuf.unmap();
+	}
+
+	////
+	// Display results
+
+	if (!benchmark.running) {
+		// obtain the OptiX display shader program
+		static shader_program &display_prog = shaders.get("optix_display");
+
+		// transfer OptiX render result into our result texture
+		optix.outbuf.into_texture(ctx, optix.result_tex);
+
+		// Blend the result image onto the main framebuffer
+		display_prog.enable(ctx);
+		optix.result_tex.enable(ctx, 0);
+		glEnable(GL_BLEND);
+		glDisable(GL_DEPTH_TEST);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		glEnable(GL_DEPTH_TEST);
+		glDisable(GL_BLEND);
+		optix.result_tex.disable(ctx);
+		display_prog.disable(ctx);
+	}
 }
 
 // ###############################
@@ -1828,6 +1929,17 @@ void tubes::init_frame (cgv::render::context &ctx)
 
 	// keep the frame buffer up to date with the viewport size
 	fbc.ensure(ctx);
+
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	// keep the optix interop buffer up to date with the viewport size
+	optix.outbuf.resize(ctx.get_width(), ctx.get_height());
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
 
 	// query the current viewport dimensions as this is needed for multiple draw methods
 	glGetIntegerv(GL_VIEWPORT, viewport);
@@ -1939,7 +2051,8 @@ void tubes::draw (cgv::render::context &ctx)
 
 			switch(debug.render_mode) {
 			case DRM_NONE:
-				draw_trajectories(ctx);
+				if (!optix.enabled)
+					draw_trajectories(ctx);
 				break;
 			case DRM_NODES:
 				debug.node_rd.render(ctx, ref_sphere_renderer(ctx), debug.node_rs, 0, debug_idx_count);
@@ -1959,6 +2072,9 @@ void tubes::draw (cgv::render::context &ctx)
 
 			if (show_bbox)
 				bbox_rd.render(ctx, ref_box_renderer(ctx), bbox_style);
+
+			if (optix.enabled && debug.render_mode == DRM_NONE)
+				optix_draw_trajectories(ctx);
 		}
 
 		//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());

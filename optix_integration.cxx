@@ -10,6 +10,9 @@
 // OpenGL
 #include <GL/glew.h>
 
+// CGV framework
+#include <cgv/render/texture.h>
+
 // CUDA/Optix
 #include <nvrtc.h>
 #include <optix_function_table_definition.h>
@@ -116,7 +119,7 @@ cuda_output_buffer<pxl_fmt>::cuda_output_buffer(CUDAOutputBufferType type, int w
 	ensure_min_size(width, height);
  
 	// If using GL Interop, expect that the active device is also the display device.
-	if (type == CUDAOutputBufferType::GL_INTEROP)
+	if (type == CUOutBuf::GL_INTEROP)
 	{
 		int current_device, is_display_device;
 		CUDA_CHECK(cudaGetDevice(&current_device));
@@ -136,16 +139,16 @@ cuda_output_buffer<pxl_fmt>::~cuda_output_buffer()
 	{
 		initialized = false;
 		make_current();
-		if (m_type == CUDAOutputBufferType::CUDA_DEVICE || m_type == CUDAOutputBufferType::CUDA_P2P)
+		if (m_type == CUOutBuf::CUDA_DEVICE || m_type == CUOutBuf::CUDA_P2P)
 			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_device_pixels)));
-		else if (m_type == CUDAOutputBufferType::ZERO_COPY)
+		else if (m_type == CUOutBuf::ZERO_COPY)
 			CUDA_CHECK(cudaFreeHost(reinterpret_cast<void*>(m_host_zcopy_pixels)));
-		// no action needed for CUDAOutputBufferType::GL_INTEROP
+		// no action needed for CUOutBuf::GL_INTEROP
 
-		if (m_pbo != 0u)
-		{
+		if (m_pbo) {
 			GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, 0));
 			GL_CHECK(glDeleteBuffers(1, &m_pbo));
+			m_pbo = 0;
 		}
 	}
 	catch (std::exception& e) {
@@ -167,7 +170,7 @@ bool cuda_output_buffer<pxl_fmt>::reset (CUDAOutputBufferType type, int width, i
 	ensure_min_size(width, height);
 
 	// If using GL Interop, expect that the active device is also the display device.
-	if (type == CUDAOutputBufferType::GL_INTEROP)
+	if (type == CUOutBuf::GL_INTEROP)
 	{
 		int current_device, is_display_device;
 		CUDA_CHECK_FAIL(cudaGetDevice(&current_device));
@@ -185,13 +188,15 @@ bool cuda_output_buffer<pxl_fmt>::reset (CUDAOutputBufferType type, int width, i
 template <class pxl_fmt>
 bool cuda_output_buffer<pxl_fmt>::resize (int width, int height)
 {
-	// Output dimensions must be at least 1 in both x and y to avoid an error
-	// with cudaMalloc.
-	ensure_min_size(width, height);
-
+	// only do something if size actually changed
 	if (m_width == width && m_height == height)
 		return true;
 
+	// output dimensions must be at least 1 in both x and y to avoid an error
+	// with cudaMalloc.
+	ensure_min_size(width, height);
+
+	// commit new sizes
 	m_width = width;
 	m_height = height;
 
@@ -201,7 +206,7 @@ bool cuda_output_buffer<pxl_fmt>::resize (int width, int height)
 
 	success = success && make_current();
 
-	if (m_type == CUDAOutputBufferType::CUDA_DEVICE || m_type == CUDAOutputBufferType::CUDA_P2P)
+	if (m_type == CUOutBuf::CUDA_DEVICE || m_type == CUOutBuf::CUDA_P2P)
 	{
 		CUDA_CHECK_SET(cudaFree(reinterpret_cast<void*>(m_device_pixels)), success);
 		CUDA_CHECK_SET(
@@ -210,13 +215,13 @@ bool cuda_output_buffer<pxl_fmt>::resize (int width, int height)
 		);
 	}
 
-	if (m_type == CUDAOutputBufferType::GL_INTEROP || m_type == CUDAOutputBufferType::CUDA_P2P)
+	if (m_type == CUOutBuf::GL_INTEROP || m_type == CUOutBuf::CUDA_P2P)
 	{
-		// GL buffer gets resized below
-		GL_CHECK_SET(glGenBuffers(1, &m_pbo), success);
+		if (!m_pbo)
+			GL_CHECK_SET(glGenBuffers(1, &m_pbo), success);
 		GL_CHECK_SET(glBindBuffer(GL_ARRAY_BUFFER, m_pbo), success);
-		GL_CHECK_SET(glBufferData(GL_ARRAY_BUFFER, sizeof(pxl_fmt) * m_width * m_height, nullptr, GL_STREAM_DRAW), success);
-		GL_CHECK_SET(glBindBuffer(GL_ARRAY_BUFFER, 0u), success);
+		GL_CHECK_SET(glBufferData(GL_ARRAY_BUFFER, m_width*m_height*sizeof(pxl_fmt), nullptr, GL_STREAM_DRAW), success);
+		GL_CHECK_SET(glBindBuffer(GL_ARRAY_BUFFER, 0), success);
 
 		CUDA_CHECK_SET(
 			cudaGraphicsGLRegisterBuffer(&m_cuda_gfx_resource, m_pbo, cudaGraphicsMapFlagsWriteDiscard),
@@ -224,7 +229,7 @@ bool cuda_output_buffer<pxl_fmt>::resize (int width, int height)
 		);
 	}
 
-	if (m_type == CUDAOutputBufferType::ZERO_COPY)
+	if (m_type == CUOutBuf::ZERO_COPY)
 	{
 		CUDA_CHECK_SET(cudaFreeHost(reinterpret_cast<void*>(m_host_zcopy_pixels)), success);
 		CUDA_CHECK_SET(
@@ -243,27 +248,28 @@ bool cuda_output_buffer<pxl_fmt>::resize (int width, int height)
 		);
 	}
 
-	if (m_type != CUDAOutputBufferType::GL_INTEROP && m_type != CUDAOutputBufferType::CUDA_P2P && m_pbo != 0u)
+	if (m_type != CUOutBuf::GL_INTEROP && m_type != CUOutBuf::CUDA_P2P && m_pbo)
 	{
 		GL_CHECK_SET(glBindBuffer(GL_ARRAY_BUFFER, m_pbo), success);
-		GL_CHECK_SET(glBufferData(GL_ARRAY_BUFFER, sizeof(pxl_fmt) * m_width * m_height, nullptr, GL_STREAM_DRAW), success);
-		GL_CHECK_SET(glBindBuffer(GL_ARRAY_BUFFER, 0u), success);
+		GL_CHECK_SET(glBufferData(GL_ARRAY_BUFFER, m_width*m_height*sizeof(pxl_fmt), nullptr, GL_STREAM_DRAW), success);
+		GL_CHECK_SET(glBindBuffer(GL_ARRAY_BUFFER, 0), success);
 	}
 
 	if (!m_host_pixels.empty())
 		m_host_pixels.resize(m_width*m_height);
 
+	initialized = true;
 	return success;
 }
 
 template <class pxl_fmt>
 pxl_fmt* cuda_output_buffer<pxl_fmt>::map (void)
 {
-	if (m_type == CUDAOutputBufferType::GL_INTEROP)
+	if (m_type == CUOutBuf::GL_INTEROP)
 	{
 		make_current();
 
-		size_t buffer_size = 0u;
+		size_t buffer_size = 0;
 		CUDA_CHECK(cudaGraphicsMapResources(1, &m_cuda_gfx_resource, m_stream));
 		CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(
 			reinterpret_cast<void**>(&m_device_pixels),
@@ -281,23 +287,23 @@ void cuda_output_buffer<pxl_fmt>::unmap (void)
 {
 	make_current();
 
-	if (m_type == CUDAOutputBufferType::CUDA_DEVICE || m_type == CUDAOutputBufferType::CUDA_P2P)
+	if (m_type == CUOutBuf::CUDA_DEVICE || m_type == CUOutBuf::CUDA_P2P)
 		CUDA_CHECK(cudaStreamSynchronize(m_stream));
-	else if (m_type == CUDAOutputBufferType::GL_INTEROP)
+	else if (m_type == CUOutBuf::GL_INTEROP)
 		CUDA_CHECK(cudaGraphicsUnmapResources(1, &m_cuda_gfx_resource, m_stream));
-	else // m_type == CUDAOutputBufferType::ZERO_COPY
+	else // m_type == CUOutBuf::ZERO_COPY
 		CUDA_CHECK(cudaStreamSynchronize(m_stream));
 }
 
 template <class pxl_fmt>
 GLuint cuda_output_buffer<pxl_fmt>::get_pbo (void)
 {
-	if (m_pbo == 0u)
+	if (m_pbo == 0)
 		GL_CHECK(glGenBuffers(1, &m_pbo));
 
-	const size_t buffer_size = m_width * m_height * sizeof(pxl_fmt);
+	const size_t buffer_size = m_width*m_height*sizeof(pxl_fmt);
 
-	if (m_type == CUDAOutputBufferType::CUDA_DEVICE)
+	if (m_type == CUOutBuf::CUDA_DEVICE)
 	{
 		// We need a host buffer to act as a way-station
 		if (m_host_pixels.empty())
@@ -320,9 +326,9 @@ GLuint cuda_output_buffer<pxl_fmt>::get_pbo (void)
 		));
 		GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, 0));
 	}
-	else if (m_type == CUDAOutputBufferType::GL_INTEROP)
+	else if (m_type == CUOutBuf::GL_INTEROP)
 		/* DoNothing() */;	// <-- no action needed
-	else if (m_type == CUDAOutputBufferType::CUDA_P2P)
+	else if (m_type == CUOutBuf::CUDA_P2P)
 	{
 		make_current();
 		void* pbo_buff = nullptr;
@@ -333,7 +339,7 @@ GLuint cuda_output_buffer<pxl_fmt>::get_pbo (void)
 		CUDA_CHECK(cudaMemcpy(pbo_buff, m_device_pixels, buffer_size, cudaMemcpyDeviceToDevice));
 		CUDA_CHECK(cudaGraphicsUnmapResources(1, &m_cuda_gfx_resource, m_stream));
 	}
-	else // m_type == CUDAOutputBufferType::ZERO_COPY
+	else // m_type == CUOutBuf::ZERO_COPY
 	{
 		GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, m_pbo));
 		GL_CHECK(glBufferData(
@@ -362,24 +368,74 @@ void cuda_output_buffer<pxl_fmt>::delete_pbo (void)
 template <class pxl_fmt>
 pxl_fmt* cuda_output_buffer<pxl_fmt>::get_host_ptr (void)
 {
-	if (m_type == CUDAOutputBufferType::CUDA_DEVICE || m_type == CUDAOutputBufferType::CUDA_P2P ||
-	    m_type == CUDAOutputBufferType::GL_INTEROP)
+	if (m_type == CUOutBuf::CUDA_DEVICE || m_type == CUOutBuf::CUDA_P2P || m_type == CUOutBuf::GL_INTEROP)
 	{
 		m_host_pixels.resize(m_width * m_height);
 
 		make_current();
 		CUDA_CHECK(cudaMemcpy(
-			static_cast<void*>(m_host_pixels.data()),
-			map(),
-			m_width * m_height * sizeof(pxl_fmt),
-			cudaMemcpyDeviceToHost
+			static_cast<void*>(m_host_pixels.data()), map(), m_width*m_height*sizeof(pxl_fmt), cudaMemcpyDeviceToHost
 		));
 		unmap();
 
 		return m_host_pixels.data();
 	}
-	else // m_type == CUDAOutputBufferType::ZERO_COPY
+	else // m_type == CUOutBuf::ZERO_COPY
 		return m_host_zcopy_pixels;
+}
+
+template <class pxl_fmt>
+bool cuda_output_buffer<pxl_fmt>::into_texture (cgv::render::context &ctx, cgv::render::texture &tex)
+{
+	// for now, we only support GL interop for this
+	if ((m_type != CUOutBuf::GL_INTEROP && m_type != CUOutBuf::CUDA_DEVICE) || !get_pbo())
+		return false;
+
+	// lazy-create texture
+	const bool lazy_tex = !tex.is_created();
+	if (lazy_tex)
+		tex = cgv::render::texture("uint8[R,G,B,A]");
+	else
+	{
+		// indicate resolution in case it changed
+		tex.set_resolution(0, m_width);
+		tex.set_resolution(1, m_height);
+	}
+
+	// track success - we don't immediately fail and return from here on since the code in this function is not robust
+	// to failure (i.e. doesn't use RAII) so doing that would leave OpenGL in uncertain state for the caller
+	bool success = true;
+
+	// bind the pbo
+	GL_CHECK_SET(glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pbo), success);
+	GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 4), success);
+	const size_t elmt_size = sizeof(pxl_fmt);
+	if      (elmt_size % 8 == 0)  GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 8), success);
+	else if (elmt_size % 4 == 0)  GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 4), success);
+	else if (elmt_size % 2 == 0)  GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 2), success);
+	else                          GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 1), success);
+
+	// update texture
+	if (lazy_tex)
+		tex.create_from_buffer(ctx, 0, 0, m_width, m_height);
+		// ToDo: check if a new create_... method is needed that can copy from PBO
+	//else
+	{
+		// we will do bare-metal operations now, so retreive GL texture object handle
+		const GLuint hTex = (GLuint)(size_t)tex.handle - 1;
+
+		// initiate async transfer to texture
+		GL_CHECK_SET(glActiveTexture(GL_TEXTURE0), success);
+		GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, hTex), success);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_width, m_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+		GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, 0), success);
+	}
+
+	// unbind the pbo
+	GL_CHECK_SET(glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0), success);
+
+	// done!
+	return success;
 }
 
 
@@ -391,16 +447,16 @@ pxl_fmt* cuda_output_buffer<pxl_fmt>::get_host_ptr (void)
 
 // Only variants for CUDA-compatible integral types are intended
 // - single-byte components
-template class cuda_output_buffer<char1>;
+/*template class cuda_output_buffer<char1>;
 template class cuda_output_buffer<uchar1>;
 template class cuda_output_buffer<char2>;
 template class cuda_output_buffer<uchar2>;
 template class cuda_output_buffer<char3>;
 template class cuda_output_buffer<uchar3>;
-template class cuda_output_buffer<char4>;
+template class cuda_output_buffer<char4>;*/
 template class cuda_output_buffer<uchar4>;
 // - two-byte components
-template class cuda_output_buffer<short1>;
+/*template class cuda_output_buffer<short1>;
 template class cuda_output_buffer<ushort1>;
 template class cuda_output_buffer<short2>;
 template class cuda_output_buffer<ushort2>;
@@ -443,4 +499,4 @@ template class cuda_output_buffer<float4>;
 template class cuda_output_buffer<double1>;
 template class cuda_output_buffer<double2>;
 template class cuda_output_buffer<double3>;
-template class cuda_output_buffer<double4>;
+template class cuda_output_buffer<double4>;*/
