@@ -1495,7 +1495,7 @@ bool tubes::optix_update_accelds (void)
 	// compact representation for OptiX due to the available special curve segment indexing mode
 	unsigned num;
 	std::vector<float3> positions;
-	//std::vector<float> radii;
+	std::vector<float> radii;
 	std::vector<unsigned> indices;
 	if (optix.subdivide)
 		// ToDo: not yet implemented!!!
@@ -1503,27 +1503,51 @@ bool tubes::optix_update_accelds (void)
 	else
 	{
 		// prepare CPU-side vertex staging area
-		num = (unsigned)render.data->positions.size();
-		positions.reserve(num);
+		const auto &rd_pos = render.data->positions;
+		const auto &rd_tan = render.data->tangents;
+		const auto &rd_rad = render.data->radii;
+		const auto &rd_idx = render.data->indices;
+		num = (unsigned)rd_pos.size();
+		positions.reserve(num + 2*render.data->datasets[0].trajs.size());
+		radii.reserve(positions.capacity());
+		indices.reserve(render.data->indices.size()/2 + render.data->datasets[0].trajs.size());
 
-		// convert to device float3
-		for (const auto &pos : render.data->positions)
-			positions.emplace_back(make_float3(pos.x(), pos.y(), pos.z()));
-
-		// prepare indices
-		const auto &rdi = render.data->indices;
-		indices.reserve(rdi.size()/2);
-		for (unsigned i=0; i<rdi.size(); i+=2)
-			indices.push_back(rdi[i]);
-		/*const vec3 &minp = bbox.get_min_pnt(), &maxp = bbox.get_max_pnt();
-		const vec3 p1(0.5f*(minp.x()+maxp.x()), maxp.y(), 0.5f*(minp.z()+maxp.z())),
-		           p2(        maxp.x(),         minp.y(),         maxp.z()        );
-		positions.reserve(num); //radii.reserve(num);
-		positions.emplace_back(make_float3(minp.x(), minp.y(), minp.z())); //radii.push_back(.5f);
-		positions.emplace_back(make_float3(maxp.x(), maxp.y(), maxp.z())); //radii.push_back(.5f);
-		//positions.emplace_back(make_float3(  p2.x(),   p2.y(),   p2.z()));
-		indices.reserve(1);
-		indices.push_back(0); //indices.push_back(1);// indices.push_back(2);*/
+		// convert data representation:
+		// - add 0th and n+1th vertex to every trajectory for Catmull-Rom to work
+		// - adapt indices accordingly
+		// - convert to device float3
+		unsigned idx_offset = 0;
+		unsigned count = 0;
+		for (const auto &ds : render.data->datasets)
+		{
+			for (const auto &traj : ds.trajs)
+			{
+				unsigned i0 = rd_idx[traj.i0];
+				vec3 pos0 = rd_pos[i0] - vec3(rd_tan[i0]);
+				positions.emplace_back(make_float3(pos0.x(), pos0.y(), pos0.z()));
+				radii.push_back(rd_rad[i0]);
+				const unsigned num_segs = traj.n/2;
+				for (unsigned i=0; i<num_segs; i++)
+				{
+					const unsigned i_cur = i0+i;
+					const vec3 &pos = rd_pos[i_cur];
+					positions.emplace_back(make_float3(pos.x(), pos.y(), pos.z()));
+					radii.push_back(rd_rad[i_cur]);
+					indices.push_back(idx_offset + i);
+				}
+				i0 = rd_idx[traj.i0 + traj.n-1];
+				const vec3 &pos = rd_pos[i0];
+				positions.emplace_back(make_float3(pos.x(), pos.y(), pos.z()));
+				radii.push_back(rd_rad[i0]);
+				pos0 = pos + vec3(rd_tan[i0]);
+				positions.emplace_back(make_float3(pos0.x(), pos0.y(), pos0.z()));
+				radii.push_back(rd_rad[i0]);
+				idx_offset += num_segs + 3; // <-- includes the additional 0th and n+1th Catmull-Rom nodes
+				count++;
+			}
+		}
+		// update our number of nodes
+		num = (unsigned)positions.size();
 	}
 
 	// track success - we don't immediately fail and return since the code in this function is not robust to failure
@@ -1536,7 +1560,7 @@ bool tubes::optix_update_accelds (void)
 	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&positions_dev), positions_size), success);
 	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(positions_dev), positions.data(), positions_size, cudaMemcpyHostToDevice), success);
 	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&radii_dev), radii_size), success);
-	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(radii_dev), render.data->radii.data(), radii_size, cudaMemcpyHostToDevice), success);
+	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(radii_dev), radii.data(), radii_size, cudaMemcpyHostToDevice), success);
 
 	// upload segment indices
 	CUdeviceptr indices_dev = 0;
@@ -1549,7 +1573,7 @@ bool tubes::optix_update_accelds (void)
 	input_desc.type = OPTIX_BUILD_INPUT_TYPE_CURVES;
 	input_desc.curveArray.curveType = optix.subdivide ?
 		  OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
-		: OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR/*OPTIX_PRIMITIVE_TYPE_ROUND_CATMULLROM*/;
+		: /*OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR;//*/OPTIX_PRIMITIVE_TYPE_ROUND_CATMULLROM;
 	input_desc.curveArray.numPrimitives = (unsigned)indices.size();
 	input_desc.curveArray.vertexBuffers = &positions_dev;
 	input_desc.curveArray.numVertices = num;
@@ -1641,8 +1665,8 @@ bool tubes::optix_update_pipeline (void)
 	#endif
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
 		pipeline_options.usesPrimitiveTypeFlags = optix.subdivide ?
-			  OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
-			: OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR/*OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_CATMULLROM*/;
+			OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
+			: /*OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR;//*/OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_CATMULLROM;
 
 		const std::vector<char> ptx = compile_cu2ptx(CUR_SRC_FILE_DIR+"/optix_curves.cu", "optix_curves", &compiler_log);
 		const size_t            ptx_size = ptx.size();
@@ -1662,7 +1686,7 @@ bool tubes::optix_update_pipeline (void)
 		OptixBuiltinISOptions builtin_isectshader_options = {};
 		builtin_isectshader_options.builtinISModuleType = optix.subdivide ?
 			  OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
-			: OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR/*OPTIX_PRIMITIVE_TYPE_ROUND_CATMULLROM*/;
+			: /*OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR;//*/OPTIX_PRIMITIVE_TYPE_ROUND_CATMULLROM;
 		builtin_isectshader_options.usesMotionBlur = false;
 		OPTIX_CHECK_SET(
 			optixBuiltinISModuleGet(optix.context, &mod_options, &pipeline_options, &builtin_isectshader_options, &optix.mod_geom),
