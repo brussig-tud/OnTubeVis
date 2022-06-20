@@ -1446,7 +1446,8 @@ bool tubes::init (cgv::render::context &ctx)
 	OPTIX_CHECK_SET(optixDeviceContextCreate(cuCtx, &options, &optix.context), success);
 
 	// setup optix launch environment
-	success = success && optix.outbuf.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+	success = success && optix.outbuf_depth.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
 	success = success && optix_update_accelds();
 	success = success && optix_update_pipeline();
 
@@ -1655,7 +1656,7 @@ bool tubes::optix_update_pipeline (void)
 
 		pipeline_options.usesMotionBlur = false;  // disable motion-blur in pipeline
 		pipeline_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-		pipeline_options.numPayloadValues = 4;
+		pipeline_options.numPayloadValues = 5;
 		pipeline_options.numAttributeValues = 1;
 	#ifdef _DEBUG  // Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
 		pipeline_options.exceptionFlags =
@@ -1844,7 +1845,8 @@ bool tubes::optix_update_pipeline (void)
 	// Create the cuda async stream for result retrieval
 	// ToDo: not necessarily the best place for this here!
 	CUDA_CHECK_SET(cudaStreamCreate(&optix.stream), success);
-	optix.outbuf.set_stream(optix.stream);
+	optix.outbuf_albedo.set_stream(optix.stream);
+	optix.outbuf_depth.set_stream(optix.stream);
 
 	// done!
 	return success;
@@ -1868,11 +1870,13 @@ void tubes::optix_draw_trajectories (context &ctx)
 		// setup params for our launch
 		// - set parameter values
 		curve_rt_params params;
-		params.image = optix.outbuf.map();
-		params.image_width = optix.outbuf.width();
-		params.image_height = optix.outbuf.height();
+		params.albedo = optix.outbuf_albedo.map();
+		params.depth = optix.outbuf_depth.map();
+		params.image_width = optix.outbuf_albedo.width();
+		params.image_height = optix.outbuf_albedo.height();
 		params.handle = optix.accelds;
 		params.cam_eye = make_float3(eye.x(), eye.y(), eye.z());
+		params.cam_clip = make_float2(.1f, 128.f);
 		params.cam_u = make_float3(optixU.x(), optixU.y(), optixU.z());
 		params.cam_v = make_float3(optixV.x(), optixV.y(), optixV.z());
 		params.cam_w = make_float3(optixW.x(), optixW.y(), optixW.z());
@@ -1884,7 +1888,8 @@ void tubes::optix_draw_trajectories (context &ctx)
 			optix.pipeline, optix.stream, optix.params_buf, sizeof(curve_rt_params), &optix.sbt, params.image_width, params.image_height, /*depth=*/1
 		));
 		CUDA_SYNC_CHECK();
-		optix.outbuf.unmap();
+		optix.outbuf_depth.unmap();
+		optix.outbuf_albedo.unmap();
 	}
 
 	////
@@ -1895,18 +1900,19 @@ void tubes::optix_draw_trajectories (context &ctx)
 		static shader_program &display_prog = shaders.get("optix_display");
 
 		// transfer OptiX render result into our result texture
-		optix.outbuf.into_texture(ctx, optix.result_tex);
+		optix.outbuf_albedo.into_texture(ctx, optix.tex_albedo);
+		optix.outbuf_depth.into_texture(ctx, optix.tex_depth);
 
 		// Blend the result image onto the main framebuffer
 		display_prog.enable(ctx);
-		optix.result_tex.enable(ctx, 0);
+		optix.tex_albedo.enable(ctx, 0);
 		glEnable(GL_BLEND);
 		glDisable(GL_DEPTH_TEST);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 		glEnable(GL_DEPTH_TEST);
 		glDisable(GL_BLEND);
-		optix.result_tex.disable(ctx);
+		optix.tex_albedo.disable(ctx);
 		display_prog.disable(ctx);
 	}
 }
@@ -1959,7 +1965,9 @@ void tubes::init_frame (cgv::render::context &ctx)
 	// ###############################
 
 	// keep the optix interop buffer up to date with the viewport size
-	optix.outbuf.resize(ctx.get_width(), ctx.get_height());
+	const unsigned w=ctx.get_width(), h=ctx.get_height();
+	optix.outbuf_albedo.resize(w, h);
+	optix.outbuf_depth.resize(w, h);
 
 	// ###############################
 	// ###  END:  OptiX integration

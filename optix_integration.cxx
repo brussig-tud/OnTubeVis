@@ -95,6 +95,20 @@ std::vector<char> compile_cu2ptx (
 	return std::move(ptx);
 }
 
+template <>
+const std::string& ref_cgv_format_string<uchar4> (void)
+{
+	const static std::string fmt("uint8[R,G,B,A]");
+	return fmt;
+}
+
+template <>
+const std::string& ref_cgv_format_string<float1>(void)
+{
+	const static std::string fmt("flt32[D]");
+	return fmt;
+}
+
 
 
 //////
@@ -394,7 +408,7 @@ bool cuda_output_buffer<pxl_fmt>::into_texture (cgv::render::context &ctx, cgv::
 	// lazy-create texture
 	const bool lazy_tex = !tex.is_created();
 	if (lazy_tex)
-		tex = cgv::render::texture("uint8[R,G,B,A]");
+		tex = cgv::render::texture(ref_cgv_format_string<pxl_fmt>());
 	else
 	{
 		// indicate resolution in case it changed
@@ -489,10 +503,10 @@ template class cuda_output_buffer<ulonglong2>;
 template class cuda_output_buffer<longlong3>;
 template class cuda_output_buffer<ulonglong3>;
 template class cuda_output_buffer<longlong4>;
-template class cuda_output_buffer<ulonglong4>;
+template class cuda_output_buffer<ulonglong4>;*/
 // - single-precision floating point components
 template class cuda_output_buffer<float1>;
-template class cuda_output_buffer<float2>;
+/*template class cuda_output_buffer<float2>;
 template class cuda_output_buffer<float3>;
 template class cuda_output_buffer<float4>;
 // - double-precision floating point components

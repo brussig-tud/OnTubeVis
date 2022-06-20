@@ -45,12 +45,13 @@ __forceinline__ __device__ uchar4 make_rgba (const float4 &c)
 	return make_uchar4(quantizeUnsigned8Bits(c.x), quantizeUnsigned8Bits(c.y), quantizeUnsigned8Bits(c.z), quantizeUnsigned8Bits(c.w));
 }
 
-static __forceinline__ __device__ void setPayload (float4 p)
+static __forceinline__ __device__ void setPayload (float4 p, float d)
 {
 	optixSetPayload_0(float_as_int(p.x));
 	optixSetPayload_1(float_as_int(p.y));
 	optixSetPayload_2(float_as_int(p.z));
 	optixSetPayload_3(float_as_int(p.w));
+	optixSetPayload_4(float_as_int(d));
 }
 
 
@@ -81,7 +82,7 @@ extern "C" __global__ void __raygen__basic (void)
 	computeRay(idx, dim, ray_origin, ray_direction);
 
 	// Trace the ray against our scene hierarchy
-	unsigned int p0, p1, p2, p3;
+	unsigned int p0, p1, p2, p3, p4;
 	optixTrace(
 		params.handle,
 		ray_origin,
@@ -94,22 +95,27 @@ extern "C" __global__ void __raygen__basic (void)
 		0,                   // SBT offset   -- See SBT discussion
 		1,                   // SBT stride   -- See SBT discussion
 		0,                   // missSBTIndex -- See SBT discussion
-		p0, p1, p2, p3);
+		p0, p1, p2, p3, p4);
 	float4 result;
+	float1 depth;
 	result.x = int_as_float(p0);
 	result.y = int_as_float(p1);
 	result.z = int_as_float(p2);
 	result.w = int_as_float(p3);
+	depth.x  = int_as_float(p4);
 
 	// Record results in our output raster
-	params.image[idx.y*params.image_width + idx.x] = make_rgba(result);
+	const unsigned pxl = idx.y*params.image_width + idx.x;
+	params.albedo[pxl] = make_rgba(result);
+	params.depth[pxl] = depth;
 }
 
 
 extern "C" __global__ void __miss__ms (void)
 {
 	data_miss *data  = reinterpret_cast<data_miss*>(optixGetSbtDataPointer());
-	setPayload(data->bg_color);
+	setPayload(data->bg_color, 1.f);
+	//setPayload(make_float4(0.f, 0.f, 0.f, 1.f), 1.f);
 }
 
 
@@ -118,8 +124,11 @@ extern "C" __global__ void __closesthit__ch (void)
 	// When built-in curve intersection is used, the curve parameter u is provided
 	// by the OptiX API. The parameter’s range is [0,1] over the curve segment,
 	// with u=0 or u=1 only on the end caps.
-	float u = optixGetCurveParameter();
+	const float u = optixGetCurveParameter();
+	const float d = (optixGetRayTmax()-params.cam_clip.x)/(params.cam_clip.y - params.cam_clip.x)/*,
+	            d_color = 1.f-__saturatef(d)*/;
 
 	// linearly interpolate from red to green
-	setPayload(make_float4(1.0f-u, u, 0.0f, 1.0f));
+	setPayload(make_float4(1.0f-u, u, 0.0f, 1.0f), d);
+	//setPayload(make_float4(d_color, d_color, d_color, 1.f), d);
 }

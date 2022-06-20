@@ -431,6 +431,10 @@ inline const char* gl_error_string (GLenum error)
 // Classes
 //
 
+/// reference the CGV pixel format string corresponding to an element data type supported by cuda_output_buffer
+template <class pxl_fmt>
+const std::string& ref_cgv_format_string (void);
+
 /// manages an output buffer strategy for retrieving results of CUDA computations (shamelessly stolen
 /// from OptiX SDK samples)
 template <class pxl_fmt>
