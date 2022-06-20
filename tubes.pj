@@ -13,8 +13,8 @@ addIncDirs=[
 	INPUT_DIR."/3rd/peridetic",
 	INPUT_DIR."/3rd/wgs84mercator",
 	env["CUDA_PATH"]."/include",
-	env["OPTIX74_PATH"]."/include",
-	env["OPTIX74_PATH"]."/SDK"
+	env["OPTIX_PATH"]."/include",
+	env["OPTIX_PATH"]."/SDK"
 ];
 addLibDirs=[ [env["CUDA_PATH"]."/lib/x64", "all"] ];
 addMapDeps=[
