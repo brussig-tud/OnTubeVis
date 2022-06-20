@@ -69,7 +69,7 @@ static __forceinline__ __device__ float4 mul_mat_vec (const float *mat, const fl
 static __forceinline__ __device__ uchar4 make_rgba (const float4 &c)
 {
 	// first apply gamma, then convert to unsigned char
-	//float3 srgb = toSRGB(clamp(c, 0.0f, 1.0f));
+	//float3 srgb = toSRGB(clamp(c, 0.f, 1.f));
 	return make_uchar4(quantizeUnsigned8Bits(c.x), quantizeUnsigned8Bits(c.y), quantizeUnsigned8Bits(c.z), quantizeUnsigned8Bits(c.w));
 }
 
@@ -96,10 +96,10 @@ static __forceinline__ __device__ void computeRay (uint3 idx, uint3 dim, float3&
 	const float3 U = params.cam_u;
 	const float3 V = params.cam_v;
 	const float3 W = params.cam_w;
-	const float2 d = 2.0f * make_float2(
+	const float2 d = 2.f * make_float2(
 		static_cast<float>(idx.x) / static_cast<float>(dim.x),
 		static_cast<float>(idx.y) / static_cast<float>(dim.y)
-	) - 1.0f;
+	) - 1.f;
 
 	origin    = params.cam_eye;
 	direction = normalize(d.x * U + d.y * V + W);
@@ -123,9 +123,9 @@ extern "C" __global__ void __raygen__basic (void)
 		params.accelds,
 		ray_origin,
 		ray_direction,
-		0.0f,                // Min intersection distance
+		0.f,                 // Min intersection distance
 		1e16f,               // Max intersection distance
-		0.0f,                // rayTime -- used for motion blur
+		0.f,                 // rayTime -- used for motion blur
 		OptixVisibilityMask( 255 ), // Specify always visible
 		OPTIX_RAY_FLAG_NONE,
 		0,                   // SBT offset   -- See SBT discussion
@@ -157,20 +157,20 @@ extern "C" __global__ void __miss__ms (void)
 extern "C" __global__ void __closesthit__ch (void)
 {
 	// retrieve curve parameter, hitpoint and segment index
-	const float  u = optixGetCurveParameter();
+	const float  t = optixGetCurveParameter();
 	const float4 p = make_float4(calc_hit_point(), 1.f);
 	const unsigned segid = optixGetPrimitiveIndex();
 
 	// retrieve actual node data
-	float4 nodes[4];
+	float4 nodes[4]; // w-component contains radius
 	optixGetCatmullRomVertexData(
-		optixGetGASTraversableHandle(), segid, optixGetSbtGASIndex(), 0.0f, nodes
+		optixGetGASTraversableHandle(), segid, optixGetSbtGASIndex(), 0.f, nodes
 	);
 
 	// compute screen-space position of hitpoint for depth map creation
 	const float4 p_screen = mul_mat_vec(params.cam_mvp, p);
-	const float  d = .5f * (p_screen.z/p_screen.w) + .5f;
+	const float  d = .5f*(p_screen.z/p_screen.w) + .5f;
 
 	// linearly interpolate from red to green
-	set_payload(make_float4(1.0f-u, u, 0.0f, 1.0f), d);
+	set_payload(make_float4(1.f-t, t, 0.f, 1.f), d);
 }
