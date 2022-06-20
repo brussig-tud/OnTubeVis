@@ -109,6 +109,13 @@ const std::string& ref_cgv_format_string<float1>(void)
 	return fmt;
 }
 
+template <>
+const std::string& ref_cgv_format_string<float4>(void)
+{
+	const static std::string fmt("flt32[R,G,B,A]");
+	return fmt;
+}
+
 
 
 //////
@@ -408,12 +415,17 @@ bool cuda_output_buffer<pxl_fmt>::into_texture (cgv::render::context &ctx, cgv::
 	// lazy-create texture
 	const bool lazy_tex = !tex.is_created();
 	if (lazy_tex)
-		tex = cgv::render::texture(ref_cgv_format_string<pxl_fmt>());
+	{
+		tex = cgv::render::texture(
+			ref_cgv_format_string<pxl_fmt>(), cgv::render::TF_NEAREST, cgv::render::TF_NEAREST
+		);
+		tex.create(ctx, cgv::render::TT_2D, m_width, m_height, 0);
+	}
 	else
 	{
 		// indicate resolution in case it changed
-		tex.set_resolution(0, m_width);
-		tex.set_resolution(1, m_height);
+		tex.set_width(m_width);
+		tex.set_height(m_height);
 	}
 
 	// track success - we don't immediately fail and return from here on since the code in this function is not robust
@@ -422,28 +434,21 @@ bool cuda_output_buffer<pxl_fmt>::into_texture (cgv::render::context &ctx, cgv::
 
 	// bind the pbo
 	GL_CHECK_SET(glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pbo), success);
-	GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 4), success);
-	const size_t elmt_size = sizeof(pxl_fmt);
-	if      (elmt_size % 8 == 0)  GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 8), success);
-	else if (elmt_size % 4 == 0)  GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 4), success);
-	else if (elmt_size % 2 == 0)  GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 2), success);
+	const size_t elem_size = sizeof(pxl_fmt);
+	if      (elem_size % 8 == 0)  GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 8), success);
+	else if (elem_size % 4 == 0)  GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 4), success);
+	else if (elem_size % 2 == 0)  GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 2), success);
 	else                          GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 1), success);
 
 	// update texture
-	if (lazy_tex)
-		tex.create_from_buffer(ctx, 0, 0, m_width, m_height);
-		// ToDo: check if a new create_... method is needed that can copy from PBO
-	//else
-	{
-		// we will do bare-metal operations now, so retreive GL texture object handle
-		const GLuint hTex = (GLuint)(size_t)tex.handle - 1;
-
-		// initiate async transfer to texture
-		GL_CHECK_SET(glActiveTexture(GL_TEXTURE0), success);
-		GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, hTex), success);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_width, m_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-		GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, 0), success);
-	}
+	const GLuint hTex = (GLuint)(size_t)tex.handle - 1;
+	GL_CHECK_SET(glActiveTexture(GL_TEXTURE0), success);
+	GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, hTex), success);
+	if (elem_size == 16)
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_width, m_height, 0, GL_RGBA, GL_FLOAT, nullptr);
+	else if (elem_size == 4)
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, m_width, m_height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, 0), success);
 
 	// unbind the pbo
 	GL_CHECK_SET(glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0), success);
@@ -507,10 +512,10 @@ template class cuda_output_buffer<ulonglong4>;*/
 // - single-precision floating point components
 template class cuda_output_buffer<float1>;
 /*template class cuda_output_buffer<float2>;
-template class cuda_output_buffer<float3>;
+template class cuda_output_buffer<float3>;*/
 template class cuda_output_buffer<float4>;
 // - double-precision floating point components
-template class cuda_output_buffer<double1>;
+/*template class cuda_output_buffer<double1>;
 template class cuda_output_buffer<double2>;
 template class cuda_output_buffer<double3>;
 template class cuda_output_buffer<double4>;*/

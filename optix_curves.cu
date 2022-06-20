@@ -38,11 +38,47 @@ extern "C" {
 	__constant__ curve_rt_params params;
 }
 
-__forceinline__ __device__ uchar4 make_rgba (const float4 &c)
+/*static __forceinline__ __device__ float3 mul_mat_pos (const float *mat, const float3 &pos)
+{
+	float3 r;
+	r.x = mat[0]*pos.x + mat[4]*pos.y + mat[ 8]*pos.z + mat[12];
+	r.y = mat[1]*pos.x + mat[5]*pos.y + mat[ 9]*pos.z + mat[13];
+	r.z = mat[2]*pos.x + mat[6]*pos.y + mat[10]*pos.z + mat[14];
+	const float w = mat[3]*pos.x + mat[7]*pos.y + mat[11]*pos.z + mat[15];
+	r.x/=w; r.y/=w; r.z/=w;
+	return r;
+}
+static __forceinline__ __device__ float3 mul_mat_vec (const float *mat, const float3 &vec)
+{
+	float3 r;
+	r.x = mat[0]*vec.x + mat[4]*vec.y + mat[ 8]*vec.z;
+	r.y = mat[1]*vec.x + mat[5]*vec.y + mat[ 9]*vec.z;
+	r.z = mat[2]*vec.x + mat[6]*vec.y + mat[10]*vec.z;
+	return r;
+}*/
+static __forceinline__ __device__ float4 mul_mat_vec (const float *mat, const float4 &vec)
+{
+	float4 r;
+	r.x = mat[0]*vec.x + mat[4]*vec.y + mat[ 8]*vec.z + mat[12]*vec.w;
+	r.y = mat[1]*vec.x + mat[5]*vec.y + mat[ 9]*vec.z + mat[13]*vec.w;
+	r.z = mat[2]*vec.x + mat[6]*vec.y + mat[10]*vec.z + mat[14]*vec.w;
+	r.w = mat[3]*vec.x + mat[7]*vec.y + mat[11]*vec.z + mat[15]*vec.w;
+	return r;
+}
+
+static __forceinline__ __device__ uchar4 make_rgba (const float4 &c)
 {
 	// first apply gamma, then convert to unsigned char
 	//float3 srgb = toSRGB(clamp(c, 0.0f, 1.0f));
 	return make_uchar4(quantizeUnsigned8Bits(c.x), quantizeUnsigned8Bits(c.y), quantizeUnsigned8Bits(c.z), quantizeUnsigned8Bits(c.w));
+}
+
+static __forceinline__ __device__ float3 calc_hit_point (void)
+{
+    const float  t            = optixGetRayTmax();
+    const float3 rayOrigin    = optixGetWorldRayOrigin();
+    const float3 rayDirection = optixGetWorldRayDirection();
+    return rayOrigin + t*rayDirection;
 }
 
 static __forceinline__ __device__ void setPayload (float4 p, float d)
@@ -106,7 +142,7 @@ extern "C" __global__ void __raygen__basic (void)
 
 	// Record results in our output raster
 	const unsigned pxl = idx.y*params.image_width + idx.x;
-	params.albedo[pxl] = make_rgba(result);
+	params.albedo[pxl] = result;
 	params.depth[pxl] = depth;
 }
 
@@ -115,7 +151,6 @@ extern "C" __global__ void __miss__ms (void)
 {
 	data_miss *data  = reinterpret_cast<data_miss*>(optixGetSbtDataPointer());
 	setPayload(data->bg_color, 1.f);
-	//setPayload(make_float4(0.f, 0.f, 0.f, 1.f), 1.f);
 }
 
 
@@ -124,11 +159,12 @@ extern "C" __global__ void __closesthit__ch (void)
 	// When built-in curve intersection is used, the curve parameter u is provided
 	// by the OptiX API. The parameter’s range is [0,1] over the curve segment,
 	// with u=0 or u=1 only on the end caps.
-	const float u = optixGetCurveParameter();
-	const float d = (optixGetRayTmax()-params.cam_clip.x)/(params.cam_clip.y - params.cam_clip.x)/*,
-	            d_color = 1.f-__saturatef(d)*/;
+	const float  u = optixGetCurveParameter();
+	const float4 p = make_float4(calc_hit_point(), 1.f);
+	const float4 p_screen = mul_mat_vec(params.cam_mvp, p);
+	const float  d = .5f * (p_screen.z/p_screen.w) + .5f;
+	//printf("%f\n", d);
 
 	// linearly interpolate from red to green
 	setPayload(make_float4(1.0f-u, u, 0.0f, 1.0f), d);
-	//setPayload(make_float4(d_color, d_color, d_color, 1.f), d);
 }

@@ -28,13 +28,14 @@
 
 struct curve_rt_params
 {
-	uchar4*                albedo;
+	float4*                albedo;
 	float1*                depth;
 	unsigned int           image_width;
 	unsigned int           image_height;
 	float3                 cam_eye;
 	float3                 cam_u, cam_v, cam_w;
 	float2                 cam_clip;
+	float                  cam_mvp[16];
 	OptixTraversableHandle handle;
 };
 

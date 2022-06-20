@@ -1880,6 +1880,7 @@ void tubes::optix_draw_trajectories (context &ctx)
 		params.cam_u = make_float3(optixU.x(), optixU.y(), optixU.z());
 		params.cam_v = make_float3(optixV.x(), optixV.y(), optixV.z());
 		params.cam_w = make_float3(optixW.x(), optixW.y(), optixW.z());
+		*(mat4*)(&params.cam_mvp) = ctx.get_projection_matrix()*ctx.get_modelview_matrix();
 		// - upload to device
 		CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(optix.params_buf), &params, sizeof(params), cudaMemcpyHostToDevice));
 
@@ -1906,12 +1907,12 @@ void tubes::optix_draw_trajectories (context &ctx)
 		// Blend the result image onto the main framebuffer
 		display_prog.enable(ctx);
 		optix.tex_albedo.enable(ctx, 0);
+		optix.tex_depth.enable(ctx, 1);
 		glEnable(GL_BLEND);
-		glDisable(GL_DEPTH_TEST);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-		glEnable(GL_DEPTH_TEST);
 		glDisable(GL_BLEND);
+		optix.tex_depth.disable(ctx);
 		optix.tex_albedo.disable(ctx);
 		display_prog.disable(ctx);
 	}

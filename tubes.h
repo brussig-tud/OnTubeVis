@@ -102,7 +102,7 @@ protected:
 
 		// GL interop
 		CUstream stream = nullptr;
-		cuda_output_buffer<uchar4> outbuf_albedo;
+		cuda_output_buffer<float4> outbuf_albedo;
 		cuda_output_buffer<float1> outbuf_depth;
 		texture tex_albedo, tex_depth;
 	} optix;

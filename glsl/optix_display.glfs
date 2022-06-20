@@ -1,7 +1,8 @@
-#version 330 core
+#version 430
 
 // samplers
-uniform sampler2D optix_tex;
+layout(binding=0) uniform sampler2D albedo_tex;
+layout(binding=1) uniform sampler2D depth_tex;
 
 // attribute inputs
 in vec2 texcoord_fs;
@@ -12,5 +13,6 @@ out vec4 frag_color;
 // shader entry point
 void main()
 {
-	frag_color = texture2D(optix_tex, texcoord_fs);
+	frag_color = texture2D(albedo_tex, texcoord_fs);
+	gl_FragDepth = texture2D(depth_tex, texcoord_fs).r;
 }
