@@ -81,7 +81,7 @@ static __forceinline__ __device__ float3 calc_hit_point (void)
     return rayOrigin + t*rayDirection;
 }
 
-static __forceinline__ __device__ void setPayload (float4 p, float d)
+static __forceinline__ __device__ void set_payload (float4 p, float d)
 {
 	optixSetPayload_0(float_as_int(p.x));
 	optixSetPayload_1(float_as_int(p.y));
@@ -150,21 +150,27 @@ extern "C" __global__ void __raygen__basic (void)
 extern "C" __global__ void __miss__ms (void)
 {
 	data_miss *data  = reinterpret_cast<data_miss*>(optixGetSbtDataPointer());
-	setPayload(data->bgcolor, 1.f);
+	set_payload(data->bgcolor, 1.f);
 }
 
 
 extern "C" __global__ void __closesthit__ch (void)
 {
-	// When built-in curve intersection is used, the curve parameter u is provided
-	// by the OptiX API. The parameter’s range is [0,1] over the curve segment,
-	// with u=0 or u=1 only on the end caps.
+	// retrieve curve parameter, hitpoint and segment index
 	const float  u = optixGetCurveParameter();
 	const float4 p = make_float4(calc_hit_point(), 1.f);
+	const unsigned segid = optixGetPrimitiveIndex();
+
+	// retrieve actual node data
+	float4 nodes[4];
+	optixGetCatmullRomVertexData(
+		optixGetGASTraversableHandle(), segid, optixGetSbtGASIndex(), 0.0f, nodes
+	);
+
+	// compute screen-space position of hitpoint for depth map creation
 	const float4 p_screen = mul_mat_vec(params.cam_mvp, p);
 	const float  d = .5f * (p_screen.z/p_screen.w) + .5f;
-	//printf("%f\n", d);
 
 	// linearly interpolate from red to green
-	setPayload(make_float4(1.0f-u, u, 0.0f, 1.0f), d);
+	set_payload(make_float4(1.0f-u, u, 0.0f, 1.0f), d);
 }
