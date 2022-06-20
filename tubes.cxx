@@ -1587,6 +1587,7 @@ bool tubes::optix_update_accelds (void)
 	input_desc.curveArray.indexStrideInBytes = sizeof(unsigned);
 	input_desc.curveArray.flag = OPTIX_GEOMETRY_FLAG_NONE;
 	input_desc.curveArray.primitiveIndexOffset = 0;
+	input_desc.curveArray.endcapFlags = OPTIX_CURVE_ENDCAP_ON;
 
 	OptixAccelBufferSizes accelds_buffer_sizes = {0};
 	OPTIX_CHECK_SET(
@@ -1654,7 +1655,6 @@ bool tubes::optix_update_pipeline (void)
 		mod_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
 		mod_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
 
-		pipeline_options.usesMotionBlur = false;  // disable motion-blur in pipeline
 		pipeline_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
 		pipeline_options.numPayloadValues = 5;
 		pipeline_options.numAttributeValues = 1;
@@ -1688,7 +1688,7 @@ bool tubes::optix_update_pipeline (void)
 		builtin_isectshader_options.builtinISModuleType = optix.subdivide ?
 			  OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
 			: /*OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR;//*/OPTIX_PRIMITIVE_TYPE_ROUND_CATMULLROM;
-		builtin_isectshader_options.usesMotionBlur = false;
+		builtin_isectshader_options.curveEndcapFlags = OPTIX_CURVE_ENDCAP_ON;
 		OPTIX_CHECK_SET(
 			optixBuiltinISModuleGet(optix.context, &mod_options, &pipeline_options, &builtin_isectshader_options, &optix.mod_geom),
 			success
@@ -1872,9 +1872,9 @@ void tubes::optix_draw_trajectories (context &ctx)
 		curve_rt_params params;
 		params.albedo = optix.outbuf_albedo.map();
 		params.depth = optix.outbuf_depth.map();
-		params.image_width = optix.outbuf_albedo.width();
-		params.image_height = optix.outbuf_albedo.height();
-		params.handle = optix.accelds;
+		params.fb_width = optix.outbuf_albedo.width();
+		params.fb_height = optix.outbuf_albedo.height();
+		params.accelds = optix.accelds;
 		params.cam_eye = make_float3(eye.x(), eye.y(), eye.z());
 		params.cam_clip = make_float2(.1f, 128.f);
 		params.cam_u = make_float3(optixU.x(), optixU.y(), optixU.z());
@@ -1886,7 +1886,7 @@ void tubes::optix_draw_trajectories (context &ctx)
 
 		// Launch!
 		OPTIX_CHECK(optixLaunch(
-			optix.pipeline, optix.stream, optix.params_buf, sizeof(curve_rt_params), &optix.sbt, params.image_width, params.image_height, /*depth=*/1
+			optix.pipeline, optix.stream, optix.params_buf, sizeof(curve_rt_params), &optix.sbt, params.fb_width, params.fb_height, /*depth=*/1
 		));
 		CUDA_SYNC_CHECK();
 		optix.outbuf_depth.unmap();

@@ -1,42 +1,42 @@
+
+//////
 //
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Includes
 //
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions
-// are met:
-//  * Redistributions of source code must retain the above copyright
-//    notice, this list of conditions and the following disclaimer.
-//  * Redistributions in binary form must reproduce the above copyright
-//    notice, this list of conditions and the following disclaimer in the
-//    documentation and/or other materials provided with the distribution.
-//  * Neither the name of NVIDIA CORPORATION nor the names of its
-//    contributors may be used to endorse or promote products derived
-//    from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
-// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-// PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
-// OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
+
+// OptiX SDK
 #include <optix.h>
 
-#include "optix_curves.h"
-#include <cuda/helpers.h>
+// CUDA SDK
 #include <random.h>
 
+// OptiX SDK examples common helpers
+#include <cuda/helpers.h>
 #include <sutil/vec_math.h>
 
+// Host interface
+#include "optix_curves.h"
+
+// Local includes
+#include <optix_hspline.h>
+
+
+
+//////
+//
+// Global constant memory
+//
 
 extern "C" {
 	__constant__ curve_rt_params params;
 }
+
+
+
+//////
+//
+// Functions
+//
 
 /*static __forceinline__ __device__ float3 mul_mat_pos (const float *mat, const float3 &pos)
 {
@@ -120,7 +120,7 @@ extern "C" __global__ void __raygen__basic (void)
 	// Trace the ray against our scene hierarchy
 	unsigned int p0, p1, p2, p3, p4;
 	optixTrace(
-		params.handle,
+		params.accelds,
 		ray_origin,
 		ray_direction,
 		0.0f,                // Min intersection distance
@@ -141,7 +141,7 @@ extern "C" __global__ void __raygen__basic (void)
 	depth.x  = int_as_float(p4);
 
 	// Record results in our output raster
-	const unsigned pxl = idx.y*params.image_width + idx.x;
+	const unsigned pxl = idx.y*params.fb_width + idx.x;
 	params.albedo[pxl] = result;
 	params.depth[pxl] = depth;
 }
@@ -150,7 +150,7 @@ extern "C" __global__ void __raygen__basic (void)
 extern "C" __global__ void __miss__ms (void)
 {
 	data_miss *data  = reinterpret_cast<data_miss*>(optixGetSbtDataPointer());
-	setPayload(data->bg_color, 1.f);
+	setPayload(data->bgcolor, 1.f);
 }
 
 
