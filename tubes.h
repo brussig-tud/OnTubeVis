@@ -71,6 +71,9 @@ protected:
 	// state
 	struct
 	{
+		// keep track of initialization state
+		bool initialized = false;
+
 		// use OptiX instead of OpenGL rasterization
 		bool enabled = false;
 
@@ -107,11 +110,12 @@ protected:
 		texture tex_albedo, tex_depth;
 	} optix;
 
+	void optix_destroy_accelds(void);
+	void optix_destroy_pipeline(void);
+
+	bool optix_ensure_init (context &ctx);
 	bool optix_update_accelds (void);
 	bool optix_update_pipeline (void);
-
-	void optix_destroy_accelds (void);
-	void optix_destroy_pipeline (void);
 
 	void optix_draw_trajectories (context &ctx);
 

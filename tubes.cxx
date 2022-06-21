@@ -507,8 +507,10 @@ void tubes::on_set(void *member_ptr) {
 		// ### BEGIN: OptiX integration
 		// ###############################
 
-		optix_update_accelds();
-		optix_update_pipeline();
+		if (optix.enabled) {
+			optix_update_accelds();
+			optix_update_pipeline();
+		}
 
 		// ###############################
 		// ###  END:  OptiX integration
@@ -723,6 +725,23 @@ void tubes::on_set(void *member_ptr) {
 		update_member(&test_dir[1]);
 		update_member(&test_dir[2]);
 	}
+
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	if (member_ptr == &optix.enabled && optix.enabled)
+	{
+		const bool success = optix_ensure_init(*get_context());
+		if (success && traj_mgr.has_data()) {
+			optix_update_accelds();
+			optix_update_pipeline();
+		}
+	}
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
 
 	// default implementation for all members
 	// - remaining logic
@@ -1429,27 +1448,15 @@ bool tubes::init (cgv::render::context &ctx)
 	// ### BEGIN: OptiX integration
 	// ###############################
 
-	// initialize CUDA
-	CUDA_CHECK_SET(cudaFree(0), success);
-
-	// initialize OptiX
-	OPTIX_CHECK_SET(optixInit(), success);
-
-	// specify OptiX device context options
-	OptixDeviceContextOptions options = {};
-	options.logCallbackFunction = &optix_log_cb;
-	options.logCallbackLevel = 4;
-	std::cerr << std::endl; // <-- Make sure the initial CUDA/OptiX message stream is preceded by an empty line
-
-	// associate a CUDA context (and therefore a specific GPU) with this device context
-	CUcontext cuCtx = 0;  // zero means take the default context (i.e. first best compatible device)
-	OPTIX_CHECK_SET(optixDeviceContextCreate(cuCtx, &options, &optix.context), success);
-
-	// setup optix launch environment
-	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
-	success = success && optix.outbuf_depth.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
-	success = success && optix_update_accelds();
-	success = success && optix_update_pipeline();
+	if (optix.enabled)
+	{
+		const bool success_optix = optix_ensure_init(ctx);
+		success = success && success_optix;
+		if (traj_mgr.has_data() && success_optix) {
+			success = success && optix_update_accelds();
+			success = success && optix_update_pipeline();
+		}
+	}
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -1480,6 +1487,43 @@ void tubes::optix_destroy_pipeline (void)
 	OPTIX_SAFE_DESTROY_PROGGROUP(optix.prg_hit);
 	OPTIX_SAFE_DESTROY_PROGGROUP(optix.prg_miss);
 	OPTIX_SAFE_DESTROY_PROGGROUP(optix.prg_raygen);
+}
+
+bool tubes::optix_ensure_init (context &ctx)
+{
+	// report OK if nothing needs to be done
+	if (optix.initialized)
+		return true;
+
+	// initialize CUDA
+	CUDA_CHECK_FAIL(cudaFree(0));
+
+	// initialize OptiX
+	OPTIX_CHECK_FAIL(optixInit());
+
+	// specify OptiX device context options
+	OptixDeviceContextOptions options = {};
+	options.logCallbackFunction = &optix_log_cb;
+	options.logCallbackLevel = 4;
+	std::cerr << std::endl; // <-- Make sure the initial CUDA/OptiX message stream is preceded by an empty line
+
+	// associate a CUDA context (and therefore a specific GPU) with this device context
+	bool success = true;
+	OPTIX_CHECK_SET(
+		optixDeviceContextCreate(
+			0, // zero means take the default context (i.e. first best compatible device)
+			&options, &optix.context
+		),
+		success
+	);
+
+	// setup optix launch environment
+	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+	success = success && optix.outbuf_depth.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+
+	// done!
+	optix.initialized = success;
+	return success;
 }
 
 bool tubes::optix_update_accelds (void)
@@ -2084,7 +2128,7 @@ void tubes::draw (cgv::render::context &ctx)
 
 			switch(debug.render_mode) {
 			case DRM_NONE:
-				if (!optix.enabled)
+				if (!optix.enabled || !optix.initialized)
 					draw_trajectories(ctx);
 				break;
 			case DRM_NODES:
@@ -2106,7 +2150,7 @@ void tubes::draw (cgv::render::context &ctx)
 			if (show_bbox)
 				bbox_rd.render(ctx, ref_box_renderer(ctx), bbox_style);
 
-			if (optix.enabled && debug.render_mode == DRM_NONE)
+			if (optix.enabled && optix.initialized && debug.render_mode==DRM_NONE)
 				optix_draw_trajectories(ctx);
 		}
 
