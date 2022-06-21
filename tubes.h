@@ -146,16 +146,15 @@ protected:
 	vec3 prev_view_dir = vec3(0.0f);
 	bool accumulate = false;
 	unsigned accumulate_count = 0;
-	float jitter_scale = 0.25f;
+	float jitter_scale = 0.5f;
 	size_t n_jitter_samples = 16;
 	std::vector<vec2> jitter_offsets;
-	float vel_fac = 0.5f;
 
 	struct {
-		bool use_velocity = false; // enabling this will produce artifacts
+		bool use_velocity = true;
 		bool closest_depth = true;
-		bool clamp_color = false;
 		bool clip_color = true;
+		bool static_no_clip = true;
 	} settings;
 
 	bool enable_fxaa = true;
