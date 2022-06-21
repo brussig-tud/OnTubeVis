@@ -58,15 +58,15 @@ __device__ __forceinline__ float4 mix (const float4 &v0, const float4 &v1, const
 	};
 }
 
-// right-multiply R^3 position vector to 4x4 homogenous transformation matrix
-__device__ __forceinline__ float3 mul_mat_pos (const float *mat, const float3 &pos)
+// right-multiply R^3 position vector to 4x4 homogenous transformation matrix, return
+// result as homogenous R^3 position vector with w-component
+__device__ __forceinline__ float4 mul_mat_pos (const float *mat, const float3 &pos)
 {
-	float3 r;
+	float4 r;
 	r.x = mat[0]*pos.x + mat[4]*pos.y + mat[ 8]*pos.z + mat[12];
 	r.y = mat[1]*pos.x + mat[5]*pos.y + mat[ 9]*pos.z + mat[13];
 	r.z = mat[2]*pos.x + mat[6]*pos.y + mat[10]*pos.z + mat[14];
-	const float w = mat[3]*pos.x + mat[7]*pos.y + mat[11]*pos.z + mat[15];
-	r.x/=w; r.y/=w; r.z/=w;
+	r.w = mat[3]*pos.x + mat[7]*pos.y + mat[11]*pos.z + mat[15];
 	return r;
 }
 

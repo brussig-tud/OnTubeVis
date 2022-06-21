@@ -58,27 +58,35 @@ static __forceinline__ __device__ void compute_ray(uint3 idx, uint3 dim, float3&
 
 static __forceinline__ __device__ float3 calc_hit_point (void)
 {
-    const float  t            = optixGetRayTmax();
-    const float3 rayOrigin    = optixGetWorldRayOrigin();
-    const float3 rayDirection = optixGetWorldRayDirection();
-    return rayOrigin + t*rayDirection;
+	// query ray params from OptiX
+    const float  l     = optixGetRayTmax();
+    const float3 ray_o = optixGetWorldRayOrigin();
+    const float3 ray_d = optixGetWorldRayDirection();
+
+	// compute point
+    return ray_o + l*ray_d;
 }
 
-static __forceinline__ __device__ void set_payload (float4 color, float3 position, float3 normal, float3 tangent, float depth)
+static __forceinline__ __device__ void set_payload (float4 albedo, float3 position, float3 normal, float3 tangent, float depth)
 {
-	optixSetPayload_0(float_as_int(color.x));
-	optixSetPayload_1(float_as_int(color.y));
-	optixSetPayload_2(float_as_int(color.z));
-	optixSetPayload_3(float_as_int(color.w));
+	// albedo
+	optixSetPayload_0(float_as_int(albedo.x));
+	optixSetPayload_1(float_as_int(albedo.y));
+	optixSetPayload_2(float_as_int(albedo.z));
+	optixSetPayload_3(float_as_int(albedo.w));
+	// position
 	optixSetPayload_4(float_as_int(position.x));
 	optixSetPayload_5(float_as_int(position.y));
 	optixSetPayload_6(float_as_int(position.z));
+	// normal
 	optixSetPayload_7(float_as_int(normal.x));
 	optixSetPayload_8(float_as_int(normal.y));
 	optixSetPayload_9(float_as_int(normal.z));
+	// tangent
 	optixSetPayload_10(float_as_int(tangent.x));
 	optixSetPayload_11(float_as_int(tangent.y));
 	optixSetPayload_12(float_as_int(tangent.z));
+	// depth
 	optixSetPayload_13(float_as_int(depth));
 }
 
@@ -163,7 +171,6 @@ extern "C" __global__ void __closesthit__ch (void)
 {
 	// retrieve curve parameter, hitpoint and segment index
 	const float  t = optixGetCurveParameter();
-	const float4 p = make_float4(calc_hit_point(), 1.f);
 	const unsigned segid = optixGetPrimitiveIndex();
 
 	// retrieve actual node data
@@ -175,6 +182,9 @@ extern "C" __global__ void __closesthit__ch (void)
 	curve.from_catmullrom(nodes);
 	quadr_interpolator_vec3 der = curve.derive();
 
+	// compute hit position (world space)
+	const float3 p = calc_hit_point();
+
 	// compute hit normal
 	/* do_it() */
 
@@ -182,7 +192,7 @@ extern "C" __global__ void __closesthit__ch (void)
 	/* do_it() */
 
 	// compute screen-space position of hitpoint for depth map creation
-	const float4 p_screen = mul_mat_vec(params.cam_mvp, p);
+	const float4 p_screen = mul_mat_pos(params.cam_mvp, p);
 	const float  d = .5f*(p_screen.z/p_screen.w) + .5f;
 
 	// linearly interpolate from red to green
