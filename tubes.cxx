@@ -731,7 +731,8 @@ void tubes::on_set(void *member_ptr) {
 	// ###############################
 
 	if (member_ptr == &optix.enabled && optix.enabled)
-		optix_ensure_init(*get_context());
+		if (!optix_ensure_init(*get_context()))
+			optix.enabled = false;
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -1442,8 +1443,11 @@ bool tubes::init (cgv::render::context &ctx)
 	// ### BEGIN: OptiX integration
 	// ###############################
 
-	if (optix.enabled)
-		success = success && optix_ensure_init(ctx);
+	if (optix.enabled && !optix_ensure_init(ctx)) {
+		optix.enabled = false;
+		update_member(&optix.enabled);
+		success = false;
+	}
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -2840,6 +2844,7 @@ shader_define_map tubes::build_tube_shading_defines() {
 
 	return defines;
 }
+
 
 ////
 // Object registration
