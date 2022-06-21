@@ -74,7 +74,7 @@ protected:
 		// keep track of initialization state
 		bool initialized = false;
 
-		// use OptiX instead of OpenGL rasterization
+		// use OptiX to raycast tubes instead of OpenGL rasterization
 		bool enabled = false;
 
 		// subdivide into quadratic beziers for higher ray tracing performance

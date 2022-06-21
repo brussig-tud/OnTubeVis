@@ -484,11 +484,11 @@ private:
 	bool initialized;
 
 	CUDAOutputBufferType m_type;
-	int m_width = 0u;
-	int m_height = 0u;
+	int m_width = 0;
+	int m_height = 0;
 
 	cudaGraphicsResource* m_cuda_gfx_resource = nullptr;
-	GLuint m_pbo = 0u;
+	GLuint m_pbo = 0;
 	pxl_fmt* m_device_pixels = nullptr;
     pxl_fmt* m_host_zcopy_pixels = nullptr;
 	std::vector<pxl_fmt>  m_host_pixels;

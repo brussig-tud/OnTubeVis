@@ -731,13 +731,7 @@ void tubes::on_set(void *member_ptr) {
 	// ###############################
 
 	if (member_ptr == &optix.enabled && optix.enabled)
-	{
-		const bool success = optix_ensure_init(*get_context());
-		if (success && traj_mgr.has_data()) {
-			optix_update_accelds();
-			optix_update_pipeline();
-		}
-	}
+		optix_ensure_init(*get_context());
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -1449,14 +1443,7 @@ bool tubes::init (cgv::render::context &ctx)
 	// ###############################
 
 	if (optix.enabled)
-	{
-		const bool success_optix = optix_ensure_init(ctx);
-		success = success && success_optix;
-		if (traj_mgr.has_data() && success_optix) {
-			success = success && optix_update_accelds();
-			success = success && optix_update_pipeline();
-		}
-	}
+		success = success && optix_ensure_init(ctx);
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -1516,8 +1503,14 @@ bool tubes::optix_ensure_init (context &ctx)
 		),
 		success
 	);
+	if (!success)
+		return false;
 
 	// setup optix launch environment
+	if (traj_mgr.has_data()) {
+		success = success && optix_update_accelds();
+		success = success && optix_update_pipeline();
+	}
 	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
 	success = success && optix.outbuf_depth.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
 
@@ -2009,10 +2002,13 @@ void tubes::init_frame (cgv::render::context &ctx)
 	// ### BEGIN: OptiX integration
 	// ###############################
 
-	// keep the optix interop buffer up to date with the viewport size
-	const unsigned w=ctx.get_width(), h=ctx.get_height();
-	optix.outbuf_albedo.resize(w, h);
-	optix.outbuf_depth.resize(w, h);
+	if (optix.initialized && optix.enabled)
+	{
+		// keep the optix interop buffer up to date with the viewport size
+		const unsigned w=ctx.get_width(), h=ctx.get_height();
+		optix.outbuf_albedo.resize(w, h);
+		optix.outbuf_depth.resize(w, h);
+	}
 
 	// ###############################
 	// ###  END:  OptiX integration

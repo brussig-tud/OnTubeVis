@@ -156,6 +156,7 @@ cuda_output_buffer<pxl_fmt>::cuda_output_buffer(CUDAOutputBufferType type, int w
 template <class pxl_fmt>
 cuda_output_buffer<pxl_fmt>::~cuda_output_buffer()
 {
+	m_height = m_width = 0;
 	if (initialized) try
 	{
 		initialized = false;
