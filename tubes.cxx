@@ -1516,7 +1516,18 @@ bool tubes::optix_ensure_init (context &ctx)
 		success = success && optix_update_pipeline();
 	}
 	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+	success = success && optix.outbuf_position.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+	success = success && optix.outbuf_normal.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+	success = success && optix.outbuf_tangent.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
 	success = success && optix.outbuf_depth.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+
+	// connect to framebuffer
+	fbc.ensure(ctx);
+	optix.fb.albedo = fbc.attachment_texture_ptr("albedo");
+	optix.fb.position = fbc.attachment_texture_ptr("position");
+	optix.fb.normal = fbc.attachment_texture_ptr("normal");
+	optix.fb.tangent = fbc.attachment_texture_ptr("tangent");
+	optix.fb.depth = fbc.attachment_texture_ptr("depth");
 
 	// done!
 	optix.initialized = success;
@@ -1697,7 +1708,7 @@ bool tubes::optix_update_pipeline (void)
 		mod_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
 
 		pipeline_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-		pipeline_options.numPayloadValues = 5;
+		pipeline_options.numPayloadValues = 14;
 		pipeline_options.numAttributeValues = 1;
 	#ifdef _DEBUG  // Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
 		pipeline_options.exceptionFlags =
@@ -1909,9 +1920,12 @@ void tubes::optix_draw_trajectories (context &ctx)
 		           optixU = cgv::math::normalize(cgv::math::cross(optixW, optixV)) * optixU_len;
 
 		// setup params for our launch
-		// - set parameter values
+		// - set values
 		curve_rt_params params;
 		params.albedo = optix.outbuf_albedo.map();
+		params.position = optix.outbuf_position.map();
+		params.normal = optix.outbuf_normal.map();
+		params.tangent = optix.outbuf_tangent.map();
 		params.depth = optix.outbuf_depth.map();
 		params.fb_width = optix.outbuf_albedo.width();
 		params.fb_height = optix.outbuf_albedo.height();
@@ -1931,6 +1945,9 @@ void tubes::optix_draw_trajectories (context &ctx)
 		));
 		CUDA_SYNC_CHECK();
 		optix.outbuf_depth.unmap();
+		optix.outbuf_tangent.unmap();
+		optix.outbuf_normal.unmap();
+		optix.outbuf_position.unmap();
 		optix.outbuf_albedo.unmap();
 	}
 
@@ -1942,19 +1959,26 @@ void tubes::optix_draw_trajectories (context &ctx)
 		static shader_program &display_prog = shaders.get("optix_display");
 
 		// transfer OptiX render result into our result texture
-		optix.outbuf_albedo.into_texture(ctx, optix.tex_albedo);
-		optix.outbuf_depth.into_texture(ctx, optix.tex_depth);
+		optix.outbuf_albedo.into_texture(ctx, optix.fb.albedo);
+		//optix.outbuf_albedo.into_texture(ctx, optix.fb.position);
+		optix.outbuf_albedo.into_texture(ctx, optix.fb.normal);
+		optix.outbuf_albedo.into_texture(ctx, optix.fb.tangent);
+		optix.outbuf_depth.into_texture(ctx, optix.fb.depth);
 
 		// Blend the result image onto the main framebuffer
 		display_prog.enable(ctx);
-		optix.tex_albedo.enable(ctx, 0);
-		optix.tex_depth.enable(ctx, 1);
+		optix.fb.albedo->enable(ctx, 0);
+		optix.fb.normal->enable(ctx, 1);
+		optix.fb.tangent->enable(ctx, 2);
+		optix.fb.depth->enable(ctx, 3);
 		glEnable(GL_BLEND);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 		glDisable(GL_BLEND);
-		optix.tex_depth.disable(ctx);
-		optix.tex_albedo.disable(ctx);
+		optix.fb.depth->disable(ctx);
+		optix.fb.tangent->disable(ctx);
+		optix.fb.normal->disable(ctx);
+		optix.fb.albedo->disable(ctx);
 		display_prog.disable(ctx);
 	}
 }
@@ -2130,6 +2154,8 @@ void tubes::draw (cgv::render::context &ctx)
 			case DRM_NONE:
 				if (!optix.enabled || !optix.initialized)
 					draw_trajectories(ctx);
+				else
+					optix_draw_trajectories(ctx);
 				break;
 			case DRM_NODES:
 				debug.node_rd.render(ctx, ref_sphere_renderer(ctx), debug.node_rs, 0, debug_idx_count);
@@ -2149,9 +2175,6 @@ void tubes::draw (cgv::render::context &ctx)
 
 			if (show_bbox)
 				bbox_rd.render(ctx, ref_box_renderer(ctx), bbox_style);
-
-			if (optix.enabled && optix.initialized && debug.render_mode==DRM_NONE)
-				optix_draw_trajectories(ctx);
 		}
 
 		//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());

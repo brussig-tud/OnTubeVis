@@ -96,21 +96,47 @@ std::vector<char> compile_cu2ptx (
 }
 
 template <>
+GLenum get_gl_component_type<uchar4> (void)
+{
+	return GL_UNSIGNED_BYTE;
+}
+template <>
+GLenum get_gl_component_type<float1> (void)
+{
+	return GL_FLOAT;
+}
+template <>
+GLenum get_gl_component_type<float3> (void)
+{
+	return GL_FLOAT;
+}
+template <>
+GLenum get_gl_component_type<float4> (void)
+{
+	return GL_FLOAT;
+}
+
+template <>
 const std::string& ref_cgv_format_string<uchar4> (void)
 {
 	const static std::string fmt("uint8[R,G,B,A]");
 	return fmt;
 }
-
 template <>
-const std::string& ref_cgv_format_string<float1>(void)
+const std::string& ref_cgv_format_string<float1> (void)
 {
 	const static std::string fmt("flt32[D]");
 	return fmt;
 }
+template <>
+const std::string& ref_cgv_format_string<float3> (void)
+{
+	const static std::string fmt("flt32[R,G,B]");
+	return fmt;
+}
 
 template <>
-const std::string& ref_cgv_format_string<float4>(void)
+const std::string& ref_cgv_format_string<float4> (void)
 {
 	const static std::string fmt("flt32[R,G,B,A]");
 	return fmt;
@@ -446,9 +472,9 @@ bool cuda_output_buffer<pxl_fmt>::into_texture (cgv::render::context &ctx, cgv::
 	GL_CHECK_SET(glActiveTexture(GL_TEXTURE0), success);
 	GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, hTex), success);
 	if (elem_size == 16)
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_width, m_height, 0, GL_RGBA, GL_FLOAT, nullptr);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_width, m_height, 0, GL_RGBA, get_gl_component_type<pxl_fmt>(), nullptr);
 	else if (elem_size == 4)
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, m_width, m_height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, m_width, m_height, 0, GL_DEPTH_COMPONENT, get_gl_component_type<pxl_fmt>(), nullptr);
 	GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, 0), success);
 
 	// unbind the pbo
@@ -512,8 +538,8 @@ template class cuda_output_buffer<longlong4>;
 template class cuda_output_buffer<ulonglong4>;*/
 // - single-precision floating point components
 template class cuda_output_buffer<float1>;
-/*template class cuda_output_buffer<float2>;
-template class cuda_output_buffer<float3>;*/
+//template class cuda_output_buffer<float2>;
+template class cuda_output_buffer<float3>;
 template class cuda_output_buffer<float4>;
 // - double-precision floating point components
 /*template class cuda_output_buffer<double1>;

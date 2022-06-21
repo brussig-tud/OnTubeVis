@@ -19,7 +19,9 @@ struct curve_rt_params
 {
 	// output buffers
 	float4*                albedo;
+	float3*                position;
 	float3*                normal;
+	float3*                tangent;
 	float1*                depth;
 
 	// framebuffer dimensions

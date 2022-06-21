@@ -106,8 +106,15 @@ protected:
 		// GL interop
 		CUstream stream = nullptr;
 		cuda_output_buffer<float4> outbuf_albedo;
+		cuda_output_buffer<float3> outbuf_position;
+		cuda_output_buffer<float3> outbuf_normal;
+		cuda_output_buffer<float3> outbuf_tangent;
 		cuda_output_buffer<float1> outbuf_depth;
-		texture tex_albedo, tex_depth;
+
+		// framebuffer attachment references
+		struct {
+			texture *albedo, *position, *normal, *tangent, *depth;
+		} fb;
 	} optix;
 
 	void optix_destroy_accelds(void);
