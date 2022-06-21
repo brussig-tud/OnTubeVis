@@ -2152,10 +2152,7 @@ void tubes::draw (cgv::render::context &ctx)
 
 			switch(debug.render_mode) {
 			case DRM_NONE:
-				if (!optix.enabled || !optix.initialized)
-					draw_trajectories(ctx);
-				else
-					optix_draw_trajectories(ctx);
+				draw_trajectories(ctx);
 				break;
 			case DRM_NODES:
 				debug.node_rd.render(ctx, ref_sphere_renderer(ctx), debug.node_rs, 0, debug_idx_count);
@@ -2683,142 +2680,151 @@ void tubes::draw_trajectories(context& ctx) {
 	vec3 eye_pos = view_ptr->get_eye();
 	const vec3& view_dir = view_ptr->get_view_dir();
 
-	fbc.enable(ctx);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	if (!optix.enabled || !optix.initialized)
+	{
+		fbc.enable(ctx);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	
-	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 
-	// prepare SSBO handles
-	const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0,
-			  arclen_handle = render.arclen_sbo.handle ? (const int&)render.arclen_sbo.handle - 1 : 0;
-	if (!data_handle || !arclen_handle) return;
+		// prepare SSBO handles
+		const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0,
+				  arclen_handle = render.arclen_sbo.handle ? (const int&)render.arclen_sbo.handle - 1 : 0;
+		if (!data_handle || !arclen_handle) return;
 
-	// sort the sgment indices
-	int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
-	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");	
-	if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && debug.sort & !debug.force_initial_order)
-		//render.sorter->sort(ctx, data_handle, segment_idx_handle, test_eye, test_dir, node_idx_handle);
-		render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
+		// sort the sgment indices
+		int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
+		int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");	
+		if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && debug.sort & !debug.force_initial_order)
+			//render.sorter->sort(ctx, data_handle, segment_idx_handle, test_eye, test_dir, node_idx_handle);
+			render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
 
-	tstr.set_eye_pos(eye_pos);
-	tstr.set_view_dir(view_dir);
-	tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
-	tstr.set_render_style(render.style);
-	tstr.enable_attribute_array_manager(ctx, render.aam);
+		tstr.set_eye_pos(eye_pos);
+		tstr.set_view_dir(view_dir);
+		tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
+		tstr.set_render_style(render.style);
+		tstr.enable_attribute_array_manager(ctx, render.aam);
 
-	int count = static_cast<int>(render.data->indices.size() / 2);
-	if(debug.limit_render_count) {
-		//count = static_cast<int>(render.percentage * count);
-		count = static_cast<int>(debug.render_count);
-	}
+		int count = static_cast<int>(render.data->indices.size() / 2);
+		if(debug.limit_render_count) {
+			//count = static_cast<int>(render.percentage * count);
+			count = static_cast<int>(debug.render_count);
+		}
 	
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, arclen_handle);
-	if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, node_idx_handle);
-		tstr.render(ctx, 0, count);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, 0);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, arclen_handle);
+		if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, node_idx_handle);
+			tstr.render(ctx, 0, count);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, 0);
+		}
+		else
+			tstr.render(ctx, 0, count);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+
+		tstr.disable_attribute_array_manager(ctx, render.aam);
+
+		fbc.disable(ctx);
 	}
 	else
-		tstr.render(ctx, 0, count);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+		optix_draw_trajectories(ctx);
 
-	tstr.disable_attribute_array_manager(ctx, render.aam);
-
-	fbc.disable(ctx);
-
-	shader_program& prog = shaders.get("tube_shading");
-	prog.enable(ctx);
-	// set render parameters
-	prog.set_uniform(ctx, "use_gamma", true);
+	// ToDo: remove if condition once OptiX output is fully compatible
+	if (!optix.enabled || !optix.initialized)
+	{
+		shader_program& prog = shaders.get("tube_shading");
+		prog.enable(ctx);
+		// set render parameters
+		prog.set_uniform(ctx, "use_gamma", true);
 	
-	// set ambient occlusion parameters
-	if(ao_style.enable) {
-		//prog.set_uniform(ctx, "ambient_occlusion.enable", ao_style.enable);
-		prog.set_uniform(ctx, "ambient_occlusion.sample_offset", ao_style.sample_offset);
-		prog.set_uniform(ctx, "ambient_occlusion.sample_distance", ao_style.sample_distance);
-		prog.set_uniform(ctx, "ambient_occlusion.strength_scale", ao_style.strength_scale);
+		// set ambient occlusion parameters
+		if(ao_style.enable) {
+			//prog.set_uniform(ctx, "ambient_occlusion.enable", ao_style.enable);
+			prog.set_uniform(ctx, "ambient_occlusion.sample_offset", ao_style.sample_offset);
+			prog.set_uniform(ctx, "ambient_occlusion.sample_distance", ao_style.sample_distance);
+			prog.set_uniform(ctx, "ambient_occlusion.strength_scale", ao_style.strength_scale);
 
-		prog.set_uniform(ctx, "ambient_occlusion.tex_offset", ao_style.texture_offset);
-		prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", ao_style.texture_scaling);
-		prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", ao_style.texcoord_scaling);
-		prog.set_uniform(ctx, "ambient_occlusion.texel_size", ao_style.texel_size);
+			prog.set_uniform(ctx, "ambient_occlusion.tex_offset", ao_style.texture_offset);
+			prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", ao_style.texture_scaling);
+			prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", ao_style.texcoord_scaling);
+			prog.set_uniform(ctx, "ambient_occlusion.texel_size", ao_style.texel_size);
 
-		prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
-		prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
-	}
+			prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
+			prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
+		}
 
-	// set grid parameters
-	prog.set_uniform(ctx, "grid_color", grid_color);
-	prog.set_uniform(ctx, "normal_mapping_scale", normal_mapping_scale);
-	for(size_t i = 0; i < grids.size(); ++i) {
-		std::string base_name = "grids[" + std::to_string(i) + "].";
-		prog.set_uniform(ctx, base_name + "scaling", grids[i].scaling);
-		prog.set_uniform(ctx, base_name + "thickness", grids[i].thickness);
-		prog.set_uniform(ctx, base_name + "blend_factor", grids[i].blend_factor);
-	}
+		// set grid parameters
+		prog.set_uniform(ctx, "grid_color", grid_color);
+		prog.set_uniform(ctx, "normal_mapping_scale", normal_mapping_scale);
+		for(size_t i = 0; i < grids.size(); ++i) {
+			std::string base_name = "grids[" + std::to_string(i) + "].";
+			prog.set_uniform(ctx, base_name + "scaling", grids[i].scaling);
+			prog.set_uniform(ctx, base_name + "thickness", grids[i].thickness);
+			prog.set_uniform(ctx, base_name + "blend_factor", grids[i].blend_factor);
+		}
 
-	// set attribute mapping parameters
-	for(const auto& p : glyph_layers_config.constant_float_parameters)
-		prog.set_uniform(ctx, p.first, *p.second);
+		// set attribute mapping parameters
+		for(const auto& p : glyph_layers_config.constant_float_parameters)
+			prog.set_uniform(ctx, p.first, *p.second);
 
-	for(const auto& p : glyph_layers_config.constant_color_parameters)
-		prog.set_uniform(ctx, p.first, *p.second);
+		for(const auto& p : glyph_layers_config.constant_color_parameters)
+			prog.set_uniform(ctx, p.first, *p.second);
 
-	for(const auto& p : glyph_layers_config.mapping_parameters)
-		prog.set_uniform(ctx, p.first, *p.second);
+		for(const auto& p : glyph_layers_config.mapping_parameters)
+			prog.set_uniform(ctx, p.first, *p.second);
 
-	// map global settings
-	prog.set_uniform(ctx, "general_settings.use_curvature_correction", general_settings.use_curvature_correction);
-	prog.set_uniform(ctx, "general_settings.length_scale", general_settings.length_scale);
-	prog.set_uniform(ctx, "general_settings.antialias_radius", general_settings.antialias_radius);
+		// map global settings
+		prog.set_uniform(ctx, "general_settings.use_curvature_correction", general_settings.use_curvature_correction);
+		prog.set_uniform(ctx, "general_settings.length_scale", general_settings.length_scale);
+		prog.set_uniform(ctx, "general_settings.antialias_radius", general_settings.antialias_radius);
 
-	const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
+		const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
 	
-	prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
-	prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
-	prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
+		prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
+		prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
+		prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
 
-	fbc.enable_attachment(ctx, "albedo", 0);
-	fbc.enable_attachment(ctx, "position", 1);
-	fbc.enable_attachment(ctx, "normal", 2);
-	fbc.enable_attachment(ctx, "tangent", 3);
-	fbc.enable_attachment(ctx, "depth", 4);
-	if(ao_style.enable)
-		density_tex.enable(ctx, 5);
-	color_map_mgr.ref_texture().enable(ctx, 6);
+		fbc.enable_attachment(ctx, "albedo", 0);
+		fbc.enable_attachment(ctx, "position", 1);
+		fbc.enable_attachment(ctx, "normal", 2);
+		fbc.enable_attachment(ctx, "tangent", 3);
+		fbc.enable_attachment(ctx, "depth", 4);
+		if(ao_style.enable)
+			density_tex.enable(ctx, 5);
+		color_map_mgr.ref_texture().enable(ctx, 6);
 
-	// bind range attribute sbos of active glyph layers
-	bool active_sbos[4] = { false, false, false, false };
-	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
-		if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
-			const int attribs_handle = render.attribs_sbos[i].handle ? (const int&)render.attribs_sbos[i].handle - 1 : 0;
-			const int aindex_handle = render.aindex_sbos[i].handle ? (const int&)render.aindex_sbos[i].handle - 1 : 0;
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 0, attribs_handle);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 1, aindex_handle);
+		// bind range attribute sbos of active glyph layers
+		bool active_sbos[4] = { false, false, false, false };
+		for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
+			if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
+				const int attribs_handle = render.attribs_sbos[i].handle ? (const int&)render.attribs_sbos[i].handle - 1 : 0;
+				const int aindex_handle = render.aindex_sbos[i].handle ? (const int&)render.aindex_sbos[i].handle - 1 : 0;
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 0, attribs_handle);
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 1, aindex_handle);
+			}
 		}
-	}
 
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-	for(size_t i = 0; i < 4; ++i) {
-		if(active_sbos[i]) {
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 0, 0);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 1, 0);
+		for(size_t i = 0; i < 4; ++i) {
+			if(active_sbos[i]) {
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 0, 0);
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 1, 0);
+			}
 		}
+
+		fbc.disable_attachment(ctx, "albedo");
+		fbc.disable_attachment(ctx, "position");
+		fbc.disable_attachment(ctx, "normal");
+		fbc.disable_attachment(ctx, "tangent");
+		fbc.disable_attachment(ctx, "depth");
+		if(ao_style.enable)
+			density_tex.disable(ctx);
+		color_map_mgr.ref_texture().disable(ctx);
+
+		prog.disable(ctx);
 	}
-
-	fbc.disable_attachment(ctx, "albedo");
-	fbc.disable_attachment(ctx, "position");
-	fbc.disable_attachment(ctx, "normal");
-	fbc.disable_attachment(ctx, "tangent");
-	fbc.disable_attachment(ctx, "depth");
-	if(ao_style.enable)
-		density_tex.disable(ctx);
-	color_map_mgr.ref_texture().disable(ctx);
-
-	prog.disable(ctx);
 }
 
 void tubes::draw_density_volume(context& ctx) {
