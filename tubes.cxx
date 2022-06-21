@@ -1898,6 +1898,9 @@ bool tubes::optix_update_pipeline (void)
 	// ToDo: not necessarily the best place for this here!
 	CUDA_CHECK_SET(cudaStreamCreate(&optix.stream), success);
 	optix.outbuf_albedo.set_stream(optix.stream);
+	optix.outbuf_position.set_stream(optix.stream);
+	optix.outbuf_normal.set_stream(optix.stream);
+	optix.outbuf_tangent.set_stream(optix.stream);
 	optix.outbuf_depth.set_stream(optix.stream);
 
 	// done!
@@ -2035,6 +2038,9 @@ void tubes::init_frame (cgv::render::context &ctx)
 		// keep the optix interop buffer up to date with the viewport size
 		const unsigned w=ctx.get_width(), h=ctx.get_height();
 		optix.outbuf_albedo.resize(w, h);
+		optix.outbuf_position.resize(w, h);
+		optix.outbuf_normal.resize(w, h);
+		optix.outbuf_tangent.resize(w, h);
 		optix.outbuf_depth.resize(w, h);
 	}
 

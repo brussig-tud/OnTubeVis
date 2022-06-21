@@ -58,6 +58,16 @@ __device__ __forceinline__ float4 mix (const float4 &v0, const float4 &v1, const
 	};
 }
 
+// emulates the GLSL packUnorm4x8 function
+__device__ __forceinline__ unsigned pack_unorm_4x8 (const float4 v)
+{
+	const unsigned char c0 = __float2int_rn(__saturatef(v.x)*255.f),
+	                    c1 = __float2int_rn(__saturatef(v.y)*255.f),
+	                    c2 = __float2int_rn(__saturatef(v.z)*255.f),
+	                    c3 = __float2int_rn(__saturatef(v.w)*255.f);
+	return (c3<<24) | (c2<<16) | (c1<<8) | c0;
+}
+
 // right-multiply R^3 position vector to 4x4 homogenous transformation matrix, return
 // result as homogenous R^3 position vector with w-component
 __device__ __forceinline__ float4 mul_mat_pos (const float *mat, const float3 &pos)

@@ -448,12 +448,6 @@ bool cuda_output_buffer<pxl_fmt>::into_texture (cgv::render::context &ctx, cgv::
 		);
 		tex.create(ctx, cgv::render::TT_2D, m_width, m_height, 0);
 	}
-	else
-	{
-		// indicate resolution in case it changed
-		tex.set_width(m_width);
-		tex.set_height(m_height);
-	}
 
 	// track success - we don't immediately fail and return from here on since the code in this function is not robust
 	// to failure (i.e. doesn't use RAII) so doing that would leave OpenGL in uncertain state for the caller
