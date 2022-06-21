@@ -86,10 +86,10 @@ static __device__ float3 calc_segment_surface_normal (
 static __forceinline__ __device__ void set_payload (float4 color, float3 position, float3 normal, float3 tangent, float depth)
 {
 	// albedo
-	optixSetPayload_0(float_as_int(color.x)/*0x3f000000/*pack_unorm_4x8(color)*/);
-	optixSetPayload_1(float_as_int(color.y));
-	optixSetPayload_2(float_as_int(color.z));
-	optixSetPayload_3(float_as_int(color.w));
+	optixSetPayload_0(pack_unorm_4x8(color));
+	optixSetPayload_1(0);
+	optixSetPayload_2(0);
+	optixSetPayload_3(0);
 	// position
 	optixSetPayload_4(float_as_int(position.x));
 	optixSetPayload_5(float_as_int(position.y));
@@ -144,10 +144,11 @@ extern "C" __global__ void __raygen__basic (void)
 		pl_position_x, pl_position_y, pl_position_z,
 		pl_normal_x, pl_normal_y, pl_normal_z,
 		pl_tangent_x, pl_tangent_y, pl_tangent_z,
-		pl_depth);
+		pl_depth
+	);
 	// - process payload	
 	float4 albedo;
-		albedo.x = int_as_float(pl_color); //if (idx.x == 32 && idx.y == 32) printf("%x\n", float_as_int(albedo.x));
+		albedo.x = int_as_float(pl_color);
 		albedo.y = int_as_float(pl_albedo1);
 		albedo.z = int_as_float(pl_albedo2);
 		albedo.w = int_as_float(pl_albedo3);

@@ -466,7 +466,7 @@ bool cuda_output_buffer<pxl_fmt>::into_texture (cgv::render::context &ctx, cgv::
 	GL_CHECK_SET(glActiveTexture(GL_TEXTURE0), success);
 	GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, hTex), success);
 	if (elem_size == 16)
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_width, m_height, 0, GL_RGBA, get_gl_component_type<pxl_fmt>(), nullptr);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, m_width, m_height, 0, GL_RGBA, get_gl_component_type<pxl_fmt>(), nullptr);
 	else if (elem_size == 4)
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, m_width, m_height, 0, GL_DEPTH_COMPONENT, get_gl_component_type<pxl_fmt>(), nullptr);
 	GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, 0), success);
