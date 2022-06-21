@@ -5,9 +5,13 @@ layout (binding = 1) uniform sampler2D prev_color_tex;
 layout (binding = 2) uniform sampler2D position_tex;
 layout (binding = 4) uniform sampler2D depth_tex;
 
+uniform vec2 viewport_size;
 uniform float alpha;
 uniform mat4 curr_projection_matrix;
 uniform mat4 curr_eye_to_prev_clip_matrix;
+uniform mat4 ma1;
+uniform mat4 ma2;
+uniform float vel_fac;
 
 uniform struct {
 	bool use_velocity;
@@ -62,15 +66,33 @@ vec3 clip(in vec3 p, in vec3 q, in vec3 aabb_min, in vec3 aabb_max) {
 		return q;
 }
 
-vec2 calcualte_velocity_from_position(in vec3 position) {
+vec2 calcualte_velocity_from_position(in float depth, in vec3 position) {
 
 	vec4 curr_pos_eye = vec4(position, 1.0);
 	
 	vec4 curr_pos_clip = curr_projection_matrix * curr_pos_eye;
-	curr_pos_clip /= curr_pos_clip.w;
+	//if(abs(curr_pos_clip.w) > 0.0)
+		curr_pos_clip /= curr_pos_clip.w;
+
+
+
+	// transform fragment coordinates from window coordinates to clip coordinates
+    /*vec4 coord = vec4(gl_FragCoord.xy, depth, 1.0);
+	coord = coord
+        * vec4(2.0 / viewport_size.x, 2.0 / viewport_size.y, 2.0, 0.0) 
+        + vec4(-1.0, -1.0, -1.0, 1.0);
+
+    // transform fragment coordinates
+    coord = ma1 * coord;
+    coord /= coord.w;
+	coord = ma2 * coord;
+	coord /= coord.w;
+
+	vec4 prev_pos_clip = coord;*/
 
 	vec4 prev_pos_clip = curr_eye_to_prev_clip_matrix * curr_pos_eye;
-	prev_pos_clip /= prev_pos_clip.w;
+	if(abs(prev_pos_clip.w) > 0.0)
+		prev_pos_clip /= prev_pos_clip.w;
 
 	return 0.5*(curr_pos_clip.xy - prev_pos_clip.xy);
 }
@@ -80,20 +102,23 @@ void main()
 	float depth = texture(depth_tex, texcoord_fs).r;
 	vec3 curr_color = texture(curr_color_tex, texcoord_fs).rgb;
 
-	vec3 position = vec3(0.0);
-	if(settings.closest_depth)
-		position = textureOffset(position_tex, texcoord_fs, closest_fragment(depth, texcoord_fs)).xyz;
-	else
-		position = texture(position_tex, texcoord_fs).xyz;
+	vec3 position = texture(position_tex, texcoord_fs).xyz;;//vec3(0.0);
+	//if(settings.closest_depth)
+	//	position = textureOffset(position_tex, texcoord_fs, closest_fragment(depth, texcoord_fs)).xyz;
+	//else
+	//	position = texture(position_tex, texcoord_fs).xyz;
 
-	vec2 velocity = calcualte_velocity_from_position(position);
+	vec2 velocity = calcualte_velocity_from_position(depth, position);
 	
 	vec3 prev_color = vec3(0.0);
 
 	if(settings.use_velocity)
-		prev_color = texture(prev_color_tex, clamp(texcoord_fs - velocity, 0.0, 1.0)).rgb;
+		//prev_color = texture(prev_color_tex, clamp(texcoord_fs - velocity, 0.0, 1.0)).rgb;
+		prev_color = texture(prev_color_tex, texcoord_fs - vel_fac*velocity).rgb;
 	else
 		prev_color = texture(prev_color_tex, texcoord_fs).rgb;
+
+	//prev_color = texture(prev_color_tex, texcoord_fs - vel_fac*velocity).rgb;
 	
 	vec3 cn_0 = textureOffset(curr_color_tex, texcoord_fs, ivec2(1, 0)).rgb;
 	vec3 cn_1 = textureOffset(curr_color_tex, texcoord_fs, ivec2(0, 1)).rgb;
@@ -108,5 +133,15 @@ void main()
 	if(settings.clip_color)
 		prev_color = clip(curr_color, prev_color, cn_min, cn_max);
 	
-	frag_color.rgb = mix(prev_color, curr_color, alpha);
+	prev_color.g = vel_fac;
+	prev_color = vec3(0.0);
+
+	if(isinf(velocity.x) || isinf(velocity.y)) {
+		prev_color.r = 1.0;
+	}
+	if(isnan(velocity.x) || isnan(velocity.y)) {
+		prev_color.b = 1.0;
+	}
+
+	frag_color.rgb = clamp(mix(prev_color, curr_color, alpha), 0.0, 1.0);
 }

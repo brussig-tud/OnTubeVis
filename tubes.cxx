@@ -74,8 +74,8 @@ tubes::tubes() : application_plugin("Tubes")
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
 
-	const std::string color_format = "flt32[R,G,B]";
-	//const std::string color_format = "uint8[R,G,B]";
+	//const std::string color_format = "flt32[R,G,B,A]";
+	const std::string color_format = "uint8[R,G,B]";
 
 	fbc_shading.add_attachment("color", color_format);
 
@@ -1632,6 +1632,7 @@ void tubes::create_gui(void) {
 		add_member_control(this, "Enable", enable_taa, "toggle");
 		add_member_control(this, "Mix Factor", taa_mix_factor, "value_slider", "min=0;max=1;step=0.001");
 		add_member_control(this, "Jitter Scale", jitter_scale, "value_slider", "min=0;max=1;step=0.001");
+		add_member_control(this, "Velocity Factor", vel_fac, "value_slider", "min=0;max=1;step=0.0001");
 
 		add_member_control(this, "Enable FXAA", enable_fxaa, "toggle");
 		add_member_control(this, "FXAA Mix Factor", fxaa_mix_factor, "value_slider", "min=0;max=1;step=0.0001");
@@ -2197,9 +2198,7 @@ void tubes::draw_trajectories(context& ctx) {
 	// perform the deferred shading pass and draw the image into the shading framebuffer
 	fbc_shading.enable(ctx);
 	glDepthFunc(GL_ALWAYS);
-	// TODO: remove because it may not be necessary since we draw a full screen quad
-	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+	
 	shader_program& prog = shaders.get("tube_shading");
 	prog.enable(ctx);
 	// set render parameters
@@ -2339,19 +2338,32 @@ void tubes::draw_trajectories(context& ctx) {
 	if(accumulate) {
 		// enable the final framebuffer to draw the resolved image into
 		fbc_final.enable(ctx);
-		// TODO: remove because it may not be necessary since we draw a full screen quad
-		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		auto& resolve_prog = shaders.get("taa_resolve");
 		resolve_prog.enable(ctx);
-
+		resolve_prog.set_uniform(ctx, "viewport_size", viewport_size);
 		resolve_prog.set_uniform(ctx, "alpha", taa_mix_factor);
+		resolve_prog.set_uniform(ctx, "vel_fac", vel_fac);
+
 		++accumulate_count;
 		if(accumulate_count > n_jitter_samples - 1)
 			accumulate_count = 0;
 
 		resolve_prog.set_uniform(ctx, "curr_projection_matrix", curr_projection_matrix);
 		resolve_prog.set_uniform(ctx, "curr_eye_to_prev_clip_matrix", prev_projection_matrix * prev_modelview_matrix * inv(curr_modelview_matrix));
+		resolve_prog.set_uniform(ctx, "ma1", inv(curr_projection_matrix * curr_modelview_matrix));
+		resolve_prog.set_uniform(ctx, "ma2", prev_projection_matrix * prev_modelview_matrix);
+
+		
+
+		/*mat4 curr_eye_to_prev_clip_matrix = prev_projection_matrix * prev_modelview_matrix * inv(curr_modelview_matrix);
+		vec4 curr_pos_eye(0.0f, 0.0f, 0.0f, 1.0f);
+
+		vec4 prev_pos_clip = curr_eye_to_prev_clip_matrix * curr_pos_eye;
+		//if(abs(prev_pos_clip.w) > 0.0)
+		prev_pos_clip /= prev_pos_clip.w();*/
+
+
 
 		resolve_prog.set_uniform(ctx, "settings.use_velocity", settings.use_velocity);
 		resolve_prog.set_uniform(ctx, "settings.closest_depth", settings.closest_depth);
@@ -2385,6 +2397,7 @@ void tubes::draw_trajectories(context& ctx) {
 
 	auto& screen_prog = shaders.get("screen");
 	screen_prog.enable(ctx);
+	screen_prog.set_uniform(ctx, "test", false);
 
 	color_src_fbc.enable_attachment(ctx, "color", 0);
 	fbc.enable_attachment(ctx, "depth", 1);
@@ -2392,6 +2405,8 @@ void tubes::draw_trajectories(context& ctx) {
 	fbc_hist.enable(ctx);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	fbc_hist.disable(ctx);
+
+	screen_prog.set_uniform(ctx, "test", false);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 

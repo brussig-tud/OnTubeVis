@@ -149,6 +149,7 @@ protected:
 	float jitter_scale = 0.25f;
 	size_t n_jitter_samples = 16;
 	std::vector<vec2> jitter_offsets;
+	float vel_fac = 0.5f;
 
 	struct {
 		bool use_velocity = false; // enabling this will produce artifacts

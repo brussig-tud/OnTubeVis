@@ -68,5 +68,5 @@ vec4 fxaa(in vec4 src_color) {
 void main() {
 
 	vec4 color = texture(color_tex, texcoord_fs);
-	frag_color = mix(color, fxaa(color), mix_factor);
+	frag_color = clamp(mix(color, fxaa(color), mix_factor), 0.0, 1.0);
 }
