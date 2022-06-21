@@ -67,6 +67,22 @@ static __forceinline__ __device__ float3 calc_hit_point (void)
     return ray_o + l*ray_d;
 }
 
+static __device__ float3 calc_segment_surface_normal (
+	const cubic_interpolator_vec3 &curve, const quadr_interpolator_vec3 &dcurve,
+	const float3 &p_surface, const float t
+)
+{
+	// special handling for endcaps
+	float3 normal;
+	if (t <= 0.f)
+		normal = -dcurve.eval(0);
+	else if (t >= 1.f)
+		normal =  dcurve.eval(1);
+	else
+		normal = normalize(p_surface - curve.eval(t));
+	return normalize(normal);
+}
+
 static __forceinline__ __device__ void set_payload (float4 albedo, float3 position, float3 normal, float3 tangent, float depth)
 {
 	// albedo
@@ -171,30 +187,37 @@ extern "C" __global__ void __closesthit__ch (void)
 {
 	// retrieve curve parameter, hitpoint and segment index
 	const float  t = optixGetCurveParameter();
-	const unsigned segid = optixGetPrimitiveIndex();
+	const unsigned seg_id = optixGetPrimitiveIndex();
 
 	// retrieve actual node data
 	cubic_interpolator_vec3 curve;
 	float4 nodes[4]; // w-component contains radius
 	optixGetCatmullRomVertexData(
-		optixGetGASTraversableHandle(), segid, optixGetSbtGASIndex(), 0.f, nodes
+		optixGetGASTraversableHandle(), seg_id, optixGetSbtGASIndex(), 0.f, nodes
 	);
 	curve.from_catmullrom(nodes);
-	quadr_interpolator_vec3 der = curve.derive();
+	quadr_interpolator_vec3 dcurve = curve.derive();
 
 	// compute hit position (world space)
-	const float3 p = calc_hit_point();
+	const float3 pos = calc_hit_point();
+		// in the general setting, we would first call optixTransformPointFromWorldToObjectSpace() before
+		// doing anything with the hitpoint obtained from a ray (e.g. use it to compute surface normals),
+		// since the segment could be in a bottom-level acceleration structure and subject to an instance
+		// transform (we don't use those though so we're fine)
 
 	// compute hit normal
-	/* do_it() */
+	const float3 normal = calc_segment_surface_normal(curve, dcurve, pos, t);
+		// in the general setting, we would first call optixTransformNormalFromObjectToWorldSpace()
+		// before doing anything with the normal, since the segment could be in a bottom-level acceleration
+		// structure and subject to an instance transform (we don't use those though so we're fine)
 
 	// compute hit tangent
-	/* do_it() */
+	const float3 tangent = dcurve.eval(t);
 
 	// compute screen-space position of hitpoint for depth map creation
-	const float4 p_screen = mul_mat_pos(params.cam_mvp, p);
+	const float4 p_screen = mul_mat_pos(params.cam_mvp, pos);
 	const float  d = .5f*(p_screen.z/p_screen.w) + .5f;
 
 	// linearly interpolate from red to green
-	set_payload(make_float4(1.f-t, t, 0.f, 1.f), nullvec3, nullvec3, nullvec3, d);
+	set_payload(make_float4(1.f-t, t, 0.f, 1.f), pos, normal, tangent, d);
 }

@@ -113,7 +113,7 @@ struct quadr_interpolator_vec3
 	}
 
 	// evaluate interpolation at given t
-	__device__ __forceinline__ float3 eval (const float t)
+	__device__ __forceinline__ float3 eval (const float t) const
 	{
 		// De-Casteljau level 0
 		float3 v[2] = {
@@ -180,7 +180,7 @@ struct cubic_interpolator_vec3
 	}
 
 	// evaluate interpolation at given t
-	__device__ __forceinline__ float3 eval (const float t)
+	__device__ __forceinline__ float3 eval (const float t) const
 	{
 		// De-Casteljau level 0
 		float3 v[3] = {
@@ -197,7 +197,7 @@ struct cubic_interpolator_vec3
 
 	// compute first derivative and return resulting curve as a quadratic interpolator
 	// (trusts nvcc to properly perform RVO/copy-elision)
-	__device__ __forceinline__ quadr_interpolator_vec3 derive (void)
+	__device__ __forceinline__ quadr_interpolator_vec3 derive (void) const
 	{
 		quadr_interpolator_vec3 der;
 
