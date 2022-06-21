@@ -19,6 +19,7 @@
 #include <optix_stack_size.h>
 #include <optix_stubs.h>
 #include <cuda_runtime.h>
+#include <cuda_gl_interop.h>
 
 // CGV framework
 #include <cgv/render/texture.h>
@@ -301,6 +302,12 @@
 	if (strm) {                                                                  \
 		CUDA_CHECK(cudaStreamDestroy(strm));                                     \
 		strm = 0;                                                                \
+	}
+
+#define CUDA_SAFE_UNREGISTER(res)                                                \
+	if (res) {                                                                   \
+		CUDA_CHECK(cudaGraphicsUnregisterResource(res));                         \
+		res = nullptr;                                                           \
 	}
 
 #define OPTIX_SAFE_DESTROY_PIPELINE(pl)                                          \

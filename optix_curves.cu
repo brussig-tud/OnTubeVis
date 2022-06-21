@@ -38,14 +38,6 @@ extern "C" {
 // Functions
 //
 
-static __forceinline__ __device__ uchar4 make_rgba (const float4 &c)
-{
-	return make_uchar4(
-		quantizeUnsigned8Bits(c.x), quantizeUnsigned8Bits(c.y),
-		quantizeUnsigned8Bits(c.z), quantizeUnsigned8Bits(c.w)
-	);
-}
-
 static __forceinline__ __device__ void compute_ray(uint3 idx, uint3 dim, float3& origin, float3& direction)
 {
 	const float2 d = 2.f * make_float2(
@@ -83,12 +75,15 @@ static __device__ float3 calc_segment_surface_normal (
 	return normalize(normal);
 }
 
-static __forceinline__ __device__ void set_payload (float4 color, float3 position, float3 normal, float3 tangent, float depth)
+static __forceinline__ __device__ void set_payload (
+	const float4 &color, const float u, const unsigned seg_id, const float3 &position,
+	const float3 &normal, const float3 &tangent, const float depth
+)
 {
 	// albedo
-	optixSetPayload_0(pack_unorm_4x8(color));
-	optixSetPayload_1(0);
-	optixSetPayload_2(0);
+	optixSetPayload_0(pack_unorm_4x8(color));  // surface color as 8bit (per channel) RGBA
+	optixSetPayload_1(float_as_int(u));        // curve arclength at hit
+	optixSetPayload_2(seg_id);
 	optixSetPayload_3(0);
 	// position
 	optixSetPayload_4(float_as_int(position.x));
@@ -106,6 +101,14 @@ static __forceinline__ __device__ void set_payload (float4 color, float3 positio
 	optixSetPayload_13(float_as_int(depth));
 }
 
+static __forceinline__ __device__ float eval_alen (const cuda_arclen &param, const float t)
+{
+	const float t4 = t + t + t + t;
+	const int seg = max(int(fminf(t4, 3.f)), 0);
+	const float t_inner = t4 - seg;
+	return eval_cubic_bezier(param.span[seg], t_inner);
+}
+
 
 extern "C" __global__ void __raygen__basic (void)
 {
@@ -121,7 +124,7 @@ extern "C" __global__ void __raygen__basic (void)
 	// Trace the ray against our scene hierarchy
 	// - create payload storage
 	unsigned int
-		pl_color, pl_albedo1, pl_albedo2, pl_albedo3,
+		pl_color, pl_u, pl_seg_id, pl_albedo3,
 		pl_position_x, pl_position_y, pl_position_z,
 		pl_normal_x, pl_normal_y, pl_normal_z,
 		pl_tangent_x, pl_tangent_y, pl_tangent_z,
@@ -140,7 +143,7 @@ extern "C" __global__ void __raygen__basic (void)
 		1,                   // SBT stride   -- See SBT discussion
 		0,                   // missSBTIndex -- See SBT discussion
 		// payloads:
-		pl_color, pl_albedo1, pl_albedo2, pl_albedo3,
+		pl_color, pl_u, pl_seg_id, pl_albedo3,
 		pl_position_x, pl_position_y, pl_position_z,
 		pl_normal_x, pl_normal_y, pl_normal_z,
 		pl_tangent_x, pl_tangent_y, pl_tangent_z,
@@ -149,8 +152,8 @@ extern "C" __global__ void __raygen__basic (void)
 	// - process payload	
 	float4 albedo;
 		albedo.x = int_as_float(pl_color);
-		albedo.y = int_as_float(pl_albedo1);
-		albedo.z = int_as_float(pl_albedo2);
+		albedo.y = int_as_float(pl_u);
+		albedo.z = int_as_float(pl_seg_id);
 		albedo.w = int_as_float(pl_albedo3);
 	float3 position;
 		position.x = int_as_float(pl_position_x);
@@ -180,7 +183,7 @@ extern "C" __global__ void __raygen__basic (void)
 extern "C" __global__ void __miss__ms (void)
 {
 	data_miss *data  = reinterpret_cast<data_miss*>(optixGetSbtDataPointer());
-	set_payload(data->bgcolor, nullvec3, nullvec3, nullvec3, 1.f);
+	set_payload(data->bgcolor, -1.f, 0, nullvec3, nullvec3, nullvec3, 1.f);
 }
 
 
@@ -223,6 +226,9 @@ extern "C" __global__ void __closesthit__ch (void)
 	// calculate pre-shading surface color
 	const float4 color = {1.f-t, t, 0.f, 1.f};  // visualize curve param as red->green
 
+	// calculate arclength at t
+	const float u = eval_alen(params.alen[seg_id], t);
+
 	// done - store hit results in payload
-	set_payload(color, pos, normal, tangent, depth);
+	set_payload(color, u, seg_id, pos, normal, tangent, depth);
 }

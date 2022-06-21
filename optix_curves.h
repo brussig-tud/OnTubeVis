@@ -14,9 +14,18 @@
 // Structs
 //
 
+// GPU representation of arclength parametrization
+struct cuda_arclen
+{
+	float4 span [4];
+};
+
 // OptiX launch parameters
 struct curve_rt_params
 {
+	// input buffers
+	cuda_arclen*           alen;
+
 	// output buffers
 	float4*                albedo;
 	float3*                position;

@@ -507,9 +507,10 @@ void tubes::on_set(void *member_ptr) {
 		// ### BEGIN: OptiX integration
 		// ###############################
 
-		if (optix.enabled) {
+		if (optix.initialized) {
 			optix_update_accelds();
 			optix_update_pipeline();
+			optix_bind_alenbuf();
 		}
 
 		// ###############################
@@ -1480,6 +1481,11 @@ void tubes::optix_destroy_pipeline (void)
 	OPTIX_SAFE_DESTROY_PROGGROUP(optix.prg_raygen);
 }
 
+void tubes::optix_unregister_resources (void)
+{
+	CUDA_SAFE_UNREGISTER(optix.sbo_alen);
+}
+
 bool tubes::optix_ensure_init (context &ctx)
 {
 	// report OK if nothing needs to be done
@@ -1514,6 +1520,7 @@ bool tubes::optix_ensure_init (context &ctx)
 	if (traj_mgr.has_data()) {
 		success = success && optix_update_accelds();
 		success = success && optix_update_pipeline();
+		success = success && optix_bind_alenbuf();
 	}
 	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
 	success = success && optix.outbuf_position.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
@@ -1907,6 +1914,26 @@ bool tubes::optix_update_pipeline (void)
 	return success;
 }
 
+bool tubes::optix_bind_alenbuf (void)
+{
+	// unregister previous resource (when our function is called, the SBO was very likely exchanged for an new one)
+	CUDA_SAFE_UNREGISTER(optix.sbo_alen);
+
+	// track success - we don't immediately fail and return since the code in this function is not robust to failure
+	// (i.e. doesn't use RAII) so doing that could potentially result in both host and device memory leaks
+	bool success = true;
+
+	// register the arclength SSBO with CUDA
+	const GLuint alen_handle = (const int&)render.arclen_sbo.handle - 1;
+	CUDA_CHECK_SET(
+		cudaGraphicsGLRegisterBuffer(&optix.sbo_alen, alen_handle, cudaGraphicsRegisterFlagsReadOnly),
+		success
+	);
+
+	// done!
+	return success;
+}
+
 void tubes::optix_draw_trajectories (context &ctx)
 {
 	////
@@ -1918,13 +1945,18 @@ void tubes::optix_draw_trajectories (context &ctx)
 		            optixV_len = (float)view_ptr->get_tan_of_half_of_fovy(true),
 		            optixU_len = optixV_len * aspect;
 		const vec3 &eye = view_ptr->get_eye(),
-		           optixW = cgv::math::normalize(view_ptr->get_view_dir()),
-		           optixV = cgv::math::normalize(view_ptr->get_view_up_dir()) * optixV_len,
-		           optixU = cgv::math::normalize(cgv::math::cross(optixW, optixV)) * optixU_len;
+		            optixW = cgv::math::normalize(view_ptr->get_view_dir()),
+		            optixV = cgv::math::normalize(view_ptr->get_view_up_dir()) * optixV_len,
+		            optixU = cgv::math::normalize(cgv::math::cross(optixW, optixV)) * optixU_len;
 
 		// setup params for our launch
 		// - set values
 		curve_rt_params params;
+		params.alen = nullptr; {
+			size_t size;
+			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_alen, optix.stream), success);
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.alen), &size, optix.sbo_alen));
+		}
 		params.albedo = optix.outbuf_albedo.map();
 		params.position = optix.outbuf_position.map();
 		params.normal = optix.outbuf_normal.map();
@@ -1952,7 +1984,9 @@ void tubes::optix_draw_trajectories (context &ctx)
 		optix.outbuf_normal.unmap();
 		optix.outbuf_position.unmap();
 		optix.outbuf_albedo.unmap();
+		CUDA_CHECK(cudaGraphicsUnmapResources(1, &optix.sbo_alen, optix.stream));
 	}
+
 
 	////
 	// Display results

@@ -103,6 +103,9 @@ protected:
 		// device memory for our launch parameters
 		CUdeviceptr params_buf = 0;
 
+		// the arclen parametrization SSBO interop resource handle
+		cudaGraphicsResource *sbo_alen = nullptr;
+
 		// GL interop
 		CUstream stream = nullptr;
 		cuda_output_buffer<float4> outbuf_albedo;
@@ -117,12 +120,15 @@ protected:
 		} fb;
 	} optix;
 
-	void optix_destroy_accelds(void);
-	void optix_destroy_pipeline(void);
+	void optix_destroy_accelds (void);
+	void optix_destroy_pipeline (void);
+	void optix_unregister_resources (void);
 
 	bool optix_ensure_init (context &ctx);
 	bool optix_update_accelds (void);
 	bool optix_update_pipeline (void);
+
+	bool optix_bind_alenbuf (void);
 
 	void optix_draw_trajectories (context &ctx);
 

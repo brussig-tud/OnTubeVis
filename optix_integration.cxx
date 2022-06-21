@@ -16,7 +16,6 @@
 // CUDA/Optix
 #include <nvrtc.h>
 #include <optix_function_table_definition.h>
-#include <cuda_gl_interop.h>
 
 // Implemented header
 #include "optix_integration.h"

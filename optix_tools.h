@@ -61,10 +61,9 @@ __device__ __forceinline__ float4 mix (const float4 &v0, const float4 &v1, const
 // emulates the GLSL packUnorm4x8 function
 __device__ __forceinline__ unsigned pack_unorm_4x8 (const float4 v)
 {
-	const unsigned char c0 = __float2int_rn(__saturatef(v.x)*255.f),
-	                    c1 = __float2int_rn(__saturatef(v.y)*255.f),
-	                    c2 = __float2int_rn(__saturatef(v.z)*255.f),
-	                    c3 = __float2int_rn(__saturatef(v.w)*255.f);
+	const unsigned char
+		c0 = __float2int_rn(__saturatef(v.x)*255.f), c1 = __float2int_rn(__saturatef(v.y)*255.f),
+		c2 = __float2int_rn(__saturatef(v.z)*255.f), c3 = __float2int_rn(__saturatef(v.w)*255.f);
 	return (c3<<24) | (c2<<16) | (c1<<8) | c0;
 }
 
@@ -99,6 +98,22 @@ __device__ __forceinline__ float4 mul_mat_vec(const float* mat, const float4& ve
 	r.z = mat[2] * vec.x + mat[6] * vec.y + mat[10] * vec.z + mat[14] * vec.w;
 	r.w = mat[3] * vec.x + mat[7] * vec.y + mat[11] * vec.z + mat[15] * vec.w;
 	return r;
+}
+
+// quick evaluation of scalar cuvic bezier function (without building interpolator first)
+__device__ __forceinline__ float eval_cubic_bezier (const float4 &cp, const float t)
+{
+	// De-Casteljau level 0
+	float3 v = {
+		mix(cp.x, cp.y, t), mix(cp.y, cp.z, t), mix(cp.z, cp.w, t)
+	};
+
+	// De-Casteljau level 1 (reuse local storage from above)
+	v.x = mix(v.x, v.y, t);
+	v.y = mix(v.y, v.z, t);
+
+	// De-Casteljau level 2 (final result)
+	return mix(v.x, v.y, t);
 }
 
 
