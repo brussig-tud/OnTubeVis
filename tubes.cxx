@@ -510,7 +510,7 @@ void tubes::on_set(void *member_ptr) {
 		if (optix.initialized) {
 			optix_update_accelds();
 			optix_update_pipeline();
-			optix_bind_alenbuf();
+			optix_register_resources(ctx);
 		}
 
 		// ###############################
@@ -1484,6 +1484,8 @@ void tubes::optix_destroy_pipeline (void)
 void tubes::optix_unregister_resources (void)
 {
 	CUDA_SAFE_UNREGISTER(optix.sbo_alen);
+	CUDA_SAFE_UNREGISTER(optix.sbo_nodeids);
+	CUDA_SAFE_UNREGISTER(optix.sbo_nodes);
 }
 
 bool tubes::optix_ensure_init (context &ctx)
@@ -1520,7 +1522,7 @@ bool tubes::optix_ensure_init (context &ctx)
 	if (traj_mgr.has_data()) {
 		success = success && optix_update_accelds();
 		success = success && optix_update_pipeline();
-		success = success && optix_bind_alenbuf();
+		success = success && optix_register_resources(ctx);
 	}
 	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
 	success = success && optix.outbuf_position.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
@@ -1914,16 +1916,29 @@ bool tubes::optix_update_pipeline (void)
 	return success;
 }
 
-bool tubes::optix_bind_alenbuf (void)
+bool tubes::optix_register_resources (context &ctx)
 {
-	// unregister previous resource (when our function is called, the SBO was very likely exchanged for an new one)
-	CUDA_SAFE_UNREGISTER(optix.sbo_alen);
+	// unregister previous version (when our function is called, the SSBOs were very likely exchanged for new ones)
+	optix_unregister_resources();
 
 	// track success - we don't immediately fail and return since the code in this function is not robust to failure
 	// (i.e. doesn't use RAII) so doing that could potentially result in both host and device memory leaks
 	bool success = true;
 
-	// register the arclength SSBO with CUDA
+	// register the SSBOs with CUDA
+	// - node data
+	const GLuint nodes_handle = (const int&)render.render_sbo.handle - 1;
+	CUDA_CHECK_SET(
+		cudaGraphicsGLRegisterBuffer(&optix.sbo_nodes, nodes_handle, cudaGraphicsRegisterFlagsReadOnly),
+		success
+	);
+	// - node indices
+	const GLuint nodeids_handle = ref_textured_spline_tube_renderer(ctx).get_vbo_handle(ctx, render.aam, "node_ids");
+	CUDA_CHECK_SET(
+		cudaGraphicsGLRegisterBuffer(&optix.sbo_nodeids, nodeids_handle, cudaGraphicsRegisterFlagsReadOnly),
+		success
+	);
+	// - arclength
 	const GLuint alen_handle = (const int&)render.arclen_sbo.handle - 1;
 	CUDA_CHECK_SET(
 		cudaGraphicsGLRegisterBuffer(&optix.sbo_alen, alen_handle, cudaGraphicsRegisterFlagsReadOnly),
@@ -1950,13 +1965,23 @@ void tubes::optix_draw_trajectories (context &ctx)
 		            optixU = cgv::math::normalize(cgv::math::cross(optixW, optixV)) * optixU_len;
 
 		// setup params for our launch
-		// - set values
+		// - set values (ToDo: batch MapResources calls)
 		curve_rt_params params;
+		params.nodes = nullptr; {
+			size_t size;
+			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_nodes, optix.stream));
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.nodes), &size, optix.sbo_nodes));
+		};
+		params.node_ids = nullptr; {
+			size_t size;
+			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_nodeids, optix.stream));
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.node_ids), &size, optix.sbo_nodeids));
+		};
 		params.alen = nullptr; {
 			size_t size;
 			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_alen, optix.stream));
 			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.alen), &size, optix.sbo_alen));
-		}
+		};
 		params.albedo = optix.outbuf_albedo.map();
 		params.position = optix.outbuf_position.map();
 		params.normal = optix.outbuf_normal.map();
@@ -1972,7 +1997,7 @@ void tubes::optix_draw_trajectories (context &ctx)
 		params.cam_w = make_float3(optixW.x(), optixW.y(), optixW.z());
 		*(mat4*)(&params.cam_MV) = ctx.get_modelview_matrix();
 		*(mat4*)(&params.cam_P) = ctx.get_projection_matrix();
-		*(mat4*)(&params.cam_MVP) = ctx.get_projection_matrix() * ctx.get_modelview_matrix();
+		*(mat4*)(&params.cam_N) = cgv::math::transpose(cgv::math::inv(ctx.get_modelview_matrix()));
 		// - upload to device
 		CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(optix.params_buf), &params, sizeof(params), cudaMemcpyHostToDevice));
 
@@ -1981,35 +2006,40 @@ void tubes::optix_draw_trajectories (context &ctx)
 			optix.pipeline, optix.stream, optix.params_buf, sizeof(curve_rt_params), &optix.sbt, params.fb_width, params.fb_height, /*depth=*/1
 		));
 		CUDA_SYNC_CHECK();
+
+		// clean up (ToDo: batch UnmapResources calls)
 		optix.outbuf_depth.unmap();
 		optix.outbuf_tangent.unmap();
 		optix.outbuf_normal.unmap();
 		optix.outbuf_position.unmap();
 		optix.outbuf_albedo.unmap();
 		CUDA_CHECK(cudaGraphicsUnmapResources(1, &optix.sbo_alen, optix.stream));
+		CUDA_CHECK(cudaGraphicsUnmapResources(1, &optix.sbo_nodeids, optix.stream));
+		CUDA_CHECK(cudaGraphicsUnmapResources(1, &optix.sbo_nodes, optix.stream));
+
+		// transfer OptiX render result into our result texture
+		optix.outbuf_albedo.into_texture(ctx, optix.fb.albedo);
+		optix.outbuf_position.into_texture(ctx, optix.fb.position);
+		optix.outbuf_normal.into_texture(ctx, optix.fb.normal);
+		optix.outbuf_tangent.into_texture(ctx, optix.fb.tangent);
+		optix.outbuf_depth.into_texture(ctx, optix.fb.depth);
 	}
 
 
 	////
 	// Display results
 
-	if (!benchmark.running) {
+	/* local scope *//*  {
 		// obtain the OptiX display shader program
 		static shader_program &display_prog = shaders.get("optix_display");
-
-		// transfer OptiX render result into our result texture
-		optix.outbuf_albedo.into_texture(ctx, optix.fb.albedo);
-		//optix.outbuf_albedo.into_texture(ctx, optix.fb.position);
-		optix.outbuf_albedo.into_texture(ctx, optix.fb.normal);
-		optix.outbuf_albedo.into_texture(ctx, optix.fb.tangent);
-		optix.outbuf_depth.into_texture(ctx, optix.fb.depth);
 
 		// Blend the result image onto the main framebuffer
 		display_prog.enable(ctx);
 		optix.fb.albedo->enable(ctx, 0);
-		optix.fb.normal->enable(ctx, 1);
-		optix.fb.tangent->enable(ctx, 2);
-		optix.fb.depth->enable(ctx, 3);
+		optix.fb.position->enable(ctx, 1);
+		optix.fb.normal->enable(ctx, 2);
+		optix.fb.tangent->enable(ctx, 3);
+		optix.fb.depth->enable(ctx, 4);
 		glEnable(GL_BLEND);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -2017,9 +2047,10 @@ void tubes::optix_draw_trajectories (context &ctx)
 		optix.fb.depth->disable(ctx);
 		optix.fb.tangent->disable(ctx);
 		optix.fb.normal->disable(ctx);
+		optix.fb.position->disable(ctx);
 		optix.fb.albedo->disable(ctx);
 		display_prog.disable(ctx);
-	}
+	}*/
 }
 
 // ###############################
@@ -2721,13 +2752,13 @@ void tubes::draw_trajectories(context& ctx) {
 
 	vec3 eye_pos = view_ptr->get_eye();
 	const vec3& view_dir = view_ptr->get_view_dir();
+	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
 
 	if (!optix.enabled || !optix.initialized)
 	{
 		fbc.enable(ctx);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	
-		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 
 		// prepare SSBO handles
 		const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0,
@@ -2736,7 +2767,6 @@ void tubes::draw_trajectories(context& ctx) {
 
 		// sort the sgment indices
 		int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
-		int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");	
 		if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && debug.sort & !debug.force_initial_order)
 			//render.sorter->sort(ctx, data_handle, segment_idx_handle, test_eye, test_dir, node_idx_handle);
 			render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
@@ -2773,7 +2803,7 @@ void tubes::draw_trajectories(context& ctx) {
 		optix_draw_trajectories(ctx);
 
 	// ToDo: remove if condition once OptiX output is fully compatible
-	if (!optix.enabled || !optix.initialized)
+	//if (!optix.enabled || !optix.initialized)
 	{
 		shader_program& prog = shaders.get("tube_shading");
 		prog.enable(ctx);

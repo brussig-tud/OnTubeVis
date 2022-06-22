@@ -14,6 +14,14 @@
 // Structs
 //
 
+// GPU representation of tube node attribute data
+struct cuda_node
+{
+	float4 pos_rad;
+	float4 color;
+	float4 tangent;
+};
+
 // GPU representation of arclength parametrization
 struct cuda_arclen
 {
@@ -24,6 +32,8 @@ struct cuda_arclen
 struct curve_rt_params
 {
 	// input buffers
+	cuda_node*             nodes;
+	uint2*                 node_ids;
 	cuda_arclen*           alen;
 
 	// output buffers
@@ -38,12 +48,11 @@ struct curve_rt_params
 	unsigned int           fb_height;
 
 	// camera parameters
-	float3                 cam_eye;
-	float3                 cam_u, cam_v, cam_w;
+	float3                 cam_eye, cam_u, cam_v, cam_w;
 	float2                 cam_clip;
 	float                  cam_MV[16];
 	float                  cam_P[16];
-	float                  cam_MVP[16];
+	float                  cam_N[16];
 
 	// the accelleration datastructure to trace
 	OptixTraversableHandle accelds;

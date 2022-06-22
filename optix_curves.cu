@@ -60,31 +60,31 @@ static __forceinline__ __device__ float3 calc_hit_point (void)
 }
 
 static __device__ float3 calc_segment_surface_normal (
-	const cubic_interpolator_vec3 &curve, const quadr_interpolator_vec3 &dcurve,
-	const float3 &p_surface, const float t
+	const float3 &p_surface, const float3 &p_curve,
+	const quadr_interpolator_vec3 &dcurve, const float t
 )
 {
 	// special handling for endcaps
 	float3 normal;
 	if (t <= 0.f)
-		normal = -dcurve.eval(0);
+		normal = normalize(-dcurve.eval(0));
 	else if (t >= 1.f)
-		normal =  dcurve.eval(1);
+		normal = normalize(dcurve.eval(1));
 	else
-		normal = normalize(p_surface - curve.eval(t));
-	return normalize(normal);
+		normal = normalize(p_surface - p_curve);
+	return normal;
 }
 
 static __forceinline__ __device__ void set_payload (
-	const float4 &color, const float u, const unsigned seg_id, const float3 &position,
+	const float4 &color, const float u, const float v, const unsigned seg_id, const float3 &position,
 	const float3 &normal, const float3 &tangent, const float depth
 )
 {
 	// albedo
 	optixSetPayload_0(pack_unorm_4x8(color));  // surface color as 8bit (per channel) RGBA
 	optixSetPayload_1(float_as_int(u));        // curve arclength at hit
-	optixSetPayload_2(seg_id);
-	optixSetPayload_3(0);
+	optixSetPayload_2(float_as_int(v));
+	optixSetPayload_3(seg_id);
 	// position
 	optixSetPayload_4(float_as_int(position.x));
 	optixSetPayload_5(float_as_int(position.y));
@@ -124,7 +124,7 @@ extern "C" __global__ void __raygen__basic (void)
 	// Trace the ray against our scene hierarchy
 	// - create payload storage
 	unsigned int
-		pl_color, pl_u, pl_seg_id, pl_albedo3,
+		pl_color, pl_u, pl_v, pl_seg_id,
 		pl_position_x, pl_position_y, pl_position_z,
 		pl_normal_x, pl_normal_y, pl_normal_z,
 		pl_tangent_x, pl_tangent_y, pl_tangent_z,
@@ -143,7 +143,7 @@ extern "C" __global__ void __raygen__basic (void)
 		1,                   // SBT stride   -- See SBT discussion
 		0,                   // missSBTIndex -- See SBT discussion
 		// payloads:
-		pl_color, pl_u, pl_seg_id, pl_albedo3,
+		pl_color, pl_u, pl_v, pl_seg_id,
 		pl_position_x, pl_position_y, pl_position_z,
 		pl_normal_x, pl_normal_y, pl_normal_z,
 		pl_tangent_x, pl_tangent_y, pl_tangent_z,
@@ -153,8 +153,8 @@ extern "C" __global__ void __raygen__basic (void)
 	float4 albedo;
 		albedo.x = int_as_float(pl_color);
 		albedo.y = int_as_float(pl_u);
-		albedo.z = int_as_float(pl_seg_id);
-		albedo.w = int_as_float(pl_albedo3);
+		albedo.z = int_as_float(pl_v);
+		albedo.w = int_as_float(pl_seg_id);
 	float3 position;
 		position.x = int_as_float(pl_position_x);
 		position.y = int_as_float(pl_position_y);
@@ -177,13 +177,25 @@ extern "C" __global__ void __raygen__basic (void)
 	params.normal[pxl] = normal;
 	params.tangent[pxl] = tangent;
 	params.depth[pxl] = depth;
+
+	/*//----------------------------
+	// BEGIN: DEBUG OUTPUT
+	const unsigned mid = (params.fb_height/2)*params.fb_width + (params.fb_width/2);
+	if (pxl == mid)
+		printf(
+		"segid: %d\nu=%f\nv=%f",
+		float_as_int(params.albedo[pxl].w),
+		albedo.y, albedo.z
+	);
+	// END:   DEBUG OUTPUT
+	//---------------------------*/
 }
 
 
 extern "C" __global__ void __miss__ms (void)
 {
 	data_miss *data  = reinterpret_cast<data_miss*>(optixGetSbtDataPointer());
-	set_payload(data->bgcolor, -1.f, 0, nullvec3, nullvec3, nullvec3, 1.f);
+	set_payload(data->bgcolor, -1.f, 0.f, 0, nullvec3, nullvec3, nullvec3, 1.f);
 }
 
 
@@ -209,26 +221,35 @@ extern "C" __global__ void __closesthit__ch (void)
 		// since the segment could be in a bottom-level acceleration structure and subject to an additional
 		// model or instance transform (we don't use those though so we're fine)
 
-	// compute hit normal
-	const float3 normal = calc_segment_surface_normal(curve, dcurve, pos, t);
+	// compute hit normal in eye-space
+	const float3 pos_curve = curve.eval(t);
+	const float3 normal = normalize(mul_mat_vec(params.cam_N, calc_segment_surface_normal(pos, pos_curve, dcurve, t)));
 		// in the general setting, we would first call optixTransformNormalFromObjectToWorldSpace()
 		// before doing anything with the normal, since the segment could be in a bottom-level acceleration
 		// structure and subject to an additional model or instance transform (we don't use those though so
 		// we're fine)
 
-	// compute hit tangent
-	const float3 tangent = dcurve.eval(t);
-
-	// compute screen-space position of hitpoint for depth map creation
-	const float4 p_screen = mul_mat_pos(params.cam_MVP, pos);
-	const float  depth = .5f*(p_screen.z/p_screen.w) + .5f;
+	// compute hit tangent in eye-space
+	const float3 tangent = normalize(mul_mat_vec(params.cam_N, dcurve.eval(t)));
 
 	// calculate pre-shading surface color
-	const float4 color = {1.f-t, t, 0.f, 1.f};  // visualize curve param as red->green
+	const uint2 node_ids = params.node_ids[seg_id];
+	const float4 color = mix(
+		params.nodes[node_ids.x].color, params.nodes[node_ids.y].color, t
+	);
 
-	// calculate arclength at t
-	const float u = eval_alen(params.alen[seg_id], t);
+	// calculate u texture coordinate (arclength at t)
+	const float u = eval_alen(params.alen[seg_id], t);	
+
+	// calculate v texture coordinate
+	const float4 pos_eye = mul_mat_pos(params.cam_MV, pos);
+	const float3 bitangent = normalize(cross(tangent, w_clip(mul_mat_pos(params.cam_MV, pos_curve))));
+	const float v = acos(dot(bitangent, normal)) * pi_inv;
+
+	// calculate depth value
+	const float4 pos_screen = mul_mat_vec(params.cam_P, pos_eye);
+	const float depth = .5f*(pos_screen.z/pos_screen.w) + .5f;
 
 	// done - store hit results in payload
-	set_payload(color, u, seg_id, pos, normal, tangent, depth);
+	set_payload(color, u, v, seg_id, w_clip(pos_eye), normal, tangent, depth);
 }

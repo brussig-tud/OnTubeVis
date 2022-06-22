@@ -103,7 +103,9 @@ protected:
 		// device memory for our launch parameters
 		CUdeviceptr params_buf = 0;
 
-		// the arclen parametrization SSBO interop resource handle
+		// SSBO interop resource handles
+		cudaGraphicsResource *sbo_nodes = nullptr;
+		cudaGraphicsResource *sbo_nodeids = nullptr;
 		cudaGraphicsResource *sbo_alen = nullptr;
 
 		// GL interop
@@ -125,10 +127,10 @@ protected:
 	void optix_unregister_resources (void);
 
 	bool optix_ensure_init (context &ctx);
+
 	bool optix_update_accelds (void);
 	bool optix_update_pipeline (void);
-
-	bool optix_bind_alenbuf (void);
+	bool optix_register_resources (context &ctx);
 
 	void optix_draw_trajectories (context &ctx);
 

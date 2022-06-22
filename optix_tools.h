@@ -14,6 +14,9 @@
 // Utility constants
 //
 
+// the inverse of pi
+constexpr float pi_inv = 0.31830988618379067153776752674503f;
+
 // R^3 null-vector
 __constant__ float3 nullvec3 = {0};
 
@@ -90,13 +93,23 @@ __device__ __forceinline__ float3 mul_mat_vec (const float *mat, const float3 &v
 }
 
 // right-multiply R^4 vector to 4x4 matrix
-__device__ __forceinline__ float4 mul_mat_vec(const float* mat, const float4& vec)
+__device__ __forceinline__ float4 mul_mat_vec (const float *mat, const float4 &vec)
 {
 	float4 r;
 	r.x = mat[0] * vec.x + mat[4] * vec.y + mat[8] * vec.z + mat[12] * vec.w;
 	r.y = mat[1] * vec.x + mat[5] * vec.y + mat[9] * vec.z + mat[13] * vec.w;
 	r.z = mat[2] * vec.x + mat[6] * vec.y + mat[10] * vec.z + mat[14] * vec.w;
 	r.w = mat[3] * vec.x + mat[7] * vec.y + mat[11] * vec.z + mat[15] * vec.w;
+	return r;
+}
+
+// apply w-clip to homogenous R^3 vector, returning ordinary R^3 vector
+__device__ __forceinline__ float3 w_clip (const float4 &hvec)
+{
+	float3 r;
+	r.x = hvec.x/hvec.w;
+	r.y = hvec.y/hvec.w;
+	r.z = hvec.z/hvec.w;
 	return r;
 }
 
