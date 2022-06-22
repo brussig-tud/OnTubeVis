@@ -1604,9 +1604,9 @@ bool tubes::optix_update_accelds (void)
 		radii.reserve(num);
 
 		// convert data representation:
-		// - add 0th and n+1th vertex to every trajectory for Catmull-Rom to work
-		// - adapt indices accordingly
-		// - convert to device float3
+		// - convert Hermite-basis control points to Catmull-Rom basis
+		// - adapt indices to OptiX curve primitive scheme
+		constexpr float mscale = 1.5f; // <-- hand-tuned tangent scaling factor to get results visually closer to split quadratic curves
 		for (const auto &ds : render.data->datasets)
 		{
 			for (const auto &traj : ds.trajs)
@@ -1614,15 +1614,15 @@ bool tubes::optix_update_accelds (void)
 				const unsigned num_segs = traj.n / 2;
 				for (unsigned i=0; i<num_segs; i++)
 				{
-					unsigned idx = rd_idx[traj.i0]+i;
-					const vec4  &t0 = rd_tan[idx], &t1 = rd_tan[idx+1];
-					const vec3  &p0 = rd_pos[idx], &p1 = rd_pos[idx+1],
-					             m0 = 1.5f*vec3(t0),     m1 = 1.5f*vec3(t1); // hand-tuned x1.5 factor to give more visually similar impression to split quadratic segments
-					const float &r0 = rd_rad[idx], &r1 = rd_rad[idx+1];
+					const unsigned idx = rd_idx[traj.i0]+i;
+					const vec4  &t0 = rd_tan[idx],    &t1 = rd_tan[idx+1];
+					const vec3  &p0 = rd_pos[idx],    &p1 = rd_pos[idx+1],
+					             m0 = mscale*vec3(t0), m1 = mscale*vec3(t1);
+					const float &r0 = rd_rad[idx],    &r1 = rd_rad[idx+1];
 					indices.emplace_back(unsigned(positions.size()));
 					// cr0
 					positions.emplace_back(_::to_float3(_::get_cr0(p0, m0, p1)));
-					radii.emplace_back(_::get_cr0(r0, t0.w(), r1));
+					radii.emplace_back(_::get_cr0(r0, mscale*t0.w(), r1));
 					// cr1
 					positions.emplace_back(_::to_float3(p0));
 					radii.push_back(r0);
@@ -1631,7 +1631,7 @@ bool tubes::optix_update_accelds (void)
 					radii.push_back(r1);
 					// cr3
 					positions.emplace_back(_::to_float3(_::get_cr3(p0, p1, m1)));
-					radii.emplace_back(_::get_cr3(r0, r1, t1.w()));
+					radii.emplace_back(_::get_cr3(r0, r1, mscale*t1.w()));
 				}
 			}
 		}
