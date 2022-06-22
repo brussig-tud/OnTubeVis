@@ -41,8 +41,8 @@ extern "C" {
 static __forceinline__ __device__ void compute_ray(uint3 idx, uint3 dim, float3& origin, float3& direction)
 {
 	const float2 d = 2.f * make_float2(
-		static_cast<float>(idx.x) / static_cast<float>(dim.x),
-		static_cast<float>(idx.y) / static_cast<float>(dim.y)
+		(static_cast<float>(idx.x)+.5f) / static_cast<float>(dim.x),
+		(static_cast<float>(idx.y)+.5f) / static_cast<float>(dim.y)
 	) - 1.f;
 	origin = params.cam_eye;
 	direction = normalize(d.x*params.cam_u + d.y*params.cam_v + params.cam_w);
