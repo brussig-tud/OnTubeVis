@@ -220,7 +220,7 @@ extern "C" __global__ void __closesthit__ch (void)
 	const float3 tangent = dcurve.eval(t);
 
 	// compute screen-space position of hitpoint for depth map creation
-	const float4 p_screen = mul_mat_pos(params.cam_mvp, pos);
+	const float4 p_screen = mul_mat_pos(params.cam_MVP, pos);
 	const float  depth = .5f*(p_screen.z/p_screen.w) + .5f;
 
 	// calculate pre-shading surface color

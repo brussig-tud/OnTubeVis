@@ -1954,7 +1954,7 @@ void tubes::optix_draw_trajectories (context &ctx)
 		curve_rt_params params;
 		params.alen = nullptr; {
 			size_t size;
-			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_alen, optix.stream), success);
+			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_alen, optix.stream));
 			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.alen), &size, optix.sbo_alen));
 		}
 		params.albedo = optix.outbuf_albedo.map();
@@ -1970,7 +1970,9 @@ void tubes::optix_draw_trajectories (context &ctx)
 		params.cam_u = make_float3(optixU.x(), optixU.y(), optixU.z());
 		params.cam_v = make_float3(optixV.x(), optixV.y(), optixV.z());
 		params.cam_w = make_float3(optixW.x(), optixW.y(), optixW.z());
-		*(mat4*)(&params.cam_mvp) = ctx.get_projection_matrix()*ctx.get_modelview_matrix();
+		*(mat4*)(&params.cam_MV) = ctx.get_modelview_matrix();
+		*(mat4*)(&params.cam_P) = ctx.get_projection_matrix();
+		*(mat4*)(&params.cam_MVP) = ctx.get_projection_matrix() * ctx.get_modelview_matrix();
 		// - upload to device
 		CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(optix.params_buf), &params, sizeof(params), cudaMemcpyHostToDevice));
 

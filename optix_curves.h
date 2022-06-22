@@ -41,7 +41,9 @@ struct curve_rt_params
 	float3                 cam_eye;
 	float3                 cam_u, cam_v, cam_w;
 	float2                 cam_clip;
-	float                  cam_mvp[16];
+	float                  cam_MV[16];
+	float                  cam_P[16];
+	float                  cam_MVP[16];
 
 	// the accelleration datastructure to trace
 	OptixTraversableHandle accelds;
