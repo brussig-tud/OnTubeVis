@@ -71,7 +71,36 @@ static __device__ float3 calc_segment_surface_normal (
 	else if (t >= 1.f)
 		normal = normalize(dcurve.eval(1));
 	else
+	{
+		// ps is a point that is near the curve's offset surface,
+		// usually ray.origin + ray.direction * rayt.
+		// We will push it exactly to the surface by projecting it to the plane(p,d).
+		// The function derivation:
+		// we (implicitly) transform the curve into coordinate system
+		// {p, o1 = normalize(ps - p), o2 = normalize(curve'(t)), o3 = o1 x o2} in which
+		// curve'(t) = (0, length(d), 0); ps = (r, 0, 0);
+		/*float4 p4 = bc.position4( t );
+		float3 p  = make_float3( p4 );
+		float  r  = p4.w;  // == length(ps - p) if ps is already on the surface
+		float4 d4 = bc.velocity4( t );
+		float3 d  = make_float3( d4 );
+		float  dr = d4.w;
+		float  dd = dot( d, d );
+
+		float3 o1 = ps - p;               // dot(modified_o1, d) == 0 by design:
+		o1 -= ( dot( o1, d ) / dd ) * d;  // first, project ps to the plane(p,d)
+		o1 *= r / length( o1 );           // and then drop it to the surface
+		ps = p + o1;                      // fine-tuning the hit point
+		if( type == 0 )
+			normal = o1;  // cylindrical approximation
+		else
+		{
+			if( type != 1 )
+				dd -= dot( bc.acceleration3( t ), o1 );
+			normal = dd * o1 - ( dr * r ) * d;
+		}*/
 		normal = normalize(p_surface - p_curve);
+	}
 	return normal;
 }
 
@@ -82,7 +111,7 @@ static __forceinline__ __device__ void set_payload (
 {
 	// albedo
 	optixSetPayload_0(pack_unorm_4x8(color));  // surface color as 8bit (per channel) RGBA
-	optixSetPayload_1(float_as_int(u));        // curve arclength at hit
+	optixSetPayload_1(float_as_int(u));
 	optixSetPayload_2(float_as_int(v));
 	optixSetPayload_3(seg_id);
 	// position
