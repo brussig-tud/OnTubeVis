@@ -359,6 +359,21 @@ struct sbt_record
 
 
 
+////////
+//
+// Structs
+//
+
+// Collection of format and type parameters for glTexImage...()
+struct GlTexImageFormatParams
+{
+	GLint  format_internal;
+	GLenum format;
+	GLenum type;
+};
+
+
+
 //////
 //
 // Functions
@@ -431,9 +446,9 @@ inline const char* gl_error_string (GLenum error)
 	}
 }
 
-/// reference the OpenGL component type
+/// get format parameters for glTexImage...() calls appropriate for a certain OptiX pixel format
 template <class pxl_fmt>
-GLenum get_gl_component_type (void);
+GlTexImageFormatParams get_gl_tex_image_fmtparams (void);
 
 /// reference the CGV pixel format string corresponding to an element data type supported by cuda_output_buffer
 template <class pxl_fmt>

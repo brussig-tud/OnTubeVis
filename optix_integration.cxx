@@ -95,24 +95,24 @@ std::vector<char> compile_cu2ptx (
 }
 
 template <>
-GLenum get_gl_component_type<uchar4> (void)
+GlTexImageFormatParams get_gl_tex_image_fmtparams<uchar4> (void)
 {
-	return GL_UNSIGNED_BYTE;
+	return {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE};
 }
 template <>
-GLenum get_gl_component_type<float1> (void)
+GlTexImageFormatParams get_gl_tex_image_fmtparams<float1> (void)
 {
-	return GL_FLOAT;
+	return {GL_DEPTH_COMPONENT32F, GL_DEPTH_COMPONENT, GL_FLOAT};
 }
 template <>
-GLenum get_gl_component_type<float3> (void)
+GlTexImageFormatParams get_gl_tex_image_fmtparams<float3> (void)
 {
-	return GL_FLOAT;
+	return {GL_RGB32F, GL_RGB, GL_FLOAT};;
 }
 template <>
-GLenum get_gl_component_type<float4> (void)
+GlTexImageFormatParams get_gl_tex_image_fmtparams<float4> (void)
 {
-	return GL_FLOAT;
+	return {GL_RGBA32F, GL_RGBA, GL_FLOAT};;
 }
 
 template <>
@@ -452,7 +452,7 @@ bool cuda_output_buffer<pxl_fmt>::into_texture (cgv::render::context &ctx, cgv::
 	// to failure (i.e. doesn't use RAII) so doing that would leave OpenGL in uncertain state for the caller
 	bool success = true;
 
-	// bind the pbo
+	// bind the PBO
 	GL_CHECK_SET(glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pbo), success);
 	const size_t elem_size = sizeof(pxl_fmt);
 	if      (elem_size % 8 == 0)  GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 8), success);
@@ -461,16 +461,16 @@ bool cuda_output_buffer<pxl_fmt>::into_texture (cgv::render::context &ctx, cgv::
 	else                          GL_CHECK_SET(glPixelStorei(GL_UNPACK_ALIGNMENT, 1), success);
 
 	// update texture
+	// - determine correct format/type params
+	const auto fmt = get_gl_tex_image_fmtparams<pxl_fmt>();
+	// - upload from PBO
 	const GLuint hTex = (GLuint)(size_t)tex.handle - 1;
 	GL_CHECK_SET(glActiveTexture(GL_TEXTURE0), success);
 	GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, hTex), success);
-	if (elem_size == 16)
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, m_width, m_height, 0, GL_RGBA, get_gl_component_type<pxl_fmt>(), nullptr);
-	else if (elem_size == 4)
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, m_width, m_height, 0, GL_DEPTH_COMPONENT, get_gl_component_type<pxl_fmt>(), nullptr);
+	glTexImage2D(GL_TEXTURE_2D, 0, fmt.format_internal, m_width, m_height, 0, fmt.format, fmt.type, nullptr);
 	GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, 0), success);
 
-	// unbind the pbo
+	// unbind the PBO
 	GL_CHECK_SET(glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0), success);
 
 	// done!
