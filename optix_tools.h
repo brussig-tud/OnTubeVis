@@ -136,13 +136,34 @@ __device__ __forceinline__ float eval_cubic_bezier (const float4 &cp, const floa
 // Structs
 //
 
+// a linear interpolator in R^3 space - uses Bezier basis internally for coherence with higher-order interpolators below
+struct linear_interpolator_vec3
+{
+	// linear bezier basis coefficients
+	float3 b[2];
+
+	// initialize from Bezier control points
+	__device__ __forceinline__ void from_bezier (const float3 *b)
+	{
+		this->b[0] = b[0];
+		this->b[1] = b[1];
+	}
+
+	// evaluate interpolation at given t
+	__device__ __forceinline__ float3 eval (const float t) const
+	{
+		// De-Casteljau level 0 (final result)
+		return mix(b[0], b[1], t);
+	}
+};
+
 // a quadratic interpolator in R^3 space - uses Bezier basis internally for efficient evaluation
 struct quadr_interpolator_vec3
 {
 	// quadratic bezier basis coefficients
 	float3 b[3];
 
-	// initialize from Catmull-Rom control points
+	// initialize from Bezier control points
 	__device__ __forceinline__ void from_bezier (const float3 *b)
 	{
 		this->b[0] = b[0];
@@ -161,6 +182,25 @@ struct quadr_interpolator_vec3
 		// De-Casteljau level 1 (final result)
 		return mix(v[0], v[1], t);
 	}
+
+	// compute first derivative and return resulting curve as a quadratic interpolator
+	// (trusts nvcc to properly perform RVO/copy-elision)
+	__device__ __forceinline__ linear_interpolator_vec3 derive (void) const
+	{
+		linear_interpolator_vec3 der;
+
+		// b1
+		der.b[0].x = 2.f*(b[1].x-b[0].x);
+		der.b[0].y = 2.f*(b[1].y-b[0].y);
+		der.b[0].z = 2.f*(b[1].z-b[0].z);
+
+		// b2
+		der.b[1].x = 2.f*(b[2].x-b[1].x);
+		der.b[1].y = 2.f*(b[2].y-b[1].y);
+		der.b[1].z = 2.f*(b[2].z-b[1].z);
+
+		return der;
+	}
 };
 
 // a cubic interpolator in R^3 space - uses Bezier basis internally for efficient evaluation
@@ -168,6 +208,15 @@ struct cubic_interpolator_vec3
 {
 	// cubic bezier basis coefficients
 	float3 b[4];
+
+	// initialize from Bezier control points
+	__device__ __forceinline__ void from_bezier (const float3 *b)
+	{
+		this->b[0] = b[0];
+		this->b[1] = b[1];
+		this->b[2] = b[2];
+		this->b[3] = b[3];
+	}
 
 	// initialize from Catmull-Rom control points
 	__device__ __forceinline__ void from_catmullrom (const float3 *cr)
@@ -243,10 +292,12 @@ struct cubic_interpolator_vec3
 		der.b[0].x = 3.f*(b[1].x - b[0].x);
 		der.b[0].y = 3.f*(b[1].y - b[0].y);
 		der.b[0].z = 3.f*(b[1].z - b[0].z);
+
 		// b2
 		der.b[1].x = 3.f*(b[2].x - b[1].x);
 		der.b[1].y = 3.f*(b[2].y - b[1].y);
 		der.b[1].z = 3.f*(b[2].z - b[1].z);
+
 		// b3
 		der.b[2].x = 3.f*(b[3].x - b[2].x);
 		der.b[2].y = 3.f*(b[3].y - b[2].y);

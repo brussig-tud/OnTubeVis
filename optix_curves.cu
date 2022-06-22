@@ -60,8 +60,8 @@ static __forceinline__ __device__ float3 calc_hit_point (void)
 }
 
 static __device__ float3 calc_segment_surface_normal (
-	const float3 &p_surface, const float3 &p_curve,
-	const quadr_interpolator_vec3 &dcurve, const float t
+	const float3 &p_surface, const float3 &p_curve, const quadr_interpolator_vec3 &dcurve,
+	const linear_interpolator_vec3 &ddcurve, const float t
 )
 {
 	// special handling for endcaps
@@ -223,7 +223,10 @@ extern "C" __global__ void __closesthit__ch (void)
 
 	// compute hit normal in eye-space
 	const float3 pos_curve = curve.eval(t);
-	const float3 normal = normalize(mul_mat_vec(params.cam_N, calc_segment_surface_normal(pos, pos_curve, dcurve, t)));
+	const float3 normal = normalize(mul_mat_vec(
+		params.cam_N,
+		calc_segment_surface_normal(pos, pos_curve, dcurve, dcurve.derive(), t)
+	));
 		// in the general setting, we would first call optixTransformNormalFromObjectToWorldSpace()
 		// before doing anything with the normal, since the segment could be in a bottom-level acceleration
 		// structure and subject to an additional model or instance transform (we don't use those though so
