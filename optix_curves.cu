@@ -241,7 +241,7 @@ extern "C" __global__ void __closesthit__ch (void)
 		optixGetGASTraversableHandle(), seg_id, optixGetSbtGASIndex(), 0.f, nodes
 	);
 	curve.from_catmullrom(nodes);
-	quadr_interpolator_vec3 dcurve = curve.derive();
+	const quadr_interpolator_vec3 dcurve = curve.derive();
 
 	// compute hit position (world space)
 	const float3 pos = calc_hit_point();
@@ -253,8 +253,7 @@ extern "C" __global__ void __closesthit__ch (void)
 	// compute hit normal in eye-space
 	const float3 pos_curve = curve.eval(t);
 	const float3 normal = normalize(mul_mat_vec(
-		params.cam_N,
-		calc_segment_surface_normal(pos, pos_curve, dcurve, dcurve.derive(), t)
+		params.cam_N, calc_segment_surface_normal(pos, pos_curve, dcurve, dcurve.derive(), t)
 	));
 		// in the general setting, we would first call optixTransformNormalFromObjectToWorldSpace()
 		// before doing anything with the normal, since the segment could be in a bottom-level acceleration

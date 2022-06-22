@@ -1545,6 +1545,35 @@ bool tubes::optix_ensure_init (context &ctx)
 
 bool tubes::optix_update_accelds (void)
 {
+	// local helpers
+	struct _
+	{
+		inline static constexpr float _1o3() { return (const float)(1.0/3.0); }
+
+		inline static float3 to_float3 (const vec3 &v) { return{v.x(), v.y(), v.z()}; }
+
+		inline static float get_cr0 (const float p0, const float m0, const float p1)
+		{
+			const float b1 = p0 + _1o3()*m0;
+			return p1 + 6.f*(p0 - b1);
+		}
+		inline static float get_cr3 (const float p0, const float p1, const float m1)
+		{
+			const float b2 = p1 - _1o3()*m1;
+			return p0 + 6.f*(p1 - b2);
+		}
+		inline static vec3 get_cr0 (const vec3 &p0, const vec3 &m0, const vec3 &p1)
+		{
+			const vec3 b1 = p0 + _1o3()*m0;
+			return p1 + 6.f*(p0 - b1);
+		}
+		inline static vec3 get_cr3 (const vec3 &p0, const vec3 &p1, const vec3 &m1)
+		{
+			const vec3 b2 = p1 - _1o3()*m1;
+			return p0 + 6.f*(p1 - b2);
+		}
+	};
+
 	// make sure we start with a blank slate
 	optix_destroy_accelds();
 
@@ -1569,43 +1598,41 @@ bool tubes::optix_update_accelds (void)
 		const auto &rd_tan = render.data->tangents;
 		const auto &rd_rad = render.data->radii;
 		const auto &rd_idx = render.data->indices;
-		num = (unsigned)rd_pos.size();
-		positions.reserve(num + 2*render.data->datasets[0].trajs.size());
-		radii.reserve(positions.capacity());
-		indices.reserve(render.data->indices.size()/2 + render.data->datasets[0].trajs.size());
+		indices.reserve(rd_idx.size()/2);
+		num = (unsigned)rd_idx.size()*2;
+		positions.reserve(num);
+		radii.reserve(num);
 
 		// convert data representation:
 		// - add 0th and n+1th vertex to every trajectory for Catmull-Rom to work
 		// - adapt indices accordingly
 		// - convert to device float3
-		unsigned idx_offset = 0;
-		unsigned count = 0;
 		for (const auto &ds : render.data->datasets)
 		{
 			for (const auto &traj : ds.trajs)
 			{
-				unsigned i0 = rd_idx[traj.i0];
-				vec3 pos0 = rd_pos[i0] - vec3(rd_tan[i0]);
-				positions.emplace_back(make_float3(pos0.x(), pos0.y(), pos0.z()));
-				radii.push_back(rd_rad[i0]);
-				const unsigned num_segs = traj.n/2;
+				const unsigned num_segs = traj.n / 2;
 				for (unsigned i=0; i<num_segs; i++)
 				{
-					const unsigned i_cur = i0+i;
-					const vec3 &pos = rd_pos[i_cur];
-					positions.emplace_back(make_float3(pos.x(), pos.y(), pos.z()));
-					radii.push_back(rd_rad[i_cur]);
-					indices.push_back(idx_offset + i);
+					unsigned idx = rd_idx[traj.i0]+i;
+					const vec4  &t0 = rd_tan[idx], &t1 = rd_tan[idx+1];
+					const vec3  &p0 = rd_pos[idx], &p1 = rd_pos[idx+1],
+					             m0 = 1.5f*vec3(t0),     m1 = 1.5f*vec3(t1); // hand-tuned x1.5 factor to give more visually similar impression to split quadratic segments
+					const float &r0 = rd_rad[idx], &r1 = rd_rad[idx+1];
+					indices.emplace_back(unsigned(positions.size()));
+					// cr0
+					positions.emplace_back(_::to_float3(_::get_cr0(p0, m0, p1)));
+					radii.emplace_back(_::get_cr0(r0, t0.w(), r1));
+					// cr1
+					positions.emplace_back(_::to_float3(p0));
+					radii.push_back(r0);
+					// cr2
+					positions.emplace_back(_::to_float3(p1));
+					radii.push_back(r1);
+					// cr3
+					positions.emplace_back(_::to_float3(_::get_cr3(p0, p1, m1)));
+					radii.emplace_back(_::get_cr3(r0, r1, t1.w()));
 				}
-				i0 = rd_idx[traj.i0 + traj.n-1];
-				const vec3 &pos = rd_pos[i0];
-				positions.emplace_back(make_float3(pos.x(), pos.y(), pos.z()));
-				radii.push_back(rd_rad[i0]);
-				pos0 = pos + vec3(rd_tan[i0]);
-				positions.emplace_back(make_float3(pos0.x(), pos0.y(), pos0.z()));
-				radii.push_back(rd_rad[i0]);
-				idx_offset += num_segs + 3; // <-- includes the additional 0th and n+1th Catmull-Rom nodes
-				count++;
 			}
 		}
 		// update our number of nodes
