@@ -37,6 +37,8 @@
 #include "color_map_manager.h"
 #include "textured_spline_tube_renderer.h"
 #include "color_map_viewer.h"
+#include "optix_integration.h"
+#include "optixtracer_textured_spline_tube.h"
 
 
 
@@ -62,6 +64,75 @@ public:
 	cgv::type::DummyEnum voxel_grid_resolution;
 
 protected:
+
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	/// OptiX debug output options
+	enum OptixDebugVisualization
+	{
+		OXV_OFF = 0,
+		OXV_ALBEDO = 1,
+		OXV_DEPTH = 2,
+		OXV_NORMAL_TANGENT = 3
+	};
+
+	// state
+	struct
+	{
+		// keep track of initialization state
+		bool initialized = false;
+
+		// use OptiX to raycast tubes instead of OpenGL rasterization
+		bool enabled = false;
+
+		// subdivide into quadratic beziers for higher ray tracing performance. (ToDo: implement)
+		bool subdivide = false;
+
+		// result output mode
+		OptixDebugVisualization debug = OXV_OFF;
+
+		// OptiX device context
+		OptixDeviceContext context = nullptr;
+
+		// Optix-builtin phantom-ray-hair-intersector hermite spline tube renderer
+		optixtracer_textured_spline_tube_builtin tracer_builtin;
+
+		// SSBO interop resource handles
+		cudaGraphicsResource *sbo_nodes = nullptr;
+		cudaGraphicsResource *sbo_nodeids = nullptr;
+		cudaGraphicsResource *sbo_alen = nullptr;
+
+		// GL interop
+		CUstream stream = nullptr;
+		cuda_output_buffer<float4> outbuf_albedo;
+		cuda_output_buffer<float3> outbuf_position;
+		cuda_output_buffer<float3> outbuf_normal;
+		cuda_output_buffer<float3> outbuf_tangent;
+		cuda_output_buffer<float1> outbuf_depth;
+
+		// framebuffer attachment references (except depth, which is a texture we own for an NVIDIA driver bug workaround)
+		struct {
+			texture *albedo, *position, *normal, *tangent, depth;
+		} fb;
+	} optix;
+
+	void optix_cleanup (void);
+	void optix_unregister_resources (void);
+
+	bool optix_ensure_init (context &ctx);
+
+	bool optix_init (void);
+	bool optix_register_resources (context &ctx);
+
+	void optix_draw_trajectories (context &ctx);
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
+
+
 	cgv::glutil::color_map_editor_ptr cm_editor_ptr;
 	cgv::glutil::color_map_editor_ptr tf_editor_ptr;
 	cgv::data::ref_ptr<cgv::glutil::navigator> navigator_ptr;
@@ -336,6 +407,8 @@ protected:
 
 public:
 	tubes();
+	~tubes();
+
 	std::string get_type_name() const { return "tubes"; }
 	void handle_args(std::vector<std::string> &args);
 

@@ -1,5 +1,6 @@
 #include "tubes.h"
 
+// C++ STL
 #include <filesystem>
 
 // CGV framework core
@@ -26,13 +27,28 @@
 // local includes
 #include "arclen_helper.h"
 #include "glyph_compiler.h"
+#include "optix_curves.h"
 
+
+
+// ###############################
+// ### BEGIN: OptiX integration
+// ###############################
+
+void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* cbdata */)
+{
+	std::cerr << "["<<std::setw(2)<<lvl<<"]["<<std::setw(12)<<tag<<"]: " << msg << std::endl;
+}
+
+// ###############################
+// ###  END:  OptiX integration
+// ###############################
 
 
 // TODO: grid_mode enum does not get set properly thorugh config, because it is reflected as a boolean
 // TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
 // TODO: star and line plot: the first mapped entry will always get mapped to the first overall color
-	// Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
+// Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
 
 tubes::tubes() : application_plugin("Tubes")
 {
@@ -125,6 +141,38 @@ tubes::tubes() : application_plugin("Tubes")
 	debug.segment_rs.rounded_caps = true;
 
 	connect(cgv::gui::get_animation_trigger().shoot, this, &tubes::timer_event);
+
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	// add display shader to library
+	shaders.add("optix_display", "optix_display.glpr");
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
+}
+
+tubes::~tubes()
+{
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	// perform cleanup routine
+	optix_cleanup();
+
+	// shutdown optix
+	if (optix.context)
+	{
+		OPTIX_CHECK(optixDeviceContextDestroy(optix.context));
+		optix.context = nullptr;
+	}
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -194,6 +242,8 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("grid_normal_inwards", grid_normal_inwards) &&
 		rh.reflect_member("grid_normal_variant", grid_normal_variant) &&
 		rh.reflect_member("voxelize_gpu", voxelize_gpu) &&
+		rh.reflect_member("use_optix", optix.enabled) &&
+		rh.reflect_member("optix_debug_mode", optix.debug) &&
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
@@ -412,7 +462,7 @@ void tubes::on_set(void *member_ptr) {
 	bool data_set_changed = false;
 	bool from_demo = false;
 	// - configurable datapath
-	if(member_ptr == &datapath && !datapath.empty()) {
+	if (member_ptr == &datapath && !datapath.empty()) {
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		traj_mgr.clear();
 		cgv::utils::stopwatch s(true);
@@ -426,7 +476,7 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 	// - non-configurable dataset logic
-	else if(member_ptr == &dataset) {
+	else if (member_ptr == &dataset) {
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		// clear current dataset
 		datapath.clear();
@@ -447,12 +497,15 @@ void tubes::on_set(void *member_ptr) {
 			data_set_changed = true;
 	}
 
-	if(data_set_changed) {
+	if (data_set_changed) {
 		render.data = &(traj_mgr.get_render_data());
-		if(from_demo) {
+		if (from_demo) {
 			ao_style = ao_style_bak;
 			update_member(&ao_style);
 		}
+
+		if (optix.initialized)
+			optix_unregister_resources();
 		update_attribute_bindings();
 		update_grid_ratios();
 
@@ -471,19 +524,33 @@ void tubes::on_set(void *member_ptr) {
 		update_member(&fh.file_name);
 		on_set(&fh.has_unsaved_changes);
 
+		// ###############################
+		// ### BEGIN: OptiX integration
+		// ###############################
+
+		if (optix.initialized) {
+			optix.tracer_builtin.update_accelds(render.data);
+			optix_register_resources(ctx);
+		}
+
+		// ###############################
+		// ###  END:  OptiX integration
+		// ###############################
+
 		post_recreate_gui();
 	}
 
 	// render settings
-	if( member_ptr == &debug.highlight_segments ||
-		member_ptr == &ao_style.enable ||
-		member_ptr == &grid_mode ||
-		member_ptr == &grid_normal_settings ||
-		member_ptr == &grid_normal_inwards ||
-		member_ptr == &grid_normal_variant ||
-		member_ptr == &enable_fuzzy_grid) {
+	if (member_ptr == &debug.highlight_segments ||
+	    member_ptr == &ao_style.enable ||
+	    member_ptr == &grid_mode ||
+	    member_ptr == &grid_normal_settings ||
+	    member_ptr == &grid_normal_inwards ||
+	    member_ptr == &grid_normal_variant ||
+	    member_ptr == &enable_fuzzy_grid)
+	{
 		shader_define_map defines = build_tube_shading_defines();
-		if(defines != tube_shading_defines) {
+		if (defines != tube_shading_defines) {
 			context& ctx = *get_context();
 			tube_shading_defines = defines;
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
@@ -502,26 +569,27 @@ void tubes::on_set(void *member_ptr) {
 	}
 
 	// - debug render setting
-	if(member_ptr == &debug.force_initial_order) {
+	if (member_ptr == &debug.force_initial_order) {
 		update_attribute_bindings();
 	}
 
-	if(member_ptr == &debug.render_percentage) {
+	if (member_ptr == &debug.render_percentage) {
 		debug.render_count = static_cast<size_t>(debug.render_percentage * debug.segment_count);
 		update_member(&debug.render_count);
 	}
 
-	if(member_ptr == &debug.render_count) {
+	if (member_ptr == &debug.render_count) {
 		debug.render_percentage = static_cast<float>(debug.render_count) / static_cast<float>(debug.segment_count);
 		update_member(&debug.render_percentage);
 	}
 
-	if(member_ptr == &debug.render_mode) {
+	if (member_ptr == &debug.render_mode) {
 		update_debug_attribute_bindings();
 	}
 
 	// voxelization settings
-	if(member_ptr == &voxel_grid_resolution || member_ptr == &voxelize_gpu || member_ptr == &render.style.radius_scale) {
+	if (member_ptr == &voxel_grid_resolution || member_ptr == &voxelize_gpu || member_ptr == &render.style.radius_scale)
+	{
 		context& ctx = *get_context();
 		voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(cgv::math::clamp(static_cast<unsigned>(voxel_grid_resolution), 16u, 512u));
 		create_density_volume(ctx, voxel_grid_resolution);
@@ -533,7 +601,8 @@ void tubes::on_set(void *member_ptr) {
 	}
 
 	// visualization settings
-	if(member_ptr == &glyph_layer_mgr) {
+	if (member_ptr == &glyph_layer_mgr)
+	{
 		const auto action = glyph_layer_mgr.action_type();
 		bool changes = false;
 		if(action == AT_CONFIGURATION_CHANGE) {
@@ -563,7 +632,8 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 
-	if(member_ptr == &color_map_mgr) {
+	if (member_ptr == &color_map_mgr)
+	{
 		switch(color_map_mgr.action_type()) {
 		case AT_CONFIGURATION_CHANGE:
 		{
@@ -610,8 +680,8 @@ void tubes::on_set(void *member_ptr) {
 
 
 
-
-	if(member_ptr == &fh.file_name) {
+	if (member_ptr == &fh.file_name)
+	{
 		/*
 		#ifndef CGV_FORCE_STATIC
 				// TODO: implemenmt
@@ -626,8 +696,8 @@ void tubes::on_set(void *member_ptr) {
 
 		std::string extension = cgv::utils::file::get_extension(fh.file_name);
 		// only try to read the filename if it ends with an xml extension
-		if(cgv::utils::to_upper(extension) == "XML") {
-			if(read_layer_configuration(fh.file_name)) {
+		if (cgv::utils::to_upper(extension) == "XML") {
+			if (read_layer_configuration(fh.file_name)) {
 				fh.has_unsaved_changes = false;
 				on_set(&fh.has_unsaved_changes);
 			} else {
@@ -636,7 +706,8 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 
-	if(member_ptr == &fh.save_file_name) {
+	if (member_ptr == &fh.save_file_name)
+	{
 		std::string extension = cgv::utils::file::get_extension(fh.save_file_name);
 
 		if(extension == "") {
@@ -658,7 +729,7 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 
-	if(member_ptr == &fh.has_unsaved_changes) {
+	if (member_ptr == &fh.has_unsaved_changes) {
 		auto ctrl = find_control(fh.file_name);
 		if(ctrl)
 			ctrl->set("text_color", fh.has_unsaved_changes ? cgv::gui::theme_info::instance().warning_hex() : "");
@@ -669,15 +740,15 @@ void tubes::on_set(void *member_ptr) {
 
 	// misc settings
 	// - instant redraw
-	if(member_ptr == &misc_cfg.instant_redraw_proxy)
+	if (member_ptr == &misc_cfg.instant_redraw_proxy)
 		// ToDo: handle the (virtually impossible) case that some other plugin than cg_fltk provides the gl_context
 		dynamic_cast<fltk_gl_view*>(get_context())->set_void("instant_redraw", "bool", member_ptr);
 	// - vsync
-	if(member_ptr == &misc_cfg.vsync_proxy)
+	if (member_ptr == &misc_cfg.vsync_proxy)
 		// ToDo: handle the (virtually impossible) case that some other plugin than cg_fltk provides the gl_context
 		dynamic_cast<fltk_gl_view*>(get_context())->set_void("enable_vsynch", "bool", member_ptr);
 	// - fix view up dir
-	else if(member_ptr == &misc_cfg.fix_view_up_dir_proxy)
+	else if (member_ptr == &misc_cfg.fix_view_up_dir_proxy)
 		// ToDo: make stereo view interactors reflect this property, and handle the case that some other plugin that
 		//       is not derived from stereo_view_interactor handles viewing
 		//if (!misc_cfg.fix_view_up_dir_proxy)
@@ -686,12 +757,25 @@ void tubes::on_set(void *member_ptr) {
 		if(misc_cfg.fix_view_up_dir_proxy)
 			find_view_as_node()->set_view_up_dir(0, 1, 0);
 
-	if(member_ptr == &test_dir[0] || member_ptr == &test_dir[1] || member_ptr == &test_dir[2]) {
+	if (member_ptr == &test_dir[0] || member_ptr == &test_dir[1] || member_ptr == &test_dir[2])
+	{
 		test_dir = normalize(test_dir);
 		update_member(&test_dir[0]);
 		update_member(&test_dir[1]);
 		update_member(&test_dir[2]);
 	}
+
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	if (member_ptr == &optix.enabled && optix.enabled)
+		if (!optix_ensure_init(*get_context()))
+			optix.enabled = false;
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
 
 	// default implementation for all members
 	// - remaining logic
@@ -1393,9 +1477,254 @@ bool tubes::init (cgv::render::context &ctx)
 	// use white background for paper screenshots
 	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
 
+
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	if (optix.enabled && !optix_ensure_init(ctx)) {
+		optix.enabled = false;
+		update_member(&optix.enabled);
+		success = false;
+	}
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
+
+
 	// done
 	return success;
 }
+
+
+// ###############################
+// ### BEGIN: OptiX integration
+// ###############################
+
+void tubes::optix_cleanup (void)
+{
+	optix.tracer_builtin.destroy();
+	CUDA_SAFE_DESTROY_STREAM(optix.stream);
+}
+
+void tubes::optix_unregister_resources (void)
+{
+	CUDA_SAFE_UNREGISTER(optix.sbo_alen);
+	CUDA_SAFE_UNREGISTER(optix.sbo_nodeids);
+	CUDA_SAFE_UNREGISTER(optix.sbo_nodes);
+}
+
+bool tubes::optix_ensure_init (context &ctx)
+{
+	// report OK if nothing needs to be done
+	if (optix.initialized)
+		return true;
+
+	// initialize CUDA
+	CUDA_CHECK_FAIL(cudaFree(0));
+
+	// initialize OptiX
+	OPTIX_CHECK_FAIL(optixInit());
+
+	// specify OptiX device context options
+	OptixDeviceContextOptions options = {};
+	options.logCallbackFunction = &optix_log_cb;
+	options.logCallbackLevel = 4;
+	std::cerr << std::endl; // <-- Make sure the initial CUDA/OptiX message stream is preceded by an empty line
+
+	// associate a CUDA context (and therefore a specific GPU) with this device context
+	bool success = true;
+	OPTIX_CHECK_SET(
+		optixDeviceContextCreate(
+			0, // zero means take the default context (i.e. first best compatible device)
+			&options, &optix.context
+		),
+		success
+	);
+	if (!success)
+		return false;
+
+	// setup optix launch environment
+	if (traj_mgr.has_data()) {
+		optix.tracer_builtin = optixtracer_textured_spline_tube_builtin::build(optix.context, render.data);
+		success = success && optix.tracer_builtin.built();
+		success = success && optix_register_resources(ctx);
+	}
+	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+	success = success && optix.outbuf_position.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+	success = success && optix.outbuf_normal.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+	success = success && optix.outbuf_tangent.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+	success = success && optix.outbuf_depth.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+
+	// create CUDA operations stream
+	CUDA_CHECK_FAIL(cudaStreamCreate(&optix.stream));
+	optix.outbuf_albedo.set_stream(optix.stream);
+	optix.outbuf_position.set_stream(optix.stream);
+	optix.outbuf_normal.set_stream(optix.stream);
+	optix.outbuf_tangent.set_stream(optix.stream);
+	optix.outbuf_depth.set_stream(optix.stream);
+
+	// connect to framebuffer
+	fbc.ensure(ctx);
+	optix.fb.albedo = fbc.attachment_texture_ptr("albedo");
+	optix.fb.position = fbc.attachment_texture_ptr("position");
+	optix.fb.normal = fbc.attachment_texture_ptr("normal");
+	optix.fb.tangent = fbc.attachment_texture_ptr("tangent");
+
+	// done!
+	optix.initialized = success;
+	return success;
+}
+
+bool tubes::optix_register_resources (context &ctx)
+{
+	// unregister previous version (when our function is called, the SSBOs were very likely exchanged for new ones)
+	optix_unregister_resources();
+
+	// track success - we don't immediately fail and return since the code in this function is not robust to failure
+	// (i.e. doesn't use RAII) so doing that could potentially result in both host and device memory leaks
+	bool success = true;
+
+	// register the SSBOs with CUDA
+	// - node data
+	const GLuint nodes_handle = (const int&)render.render_sbo.handle - 1;
+	CUDA_CHECK_SET(
+		cudaGraphicsGLRegisterBuffer(&optix.sbo_nodes, nodes_handle, cudaGraphicsRegisterFlagsReadOnly),
+		success
+	);
+	// - node indices
+	const GLuint nodeids_handle = ref_textured_spline_tube_renderer(ctx).get_vbo_handle(ctx, render.aam, "node_ids");
+	CUDA_CHECK_SET(
+		cudaGraphicsGLRegisterBuffer(&optix.sbo_nodeids, nodeids_handle, cudaGraphicsRegisterFlagsReadOnly),
+		success
+	);
+	// - arclength
+	const GLuint alen_handle = (const int&)render.arclen_sbo.handle - 1;
+	CUDA_CHECK_SET(
+		cudaGraphicsGLRegisterBuffer(&optix.sbo_alen, alen_handle, cudaGraphicsRegisterFlagsReadOnly),
+		success
+	);
+
+	// done!
+	return success;
+}
+
+void tubes::optix_draw_trajectories (context &ctx)
+{
+	////
+	// Launch OptiX
+
+	/* local scope */ {
+		// prepare camera info
+		const float aspect = float(ctx.get_width())/float(ctx.get_height()),
+		            optixV_len = (float)view_ptr->get_tan_of_half_of_fovy(true),
+		            optixU_len = optixV_len * aspect;
+		const vec3 &eye = view_ptr->get_eye(),
+		            optixW = cgv::math::normalize(view_ptr->get_view_dir()),
+		            optixV = cgv::math::normalize(view_ptr->get_view_up_dir()) * optixV_len,
+		            optixU = cgv::math::normalize(cgv::math::cross(optixW, optixV)) * optixU_len;
+
+		// setup params for our launch
+		// - set values (ToDo: batch MapResources calls)
+		curve_rt_params params;
+		params.nodes = nullptr; {
+			size_t size;
+			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_nodes, optix.stream));
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.nodes), &size, optix.sbo_nodes));
+		};
+		params.node_ids = nullptr; {
+			size_t size;
+			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_nodeids, optix.stream));
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.node_ids), &size, optix.sbo_nodeids));
+		};
+		params.alen = nullptr; {
+			size_t size;
+			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_alen, optix.stream));
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.alen), &size, optix.sbo_alen));
+		};
+		const auto &lp = optix.tracer_builtin.ref_launch_params();
+		params.albedo = optix.outbuf_albedo.map();
+		params.position = optix.outbuf_position.map();
+		params.normal = optix.outbuf_normal.map();
+		params.tangent = optix.outbuf_tangent.map();
+		params.depth = optix.outbuf_depth.map();
+		params.fb_width = ctx.get_width();
+		params.fb_height = ctx.get_height();
+		params.accelds = lp.accelds;
+		params.cam_eye = make_float3(eye.x(), eye.y(), eye.z());
+		params.cam_clip = make_float2(.1f, 128.f);
+		params.cam_u = make_float3(optixU.x(), optixU.y(), optixU.z());
+		params.cam_v = make_float3(optixV.x(), optixV.y(), optixV.z());
+		params.cam_w = make_float3(optixW.x(), optixW.y(), optixW.z());
+		*(mat4*)(&params.cam_MV) = ctx.get_modelview_matrix();
+		*(mat4*)(&params.cam_P) = ctx.get_projection_matrix();
+		*(mat4*)(&params.cam_N) = cgv::math::transpose(cgv::math::inv(ctx.get_modelview_matrix()));
+		// - upload to device
+		CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(lp.params), &params, lp.params_size, cudaMemcpyHostToDevice));
+
+		// Launch!
+		OPTIX_CHECK(optixLaunch(
+			lp.pipeline, optix.stream, lp.params, lp.params_size, lp.sbt, params.fb_width, params.fb_height, /*depth=*/1
+		));
+		CUDA_SYNC_CHECK();
+
+		// clean up (ToDo: batch UnmapResources calls)
+		optix.outbuf_depth.unmap();
+		optix.outbuf_tangent.unmap();
+		optix.outbuf_normal.unmap();
+		optix.outbuf_position.unmap();
+		optix.outbuf_albedo.unmap();
+		CUDA_CHECK(cudaGraphicsUnmapResources(1, &optix.sbo_alen, optix.stream));
+		CUDA_CHECK(cudaGraphicsUnmapResources(1, &optix.sbo_nodeids, optix.stream));
+		CUDA_CHECK(cudaGraphicsUnmapResources(1, &optix.sbo_nodes, optix.stream));
+
+		// transfer OptiX render result into our result texture
+		optix.outbuf_albedo.into_texture(ctx, optix.fb.albedo);
+		optix.outbuf_position.into_texture(ctx, optix.fb.position);
+		optix.outbuf_normal.into_texture(ctx, optix.fb.normal);
+		optix.outbuf_tangent.into_texture(ctx, optix.fb.tangent);
+		optix.outbuf_depth.into_texture(ctx, optix.fb.depth);
+	}
+
+
+	////
+	// Display results
+
+	if (optix.debug)
+	{
+		// obtain the OptiX display shader program
+		static shader_program &display_prog = shaders.get("optix_display");		
+
+		// configure shader and bind optix output textures
+		display_prog.enable(ctx);
+		display_prog.set_uniform(ctx, "debug", (int)optix.debug);
+		optix.fb.albedo->enable(ctx, 0);
+		optix.fb.position->enable(ctx, 1);
+		optix.fb.normal->enable(ctx, 2);
+		optix.fb.tangent->enable(ctx, 3);
+		optix.fb.depth.enable(ctx, 4);
+
+		// blend the display result onto the main framebuffer
+		glEnable(GL_BLEND);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		glDisable(GL_BLEND);
+
+		// cleanup
+		optix.fb.depth.disable(ctx);
+		optix.fb.tangent->disable(ctx);
+		optix.fb.normal->disable(ctx);
+		optix.fb.position->disable(ctx);
+		optix.fb.albedo->disable(ctx);
+		display_prog.disable(ctx);
+	}
+}
+
+// ###############################
+// ###  END:  OptiX integration
+// ###############################
+
 
 void tubes::init_frame (cgv::render::context &ctx)
 {
@@ -1454,6 +1783,25 @@ void tubes::init_frame (cgv::render::context &ctx)
 			jitter_offsets.push_back(offset);
 		}
 	}
+
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	if (optix.initialized && optix.enabled)
+	{
+		// keep the optix interop buffer up to date with the viewport size
+		const unsigned w=ctx.get_width(), h=ctx.get_height();
+		optix.outbuf_albedo.resize(w, h);
+		optix.outbuf_position.resize(w, h);
+		optix.outbuf_normal.resize(w, h);
+		optix.outbuf_tangent.resize(w, h);
+		optix.outbuf_depth.resize(w, h);
+	}
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
 
 	// query the current viewport dimensions as this is needed for multiple draw methods
 	glGetIntegerv(GL_VIEWPORT, viewport);
@@ -1605,6 +1953,13 @@ void tubes::create_gui(void) {
 
 	// rendering settings
 	add_decorator("Rendering", "heading", "level=1");
+	if (begin_tree_node("OptiX", optix.enabled, false)) {
+		align("\a");
+		add_member_control(this, "Use OptiX for tube rendering", optix.enabled, "check");
+		add_member_control(this, "OptiX debug visualization", optix.debug, "dropdown", "enums='OFF,albedo,depth,tangent+normal'");
+		align("\b");
+		end_tree_node(optix.enabled);
+	}
 	if (begin_tree_node("Bounds", show_bbox, false)) {
 		align("\a");
 		add_member_control(this, "Color", bbox_style.surface_color);
@@ -2121,207 +2476,213 @@ void tubes::draw_dnd(context& ctx) {
 	ctx.pop_pixel_coords();
 }
 
-void tubes::draw_trajectories(context& ctx) {
-
+void tubes::draw_trajectories(context& ctx)
+{
+	// common init
+	// - view-related info
 	vec3 eye_pos = view_ptr->get_eye();
 	const vec3& view_dir = view_ptr->get_view_dir();
 	vec2 viewport_size(
 		static_cast<float>(fbc.ref_frame_buffer().get_width()),
 		static_cast<float>(fbc.ref_frame_buffer().get_height())
 	);
-
-	// enable drawing framebuffer
-	fbc.enable(ctx);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	
-	// shear the projection matrix to jitter vertex positions
-	dmat4 m;
-	m.identity();
-
-	vec2 jitter_offset = jitter_scale * jitter_offsets[accumulate_count];
-	m(0, 2) = jitter_offset.x();
-	m(1, 2) = jitter_offset.y();
-
-	ctx.push_projection_matrix();
-	ctx.mul_projection_matrix(m);
-
-	// render tubes
+	// - spline stube renderer setup relevant to deferred shading pass
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
-
-	// prepare SSBO handles
-	const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0,
-			  arclen_handle = render.arclen_sbo.handle ? (const int&)render.arclen_sbo.handle - 1 : 0;
-	if (!data_handle || !arclen_handle) return;
-
-	// sort the sgment indices
-	int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
-	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");	
-	if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && debug.sort & !debug.force_initial_order)
-		//render.sorter->sort(ctx, data_handle, segment_idx_handle, test_eye, test_dir, node_idx_handle);
-		render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
-
-	tstr.set_eye_pos(eye_pos);
-	tstr.set_view_dir(view_dir);
-	tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
 	tstr.set_render_style(render.style);
-	tstr.enable_attribute_array_manager(ctx, render.aam);
+	// - node attribute data needed by both rasterization and raytracing
+	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
+	// - TAA data that needs to be accessed across local scopes
+	mat4 curr_projection_matrix, curr_modelview_matrix;
 
-	int count = static_cast<int>(render.data->indices.size() / 2);
-	if(debug.limit_render_count) {
-		//count = static_cast<int>(render.percentage * count);
-		count = static_cast<int>(debug.render_count);
-	}
+	if (!optix.enabled || !optix.initialized)
+	{
+		// enable drawing framebuffer
+		fbc.enable(ctx);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		// shear the projection matrix to jitter vertex positions
+		dmat4 m;
+		m.identity();
+
+		vec2 jitter_offset = jitter_scale * jitter_offsets[accumulate_count];
+		m(0, 2) = jitter_offset.x();
+		m(1, 2) = jitter_offset.y();
+
+		ctx.push_projection_matrix();
+		ctx.mul_projection_matrix(m);
+
+		// render tubes
+		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+
+		// prepare SSBO handles
+		const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0,
+				  arclen_handle = render.arclen_sbo.handle ? (const int&)render.arclen_sbo.handle - 1 : 0;
+		if (!data_handle || !arclen_handle) return;
+
+		// sort the sgment indices
+		int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
+		if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && debug.sort & !debug.force_initial_order)
+			//render.sorter->sort(ctx, data_handle, segment_idx_handle, test_eye, test_dir, node_idx_handle);
+			render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
+
+		tstr.set_eye_pos(eye_pos);
+		tstr.set_view_dir(view_dir);
+		tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
+		tstr.set_render_style(render.style);
+		tstr.enable_attribute_array_manager(ctx, render.aam);
+
+		int count = static_cast<int>(render.data->indices.size() / 2);
+		if(debug.limit_render_count) {
+			//count = static_cast<int>(render.percentage * count);
+			count = static_cast<int>(debug.render_count);
+		}
+
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, arclen_handle);
+		if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, node_idx_handle);
+			tstr.render(ctx, 0, count);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, 0);
+		}
+		else
+			tstr.render(ctx, 0, count);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+
+		tstr.disable_attribute_array_manager(ctx, render.aam);
+
+		// store the current matrices to use as the previous for the next frame
+		curr_modelview_matrix = ctx.get_modelview_matrix();
+
+		ctx.pop_projection_matrix();
+
+		// need to store the projection matrix without jitter
+		curr_projection_matrix = ctx.get_projection_matrix();
 	
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, arclen_handle);
-	if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, node_idx_handle);
-		tstr.render(ctx, 0, count);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, 0);
+		// disable the drawing framebuffer
+		fbc.disable(ctx);
 	}
 	else
-		tstr.render(ctx, 0, count);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+	{
+		// delegate to OptiX raytracing
+		optix_draw_trajectories(ctx);
 
-	tstr.disable_attribute_array_manager(ctx, render.aam);
-
-	// store the current matrices to use as the previous for the next frame
-	mat4 curr_modelview_matrix = ctx.get_modelview_matrix();
-
-	ctx.pop_projection_matrix();
-
-	// need to store the projection matrix without jitter
-	mat4 curr_projection_matrix = ctx.get_projection_matrix();
-	
-	// disable the drawing framebuffer
-	fbc.disable(ctx);
-
-	
-
-
-
-	// perform the deferred shading pass and draw the image into the shading framebuffer
-	fbc_shading.enable(ctx);
-	glDepthFunc(GL_ALWAYS);
-	
-	shader_program& prog = shaders.get("tube_shading");
-	prog.enable(ctx);
-	// set render parameters
-	prog.set_uniform(ctx, "use_gamma", true);
-	
-	// set ambient occlusion parameters
-	if(ao_style.enable) {
-		//prog.set_uniform(ctx, "ambient_occlusion.enable", ao_style.enable);
-		prog.set_uniform(ctx, "ambient_occlusion.sample_offset", ao_style.sample_offset);
-		prog.set_uniform(ctx, "ambient_occlusion.sample_distance", ao_style.sample_distance);
-		prog.set_uniform(ctx, "ambient_occlusion.strength_scale", ao_style.strength_scale);
-
-		prog.set_uniform(ctx, "ambient_occlusion.tex_offset", ao_style.texture_offset);
-		prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", ao_style.texture_scaling);
-		prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", ao_style.texcoord_scaling);
-		prog.set_uniform(ctx, "ambient_occlusion.texel_size", ao_style.texel_size);
-
-		prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
-		prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
+		// workaround for weird framework material behavior
+		tstr.enable(ctx); tstr.disable(ctx);
 	}
 
-	// set grid parameters
-	prog.set_uniform(ctx, "grid_color", grid_color);
-	prog.set_uniform(ctx, "normal_mapping_scale", normal_mapping_scale);
-	for(size_t i = 0; i < grids.size(); ++i) {
-		std::string base_name = "grids[" + std::to_string(i) + "].";
-		prog.set_uniform(ctx, base_name + "scaling", grids[i].scaling);
-		prog.set_uniform(ctx, base_name + "thickness", grids[i].thickness);
-		prog.set_uniform(ctx, base_name + "blend_factor", grids[i].blend_factor);
-	}
-
-	// set attribute mapping parameters
-	for(const auto& p : glyph_layers_config.constant_float_parameters)
-		prog.set_uniform(ctx, p.first, *p.second);
-
-	for(const auto& p : glyph_layers_config.constant_color_parameters)
-		prog.set_uniform(ctx, p.first, *p.second);
-
-	for(const auto& p : glyph_layers_config.mapping_parameters)
-		prog.set_uniform(ctx, p.first, *p.second);
-
-	// map global settings
-	prog.set_uniform(ctx, "general_settings.use_curvature_correction", general_settings.use_curvature_correction);
-	prog.set_uniform(ctx, "general_settings.length_scale", general_settings.length_scale);
-	prog.set_uniform(ctx, "general_settings.antialias_radius", general_settings.antialias_radius);
-
-	const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
+	if (   (!optix.enabled || !optix.initialized)
+	    || (!optix.debug && optix.enabled && optix.initialized))
+	{
+		// perform the deferred shading pass and draw the image into the shading framebuffer when not using OptiX (for now)
+		if (!optix.enabled || !optix.initialized)
+			fbc_shading.enable(ctx);
+		glDepthFunc(GL_ALWAYS);
 	
-	prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
-	prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
-	prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
+		shader_program& prog = shaders.get("tube_shading");
+		prog.enable(ctx);
+		// set render parameters
+		prog.set_uniform(ctx, "use_gamma", true);
+	
+		// set ambient occlusion parameters
+		if(ao_style.enable) {
+			//prog.set_uniform(ctx, "ambient_occlusion.enable", ao_style.enable);
+			prog.set_uniform(ctx, "ambient_occlusion.sample_offset", ao_style.sample_offset);
+			prog.set_uniform(ctx, "ambient_occlusion.sample_distance", ao_style.sample_distance);
+			prog.set_uniform(ctx, "ambient_occlusion.strength_scale", ao_style.strength_scale);
 
-	fbc.enable_attachment(ctx, "albedo", 0);
-	fbc.enable_attachment(ctx, "position", 1);
-	fbc.enable_attachment(ctx, "normal", 2);
-	fbc.enable_attachment(ctx, "tangent", 3);
-	fbc.enable_attachment(ctx, "depth", 4);
-	if(ao_style.enable)
-		density_tex.enable(ctx, 5);
-	color_map_mgr.ref_texture().enable(ctx, 6);
+			prog.set_uniform(ctx, "ambient_occlusion.tex_offset", ao_style.texture_offset);
+			prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", ao_style.texture_scaling);
+			prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", ao_style.texcoord_scaling);
+			prog.set_uniform(ctx, "ambient_occlusion.texel_size", ao_style.texel_size);
 
-	// bind range attribute sbos of active glyph layers
-	bool active_sbos[4] = { false, false, false, false };
-	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
-		if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
-			const int attribs_handle = render.attribs_sbos[i].handle ? (const int&)render.attribs_sbos[i].handle - 1 : 0;
-			const int aindex_handle = render.aindex_sbos[i].handle ? (const int&)render.aindex_sbos[i].handle - 1 : 0;
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 0, attribs_handle);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 1, aindex_handle);
+			prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
+			prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
 		}
-	}
 
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-	for(size_t i = 0; i < 4; ++i) {
-		if(active_sbos[i]) {
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 0, 0);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 1, 0);
+		// set grid parameters
+		prog.set_uniform(ctx, "grid_color", grid_color);
+		prog.set_uniform(ctx, "normal_mapping_scale", normal_mapping_scale);
+		for(size_t i = 0; i < grids.size(); ++i) {
+			std::string base_name = "grids[" + std::to_string(i) + "].";
+			prog.set_uniform(ctx, base_name + "scaling", grids[i].scaling);
+			prog.set_uniform(ctx, base_name + "thickness", grids[i].thickness);
+			prog.set_uniform(ctx, base_name + "blend_factor", grids[i].blend_factor);
 		}
-	}
 
-	fbc.disable_attachment(ctx, "albedo");
-	fbc.disable_attachment(ctx, "position");
-	fbc.disable_attachment(ctx, "normal");
-	fbc.disable_attachment(ctx, "tangent");
-	fbc.disable_attachment(ctx, "depth");
-	if(ao_style.enable)
-		density_tex.disable(ctx);
-	color_map_mgr.ref_texture().disable(ctx);
+		// set attribute mapping parameters
+		for(const auto& p : glyph_layers_config.constant_float_parameters)
+			prog.set_uniform(ctx, p.first, *p.second);
 
-	prog.disable(ctx);
+		for(const auto& p : glyph_layers_config.constant_color_parameters)
+			prog.set_uniform(ctx, p.first, *p.second);
 
-	// disable the shading framebuffer
-	fbc_shading.disable(ctx);
+		for(const auto& p : glyph_layers_config.mapping_parameters)
+			prog.set_uniform(ctx, p.first, *p.second);
 
+		// map global settings
+		prog.set_uniform(ctx, "general_settings.use_curvature_correction", general_settings.use_curvature_correction);
+		prog.set_uniform(ctx, "general_settings.length_scale", general_settings.length_scale);
+		prog.set_uniform(ctx, "general_settings.antialias_radius", general_settings.antialias_radius);
 
+		const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
 
+		prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
+		prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
+		prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
 
+		fbc.enable_attachment(ctx, "albedo", 0);
+		fbc.enable_attachment(ctx, "position", 1);
+		fbc.enable_attachment(ctx, "normal", 2);
+		fbc.enable_attachment(ctx, "tangent", 3);
+		if (!optix.enabled || !optix.initialized)
+			fbc.enable_attachment(ctx, "depth", 4);
+		else
+			optix.fb.depth.enable(ctx, 4); // workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats
+		if(ao_style.enable)
+			density_tex.enable(ctx, 5);
+		color_map_mgr.ref_texture().enable(ctx, 6);
 
-	if(enable_fxaa) {
-		fbc_post.enable(ctx);
-
-		auto& fxaa_prog = shaders.get("fxaa");
-		fxaa_prog.enable(ctx);
-		fxaa_prog.set_uniform(ctx, "inverse_viewport_size", vec2(1.0f) / viewport_size);
-		fxaa_prog.set_uniform(ctx, "mix_factor", fxaa_mix_factor);
-
-		fbc_shading.enable_attachment(ctx, "color", 0);
+		// bind range attribute sbos of active glyph layers
+		bool active_sbos[4] = { false, false, false, false };
+		for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
+			if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
+				const int attribs_handle = render.attribs_sbos[i].handle ? (const int&)render.attribs_sbos[i].handle - 1 : 0;
+				const int aindex_handle = render.aindex_sbos[i].handle ? (const int&)render.aindex_sbos[i].handle - 1 : 0;
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 0, attribs_handle);
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 1, aindex_handle);
+			}
+		}
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-		fbc_shading.disable_attachment(ctx, "color");
+		for(size_t i = 0; i < 4; ++i) {
+			if(active_sbos[i]) {
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 0, 0);
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 1, 0);
+			}
+		}
 
-		fxaa_prog.disable(ctx);
+		fbc.disable_attachment(ctx, "albedo");
+		fbc.disable_attachment(ctx, "position");
+		fbc.disable_attachment(ctx, "normal");
+		fbc.disable_attachment(ctx, "tangent");
+		if (!optix.enabled || !optix.initialized)
+			fbc.disable_attachment(ctx, "depth");
+		else
+			optix.fb.depth.disable(ctx);  // workaround (see earlier comment)
+		if(ao_style.enable)
+			density_tex.disable(ctx);
+		color_map_mgr.ref_texture().disable(ctx);
 
-		fbc_post.disable(ctx);
-	}
+		prog.disable(ctx);
+
+		// if we're shading the OptiX output we're done here
+		if (optix.enabled && optix.initialized)
+			return;
+
+		// disable the shading framebuffer
+		fbc_shading.disable(ctx);
 
 
 
@@ -2330,86 +2691,109 @@ void tubes::draw_trajectories(context& ctx) {
 
 
 
+		if(enable_fxaa) {
+			fbc_post.enable(ctx);
 
-	
+			auto& fxaa_prog = shaders.get("fxaa");
+			fxaa_prog.enable(ctx);
+			fxaa_prog.set_uniform(ctx, "inverse_viewport_size", vec2(1.0f) / viewport_size);
+			fxaa_prog.set_uniform(ctx, "mix_factor", fxaa_mix_factor);
 
-	// TODO: comment
-	
+			fbc_shading.enable_attachment(ctx, "color", 0);
 
-	bool first = !accumulate;
-	if(accumulate) {
-		// enable the final framebuffer to draw the resolved image into
-		fbc_final.enable(ctx);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-		auto& resolve_prog = shaders.get("taa_resolve");
-		resolve_prog.enable(ctx);
-		resolve_prog.set_uniform(ctx, "alpha", taa_mix_factor);
+			fbc_shading.disable_attachment(ctx, "color");
 
-		++accumulate_count;
-		if(accumulate_count > n_jitter_samples - 1)
+			fxaa_prog.disable(ctx);
+
+			fbc_post.disable(ctx);
+		}
+
+
+
+
+
+
+
+
+		// TODO: comment
+
+		bool first = !accumulate;
+		if(accumulate) {
+			// enable the final framebuffer to draw the resolved image into
+			fbc_final.enable(ctx);
+
+			auto& resolve_prog = shaders.get("taa_resolve");
+			resolve_prog.enable(ctx);
+			resolve_prog.set_uniform(ctx, "alpha", taa_mix_factor);
+
+			++accumulate_count;
+			if(accumulate_count > n_jitter_samples - 1)
+				accumulate_count = 0;
+
+			bool clip_enabled = !settings.static_no_clip;
+			if(prev_eye_pos != eye_pos || prev_view_dir != view_dir)
+				clip_enabled = true;
+
+			resolve_prog.set_uniform(ctx, "curr_projection_matrix", curr_projection_matrix);
+			resolve_prog.set_uniform(ctx, "curr_eye_to_prev_clip_matrix", prev_projection_matrix * prev_modelview_matrix * cgv::math::inv(curr_modelview_matrix));
+			resolve_prog.set_uniform(ctx, "settings.use_velocity", settings.use_velocity);
+			resolve_prog.set_uniform(ctx, "settings.closest_depth", settings.closest_depth);
+			resolve_prog.set_uniform(ctx, "settings.clip_color", settings.clip_color && clip_enabled);
+
+			auto& color_src_fbc = enable_fxaa ? fbc_post : fbc_shading;
+
+			color_src_fbc.enable_attachment(ctx, "color", 0);
+			fbc_hist.enable_attachment(ctx, "color", 1);
+			fbc.enable_attachment(ctx, "position", 2);
+			fbc.enable_attachment(ctx, "depth", 3);
+
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+			color_src_fbc.disable_attachment(ctx, "color");
+			fbc_hist.disable_attachment(ctx, "color");
+			fbc.disable_attachment(ctx, "position");
+			fbc.disable_attachment(ctx, "depth");
+
+			resolve_prog.disable(ctx);
+
+			// disable the final framebuffer
+			fbc_final.disable(ctx);
+		} else {
+			accumulate = enable_taa;
 			accumulate_count = 0;
+		}
 
-		bool clip_enabled = !settings.static_no_clip;
-		if(prev_eye_pos != eye_pos || prev_view_dir != view_dir)
-			clip_enabled = true;
+		auto& color_src_fbc = first ? (enable_fxaa ? fbc_post : fbc_shading) : fbc_final;
 
-		resolve_prog.set_uniform(ctx, "curr_projection_matrix", curr_projection_matrix);
-		resolve_prog.set_uniform(ctx, "curr_eye_to_prev_clip_matrix", prev_projection_matrix * prev_modelview_matrix * inv(curr_modelview_matrix));
-		resolve_prog.set_uniform(ctx, "settings.use_velocity", settings.use_velocity);
-		resolve_prog.set_uniform(ctx, "settings.closest_depth", settings.closest_depth);
-		resolve_prog.set_uniform(ctx, "settings.clip_color", settings.clip_color && clip_enabled);
-
-		auto& color_src_fbc = enable_fxaa ? fbc_post : fbc_shading;
+		auto& screen_prog = shaders.get("screen");
+		screen_prog.enable(ctx);
+		screen_prog.set_uniform(ctx, "test", false);
 
 		color_src_fbc.enable_attachment(ctx, "color", 0);
-		fbc_hist.enable_attachment(ctx, "color", 1);
-		fbc.enable_attachment(ctx, "position", 2);
-		fbc.enable_attachment(ctx, "depth", 3);
+		fbc.enable_attachment(ctx, "depth", 1);
+
+		fbc_hist.enable(ctx);
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		fbc_hist.disable(ctx);
+
+		screen_prog.set_uniform(ctx, "test", false);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 		color_src_fbc.disable_attachment(ctx, "color");
-		fbc_hist.disable_attachment(ctx, "color");
-		fbc.disable_attachment(ctx, "position");
 		fbc.disable_attachment(ctx, "depth");
 
-		resolve_prog.disable(ctx);
+		screen_prog.disable(ctx);
 
-		// disable the final framebuffer
-		fbc_final.disable(ctx);
-	} else {
-		accumulate = enable_taa;
-		accumulate_count = 0;
+		glDepthFunc(GL_LESS);
+
+		prev_projection_matrix = curr_projection_matrix;
+		prev_modelview_matrix = curr_modelview_matrix;
+		prev_eye_pos = eye_pos;
+		prev_view_dir = view_dir;
 	}
-
-	auto& color_src_fbc = first ? (enable_fxaa ? fbc_post : fbc_shading) : fbc_final;
-
-	auto& screen_prog = shaders.get("screen");
-	screen_prog.enable(ctx);
-	screen_prog.set_uniform(ctx, "test", false);
-
-	color_src_fbc.enable_attachment(ctx, "color", 0);
-	fbc.enable_attachment(ctx, "depth", 1);
-
-	fbc_hist.enable(ctx);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-	fbc_hist.disable(ctx);
-
-	screen_prog.set_uniform(ctx, "test", false);
-
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-	color_src_fbc.disable_attachment(ctx, "color");
-	fbc.disable_attachment(ctx, "depth");
-
-	screen_prog.disable(ctx);
-	
-	glDepthFunc(GL_LESS);
-
-	prev_projection_matrix = curr_projection_matrix;
-	prev_modelview_matrix = curr_modelview_matrix;
-	prev_eye_pos = eye_pos;
-	prev_view_dir = view_dir;
 }
 
 void tubes::draw_density_volume(context& ctx) {
@@ -2458,6 +2842,7 @@ shader_define_map tubes::build_tube_shading_defines() {
 
 	return defines;
 }
+
 
 ////
 // Object registration
