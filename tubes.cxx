@@ -2388,10 +2388,15 @@ void tubes::draw_dnd(context& ctx) {
 }
 
 void tubes::draw_trajectories(context& ctx) {
-
+	
+	// common init
+	// - view-related info
 	vec3 eye_pos = view_ptr->get_eye();
 	const vec3& view_dir = view_ptr->get_view_dir();
+	// - spline stube renderer setup relevant to deferred shading pass
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+	tstr.set_render_style(render.style);
+	// - node attribute data needed by both rasterization and raytracing
 	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
 
 	if (!optix.enabled || !optix.initialized)
@@ -2413,7 +2418,6 @@ void tubes::draw_trajectories(context& ctx) {
 		tstr.set_eye_pos(eye_pos);
 		tstr.set_view_dir(view_dir);
 		tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
-		tstr.set_render_style(render.style);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 
 		int count = static_cast<int>(render.data->indices.size() / 2);
@@ -2439,7 +2443,13 @@ void tubes::draw_trajectories(context& ctx) {
 		fbc.disable(ctx);
 	}
 	else
+	{
+		// delegate to OptiX raytracing
 		optix_draw_trajectories(ctx);
+
+		// workaround for weird framework material behavior
+		tstr.enable(ctx); tstr.disable(ctx);
+	}
 
 	// ToDo: remove if condition once OptiX output is fully compatible
 	if (   (!optix.enabled || !optix.initialized)

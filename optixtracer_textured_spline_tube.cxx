@@ -90,27 +90,8 @@ optixtracer_textured_spline_tube::optixtracer_textured_spline_tube(
 	other.sbt = {};
 }
 
-
-////
-// optix_builder_textured_spline_tube_builtin
-
-optixtracer_textured_spline_tube_builtin::optixtracer_textured_spline_tube_builtin()
-{}
-
-optixtracer_textured_spline_tube_builtin::optixtracer_textured_spline_tube_builtin(
-	optixtracer_textured_spline_tube_builtin &&other
-)
-	: optixtracer_textured_spline_tube(std::move(other))
-{}
-
-optixtracer_textured_spline_tube_builtin::~optixtracer_textured_spline_tube_builtin()
-{
-	// delegate to destroy method
-	destroy();
-}
-
-optixtracer_textured_spline_tube_builtin& optixtracer_textured_spline_tube_builtin::operator= (
-	optixtracer_textured_spline_tube_builtin &&other
+optixtracer_textured_spline_tube& optixtracer_textured_spline_tube::operator= (
+	optixtracer_textured_spline_tube &&other
 )
 {
 	// we're going to overwrite
@@ -143,6 +124,38 @@ optixtracer_textured_spline_tube_builtin& optixtracer_textured_spline_tube_built
 	return *this;
 }
 
+
+////
+// optix_builder_textured_spline_tube_builtin
+
+optixtracer_textured_spline_tube_builtin::optixtracer_textured_spline_tube_builtin()
+{}
+
+optixtracer_textured_spline_tube_builtin::optixtracer_textured_spline_tube_builtin(
+	optixtracer_textured_spline_tube_builtin &&other
+)
+	: optixtracer_textured_spline_tube(std::move(other))
+{
+	// we don't have any additional data, so just delegate to base...
+}
+
+optixtracer_textured_spline_tube_builtin::~optixtracer_textured_spline_tube_builtin()
+{
+	// delegate to destroy method
+	destroy();
+}
+
+optixtracer_textured_spline_tube_builtin& optixtracer_textured_spline_tube_builtin::operator= (
+	optixtracer_textured_spline_tube_builtin &&other
+)
+{
+	// we don't have any additional data, so just delegate to base
+	super::operator=(std::move(other));
+
+	// done!
+	return *this;
+}
+
 void optixtracer_textured_spline_tube_builtin::destroy (void)
 {
 	destroy_pipeline();
@@ -150,9 +163,9 @@ void optixtracer_textured_spline_tube_builtin::destroy (void)
 	context = nullptr;
 }
 
-bool optixtracer_textured_spline_tube_builtin::built (void)
+bool optixtracer_textured_spline_tube_builtin::built (void) const
 {
-	// if we somehow ended up with a valid pipeline then we _must_ be fine
+	// we _must_ be good to go if somehow we ended up with a valid pipeline
 	return lp.pipeline;
 }
 
@@ -310,7 +323,7 @@ bool optixtracer_textured_spline_tube_builtin::update_accelds (const traj_manage
 		success
 	);
 
-	// We can now free the scratch space buffer used during build and the vertex
+	// We can now free the scratch buffer used during build and the vertex
 	// inputs, since they are not needed by our trivial shading method
 	// (we won't consider cudaFree failing a failure of the whole function)
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(tmpbuf)));
@@ -331,8 +344,7 @@ bool optixtracer_textured_spline_tube_builtin::update_pipeline (void)
 	destroy_pipeline();
 
 	// CUDA/OptiX log storage
-	std::string compiler_log;
-	compiler_log.resize(8192);
+	std::string compiler_log(8192, 0);
 	char* log = compiler_log.data();
 	size_t sizeof_log = compiler_log.size();
 
