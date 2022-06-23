@@ -1,0 +1,44 @@
+#version 430
+
+// uniforms
+uniform int debug;
+
+// samplers
+layout(binding=0) uniform sampler2D albedo;
+layout(binding=1) uniform sampler2D position;
+layout(binding=2) uniform sampler2D normal;
+layout(binding=3) uniform sampler2D tangent;
+layout(binding=4) uniform sampler2D depth;
+
+// attribute inputs
+in vec2 texcoord_fs;
+
+// fragment outputs
+out vec4 frag_color;
+
+
+// shader entry point
+void main()
+{
+	// fetch commonly needed buffer contents
+	const vec4 color = unpackUnorm4x8(floatBitsToUint(texture2D(albedo, texcoord_fs).r));
+	const float depth =  texture2D(depth, texcoord_fs).r;
+
+	// visualize according to selected mode
+	if (debug == 1)
+		frag_color = color;
+	else if (debug == 2)
+		frag_color = vec4(depth, depth, depth, color.a);
+	else
+		frag_color = vec4(
+			// rgb
+				mix(/* normal contrib: */  texture2D(normal, texcoord_fs).xyz,
+					/* tangent contrib: */ 0.5*texture2D(tangent, texcoord_fs).xyz + vec3(0.5, 0.5, 0.5),
+					/* mix factor */ 0.75),
+			// alpha
+				color.a
+		);
+
+	// write depth
+	gl_FragDepth = depth;
+}
