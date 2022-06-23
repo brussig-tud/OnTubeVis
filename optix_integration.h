@@ -19,6 +19,7 @@
 #include <optix_stack_size.h>
 #include <optix_stubs.h>
 #include <cuda_runtime.h>
+#include <cuda_runtime_api.h>
 #include <cuda_gl_interop.h>
 
 // CGV framework
@@ -304,6 +305,12 @@
 		strm = 0;                                                                \
 	}
 
+#define CUDA_SAFE_DESTROY_SURFACE(sfc)                                           \
+	if (sfc) {                                                                   \
+		CUDA_CHECK(cudaDestroySurfaceObject(sfc));                               \
+		sfc = 0;                                                                 \
+	}
+
 #define CUDA_SAFE_UNREGISTER(res)                                                \
 	if (res) {                                                                   \
 		CUDA_CHECK(cudaGraphicsUnregisterResource(res));                         \
@@ -460,6 +467,45 @@ const std::string& ref_cgv_format_string (void);
 //
 // Classes
 //
+
+/// manages a CUDA surface object for a given CGV 2D texture
+class cuda_surface_object
+{
+public:
+	// the scoped usage object
+	class scoped_use
+	{
+		friend cuda_surface_object;
+	private:
+		CUstream stream = nullptr;
+		cudaGraphicsResource *res = nullptr;
+
+	public:
+		scoped_use();
+		~scoped_use();
+
+		cudaSurfaceObject_t surface;
+	};
+
+	cuda_surface_object();
+	~cuda_surface_object();
+
+	// make sure the surface object correctly represents the given texture
+	bool ensure (unsigned width, unsigned height, cgv::render::texture &texture);
+
+	// make sure the surface object correctly represents the pointed-to texture
+	inline bool ensure (unsigned width, unsigned height, cgv::render::texture *texture) {
+		return ensure(width, height, *texture);
+	}
+
+	// obtain a scoped usage object (returned in an output parameter to enforce a named variable on caller side)
+	bool use (scoped_use *usage_object, CUstream stream);
+
+private:
+	GLuint htex = 0;
+	cudaGraphicsResource *res = nullptr;
+	cudaResourceDesc res_desc = {};
+};
 
 /// manages an output buffer strategy for retrieving results of CUDA computations (shamelessly stolen
 /// from OptiX SDK samples)

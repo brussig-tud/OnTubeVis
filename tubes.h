@@ -68,6 +68,15 @@ protected:
 	// ### BEGIN: OptiX integration
 	// ###############################
 
+	/// OptiX debug output options
+	enum OptixDebugVisualization
+	{
+		OXV_OFF = 0,
+		OXV_ALBEDO = 1,
+		OXV_DEPTH = 2,
+		OXV_NORMAL_TANGENT = 3
+	};
+
 	// state
 	struct
 	{
@@ -77,8 +86,11 @@ protected:
 		// use OptiX to raycast tubes instead of OpenGL rasterization
 		bool enabled = false;
 
-		// subdivide into quadratic beziers for higher ray tracing performance
+		// subdivide into quadratic beziers for higher ray tracing performance. (ToDo: implement)
 		bool subdivide = false;
+
+		// result output mode
+		OptixDebugVisualization debug = OXV_OFF;
 
 		// OptiX device context
 		OptixDeviceContext context = nullptr;
@@ -116,9 +128,9 @@ protected:
 		cuda_output_buffer<float3> outbuf_tangent;
 		cuda_output_buffer<float1> outbuf_depth;
 
-		// framebuffer attachment references
+		// framebuffer attachment references (except depth, which is a texture we own for an NVIDIA driver bug workaround)
 		struct {
-			texture *albedo, *position, *normal, *tangent, *depth;
+			texture *albedo, *position, *normal, *tangent, depth;
 		} fb;
 	} optix;
 

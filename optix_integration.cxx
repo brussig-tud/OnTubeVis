@@ -102,7 +102,7 @@ GlTexImageFormatParams get_gl_tex_image_fmtparams<uchar4> (void)
 template <>
 GlTexImageFormatParams get_gl_tex_image_fmtparams<float1> (void)
 {
-	return {GL_DEPTH_COMPONENT32F, GL_DEPTH_COMPONENT, GL_FLOAT};
+	return {GL_R32F, GL_RED, GL_FLOAT};
 }
 template <>
 GlTexImageFormatParams get_gl_tex_image_fmtparams<float3> (void)
@@ -147,6 +147,95 @@ const std::string& ref_cgv_format_string<float4> (void)
 //
 // Class implementations
 //
+
+////
+// cuda_surface_object
+
+cuda_surface_object::scoped_use::scoped_use() : surface(0)
+{}
+
+cuda_surface_object::scoped_use::~scoped_use()
+{
+	CUDA_SAFE_DESTROY_SURFACE(surface);
+	if (res)
+	{
+		CUDA_CHECK(cudaGraphicsUnmapResources(1, &res, stream));
+		res = nullptr;
+	}
+}
+
+cuda_surface_object::cuda_surface_object()
+{
+	res_desc.resType = cudaResourceTypeArray;
+}
+
+cuda_surface_object::~cuda_surface_object()
+{
+	CUDA_SAFE_UNREGISTER(res);
+	htex = 0;
+}
+
+bool cuda_surface_object::ensure (unsigned width, unsigned height, cgv::render::texture &texture)
+{
+	// everything still up-to-date?
+	const GLuint htex_new = (GLuint)((size_t)texture.handle-1);
+	if (htex==htex_new && texture.get_width()==width && texture.get_height()==height && res)
+		return true;
+
+	// No! start over completely...HANDLE(cudaGraphicsMapResources(1, &g_textureResource));
+	this->~cuda_surface_object();
+
+	// Re-register as resource
+	CUDA_CHECK_FAIL(cudaGraphicsGLRegisterImage(
+		&res, htex_new, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsWriteDiscard
+	));
+
+	// store texture handle
+	htex = htex_new;
+
+	// done!
+	return true;
+}
+
+bool cuda_surface_object::use (scoped_use *usage_object, CUstream stream)
+{
+	// map our resource
+	CUDA_CHECK_FAIL(cudaGraphicsMapResources(1, &res));
+
+	// track success - we don't immediately fail and return since the code in this function is not robust to
+	// failure (i.e. doesn't use RAII) so doing that would result in both host and device memory leaks
+	bool success = true;
+
+	// obtain array
+	res_desc.res.array.array = nullptr;
+	CUDA_CHECK_SET(
+		cudaGraphicsSubResourceGetMappedArray(
+			&(res_desc.res.array.array), res, 0/*array index*/, 0/*mip level*/
+		),
+		success
+	);
+
+	// create surface object
+	cudaSurfaceObject_t surface = 0;
+	CUDA_CHECK_SET(cudaCreateSurfaceObject(&surface, &res_desc), success);
+
+	// check status
+	if (!success)
+	{
+		CUDA_SAFE_DESTROY_SURFACE(surface)
+		CUDA_CHECK(cudaGraphicsUnmapResources(1, &res));
+		return false;
+	}
+	
+	// scope our created resources for usage
+	usage_object->stream = stream;
+	usage_object->res = res;
+	usage_object->surface = surface;
+
+	// done!
+	return true;
+}
+
 
 ////
 // cuda_output_buffer
@@ -434,8 +523,8 @@ pxl_fmt* cuda_output_buffer<pxl_fmt>::get_host_ptr (void)
 template <class pxl_fmt>
 bool cuda_output_buffer<pxl_fmt>::into_texture (cgv::render::context &ctx, cgv::render::texture &tex)
 {
-	// for now, we only support GL interop for this
-	if ((m_type != CUOutBuf::GL_INTEROP && m_type != CUOutBuf::CUDA_DEVICE) || !get_pbo())
+	// abort if we're somehow in a problematic state
+	if (!get_pbo())
 		return false;
 
 	// lazy-create texture
@@ -464,9 +553,9 @@ bool cuda_output_buffer<pxl_fmt>::into_texture (cgv::render::context &ctx, cgv::
 	// - determine correct format/type params
 	const auto fmt = get_gl_tex_image_fmtparams<pxl_fmt>();
 	// - upload from PBO
-	const GLuint hTex = (GLuint)(size_t)tex.handle - 1;
+	const GLuint htex = (GLuint)(size_t)tex.handle - 1;
 	GL_CHECK_SET(glActiveTexture(GL_TEXTURE0), success);
-	GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, hTex), success);
+	GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, htex), success);
 	glTexImage2D(GL_TEXTURE_2D, 0, fmt.format_internal, m_width, m_height, 0, fmt.format, fmt.type, nullptr);
 	GL_CHECK_SET(glBindTexture(GL_TEXTURE_2D, 0), success);
 

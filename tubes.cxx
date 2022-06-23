@@ -226,6 +226,7 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("grid_normal_variant", grid_normal_variant) &&
 		rh.reflect_member("voxelize_gpu", voxelize_gpu) &&
 		rh.reflect_member("use_optix", optix.enabled) &&
+		rh.reflect_member("optix_debug_mode", optix.debug) &&
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
@@ -1536,7 +1537,6 @@ bool tubes::optix_ensure_init (context &ctx)
 	optix.fb.position = fbc.attachment_texture_ptr("position");
 	optix.fb.normal = fbc.attachment_texture_ptr("normal");
 	optix.fb.tangent = fbc.attachment_texture_ptr("tangent");
-	optix.fb.depth = fbc.attachment_texture_ptr("depth");
 
 	// done!
 	optix.initialized = success;
@@ -2014,8 +2014,8 @@ void tubes::optix_draw_trajectories (context &ctx)
 		params.normal = optix.outbuf_normal.map();
 		params.tangent = optix.outbuf_tangent.map();
 		params.depth = optix.outbuf_depth.map();
-		params.fb_width = optix.outbuf_albedo.width();
-		params.fb_height = optix.outbuf_albedo.height();
+		params.fb_width = ctx.get_width();
+		params.fb_height = ctx.get_height();
 		params.accelds = optix.accelds;
 		params.cam_eye = make_float3(eye.x(), eye.y(), eye.z());
 		params.cam_clip = make_float2(.1f, 128.f);
@@ -2056,28 +2056,34 @@ void tubes::optix_draw_trajectories (context &ctx)
 	////
 	// Display results
 
-	/* local scope *//*  {
+	if (optix.debug)
+	{
 		// obtain the OptiX display shader program
-		static shader_program &display_prog = shaders.get("optix_display");
+		static shader_program &display_prog = shaders.get("optix_display");		
 
-		// Blend the result image onto the main framebuffer
+		// configure shader and bind optix output textures
 		display_prog.enable(ctx);
+		display_prog.set_uniform(ctx, "debug", (int)optix.debug);
 		optix.fb.albedo->enable(ctx, 0);
 		optix.fb.position->enable(ctx, 1);
 		optix.fb.normal->enable(ctx, 2);
 		optix.fb.tangent->enable(ctx, 3);
-		optix.fb.depth->enable(ctx, 4);
+		optix.fb.depth.enable(ctx, 4);
+
+		// blend the display result onto the main framebuffer
 		glEnable(GL_BLEND);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 		glDisable(GL_BLEND);
-		optix.fb.depth->disable(ctx);
+
+		// cleanup
+		optix.fb.depth.disable(ctx);
 		optix.fb.tangent->disable(ctx);
 		optix.fb.normal->disable(ctx);
 		optix.fb.position->disable(ctx);
 		optix.fb.albedo->disable(ctx);
 		display_prog.disable(ctx);
-	}*/
+	}
 }
 
 // ###############################
@@ -2295,6 +2301,7 @@ void tubes::create_gui(void) {
 	if (begin_tree_node("OptiX", optix.enabled, false)) {
 		align("\a");
 		add_member_control(this, "Use OptiX for tube rendering", optix.enabled, "check");
+		add_member_control(this, "OptiX debug visualization", optix.debug, "dropdown", "enums='OFF,albedo,depth,tangent+normal'");
 		align("\b");
 		end_tree_node(optix.enabled);
 	}
@@ -2830,7 +2837,8 @@ void tubes::draw_trajectories(context& ctx) {
 		optix_draw_trajectories(ctx);
 
 	// ToDo: remove if condition once OptiX output is fully compatible
-	//if (!optix.enabled || !optix.initialized)
+	if (   (!optix.enabled || !optix.initialized)
+	    || (!optix.debug && optix.enabled && optix.initialized))
 	{
 		shader_program& prog = shaders.get("tube_shading");
 		prog.enable(ctx);
@@ -2888,7 +2896,11 @@ void tubes::draw_trajectories(context& ctx) {
 		fbc.enable_attachment(ctx, "position", 1);
 		fbc.enable_attachment(ctx, "normal", 2);
 		fbc.enable_attachment(ctx, "tangent", 3);
-		fbc.enable_attachment(ctx, "depth", 4);
+		if (!optix.enabled || !optix.initialized)
+			// workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats
+			fbc.enable_attachment(ctx, "depth", 4);
+		else
+			optix.fb.depth.enable(ctx, 4);
 		if(ao_style.enable)
 			density_tex.enable(ctx, 5);
 		color_map_mgr.ref_texture().enable(ctx, 6);
@@ -2917,7 +2929,10 @@ void tubes::draw_trajectories(context& ctx) {
 		fbc.disable_attachment(ctx, "position");
 		fbc.disable_attachment(ctx, "normal");
 		fbc.disable_attachment(ctx, "tangent");
-		fbc.disable_attachment(ctx, "depth");
+		if (!optix.enabled || !optix.initialized)
+			fbc.disable_attachment(ctx, "depth");
+		else
+			optix.fb.depth.disable(ctx);
 		if(ao_style.enable)
 			density_tex.disable(ctx);
 		color_map_mgr.ref_texture().disable(ctx);
