@@ -147,8 +147,7 @@ tubes::~tubes()
 	// ###############################
 
 	// perform cleanup routine
-	optix_destroy_pipeline();
-	optix_destroy_accelds();
+	optix_cleanup();
 
 	// shutdown optix
 	if (optix.context)
@@ -509,8 +508,7 @@ void tubes::on_set(void *member_ptr) {
 		// ###############################
 
 		if (optix.initialized) {
-			optix_update_accelds();
-			optix_update_pipeline();
+			optix.tracer_builtin.update_accelds(render.data);
 			optix_register_resources(ctx);
 		}
 
@@ -1465,21 +1463,10 @@ bool tubes::init (cgv::render::context &ctx)
 // ### BEGIN: OptiX integration
 // ###############################
 
-void tubes::optix_destroy_accelds (void)
+void tubes::optix_cleanup (void)
 {
-	CUDA_SAFE_FREE(optix.accelds_outbuf);
-}
-
-void tubes::optix_destroy_pipeline (void)
-{
+	optix.tracer_builtin.destroy();
 	CUDA_SAFE_DESTROY_STREAM(optix.stream);
-	CUDA_SAFE_FREE(optix.params_buf);
-	OPTIX_SAFE_DESTROY_PIPELINE(optix.pipeline);
-	OPTIX_SAFE_DESTROY_MODULE(optix.mod_shading);
-	OPTIX_SAFE_DESTROY_MODULE(optix.mod_geom);
-	OPTIX_SAFE_DESTROY_PROGGROUP(optix.prg_hit);
-	OPTIX_SAFE_DESTROY_PROGGROUP(optix.prg_miss);
-	OPTIX_SAFE_DESTROY_PROGGROUP(optix.prg_raygen);
 }
 
 void tubes::optix_unregister_resources (void)
@@ -1521,8 +1508,8 @@ bool tubes::optix_ensure_init (context &ctx)
 
 	// setup optix launch environment
 	if (traj_mgr.has_data()) {
-		success = success && optix_update_accelds();
-		success = success && optix_update_pipeline();
+		optix.tracer_builtin = optixtracer_textured_spline_tube_builtin::build(optix.context, render.data);
+		success = success && optix.tracer_builtin.built();
 		success = success && optix_register_resources(ctx);
 	}
 	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
@@ -1530,6 +1517,14 @@ bool tubes::optix_ensure_init (context &ctx)
 	success = success && optix.outbuf_normal.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
 	success = success && optix.outbuf_tangent.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
 	success = success && optix.outbuf_depth.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+
+	// create CUDA operations stream
+	CUDA_CHECK_FAIL(cudaStreamCreate(&optix.stream), success);
+	optix.outbuf_albedo.set_stream(optix.stream);
+	optix.outbuf_position.set_stream(optix.stream);
+	optix.outbuf_normal.set_stream(optix.stream);
+	optix.outbuf_tangent.set_stream(optix.stream);
+	optix.outbuf_depth.set_stream(optix.stream);
 
 	// connect to framebuffer
 	fbc.ensure(ctx);
@@ -1540,406 +1535,6 @@ bool tubes::optix_ensure_init (context &ctx)
 
 	// done!
 	optix.initialized = success;
-	return success;
-}
-
-bool tubes::optix_update_accelds (void)
-{
-	// local helpers
-	struct _
-	{
-		inline static constexpr float _1o3() { return (const float)(1.0/3.0); }
-
-		inline static float3 to_float3 (const vec3 &v) { return{v.x(), v.y(), v.z()}; }
-
-		inline static float get_cr0 (const float p0, const float m0, const float p1)
-		{
-			const float b1 = p0 + _1o3()*m0;
-			return p1 + 6.f*(p0 - b1);
-		}
-		inline static float get_cr3 (const float p0, const float p1, const float m1)
-		{
-			const float b2 = p1 - _1o3()*m1;
-			return p0 + 6.f*(p1 - b2);
-		}
-		inline static vec3 get_cr0 (const vec3 &p0, const vec3 &m0, const vec3 &p1)
-		{
-			const vec3 b1 = p0 + _1o3()*m0;
-			return p1 + 6.f*(p0 - b1);
-		}
-		inline static vec3 get_cr3 (const vec3 &p0, const vec3 &p1, const vec3 &m1)
-		{
-			const vec3 b2 = p1 - _1o3()*m1;
-			return p0 + 6.f*(p1 - b2);
-		}
-	};
-
-	// make sure we start with a blank slate
-	optix_destroy_accelds();
-
-	// use default options for simplicity (ToDo: enable compaction)
-	OptixAccelBuildOptions accel_options = {};
-	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS;
-	accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
-
-	// stage geometry for upload - we don't use the available render data directly since we can use a more
-	// compact representation for OptiX due to the available special curve segment indexing mode
-	unsigned num;
-	std::vector<float3> positions;
-	std::vector<float> radii;
-	std::vector<unsigned> indices;
-	if (optix.subdivide)
-		// ToDo: not yet implemented!!!
-		num = 0;
-	else
-	{
-		// prepare CPU-side vertex staging area
-		const auto &rd_pos = render.data->positions;
-		const auto &rd_tan = render.data->tangents;
-		const auto &rd_rad = render.data->radii;
-		const auto &rd_idx = render.data->indices;
-		indices.reserve(rd_idx.size()/2);
-		num = (unsigned)rd_idx.size()*2;
-		positions.reserve(num);
-		radii.reserve(num);
-
-		// convert data representation:
-		// - convert Hermite-basis control points to Catmull-Rom basis
-		// - adapt indices to OptiX curve primitive scheme
-		constexpr float mscale = 1.5f; // <-- hand-tuned tangent scaling factor to get results visually closer to split quadratic curves
-		for (const auto &ds : render.data->datasets)
-		{
-			for (const auto &traj : ds.trajs)
-			{
-				const unsigned num_segs = traj.n / 2;
-				for (unsigned i=0; i<num_segs; i++)
-				{
-					const unsigned idx = rd_idx[traj.i0]+i;
-					const vec4  &t0 = rd_tan[idx],    &t1 = rd_tan[idx+1];
-					const vec3  &p0 = rd_pos[idx],    &p1 = rd_pos[idx+1],
-					             m0 = mscale*vec3(t0), m1 = mscale*vec3(t1);
-					const float &r0 = rd_rad[idx],    &r1 = rd_rad[idx+1];
-					indices.emplace_back(unsigned(positions.size()));
-					// cr0
-					positions.emplace_back(_::to_float3(_::get_cr0(p0, m0, p1)));
-					radii.emplace_back(_::get_cr0(r0, mscale*t0.w(), r1));
-					// cr1
-					positions.emplace_back(_::to_float3(p0));
-					radii.push_back(r0);
-					// cr2
-					positions.emplace_back(_::to_float3(p1));
-					radii.push_back(r1);
-					// cr3
-					positions.emplace_back(_::to_float3(_::get_cr3(p0, p1, m1)));
-					radii.emplace_back(_::get_cr3(r0, r1, mscale*t1.w()));
-				}
-			}
-		}
-		// update our number of nodes
-		num = (unsigned)positions.size();
-	}
-
-	// track success - we don't immediately fail and return since the code in this function is not robust to failure
-	// (i.e. doesn't use RAII) so doing that would result in both host and device memory leaks
-	bool success = true;
-
-	// prepare geometry device memory
-	CUdeviceptr positions_dev=0, radii_dev=0;
-	const size_t positions_size = num*sizeof(float3), radii_size = num*sizeof(float);
-	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&positions_dev), positions_size), success);
-	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(positions_dev), positions.data(), positions_size, cudaMemcpyHostToDevice), success);
-	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&radii_dev), radii_size), success);
-	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(radii_dev), radii.data(), radii_size, cudaMemcpyHostToDevice), success);
-
-	// upload segment indices
-	CUdeviceptr indices_dev = 0;
-	const size_t indices_size = indices.size()*sizeof(unsigned);
-	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&indices_dev), indices_size), success);
-	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(indices_dev), indices.data(), indices_size, cudaMemcpyHostToDevice), success);
-
-	// OptiX accel-ds build input descriptor
-	OptixBuildInput input_desc = {};
-	input_desc.type = OPTIX_BUILD_INPUT_TYPE_CURVES;
-	input_desc.curveArray.curveType = optix.subdivide ?
-		  OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
-		: /*OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR;//*/OPTIX_PRIMITIVE_TYPE_ROUND_CATMULLROM;
-	input_desc.curveArray.numPrimitives = (unsigned)indices.size();
-	input_desc.curveArray.vertexBuffers = &positions_dev;
-	input_desc.curveArray.numVertices = num;
-	input_desc.curveArray.vertexStrideInBytes = sizeof(float3);
-	input_desc.curveArray.widthBuffers = &radii_dev;
-	input_desc.curveArray.widthStrideInBytes = sizeof(float);
-	input_desc.curveArray.normalBuffers = 0;
-	input_desc.curveArray.normalStrideInBytes = 0;
-	input_desc.curveArray.indexBuffer = indices_dev;
-	input_desc.curveArray.indexStrideInBytes = sizeof(unsigned);
-	input_desc.curveArray.flag = OPTIX_GEOMETRY_FLAG_NONE;
-	input_desc.curveArray.primitiveIndexOffset = 0;
-	input_desc.curveArray.endcapFlags = OPTIX_CURVE_ENDCAP_ON;
-
-	OptixAccelBufferSizes accelds_buffer_sizes = {0};
-	OPTIX_CHECK_SET(
-		optixAccelComputeMemoryUsage(
-			optix.context, &accel_options, &input_desc, 1/* num build inputs */, &accelds_buffer_sizes
-		),
-		success
-	);
-
-	CUdeviceptr tmpbuf = 0;
-	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&tmpbuf), accelds_buffer_sizes.tempSizeInBytes), success);
-	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&optix.accelds_outbuf), accelds_buffer_sizes.outputSizeInBytes), success);
-
-	OPTIX_CHECK_SET(
-		optixAccelBuild(
-			optix.context, 0/* CUDA stream */, &accel_options, &input_desc, 1/* num build inputs */,
-			tmpbuf, accelds_buffer_sizes.tempSizeInBytes, optix.accelds_outbuf, accelds_buffer_sizes.outputSizeInBytes,
-			&optix.accelds, // <-- our acceleration datastructure!!!
-			nullptr/* emitted property list */, 0/*num emitted properties*/
-		),
-		success
-	);
-
-	// We can now free the scratch space buffer used during build and the vertex
-	// inputs, since they are not needed by our trivial shading method
-	// (we won't consider cudaFree failing a failure of the whole function)
-	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(tmpbuf)));
-	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(positions_dev)));
-	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(radii_dev)));
-	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(indices_dev)));
-
-	// done!
-	return success;
-}
-
-bool tubes::optix_update_pipeline (void)
-{
-	////
-	// Prelude
-
-	// make sure we start with a blank slate
-	optix_destroy_pipeline();
-
-	// CUDA/OptiX log storage
-	std::string compiler_log;
-	compiler_log.resize(8192);
-	char* log = compiler_log.data();
-	size_t sizeof_log = compiler_log.size();
-
-	// pipeline build options
-	constexpr unsigned max_trace_depth = 1;
-	OptixPipelineCompileOptions pipeline_options = {};
-
-	// track success - we don't immediately fail and return since the code in this function is not robust to failure
-	// (i.e. doesn't use RAII) so doing that would result in both host and device memory leaks
-	bool success = true;
-
-
-	////
-	// Create modules
-
-	/* local scope */ {
-		OptixModuleCompileOptions mod_options = {};
-		mod_options.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
-		mod_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-		mod_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
-
-		pipeline_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-		pipeline_options.numPayloadValues = 14;
-		pipeline_options.numAttributeValues = 1;
-	#ifdef _DEBUG  // Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
-		pipeline_options.exceptionFlags =
-			OPTIX_EXCEPTION_FLAG_DEBUG | OPTIX_EXCEPTION_FLAG_TRACE_DEPTH | OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
-	#else
-		pipeline_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
-	#endif
-		pipeline_options.pipelineLaunchParamsVariableName = "params";
-		pipeline_options.usesPrimitiveTypeFlags = optix.subdivide ?
-			OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
-			: /*OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR;//*/OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_CATMULLROM;
-
-		const std::vector<char> ptx = compile_cu2ptx(CUR_SRC_FILE_DIR+"/optix_curves.cu", "optix_curves", &compiler_log);
-		const size_t            ptx_size = ptx.size();
-		if (!ptx_size)
-		{
-			std::cerr << "ERROR compiling OptiX device code! Log:" << std::endl
-			          << compiler_log << std::endl<<std::endl;
-			return false; // no resources allocated yet, so we can just return
-		}
-		OPTIX_CHECK_LOG_SET(
-			optixModuleCreateFromPTX(
-				optix.context, &mod_options, &pipeline_options, ptx.data(), ptx_size, log, &sizeof_log, &optix.mod_shading
-			),
-			log, sizeof_log, success
-		);
-
-		OptixBuiltinISOptions builtin_isectshader_options = {};
-		builtin_isectshader_options.builtinISModuleType = optix.subdivide ?
-			  OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR // ToDo : we use linear for now since splines would require adding additional control points to make segments connect
-			: /*OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR;//*/OPTIX_PRIMITIVE_TYPE_ROUND_CATMULLROM;
-		builtin_isectshader_options.curveEndcapFlags = OPTIX_CURVE_ENDCAP_ON;
-		OPTIX_CHECK_SET(
-			optixBuiltinISModuleGet(optix.context, &mod_options, &pipeline_options, &builtin_isectshader_options, &optix.mod_geom),
-			success
-		);
-	}
-
-
-	////
-	// Create program groups
-
-	/* local scope */ {
-		// common options
-		OptixProgramGroupOptions prg_options = {};
-
-		// raygen shader
-		OptixProgramGroupDesc prg_raygen_desc = {};
-		prg_raygen_desc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
-		prg_raygen_desc.raygen.module = optix.mod_shading;
-		prg_raygen_desc.raygen.entryFunctionName = "__raygen__basic";
-		OPTIX_CHECK_LOG_SET(
-			optixProgramGroupCreate(
-				optix.context, &prg_raygen_desc, 1 /* num program groups */, 
-				&prg_options, log, &sizeof_log, &optix.prg_raygen
-			),
-			log, sizeof_log, success
-		);
-
-		// miss shader
-		OptixProgramGroupDesc prg_miss_desc = {};
-		prg_miss_desc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
-		prg_miss_desc.miss.module = optix.mod_shading;
-		prg_miss_desc.miss.entryFunctionName = "__miss__ms";
-		OPTIX_CHECK_LOG_SET(
-			optixProgramGroupCreate(
-				optix.context, &prg_miss_desc, 1 /* num program groups */,
-				&prg_options, log, &sizeof_log, &optix.prg_miss
-			),
-			log, sizeof_log, success
-		);
-
-		// hit shader group
-		OptixProgramGroupDesc prg_hit_desc = {};
-		prg_hit_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
-		prg_hit_desc.hitgroup.moduleCH = optix.mod_shading;
-		prg_hit_desc.hitgroup.entryFunctionNameCH = "__closesthit__ch";
-		prg_hit_desc.hitgroup.moduleIS = optix.mod_geom;
-		prg_hit_desc.hitgroup.entryFunctionNameIS = 0; // automatically supplied for built-in intersection shader
-		OPTIX_CHECK_LOG_SET(
-			optixProgramGroupCreate(
-				optix.context, &prg_hit_desc, 1 /* num program groups */,
-				&prg_options, log, &sizeof_log, &optix.prg_hit
-			),
-			log, sizeof_log, success
-		);
-	}
-
-
-	////
-	// Link pipeline
-
-	/* local scope */ {
-		constexpr unsigned num_prgs = 3;
-		OptixProgramGroup prgs[num_prgs] = {optix.prg_raygen, optix.prg_miss, optix.prg_hit};
-		OptixPipelineLinkOptions pipeline_linkoptions = {};
-		pipeline_linkoptions.maxTraceDepth = max_trace_depth;
-	#ifdef _DEBUG  // Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
-		pipeline_linkoptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
-	#else
-		pipeline_linkoptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
-	#endif
-		OPTIX_CHECK_LOG_SET(
-			optixPipelineCreate(
-				optix.context, &pipeline_options, &pipeline_linkoptions,
-				prgs, num_prgs, log, &sizeof_log, &optix.pipeline
-			),
-			log, sizeof_log, success
-		);
-
-		OptixStackSizes stacksizes = {};
-		for (const auto &prg : prgs)
-			OPTIX_CHECK_SET(optixUtilAccumulateStackSizes(prg, &stacksizes), success);
-
-		// ToDo: ??? investigate what exactly this is, why it is needed, what to best do here, etc.
-		uint32_t direct_callable_stack_size_from_traversal;
-		uint32_t direct_callable_stack_size_from_state;
-		uint32_t continuation_stack_size;
-		OPTIX_CHECK_SET(
-			optixUtilComputeStackSizes(
-				&stacksizes, max_trace_depth, 0/* maxCCDepth */, 0/* maxDCDepth */,
-				&direct_callable_stack_size_from_traversal,
-				&direct_callable_stack_size_from_state, &continuation_stack_size
-			),
-			success
-		);
-		OPTIX_CHECK_SET(
-			optixPipelineSetStackSize(
-				optix.pipeline, direct_callable_stack_size_from_traversal,
-				direct_callable_stack_size_from_state, continuation_stack_size,
-				1 // <-- max traversable depth - we only use the top-level GAS currently
-			),
-			success
-		);
-	}
-
-
-	////
-	// Set up shader binding table
-
-	/* local scope */ {
-		// our SBT record types
-		typedef sbt_record<data_raygen> sbt_record_raygen;
-		typedef sbt_record<data_miss>   sbt_record_miss;
-		typedef sbt_record<data_hit>    sbt_record_hit;
-
-		// prepare entries
-		// - raygen shaders
-		CUdeviceptr  raygen_record;
-		const size_t raygen_record_size = sizeof(sbt_record_raygen);
-		CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&raygen_record), raygen_record_size), success);
-		sbt_record_raygen rg_sbt;
-		OPTIX_CHECK_SET(optixSbtRecordPackHeader(optix.prg_raygen, &rg_sbt), success);
-		CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(raygen_record), &rg_sbt, raygen_record_size, cudaMemcpyHostToDevice), success);
-		// - miss shaders
-		CUdeviceptr miss_record;
-		size_t      miss_record_size = sizeof(sbt_record_miss);
-		CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&miss_record), miss_record_size), success);
-		sbt_record_miss ms_sbt;
-		ms_sbt.data = {0.0f, 0.0f, 0.0f, 0.0f};  // background color (fully transparent black)
-		OPTIX_CHECK_SET(optixSbtRecordPackHeader(optix.prg_miss, &ms_sbt), success);
-		CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(miss_record), &ms_sbt, miss_record_size, cudaMemcpyHostToDevice), success);
-		// - hit shaders
-		CUdeviceptr hitgroup_record;
-		size_t      hitgroup_record_size = sizeof(sbt_record_hit);
-		CUDA_CHECK_SET (cudaMalloc(reinterpret_cast<void**>(&hitgroup_record), hitgroup_record_size), success);
-		sbt_record_hit hg_sbt;
-		OPTIX_CHECK_SET(optixSbtRecordPackHeader(optix.prg_hit, &hg_sbt), success);
-		CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(hitgroup_record), &hg_sbt, hitgroup_record_size, cudaMemcpyHostToDevice), success);
-
-		// build up the SBT
-		optix.sbt = {};
-		optix.sbt.raygenRecord = raygen_record;
-		optix.sbt.missRecordBase = miss_record;
-		optix.sbt.missRecordStrideInBytes = sizeof(sbt_record_miss);
-		optix.sbt.missRecordCount = 1;
-		optix.sbt.hitgroupRecordBase = hitgroup_record;
-		optix.sbt.hitgroupRecordStrideInBytes = sizeof(sbt_record_hit);
-		optix.sbt.hitgroupRecordCount = 1;
-	}
-
-	// Create the device memory for our launch params
-	// ToDo: not necessarily the best place for this here!
-	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&optix.params_buf), sizeof(curve_rt_params)), success);
-
-	// Create the cuda async stream for result retrieval
-	// ToDo: not necessarily the best place for this here!
-	CUDA_CHECK_SET(cudaStreamCreate(&optix.stream), success);
-	optix.outbuf_albedo.set_stream(optix.stream);
-	optix.outbuf_position.set_stream(optix.stream);
-	optix.outbuf_normal.set_stream(optix.stream);
-	optix.outbuf_tangent.set_stream(optix.stream);
-	optix.outbuf_depth.set_stream(optix.stream);
-
-	// done!
 	return success;
 }
 
@@ -2009,6 +1604,7 @@ void tubes::optix_draw_trajectories (context &ctx)
 			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_alen, optix.stream));
 			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.alen), &size, optix.sbo_alen));
 		};
+		const auto &lp = optix.tracer_builtin.ref_launch_params();
 		params.albedo = optix.outbuf_albedo.map();
 		params.position = optix.outbuf_position.map();
 		params.normal = optix.outbuf_normal.map();
@@ -2016,7 +1612,7 @@ void tubes::optix_draw_trajectories (context &ctx)
 		params.depth = optix.outbuf_depth.map();
 		params.fb_width = ctx.get_width();
 		params.fb_height = ctx.get_height();
-		params.accelds = optix.accelds;
+		params.accelds = lp.accelds;
 		params.cam_eye = make_float3(eye.x(), eye.y(), eye.z());
 		params.cam_clip = make_float2(.1f, 128.f);
 		params.cam_u = make_float3(optixU.x(), optixU.y(), optixU.z());
@@ -2026,11 +1622,11 @@ void tubes::optix_draw_trajectories (context &ctx)
 		*(mat4*)(&params.cam_P) = ctx.get_projection_matrix();
 		*(mat4*)(&params.cam_N) = cgv::math::transpose(cgv::math::inv(ctx.get_modelview_matrix()));
 		// - upload to device
-		CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(optix.params_buf), &params, sizeof(params), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(lp.params), &params, lp.params_size, cudaMemcpyHostToDevice));
 
 		// Launch!
 		OPTIX_CHECK(optixLaunch(
-			optix.pipeline, optix.stream, optix.params_buf, sizeof(curve_rt_params), &optix.sbt, params.fb_width, params.fb_height, /*depth=*/1
+			lp.pipeline, optix.stream, lp.params, lp.params_size, lp.sbt, params.fb_width, params.fb_height, /*depth=*/1
 		));
 		CUDA_SYNC_CHECK();
 

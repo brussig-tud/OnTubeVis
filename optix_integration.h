@@ -461,6 +461,18 @@ GlTexImageFormatParams get_gl_tex_image_fmtparams (void);
 template <class pxl_fmt>
 const std::string& ref_cgv_format_string (void);
 
+/// take a 2D CGV vector and turn it into a CUDA float2 equivalent
+template <class flt_type>
+inline float3 to_float2 (const cgv::math::fvec<flt_type, 2>& v) { return{(float)v.x(), (float)v.y()}; }
+
+/// take a 3D CGV vector and turn it into a CUDA float3 equivalent
+template <class flt_type>
+inline float3 to_float3 (const cgv::math::fvec<flt_type, 3> &v) { return{(float)v.x(), (float)v.y(), (float)v.z()}; }
+
+/// take a 4D CGV vector and turn it into a CUDA float4 equivalent
+template <class flt_type>
+inline float3 to_float4 (const cgv::math::fvec<flt_type, 4> &v) { return{(float)v.x(), (float)v.y(), (float)v.z(), (float)v.w()}; }
+
 
 
 //////

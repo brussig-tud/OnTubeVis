@@ -38,6 +38,7 @@
 #include "textured_spline_tube_renderer.h"
 #include "color_map_viewer.h"
 #include "optix_integration.h"
+#include "optixtracer_textured_spline_tube.h"
 
 
 
@@ -95,25 +96,8 @@ protected:
 		// OptiX device context
 		OptixDeviceContext context = nullptr;
 
-		// acceleration datastructure resources
-		OptixTraversableHandle accelds = 0;
-		CUdeviceptr            accelds_outbuf = 0;
-
-		// curve tracing pipeline resources
-		// - pipeline object
-		OptixPipeline pipeline = nullptr;
-		// - program groups
-		OptixProgramGroup prg_hit = nullptr;
-		OptixProgramGroup prg_miss = nullptr;
-		OptixProgramGroup prg_raygen = nullptr;
-		// - modules
-		OptixModule mod_shading = nullptr;
-		OptixModule mod_geom = nullptr;
-		// - shader binding table
-		OptixShaderBindingTable sbt;
-
-		// device memory for our launch parameters
-		CUdeviceptr params_buf = 0;
+		// Optix-builtin phantom-ray-hair-intersector hermite spline tube renderer
+		optixtracer_textured_spline_tube_builtin tracer_builtin;
 
 		// SSBO interop resource handles
 		cudaGraphicsResource *sbo_nodes = nullptr;
@@ -134,14 +118,12 @@ protected:
 		} fb;
 	} optix;
 
-	void optix_destroy_accelds (void);
-	void optix_destroy_pipeline (void);
+	void optix_cleanup (void);
 	void optix_unregister_resources (void);
 
 	bool optix_ensure_init (context &ctx);
 
-	bool optix_update_accelds (void);
-	bool optix_update_pipeline (void);
+	bool optix_init (void);
 	bool optix_register_resources (context &ctx);
 
 	void optix_draw_trajectories (context &ctx);
