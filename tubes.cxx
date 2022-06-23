@@ -444,7 +444,7 @@ void tubes::on_set(void *member_ptr) {
 	bool data_set_changed = false;
 	bool from_demo = false;
 	// - configurable datapath
-	if(member_ptr == &datapath && !datapath.empty()) {
+	if (member_ptr == &datapath && !datapath.empty()) {
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		traj_mgr.clear();
 		cgv::utils::stopwatch s(true);
@@ -458,7 +458,7 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 	// - non-configurable dataset logic
-	else if(member_ptr == &dataset) {
+	else if (member_ptr == &dataset) {
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		// clear current dataset
 		datapath.clear();
@@ -479,12 +479,15 @@ void tubes::on_set(void *member_ptr) {
 			data_set_changed = true;
 	}
 
-	if(data_set_changed) {
+	if (data_set_changed) {
 		render.data = &(traj_mgr.get_render_data());
-		if(from_demo) {
+		if (from_demo) {
 			ao_style = ao_style_bak;
 			update_member(&ao_style);
 		}
+
+		if (optix.initialized)
+			optix_unregister_resources();
 		update_attribute_bindings();
 		update_grid_ratios();
 
@@ -520,41 +523,43 @@ void tubes::on_set(void *member_ptr) {
 	}
 
 	// render settings
-	if( member_ptr == &debug.highlight_segments ||
-		member_ptr == &ao_style.enable ||
-		member_ptr == &grid_mode ||
-		member_ptr == &grid_normal_settings ||
-		member_ptr == &grid_normal_inwards ||
-		member_ptr == &grid_normal_variant ||
-		member_ptr == &enable_fuzzy_grid) {
+	if (member_ptr == &debug.highlight_segments ||
+	    member_ptr == &ao_style.enable ||
+	    member_ptr == &grid_mode ||
+	    member_ptr == &grid_normal_settings ||
+	    member_ptr == &grid_normal_inwards ||
+	    member_ptr == &grid_normal_variant ||
+	    member_ptr == &enable_fuzzy_grid)
+	{
 		shader_define_map defines = build_tube_shading_defines();
-		if(defines != tube_shading_defines) {
+		if (defines != tube_shading_defines) {
 			context& ctx = *get_context();
 			tube_shading_defines = defines;
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
 		}
 	}
 	// - debug render setting
-	if(member_ptr == &debug.force_initial_order) {
+	if (member_ptr == &debug.force_initial_order) {
 		update_attribute_bindings();
 	}
 
-	if(member_ptr == &debug.render_percentage) {
+	if (member_ptr == &debug.render_percentage) {
 		debug.render_count = static_cast<size_t>(debug.render_percentage * debug.segment_count);
 		update_member(&debug.render_count);
 	}
 
-	if(member_ptr == &debug.render_count) {
+	if (member_ptr == &debug.render_count) {
 		debug.render_percentage = static_cast<float>(debug.render_count) / static_cast<float>(debug.segment_count);
 		update_member(&debug.render_percentage);
 	}
 
-	if(member_ptr == &debug.render_mode) {
+	if (member_ptr == &debug.render_mode) {
 		update_debug_attribute_bindings();
 	}
 
 	// voxelization settings
-	if(member_ptr == &voxel_grid_resolution || member_ptr == &voxelize_gpu || member_ptr == &render.style.radius_scale) {
+	if (member_ptr == &voxel_grid_resolution || member_ptr == &voxelize_gpu || member_ptr == &render.style.radius_scale)
+	{
 		context& ctx = *get_context();
 		voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(cgv::math::clamp(static_cast<unsigned>(voxel_grid_resolution), 16u, 512u));
 		create_density_volume(ctx, voxel_grid_resolution);
@@ -566,7 +571,8 @@ void tubes::on_set(void *member_ptr) {
 	}
 
 	// visualization settings
-	if(member_ptr == &glyph_layer_mgr) {
+	if (member_ptr == &glyph_layer_mgr)
+	{
 		const auto action = glyph_layer_mgr.action_type();
 		bool changes = false;
 		if(action == AT_CONFIGURATION_CHANGE) {
@@ -596,7 +602,8 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 
-	if(member_ptr == &color_map_mgr) {
+	if (member_ptr == &color_map_mgr)
+	{
 		switch(color_map_mgr.action_type()) {
 		case AT_CONFIGURATION_CHANGE:
 		{
@@ -643,8 +650,8 @@ void tubes::on_set(void *member_ptr) {
 
 
 
-
-	if(member_ptr == &fh.file_name) {
+	if (member_ptr == &fh.file_name)
+	{
 		/*
 		#ifndef CGV_FORCE_STATIC
 				// TODO: implemenmt
@@ -659,8 +666,8 @@ void tubes::on_set(void *member_ptr) {
 
 		std::string extension = cgv::utils::file::get_extension(fh.file_name);
 		// only try to read the filename if it ends with an xml extension
-		if(cgv::utils::to_upper(extension) == "XML") {
-			if(read_layer_configuration(fh.file_name)) {
+		if (cgv::utils::to_upper(extension) == "XML") {
+			if (read_layer_configuration(fh.file_name)) {
 				fh.has_unsaved_changes = false;
 				on_set(&fh.has_unsaved_changes);
 			} else {
@@ -669,7 +676,8 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 
-	if(member_ptr == &fh.save_file_name) {
+	if (member_ptr == &fh.save_file_name)
+	{
 		std::string extension = cgv::utils::file::get_extension(fh.save_file_name);
 
 		if(extension == "") {
@@ -691,7 +699,7 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 
-	if(member_ptr == &fh.has_unsaved_changes) {
+	if (member_ptr == &fh.has_unsaved_changes) {
 		auto ctrl = find_control(fh.file_name);
 		if(ctrl)
 			ctrl->set("text_color", fh.has_unsaved_changes ? cgv::gui::theme_info::instance().warning_hex() : "");
@@ -702,15 +710,15 @@ void tubes::on_set(void *member_ptr) {
 
 	// misc settings
 	// - instant redraw
-	if(member_ptr == &misc_cfg.instant_redraw_proxy)
+	if (member_ptr == &misc_cfg.instant_redraw_proxy)
 		// ToDo: handle the (virtually impossible) case that some other plugin than cg_fltk provides the gl_context
 		dynamic_cast<fltk_gl_view*>(get_context())->set_void("instant_redraw", "bool", member_ptr);
 	// - vsync
-	if(member_ptr == &misc_cfg.vsync_proxy)
+	if (member_ptr == &misc_cfg.vsync_proxy)
 		// ToDo: handle the (virtually impossible) case that some other plugin than cg_fltk provides the gl_context
 		dynamic_cast<fltk_gl_view*>(get_context())->set_void("enable_vsynch", "bool", member_ptr);
 	// - fix view up dir
-	else if(member_ptr == &misc_cfg.fix_view_up_dir_proxy)
+	else if (member_ptr == &misc_cfg.fix_view_up_dir_proxy)
 		// ToDo: make stereo view interactors reflect this property, and handle the case that some other plugin that
 		//       is not derived from stereo_view_interactor handles viewing
 		//if (!misc_cfg.fix_view_up_dir_proxy)
@@ -719,7 +727,8 @@ void tubes::on_set(void *member_ptr) {
 		if(misc_cfg.fix_view_up_dir_proxy)
 			find_view_as_node()->set_view_up_dir(0, 1, 0);
 
-	if(member_ptr == &test_dir[0] || member_ptr == &test_dir[1] || member_ptr == &test_dir[2]) {
+	if (member_ptr == &test_dir[0] || member_ptr == &test_dir[1] || member_ptr == &test_dir[2])
+	{
 		test_dir = normalize(test_dir);
 		update_member(&test_dir[0]);
 		update_member(&test_dir[1]);
