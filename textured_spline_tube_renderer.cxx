@@ -71,16 +71,7 @@ namespace cgv {
 		{
 			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
 
-			for(auto it = defines.cbegin(); it != defines.cend();) {
-				if(additional_defines.find((*it).first) == additional_defines.end())
-					it = defines.erase(it);
-				else
-					++it;
-			}
-
-			for(const auto& define : defines)
-				if(additional_defines.find(define.first) == additional_defines.end())
-					defines.erase(define.first);
+			defines.clear();
 
 			shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
 			shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);

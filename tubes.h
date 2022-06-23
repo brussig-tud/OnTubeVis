@@ -142,7 +142,28 @@ protected:
 	} dataset;
 
 	// TODO: comment and cleanup members
-	cgv::glutil::frame_buffer_container fbc;
+	vec3 prev_eye_pos = vec3(0.0f);
+	vec3 prev_view_dir = vec3(0.0f);
+	bool accumulate = false;
+	unsigned accumulate_count = 0;
+	float jitter_scale = 0.5f;
+	size_t n_jitter_samples = 16;
+	std::vector<vec2> jitter_offsets;
+
+	struct {
+		bool use_velocity = true;
+		bool closest_depth = true;
+		bool clip_color = true;
+		bool static_no_clip = true;
+	} settings;
+
+	bool enable_fxaa = true;
+	float fxaa_mix_factor = 0.5f;
+	float taa_mix_factor = 0.1f;
+	mat4 prev_projection_matrix;
+	mat4 prev_modelview_matrix;
+	bool enable_taa = true;
+	cgv::glutil::frame_buffer_container fbc, fbc_shading, fbc_post, fbc_hist, fbc_final;
 	cgv::glutil::shader_library shaders;
 	volume_render_style vstyle;
 	cgv::glutil::gl_color_map volume_tf;
@@ -299,6 +320,9 @@ protected:
 	void calculate_bounding_box(void);
 
 	void create_density_volume(context& ctx, unsigned resolution);
+
+	vec2 sample_halton_2d(unsigned index, int base1, int base2);
+	float van_der_corput(int n, int base);
 
 	/// draw methods
 	void draw_dnd(context& ctx);
