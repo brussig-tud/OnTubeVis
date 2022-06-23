@@ -2575,10 +2575,12 @@ void tubes::draw_trajectories(context& ctx)
 	    || (!optix.debug && optix.enabled && optix.initialized))
 	{
 		// perform the deferred shading pass and draw the image into the shading framebuffer when not using OptiX (for now)
-		if (!optix.enabled || !optix.initialized)
+		if (!optix.enabled || !optix.initialized) {
+			// ToDo: OptiX - TAA interoperation is currently unclear
 			fbc_shading.enable(ctx);
-		glDepthFunc(GL_ALWAYS);
-	
+			glDepthFunc(GL_ALWAYS);
+		}
+
 		shader_program& prog = shaders.get("tube_shading");
 		prog.enable(ctx);
 		// set render parameters
