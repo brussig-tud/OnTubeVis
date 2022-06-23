@@ -51,8 +51,44 @@ struct optix_launch_params
 // Class definitions
 //
 
+// base class with common functionality for all texture spline tube tracers
+class optixtracer_textured_spline_tube
+{
+public:
+	// default constructor
+	optixtracer_textured_spline_tube() {};
+
+	// move constructor
+	optixtracer_textured_spline_tube(optixtracer_textured_spline_tube &&other);
+
+	// virtual base destructor (causes vtable creation)
+	virtual ~optixtracer_textured_spline_tube();
+
+protected:
+	// the optix context we're operating on
+	OptixDeviceContext context = nullptr;
+
+	// the acceleration datastructure memory we're managing
+	CUdeviceptr accelds_mem = 0;
+
+	// the program group resources we're managing
+	OptixProgramGroup prg_hit = nullptr;
+	OptixProgramGroup prg_miss = nullptr;
+	OptixProgramGroup prg_raygen = nullptr;
+
+	// the pipeline module resources we're managing
+	OptixModule mod_shading = nullptr;
+	OptixModule mod_geom = nullptr;
+
+	// our shader binding table
+	OptixShaderBindingTable sbt = {};
+
+	// the launch parameters
+	optix_launch_params lp = {};
+};
+
 // an optixtracer that uses the builtin phantom-ray-hair-intersector and its disc-based cubic spline tube primitive
-class optixtracer_textured_spline_tube_builtin : public cgv::render::render_types
+class optixtracer_textured_spline_tube_builtin : public optixtracer_textured_spline_tube, public cgv::render::render_types
 {
 
 public:
@@ -92,25 +128,4 @@ private:
 	void destroy_accelds(void);
 	void destroy_pipeline(void);
 	bool update_pipeline (void);
-
-	// the optix context we're operating on
-	OptixDeviceContext context = nullptr;
-
-	// the acceleration datastructure memory we're managing
-	CUdeviceptr accelds_mem = 0;
-
-	// the program group resources we're managing
-	OptixProgramGroup prg_hit = nullptr;
-	OptixProgramGroup prg_miss = nullptr;
-	OptixProgramGroup prg_raygen = nullptr;
-
-	// the pipeline module resources we're managing
-	OptixModule mod_shading = nullptr;
-	OptixModule mod_geom = nullptr;
-
-	// our shader binding table
-	OptixShaderBindingTable sbt = {};
-
-	// the launch parameters
-	optix_launch_params lp = {};
 };

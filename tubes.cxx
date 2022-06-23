@@ -1528,7 +1528,7 @@ bool tubes::optix_ensure_init (context &ctx)
 	success = success && optix.outbuf_depth.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
 
 	// create CUDA operations stream
-	CUDA_CHECK_FAIL(cudaStreamCreate(&optix.stream), success);
+	CUDA_CHECK_FAIL(cudaStreamCreate(&optix.stream));
 	optix.outbuf_albedo.set_stream(optix.stream);
 	optix.outbuf_position.set_stream(optix.stream);
 	optix.outbuf_normal.set_stream(optix.stream);

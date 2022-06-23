@@ -62,14 +62,14 @@ namespace {
 // Class implementations
 //
 
+
 ////
-// optix_builder_textured_spline_tube_builtin
+// optixtracer_textured_spline_tube
 
-optixtracer_textured_spline_tube_builtin::optixtracer_textured_spline_tube_builtin()
-{}
+optixtracer_textured_spline_tube::~optixtracer_textured_spline_tube() {}
 
-optixtracer_textured_spline_tube_builtin::optixtracer_textured_spline_tube_builtin(
-	optixtracer_textured_spline_tube_builtin &&other
+optixtracer_textured_spline_tube::optixtracer_textured_spline_tube(
+	optixtracer_textured_spline_tube &&other
 )
 	: context(other.context), accelds_mem(other.accelds_mem), prg_hit(other.prg_hit), prg_miss(other.prg_miss),
 	  prg_raygen(other.prg_raygen), mod_shading(other.mod_shading), mod_geom(other.mod_geom), sbt(other.sbt),
@@ -88,8 +88,20 @@ optixtracer_textured_spline_tube_builtin::optixtracer_textured_spline_tube_built
 	other.mod_shading = nullptr;
 	other.mod_geom = nullptr;
 	other.sbt = {};
-	
 }
+
+
+////
+// optix_builder_textured_spline_tube_builtin
+
+optixtracer_textured_spline_tube_builtin::optixtracer_textured_spline_tube_builtin()
+{}
+
+optixtracer_textured_spline_tube_builtin::optixtracer_textured_spline_tube_builtin(
+	optixtracer_textured_spline_tube_builtin &&other
+)
+	: optixtracer_textured_spline_tube(std::move(other))
+{}
 
 optixtracer_textured_spline_tube_builtin::~optixtracer_textured_spline_tube_builtin()
 {
