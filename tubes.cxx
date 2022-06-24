@@ -557,8 +557,11 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 	
-	if(member_ptr == &taa.enable_taa) {
+	if(    member_ptr == &taa.enable_taa
+	   || (member_ptr == &taa.jitter_sample_count && taa.enable_taa)) {
 		taa.reset();
+		if (member_ptr == &taa.jitter_sample_count)
+			taa.generate_jitter_offsets({fbc.ref_frame_buffer().get_width(), fbc.ref_frame_buffer().get_height()});
 	}
 
 	if(member_ptr == &taa.mix_factor) {
@@ -1762,11 +1765,11 @@ void tubes::init_frame (cgv::render::context &ctx)
 	// keep the framebuffer up to date with the viewport size
 	// TODO: check for changes and reset accumulation
 	bool updated = false;
-	updated |= fbc.ensure(ctx);
-	updated |= fbc_shading.ensure(ctx);
-	updated |= fbc_post.ensure(ctx);
-	updated |= fbc_hist.ensure(ctx);
-	updated |= fbc_final.ensure(ctx);
+	updated = updated || fbc.ensure(ctx);
+	updated = updated || fbc_shading.ensure(ctx);
+	updated = updated || fbc_post.ensure(ctx);
+	updated = updated || fbc_hist.ensure(ctx);
+	updated = updated || fbc_final.ensure(ctx);
 	if(updated) {
 		taa.reset();
 
@@ -1978,6 +1981,7 @@ void tubes::create_gui(void) {
 	if(begin_tree_node("TAA", taa.enable_taa, false)) {
 		align("\a");
 		add_member_control(this, "Enable", taa.enable_taa, "toggle");
+		add_member_control(this, "Sample Count", taa.jitter_sample_count, "value_slider", "min=4;max=32;step=4");
 		add_member_control(this, "Mix Factor", taa.mix_factor, "value_slider", "min=0;max=1;step=0.001");
 		add_member_control(this, "Jitter Scale", taa.jitter_scale, "value_slider", "min=0;max=1;step=0.001");
 
@@ -2732,8 +2736,11 @@ void tubes::draw_trajectories(context& ctx)
 			// disable the final framebuffer
 			fbc_final.disable(ctx);
 		} else {
+			// arm accumulation
 			taa.accumulate = taa.enable_taa;
 			taa.accumulate_count = 0;
+			if (taa.accumulate)
+				post_redraw();
 		}
 
 		auto& color_src_fbc = first ? (taa.enable_fxaa ? fbc_post : fbc_shading) : fbc_final;

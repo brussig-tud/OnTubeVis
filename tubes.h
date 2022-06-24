@@ -185,7 +185,7 @@ protected:
 		bool instant_redraw_proxy = false;
 
 		/// proxy for controlling context::enable_vsynch through fltk_gl_view
-		bool vsync_proxy = true;
+		bool vsync_proxy = false;
 
 		/// proxy for controlling stereo_view_interactor::fix_view_up_dir
 		bool fix_view_up_dir_proxy = false;
@@ -245,7 +245,7 @@ protected:
 		bool enable_taa = true;
 
 		/// influence of the new frame on the history color
-		float mix_factor = 0.1f;
+		float mix_factor = 0.125f;
 
 		/// scale for the jitter offsets
 		float jitter_scale = 0.5f;
@@ -264,7 +264,7 @@ protected:
 
 		/// FXAA settings:
 		/// whether to enable fast approximate anti-aliasing before accumulation
-		bool enable_fxaa = true;
+		bool enable_fxaa = false;
 
 		/// influence factor of fxaa result with input image
 		float fxaa_mix_factor = 0.5f;
