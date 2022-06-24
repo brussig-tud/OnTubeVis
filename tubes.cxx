@@ -557,17 +557,11 @@ void tubes::on_set(void *member_ptr) {
 		}
 	}
 	
-	if(    member_ptr == &taa.enable_taa
-	   || (member_ptr == &taa.jitter_sample_count && taa.enable_taa)) {
-		taa.reset();
-		if (member_ptr == &taa.jitter_sample_count)
-			taa.generate_jitter_offsets({fbc.ref_frame_buffer().get_width(), fbc.ref_frame_buffer().get_height()});
-	}
+	if (member_ptr == &taa.jitter_sample_count && taa.enable_taa)
+		taa.generate_jitter_offsets({fbc.ref_frame_buffer().get_width(), fbc.ref_frame_buffer().get_height()});
 
-	if(member_ptr == &taa.mix_factor) {
+	if(member_ptr == &taa.mix_factor)
 		taa.mix_factor = cgv::math::clamp(taa.mix_factor, 0.0f, 1.0f);
-		taa.reset();
-	}
 
 	// - debug render setting
 	if (member_ptr == &debug.force_initial_order) {
@@ -780,6 +774,8 @@ void tubes::on_set(void *member_ptr) {
 
 	// default implementation for all members
 	// - remaining logic
+	if (taa.enable_taa)
+		taa.reset();
 	update_member(member_ptr);
 	post_redraw();
 }
