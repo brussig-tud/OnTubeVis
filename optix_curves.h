@@ -32,27 +32,31 @@ struct cuda_arclen
 struct curve_rt_params
 {
 	// input buffers
-	cuda_node*             nodes;
-	uint2*                 node_ids;
-	cuda_arclen*           alen;
+	cuda_node*     nodes;
+	uint2*         node_ids;
+	cuda_arclen*   alen;
 
 	// output buffers
-	float4*                albedo;
-	float3*                position;
-	float3*                normal;
-	float3*                tangent;
-	float1*                depth;
+	float4*        albedo;
+	float3*        position;
+	float3*        normal;
+	float3*        tangent;
+	float1*        depth;
+
+	// TAA params
+	unsigned       taa_subframe_id;
+	float          taa_jitter_scale;
 
 	// framebuffer dimensions
-	unsigned int           fb_width;
-	unsigned int           fb_height;
+	unsigned int   fb_width;
+	unsigned int   fb_height;
 
 	// camera parameters
-	float3                 cam_eye, cam_u, cam_v, cam_w;
-	float2                 cam_clip;
-	float                  cam_MV[16];
-	float                  cam_P[16];
-	float                  cam_N[16];
+	float3         cam_eye, cam_u, cam_v, cam_w;
+	float2         cam_clip;
+	float          cam_MV[16];
+	float          cam_P[16];
+	float          cam_N[16];
 
 	// the accelleration datastructure to trace
 	OptixTraversableHandle accelds;

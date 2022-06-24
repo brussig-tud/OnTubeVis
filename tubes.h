@@ -313,7 +313,7 @@ protected:
 	volume_render_style vstyle;
 	cgv::glutil::gl_color_map volume_tf;
 
-	bool show_bbox = true;
+	bool show_bbox = false;
 	bool show_wireframe_bbox = true;
 	cgv::render::box_render_style bbox_style;
 	cgv::glutil::box_render_data<> bbox_rd;

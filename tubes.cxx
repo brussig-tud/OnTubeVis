@@ -1639,12 +1639,15 @@ void tubes::optix_draw_trajectories (context &ctx)
 			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_alen, optix.stream));
 			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.alen), &size, optix.sbo_alen));
 		};
+		static unsigned sfid = 0;
 		const auto &lp = optix.tracer_builtin.ref_launch_params();
 		params.albedo = optix.outbuf_albedo.map();
 		params.position = optix.outbuf_position.map();
 		params.normal = optix.outbuf_normal.map();
 		params.tangent = optix.outbuf_tangent.map();
 		params.depth = optix.outbuf_depth.map();
+		params.taa_subframe_id = taa.enable_taa ? taa.accumulate_count : 0;
+		params.taa_jitter_scale = taa.jitter_scale;
 		params.fb_width = ctx.get_width();
 		params.fb_height = ctx.get_height();
 		params.accelds = lp.accelds;
@@ -2462,6 +2465,9 @@ void tubes::draw_trajectories(context& ctx)
 	// - spline stube renderer setup relevant to deferred shading pass
 	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 	tstr.set_render_style(render.style);
+	// - the depth texture to use
+	//   (workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats)
+	texture &tex_depth = (optix.enabled && optix.initialized) ? optix.fb.depth : *fbc.attachment_texture_ptr("depth");
 	// - node attribute data needed by both rasterization and raytracing
 	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
 	// - TAA data that needs to be accessed across local scopes
@@ -2549,11 +2555,11 @@ void tubes::draw_trajectories(context& ctx)
 	{
 		// perform the deferred shading pass and draw the image into the shading framebuffer when not using OptiX (for now)
 
-		if (!optix.enabled || !optix.initialized) {
+		//if (!optix.enabled || !optix.initialized) {
 			// ToDo: OptiX - TAA interoperation is currently unclear
 			fbc_shading.enable(ctx);
 			glDepthFunc(GL_ALWAYS);
-		}
+		//}
 
 		shader_program& prog = shaders.get("tube_shading");
 		prog.enable(ctx);
@@ -2611,10 +2617,7 @@ void tubes::draw_trajectories(context& ctx)
 		fbc.enable_attachment(ctx, "position", 1);
 		fbc.enable_attachment(ctx, "normal", 2);
 		fbc.enable_attachment(ctx, "tangent", 3);
-		if(!optix.enabled || !optix.initialized)
-			fbc.enable_attachment(ctx, "depth", 4);
-		else
-			optix.fb.depth.enable(ctx, 4); // workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats
+		tex_depth.enable(ctx, 4);
 		if(ao_style.enable)
 			density_tex.enable(ctx, 5);
 		color_map_mgr.ref_texture().enable(ctx, 6);
@@ -2643,10 +2646,7 @@ void tubes::draw_trajectories(context& ctx)
 		fbc.disable_attachment(ctx, "position");
 		fbc.disable_attachment(ctx, "normal");
 		fbc.disable_attachment(ctx, "tangent");
-		if(!optix.enabled || !optix.initialized)
-			fbc.disable_attachment(ctx, "depth");
-		else
-			optix.fb.depth.disable(ctx);  // workaround (see earlier comment)
+		tex_depth.disable(ctx);
 		if(ao_style.enable)
 			density_tex.disable(ctx);
 		color_map_mgr.ref_texture().disable(ctx);
@@ -2654,8 +2654,8 @@ void tubes::draw_trajectories(context& ctx)
 		prog.disable(ctx);
 
 		// if we're shading the OptiX output we're done here
-		if(optix.enabled && optix.initialized)
-			return;
+		/*if(optix.enabled && optix.initialized)
+			return;*/
 
 		// disable the shading framebuffer
 		fbc_shading.disable(ctx);
@@ -2717,14 +2717,14 @@ void tubes::draw_trajectories(context& ctx)
 			color_src_fbc.enable_attachment(ctx, "color", 0);
 			fbc_hist.enable_attachment(ctx, "color", 1);
 			fbc.enable_attachment(ctx, "position", 2);
-			fbc.enable_attachment(ctx, "depth", 3);
+			tex_depth.enable(ctx, 3);
 
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 			color_src_fbc.disable_attachment(ctx, "color");
 			fbc_hist.disable_attachment(ctx, "color");
 			fbc.disable_attachment(ctx, "position");
-			fbc.disable_attachment(ctx, "depth");
+			tex_depth.disable(ctx);
 
 			resolve_prog.disable(ctx);
 
@@ -2745,7 +2745,7 @@ void tubes::draw_trajectories(context& ctx)
 		screen_prog.set_uniform(ctx, "test", false);
 
 		color_src_fbc.enable_attachment(ctx, "color", 0);
-		fbc.enable_attachment(ctx, "depth", 1);
+		tex_depth.enable(ctx, 1);
 
 		fbc_hist.enable(ctx);
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -2756,7 +2756,7 @@ void tubes::draw_trajectories(context& ctx)
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 		color_src_fbc.disable_attachment(ctx, "color");
-		fbc.disable_attachment(ctx, "depth");
+		tex_depth.disable(ctx);
 
 		screen_prog.disable(ctx);
 

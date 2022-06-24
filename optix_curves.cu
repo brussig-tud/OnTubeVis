@@ -7,9 +7,6 @@
 // OptiX SDK
 #include <optix.h>
 
-// CUDA SDK
-#include <random.h>
-
 // OptiX SDK examples common helpers
 #include <cuda/helpers.h>
 #include <sutil/vec_math.h>
@@ -40,10 +37,16 @@ extern "C" {
 
 static __forceinline__ __device__ void compute_ray(uint3 idx, uint3 dim, float3& origin, float3& direction)
 {
+	// determine sub-pixel location
+	float2       subpxl_offset = obtain_jittered_subpxl_offset(params.taa_subframe_id, params.taa_jitter_scale);
+
+	// compute exact point on the screen
 	const float2 d = 2.f * make_float2(
-		(static_cast<float>(idx.x)+.5f) / static_cast<float>(dim.x),
-		(static_cast<float>(idx.y)+.5f) / static_cast<float>(dim.y)
+		(static_cast<float>(idx.x)+subpxl_offset.x) / static_cast<float>(dim.x),
+		(static_cast<float>(idx.y)+subpxl_offset.y) / static_cast<float>(dim.y)
 	) - 1.f;
+
+	// create resulting ray
 	origin = params.cam_eye;
 	direction = normalize(d.x*params.cam_u + d.y*params.cam_v + params.cam_w);
 }
@@ -146,7 +149,7 @@ extern "C" __global__ void __raygen__basic (void)
 	const uint3 dim = optixGetLaunchDimensions();
 
 	// Map our launch idx to a screen location and create a ray from the camera
-	// location through the screen
+	// location through the screen pixel
 	float3 ray_origin, ray_direction;
 	compute_ray(idx, dim, ray_origin, ray_direction);
 
@@ -211,11 +214,8 @@ extern "C" __global__ void __raygen__basic (void)
 	// BEGIN: DEBUG OUTPUT
 	const unsigned mid = (params.fb_height/2)*params.fb_width + (params.fb_width/2);
 	if (pxl == mid)
-		printf(
-		"segid: %d\nu=%f\nv=%f",
-		float_as_int(params.albedo[pxl].w),
-		albedo.y, albedo.z
-	);
+		printf("segid: %d\nu=%f\nv=%f",
+		       float_as_int(params.albedo[pxl].w), albedo.y, albedo.z);
 	// END:   DEBUG OUTPUT
 	//---------------------------*/
 }

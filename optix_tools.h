@@ -129,6 +129,34 @@ __device__ __forceinline__ float eval_cubic_bezier (const float4 &cp, const floa
 	return mix(v.x, v.y, t);
 }
 
+// calculate n-th value of Van-der-Corput sequence
+__device__ __forceinline__ float van_der_corput (int n, int base)
+{
+	float vdc = 0.0f;
+	int den = 1;
+	while (n > 0)
+	{
+		den *= base;
+		int remainder = n % base;
+		n /= base;
+		vdc += remainder / static_cast<float>(den);
+	}
+	return vdc;
+}
+
+// return the k-th location of a 2D halton sampling pattern
+__device__ __forceinline__ float2 sample_halton_2d (unsigned k, int base1, int base2) {
+	return {van_der_corput(k, base1), van_der_corput(k, base2)};
+}
+
+// obtain a sub-pixel jitter offset for some subframe i
+__device__ __forceinline__ float2 obtain_jittered_subpxl_offset (unsigned i, float scale=1.f)
+{
+	float2 sample = sample_halton_2d(i+1, 2, 3);
+	float2 offset = .5f + scale*((sample+sample) - 1.f);
+	return offset;
+}
+
 
 
 //////
