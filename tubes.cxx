@@ -774,9 +774,8 @@ void tubes::on_set(void *member_ptr) {
 
 	// default implementation for all members
 	// - remaining logic
-	if (taa.enable_taa)
-		taa.reset();
 	update_member(member_ptr);
+	taa.reset();
 	post_redraw();
 }
 
