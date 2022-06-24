@@ -63,9 +63,7 @@ parametrization compute_parametrization<flt_type> (const traj_manager<flt_type> 
 	for (const auto &dataset : rd.datasets)
 	{
 		// approximate arclength for each trajectory in order
-#ifndef _DEBUG
-#pragma omp parallel for
-#endif
+		#pragma omp parallel for
 		for (int traj_idx=0; traj_idx<dataset.trajs.size(); traj_idx++)
 		{
 			const auto &traj = dataset.trajs[traj_idx];
