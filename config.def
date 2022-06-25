@@ -5,7 +5,7 @@ type(fltk_viewer_window):theme=light
 // - dataset to load
 type(tubes):datapath=""
 // - initial glyph layer config
-//type(tubes):layer_config_file="./testdata/layerconf_4layers_interpolationdemo.xml"
+type(tubes):layer_config_file="./testdata/layerconf_1layer_defaultprocedural.xml"
 
 // Visualization and general settings
 // - Enable benchmark mode if desired
@@ -13,8 +13,8 @@ type(tubes):datapath=""
 // - Bounding box visibility
 type(tubes):show_bounding_box=false
 type(tubes):show_wireframe_box=true
-// - Grid mode: 0 - none, 1 - color only, 2 - normals only, 3 - color and normals
-type(tubes):grid_mode=0
+// - Grid mode: 0 - none, 1 - color only, 2 - normals only, 3 - color and normals (default)
+//type(tubes):grid_mode=1
 type(tubes):show_hidden_glyphs=false
 // - Voxelization device
 type(tubes):voxelize_gpu=false

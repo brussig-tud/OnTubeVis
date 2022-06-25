@@ -63,15 +63,29 @@ static __forceinline__ __device__ float3 calc_hit_point (void)
 }
 
 static __device__ float3 calc_segment_surface_normal (
+	const float3 &p_surface, const float3 &p_curve, const linear_interpolator_vec3 &dcurve,
+	const float3 &ddcurve, const float ts
+)
+{
+	// special handling for endcaps
+	if (ts <= 0.f)
+		return normalize(-dcurve.eval(0));
+	else if (ts >= 1.f)
+		return normalize(dcurve.eval(1));
+	else
+		return normalize(p_surface - p_curve);
+}
+
+static __device__ float3 calc_segment_surface_normal (
 	const float3 &p_surface, const float3 &p_curve, const quadr_interpolator_vec3 &dcurve,
-	const linear_interpolator_vec3 &ddcurve, const float t
+	const linear_interpolator_vec3 &ddcurve, const float ts
 )
 {
 	// special handling for endcaps
 	float3 normal;
-	if (t <= 0.f)
+	if (ts <= 0.f)
 		normal = normalize(-dcurve.eval(0));
-	else if (t >= 1.f)
+	else if (ts >= 1.f)
 		normal = normalize(dcurve.eval(1));
 	else
 	{
@@ -82,10 +96,10 @@ static __device__ float3 calc_segment_surface_normal (
 		// we (implicitly) transform the curve into coordinate system
 		// {p, o1 = normalize(ps - p), o2 = normalize(curve'(t)), o3 = o1 x o2} in which
 		// curve'(t) = (0, length(d), 0); ps = (r, 0, 0);
-		/*float4 p4 = bc.position4( t );
+		/*float4 p4 = bc.position4( ts );
 		float3 p  = make_float3( p4 );
 		float  r  = p4.w;  // == length(ps - p) if ps is already on the surface
-		float4 d4 = bc.velocity4( t );
+		float4 d4 = bc.velocity4( ts );
 		float3 d  = make_float3( d4 );
 		float  dr = d4.w;
 		float  dd = dot( d, d );
@@ -99,7 +113,7 @@ static __device__ float3 calc_segment_surface_normal (
 		else
 		{
 			if( type != 1 )
-				dd -= dot( bc.acceleration3( t ), o1 );
+				dd -= dot( bc.acceleration3( ts ), o1 );
 			normal = dd * o1 - ( dr * r ) * d;
 		}*/
 		normal = normalize(p_surface - p_curve);
@@ -214,7 +228,7 @@ extern "C" __global__ void __raygen__basic (void)
 	// BEGIN: DEBUG OUTPUT
 	const unsigned mid = (params.fb_height/2)*params.fb_width + (params.fb_width/2);
 	if (pxl == mid)
-		printf("segid: %d\nu=%f\nv=%f",
+		printf("segid: %d   u=%f  v=%f\n",
 		       float_as_int(params.albedo[pxl].w), albedo.y, albedo.z);
 	// END:   DEBUG OUTPUT
 	//---------------------------*/
@@ -231,17 +245,37 @@ extern "C" __global__ void __miss__ms (void)
 extern "C" __global__ void __closesthit__ch (void)
 {
 	// retrieve curve parameter, hitpoint and segment index
-	const float  t = optixGetCurveParameter();
-	const unsigned seg_id = optixGetPrimitiveIndex();
-
-	// retrieve actual node data
-	cubic_interpolator_vec3 curve;
-	float4 nodes[4]; // w-component contains radius
-	optixGetCatmullRomVertexData(
-		optixGetGASTraversableHandle(), seg_id, optixGetSbtGASIndex(), 0.f, nodes
-	);
-	curve.from_catmullrom(nodes);
-	const quadr_interpolator_vec3 dcurve = curve.derive();
+	#ifdef TRAJVIS_PRIMITIVE_RUSSIG
+		const unsigned pid = optixGetPrimitiveIndex(), seg_id = pid/2, subseg = pid%2;
+		const float ts = optixGetCurveParameter(), t = .5f*(ts + float(subseg));
+		// retrieve actual node data
+		float4 nodes[3]; // w-component contains radius
+		optixGetQuadraticBSplineVertexData(
+			optixGetGASTraversableHandle(), pid, optixGetSbtGASIndex(), 0.f, nodes
+		);
+		quadr_interpolator_vec3 curve;
+		curve.from_bspline(nodes);
+		const linear_interpolator_vec3 dcurve = curve.derive();
+		/*//----------------------------
+		// BEGIN: DEBUG OUTPUT
+		const uint3 idx = optixGetLaunchIndex();
+		if (idx.x==params.fb_width/2 && idx.y==params.fb_height/2)
+			printf("segid: %d\:%d - t=%f:%f\n", seg_id, subseg, t, ts);
+		// END:   DEBUG OUTPUT
+		//---------------------------*/
+	#else
+		const float ts = optixGetCurveParameter(), t = ts;
+		const unsigned seg_id = optixGetPrimitiveIndex();
+		// retrieve actual node data
+		float4 nodes[4]; // w-component contains radius
+		optixGetCatmullRomVertexData(
+			optixGetGASTraversableHandle(), seg_id, optixGetSbtGASIndex(), 0.f, nodes
+		);
+		cubic_interpolator_vec3 curve;
+		curve.from_catmullrom(nodes);
+		const quadr_interpolator_vec3 dcurve = curve.derive();
+	#endif
+	const uint2 node_ids = params.node_ids[seg_id];
 
 	// compute hit position (world space)
 	const float3 pos = calc_hit_point();
@@ -251,9 +285,9 @@ extern "C" __global__ void __closesthit__ch (void)
 		// model or instance transform (we don't use those though so we're fine)
 
 	// compute hit normal in eye-space
-	const float3 pos_curve = curve.eval(t);
+	const float3 pos_curve = curve.eval(ts);
 	const float3 normal = normalize(mul_mat_vec(
-		params.cam_N, calc_segment_surface_normal(pos, pos_curve, dcurve, dcurve.derive(), t)
+		params.cam_N, calc_segment_surface_normal(pos, pos_curve, dcurve, dcurve.derive(), ts)
 	));
 		// in the general setting, we would first call optixTransformNormalFromObjectToWorldSpace()
 		// before doing anything with the normal, since the segment could be in a bottom-level acceleration
@@ -261,13 +295,23 @@ extern "C" __global__ void __closesthit__ch (void)
 		// we're fine)
 
 	// compute hit tangent in eye-space
-	const float3 tangent = normalize(mul_mat_vec(params.cam_N, dcurve.eval(t)));
+	const cuda_node &n0 = params.nodes[node_ids.x], &n1 = params.nodes[node_ids.y];
+#ifdef TRAJVIS_PRIMITIVE_RUSSIG
+	float3 tangent;
+	if (params.cubic_tangents)
+	{
+		cubic_interpolator_vec3 curve_orig;
+		curve_orig.from_hermite(n0.pos_rad, n0.tangent, n1.pos_rad, n1.tangent);
+		tangent = normalize(mul_mat_vec(params.cam_N, curve_orig.derive().eval(t)));
+	}
+	else
+#else
+	const float3
+#endif
+	tangent = normalize(mul_mat_vec(params.cam_N, dcurve.eval(ts)));
 
 	// calculate pre-shading surface color
-	const uint2 node_ids = params.node_ids[seg_id];
-	const float4 color = mix(
-		params.nodes[node_ids.x].color, params.nodes[node_ids.y].color, t
-	);
+	const float4 color = mix(n0.color, n1.color, t);
 
 	// calculate u texture coordinate (arclength at t)
 	const float u = eval_alen(params.alen[seg_id], t);	

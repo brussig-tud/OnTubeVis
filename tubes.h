@@ -69,6 +69,14 @@ protected:
 	// ### BEGIN: OptiX integration
 	// ###############################
 
+	/// List of implemented primitives for OptiX raytracing
+	enum OptixPrimitive
+	{
+		OPR_RUSSIG = 0,
+		OPR_RESHETOV = 1,
+		OPR_RESHETOV_CUBIC = 2
+	};
+
 	/// OptiX debug output options
 	enum OptixDebugVisualization
 	{
@@ -96,8 +104,18 @@ protected:
 		// OptiX device context
 		OptixDeviceContext context = nullptr;
 
-		// Optix-builtin phantom-ray-hair-intersector hermite spline tube renderer
+		// sphere-based hermite spline tube intersector by Russig et al.
+		//optixtracer_textured_spline_tube_russig tracer_russig;
+
+		// Optix-builtin phantom-ray-hair-intersector for disc-based quadratic spline tubes
 		optixtracer_textured_spline_tube_builtin tracer_builtin;
+
+		// Optix-builtin phantom-ray-hair-intersector for disc-based cubic spline tubes
+		optixtracer_textured_spline_tube_builtincubic tracer_builtin_cubic;
+
+		// the intersector/primitive to use for raytracing
+		OptixPrimitive primitive = OPR_RESHETOV;
+		optixtracer_textured_spline_tube *tracer = &tracer_builtin;
 
 		// SSBO interop resource handles
 		cudaGraphicsResource *sbo_nodes = nullptr;

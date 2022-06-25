@@ -243,6 +243,7 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("grid_normal_variant", grid_normal_variant) &&
 		rh.reflect_member("voxelize_gpu", voxelize_gpu) &&
 		rh.reflect_member("use_optix", optix.enabled) &&
+		rh.reflect_member("optix_primitive", optix.primitive) &&
 		rh.reflect_member("optix_debug_mode", optix.debug) &&
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
@@ -504,8 +505,17 @@ void tubes::on_set(void *member_ptr) {
 			update_member(&ao_style);
 		}
 
+		// ###############################
+		// ### BEGIN: OptiX integration
+		// ###############################
+
 		if (optix.initialized)
 			optix_unregister_resources();
+
+		// ###############################
+		// ###  END:  OptiX integration
+		// ###############################
+
 		update_attribute_bindings();
 		update_grid_ratios();
 
@@ -530,6 +540,7 @@ void tubes::on_set(void *member_ptr) {
 
 		if (optix.initialized) {
 			optix.tracer_builtin.update_accelds(render.data);
+			optix.tracer_builtin_cubic.update_accelds(render.data);
 			optix_register_resources(ctx);
 		}
 
@@ -767,6 +778,16 @@ void tubes::on_set(void *member_ptr) {
 	if (member_ptr == &optix.enabled && optix.enabled)
 		if (!optix_ensure_init(*get_context()))
 			optix.enabled = false;
+
+	if (member_ptr == &optix.primitive)
+	{
+		if (optix.primitive == OPR_RESHETOV)
+			optix.tracer = &optix.tracer_builtin;
+		else //if (optix.primitive == OPR_RESHETOV_CUBIC)
+			optix.tracer = &optix.tracer_builtin_cubic/*;
+		else
+			optix.tracer = &optix.tracer_russig*/;
+	}
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -1501,6 +1522,7 @@ bool tubes::init (cgv::render::context &ctx)
 void tubes::optix_cleanup (void)
 {
 	optix.tracer_builtin.destroy();
+	optix.tracer_builtin_cubic.destroy();
 	CUDA_SAFE_DESTROY_STREAM(optix.stream);
 }
 
@@ -1545,6 +1567,8 @@ bool tubes::optix_ensure_init (context &ctx)
 	if (traj_mgr.has_data()) {
 		optix.tracer_builtin = optixtracer_textured_spline_tube_builtin::build(optix.context, render.data);
 		success = success && optix.tracer_builtin.built();
+		optix.tracer_builtin_cubic = optixtracer_textured_spline_tube_builtincubic::build(optix.context, render.data);
+		success = success && optix.tracer_builtin_cubic.built();
 		success = success && optix_register_resources(ctx);
 	}
 	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
@@ -1640,12 +1664,13 @@ void tubes::optix_draw_trajectories (context &ctx)
 			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.alen), &size, optix.sbo_alen));
 		};
 		static unsigned sfid = 0;
-		const auto &lp = optix.tracer_builtin.ref_launch_params();
+		const auto &lp = optix.tracer->ref_launch_params();
 		params.albedo = optix.outbuf_albedo.map();
 		params.position = optix.outbuf_position.map();
 		params.normal = optix.outbuf_normal.map();
 		params.tangent = optix.outbuf_tangent.map();
 		params.depth = optix.outbuf_depth.map();
+		params.cubic_tangents = render.style.use_cubic_tangents;
 		params.taa_subframe_id = taa.enable_taa ? taa.accumulate_count : 0;
 		params.taa_jitter_scale = taa.jitter_scale;
 		params.fb_width = ctx.get_width();
@@ -1949,8 +1974,9 @@ void tubes::create_gui(void) {
 	add_decorator("Rendering", "heading", "level=1");
 	if (begin_tree_node("OptiX", optix.enabled, false)) {
 		align("\a");
-		add_member_control(this, "Use OptiX for tube rendering", optix.enabled, "check");
-		add_member_control(this, "OptiX debug visualization", optix.debug, "dropdown", "enums='OFF,albedo,depth,tangent+normal'");
+		add_member_control(this, "Use OptiX raycasting for tube rendering", optix.enabled, "check");
+		add_member_control(this, "Tube primitive", optix.primitive, "dropdown", "enums='Russig,Reshetov,Reshetov cubic'");
+		add_member_control(this, "Output debug visualization", optix.debug, "dropdown", "enums='OFF,albedo,depth,tangent+normal'");
 		align("\b");
 		end_tree_node(optix.enabled);
 	}

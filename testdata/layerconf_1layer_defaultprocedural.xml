@@ -1,0 +1,11 @@
+<GlyphConfiguration>
+  <ColorMaps>
+  </ColorMaps>
+  <Layers>
+    <Layer glyph="circle" sampling="original" >
+      <Property name="outline" value="0.015600" />
+      <Property name="color" attrib_name="scalar" color_map_name="bilbao" in_range="-0.551000, 0.551000" />
+      <Property name="radius" attrib_name="scalar" in_range="-0.550992, 0.551041" out_range="0.031250, 0.900000" />
+    </Layer>
+  </Layers>
+</GlyphConfiguration>

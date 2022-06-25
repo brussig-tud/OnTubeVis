@@ -146,3 +146,51 @@ private:
 	void destroy_pipeline(void);
 	bool update_pipeline (void);
 };
+
+// an optixtracer that uses the sphere-based hermite spline tube primitive intersector by Russig et al.
+class optixtracer_textured_spline_tube_builtincubic : public optixtracer_textured_spline_tube, public cgv::render::render_types
+{
+
+public:
+
+	/// main superclass type
+	typedef optixtracer_textured_spline_tube super;
+
+	/// default constructor - instance will be unusable until a functioning instance is moved in!
+	optixtracer_textured_spline_tube_builtincubic();
+
+	/// move constructor
+	optixtracer_textured_spline_tube_builtincubic(optixtracer_textured_spline_tube_builtincubic &&other);
+
+	/// destructor
+	virtual ~optixtracer_textured_spline_tube_builtincubic();
+
+	/// move assign another instance of the tracer, destroying the current one
+	optixtracer_textured_spline_tube_builtincubic& operator= (optixtracer_textured_spline_tube_builtincubic &&other);
+
+	/// destroy the current instance
+	virtual void destroy (void);
+
+	/// check if the tracer is built and ready
+	virtual bool built (void) const;
+
+	/// build an instance for the given hermite spline tube defintion
+	static optixtracer_textured_spline_tube_builtincubic build (
+		OptixDeviceContext context, const traj_manager<float>::render_data *render_data
+	);
+
+	/// update the acceleration ds with new geometry
+	bool update_accelds (const traj_manager<float>::render_data *render_data);
+
+
+private:
+
+	// helpers for internal structuring
+	void destroy_accelds(void);
+	void destroy_pipeline(void);
+	bool update_pipeline (void);
+};
+
+// an optixtracer that uses the sphere-based hermite spline tube primitive intersector by Russig et al.
+/*class optixtracer_textured_spline_tube_builtincubic : public optixtracer_textured_spline_tube, public cgv::render::render_types
+{}*/

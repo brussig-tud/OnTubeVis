@@ -43,6 +43,9 @@ struct curve_rt_params
 	float3*        tangent;
 	float1*        depth;
 
+	// tube primitive params
+	bool           cubic_tangents;
+
 	// TAA params
 	unsigned       taa_subframe_id;
 	float          taa_jitter_scale;
