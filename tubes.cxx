@@ -783,10 +783,10 @@ void tubes::on_set(void *member_ptr) {
 	{
 		if (optix.primitive == OPR_RESHETOV)
 			optix.tracer = &optix.tracer_builtin;
-		else //if (optix.primitive == OPR_RESHETOV_CUBIC)
-			optix.tracer = &optix.tracer_builtin_cubic/*;
+		else if (optix.primitive == OPR_RESHETOV_CUBIC)
+			optix.tracer = &optix.tracer_builtin_cubic;
 		else
-			optix.tracer = &optix.tracer_russig*/;
+			optix.tracer = &optix.tracer_russig;
 	}
 
 	// ###############################

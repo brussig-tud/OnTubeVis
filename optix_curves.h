@@ -71,8 +71,7 @@ struct data_raygen {
 };
 
 // OptiX miss program constants
-struct data_miss
-{
+struct data_miss {
 	// the background color to use
 	float4 bgcolor;
 };

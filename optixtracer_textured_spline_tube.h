@@ -103,7 +103,51 @@ protected:
 	optix_launch_params lp = {};
 };
 
-// an optixtracer that uses the builtin phantom-ray-hair-intersector and its disc-based cubic spline tube primitive
+// an optixtracer that uses the sphere-based Hermite spline tube primitive intersector by Russig et al.
+class optixtracer_textured_spline_tube_russig : public optixtracer_textured_spline_tube, public cgv::render::render_types
+{
+
+public:
+
+	/// main superclass type
+	typedef optixtracer_textured_spline_tube super;
+
+	/// default constructor - instance will be unusable until a functioning instance is moved in!
+	optixtracer_textured_spline_tube_russig();
+
+	/// move constructor
+	optixtracer_textured_spline_tube_russig(optixtracer_textured_spline_tube_russig &&other);
+
+	/// destructor
+	virtual ~optixtracer_textured_spline_tube_russig();
+
+	/// move assign another instance of the tracer, destroying the current one
+	optixtracer_textured_spline_tube_russig& operator= (optixtracer_textured_spline_tube_russig &&other);
+
+	/// destroy the current instance
+	virtual void destroy (void);
+
+	/// check if the tracer is built and ready
+	virtual bool built (void) const;
+
+	/// build an instance for the given hermite spline tube defintion
+	static optixtracer_textured_spline_tube_russig build (
+		OptixDeviceContext context, const traj_manager<float>::render_data *render_data
+	);
+
+	/// update the acceleration ds with new geometry
+	bool update_accelds (const traj_manager<float>::render_data *render_data);
+
+
+private:
+
+	// helpers for internal structuring
+	void destroy_accelds(void);
+	void destroy_pipeline(void);
+	bool update_pipeline (void);
+};
+
+// an optixtracer that uses the built-in disc-based quadratic spline tube primitive defined for the Phantom-Ray-Hair-Intersector by Reshetov et al.
 class optixtracer_textured_spline_tube_builtin : public optixtracer_textured_spline_tube, public cgv::render::render_types
 {
 
@@ -122,7 +166,7 @@ public:
 	virtual ~optixtracer_textured_spline_tube_builtin();
 
 	/// move assign another instance of the tracer, destroying the current one
-	optixtracer_textured_spline_tube_builtin& operator= (optixtracer_textured_spline_tube_builtin&& other);
+	optixtracer_textured_spline_tube_builtin& operator= (optixtracer_textured_spline_tube_builtin &&other);
 
 	/// destroy the current instance
 	virtual void destroy (void);
@@ -147,7 +191,7 @@ private:
 	bool update_pipeline (void);
 };
 
-// an optixtracer that uses the sphere-based hermite spline tube primitive intersector by Russig et al.
+// an optixtracer that uses the built-in disc-based cubic spline tube primitive defined for the Phantom-Ray-Hair-Intersector by Reshetov et al.
 class optixtracer_textured_spline_tube_builtincubic : public optixtracer_textured_spline_tube, public cgv::render::render_types
 {
 
@@ -190,7 +234,3 @@ private:
 	void destroy_pipeline(void);
 	bool update_pipeline (void);
 };
-
-// an optixtracer that uses the sphere-based hermite spline tube primitive intersector by Russig et al.
-/*class optixtracer_textured_spline_tube_builtincubic : public optixtracer_textured_spline_tube, public cgv::render::render_types
-{}*/

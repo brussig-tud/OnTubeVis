@@ -223,7 +223,6 @@ extern "C" __global__ void __raygen__basic (void)
 	params.normal[pxl] = normal;
 	params.tangent[pxl] = tangent;
 	params.depth[pxl] = depth;
-
 	/*//----------------------------
 	// BEGIN: DEBUG OUTPUT
 	const unsigned mid = (params.fb_height/2)*params.fb_width + (params.fb_width/2);
@@ -245,7 +244,29 @@ extern "C" __global__ void __miss__ms (void)
 extern "C" __global__ void __closesthit__ch (void)
 {
 	// retrieve curve parameter, hitpoint and segment index
-	#ifdef TRAJVIS_PRIMITIVE_RUSSIG
+	#ifdef TRAJVIS_PRIMITIVE_BUILTIN
+		const unsigned pid = optixGetPrimitiveIndex(), seg_id = pid/2, subseg = pid%2;
+		const float ts = optixGetCurveParameter(), t = .5f*(ts + float(subseg));
+		// retrieve actual node data
+		float4 nodes[3]; // w-component contains radius
+		optixGetQuadraticBSplineVertexData(
+			optixGetGASTraversableHandle(), pid, optixGetSbtGASIndex(), 0.f, nodes
+		);
+		quadr_interpolator_vec3 curve;
+		curve.from_bspline(nodes);
+		const linear_interpolator_vec3 dcurve = curve.derive();
+	#elif defined(TRAJVIS_PRIMITIVE_BUILTIN_CUBIC)
+		const float ts = optixGetCurveParameter(), t = ts;
+		const unsigned seg_id = optixGetPrimitiveIndex();
+		// retrieve actual node data
+		float4 nodes[4]; // w-component contains radius
+		optixGetCatmullRomVertexData(
+			optixGetGASTraversableHandle(), seg_id, optixGetSbtGASIndex(), 0.f, nodes
+		);
+		cubic_interpolator_vec3 curve;
+		curve.from_catmullrom(nodes);
+		const quadr_interpolator_vec3 dcurve = curve.derive();
+	#else
 		const unsigned pid = optixGetPrimitiveIndex(), seg_id = pid/2, subseg = pid%2;
 		const float ts = optixGetCurveParameter(), t = .5f*(ts + float(subseg));
 		// retrieve actual node data
@@ -263,17 +284,6 @@ extern "C" __global__ void __closesthit__ch (void)
 			printf("segid: %d\:%d - t=%f:%f\n", seg_id, subseg, t, ts);
 		// END:   DEBUG OUTPUT
 		//---------------------------*/
-	#else
-		const float ts = optixGetCurveParameter(), t = ts;
-		const unsigned seg_id = optixGetPrimitiveIndex();
-		// retrieve actual node data
-		float4 nodes[4]; // w-component contains radius
-		optixGetCatmullRomVertexData(
-			optixGetGASTraversableHandle(), seg_id, optixGetSbtGASIndex(), 0.f, nodes
-		);
-		cubic_interpolator_vec3 curve;
-		curve.from_catmullrom(nodes);
-		const quadr_interpolator_vec3 dcurve = curve.derive();
 	#endif
 	const uint2 node_ids = params.node_ids[seg_id];
 
@@ -296,7 +306,7 @@ extern "C" __global__ void __closesthit__ch (void)
 
 	// compute hit tangent in eye-space
 	const cuda_node &n0 = params.nodes[node_ids.x], &n1 = params.nodes[node_ids.y];
-#ifdef TRAJVIS_PRIMITIVE_RUSSIG
+#ifndef TRAJVIS_PRIMITIVE_BUILTIN_CUBIC
 	float3 tangent;
 	if (params.cubic_tangents)
 	{

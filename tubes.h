@@ -95,9 +95,6 @@ protected:
 		// use OptiX to raycast tubes instead of OpenGL rasterization
 		bool enabled = false;
 
-		// subdivide into quadratic beziers for higher ray tracing performance. (ToDo: implement)
-		bool subdivide = false;
-
 		// result output mode
 		OptixDebugVisualization debug = OXV_OFF;
 
@@ -105,7 +102,7 @@ protected:
 		OptixDeviceContext context = nullptr;
 
 		// sphere-based hermite spline tube intersector by Russig et al.
-		//optixtracer_textured_spline_tube_russig tracer_russig;
+		optixtracer_textured_spline_tube_russig tracer_russig;
 
 		// Optix-builtin phantom-ray-hair-intersector for disc-based quadratic spline tubes
 		optixtracer_textured_spline_tube_builtin tracer_builtin;
