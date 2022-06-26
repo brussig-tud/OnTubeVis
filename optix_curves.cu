@@ -35,6 +35,10 @@ extern "C" {
 // Functions
 //
 
+#ifdef TRAJVIS_PRIMITIVE_RUSSIG
+	#include "optix_isect.h"
+#endif
+
 static __forceinline__ __device__ void compute_ray(uint3 idx, uint3 dim, float3& origin, float3& direction)
 {
 	// determine sub-pixel location
@@ -62,9 +66,9 @@ static __forceinline__ __device__ float3 calc_hit_point (void)
     return ray_o + l*ray_d;
 }
 
-static __device__ float3 calc_segment_surface_normal (
-	const float3 &p_surface, const float3 &p_curve, const linear_interpolator_vec3 &dcurve,
-	const float3 &ddcurve, const float ts
+template <class dcurve_type>
+static __forceinline__ __device__ float3 calc_segment_surface_normal (
+	const float3 &p_surface, const float3 &p_curve, const dcurve_type &dcurve, const float ts
 )
 {
 	// special handling for endcaps
@@ -74,51 +78,6 @@ static __device__ float3 calc_segment_surface_normal (
 		return normalize(dcurve.eval(1));
 	else
 		return normalize(p_surface - p_curve);
-}
-
-static __device__ float3 calc_segment_surface_normal (
-	const float3 &p_surface, const float3 &p_curve, const quadr_interpolator_vec3 &dcurve,
-	const linear_interpolator_vec3 &ddcurve, const float ts
-)
-{
-	// special handling for endcaps
-	float3 normal;
-	if (ts <= 0.f)
-		normal = normalize(-dcurve.eval(0));
-	else if (ts >= 1.f)
-		normal = normalize(dcurve.eval(1));
-	else
-	{
-		// ps is a point that is near the curve's offset surface,
-		// usually ray.origin + ray.direction * rayt.
-		// We will push it exactly to the surface by projecting it to the plane(p,d).
-		// The function derivation:
-		// we (implicitly) transform the curve into coordinate system
-		// {p, o1 = normalize(ps - p), o2 = normalize(curve'(t)), o3 = o1 x o2} in which
-		// curve'(t) = (0, length(d), 0); ps = (r, 0, 0);
-		/*float4 p4 = bc.position4( ts );
-		float3 p  = make_float3( p4 );
-		float  r  = p4.w;  // == length(ps - p) if ps is already on the surface
-		float4 d4 = bc.velocity4( ts );
-		float3 d  = make_float3( d4 );
-		float  dr = d4.w;
-		float  dd = dot( d, d );
-
-		float3 o1 = ps - p;               // dot(modified_o1, d) == 0 by design:
-		o1 -= ( dot( o1, d ) / dd ) * d;  // first, project ps to the plane(p,d)
-		o1 *= r / length( o1 );           // and then drop it to the surface
-		ps = p + o1;                      // fine-tuning the hit point
-		if( type == 0 )
-			normal = o1;  // cylindrical approximation
-		else
-		{
-			if( type != 1 )
-				dd -= dot( bc.acceleration3( ts ), o1 );
-			normal = dd * o1 - ( dr * r ) * d;
-		}*/
-		normal = normalize(p_surface - p_curve);
-	}
-	return normal;
 }
 
 static __forceinline__ __device__ void set_payload (
@@ -245,12 +204,35 @@ extern "C" __global__ void __intersection__russig (void)
 		params.radii[nid].x, params.radii[nid+1].x, params.radii[nid+2].x
 	};
 
-	float l=optixGetRayTmin(), t=0;
-	optixReportIntersection(
-		l, 0u/* hit kind, unused*/, float_as_int(t),
-		float_as_int(nodes[0].x), float_as_int(nodes[0].y), float_as_int(nodes[0].z),
-		float_as_int(nodes[1].x), float_as_int(nodes[1].y), float_as_int(nodes[1].z)
+	// transform nodes into eye-space, as this is what our copy-pasted intersection code assumes
+	const float4 nodes_eye[3] = {
+		mul_mat_pos(params.cam_MV, nodes[0]), mul_mat_pos(params.cam_MV, nodes[1]), mul_mat_pos(params.cam_MV, nodes[2])
+	};
+
+	// perform intersection
+	const float3 /*orig=optixGetWorldRayOrigin(), */dir=optixGetWorldRayDirection();
+	const Hit hit = EvalSplineISect(
+		dir, make_float3(nodes_eye[0]), make_float3(nodes_eye[1]), make_float3(nodes_eye[2]), radii[0], radii[1], radii[2]
 	);
+	/*//----------------------------
+	// BEGIN: DEBUG OUTPUT
+	const uint3 idx = optixGetLaunchIndex();
+	if (idx.x==params.fb_width/2 && idx.y==params.fb_height/2)
+		printf("b0 = (%f, %f, %f)   e0 = (%f, %f, %f)  -  r0 = %f\n"
+		       "b1 = (%f, %f, %f)   e1 = (%f, %f, %f)  -  r1 = %f\n"
+		       "b2 = (%f, %f, %f)   e2 = (%f, %f, %f)  -  r2 = %f\nt=%f,  l=%f\n\n",
+		       nodes[0].x, nodes[0].y, nodes[0].z, nodes_eye[0].x, nodes_eye[0].y, nodes_eye[0].z, radii[0],
+		       nodes[1].x, nodes[1].y, nodes[1].z, nodes_eye[1].x, nodes_eye[1].y, nodes_eye[1].z, radii[1],
+		       nodes[2].x, nodes[2].y, nodes[2].z, nodes_eye[2].x, nodes_eye[2].y, nodes_eye[2].z, radii[2], hit.t, hit.l);
+	// END:   DEBUG OUTPUT
+	//---------------------------*/
+	//if (hit.t < POS_INF)
+		// report our intersection
+		optixReportIntersection(
+			0.1f/*hit.t*/, 0u/* hit kind, unused*/, float_as_int(0.5f/*hit.l*/),
+			float_as_int(nodes[0].x), float_as_int(nodes[0].y), float_as_int(nodes[0].z),
+			float_as_int(nodes[1].x), float_as_int(nodes[1].y), float_as_int(nodes[1].z)
+		);
 }
 #endif
 
@@ -287,6 +269,7 @@ extern "C" __global__ void __closesthit__ch (void)
 		curve.from_catmullrom(nodes);
 		const quadr_interpolator_vec3 dcurve = curve.derive();
 	#else
+		//printf("!!!!!!!!!!!!!!!! HIT, HIT, HIT!!! !!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 		const unsigned pid=optixGetPrimitiveIndex(), seg_id=pid/2, subseg=pid%2, nid=pid*3;
 		// retrieve curve parameter at hit
 		const float ts = optixGetCurveParameter(), // <-- fetches the float we stored at attribute register 0 for us
@@ -305,9 +288,8 @@ extern "C" __global__ void __closesthit__ch (void)
 			       seg_id, subseg, ts, curve.b[0].x, curve.b[0].y, curve.b[0].z,
 			       curve.b[1].x, curve.b[1].y, curve.b[1].z, curve.b[2].x, curve.b[2].y, curve.b[2].z);
 		// END:   DEBUG OUTPUT
-		//---------------------------
-		set_payload(make_float4(1.f, 0.f, 0.f, 1.f), 0, 0, seg_id, nullvec3, nullvec3, nullvec3, .1f);
-		return;*/
+		//---------------------------*/
+		//set_payload(make_float4(1.f, 0.f, 0.f, 1.f), 0, 0, seg_id, nullvec3, nullvec3, nullvec3, .1f); return;
 	#endif
 	const uint2 node_ids = params.node_ids[seg_id];
 
@@ -321,7 +303,7 @@ extern "C" __global__ void __closesthit__ch (void)
 	// compute hit normal in eye-space
 	const float3 pos_curve = curve.eval(ts);
 	const float3 normal = normalize(mul_mat_vec(
-		params.cam_N, calc_segment_surface_normal(pos, pos_curve, dcurve, dcurve.derive(), ts)
+		params.cam_N, calc_segment_surface_normal(pos, pos_curve, dcurve, ts)
 	));
 		// in the general setting, we would first call optixTransformNormalFromObjectToWorldSpace()
 		// before doing anything with the normal, since the segment could be in a bottom-level acceleration

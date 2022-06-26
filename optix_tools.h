@@ -1,4 +1,7 @@
 
+#ifndef __OPTIX_TOOLS_H__
+#define __OPTIX_TOOLS_H__
+
 //////
 //
 // Includes
@@ -13,6 +16,18 @@
 //
 // Utility constants
 //
+
+// what we consider positive infinity
+constexpr float pos_inf = 3e+37;
+
+// what we consider negative infinity
+constexpr float neg_inf = -3e+37;
+
+// 32bit floating point epsilon
+constexpr float flt_eps = 1.19209290e-07;
+
+// pi
+constexpr float pi = 3.1415926535897932384626433832795f;
 
 // the inverse of pi
 constexpr float pi_inv = 0.31830988618379067153776752674503f;
@@ -448,3 +463,6 @@ struct cubic_interpolator_vec3
 		return der;
 	}
 };
+
+
+#endif // ifndef __OPTIX_TOOLS_H__
