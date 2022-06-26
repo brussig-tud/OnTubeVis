@@ -35,7 +35,7 @@ extern "C" {
 // Functions
 //
 
-#ifdef TRAJVIS_PRIMITIVE_RUSSIG
+#ifdef OTV_PRIMITIVE_RUSSIG
 	#include "optix_isect.h"
 #endif
 
@@ -51,8 +51,15 @@ static __forceinline__ __device__ void compute_ray(uint3 idx, uint3 dim, float3&
 	) - 1.f;
 
 	// create resulting ray
-	origin = params.cam_eye;
-	direction = normalize(d.x*params.cam_u + d.y*params.cam_v + params.cam_w);
+	/*#ifdef OTV_PRIMITIVE_RUSSIG
+		// trace in eye-space
+		origin = nullvec3;
+		direction = normalize(mul_mat_vec(params.cam_N, d.x*params.cam_u + d.y*params.cam_v + params.cam_w));
+	#else*/
+		// trace in world-space
+		origin = params.cam_eye;
+		direction = normalize(d.x*params.cam_u + d.y*params.cam_v + params.cam_w);/*
+	#endif*/
 }
 
 static __forceinline__ __device__ float3 calc_hit_point (void)
@@ -66,19 +73,21 @@ static __forceinline__ __device__ float3 calc_hit_point (void)
     return ray_o + l*ray_d;
 }
 
-template <class dcurve_type>
-static __forceinline__ __device__ float3 calc_segment_surface_normal (
-	const float3 &p_surface, const float3 &p_curve, const dcurve_type &dcurve, const float ts
-)
-{
-	// special handling for endcaps
-	if (ts <= 0.f)
-		return normalize(-dcurve.eval(0));
-	else if (ts >= 1.f)
-		return normalize(dcurve.eval(1));
-	else
-		return normalize(p_surface - p_curve);
-}
+#ifndef OTV_PRIMITIVE_RUSSIG
+	template <class dcurve_type>
+	static __forceinline__ __device__ float3 calc_segment_surface_normal (
+		const float3 &p_surface, const float3 &p_curve, const dcurve_type &dcurve, const float ts
+	)
+	{
+		// special handling for endcaps
+		if (ts <= 0.f)
+			return normalize(-dcurve.eval(0));
+		else if (ts >= 1.f)
+			return normalize(dcurve.eval(1));
+		else
+			return normalize(p_surface - p_curve);
+	}
+#endif
 
 static __forceinline__ __device__ void set_payload (
 	const float4 &color, const float u, const float v, const unsigned seg_id, const float3 &position,
@@ -192,7 +201,7 @@ extern "C" __global__ void __raygen__basic (void)
 	//---------------------------*/
 }
 
-#ifdef TRAJVIS_PRIMITIVE_RUSSIG
+#ifdef OTV_PRIMITIVE_RUSSIG
 extern "C" __global__ void __intersection__russig (void)
 {
 	// fetch quadratic node data
@@ -210,26 +219,14 @@ extern "C" __global__ void __intersection__russig (void)
 	};
 
 	// perform intersection
-	const float3 /*orig=optixGetWorldRayOrigin(), */dir=optixGetWorldRayDirection();
 	const Hit hit = EvalSplineISect(
-		dir, make_float3(nodes_eye[0]), make_float3(nodes_eye[1]), make_float3(nodes_eye[2]), radii[0], radii[1], radii[2]
+		/*optixGetWorldRayOrigin(), */mul_mat_vec(params.cam_N, optixGetWorldRayDirection()),  // ray directions in eye-space
+		make_float3(nodes_eye[0]), make_float3(nodes_eye[1]), make_float3(nodes_eye[2]), radii[0], radii[1], radii[2]
 	);
-	/*//----------------------------
-	// BEGIN: DEBUG OUTPUT
-	const uint3 idx = optixGetLaunchIndex();
-	if (idx.x==params.fb_width/2 && idx.y==params.fb_height/2)
-		printf("b0 = (%f, %f, %f)   e0 = (%f, %f, %f)  -  r0 = %f\n"
-		       "b1 = (%f, %f, %f)   e1 = (%f, %f, %f)  -  r1 = %f\n"
-		       "b2 = (%f, %f, %f)   e2 = (%f, %f, %f)  -  r2 = %f\nt=%f,  l=%f\n\n",
-		       nodes[0].x, nodes[0].y, nodes[0].z, nodes_eye[0].x, nodes_eye[0].y, nodes_eye[0].z, radii[0],
-		       nodes[1].x, nodes[1].y, nodes[1].z, nodes_eye[1].x, nodes_eye[1].y, nodes_eye[1].z, radii[1],
-		       nodes[2].x, nodes[2].y, nodes[2].z, nodes_eye[2].x, nodes_eye[2].y, nodes_eye[2].z, radii[2], hit.t, hit.l);
-	// END:   DEBUG OUTPUT
-	//---------------------------*/
-	//if (hit.t < POS_INF)
+	if (hit.l < pos_inf)
 		// report our intersection
 		optixReportIntersection(
-			0.1f/*hit.t*/, 0u/* hit kind, unused*/, float_as_int(0.5f/*hit.l*/),
+			hit.l/*0.1f/*hit.t*/, 0u/* hit kind, unused*/, float_as_int(hit.t/*0.5f/*hit.l*/),
 			float_as_int(nodes[0].x), float_as_int(nodes[0].y), float_as_int(nodes[0].z),
 			float_as_int(nodes[1].x), float_as_int(nodes[1].y), float_as_int(nodes[1].z)
 		);
@@ -246,7 +243,7 @@ extern "C" __global__ void __miss__ms (void)
 extern "C" __global__ void __closesthit__ch (void)
 {
 	// retrieve curve parameter, hitpoint and segment index
-	#ifdef TRAJVIS_PRIMITIVE_BUILTIN
+	#ifdef OTV_PRIMITIVE_BUILTIN
 		const unsigned pid = optixGetPrimitiveIndex(), seg_id = pid/2, subseg = pid%2;
 		const float ts = optixGetCurveParameter(), t = .5f*(ts + float(subseg));
 		// retrieve actual node data
@@ -257,7 +254,7 @@ extern "C" __global__ void __closesthit__ch (void)
 		quadr_interpolator_vec3 curve;
 		curve.from_bspline(nodes);
 		const linear_interpolator_vec3 dcurve = curve.derive();
-	#elif defined(TRAJVIS_PRIMITIVE_BUILTIN_CUBIC)
+	#elif defined(OTV_PRIMITIVE_BUILTIN_CUBIC)
 		const float ts = optixGetCurveParameter(), t = ts;
 		const unsigned seg_id = optixGetPrimitiveIndex();
 		// retrieve actual node data
@@ -269,7 +266,6 @@ extern "C" __global__ void __closesthit__ch (void)
 		curve.from_catmullrom(nodes);
 		const quadr_interpolator_vec3 dcurve = curve.derive();
 	#else
-		//printf("!!!!!!!!!!!!!!!! HIT, HIT, HIT!!! !!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 		const unsigned pid=optixGetPrimitiveIndex(), seg_id=pid/2, subseg=pid%2, nid=pid*3;
 		// retrieve curve parameter at hit
 		const float ts = optixGetCurveParameter(), // <-- fetches the float we stored at attribute register 0 for us
@@ -302,9 +298,7 @@ extern "C" __global__ void __closesthit__ch (void)
 
 	// compute hit normal in eye-space
 	const float3 pos_curve = curve.eval(ts);
-	const float3 normal = normalize(mul_mat_vec(
-		params.cam_N, calc_segment_surface_normal(pos, pos_curve, dcurve, ts)
-	));
+	const float3 normal = normalize(mul_mat_vec(params.cam_N, calc_segment_surface_normal(pos, pos_curve, dcurve, ts)));
 		// in the general setting, we would first call optixTransformNormalFromObjectToWorldSpace()
 		// before doing anything with the normal, since the segment could be in a bottom-level acceleration
 		// structure and subject to an additional model or instance transform (we don't use those though so
@@ -312,7 +306,7 @@ extern "C" __global__ void __closesthit__ch (void)
 
 	// compute hit tangent in eye-space
 	const cuda_node &n0 = params.nodes[node_ids.x], &n1 = params.nodes[node_ids.y];
-#ifndef TRAJVIS_PRIMITIVE_BUILTIN_CUBIC
+#ifndef OTV_PRIMITIVE_BUILTIN_CUBIC
 	float3 tangent;
 	if (params.cubic_tangents)
 	{

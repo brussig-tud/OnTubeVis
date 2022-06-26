@@ -515,7 +515,7 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM;
 
 		const std::vector<char> ptx = compile_cu2ptx( CUR_SRC_FILE_DIR+"/optix_curves.cu", "optix_curves",
-		                                             {CUDA_NVRTC_OPTIONS, "-DTRAJVIS_PRIMITIVE_RUSSIG"}, &compiler_log);
+		                                             {CUDA_NVRTC_OPTIONS, "-DOTV_PRIMITIVE_RUSSIG"}, &compiler_log);
 		const size_t            ptx_size = ptx.size();
 		if (!ptx_size)
 		{
@@ -946,7 +946,7 @@ bool optixtracer_textured_spline_tube_builtin::update_pipeline (void)
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_QUADRATIC_BSPLINE;
 
 		const std::vector<char> ptx = compile_cu2ptx( CUR_SRC_FILE_DIR+"/optix_curves.cu", "optix_curves",
-		                                             {CUDA_NVRTC_OPTIONS, "-DTRAJVIS_PRIMITIVE_BUILTIN"}, &compiler_log);
+		                                             {CUDA_NVRTC_OPTIONS, "-DOTV_PRIMITIVE_BUILTIN"}, &compiler_log);
 		const size_t            ptx_size = ptx.size();
 		if (!ptx_size)
 		{
@@ -1372,7 +1372,7 @@ bool optixtracer_textured_spline_tube_builtincubic::update_pipeline (void)
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_CATMULLROM;
 
 		const std::vector<char> ptx = compile_cu2ptx( CUR_SRC_FILE_DIR+"/optix_curves.cu", "optix_curves",
-		                                             {CUDA_NVRTC_OPTIONS, "-DTRAJVIS_PRIMITIVE_BUILTIN_CUBIC"}, &compiler_log);
+		                                             {CUDA_NVRTC_OPTIONS, "-DOTV_PRIMITIVE_BUILTIN_CUBIC"}, &compiler_log);
 		const size_t            ptx_size = ptx.size();
 		if (!ptx_size)
 		{

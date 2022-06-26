@@ -88,6 +88,42 @@ __device__ __forceinline__ unsigned pack_unorm_4x8 (const float4 v)
 	return (c3<<24) | (c2<<16) | (c1<<8) | c0;
 }
 
+// set a column of the given 4x4 matrix to the given vector
+__device__ __forceinline__ void set_mat_colp (float *mat, const unsigned col, const float4 &vec)
+{
+	*(((float4*)mat) + col) = vec;
+}
+
+// set a column of the given 4x4 homogenous transformation matrix to the given 3D position vector
+// (i.e.  its homogenous coordinate is assumed to be 1)
+__device__ __forceinline__ void set_mat_colp (float *mat, const unsigned col, const float3 &vec)
+{
+	float *c0 = (float*)(((float4*)mat) + col);
+	*((float3*)c0) = vec;	// base vector
+	c0[3] = 1.f;			// w=1
+}
+
+// set a column of the given 4x4 homogenous transformation matrix to the given 3D direction vector
+// (i.e.  its homogenous coordinate is assumed to be 0)
+__device__ __forceinline__ void set_mat_colv (float *mat, const unsigned col, const float3 &vec)
+{
+	float *c0 = (float*)(((float4*)mat) + col);
+	*((float3*)c0) = vec;	// base vector
+	c0[3] = 0.f;			// w=0
+}
+
+// reference a column of the given 4x4 matrix
+__device__ __forceinline__ const float4& get_mat_col (const float *mat, const unsigned col)
+{
+	return ((float4*)mat)[col];
+}
+
+// reference a column of the given 4x4 homogenous transformation as a 3-vector
+__device__ __forceinline__ const float3& get_mat_col3 (const float* mat, const unsigned col)
+{
+	return *(float3*)(((float4*)mat)+col);
+}
+
 // right-multiply R^3 position vector to 4x4 homogenous transformation matrix, return
 // result as homogenous R^3 position vector with w-component
 __device__ __forceinline__ float4 mul_mat_pos (const float *mat, const float3 &pos)
@@ -97,6 +133,17 @@ __device__ __forceinline__ float4 mul_mat_pos (const float *mat, const float3 &p
 	r.y = mat[1]*pos.x + mat[5]*pos.y + mat[ 9]*pos.z + mat[13];
 	r.z = mat[2]*pos.x + mat[6]*pos.y + mat[10]*pos.z + mat[14];
 	r.w = mat[3]*pos.x + mat[7]*pos.y + mat[11]*pos.z + mat[15];
+	return r;
+}
+// left-multiply R^3 position vector to 4x4 homogenous transformation matrix, return
+// result as homogenous R^3 position vector with w-component
+__device__ __forceinline__ float4 mul_pos_mat (const float3 &pos, const float *mat)
+{
+	float4 r;
+	r.x = mat[ 0]*pos.x + mat[ 1]*pos.y + mat[ 2]*pos.z + mat[ 3];
+	r.y = mat[ 4]*pos.x + mat[ 5]*pos.y + mat[ 6]*pos.z + mat[ 7];
+	r.z = mat[ 8]*pos.x + mat[ 9]*pos.y + mat[10]*pos.z + mat[11];
+	r.w = mat[12]*pos.x + mat[13]*pos.y + mat[14]*pos.z + mat[15];
 	return r;
 }
 
@@ -109,15 +156,34 @@ __device__ __forceinline__ float3 mul_mat_vec (const float *mat, const float3 &v
 	r.z = mat[2]*vec.x + mat[6]*vec.y + mat[10]*vec.z;
 	return r;
 }
+// left-multiply R^3 (direction-)vector to 4x4 homogenous transformation matrix
+__device__ __forceinline__ float3 mul_vec_mat (const float3 &vec, const float *mat)
+{
+	float3 r;
+	r.x = mat[0]*vec.x + mat[1]*vec.y + mat[ 2]*vec.z;
+	r.y = mat[4]*vec.x + mat[5]*vec.y + mat[ 6]*vec.z;
+	r.z = mat[8]*vec.x + mat[9]*vec.y + mat[10]*vec.z;
+	return r;
+}
 
 // right-multiply R^4 vector to 4x4 matrix
 __device__ __forceinline__ float4 mul_mat_vec (const float *mat, const float4 &vec)
 {
 	float4 r;
-	r.x = mat[0] * vec.x + mat[4] * vec.y + mat[8] * vec.z + mat[12] * vec.w;
-	r.y = mat[1] * vec.x + mat[5] * vec.y + mat[9] * vec.z + mat[13] * vec.w;
-	r.z = mat[2] * vec.x + mat[6] * vec.y + mat[10] * vec.z + mat[14] * vec.w;
-	r.w = mat[3] * vec.x + mat[7] * vec.y + mat[11] * vec.z + mat[15] * vec.w;
+	r.x = mat[0]*vec.x + mat[4]*vec.y + mat[8]*vec.z + mat[12]*vec.w;
+	r.y = mat[1]*vec.x + mat[5]*vec.y + mat[9]*vec.z + mat[13]*vec.w;
+	r.z = mat[2]*vec.x + mat[6]*vec.y + mat[10]*vec.z + mat[14]*vec.w;
+	r.w = mat[3]*vec.x + mat[7]*vec.y + mat[11]*vec.z + mat[15]*vec.w;
+	return r;
+}
+// left-multiply R^4 vector to 4x4 matrix
+__device__ __forceinline__ float4 mul_vec_mat (const float4 &vec, const float *mat)
+{
+	float4 r;
+	r.x = mat[ 0]*vec.x + mat[ 1]*vec.y + mat[ 2]*vec.z + mat[ 3]*vec.w;
+	r.y = mat[ 4]*vec.x + mat[ 5]*vec.y + mat[ 6]*vec.z + mat[ 7]*vec.w;
+	r.z = mat[ 8]*vec.x + mat[ 9]*vec.y + mat[10]*vec.z + mat[11]*vec.w;
+	r.w = mat[12]*vec.x + mat[13]*vec.y + mat[14]*vec.z + mat[15]*vec.w;
 	return r;
 }
 

@@ -27,27 +27,18 @@ typedef float2 vec2;
 typedef float3 vec3;
 typedef float4 vec4;
 
-struct QTubeNode {
-	vec3 pos;
-	float rad;
-};
-
-struct QTube {
-	QTubeNode s;
-	QTubeNode h;
-	QTubeNode e;
-};
-
 struct Hit {
 	float l;
 	float t;
-	vec3 normal;
-	vec3 sp;
-	bool cap;
 };
 
 float Pow2(float x) { return x * x; }
 float Pow3(float x) { return x * x * x; }
+
+float sign(float x) {
+	const float tmp = x < 0.f ? -1.f : 0.f;
+	return x > 0.f ? 1.f : tmp;
+}
 
 vec2 SolveQuadratic(float a, float b, float c) {
     if(abs(a) < flt_eps) {
@@ -59,8 +50,9 @@ vec2 SolveQuadratic(float a, float b, float c) {
 		float discr = b * b - 4.f * a * c;
 		if(abs(discr) < flt_eps) return make_float2(-b / (2.f * a), 2.f);
 		if(discr < 0.f) return make_float2(-2.f, 2.f);
-		vec2 r = (-make_float2(b) + make_float2(-1.f, 1.f) * make_float2(sqrt(discr))) / (2.f * a);
-		return r.x < r.y ? make_float2(r.x, r.y) : make_float2(r.y, r.x); // <-- TODO: eliminate first of the two make_float2's
+		const float sqrt_discr = sqrt(discr);
+		vec2 r = (-make_float2(b, b) + make_float2(-1.f, 1.f) * make_float2(sqrt_discr, sqrt_discr)) / (2.f * a);
+		return r.x < r.y ? make_float2(r.x, r.y) :make_float2(r.y, r.x);
     }
 }
 
@@ -122,12 +114,12 @@ void FindRootsD1(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_
 	                                                                                                \
 	float x_l = x_i[0];                                                                             \
 	float y_l = EvalPolyD1_5(x_l, poly_C); /* DANGEROUS EDIT!!! */                                  \
-	float sy_l = copysignf(1.f, y_l);  /* DANGEROUS EDIT!!! */                                      \
+	float sy_l = sign(y_l);  /* DANGEROUS EDIT!!! */                                                \
                                                                                                     \
 	for(unsigned i = 1; i < N; ++i) {                                                               \
 		float x_r = x_i[i];                                                                         \
 		float y_r = EvalPolyD1_5(x_r, poly_C); /* DANGEROUS EDIT!!! */                              \
-		float sy_r = copysignf(1.f, y_r); /* DANGEROUS EDIT!!! */                                   \
+		float sy_r = sign(y_r); /* DANGEROUS EDIT!!! */                                             \
 		                                                                                            \
 		x_o[i] = 0.f;                                                                               \
 		                                                                                            \
@@ -180,12 +172,12 @@ void FindRootsD0(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_
 	                                                                                                \
 	float x_l = x_i[0];                                                                             \
 	float y_l = EvalPolyD0_5(x_l, poly_C); /* DANGEROUS EDIT!!! */                                  \
-	float sy_l = copysignf(1.f, y_l);  /* DANGEROUS EDIT!!! */                                      \
+	float sy_l = sign(y_l);  /* DANGEROUS EDIT!!! */                                                \
                                                                                                     \
 	for(unsigned i = 1; i < N; ++i) {                                                               \
 		float x_r = x_i[i];                                                                         \
 		float y_r = EvalPolyD0_5(x_r, poly_C); /* DANGEROUS EDIT!!! */                              \
-		float sy_r = copysignf(1.f, y_r); /* DANGEROUS EDIT!!! */                                   \
+		float sy_r = sign(y_r); /* DANGEROUS EDIT!!! */                                             \
 		                                                                                            \
 		x_o[i] = 0.f;                                                                               \
 		                                                                                            \
@@ -326,11 +318,11 @@ DEF_binRootFinder(qSplineD2)
 DEF_binRootFinder(qSplineD3)
 #define binRootFinder_Eval(n, p, func) func##_BinRootFinder_Eval(n, p, func##_Paras)
 
-void set_mat3_col (float *mat_out, const unsigned col, const float3 &vec) {
-	*(((float3*)mat_out)+col) = vec;
+__device__ __forceinline__ void set_mat3_col (float *mat, const unsigned col, const float3 &vec) {
+	((float3*)mat)[col] = vec;
 }
-float3& get_mat3_col(const float *mat, const unsigned col) {
-	return *(((float3*)mat)+col);
+__device__ __forceinline__ const float3& get_mat3_col(const float *mat, const unsigned col) {
+	return ((float3*)mat)[col];
 }
 
 // right-multiply R^3 vector to 3x3 matrix
@@ -347,53 +339,37 @@ __device__ __forceinline__ float3 mul_mat3_vec (const float *mat, const float3 &
 __device__ __forceinline__ float3 mul_vec_mat3 (const float3 &vec, const float *mat)
 {
 	float3 r;
-	r.x = mat[0]*vec.x + mat[3]*vec.y + mat[6]*vec.z;
-	r.y = mat[1]*vec.x + mat[4]*vec.y + mat[7]*vec.z;
-	r.z = mat[2]*vec.x + mat[5]*vec.y + mat[8]*vec.z;
+	r.x = mat[0]*vec.x + mat[1]*vec.y + mat[2]*vec.z;
+	r.y = mat[3]*vec.x + mat[4]*vec.y + mat[5]*vec.z;
+	r.z = mat[6]*vec.x + mat[7]*vec.y + mat[8]*vec.z;
 	return r;
 }
 
-Hit EvalSplineISect(const vec3 &dir, vec3 s, vec3 h, vec3 t, const float rs, const float rh, const float rt)
+Hit EvalSplineISect(/*const vec3 &ray_orig, */const vec3 &dir, vec3 s, vec3 h, vec3 t, const float rs, const float rh, const float rt)
 {
 	Hit hit;
-	hit.l = 0.f;
-	hit.t = pos_inf;
-	hit.normal = make_float3(0.f);
+	hit.t = 0.f;
+	hit.l = pos_inf;
 	
-	float RM[9]; const vec3 ov=normalize(GetOrthoVec(dir));
-	set_mat3_col(RM, 0, dir);
-	set_mat3_col(RM, 1, ov);
-	const vec3 on=cross(dir, get_mat3_col(RM, 1));
-	set_mat3_col(RM, 2, on);
-	
-	s = mul_vec_mat3(s, RM);
-	t = mul_vec_mat3(t, RM); // DANGEROUS EDITS!!!
-	h = mul_vec_mat3(h, RM);
-	//----------------------------
-	// BEGIN: DEBUG OUTPUT
-	const uint3 idx = optixGetLaunchIndex();
-	if (idx.x==params.fb_width/2 && idx.y==params.fb_height/2)
-		printf(
-			"dir = (%f, %f, %f)\n"
-			" ov = (%f, %f, %f)\n"
-			" on = (%f, %f, %f)\n",
-			dir.x, dir.y, dir.z, ov.x, ov.y, ov.z, on.x, on.y, on.z
-		);
-	// END:   DEBUG OUTPUT
-	//---------------------------
-	/*s *= RM;
-	t *= RM;
-	h *= RM;*/
+	// transform control points into ray space
+	// - basis vectors
+	float RM3[9];
+	set_mat3_col(RM3, 0, dir);
+	set_mat3_col(RM3, 1, normalize(GetOrthoVec(dir)));
+	set_mat3_col(RM3, 2, cross(dir, get_mat3_col(RM3, 1)));
+	// - transform control points
+	s = mul_vec_mat3(s, RM3);
+	t = mul_vec_mat3(t, RM3);
+	h = mul_vec_mat3(h, RM3);
 
 	float curveX[N0];
 	float curveY[N0];
 	float curveZ[N0];
-
 	float rcurve[N0];
 	
 	SplinePointsToPolyCoeffs(s.x, h.x, t.x, curveX);
 	SplinePointsToPolyCoeffs(s.y, h.y, t.y, curveY);
-	SplinePointsToPolyCoeffs(s.z, h.z, t.z, curveZ);	
+	SplinePointsToPolyCoeffs(s.z, h.z, t.z, curveZ);
 	
 	SplinePointsToPolyCoeffs(rs, rh, rt, rcurve);
 	
@@ -401,22 +377,22 @@ Hit EvalSplineISect(const vec3 &dir, vec3 s, vec3 h, vec3 t, const float rs, con
 		
 	Pow2(rcurve, polyB_C);
 
-	{
+	/* local scope */ {
 		float c[N1];
 		Pow2(curveY, c);
 		
 		Sub(polyB_C, c, polyB_C);
 	}
-	
-	{
+
+	/* local scope */ {
 		float c[N1];
 		Pow2(curveZ, c);
 		
 		Sub(polyB_C, c, polyB_C);
 	}
 	
-	float l1 = 0.f;
-	float l2 = 0.f;
+	float t1 = 0.f;
+	float t2 = 0.f;
 	
 	vec4 roots = make_float4(-1.f);
 	
@@ -442,49 +418,53 @@ Hit EvalSplineISect(const vec3 &dir, vec3 s, vec3 h, vec3 t, const float rs, con
 	float x4[6];
 	int m4[6];
 	
-	{
+	/* local scope */ {
 		FindRootsD0(polyB_C, x3, m3, x4, m4);
 
 		int rootType = 0;
 		int rn = 0;
-		if(EvalPolyD0_5(0.f, polyB_C) >= 0.f) {
+		if (EvalPolyD0_5(0.f, polyB_C) >= 0.f) {
 			roots.x =  0; rn = 1; rootType = 15;
 		}
 		
-		if(m4[1] == 1) {
+		if (m4[1] == 1) {
 			if(rn == 0) 		{ roots.x = x4[1]; rn = 1; rootType = 15;						}
 			else				{ roots.y = x4[1]; rn = 2; rootType = 10; 						}	
-		} else if(rootType == 15) {
+		}
+		else if(rootType == 15) {
 			rootType = 0;
 		}
 		
-		if(m4[2] == 1) {
+		if (m4[2] == 1) {
 			if     (rn == 0) 	{ roots.x = x4[2]; rn = 1; rootType = 15;						}
 			else if(rn == 1)	{ roots.y = x4[2]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
 			else 				{ roots.z = x4[2]; rn = 3; rootType = 20; 						}	
-		} else if(rootType == 15) {
+		}
+		else if(rootType == 15) {
 			rootType = 0;
 		}
 		
-		if(m4[3] == 1) {
+		if (m4[3] == 1) {
 			if     (rn == 0) 	{ roots.x = x4[3]; rn = 1; rootType = 15;						}
 			else if(rn == 1)	{ roots.y = x4[3]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
 			else if(rn == 2)	{ roots.z = x4[3]; rn = 3; rootType = 20; 						}	
 			else 				{ roots.w = x4[3]; rn = 4; rootType = 20; 						}	
-		} else if(rootType == 15) {
+		}
+		else if(rootType == 15) {
 			rootType = 0;
 		}
 		
-		if(m4[4] == 1) {
+		if (m4[4] == 1) {
 			if     (rn == 0) 	{ roots.x = x4[4]; rn = 1; rootType = 15;						}
 			else if(rn == 1)	{ roots.y = x4[4]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
 			else if(rn == 2)	{ roots.z = x4[4]; rn = 3; rootType = 20; 						}	
 			else 				{ roots.w = x4[4]; rn = 4; rootType = 20; 						}	
-		} else if(rootType == 15) {
+		}
+		else if(rootType == 15) {
 			rootType = 0;
 		}
 		
-		if(EvalPolyD0_5(1.f, polyB_C) > 0.f) {
+		if (EvalPolyD0_5(1.f, polyB_C) > 0.f) {
 			if     (rn == 1)	{ roots.y =   1.f; rn = 1; rootType = rootType == 0 ? 30 : 10;	}
 			else				{ roots.w =   1.f; rn = 2; rootType = 20; 						}	
 		}
@@ -492,64 +472,55 @@ Hit EvalSplineISect(const vec3 &dir, vec3 s, vec3 h, vec3 t, const float rs, con
 		if(rootType == 10 || rootType == 15) rootType = 30;
 
 		//region finalize
-		if(rootType > 0) {
-			if(rootType == 30) {
+		if (rootType > 0) {
+			if (rootType == 30) {
 				float rootD3 = binRootFinder_Eval(roots.x, roots.y, qSplineD3);
 				
 				vec2 rootsD2;
 				rootsD2.x = binRootFinder_Eval(rootD3, roots.x, qSplineD2);
 				rootsD2.y = binRootFinder_Eval(rootD3, roots.y, qSplineD2);
 				
-				l1 = binRootFinder_Eval(roots.x, rootsD2.x, qSplineD1);
-				l2 = binRootFinder_Eval(rootsD2.y, roots.y, qSplineD1);
-			} else {
-				l1 = binRootFinder_Eval(roots.x, roots.y, qSplineD1);
+				t1 = binRootFinder_Eval(roots.x, rootsD2.x, qSplineD1);
+				t2 = binRootFinder_Eval(rootsD2.y, roots.y, qSplineD1);
+			}
+			else {
+				t1 = binRootFinder_Eval(roots.x, roots.y, qSplineD1);
 				
 				if(rootType == 20)
-					l2 = binRootFinder_Eval(roots.z, roots.w, qSplineD1);
+					t2 = binRootFinder_Eval(roots.z, roots.w, qSplineD1);
 				else
-					l2 = l1;
+					t2 = t1;
 			}
 			
-			float t1 = qSplineIDistEval(l1, curveX, polyB_C);
-			float t2 = qSplineIDistEval(l2, curveX, polyB_C);
+			float l1 = qSplineIDistEval(t1, curveX, polyB_C);
+			float l2 = qSplineIDistEval(t2, curveX, polyB_C);
 			
-			float r1 = EvalPolyD0_3(l1, rcurve);
-			float r2 = EvalPolyD0_3(l2, rcurve);
+			float r1 = EvalPolyD0_3(t1, rcurve);
+			float r2 = EvalPolyD0_3(t2, rcurve);
 			
-			bool hit1 = t1 > 0.f && r1 > 0.f;
-			bool hit2 = t2 > 0.f && r2 > 0.f;
+			bool hit1 = l1 > 0.f && r1 > 0.f;
+			bool hit2 = l2 > 0.f && r2 > 0.f;
 			
-			if(hit1) {
-				if(t1 < t2 || !hit2) {
-					hit.t = t1;
+			if (hit1)
+			{
+				if (l1 < l2 || !hit2) {
 					hit.l = l1;
-				} else {
-					hit.t = t2;
-					hit.l = l2;
+					hit.t = t1;
 				}
-			} else {
-				hit.t = t2;
-				hit.l = l2;
+				else {
+					hit.l = l2;
+					hit.t = t2;
+				}
 			}
-
-			hit.cap = false;
-			if (hit.l == 0.f)
-				hit.cap = true;
-			if (hit.l == 1.f)
-				hit.cap = true;
-
-			// get the position on the spline at l
-			hit.sp = qSplineEval(hit.l, curveX, curveY, curveZ);
-			// transform from ray space to eye space
-			hit.sp = mul_mat3_vec(RM, hit.sp);	// <-- DANGEROUS EDIT!!!   <-- hit.sp = RM * hit.sp;
-			// calculate the intersection point of the ray with the spline tube
-			vec3 ip = hit.t * dir;
-			hit.normal = normalize(ip - hit.sp);
+			else {
+				hit.l = l2;
+				hit.t = t2;
+			}
 		}
 		//endregion
 	}
 
+	// done!
 	return hit;
 }
 
