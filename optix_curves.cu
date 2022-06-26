@@ -268,24 +268,13 @@ extern "C" __global__ void __closesthit__ch (void)
 	#else
 		const unsigned pid=optixGetPrimitiveIndex(), seg_id=pid/2, subseg=pid%2, nid=pid*3;
 		// retrieve curve parameter at hit
-		const float ts = optixGetCurveParameter(), // <-- fetches the float we stored at attribute register 0 for us
-		            t  = .5f*(ts + float(subseg));
+		const float ts = optixGetCurveParameter(), t  = .5f*(ts + float(subseg));
 		// retrieve node data
 		quadr_interpolator_vec3 curve; // ToDo: test performance with less attribute registers in exchange for more global mem access
 		curve.b[0] = make_float3(int_as_float(optixGetAttribute_1()), int_as_float(optixGetAttribute_2()), int_as_float(optixGetAttribute_3()));
 		curve.b[1] = make_float3(int_as_float(optixGetAttribute_4()), int_as_float(optixGetAttribute_5()), int_as_float(optixGetAttribute_6()));
 		curve.b[2] = params.positions[nid+2];
 		const linear_interpolator_vec3 dcurve = curve.derive();
-		/*//----------------------------
-		// BEGIN: DEBUG OUTPUT
-		const uint3 idx = optixGetLaunchIndex();
-		if (idx.x==params.fb_width/2 && idx.y==params.fb_height/2)
-			printf("sid: %d\:%d - ts = %f\nb0 = (%f, %f, %f)  b1 = (%f, %f, %f)  b2 = (%f, %f, %f)\n",
-			       seg_id, subseg, ts, curve.b[0].x, curve.b[0].y, curve.b[0].z,
-			       curve.b[1].x, curve.b[1].y, curve.b[1].z, curve.b[2].x, curve.b[2].y, curve.b[2].z);
-		// END:   DEBUG OUTPUT
-		//---------------------------*/
-		//set_payload(make_float4(1.f, 0.f, 0.f, 1.f), 0, 0, seg_id, nullvec3, nullvec3, nullvec3, .1f); return;
 	#endif
 	const uint2 node_ids = params.node_ids[seg_id];
 
@@ -298,8 +287,13 @@ extern "C" __global__ void __closesthit__ch (void)
 
 	// compute hit normal in eye-space
 	const float3 pos_curve = curve.eval(ts);
-	const float3 normal = normalize(mul_mat_vec(params.cam_N, calc_segment_surface_normal(pos, pos_curve, dcurve, ts)));
-		// in the general setting, we would first call optixTransformNormalFromObjectToWorldSpace()
+	const float3 normal = normalize(mul_mat_vec(params.cam_N,
+#ifdef OTV_PRIMITIVE_RUSSIG
+		pos - pos_curve
+#else
+		calc_segment_surface_normal(pos, pos_curve, dcurve, ts)
+#endif
+	));	// in the general setting, we would first call optixTransformNormalFromObjectToWorldSpace()
 		// before doing anything with the normal, since the segment could be in a bottom-level acceleration
 		// structure and subject to an additional model or instance transform (we don't use those though so
 		// we're fine)
