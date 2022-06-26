@@ -236,7 +236,21 @@ extern "C" __global__ void __raygen__basic (void)
 #ifdef TRAJVIS_PRIMITIVE_RUSSIG
 extern "C" __global__ void __intersection__russig (void)
 {
-	/* do_nothing_yet() */;
+	// fetch quadratic node data
+	const unsigned nid = optixGetPrimitiveIndex()*3;
+	const float3 nodes[3] = {
+		params.positions[nid], params.positions[nid+1], params.positions[nid+2]
+	};
+	const float radii[3] = {
+		params.radii[nid].x, params.radii[nid+1].x, params.radii[nid+2].x
+	};
+
+	float l=optixGetRayTmin(), t=0;
+	optixReportIntersection(
+		l, 0u/* hit kind, unused*/, float_as_int(t),
+		float_as_int(nodes[0].x), float_as_int(nodes[0].y), float_as_int(nodes[0].z),
+		float_as_int(nodes[1].x), float_as_int(nodes[1].y), float_as_int(nodes[1].z)
+	);
 }
 #endif
 
@@ -273,23 +287,27 @@ extern "C" __global__ void __closesthit__ch (void)
 		curve.from_catmullrom(nodes);
 		const quadr_interpolator_vec3 dcurve = curve.derive();
 	#else
-		const unsigned pid = optixGetPrimitiveIndex(), seg_id = pid/2, subseg = pid%2;
-		const float ts = optixGetCurveParameter(), t = .5f*(ts + float(subseg));
-		// retrieve actual node data
-		float4 nodes[3]; // w-component contains radius
-		optixGetQuadraticBSplineVertexData(
-			optixGetGASTraversableHandle(), pid, optixGetSbtGASIndex(), 0.f, nodes
-		);
-		quadr_interpolator_vec3 curve;
-		curve.from_bspline(nodes);
+		const unsigned pid=optixGetPrimitiveIndex(), seg_id=pid/2, subseg=pid%2, nid=pid*3;
+		// retrieve curve parameter at hit
+		const float ts = optixGetCurveParameter(), // <-- fetches the float we stored at attribute register 0 for us
+		            t  = .5f*(ts + float(subseg));
+		// retrieve node data
+		quadr_interpolator_vec3 curve; // ToDo: test performance with less attribute registers in exchange for more global mem access
+		curve.b[0] = make_float3(int_as_float(optixGetAttribute_1()), int_as_float(optixGetAttribute_2()), int_as_float(optixGetAttribute_3()));
+		curve.b[1] = make_float3(int_as_float(optixGetAttribute_4()), int_as_float(optixGetAttribute_5()), int_as_float(optixGetAttribute_6()));
+		curve.b[2] = params.positions[nid+2];
 		const linear_interpolator_vec3 dcurve = curve.derive();
 		/*//----------------------------
 		// BEGIN: DEBUG OUTPUT
 		const uint3 idx = optixGetLaunchIndex();
 		if (idx.x==params.fb_width/2 && idx.y==params.fb_height/2)
-			printf("segid: %d\:%d - t=%f:%f\n", seg_id, subseg, t, ts);
+			printf("sid: %d\:%d - ts = %f\nb0 = (%f, %f, %f)  b1 = (%f, %f, %f)  b2 = (%f, %f, %f)\n",
+			       seg_id, subseg, ts, curve.b[0].x, curve.b[0].y, curve.b[0].z,
+			       curve.b[1].x, curve.b[1].y, curve.b[1].z, curve.b[2].x, curve.b[2].y, curve.b[2].z);
 		// END:   DEBUG OUTPUT
-		//---------------------------*/
+		//---------------------------
+		set_payload(make_float4(1.f, 0.f, 0.f, 1.f), 0, 0, seg_id, nullvec3, nullvec3, nullvec3, .1f);
+		return;*/
 	#endif
 	const uint2 node_ids = params.node_ids[seg_id];
 

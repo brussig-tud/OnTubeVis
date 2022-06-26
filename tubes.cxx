@@ -35,8 +35,7 @@
 // ### BEGIN: OptiX integration
 // ###############################
 
-void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* cbdata */)
-{
+void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* cbdata */) {
 	std::cerr << "["<<std::setw(2)<<lvl<<"]["<<std::setw(12)<<tag<<"]: " << msg << std::endl;
 }
 
@@ -539,6 +538,7 @@ void tubes::on_set(void *member_ptr) {
 		// ###############################
 
 		if (optix.initialized) {
+			optix.tracer_russig.update_accelds(render.data);
 			optix.tracer_builtin.update_accelds(render.data);
 			optix.tracer_builtin_cubic.update_accelds(render.data);
 			optix_register_resources(ctx);

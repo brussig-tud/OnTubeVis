@@ -321,7 +321,7 @@ bool optixtracer_textured_spline_tube_russig::update_accelds (const traj_manager
 
 	// use default options for simplicity
 	OptixAccelBuildOptions accel_options = {};
-	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS | OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
+	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
 	accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
 
 	// stage geometry for upload - we don't use the available render data directly since we need to store the
@@ -329,7 +329,6 @@ bool optixtracer_textured_spline_tube_russig::update_accelds (const traj_manager
 	unsigned num;
 	std::vector<float3> positions;
 	std::vector<float> radii;
-	//std::vector<unsigned> indices;	// 
 	std::vector<OptixAabb> aabbs;
 
 	// prepare CPU-side vertex staging area
@@ -338,7 +337,6 @@ bool optixtracer_textured_spline_tube_russig::update_accelds (const traj_manager
 		const auto &rd_tan = render_data->tangents;
 		const auto &rd_rad = render_data->radii;
 		const auto &rd_idx = render_data->indices;
-		//indices.reserve(rd_idx.size());
 		aabbs.reserve(rd_idx.size());
 		num = (unsigned)rd_idx.size()*3;
 		positions.reserve(num);
@@ -346,7 +344,7 @@ bool optixtracer_textured_spline_tube_russig::update_accelds (const traj_manager
 
 		// convert data representation:
 		// - split Hermite curves into two quadratic Beziers
-		// - adapt indices to OptiX curve primitive scheme
+		// - build axis aligned boundinx boxes (ToDo: build oriented BBs instead and use one BLAS per segment)
 		for (const auto &ds : render_data->datasets) for (const auto &traj : ds.trajs)
 		{
 			const unsigned num_segs = traj.n / 2;
@@ -368,7 +366,6 @@ bool optixtracer_textured_spline_tube_russig::update_accelds (const traj_manager
 				// commit to staging buffers
 				// - 1st segment
 				aabbs.emplace_back(get_quadr_bezier_tube_aabb(b0, b1, b2, br0, br1, br2));
-				//indices.emplace_back(unsigned(positions.size()));
 				positions.emplace_back(to_float3(b0));
 				radii.emplace_back(r0);
 				positions.emplace_back(to_float3(b1));
@@ -377,7 +374,6 @@ bool optixtracer_textured_spline_tube_russig::update_accelds (const traj_manager
 				radii.emplace_back(br2);
 				// - 2nd segment
 				aabbs.emplace_back(get_quadr_bezier_tube_aabb(g0, g1, g2, gr0, gr1, gr2));
-				//indices.emplace_back(unsigned(positions.size()));
 				positions.emplace_back(to_float3(g0));
 				radii.emplace_back(gr0);
 				positions.emplace_back(to_float3(g1));
@@ -394,25 +390,20 @@ bool optixtracer_textured_spline_tube_russig::update_accelds (const traj_manager
 
 	// prepare geometry device memory
 	// - prelude
-	CUdeviceptr /*indices_dev=0, */aabbs_dev=0;
-	const size_t positions_size = num*sizeof(float3), radii_size = num*sizeof(float),
-	             /*indices_size = indices.size()*sizeof(unsigned), */aabbs_size = aabbs.size()*sizeof(OptixAabb);
+	CUdeviceptr aabbs_dev=0;
+	const size_t positions_size = num*sizeof(float3), radii_size = num*sizeof(float), aabbs_size = aabbs.size()*sizeof(OptixAabb);
 	// - nodes
 	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&lp.positions), positions_size), success);
 	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(lp.positions), positions.data(), positions_size, cudaMemcpyHostToDevice), success);
 	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&lp.radii), radii_size), success);
 	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(lp.radii), radii.data(), radii_size, cudaMemcpyHostToDevice), success);
-	/*// - indices
-	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&indices_dev), indices_size), success);
-	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(indices_dev), indices.data(), indices_size, cudaMemcpyHostToDevice), success);*/
 	// - AABBs
 	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&aabbs_dev), aabbs_size), success);
     CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(aabbs_dev), aabbs.data(), aabbs_size, cudaMemcpyHostToDevice), success);
 
 	// OptiX accel-ds build input descriptor
 	// - SBT indices
-	const unsigned sbtindex[] = {0}, // we only use one SBT record
-	               inputflags[] = {OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT}; // per SBT record
+	const unsigned sbtindex[] = {0}, inputflags[] = {OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT};  // we only use one SBT record
 	CUdeviceptr    sbtindex_dev = 0;
 	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&sbtindex_dev), sizeof(sbtindex)), success);
 	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(sbtindex_dev), sbtindex, sizeof(sbtindex), cudaMemcpyHostToDevice), success);
@@ -511,7 +502,9 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 
 		pipeline_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
 		pipeline_options.numPayloadValues = 14;
-		pipeline_options.numAttributeValues = 1;
+		// - we report the curve parameter (1 attrib) as well as the first two bezier nodes (3 attribs each = 6). Unfortunately, the
+		//   closest-hit shader will have to fetch the third node from global memory, as we are out of attribute registers at this point.
+		pipeline_options.numAttributeValues = 7;
 	#ifdef _DEBUG  // Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
 		pipeline_options.exceptionFlags =
 			OPTIX_EXCEPTION_FLAG_DEBUG | OPTIX_EXCEPTION_FLAG_TRACE_DEPTH | OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
@@ -537,14 +530,6 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 			log, sizeof_log, success
 		);
 		mod_geom = mod_shading; // all in one file for now
-
-		/*OptixBuiltinISOptions builtin_isectshader_options = {};
-		builtin_isectshader_options.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_ROUND_QUADRATIC_BSPLINE;
-		builtin_isectshader_options.curveEndcapFlags = OPTIX_CURVE_ENDCAP_ON;
-		OPTIX_CHECK_SET(
-			optixBuiltinISModuleGet(context, &mod_options, &pipeline_options, &builtin_isectshader_options, &mod_geom),
-			success
-		);*/
 	}
 
 
@@ -580,30 +565,6 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 		);
 
 		// hit shader group
-		/*OptixProgramGroup           radiance_sphere_prog_group;
-		OptixProgramGroupOptions    radiance_sphere_prog_group_options = {};
-		OptixProgramGroupDesc       radiance_sphere_prog_group_desc = {};
-		radiance_sphere_prog_group_desc.kind   = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
-			radiance_sphere_prog_group_desc.hitgroup.moduleIS           = state.sphere_module;
-		radiance_sphere_prog_group_desc.hitgroup.entryFunctionNameIS    = "__intersection__sphere";
-		radiance_sphere_prog_group_desc.hitgroup.moduleCH               = state.shading_module;
-		radiance_sphere_prog_group_desc.hitgroup.entryFunctionNameCH    = "__closesthit__metal_radiance";
-		radiance_sphere_prog_group_desc.hitgroup.moduleAH               = nullptr;
-		radiance_sphere_prog_group_desc.hitgroup.entryFunctionNameAH    = nullptr;
-
-		char    log[2048];
-		size_t  sizeof_log = sizeof( log );
-		OPTIX_CHECK_LOG( optixProgramGroupCreate(
-			state.context,
-			&radiance_sphere_prog_group_desc,
-			1,
-			&radiance_sphere_prog_group_options,
-			log,
-			&sizeof_log,
-			&radiance_sphere_prog_group ) );
-
-		program_groups.push_back(radiance_sphere_prog_group);
-		state.radiance_metal_sphere_prog_group = radiance_sphere_prog_group;*/
 		OptixProgramGroupDesc prg_hit_desc = {};
 		prg_hit_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 		prg_hit_desc.hitgroup.moduleCH = mod_shading;
