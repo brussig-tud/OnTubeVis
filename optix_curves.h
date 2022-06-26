@@ -36,6 +36,10 @@ struct curve_rt_params
 	uint2*         node_ids;
 	cuda_arclen*   alen;
 
+	// custom attribute input buffers (unused for the built-in variants)
+	float3*        positions;
+	float1*        radii;
+
 	// output buffers
 	float4*        albedo;
 	float3*        position;

@@ -233,6 +233,12 @@ extern "C" __global__ void __raygen__basic (void)
 	//---------------------------*/
 }
 
+#ifdef TRAJVIS_PRIMITIVE_RUSSIG
+extern "C" __global__ void __intersection__russig (void)
+{
+	/* do_nothing_yet() */;
+}
+#endif
 
 extern "C" __global__ void __miss__ms (void)
 {

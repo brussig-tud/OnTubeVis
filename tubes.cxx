@@ -1565,6 +1565,8 @@ bool tubes::optix_ensure_init (context &ctx)
 
 	// setup optix launch environment
 	if (traj_mgr.has_data()) {
+		optix.tracer_russig = optixtracer_textured_spline_tube_russig::build(optix.context, render.data);
+		success = success && optix.tracer_russig.built();
 		optix.tracer_builtin = optixtracer_textured_spline_tube_builtin::build(optix.context, render.data);
 		success = success && optix.tracer_builtin.built();
 		optix.tracer_builtin_cubic = optixtracer_textured_spline_tube_builtincubic::build(optix.context, render.data);
@@ -1646,25 +1648,27 @@ void tubes::optix_draw_trajectories (context &ctx)
 		            optixU = cgv::math::normalize(cgv::math::cross(optixW, optixV)) * optixU_len;
 
 		// setup params for our launch
-		// - set values (ToDo: batch MapResources calls)
+		// - obtain values from selected tracer
+		const auto &lp = optix.tracer->ref_launch_params();
+		// - map our shared SSBOs (ToDo: include output surfaces in this mapping batch)
+		cudaGraphicsResource_t inbufs[] = {optix.sbo_nodes, optix.sbo_nodeids, optix.sbo_alen};
+		CUDA_CHECK(cudaGraphicsMapResources(3, inbufs, optix.stream));
+		// - set values
 		curve_rt_params params;
 		params.nodes = nullptr; {
 			size_t size;
-			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_nodes, optix.stream));
 			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.nodes), &size, optix.sbo_nodes));
 		};
 		params.node_ids = nullptr; {
 			size_t size;
-			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_nodeids, optix.stream));
 			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.node_ids), &size, optix.sbo_nodeids));
 		};
 		params.alen = nullptr; {
 			size_t size;
-			CUDA_CHECK(cudaGraphicsMapResources(1, &optix.sbo_alen, optix.stream));
 			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.alen), &size, optix.sbo_alen));
 		};
-		static unsigned sfid = 0;
-		const auto &lp = optix.tracer->ref_launch_params();
+		params.positions = lp.positions;
+		params.radii = lp.radii;
 		params.albedo = optix.outbuf_albedo.map();
 		params.position = optix.outbuf_position.map();
 		params.normal = optix.outbuf_normal.map();
@@ -1693,15 +1697,13 @@ void tubes::optix_draw_trajectories (context &ctx)
 		));
 		CUDA_SYNC_CHECK();
 
-		// clean up (ToDo: batch UnmapResources calls)
+		// clean up
 		optix.outbuf_depth.unmap();
 		optix.outbuf_tangent.unmap();
 		optix.outbuf_normal.unmap();
 		optix.outbuf_position.unmap();
 		optix.outbuf_albedo.unmap();
-		CUDA_CHECK(cudaGraphicsUnmapResources(1, &optix.sbo_alen, optix.stream));
-		CUDA_CHECK(cudaGraphicsUnmapResources(1, &optix.sbo_nodeids, optix.stream));
-		CUDA_CHECK(cudaGraphicsUnmapResources(1, &optix.sbo_nodes, optix.stream));
+		CUDA_CHECK(cudaGraphicsUnmapResources(3, inbufs, optix.stream));
 
 		// transfer OptiX render result into our result texture
 		optix.outbuf_albedo.into_texture(ctx, optix.fb.albedo);

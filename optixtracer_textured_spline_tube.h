@@ -40,6 +40,12 @@ struct optix_launch_params
 	/// the size of the parameter storage
 	size_t params_size;
 
+	/// the value of the positions attribute input buffer kernel parameter
+	float3* positions;
+
+	/// the value of the radii attribute input buffer kernel parameter
+	float1* radii;
+
 	/// the shader binding table for the launch
 	OptixShaderBindingTable *sbt;
 };

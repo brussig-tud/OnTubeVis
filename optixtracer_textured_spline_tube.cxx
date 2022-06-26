@@ -11,6 +11,7 @@
 #include <GL/glew.h>
 
 // CGV framework
+#include <cgv/render/render_types.h>
 #include <cgv/render/texture.h>
 
 // local includes
@@ -30,6 +31,11 @@
 //
 
 namespace {
+	template <class int_type>
+	inline int_type ceil_unsigned (const int_type v, const int_type base) {
+		return ((v+base-1)/base)*base;
+	}
+
 	inline float get_s0 (const float b0, const float b1) {
 		return b0 - (b1-b0);
 	}
@@ -92,6 +98,71 @@ namespace {
 		*g1 = p1 - _1o3<T::value_type>*m1;
 		*g0 = *b2 = .5f*(*b1 + *g1);
 		*g2 = p1;
+	}
+
+	template <unsigned dims>
+	Vec<dims, float> get_curve_minimum (
+		const QuadraticCurve<float, dims> &bezier, const LinearRoots3<float> &extrema
+	)
+	{
+		const Vec<dims, float> bstart = evalBezier(bezier, 0.f),
+		                       bend   = evalBezier(bezier, 1.f);
+		Vec<dims, float> pmin;
+		for (int i=0; i<3; i++)
+		{
+			float extremum = extrema.num[i] && isBetween01(extrema.roots[i]) ?
+				  evalBezier(bezier.row(i), extrema.roots[i])
+				: _posInf<float>;
+			pmin[i] = std::min(bstart[i], std::min(extremum, bend[i]));
+		}
+		return pmin;
+	}
+
+	template <unsigned dims>
+	Vec<dims, float> get_curve_maximum (
+		const QuadraticCurve<float, dims> &bezier, const LinearRoots3<float> &extrema
+	)
+	{
+		const Vec<dims, float> bstart = evalBezier(bezier, 0.f),
+		                       bend   = evalBezier(bezier, 1.f);
+		Vec<dims, float> pmax;
+		for (int i=0; i<3; i++)
+		{
+			float extremum = extrema.num[i] && isBetween01(extrema.roots[i]) ?
+				  evalBezier(bezier.row(i), extrema.roots[i])
+				: _negInf<float>;
+			pmax[i] = std::max(bstart[i], std::max(extremum, bend[i]));
+		}
+		return pmax;
+	}
+
+	OptixAabb get_quadr_bezier_tube_aabb (
+		const cgv::render::render_types::vec3 &b0,
+		const cgv::render::render_types::vec3 &b1,
+		const cgv::render::render_types::vec3 &b2,
+		const float r0, const float r1, const float r2
+	)
+	{
+		// convenience shorthand
+		using vec3 = cgv::render::render_types::vec3;
+
+		// represent all curves as control matrices for more wieldy notation from here on
+		const QuadraticCurve3<float> b{b0, b1, b2};
+		const QuadraticCurve1<float> r(r0, r1, r2);
+
+		// differentiate component min/max curves
+		const QuadraticCurve3<float> r33({vec3(r[0]), vec3(r[1]), vec3(r[2])});
+		const QuadraticCurve3<float> qminus = b - r33, qplus = b + r33;
+		const LinearCurve3<float>    dqminus = toMonomial(deriveBezier(qminus)),
+		                             dqplus = toMonomial(deriveBezier(qplus));
+
+		// determine extrema 
+		const LinearRoots3<float> extrema = solveLinear(dqminus);
+		const vec3 pmin = get_curve_minimum(qminus, extrema),
+		           pmax = get_curve_maximum(qplus,  extrema);
+
+		// done!
+		return {pmin.x(), pmin.y(), pmin.z(), pmax.x(), pmax.y(), pmax.z()};
 	}
 };
 
@@ -227,6 +298,8 @@ void optixtracer_textured_spline_tube_russig::destroy_accelds (void)
 {
 	lp.accelds = 0; // ToDo: check if we can really leave the accelds handle dangling like this (there appears to be no destroy function for it?)
 	CUDA_SAFE_FREE(accelds_mem);
+	CUDA_SAFE_FREE(lp.positions);
+	CUDA_SAFE_FREE(lp.radii);
 }
 
 void optixtracer_textured_spline_tube_russig::destroy_pipeline (void)
@@ -246,17 +319,18 @@ bool optixtracer_textured_spline_tube_russig::update_accelds (const traj_manager
 	// make sure we start with a blank slate
 	destroy_accelds();
 
-	// use default options for simplicity (ToDo: enable compaction)
+	// use default options for simplicity
 	OptixAccelBuildOptions accel_options = {};
-	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS;
+	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS | OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
 	accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
 
-	// stage geometry for upload - we don't use the available render data directly since we can use a more
-	// compact representation for OptiX due to the available special curve segment indexing mode
+	// stage geometry for upload - we don't use the available render data directly since we need to store the
+	// quadratic segments explicitly if we don't want to double the workload on the intersection shader
 	unsigned num;
 	std::vector<float3> positions;
 	std::vector<float> radii;
-	std::vector<unsigned> indices;
+	//std::vector<unsigned> indices;	// 
+	std::vector<OptixAabb> aabbs;
 
 	// prepare CPU-side vertex staging area
 	/* local scope */ {
@@ -264,13 +338,14 @@ bool optixtracer_textured_spline_tube_russig::update_accelds (const traj_manager
 		const auto &rd_tan = render_data->tangents;
 		const auto &rd_rad = render_data->radii;
 		const auto &rd_idx = render_data->indices;
-		indices.reserve(rd_idx.size());
+		//indices.reserve(rd_idx.size());
+		aabbs.reserve(rd_idx.size());
 		num = (unsigned)rd_idx.size()*3;
 		positions.reserve(num);
 		radii.reserve(num);
 
 		// convert data representation:
-		// - convert Hermite-basis control points to Catmull-Rom basis
+		// - split Hermite curves into two quadratic Beziers
 		// - adapt indices to OptiX curve primitive scheme
 		for (const auto &ds : render_data->datasets) for (const auto &traj : ds.trajs)
 		{
@@ -290,23 +365,25 @@ bool optixtracer_textured_spline_tube_russig::update_accelds (const traj_manager
 				split_quadseg(&b0,  &b1,  &b2,  &g0,  &g1,  &g2,	p0, m0,     p1, m1);
 				split_quadseg(&br0, &br1, &br2, &gr0, &gr1, &gr2,	r0, t0.w(), r1, t1.w());
 
-				// commit to buffer (adjust subsegment endpoints for the uniform knot vector used by OptiX)
+				// commit to staging buffers
 				// - 1st segment
-				indices.emplace_back(unsigned(positions.size()));
-				positions.emplace_back(to_float3(get_s0(b0, b1)));
-				radii.emplace_back(get_s0(br0, br1));
+				aabbs.emplace_back(get_quadr_bezier_tube_aabb(b0, b1, b2, br0, br1, br2));
+				//indices.emplace_back(unsigned(positions.size()));
+				positions.emplace_back(to_float3(b0));
+				radii.emplace_back(r0);
 				positions.emplace_back(to_float3(b1));
 				radii.emplace_back(br1);
-				positions.emplace_back(to_float3(get_s2(b1, b2)));
-				radii.emplace_back(get_s2(br1, br2));
+				positions.emplace_back(to_float3(b2));
+				radii.emplace_back(br2);
 				// - 2nd segment
-				indices.emplace_back(unsigned(positions.size()));
-				positions.emplace_back(to_float3(get_s0(g0, g1)));
-				radii.emplace_back(get_s0(gr0, gr1));
+				aabbs.emplace_back(get_quadr_bezier_tube_aabb(g0, g1, g2, gr0, gr1, gr2));
+				//indices.emplace_back(unsigned(positions.size()));
+				positions.emplace_back(to_float3(g0));
+				radii.emplace_back(gr0);
 				positions.emplace_back(to_float3(g1));
 				radii.emplace_back(gr1);
-				positions.emplace_back(to_float3(get_s2(g1, g2)));
-				radii.emplace_back(get_s2(gr1, gr2));
+				positions.emplace_back(to_float3(g2));
+				radii.emplace_back(gr2);
 			}
 		}
 	}
@@ -316,66 +393,86 @@ bool optixtracer_textured_spline_tube_russig::update_accelds (const traj_manager
 	bool success = true;
 
 	// prepare geometry device memory
-	CUdeviceptr positions_dev=0, radii_dev=0;
-	const size_t positions_size = num*sizeof(float3), radii_size = num*sizeof(float);
-	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&positions_dev), positions_size), success);
-	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(positions_dev), positions.data(), positions_size, cudaMemcpyHostToDevice), success);
-	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&radii_dev), radii_size), success);
-	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(radii_dev), radii.data(), radii_size, cudaMemcpyHostToDevice), success);
-
-	// upload segment indices
-	CUdeviceptr indices_dev = 0;
-	const size_t indices_size = indices.size()*sizeof(unsigned);
+	// - prelude
+	CUdeviceptr /*indices_dev=0, */aabbs_dev=0;
+	const size_t positions_size = num*sizeof(float3), radii_size = num*sizeof(float),
+	             /*indices_size = indices.size()*sizeof(unsigned), */aabbs_size = aabbs.size()*sizeof(OptixAabb);
+	// - nodes
+	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&lp.positions), positions_size), success);
+	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(lp.positions), positions.data(), positions_size, cudaMemcpyHostToDevice), success);
+	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&lp.radii), radii_size), success);
+	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(lp.radii), radii.data(), radii_size, cudaMemcpyHostToDevice), success);
+	/*// - indices
 	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&indices_dev), indices_size), success);
-	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(indices_dev), indices.data(), indices_size, cudaMemcpyHostToDevice), success);
+	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(indices_dev), indices.data(), indices_size, cudaMemcpyHostToDevice), success);*/
+	// - AABBs
+	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&aabbs_dev), aabbs_size), success);
+    CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(aabbs_dev), aabbs.data(), aabbs_size, cudaMemcpyHostToDevice), success);
 
 	// OptiX accel-ds build input descriptor
+	// - SBT indices
+	const unsigned sbtindex[] = {0}, // we only use one SBT record
+	               inputflags[] = {OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT}; // per SBT record
+	CUdeviceptr    sbtindex_dev = 0;
+	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&sbtindex_dev), sizeof(sbtindex)), success);
+	CUDA_CHECK_SET(cudaMemcpy(reinterpret_cast<void*>(sbtindex_dev), sbtindex, sizeof(sbtindex), cudaMemcpyHostToDevice), success);
+	// - input descriptor
 	OptixBuildInput input_desc = {};
-	input_desc.type = OPTIX_BUILD_INPUT_TYPE_CURVES;
-	input_desc.curveArray.curveType = OPTIX_PRIMITIVE_TYPE_ROUND_QUADRATIC_BSPLINE;
-	input_desc.curveArray.numPrimitives = (unsigned)indices.size();
-	input_desc.curveArray.vertexBuffers = &positions_dev;
-	input_desc.curveArray.numVertices = num;
-	input_desc.curveArray.vertexStrideInBytes = sizeof(float3);
-	input_desc.curveArray.widthBuffers = &radii_dev;
-	input_desc.curveArray.widthStrideInBytes = sizeof(float);
-	input_desc.curveArray.normalBuffers = 0;
-	input_desc.curveArray.normalStrideInBytes = 0;
-	input_desc.curveArray.indexBuffer = indices_dev;
-	input_desc.curveArray.indexStrideInBytes = sizeof(unsigned);
-	input_desc.curveArray.flag = OPTIX_GEOMETRY_FLAG_NONE;
-	input_desc.curveArray.primitiveIndexOffset = 0;
-	input_desc.curveArray.endcapFlags = OPTIX_CURVE_ENDCAP_ON;
-
+	input_desc.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
+	input_desc.customPrimitiveArray.aabbBuffers   = &aabbs_dev;
+	input_desc.customPrimitiveArray.flags = inputflags;
+	input_desc.customPrimitiveArray.numSbtRecords = 1;
+	input_desc.customPrimitiveArray.numPrimitives = (unsigned)aabbs.size();
+	input_desc.customPrimitiveArray.sbtIndexOffsetBuffer      = sbtindex_dev;
+	input_desc.customPrimitiveArray.sbtIndexOffsetSizeInBytes = sizeof(unsigned);
+	// - working memory
+	CUdeviceptr tmpbuf = 0;
 	OptixAccelBufferSizes accelds_buffer_sizes = {0};
 	OPTIX_CHECK_SET(
-		optixAccelComputeMemoryUsage(
-			context, &accel_options, &input_desc, 1/* num build inputs */, &accelds_buffer_sizes
-		),
+		optixAccelComputeMemoryUsage(context, &accel_options, &input_desc, 1/* num build inputs */, &accelds_buffer_sizes),
 		success
 	);
-
-	CUdeviceptr tmpbuf = 0;
 	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&tmpbuf), accelds_buffer_sizes.tempSizeInBytes), success);
-	CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&accelds_mem), accelds_buffer_sizes.outputSizeInBytes), success);
-
+	// - output memory
+	CUdeviceptr mem_precompact = 0;
+    size_t compactsize_feedback_offset = ceil_unsigned<size_t>(accelds_buffer_sizes.outputSizeInBytes, 8);
+		/* |-- squeeze in a little 8-byte-aligned space for our compacted size feedback at the end of the output buffer */
+    CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&mem_precompact), compactsize_feedback_offset+8), success);
+	// - build accel-ds
+	OptixAccelEmitDesc emitted_prop;
+    emitted_prop.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
+	emitted_prop.result = (CUdeviceptr)((char*)mem_precompact + compactsize_feedback_offset);
 	OPTIX_CHECK_SET(
 		optixAccelBuild(
 			context, 0/*CUDA stream*/, &accel_options, &input_desc, 1/*num build inputs*/,
-			tmpbuf, accelds_buffer_sizes.tempSizeInBytes, accelds_mem, accelds_buffer_sizes.outputSizeInBytes,
+			tmpbuf, accelds_buffer_sizes.tempSizeInBytes, mem_precompact, accelds_buffer_sizes.outputSizeInBytes,
 			&lp.accelds,  // <-- our acceleration datastructure!!!
-			nullptr/*emitted property list*/, 0/*num emitted properties*/
+			&emitted_prop, 1/*num emitted properties*/
 		),
 		success
 	);
+	// - fetch our emitted property (the size we can compact to)
+	size_t compacted_size = accelds_buffer_sizes.outputSizeInBytes;
+    CUDA_CHECK_SET(cudaMemcpy(&compacted_size, (void*)emitted_prop.result, sizeof(size_t), cudaMemcpyDeviceToHost), success);
+	// - free scratch memory
+	CUDA_SAFE_FREE(tmpbuf);
 
-	// We can now free the scratch buffer used during build and the vertex
-	// inputs, since they are not needed by our trivial shading method
+	// perform compaction if possible
+	if (compacted_size < accelds_buffer_sizes.outputSizeInBytes) {
+        CUDA_CHECK_SET(cudaMalloc(reinterpret_cast<void**>(&accelds_mem), compacted_size), success);
+		OPTIX_CHECK_SET(
+			optixAccelCompact(context, 0/*CUDA stream*/, lp.accelds, accelds_mem, compacted_size, &lp.accelds),
+			success
+		);
+		CUDA_SAFE_FREE(mem_precompact);
+    }
+    else
+		accelds_mem = mem_precompact;
+
+	// We can now free the aabb buffer used during build /** and the vertex
+	// inputs, since they are not needed by our trivial shading method **/
 	// (we won't consider cudaFree failing a failure of the whole function)
-	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(tmpbuf)));
-	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(positions_dev)));
-	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(radii_dev)));
-	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(indices_dev)));
+	CUDA_SAFE_FREE(aabbs_dev);
 
 	// done!
 	return success;
@@ -422,7 +519,7 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 		pipeline_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
 	#endif
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
-		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_QUADRATIC_BSPLINE;
+		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM;
 
 		const std::vector<char> ptx = compile_cu2ptx( CUR_SRC_FILE_DIR+"/optix_curves.cu", "optix_curves",
 		                                             {CUDA_NVRTC_OPTIONS, "-DTRAJVIS_PRIMITIVE_RUSSIG"}, &compiler_log);
@@ -439,14 +536,15 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 			),
 			log, sizeof_log, success
 		);
+		mod_geom = mod_shading; // all in one file for now
 
-		OptixBuiltinISOptions builtin_isectshader_options = {};
+		/*OptixBuiltinISOptions builtin_isectshader_options = {};
 		builtin_isectshader_options.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_ROUND_QUADRATIC_BSPLINE;
 		builtin_isectshader_options.curveEndcapFlags = OPTIX_CURVE_ENDCAP_ON;
 		OPTIX_CHECK_SET(
 			optixBuiltinISModuleGet(context, &mod_options, &pipeline_options, &builtin_isectshader_options, &mod_geom),
 			success
-		);
+		);*/
 	}
 
 
@@ -482,12 +580,36 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 		);
 
 		// hit shader group
+		/*OptixProgramGroup           radiance_sphere_prog_group;
+		OptixProgramGroupOptions    radiance_sphere_prog_group_options = {};
+		OptixProgramGroupDesc       radiance_sphere_prog_group_desc = {};
+		radiance_sphere_prog_group_desc.kind   = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
+			radiance_sphere_prog_group_desc.hitgroup.moduleIS           = state.sphere_module;
+		radiance_sphere_prog_group_desc.hitgroup.entryFunctionNameIS    = "__intersection__sphere";
+		radiance_sphere_prog_group_desc.hitgroup.moduleCH               = state.shading_module;
+		radiance_sphere_prog_group_desc.hitgroup.entryFunctionNameCH    = "__closesthit__metal_radiance";
+		radiance_sphere_prog_group_desc.hitgroup.moduleAH               = nullptr;
+		radiance_sphere_prog_group_desc.hitgroup.entryFunctionNameAH    = nullptr;
+
+		char    log[2048];
+		size_t  sizeof_log = sizeof( log );
+		OPTIX_CHECK_LOG( optixProgramGroupCreate(
+			state.context,
+			&radiance_sphere_prog_group_desc,
+			1,
+			&radiance_sphere_prog_group_options,
+			log,
+			&sizeof_log,
+			&radiance_sphere_prog_group ) );
+
+		program_groups.push_back(radiance_sphere_prog_group);
+		state.radiance_metal_sphere_prog_group = radiance_sphere_prog_group;*/
 		OptixProgramGroupDesc prg_hit_desc = {};
 		prg_hit_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 		prg_hit_desc.hitgroup.moduleCH = mod_shading;
 		prg_hit_desc.hitgroup.entryFunctionNameCH = "__closesthit__ch";
 		prg_hit_desc.hitgroup.moduleIS = mod_geom;
-		prg_hit_desc.hitgroup.entryFunctionNameIS = 0; // automatically supplied for built-in intersection shader
+		prg_hit_desc.hitgroup.entryFunctionNameIS = "__intersection__russig";
 		OPTIX_CHECK_LOG_SET(
 			optixProgramGroupCreate(
 				context, &prg_hit_desc, 1/*num program groups*/, &prg_options, log, &sizeof_log, &prg_hit
@@ -684,13 +806,14 @@ bool optixtracer_textured_spline_tube_builtin::update_accelds (const traj_manage
 	// make sure we start with a blank slate
 	destroy_accelds();
 
-	// use default options for simplicity (ToDo: enable compaction)
+	// use default options for simplicity
 	OptixAccelBuildOptions accel_options = {};
 	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS;
 	accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
 
-	// stage geometry for upload - we don't use the available render data directly since we can use a more
-	// compact representation for OptiX due to the available special curve segment indexing mode
+	// stage geometry for upload - we don't use the available render data directly since in order to use the built-in
+	// quadratic curve primitive, we need to store the quadratic sub-segments explicitly (plus we don't want to double
+	// the workload on the intersection shader even if we could use the existing render data directly)
 	unsigned num;
 	std::vector<float3> positions;
 	std::vector<float> radii;
@@ -708,7 +831,7 @@ bool optixtracer_textured_spline_tube_builtin::update_accelds (const traj_manage
 		radii.reserve(num);
 
 		// convert data representation:
-		// - convert Hermite-basis control points to Catmull-Rom basis
+		// - split Hermite curves into two quadratic Beziers
 		// - adapt indices to OptiX curve primitive scheme
 		for (const auto &ds : render_data->datasets) for (const auto &traj : ds.trajs)
 		{
@@ -807,9 +930,8 @@ bool optixtracer_textured_spline_tube_builtin::update_accelds (const traj_manage
 		success
 	);
 
-	// We can now free the scratch buffer used during build and the vertex
-	// inputs, since they are not needed by our trivial shading method
-	// (we won't consider cudaFree failing a failure of the whole function)
+	// we can now free the scratch buffer used during build and the vertex inputs, since they are stored
+	// directly in the accel-ds (we won't consider cudaFree failing a failure of the whole function)
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(tmpbuf)));
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(positions_dev)));
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(radii_dev)));
@@ -1122,13 +1244,13 @@ bool optixtracer_textured_spline_tube_builtincubic::update_accelds (const traj_m
 	// make sure we start with a blank slate
 	destroy_accelds();
 
-	// use default options for simplicity (ToDo: enable compaction)
+	// use default options for simplicity
 	OptixAccelBuildOptions accel_options = {};
 	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS;
 	accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
 
-	// stage geometry for upload - we don't use the available render data directly since we can use a more
-	// compact representation for OptiX due to the available special curve segment indexing mode
+	// stage geometry for upload - we don't use the available render data directly since in order to use the built-in
+	// cubic curve primitives, we need to store the segments in a different basis (here, we use Catmull-Rom)
 	unsigned num;
 	std::vector<float3> positions;
 	std::vector<float> radii;
@@ -1148,7 +1270,7 @@ bool optixtracer_textured_spline_tube_builtincubic::update_accelds (const traj_m
 		// convert data representation:
 		// - convert Hermite-basis control points to Catmull-Rom basis
 		// - adapt indices to OptiX curve primitive scheme
-		constexpr float mscale = 1.333f; // <-- hand-tuned tangent scaling factor to get results visually closer to split quadratic curves
+		constexpr float mscale = 1.25f; // <-- hand-tuned tangent scaling factor to get results visually closer to split quadratic curves
 		for (const auto &ds : render_data->datasets) for (const auto &traj : ds.trajs)
 		{
 			const unsigned num_segs = traj.n / 2;
@@ -1234,9 +1356,8 @@ bool optixtracer_textured_spline_tube_builtincubic::update_accelds (const traj_m
 		success
 	);
 
-	// We can now free the scratch buffer used during build and the vertex
-	// inputs, since they are not needed by our trivial shading method
-	// (we won't consider cudaFree failing a failure of the whole function)
+	// we can now free the scratch buffer used during build and the vertex inputs, since they are stored
+	// directly in the accel-ds (we won't consider cudaFree failing a failure of the whole function)
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(tmpbuf)));
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(positions_dev)));
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(radii_dev)));

@@ -22,7 +22,8 @@ using Vec = cgv::math::fvec<T, N>;
 
 // Matrix type defintion
 template <unsigned N, unsigned M, class T>
-using Mat = cgv::math::fmat<T, N, M>;
+using Mat = cgv::math::fmat<T, M, N>; // order of dimensions reversed as this code bridges from GLM (which uses the opposite convention of CGV)
+
 
 
 //////
@@ -61,71 +62,71 @@ const Vec<dimension, bool> _true{true};
 
 /** @brief Cubic Hermite to Bezier basis transform. */
 template <class Real>
-const Mat<4, 4, Real> h2b = {
+const Mat<4, 4, Real> h2b({
 	1,          0,           0,  0,
 	1, _1o3<Real>,           0,  0,
 	0,          0, -_1o3<Real>,  1,
 	0,          0,           0,  1
-};
+});
 /** @brief Cubic Bezier to Hermite basis transform. */
 template <class Real>
-const Mat<4, 4, Real> b2h = {
+const Mat<4, 4, Real> b2h({
 	 1,  0,  0,  0,
 	-3,  3,  0,  0,
 	 0,  0, -3,  3,
 	 0,  0,  0,  1
-};
+});
 
-/** @brief Cubic Bezier to monomial basis transform. */
+/** @brief Cubic Bezier to Monomial basis transform. */
 template <class Real>
-const Mat<4, 4, Real> b2m = {
+const Mat<4, 4, Real> b2m({
 	-1,  3, -3,  1,
 	 3, -6,  3,  0,
 	-3,  3,  0,  0,
 	 1,  0,  0,  0
-};
+});
 /** @brief Cubic Monomial to Bezier basis transform. */
 template <class Real>
-const Mat<4, 4, Real> m2b = {
+const Mat<4, 4, Real> m2b({
 	0,          0,          0, 1,
 	0,          0, _1o3<Real>, 1,
 	0, _1o3<Real>, _2o3<Real>, 1,
 	1,          1,          1, 1
-};
+});
 
-/** @brief Quadratic Bezier to monomial basis transform. */
+/** @brief Quadratic Bezier to Monomial basis transform. */
 template <class Real>
-const Mat<3, 3, Real> b2m_2 = {
+const Mat<3, 3, Real> b2m_2({
 	 1, -2,  1,
 	-2,  2,  0,
 	 1,  0,  0
-};
+});
 /** @brief Quadratic Monomial to Bezier basis transform. */
 template <class Real>
-const Mat<3, 3, Real> m2b_2 = {
-	0,  0,   1,
-	0,  0.5, 1,
-	1,  1,   1
-};
+const Mat<3, 3, Real> m2b_2({
+	0,  0,         1,
+	0,  Real(0.5), 1,
+	1,  1,         1
+});
 
-/** @brief Linear Bezier to monomial basis transform. */
+/** @brief Linear Bezier to Monomial basis transform. */
 template <class Real>
-const Mat<2, 2, Real> b2m_1 = {
+const Mat<2, 2, Real> b2m_1({
 	-1, 1,
 	 1, 0
-};
+});
 /** @brief Linear Monomial to Bezier basis transform. */
 template <class Real>
-const Mat<2, 2, Real> m2b_1 = {
+const Mat<2, 2, Real> m2b_1({
 	0, 1,
 	1, 1
-};
+});
 
 
 
 //////
 //
-// Typedefs
+// Structs and typedefs
 //
 
 /** @brief Vector-valued cubic curve type. */
@@ -188,6 +189,33 @@ using LinearCurve2 = LinearCurve<Real, 2>;
 template<class Real>
 using LinearCurve1 = Vec<2, Real>;
 
+/** @brief Struct representing the result of a linear root solver. */
+template<class Real, unsigned dimension>
+struct LinearRoots
+{
+	/** @brief The roots of each linear component curve. */
+	Vec<dimension, Real> roots;
+
+	/** @brief number of roots from each component curve. */
+	Vec<dimension, unsigned> num;
+};
+
+/** @brief Roots of a 4D vector-valued linear curve. */
+template<class Real>
+using LinearRoots4 = LinearRoots<Real, 4>;
+
+/** @brief Roots of a 3D vector-valued linear curve. */
+template<class Real>
+using LinearRoots3 = LinearRoots<Real, 3>;
+
+/** @brief Roots of a 2D vector-valued linear curve. */
+template<class Real>
+using LinearRoots2 = LinearRoots<Real, 2>;
+
+/** @brief The root of a scalar-valued linear curve. */
+template<class Real>
+using LinearRoots1 = LinearRoots<Real, 1>;
+
 
 
 //////
@@ -197,7 +225,6 @@ using LinearCurve1 = Vec<2, Real>;
 
 ////
 // Linear interpolation
-
 
 #ifndef glm_glm
 	/** @brief Drop-in replacements for some GLM functions. */
@@ -818,6 +845,148 @@ void toMonomial (QuadraticCurve1<Real> &m, const QuadraticCurve1<Real> &b)
 
 
 ////
+// Linear Bezier to Monomial conversion
+
+/**
+ * @brief
+ *		Converts a 4D vector-valued linear Bezier curve defined by the given control
+ *		points into canonical polynomial form.
+ */
+template <class Real>
+LinearCurve4<Real> toMonomial (const Vec<4,Real> &b0, const Vec<4,Real> &b1) {
+	return {/* slope: */ b1 - b0,  /* offset: */ b0 };
+}
+
+/**
+ * @brief
+ *		Converts a 3D vector-valued linear Bezier curve defined by the given control
+ *		points into canonical polynomial form.
+ */
+template <class Real>
+LinearCurve3<Real> toMonomial (const Vec<3,Real> &b0, const Vec<3,Real> &b1) {
+	return {/* slope: */ b1 - b0,  /* offset: */ b0 };
+}
+
+/**
+ * @brief
+ *		Converts a 2D vector-valued linear Bezier curve defined by the given control
+ *		points into canonical polynomial form.
+ */
+template <class Real>
+LinearCurve2<Real> toMonomial (const Vec<2,Real> &b0, const Vec<2,Real> &b1) {
+	return {/* slope: */ b1 - b0,  /* offset: */ b0 };
+}
+
+/**
+ * @brief
+ *		Converts a scalar-valued linear Bezier curve defined by the given control
+ *		points into canonical polynomial form.
+ */
+template <class Real>
+LinearCurve1<Real> toMonomial (const Real b0, const Real b1) {
+	return {/* slope: */ b1 - b0,  /* offset: */ b0 };
+}
+
+/**
+ * @brief
+ *		Converts a scalar-valued linear Bezier curve into canonical polynomial form,
+ *		writing the polynomial coefficients to the output parameter.
+ */
+template <class Real>
+void toMonomial (LinearCurve1<Real> &m, Real b0, Real b1)
+{
+	m[0] = b1 - b0; // slope
+	m[1] = b0;      // offset
+}
+
+/**
+ * @brief
+ *		Converts a 4D vector-valued quadratic Bezier curve into canonical polynomial
+ *		form.
+ */
+template <class Real>
+LinearCurve4<Real> toMonomial (const LinearCurve4<Real> &b)
+{
+	return b * b2m_1<Real>;
+}
+
+/**
+ * @brief
+ *		Converts a 3D vector-valued quadratic Bezier curve into canonical polynomial
+ *		form.
+ */
+template <class Real>
+LinearCurve3<Real> toMonomial (const LinearCurve3<Real> &b)
+{
+	return b * b2m_1<Real>;
+}
+
+/**
+ * @brief
+ *		Converts a 2D vector-valued quadratic Bezier curve into canonical polynomial
+ *		form.
+ */
+template <class Real>
+LinearCurve2<Real> toMonomial (const LinearCurve2<Real> &b)
+{
+	return b * b2m_1<Real>;
+}
+
+/**
+ * @brief Converts a scalar-valued quadratic Bezier curve into canonical polynomial form.
+ */
+template <class Real>
+LinearCurve1<Real> toMonomial (const LinearCurve1<Real> &b)
+{
+	return b * b2m_1<Real>;
+}
+
+/**
+ * @brief
+ *		Converts a 4D vector-valued quadratic Bezier curve into canonical polynomial
+ *		form, writing the coefficient points to the output parameter.
+ */
+template <class Real>
+void toMonomial (LinearCurve4<Real> &m, const LinearCurve4<Real> &b)
+{
+	m = b * b2m_1<Real>;
+}
+
+/**
+ * @brief
+ *		Converts a 3D vector-valued quadratic Bezier curve into canonical polynomial
+ *		form, writing the coefficient points to the output parameter.
+ */
+template <class Real>
+void toMonomial (LinearCurve3<Real> &m, const LinearCurve3<Real> &b)
+{
+	m = b * b2m_1<Real>;
+}
+
+/**
+ * @brief
+ *		Converts a 2D vector-valued quadratic Bezier curve into canonical polynomial
+ *		form, writing the coefficient points to the output parameter.
+ */
+template <class Real>
+void toMonomial (LinearCurve2<Real> &m, const LinearCurve2<Real> &b)
+{
+	m = b * b2m_1<Real>;
+}
+
+/**
+ * @brief
+ *		Converts a scalar-valued quadratic Bezier curve into canonical polynomial form,
+ *		writing the polynomial coefficients to the output parameter.
+ */
+template <class Real>
+void toMonomial (LinearCurve1<Real> &m, const LinearCurve1<Real> &b)
+{
+	m = b * b2m_1<Real>;
+}
+
+
+////
 // Bezier curve derivatives
 
 /**
@@ -872,7 +1041,7 @@ QuadraticCurve1<Real> deriveBezier (const CubicCurve1<Real> &b)
 template <class Real>
 LinearCurve4<Real> deriveBezier (const QuadraticCurve4<Real> &b)
 {
-	return { Real(2)*(b[1]-b[0]), Real(2)*(b[2]-b[1]) };
+	return LinearCurve4<Real>{ Real(2)*(b.col(1)-b.col(0)), Real(2)*(b.col(2)-b.col(1)) };
 }
 
 /**
@@ -883,7 +1052,7 @@ LinearCurve4<Real> deriveBezier (const QuadraticCurve4<Real> &b)
 template <class Real>
 LinearCurve3<Real> deriveBezier (const QuadraticCurve3<Real> &b)
 {
-	return { Real(2)*(b[1]-b[0]), Real(2)*(b[2]-b[1]) };
+	return LinearCurve3<Real>{ Real(2)*(b.col(1)-b.col(0)), Real(2)*(b.col(2)-b.col(1)) };
 }
 
 /**
@@ -894,7 +1063,7 @@ LinearCurve3<Real> deriveBezier (const QuadraticCurve3<Real> &b)
 template <class Real>
 LinearCurve2<Real> deriveBezier (const QuadraticCurve2<Real> &b)
 {
-	return { Real(2)*(b[1]-b[0]), Real(2)*(b[2]-b[1]) };
+	return LinearCurve2<Real>{ Real(2)*(b.col(1)-b.col(0)), Real(2)*(b.col(2)-b.col(1)) };
 }
 
 /**
@@ -912,7 +1081,7 @@ LinearCurve1<Real> deriveBezier (const QuadraticCurve1<Real> &b)
 ////
 // Bezier curve evaluation
 
-/** @brief Evaluates the given 4D vector-valued cubic Bezier curve at a given t=0..1. */
+/** @brief Evaluates the given 4D vector-valued cubic Bezier curve at a given t. */
 template <class Real>
 Vec<4,Real> evalBezier (const CubicCurve4<Real> &b, Real t)
 {
@@ -924,7 +1093,7 @@ Vec<4,Real> evalBezier (const CubicCurve4<Real> &b, Real t)
 	return glm::mix(v[0], v[1], t);
 }
 
-/** @brief Evaluates the given 3D vector-valued cubic Bezier curve at a given t=0..1. */
+/** @brief Evaluates the given 3D vector-valued cubic Bezier curve at a given t. */
 template <class Real>
 Vec<3, Real> evalBezier (const CubicCurve3<Real> &b, Real t)
 {
@@ -935,7 +1104,7 @@ Vec<3, Real> evalBezier (const CubicCurve3<Real> &b, Real t)
 	return glm::mix(v[0], v[1], t);
 }
 
-/** @brief Evaluates the given 2D vector-valued cubic Bezier curve at a given t=0..1. */
+/** @brief Evaluates the given 2D vector-valued cubic Bezier curve at a given t. */
 template <class Real>
 Vec<2,Real> evalBezier (const CubicCurve2<Real> &b, Real t)
 {
@@ -947,7 +1116,7 @@ Vec<2,Real> evalBezier (const CubicCurve2<Real> &b, Real t)
 	return glm::mix(v[0], v[1], t);
 }
 
-/** @brief Evaluates the given scalar-valued cubic Bezier curve at a given t=0..1. */
+/** @brief Evaluates the given scalar-valued cubic Bezier curve at a given t. */
 template <class Real>
 Real evalBezier (const CubicCurve1<Real> &b, Real t)
 {
@@ -959,34 +1128,28 @@ Real evalBezier (const CubicCurve1<Real> &b, Real t)
 	return glm::mix(v[0], v[1], t);
 }
 
-/**
- * @brief Evaluates the given 4D vector-valued quadratic Bezier curve at a given t=0..1.
- */
+/** @brief Evaluates the given 4D vector-valued quadratic Bezier curve at a given t. */
 template <class Real>
 Vec<4,Real> evalBezier (const QuadraticCurve4<Real> &b, Real t)
 {
-	const Mat<2, 4, Real> v = { glm::mix(b[0], b[1], t), glm::mix(b[1], b[2], t) };
-	return glm::mix(v[0], v[1], t);
+	const Mat<2, 4, Real> v = { glm::mix(b.col(0), b.col(1), t), glm::mix(b.col(1), b.col(2), t) };
+	return glm::mix(v.col(0), v.col(1), t);
 }
 
-/**
- * @brief Evaluates the given 3D vector-valued quadratic Bezier curve at a given t=0..1.
- */
+/** @brief Evaluates the given 3D vector-valued quadratic Bezier curve at a given t. */
 template <class Real>
 Vec<3,Real> evalBezier (const QuadraticCurve3<Real> &b, Real t)
 {
-	const Mat<2, 3, Real> v = { glm::mix(b[0], b[1], t), glm::mix(b[1], b[2], t) };
-	return glm::mix(v[0], v[1], t);
+	const Mat<2, 3, Real> v = { glm::mix(b.col(0), b.col(1), t), glm::mix(b.col(1), b.col(2), t) };
+	return glm::mix(v.col(0), v.col(1), t);
 }
 
-/**
- * @brief Evaluates the given 2D vector-valued quadratic Bezier curve at a given t=0..1.
- */
+/** @brief Evaluates the given 2D vector-valued quadratic Bezier curve at a given t. */
 template <class Real>
 Vec<2,Real> evalBezier (const QuadraticCurve2<Real> &b, Real t)
 {
-	const Mat<2, 2, Real> v = { glm::mix(b[0], b[1], t), glm::mix(b[1], b[2], t) };
-	return glm::mix(v[0], v[1], t);
+	const Mat<2, 2, Real> v = { glm::mix(b.col(0), b.col(1), t), glm::mix(b.col(1), b.col(2), t) };
+	return glm::mix(v.col(0), v.col(1), t);
 }
 
 /** @brief Evaluates the given scalar-valued quadratic Bezier curve at a given t=0..1. */
@@ -1002,7 +1165,9 @@ Real evalBezier (const QuadraticCurve1<Real> &b, Real t)
 // Monomial curve evaluation
 
 /**
- * @brief Evaluates the given 4D vector-valued cubic monomial curve at a given t=0..1.
+ * @brief
+ *		Efficiently evaluates the given 4D vector-valued cubic monomial curve at a given
+ *		t using Horner's method.
  */
 template <class Real>
 Vec<4,Real> evalMonomial (const CubicCurve4<Real> &m, Real t)
@@ -1011,7 +1176,9 @@ Vec<4,Real> evalMonomial (const CubicCurve4<Real> &m, Real t)
 }
 
 /**
- * @brief Evaluates the given 3D vector-valued cubic monomial curve at a given t=0..1.
+ * @brief
+ *		Efficiently evaluates the given 3D vector-valued cubic monomial curve at a given
+ *		t using Horner's method.
  */
 template <class Real>
 Vec<3, Real> evalMonomial (const CubicCurve3<Real> &m, Real t)
@@ -1020,7 +1187,9 @@ Vec<3, Real> evalMonomial (const CubicCurve3<Real> &m, Real t)
 }
 
 /**
- * @brief Evaluates the given 2D vector-valued cubic monomial curve at a given t=0..1.
+ * @brief
+ *		Efficiently evaluates the given 2D vector-valued cubic monomial curve at a given
+ *		t using Horner's method.
  */
 template <class Real>
 Vec<2,Real> evalMonomial (const CubicCurve2<Real> &m, Real t)
@@ -1028,7 +1197,11 @@ Vec<2,Real> evalMonomial (const CubicCurve2<Real> &m, Real t)
 	return m[3] + t*(m[2] + t*(m[1] + t*m[0]));
 }
 
-/** @brief Evaluates the given scalar -valued cubic monomial curve at a given t=0..1. */
+/**
+ * @brief
+ *		Efficiently evaluates the given scalar-valued cubic monomial curve at a given
+ *		t using Horner's method.
+ */
 template <class Real>
 Real evalMonomial (const CubicCurve1<Real> &m, Real t)
 {
@@ -1037,7 +1210,8 @@ Real evalMonomial (const CubicCurve1<Real> &m, Real t)
 
 /**
  * @brief
- *		Evaluates the given 4D vector-valued quadratic monomial curve at a given t=0..1.
+ *		Efficiently evaluates the given 4D vector-valued quadratic monomial curve at a
+ *		given t using Horner's method.
  */
 template <class Real>
 Vec<4,Real> evalMonomial (const QuadraticCurve4<Real> &m, Real t)
@@ -1047,7 +1221,8 @@ Vec<4,Real> evalMonomial (const QuadraticCurve4<Real> &m, Real t)
 
 /**
  * @brief
- *		Evaluates the given 3D vector-valued quadratic monomial curve at a given t=0..1.
+ *		Efficiently evaluates the given 3D vector-valued quadratic monomial curve at a
+ *		given t using Horner's method.
  */
 template <class Real>
 Vec<3,Real> evalMonomial (const QuadraticCurve3<Real> &m, Real t)
@@ -1057,7 +1232,8 @@ Vec<3,Real> evalMonomial (const QuadraticCurve3<Real> &m, Real t)
 
 /**
  * @brief
- *		Evaluates the given 2D vector-valued quadratic monomial curve at a given t=0..1.
+ *		Efficiently evaluates the given 2D vector-valued quadratic monomial curve at a
+ *		given t using Horner's method.
  */
 template <class Real>
 Vec<2,Real> evalMonomial (const QuadraticCurve2<Real> &m, Real t)
@@ -1066,12 +1242,104 @@ Vec<2,Real> evalMonomial (const QuadraticCurve2<Real> &m, Real t)
 }
 
 /**
- * @brief Evaluates the given scalar-valued quadratic monomial curve at a given t=0..1.
+ * @brief
+ *		Efficiently evaluates the given scalar-valued quadratic monomial curve at a given
+ *		t using Horner's method.
  */
 template <class Real>
 Real evalMonomial (const QuadraticCurve1<Real> &m, Real t)
 {
 	return m[2] + t*(m[1] + t*m[0]);
+}
+
+/** @brief Evaluates the given 4D vector-valued quadratic monomial curve at a given t. */
+template <class Real>
+Vec<4,Real> evalMonomial (const LinearCurve4<Real> &m, Real t)
+{
+	return t*m[0] + m[1];
+}
+
+/** @brief Evaluates the given 3D vector-valued quadratic monomial curve at a given t. */
+template <class Real>
+Vec<3,Real> evalMonomial (const LinearCurve3<Real> &m, Real t)
+{
+	return t*m[0] + m[1];
+}
+
+/** @brief Evaluates the given 2D vector-valued quadratic monomial curve at a given t. */
+template <class Real>
+Vec<2,Real> evalMonomial (const LinearCurve2<Real> &m, Real t)
+{
+	return t*m[0] + m[1];
+}
+
+/** @brief Evaluates the given scalar-valued quadratic monomial curve at a given t. */
+template <class Real>
+Real evalMonomial (const LinearCurve1<Real> &m, Real t)
+{
+	return t*m[0] + m[1];
+}
+
+
+
+////
+// Linear root solvers
+
+/** @brief Finds the roots of the given scalar-valued linear monomial curve. */
+template <class Real>
+LinearRoots1<Real> solveLinear (const LinearCurve1<Real> &m)
+{
+	LinearRoots1<Real> result;
+	if (m[0] == 0)
+		result.num[0] = 0;
+	else {
+		result.num[0] = 1;
+		result.roots[0] = -m[1]/m[0];
+	}
+	return result;
+}
+
+/** @brief Finds the roots of the given 4D-vector valued linear monomial curve. */
+template <class Real, unsigned dims>
+LinearRoots<Real, dims> solveLinear (const LinearCurve<Real, dims> &m)
+{
+	// transpose curve control matrix so we can use each column as a component function
+	LinearRoots<Real, dims> result;
+	for (unsigned i=0; i<dims; i++)
+	{
+		const auto component_root = solveLinear(m.row(i));
+		result.roots[i] = component_root.roots[0];
+		result.num[i] = component_root.num[0];
+	}
+	return result;
+}
+
+
+////
+// Misc utilities
+
+// Checks if a given value is inside the given interval
+inline bool isBetween (const float t, const float tmin, const float tmax)
+{
+	return t >= tmin && t <= tmax;
+}
+
+// Checks if a given value is between 0 and 1
+inline bool isBetween01 (const float t)
+{
+	return isBetween(t, 0, 1);
+}
+
+// Checks if a given value is outside the given interval
+inline bool isOutside (const float t, const float tmin, const float tmax)
+{
+	return t < tmin || t > tmax;
+}
+
+// Checks if a given value is outside of 0 and 1
+inline bool isOutside01 (const float t)
+{
+	return isOutside(t, 0, 1);
 }
 
 
