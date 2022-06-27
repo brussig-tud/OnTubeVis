@@ -236,11 +236,14 @@ protected:
 		/// the viewport dependant jitter sample offsets
 		std::vector<vec2> jitter_offsets;
 		
-		/// the previous eye position (used to detect still frames)
+		/// the previous eye position (used to detect static frames)
 		vec3 prev_eye_pos = vec3(0.0f);
 
-		/// the previous view direction (used to detect still frames)
+		/// the previous view direction (used to detect static frames)
 		vec3 prev_view_dir = vec3(0.0f);
+
+		/// the previous view up direction (used to detect static frames)
+		vec3 prev_view_up_dir = vec3(0.0f);
 		
 		/// the previous modelview-projection matrix
 		mat4 prev_modelview_projection_matrix;

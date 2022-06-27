@@ -2484,8 +2484,10 @@ void tubes::draw_trajectories(context& ctx)
 {
 	// common init
 	// - view-related info
-	vec3 eye_pos = view_ptr->get_eye();
+	const vec3 eye_pos = view_ptr->get_eye();
 	const vec3& view_dir = view_ptr->get_view_dir();
+	const vec3& view_up_dir = view_ptr->get_view_up_dir();
+
 	vec2 viewport_size(
 		static_cast<float>(fbc.ref_frame_buffer().get_width()),
 		static_cast<float>(fbc.ref_frame_buffer().get_height())
@@ -2724,7 +2726,7 @@ void tubes::draw_trajectories(context& ctx)
 				taa.accumulate_count = 0;
 
 			bool clip_enabled = !taa.static_no_clip;
-			if(taa.prev_eye_pos != eye_pos || taa.prev_view_dir != view_dir) {
+			if(taa.prev_eye_pos != eye_pos || taa.prev_view_dir != view_dir || taa.prev_view_up_dir != view_up_dir) {
 				clip_enabled = true;
 				taa.static_frame_count = 0;
 			}
@@ -2792,6 +2794,7 @@ void tubes::draw_trajectories(context& ctx)
 
 		taa.prev_eye_pos = eye_pos;
 		taa.prev_view_dir = view_dir;
+		taa.prev_view_up_dir = view_up_dir;
 		taa.prev_modelview_projection_matrix = curr_projection_matrix * curr_modelview_matrix;
 	}
 }
