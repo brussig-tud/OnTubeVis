@@ -514,6 +514,7 @@ public:
 	bool init(context& ctx);
 	void init_frame(context& ctx);
 	void draw(context& ctx);
+	void after_finish(context& ctx);
 
 	void create_gui();
 };

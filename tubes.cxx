@@ -338,8 +338,14 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				break;
 			case 'B':
 				if(modifiers == cgv::gui::EM_CTRL) {
-					std::cout << "Starting benchmark..." << std::endl;
-					benchmark.requested = true;
+					if(benchmark.running) {
+						std::cout << "Aborting benchmark..." << std::endl;
+						benchmark.running = false;
+						benchmark.requested = false;
+					} else {
+						std::cout << "Starting benchmark..." << std::endl;
+						benchmark.requested = true;
+					}
 				}
 				handled = true;
 				break;
@@ -1827,46 +1833,6 @@ void tubes::init_frame (cgv::render::context &ctx)
 	// query the current viewport dimensions as this is needed for multiple draw methods
 	glGetIntegerv(GL_VIEWPORT, viewport);
 
-	/* Measurements:
-	RTX 2080Ti
-	>> HotRoom <<
-	Average FPS(ms) over 10s long full horizontal rotation of data set
-	(3 g-buffers) (quadratic tangents)
-	Silhouette		| Full Ray Cast	| Geometry Only
-	Box				| 292.49 (3.42)	| 719.43 (1.39)
-	Approx. Billb.	| 462.27 (2.16)	| 985.90 (1.01)
-	Exact Polygon	| 429.63 (2.33)	| 962.18 (1.04)
-	Box Billboard	| 448.61 (2.23)	| 994.98 (1.01)
-	*/
-
-	if(benchmark.running) {
-		++benchmark.total_frames;
-		double benchmark_time = 10.0;
-
-		double seconds_since_start = benchmark.timer.get_elapsed_time();
-		double alpha = (seconds_since_start - benchmark.last_seconds_since_start) / benchmark_time;
-		benchmark.last_seconds_since_start = seconds_since_start;
-
-		double depth = cgv::math::length(view_ptr->get_eye() - view_ptr->get_focus());
-
-		view_ptr->rotate(0.0, cgv::math::deg2rad(360.0 * alpha), depth);
-
-		if(seconds_since_start >= benchmark_time) {
-			benchmark.running = false;
-			benchmark.requested = false;
-			update_member(&benchmark.requested);
-
-			double avg_fps = (double)benchmark.total_frames / seconds_since_start;
-
-			std::stringstream ss;
-			ss.precision(2);
-			ss << std::fixed;
-			ss << "Average FPS: " << avg_fps << " | " << (1000.0f / avg_fps) << "ms";
-
-			std::cout << ss.str() << std::endl;
-		}
-	}
-
 	if(benchmark.requested) {
 		if(!misc_cfg.instant_redraw_proxy) {
 			misc_cfg.instant_redraw_proxy = true;
@@ -1962,6 +1928,37 @@ void tubes::draw (cgv::render::context &ctx)
 	// display drag-n-drop information, if a dnd operation is in progress
 	if(!dnd.text.empty())
 		draw_dnd(ctx);
+}
+
+void tubes::after_finish(context& ctx) {
+
+	if(benchmark.running) {
+		++benchmark.total_frames;
+		double benchmark_time = 10.0;
+
+		double seconds_since_start = benchmark.timer.get_elapsed_time();
+		double alpha = (seconds_since_start - benchmark.last_seconds_since_start) / benchmark_time;
+		benchmark.last_seconds_since_start = seconds_since_start;
+
+		double depth = cgv::math::length(view_ptr->get_eye() - view_ptr->get_focus());
+
+		view_ptr->rotate(0.0, cgv::math::deg2rad(360.0 * alpha), depth);
+
+		if(seconds_since_start >= benchmark_time) {
+			benchmark.running = false;
+			benchmark.requested = false;
+			update_member(&benchmark.requested);
+
+			double avg_fps = (double)benchmark.total_frames / seconds_since_start;
+
+			std::stringstream ss;
+			ss.precision(2);
+			ss << std::fixed;
+			ss << "Average FPS: " << avg_fps << " | " << (1000.0f / avg_fps) << "ms";
+
+			std::cout << ss.str() << std::endl;
+		}
+	}
 }
 
 void tubes::create_gui(void) {
