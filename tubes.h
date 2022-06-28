@@ -282,7 +282,7 @@ protected:
 
 		/// FXAA settings:
 		/// whether to enable fast approximate anti-aliasing before accumulation
-		bool enable_fxaa = false;
+		bool enable_fxaa = true;
 
 		/// influence factor of fxaa result with input image
 		float fxaa_mix_factor = 0.5f;
@@ -336,6 +336,9 @@ protected:
 	cgv::render::box_render_style bbox_style;
 	cgv::glutil::box_render_data<> bbox_rd;
 	cgv::glutil::box_wire_render_data<> bbox_wire_rd;
+
+	vec3 last_sort_pos;
+	vec3 last_sort_dir;
 
 	/// rendering state fields
 	struct {
@@ -417,6 +420,8 @@ protected:
 
 		/// whether to sort the segments, which is used to boost performance together with conservative depth testing
 		bool sort = true;
+		/// whether to only sort after significant view changes instead of every redraw
+		bool lazy_sort = true;
 		/// whether to foirce the initial draw order of segments as defined in the data set (overrides sort setting)
 		bool force_initial_order = false;
 		/// whether to limit the render count

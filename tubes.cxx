@@ -247,7 +247,9 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
-		rh.reflect_member("benchmark_mode", benchmark_mode);
+		rh.reflect_member("benchmark_mode", benchmark_mode) &&
+		rh.reflect_member("enable_taa", taa.enable_taa) &&
+		rh.reflect_member("enable_fxaa", taa.enable_fxaa);
 }
 
 void tubes::stream_help (std::ostream &os)
@@ -1409,6 +1411,10 @@ bool tubes::init (cgv::render::context &ctx)
 
 	render.sorter->set_key_definition_override(key_definition);
 
+	// Initialize the last sort position and direction to zero to force a sorting step before the first draw call
+	last_sort_pos = vec3(0.0f);
+	last_sort_dir = vec3(0.0f);
+
 	ref_box_renderer(ctx, 1);
 	ref_box_wire_renderer(ctx, 1);
 	bbox_rd.init(ctx);
@@ -2140,6 +2146,7 @@ void tubes::create_gui(void) {
 		add_member_control(this, "Show Segments", debug.highlight_segments, "check");
 
 		add_member_control(this, "Sort by Distance", debug.sort, "check");
+		add_member_control(this, "Lazy Sort", debug.lazy_sort, "check", "tooltip='Sort only after significant view changes.'");
 		add_member_control(this, "Force Initial Order", debug.force_initial_order, "check");
 
 		add_member_control(this, "Limit Render Count", debug.limit_render_count, "check");
@@ -2301,6 +2308,10 @@ void tubes::update_attribute_bindings(void) {
 		// Generate the density volume (uses GPU buffer data so we need to do this after upload)
 		create_density_volume(ctx, voxel_grid_resolution);
 	}
+
+	// reset the last sort pos and direction to zero when the render data changed to force a sorting step
+	last_sort_pos = vec3(0.0f);
+	last_sort_dir = vec3(0.0f);
 }
 
 void tubes::update_debug_attribute_bindings() {
@@ -2523,12 +2534,26 @@ void tubes::draw_trajectories(context& ctx)
 		// prepare SSBO handles
 		const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0,
 				  arclen_handle = render.arclen_sbo.handle ? (const int&)render.arclen_sbo.handle - 1 : 0;
-		if (!data_handle || !arclen_handle) return;
-
-		// sort the sgment indices
 		int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
-		if(data_handle > 0 && segment_idx_handle > 0 && node_idx_handle > 0 && debug.sort & !debug.force_initial_order)
-			//render.sorter->sort(ctx, data_handle, segment_idx_handle, test_eye, test_dir, node_idx_handle);
+
+		if (!data_handle ||
+			!arclen_handle ||
+			segment_idx_handle < 0 ||
+			node_idx_handle < 0)
+			return;
+
+		// onyl perform a new visibility sort step when the view configuration deviates significantly
+		bool do_sort = false;
+		float pos_angle = dot(normalize(last_sort_pos), normalize(eye_pos));
+		float view_angle = dot(view_dir, last_sort_dir);
+		if(view_angle < 0.8f || pos_angle < 0.8f || !debug.lazy_sort) {
+			do_sort = true;
+			last_sort_pos = normalize(eye_pos);
+			last_sort_dir = view_dir;
+		}
+
+		// sort the segment indices
+		if(debug.sort && do_sort && !debug.force_initial_order)
 			render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
 
 		tstr.set_eye_pos(eye_pos);
@@ -2582,12 +2607,12 @@ void tubes::draw_trajectories(context& ctx)
 	{
 		// perform the deferred shading pass and draw the image into the shading framebuffer when not using OptiX (for now)
 
-		//if (!optix.enabled || !optix.initialized) {
-			// ToDo: OptiX - TAA interoperation is currently unclear
+		// only render into the shading framebuffer if we are using taa - otherwise render directly to the screen
+		if(taa.enable_taa) {
 			fbc_shading.enable(ctx);
 			glDepthFunc(GL_ALWAYS);
-		//}
-
+		}
+		
 		shader_program& prog = shaders.get("tube_shading");
 		prog.enable(ctx);
 		// set render parameters
@@ -2680,12 +2705,13 @@ void tubes::draw_trajectories(context& ctx)
 
 		prog.disable(ctx);
 
-		// if we're shading the OptiX output we're done here
-		/*if(optix.enabled && optix.initialized)
-			return;*/
-
-		// disable the shading framebuffer
-		fbc_shading.disable(ctx);
+		if(taa.enable_taa) {
+			// disable the shading framebuffer
+			fbc_shading.disable(ctx);
+		} else {
+			// if we are not using taa we are done here
+			return;
+		}
 
 		// perform a pass of fast approximate anti-aliasing (FXAA) befor the temporal accumulation
 		if(taa.enable_fxaa) {
