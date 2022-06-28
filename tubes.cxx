@@ -290,8 +290,10 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(render.style.use_cubic_tangents, false);
 				SET_MEMBER(render.style.use_conservative_depth, false);
 				SET_MEMBER(debug.sort, false);
-				SET_MEMBER(debug.force_initial_order, true);
-				on_set(&debug.force_initial_order);
+				if(!debug.force_initial_order) {
+					SET_MEMBER(debug.force_initial_order, true);
+					on_set(&debug.force_initial_order);
+				}
 				SET_MEMBER(ao_style.enable, false);
 				on_set(&ao_style.enable);
 				handled = true;
@@ -302,8 +304,10 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(render.style.use_cubic_tangents, true);
 				SET_MEMBER(render.style.use_conservative_depth, true);
 				SET_MEMBER(debug.sort, false);
-				SET_MEMBER(debug.force_initial_order, true);
-				on_set(&debug.force_initial_order);
+				if(!debug.force_initial_order) {
+					SET_MEMBER(debug.force_initial_order, true);
+					on_set(&debug.force_initial_order);
+				}
 				SET_MEMBER(ao_style.enable, false);
 				on_set(&ao_style.enable);
 				handled = true;
@@ -314,8 +318,10 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(render.style.use_cubic_tangents, true);
 				SET_MEMBER(render.style.use_conservative_depth, true);
 				SET_MEMBER(debug.sort, true);
-				SET_MEMBER(debug.force_initial_order, false);
-				on_set(&debug.force_initial_order);
+				if(debug.force_initial_order) {
+					SET_MEMBER(debug.force_initial_order, false);
+					on_set(&debug.force_initial_order);
+				}
 				SET_MEMBER(ao_style.enable, false);
 				on_set(&ao_style.enable);
 				handled = true;
@@ -326,8 +332,10 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(render.style.use_cubic_tangents, true);
 				SET_MEMBER(render.style.use_conservative_depth, true);
 				SET_MEMBER(debug.sort, true);
-				SET_MEMBER(debug.force_initial_order, false);
-				on_set(&debug.force_initial_order);
+				if(debug.force_initial_order) {
+					SET_MEMBER(debug.force_initial_order, false);
+					on_set(&debug.force_initial_order);
+				}
 				SET_MEMBER(ao_style.enable, true);
 				on_set(&ao_style.enable);
 				handled = true;
@@ -1940,7 +1948,7 @@ void tubes::after_finish(context& ctx) {
 
 	if(benchmark.running) {
 		++benchmark.total_frames;
-		double benchmark_time = 10.0;
+		double benchmark_time = 5.0;
 
 		double seconds_since_start = benchmark.timer.get_elapsed_time();
 		double alpha = (seconds_since_start - benchmark.last_seconds_since_start) / benchmark_time;
@@ -2517,16 +2525,19 @@ void tubes::draw_trajectories(context& ctx)
 		fbc.enable(ctx);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		// shear the projection matrix to jitter vertex positions
-		dmat4 m;
-		m.identity();
-
-		vec2 jitter_offset = taa.get_current_jitter_offset();
-		m(0, 2) = jitter_offset.x();
-		m(1, 2) = jitter_offset.y();
-
 		ctx.push_projection_matrix();
-		ctx.mul_projection_matrix(m);
+
+		if(taa.enable_taa) {
+			// shear the projection matrix to jitter vertex positions
+			dmat4 m;
+			m.identity();
+
+			vec2 jitter_offset = taa.get_current_jitter_offset();
+			m(0, 2) = jitter_offset.x();
+			m(1, 2) = jitter_offset.y();
+
+			ctx.mul_projection_matrix(m);
+		}
 
 		// render tubes
 		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
