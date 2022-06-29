@@ -231,6 +231,8 @@ protected:
 
 		/// whether to sort the segments, which is used to boost performance together with conservative depth testing
 		bool sort = true;
+		/// whether to sort only after significant view changes
+		bool lazy_sort = true;
 		/// whether to foirce the initial draw order of segments as defined in the data set (overrides sort setting)
 		bool force_initial_order = false;
 		/// whether to limit the render count
@@ -254,6 +256,9 @@ protected:
 	cgv::glutil::sphere_render_data<> srd;
 	vec3 test_eye = vec3(5.0f, 0.5f, 5.0f);
 	vec3 test_dir = vec3(0.0f, 0.0f, -1.0f);
+
+	vec3 last_sort_pos;
+	vec3 last_sort_dir;
 
 	/// file handling fields
 	struct {
@@ -325,6 +330,7 @@ public:
 	bool init(context& ctx);
 	void init_frame(context& ctx);
 	void draw(context& ctx);
+	void after_finish(context& ctx);
 
 	void create_gui();
 };
