@@ -8,7 +8,11 @@
    1: APPROXIMATE_BILLBOARD
    2: EXACT_POLYGON
    3: BOX_BILLBOARD
-   4: ALIGNED_BOX_BILLBOARD */
+   4: ALIGNED_BOX_BILLBOARD
+   5: BOX_SPLITSIMUL1
+   6: BOX_SPLITSIMUL2
+   7: ALIGNED_BOX_BILLBOARD_SPLITSIMUL1
+   8: ALIGNED_BOX_BILLBOARD_SPLITSIMUL2*/
 #define BOUNDING_GEOMETRY_TYPE 4
 
 /* 0: All attributes in geom->frag interface
@@ -1405,48 +1409,26 @@ void main()
 	Mh[3] = vec4( 1,  0,  0,  0);
 	SM_fs = Bk * Mh;
 #endif
-
+	
 #if !(ATTRIB_MODE & 2)
-	// prepare color attribute
-	const uint color_mid = packUnorm4x8(vec4(mix(n0.color.rgb, n1.color.rgb, 0.5), 1.0));
 	color0_fs = packUnorm4x8(vec4(n0.color.rgb, 1.0));
-	color1_fs = color_mid;
+	color1_fs = packUnorm4x8(vec4(n1.color.rgb, 1.0));
 #endif
-
+	
 #if BOUNDING_GEOMETRY_TYPE==0 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
 	emit_bounding_box(0, qTube0);
-	#if !(ATTRIB_MODE & 2)
-		color0_fs = color_mid;
-		color1_fs = packUnorm4x8(vec4(n1.color.rgb, 1.0));
-	#endif
 	emit_bounding_box(1, qTube1);
 #elif BOUNDING_GEOMETRY_TYPE == 1
 	emit_rounded_cone_billboard(0, qTube0);
-	#if !(ATTRIB_MODE & 2)
-		color0_fs = color_mid;
-		color1_fs = packUnorm4x8(vec4(n1.color.rgb, 1.0));
-	#endif
 	emit_rounded_cone_billboard(1, qTube1);
 #elif BOUNDING_GEOMETRY_TYPE == 2
 	emit_exact_box_polygon(0, qTube0);
-	#if !(ATTRIB_MODE & 2)
-		color0_fs = color_mid;
-		color1_fs = packUnorm4x8(vec4(n1.color.rgb, 1.0));
-	#endif
 	emit_exact_box_polygon(1, qTube1);
 #elif BOUNDING_GEOMETRY_TYPE == 3
 	emit_box_billboard(0, qTube0);
-	#if !(ATTRIB_MODE & 2)
-		color0_fs = color_mid;
-		color1_fs = packUnorm4x8(vec4(n1.color.rgb, 1.0));
-	#endif
 	emit_box_billboard(1, qTube1);
 #else
 	emit_aligned_box_billboard(0, qTube0);
-	#if !(ATTRIB_MODE & 2)
-		color0_fs = color_mid;
-		color1_fs = packUnorm4x8(vec4(n1.color.rgb, 1.0));
-	#endif
 	emit_aligned_box_billboard(1, qTube1);
 #endif
 }
