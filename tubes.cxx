@@ -217,8 +217,10 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(render.style.use_cubic_tangents, false);
 				SET_MEMBER(render.style.use_conservative_depth, false);
 				SET_MEMBER(debug.sort, false);
-				SET_MEMBER(debug.force_initial_order, true);
-				on_set(&debug.force_initial_order);
+				if(!debug.force_initial_order) {
+					SET_MEMBER(debug.force_initial_order, true);
+					on_set(&debug.force_initial_order);
+				}
 				SET_MEMBER(ao_style.enable, false);
 				on_set(&ao_style.enable);
 				handled = true;
@@ -229,8 +231,10 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(render.style.use_cubic_tangents, true);
 				SET_MEMBER(render.style.use_conservative_depth, true);
 				SET_MEMBER(debug.sort, false);
-				SET_MEMBER(debug.force_initial_order, true);
-				on_set(&debug.force_initial_order);
+				if(!debug.force_initial_order) {
+					SET_MEMBER(debug.force_initial_order, true);
+					on_set(&debug.force_initial_order);
+				}
 				SET_MEMBER(ao_style.enable, false);
 				on_set(&ao_style.enable);
 				handled = true;
@@ -241,8 +245,10 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(render.style.use_cubic_tangents, true);
 				SET_MEMBER(render.style.use_conservative_depth, true);
 				SET_MEMBER(debug.sort, true);
-				SET_MEMBER(debug.force_initial_order, false);
-				on_set(&debug.force_initial_order);
+				if(debug.force_initial_order) {
+					SET_MEMBER(debug.force_initial_order, false);
+					on_set(&debug.force_initial_order);
+				}
 				SET_MEMBER(ao_style.enable, false);
 				on_set(&ao_style.enable);
 				handled = true;
@@ -253,8 +259,10 @@ bool tubes::handle_event(cgv::gui::event &e) {
 				SET_MEMBER(render.style.use_cubic_tangents, true);
 				SET_MEMBER(render.style.use_conservative_depth, true);
 				SET_MEMBER(debug.sort, true);
-				SET_MEMBER(debug.force_initial_order, false);
-				on_set(&debug.force_initial_order);
+				if(debug.force_initial_order) {
+					SET_MEMBER(debug.force_initial_order, false);
+					on_set(&debug.force_initial_order);
+				}
 				SET_MEMBER(ao_style.enable, true);
 				on_set(&ao_style.enable);
 				handled = true;
@@ -1406,7 +1414,7 @@ void tubes::init_frame (cgv::render::context &ctx)
 
 	if(benchmark.running) {
 		++benchmark.total_frames;
-		double benchmark_time = 4.0;
+		double benchmark_time = 5.0;
 
 		double seconds_since_start = benchmark.timer.get_elapsed_time();
 		double alpha = (seconds_since_start - benchmark.last_seconds_since_start) / benchmark_time;
