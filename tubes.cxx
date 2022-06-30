@@ -2581,7 +2581,7 @@ void tubes::draw_trajectories(context& ctx)
 
 		// sort the segment indices
 		if(debug.sort && do_sort && !debug.force_initial_order) {
-			benchmark.sort_time_total += render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
+			/*benchmark.sort_time_total += */render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
 			++benchmark.num_sorts;
 		}
 

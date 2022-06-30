@@ -220,8 +220,8 @@ void SplitCurve0(T v0, T d0, T v1, T d1,		\
 	out T v00_out, out T h0_out, out T v10_out)	\
 {												\
 	v00_out = v0;								\
-	h0_out = v0 + d0 * ONE_OVER_THREE;			\
-	const T h1 = v1 - d1 * ONE_OVER_THREE;		\
+	h0_out = v0 + d0 * 0.2667/*ONE_OVER_THREE*/;	\
+	const T h1 = v1 - d1 * 0.2667/*ONE_OVER_THREE*/;	\
 	v10_out = (h0_out + h1) * 0.5;				\
 }
 
@@ -229,8 +229,8 @@ void SplitCurve0(T v0, T d0, T v1, T d1,		\
 void SplitCurve1(T v0, T d0, T v1, T d1,		\
 	out T v01_out, out T h1_out, out T v11_out)	\
 {												\
-	const T h0 = v0 + d0 * ONE_OVER_THREE;		\
-	h1_out = v1 - d1 * ONE_OVER_THREE;			\
+	const T h0 = v0 + d0 * 0.2667/*ONE_OVER_THREE*/;	\
+	h1_out = v1 - d1 * 0.2667/*ONE_OVER_THREE*/;	\
 	v01_out = (h0 + h1_out) * 0.5;				\
 	v11_out = v1;								\
 }

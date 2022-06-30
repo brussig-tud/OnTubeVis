@@ -174,8 +174,8 @@ void SplitCurve(T v0, T d0, T v1, T d1,			\
 	out T v01_out, out T h1_out, out T v11_out)	\
 {												\
 	v00_out = v0;								\
-	h0_out = v0 + d0 * ONE_OVER_THREE;			\
-	T h1 = v1 - d1 * ONE_OVER_THREE;			\
+	h0_out = v0 + d0 * 0.2667/*ONE_OVER_THREE*/;	\
+	T h1 = v1 - d1 * 0.2667/*ONE_OVER_THREE*/;	\
 	v10_out = (h0_out + h1) * 0.5;				\
 												\
 	v01_out = v10_out;							\

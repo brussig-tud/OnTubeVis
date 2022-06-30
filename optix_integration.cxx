@@ -24,6 +24,18 @@
 
 //////
 //
+// Module-private globals
+//
+
+namespace {
+	// current working directory snapshot at module-load time
+	static const std::string cwd = flipped_backslashes(std::filesystem::current_path().string());
+};
+
+
+
+//////
+//
 // Function implementations
 //
 
@@ -34,61 +46,90 @@ std::vector<char> compile_cu2ptx (
 	std::string *log_out                              // [out] the compilation log
 )
 {
-	// CUDA runtime compiler include directories
-	std::string mydir = std::filesystem::path(filename).parent_path().string();
-	if (mydir.empty()) mydir = ".";
+	// figure out absolute path of input file and seperate out the actual filename from overall path
+	const std::filesystem::path
+		filepath(filename), file_component = filepath.filename().string(),
+		path_component = filepath.is_absolute() ?
+			filepath.parent_path() :
+			std::filesystem::absolute(cwd + "/" + filepath.parent_path().string());
+	std::string mydir = flipped_backslashes(path_component.string());
+	if (mydir.back() == '/') mydir.pop_back(); // <-- needed for CUDA include paths below
+	const std::filesystem::path filename_abs = std::filesystem::path(mydir+"/"+file_component.string());
+
+	// check if cached .ptx file exists
+	// -determine cached filename
+	std::filesystem::path filename_ptx = filename_abs;
+	filename_ptx = filename_ptx.replace_extension().string()+name;
+	filename_ptx.replace_extension("ptx");
+	// - perform check, return cached .ptx if it exists
+	std::vector<char> ptx;
+	if (std::filesystem::is_regular_file(filename_ptx))
+	{
+		std::ifstream file(filename_ptx, std::ios::binary);
+		if (!file.good()) {
+			if (log_out)
+				*log_out = "Could not open file '"+filename+"'";
+			return ptx;
+		}
+		ptx = std::vector<char>(std::istreambuf_iterator<char>(file), {});
+		return ptx;
+	}
+
+	// set up CUDA runtime compiler include directories
 	const std::vector<std::string> include_args = {
 		"-I" CUDA_RUNTIME_COMPILER__INC_DIR_CUDA, "-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX,
-		"-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK, "-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK_CUDA,
-		"-I"+mydir
+		"-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK, "-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK_CUDA, "-I"+mydir
 	};
 
 	// adapted from getCuStringFromFile(cu, location, sampleDir, filename)
 	std::string cu;
 	{
-		std::ifstream file(filename, std::ios::binary);
+		std::ifstream file(filename_abs, std::ios::binary);
 		if (!file.good()) {
 			if (log_out)
 				*log_out = "Could not open file '"+filename+"'";
-			return std::vector<char>();
+			return ptx;
 		}
 		std::vector<unsigned char> buffer =
 			std::vector<unsigned char>(std::istreambuf_iterator<char>(file), {});
 		cu.assign(buffer.begin(), buffer.end());
 	}
 
-	// adapted from getPtxFromCuString(*ptx, sampleDir, cu.c_str(), location.c_str(), log, compilerOptions)
-	std::vector<char> ptx;
-	{
-		// create program
-		nvrtcProgram prog = 0;
-		NVRTC_CHECK(nvrtcCreateProgram(&prog, cu.c_str(), name.c_str(), 0, nullptr, nullptr));
+	// create program
+	nvrtcProgram prog = 0;
+	NVRTC_CHECK(nvrtcCreateProgram(&prog, cu.c_str(), name.c_str(), 0, nullptr, nullptr));
 
-		// gather compiler options
-		std::vector<const char*> options;
-		for (const auto &inc : include_args)
-			options.emplace_back(inc.c_str());
-		std::copy(compiler_options.begin(), compiler_options.end(), std::back_inserter(options));
+	// gather compiler options
+	std::vector<const char*> options;
+	for (const auto &inc : include_args)
+		options.emplace_back(inc.c_str());
+	std::copy(compiler_options.begin(), compiler_options.end(), std::back_inserter(options));
 
-		// JIT compile CU to PTX
-		// - the compile call
-		const nvrtcResult compileRes = nvrtcCompileProgram(prog, (int)options.size(), options.data());
-		// - retrieve log output
-		size_t log_size = 0;
-		NVRTC_CHECK(nvrtcGetProgramLogSize(prog, &log_size));
-		if (log_out && log_size > 1) {
-			log_out->resize(log_size);
-			NVRTC_CHECK(nvrtcGetProgramLog(prog, log_out->data()));
-		}
-		// - retrieve PTX code if compilation successful
-		if (compileRes == NVRTC_SUCCESS) {
-			size_t ptx_size = 0;
-			NVRTC_CHECK(nvrtcGetPTXSize(prog, &ptx_size));
-			ptx.resize(ptx_size);
-			NVRTC_CHECK(nvrtcGetPTX(prog, ptx.data()));
-		}
-		// - cleanup
-		NVRTC_CHECK(nvrtcDestroyProgram(&prog));
+	// JIT compile CU to PTX
+	// - the compile call
+	const nvrtcResult compileRes = nvrtcCompileProgram(prog, (int)options.size(), options.data());
+	// - retrieve log output
+	size_t log_size = 0;
+	NVRTC_CHECK(nvrtcGetProgramLogSize(prog, &log_size));
+	if (log_out && log_size > 1) {
+		log_out->resize(log_size);
+		NVRTC_CHECK(nvrtcGetProgramLog(prog, log_out->data()));
+	}
+	// - retrieve PTX code if compilation successful
+	if (compileRes == NVRTC_SUCCESS) {
+		size_t ptx_size = 0;
+		NVRTC_CHECK(nvrtcGetPTXSize(prog, &ptx_size));
+		ptx.resize(ptx_size);
+		NVRTC_CHECK(nvrtcGetPTX(prog, ptx.data()));
+	}
+	// - cleanup
+	NVRTC_CHECK(nvrtcDestroyProgram(&prog));
+
+	// write cached ptx
+	/* local scope */ {
+		std::ofstream file;
+		file.open(filename_ptx, std::ios::out | std::ios::binary);
+		file.write(ptx.data(), ptx.size()-1 /*<-- minus terminating null*/);
 	}
 
 	// done!

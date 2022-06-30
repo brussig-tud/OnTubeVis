@@ -82,8 +82,8 @@ namespace {
 	)
 	{
 		*b0 = p0;
-		*b1 = p0 + _1o3<float>*m0;
-		*g1 = p1 - _1o3<float>*m1;
+		*b1 = p0 + 0.2667f*m0;
+		*g1 = p1 - 0.2667f*m1;
 		*g0 = *b2 = .5f*(*b1 + *g1);
 		*g2 = p1;
 	}
@@ -94,8 +94,8 @@ namespace {
 	)
 	{
 		*b0 = p0;
-		*b1 = p0 + _1o3<T::value_type>*m0;
-		*g1 = p1 - _1o3<T::value_type>*m1;
+		*b1 = p0 + 0.2667f*m0;
+		*g1 = p1 - 0.2667f*m1;
 		*g0 = *b2 = .5f*(*b1 + *g1);
 		*g2 = p1;
 	}
@@ -514,7 +514,7 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM;
 
-		const std::vector<char> ptx = compile_cu2ptx( "optix_curves.cu", "optix_curves",
+		const std::vector<char> ptx = compile_cu2ptx( "optix_curves.cu", "_isect",
 		                                             {CUDA_NVRTC_OPTIONS, "-DOTV_PRIMITIVE_RUSSIG"}, &compiler_log);
 		const size_t            ptx_size = ptx.size();
 		if (!ptx_size)
@@ -945,7 +945,7 @@ bool optixtracer_textured_spline_tube_builtin::update_pipeline (void)
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_QUADRATIC_BSPLINE;
 
-		const std::vector<char> ptx = compile_cu2ptx( "optix_curves.cu", "optix_curves",
+		const std::vector<char> ptx = compile_cu2ptx( "optix_curves.cu", "_rt",
 		                                             {CUDA_NVRTC_OPTIONS, "-DOTV_PRIMITIVE_BUILTIN"}, &compiler_log);
 		const size_t            ptx_size = ptx.size();
 		if (!ptx_size)
@@ -1231,7 +1231,7 @@ bool optixtracer_textured_spline_tube_builtincubic::update_accelds (const traj_m
 		// convert data representation:
 		// - convert Hermite-basis control points to Catmull-Rom basis
 		// - adapt indices to OptiX curve primitive scheme
-		constexpr float mscale = 1.25f; // <-- hand-tuned tangent scaling factor to get results visually closer to split quadratic curves
+		constexpr float mscale = 1.09375f; // <-- hand-tuned tangent scaling factor to get results visually closer to split quadratic curves
 		for (const auto &ds : render_data->datasets) for (const auto &traj : ds.trajs)
 		{
 			const unsigned num_segs = traj.n / 2;
@@ -1245,7 +1245,7 @@ bool optixtracer_textured_spline_tube_builtincubic::update_accelds (const traj_m
 				indices.emplace_back(unsigned(positions.size()));
 				// cr0
 				positions.emplace_back(to_float3(get_cr0(p0, m0, p1)));
-				radii.emplace_back(get_cr0(r0, mscale*t0.w(), r1));
+				radii.emplace_back(get_cr0(r0, /*mscale**/t0.w(), r1));
 				// cr1
 				positions.emplace_back(to_float3(p0));
 				radii.push_back(r0);
@@ -1254,7 +1254,7 @@ bool optixtracer_textured_spline_tube_builtincubic::update_accelds (const traj_m
 				radii.push_back(r1);
 				// cr3
 				positions.emplace_back(to_float3(get_cr3(p0, p1, m1)));
-				radii.emplace_back(get_cr3(r0, r1, mscale*t1.w()));
+				radii.emplace_back(get_cr3(r0, r1, /*mscale**/t1.w()));
 			}
 		}
 	}
@@ -1371,7 +1371,7 @@ bool optixtracer_textured_spline_tube_builtincubic::update_pipeline (void)
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_CATMULLROM;
 
-		const std::vector<char> ptx = compile_cu2ptx( "optix_curves.cu", "optix_curves",
+		const std::vector<char> ptx = compile_cu2ptx( "optix_curves.cu", "_rt3",
 		                                             {CUDA_NVRTC_OPTIONS, "-DOTV_PRIMITIVE_BUILTIN_CUBIC"}, &compiler_log);
 		const size_t            ptx_size = ptx.size();
 		if (!ptx_size)

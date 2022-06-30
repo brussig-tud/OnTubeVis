@@ -111,8 +111,8 @@ protected:
 		optixtracer_textured_spline_tube_builtincubic tracer_builtin_cubic;
 
 		// the intersector/primitive to use for raytracing
-		OptixPrimitive primitive = OPR_RESHETOV;
-		optixtracer_textured_spline_tube *tracer = &tracer_builtin;
+		OptixPrimitive primitive = OPR_RUSSIG;
+		optixtracer_textured_spline_tube *tracer = &tracer_russig;
 
 		// SSBO interop resource handles
 		cudaGraphicsResource *sbo_nodes = nullptr;
