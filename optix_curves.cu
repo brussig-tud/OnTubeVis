@@ -220,8 +220,8 @@ extern "C" __global__ void __intersection__russig (void)
 
 	// perform intersection
 	const Hit hit = EvalSplineISect(
-		optixGetWorldRayOrigin(), /*mul3_mat_vec(params.cam_N, */optixGetWorldRayDirection()/*)*/,  // ray directions in eye-space
-		/*make_float3(nodes_eye[0]), make_float3(nodes_eye[1]), make_float3(nodes_eye[2]), */nodes[0], nodes[1], nodes[2], radii[0], radii[1], radii[2]
+		optixGetWorldRayOrigin(), mul3_mat_vec(params.cam_N, optixGetWorldRayDirection()),  // ray directions in eye-space
+		make_float3(nodes_eye[0]), make_float3(nodes_eye[1]), make_float3(nodes_eye[2])/*, nodes[0], nodes[1], nodes[2]*/, radii[0], radii[1], radii[2]
 	);
 	if (hit.l < pos_inf)
 		// report our intersection

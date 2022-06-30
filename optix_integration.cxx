@@ -35,7 +35,8 @@ std::vector<char> compile_cu2ptx (
 )
 {
 	// CUDA runtime compiler include directories
-	const std::string mydir = std::filesystem::path(filename).parent_path().string();
+	std::string mydir = std::filesystem::path(filename).parent_path().string();
+	if (mydir.empty()) mydir = ".";
 	const std::vector<std::string> include_args = {
 		"-I" CUDA_RUNTIME_COMPILER__INC_DIR_CUDA, "-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX,
 		"-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK, "-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK_CUDA,
