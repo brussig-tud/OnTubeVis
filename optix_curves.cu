@@ -220,8 +220,8 @@ extern "C" __global__ void __intersection__russig (void)
 
 	// perform intersection
 	const Hit hit = EvalSplineISect(
-		/*optixGetWorldRayOrigin(), */mul_mat_vec(params.cam_N, optixGetWorldRayDirection()),  // ray directions in eye-space
-		make_float3(nodes_eye[0]), make_float3(nodes_eye[1]), make_float3(nodes_eye[2]), radii[0], radii[1], radii[2]
+		optixGetWorldRayOrigin(), /*mul3_mat_vec(params.cam_N, */optixGetWorldRayDirection()/*)*/,  // ray directions in eye-space
+		/*make_float3(nodes_eye[0]), make_float3(nodes_eye[1]), make_float3(nodes_eye[2]), */nodes[0], nodes[1], nodes[2], radii[0], radii[1], radii[2]
 	);
 	if (hit.l < pos_inf)
 		// report our intersection
@@ -287,7 +287,7 @@ extern "C" __global__ void __closesthit__ch (void)
 
 	// compute hit normal in eye-space
 	const float3 pos_curve = curve.eval(ts);
-	const float3 normal = normalize(mul_mat_vec(params.cam_N,
+	const float3 normal = normalize(mul3_mat_vec(params.cam_N,
 #ifdef OTV_PRIMITIVE_RUSSIG
 		pos - pos_curve
 #else
@@ -306,13 +306,13 @@ extern "C" __global__ void __closesthit__ch (void)
 	{
 		cubic_interpolator_vec3 curve_orig;
 		curve_orig.from_hermite(n0.pos_rad, n0.tangent, n1.pos_rad, n1.tangent);
-		tangent = normalize(mul_mat_vec(params.cam_N, curve_orig.derive().eval(t)));
+		tangent = normalize(mul3_mat_vec(params.cam_N, curve_orig.derive().eval(t)));
 	}
 	else
 #else
 	const float3
 #endif
-	tangent = normalize(mul_mat_vec(params.cam_N, dcurve.eval(ts)));
+	tangent = normalize(mul3_mat_vec(params.cam_N, dcurve.eval(ts)));
 
 	// calculate pre-shading surface color
 	const float4 color = mix(n0.color, n1.color, t);

@@ -89,7 +89,7 @@ __device__ __forceinline__ unsigned pack_unorm_4x8 (const float4 v)
 }
 
 // set a column of the given 4x4 matrix to the given vector
-__device__ __forceinline__ void set_mat_colp (float *mat, const unsigned col, const float4 &vec)
+__device__ __forceinline__ void set_mat_col (float *mat, const unsigned col, const float4 &vec)
 {
 	*(((float4*)mat) + col) = vec;
 }
@@ -125,7 +125,7 @@ __device__ __forceinline__ const float3& get_mat_col3 (const float* mat, const u
 }
 
 // right-multiply R^3 position vector to 4x4 homogenous transformation matrix, return
-// result as homogenous R^3 position vector with w-component
+// result as homogenous R^3 vector with w-component
 __device__ __forceinline__ float4 mul_mat_pos (const float *mat, const float3 &pos)
 {
 	float4 r;
@@ -135,8 +135,19 @@ __device__ __forceinline__ float4 mul_mat_pos (const float *mat, const float3 &p
 	r.w = mat[3]*pos.x + mat[7]*pos.y + mat[11]*pos.z + mat[15];
 	return r;
 }
+// right-multiply R^3 position vector to 4x4 homogenous transformation matrix, return
+// result as 3D position vector with implied homogenous coordinate w=1
+__device__ __forceinline__ float3 mul3_mat_pos(const float* mat, const float3& pos)
+{
+	float3 r;
+	r.x = mat[0]*pos.x + mat[4]*pos.y + mat[ 8]*pos.z + mat[12];
+	r.y = mat[1]*pos.x + mat[5]*pos.y + mat[ 9]*pos.z + mat[13];
+	r.z = mat[2]*pos.x + mat[6]*pos.y + mat[10]*pos.z + mat[14];
+	return r;
+}
+
 // left-multiply R^3 position vector to 4x4 homogenous transformation matrix, return
-// result as homogenous R^3 position vector with w-component
+// result as homogenous R^3 vector with w-component
 __device__ __forceinline__ float4 mul_pos_mat (const float3 &pos, const float *mat)
 {
 	float4 r;
@@ -146,9 +157,31 @@ __device__ __forceinline__ float4 mul_pos_mat (const float3 &pos, const float *m
 	r.w = mat[12]*pos.x + mat[13]*pos.y + mat[14]*pos.z + mat[15];
 	return r;
 }
+// left-multiply R^3 position vector to 4x4 homogenous transformation matrix, return
+//result as 3D position vector with implied homogenous coordinate w=1
+__device__ __forceinline__ float3 mul3_pos_mat (const float3 &pos, const float *mat)
+{
+	float3 r;
+	r.x = mat[0]*pos.x + mat[1]*pos.y + mat[ 2]*pos.z + mat[ 3];
+	r.y = mat[4]*pos.x + mat[5]*pos.y + mat[ 6]*pos.z + mat[ 7];
+	r.z = mat[8]*pos.x + mat[9]*pos.y + mat[10]*pos.z + mat[11];
+	return r;
+}
 
-// right-multiply R^3 (direction-)vector to 4x4 homogenous transformation matrix
-__device__ __forceinline__ float3 mul_mat_vec (const float *mat, const float3 &vec)
+// right-multiply R^3 (direction-)vector to 4x4 homogenous transformation matrix, return
+// result as homogenous R^3 vector with w-component
+__device__ __forceinline__ float4 mul_mat_vec (const float *mat, const float3 &vec)
+{
+	float4 r;
+	r.x = mat[0]*vec.x + mat[4]*vec.y + mat[ 8]*vec.z;
+	r.y = mat[1]*vec.x + mat[5]*vec.y + mat[ 9]*vec.z;
+	r.z = mat[2]*vec.x + mat[6]*vec.y + mat[10]*vec.z;
+	r.w = mat[3]*vec.x + mat[7]*vec.y + mat[11]*vec.z;
+	return r;
+}
+// right-multiply R^3 (direction-)vector to 4x4 homogenous transformation matrix, return
+// result as 3D direction vector with implied homogenous coordinate w=0
+__device__ __forceinline__ float3 mul3_mat_vec (const float *mat, const float3 &vec)
 {
 	float3 r;
 	r.x = mat[0]*vec.x + mat[4]*vec.y + mat[ 8]*vec.z;
@@ -156,8 +189,21 @@ __device__ __forceinline__ float3 mul_mat_vec (const float *mat, const float3 &v
 	r.z = mat[2]*vec.x + mat[6]*vec.y + mat[10]*vec.z;
 	return r;
 }
+
+// left-multiply R^3 (direction-)vector to 4x4 homogenous transformation matrix, return
+// result as homogenous R^3 vector with w-component
+__device__ __forceinline__ float4 mul_vec_mat (const float3 &vec, const float *mat)
+{
+	float4 r;
+	r.x = mat[ 0]*vec.x + mat[ 1]*vec.y + mat[ 2]*vec.z;
+	r.y = mat[ 4]*vec.x + mat[ 5]*vec.y + mat[ 6]*vec.z;
+	r.z = mat[ 8]*vec.x + mat[ 9]*vec.y + mat[10]*vec.z;
+	r.w = mat[12]*vec.x + mat[13]*vec.y + mat[14]*vec.z;
+	return r;
+}
 // left-multiply R^3 (direction-)vector to 4x4 homogenous transformation matrix
-__device__ __forceinline__ float3 mul_vec_mat (const float3 &vec, const float *mat)
+// result as 3D direction vector with implied homogenous coordinate w=0
+__device__ __forceinline__ float3 mul3_vec_mat (const float3 &vec, const float *mat)
 {
 	float3 r;
 	r.x = mat[0]*vec.x + mat[1]*vec.y + mat[ 2]*vec.z;
@@ -170,8 +216,8 @@ __device__ __forceinline__ float3 mul_vec_mat (const float3 &vec, const float *m
 __device__ __forceinline__ float4 mul_mat_vec (const float *mat, const float4 &vec)
 {
 	float4 r;
-	r.x = mat[0]*vec.x + mat[4]*vec.y + mat[8]*vec.z + mat[12]*vec.w;
-	r.y = mat[1]*vec.x + mat[5]*vec.y + mat[9]*vec.z + mat[13]*vec.w;
+	r.x = mat[0]*vec.x + mat[4]*vec.y + mat[ 8]*vec.z + mat[12]*vec.w;
+	r.y = mat[1]*vec.x + mat[5]*vec.y + mat[ 9]*vec.z + mat[13]*vec.w;
 	r.z = mat[2]*vec.x + mat[6]*vec.y + mat[10]*vec.z + mat[14]*vec.w;
 	r.w = mat[3]*vec.x + mat[7]*vec.y + mat[11]*vec.z + mat[15]*vec.w;
 	return r;
@@ -185,6 +231,15 @@ __device__ __forceinline__ float4 mul_vec_mat (const float4 &vec, const float *m
 	r.z = mat[ 8]*vec.x + mat[ 9]*vec.y + mat[10]*vec.z + mat[11]*vec.w;
 	r.w = mat[12]*vec.x + mat[13]*vec.y + mat[14]*vec.z + mat[15]*vec.w;
 	return r;
+}
+
+// create a system transformation matrix into the given local reference frame from basis vector and origin
+__device__ __forceinline__ void make_local_frame (float *mat, const float3 &x, const float3 &y, const float3 &z, const float3 &o)
+{
+	mat[0] = x.x; mat[4] = x.y; mat[ 8] = x.z;	mat[12] = -x.x*o.x - x.y*o.y - x.z*o.z;
+	mat[1] = y.y; mat[5] = y.y; mat[ 7] = y.y;	mat[13] = -y.x*o.x - y.y*o.y - y.z*o.z;
+	mat[2] = z.z; mat[6] = z.z; mat[10] = z.z;	mat[14] = -z.x*o.x - z.y*o.y - z.z*o.z;
+	mat[3] = 0; mat[7] = 0; mat[11] = 0;	mat[15] = 1;
 }
 
 // apply w-clip to homogenous R^3 vector, returning ordinary R^3 vector

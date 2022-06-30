@@ -90,8 +90,8 @@ float EvalPolyD3_5(const float x, const float *c) { return EvalPoly(x, c[3] * 6.
 
 vec3 EvalCSpline(const vec3 &p1, const vec3 &t1, const vec3 &p2, const vec3 &t2, const float t)
 {
-	vec3 h1 = p1 + _1o3*t1;	// DANGEROUS EDIT!!!
-	vec3 h2 = p2 - _1o3*t2;	// DANGEROUS EDIT!!!
+	vec3 h1 = p1 + _1o3*t1;
+	vec3 h2 = p2 - _1o3*t2;
 
 	vec3 a1 = mix(p1, h1, t);
 	vec3 a2 = mix(h1, h2, t);
@@ -103,7 +103,6 @@ vec3 EvalCSpline(const vec3 &p1, const vec3 &t1, const vec3 &p2, const vec3 &t2,
 	return mix(b1, b2, t);
 }
 
-// DANGEROUS EDIT!!! -----------------------------------------------|---------|
 #define DEF_FINDROOTS_D1(N)                                                                         \
 void FindRootsD1(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_o)                  \
 {	                                                                                                \
@@ -113,13 +112,13 @@ void FindRootsD1(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_
 	unsigned j = 0;                                                                                 \
 	                                                                                                \
 	float x_l = x_i[0];                                                                             \
-	float y_l = EvalPolyD1_5(x_l, poly_C); /* DANGEROUS EDIT!!! */                                  \
-	float sy_l = sign(y_l);  /* DANGEROUS EDIT!!! */                                                \
+	float y_l = EvalPolyD1_5(x_l, poly_C);                                                          \
+	float sy_l = sign(y_l);                                                                         \
                                                                                                     \
 	for(unsigned i = 1; i < N; ++i) {                                                               \
 		float x_r = x_i[i];                                                                         \
-		float y_r = EvalPolyD1_5(x_r, poly_C); /* DANGEROUS EDIT!!! */                              \
-		float sy_r = sign(y_r); /* DANGEROUS EDIT!!! */                                             \
+		float y_r = EvalPolyD1_5(x_r, poly_C);                                                      \
+		float sy_r = sign(y_r);                                                                     \
 		                                                                                            \
 		x_o[i] = 0.f;                                                                               \
 		                                                                                            \
@@ -127,8 +126,8 @@ void FindRootsD1(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_
 			if(sy_l != sy_r) {                                                                      \
 				float n = x_l;                                                                      \
 				float p = x_r;                                                                      \
-				float ny = EvalPolyD1_5(n, poly_C); /* DANGEROUS EDIT!!! */                         \
-				float py = EvalPolyD1_5(p, poly_C); /* DANGEROUS EDIT!!! */                         \
+				float ny = EvalPolyD1_5(n, poly_C);                                                 \
+				float py = EvalPolyD1_5(p, poly_C);                                                 \
 				                                                                                    \
 				if(ny > 0.f && py < 0.f) {                                                          \
 					float t = n;                                                                    \
@@ -137,7 +136,7 @@ void FindRootsD1(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_
 				                                                                                    \
 				for(unsigned j = 0; j < ITERATION_COUNT; ++j) {                                     \
 					float m = (n + p) * 0.5f;                                                       \
-					float f = EvalPolyD1_5(m, poly_C); /* DANGEROUS EDIT!!! */                      \
+					float f = EvalPolyD1_5(m, poly_C);                                              \
 					                                                                                \
 					if(f < 0.f) n = m;                                                              \
 					else p = m;                                                                     \
@@ -161,7 +160,6 @@ void FindRootsD1(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_
 	x_o[N] = x_i[N - 1];                                                                            \
 }
 
-// DANGEROUS EDIT!!! -----------------------------------------------|---------|
 #define DEF_FINDROOTS_D0(N)                                                                         \
 void FindRootsD0(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_o)                  \
 {	                                                                                                \
@@ -171,13 +169,13 @@ void FindRootsD0(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_
 	unsigned j = 0;                                                                                 \
 	                                                                                                \
 	float x_l = x_i[0];                                                                             \
-	float y_l = EvalPolyD0_5(x_l, poly_C); /* DANGEROUS EDIT!!! */                                  \
-	float sy_l = sign(y_l);  /* DANGEROUS EDIT!!! */                                                \
+	float y_l = EvalPolyD0_5(x_l, poly_C);                                                          \
+	float sy_l = sign(y_l);                                                                         \
                                                                                                     \
 	for(unsigned i = 1; i < N; ++i) {                                                               \
 		float x_r = x_i[i];                                                                         \
-		float y_r = EvalPolyD0_5(x_r, poly_C); /* DANGEROUS EDIT!!! */                              \
-		float sy_r = sign(y_r); /* DANGEROUS EDIT!!! */                                             \
+		float y_r = EvalPolyD0_5(x_r, poly_C);                                                      \
+		float sy_r = sign(y_r);                                                                     \
 		                                                                                            \
 		x_o[i] = 0.f;                                                                               \
 		                                                                                            \
@@ -185,8 +183,8 @@ void FindRootsD0(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_
 			if(sy_l != sy_r) {                                                                      \
 				float n = x_l;                                                                      \
 				float p = x_r;                                                                      \
-				float ny = EvalPolyD0_5(n, poly_C); /* DANGEROUS EDIT!!! */                         \
-				float py = EvalPolyD0_5(p, poly_C); /* DANGEROUS EDIT!!! */                         \
+				float ny = EvalPolyD0_5(n, poly_C);                                                 \
+				float py = EvalPolyD0_5(p, poly_C);                                                 \
 				                                                                                    \
 				if(ny > 0.f && py < 0.f) {                                                          \
 					float t = n;                                                                    \
@@ -195,7 +193,7 @@ void FindRootsD0(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_
 				                                                                                    \
 				for(unsigned j = 0; j < ITERATION_COUNT; ++j) {                                     \
 					float m = (n + p) * 0.5f;                                                       \
-					float f = EvalPolyD0_5(m, poly_C); /* DANGEROUS EDIT!!! */                      \
+					float f = EvalPolyD0_5(m, poly_C);                                              \
 					                                                                                \
 					if(f < 0.f) n = m;                                                              \
 					else p = m;                                                                     \
@@ -227,7 +225,7 @@ vec3 GetOrthoVec(const vec3 &v)
     return abs(v.x) > abs(v.z) ? make_float3(-v.y, v.x, 0.f) : make_float3(0.f, -v.z, v.y);
 }
 
-void SplinePointsToPolyCoeffs(float p0, float h, float p1, float *o_c) // <-- DANGEROUS EDIT!!!
+void SplinePointsToPolyCoeffs(float p0, float h, float p1, float *o_c)
 {
 	o_c[0] = p0;
 	o_c[1] = -2.f * p0 + 2.f * h;
@@ -238,15 +236,15 @@ vec3 qSplineEval(float l, float curveX[N0], float curveY[N0], float curveZ[N0])
 {
 	return make_float3(
 		EvalPolyD0_3(l, curveX),
-		EvalPolyD0_3(l, curveY),	// DANGEROUS EDITS!!!
+		EvalPolyD0_3(l, curveY),
 		EvalPolyD0_3(l, curveZ)
 	);
 }
 
 float qSplineIDistEval(float t, float curveX[N0], float polyB_C[N1])
 {		
-	float term  = EvalPolyD0_3(t, curveX);  // DANGEROUS EDITS!!!
-	float discr = EvalPolyD0_5(t, polyB_C); // DANGEROUS EDITS!!!
+	float term  = EvalPolyD0_3(t, curveX);
+	float discr = EvalPolyD0_5(t, polyB_C);
 		
 	if(discr < 0.f) return pos_inf;
 	else return term - sqrt(discr);
@@ -345,7 +343,7 @@ __device__ __forceinline__ float3 mul_vec_mat3 (const float3 &vec, const float *
 	return r;
 }
 
-Hit EvalSplineISect(/*const vec3 &ray_orig, */const vec3 &dir, vec3 s, vec3 h, vec3 t, const float rs, const float rh, const float rt)
+Hit EvalSplineISect(const vec3 &ray_orig, const vec3 &dir, vec3 s, vec3 h, vec3 t, const float rs, const float rh, const float rt)
 {
 	Hit hit;
 	hit.t = 0.f;
@@ -357,10 +355,17 @@ Hit EvalSplineISect(/*const vec3 &ray_orig, */const vec3 &dir, vec3 s, vec3 h, v
 	set_mat3_col(RM3, 0, dir);
 	set_mat3_col(RM3, 1, normalize(GetOrthoVec(dir)));
 	set_mat3_col(RM3, 2, cross(dir, get_mat3_col(RM3, 1)));
+	/*float RS[16];
+	{ const float3 dir_ortho = normalize(GetOrthoVec(dir));
+	  make_local_frame(RS, dir, dir_ortho, cross(dir, dir_ortho), ray_orig); }*/
+
 	// - transform control points
 	s = mul_vec_mat3(s, RM3);
 	t = mul_vec_mat3(t, RM3);
 	h = mul_vec_mat3(h, RM3);
+	/*s = mul3_pos_mat(s, RS);
+	t = mul3_pos_mat(t, RS);
+	h = mul3_pos_mat(h, RS);*/
 
 	float curveX[N0];
 	float curveY[N0];
