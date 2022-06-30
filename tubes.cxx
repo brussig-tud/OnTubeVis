@@ -516,9 +516,16 @@ void tubes::on_set(void *member_ptr) {
 	if (data_set_changed) {
 		render.data = &(traj_mgr.get_render_data());
 		if (from_demo) {
+			// reset from handcrafted AO settings
 			ao_style = ao_style_bak;
 			update_member(&ao_style);
 		}
+
+		// print out attribute statistics
+		std::cerr << "Data attributes:" << std::endl;
+		for (const auto& a : traj_mgr.dataset(0).attributes())
+			std::cerr << " - ["<<a.first<<"] - "<<a.second.get_timestamps().size()<<" samples" << std::endl;
+		std::cerr << std::endl;
 
 		// ###############################
 		// ### BEGIN: OptiX integration
@@ -1459,6 +1466,11 @@ bool tubes::init (cgv::render::context &ctx)
 	);
 	update_attribute_bindings();
 	update_grid_ratios();
+	// - print out attribute statistics
+	std::cerr << "Data attributes:" << std::endl;
+	for (const auto& a : traj_mgr.dataset(0).attributes())
+		std::cerr << " - ["<<a.first<<"] - "<<a.second.get_timestamps().size()<<" samples" << std::endl;
+	std::cerr << std::endl;
 
 	// load sequential color maps from the resource directory
 	std::string color_maps_path = app_path + "res/color_maps/sequential";
@@ -1505,7 +1517,6 @@ bool tubes::init (cgv::render::context &ctx)
 	}
 
 	update_glyph_layer_manager();
-
 	compile_glyph_attribs();
 	ah_mgr.set_dataset(traj_mgr.dataset(0));
 

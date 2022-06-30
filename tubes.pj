@@ -40,6 +40,7 @@ addDefines=[
 ];
 cppLanguageStandard="stdcpp17";
 useOpenMP=1;
+workingDirectory=INPUT_DIR;
 addCommandLineArguments=[
 	'config:"'.INPUT_DIR.'/config.def"',
 	after(
