@@ -1987,9 +1987,9 @@ void tubes::create_gui(void) {
 	add_decorator("Rendering", "heading", "level=1");
 	if (begin_tree_node("OptiX", optix.enabled, false)) {
 		align("\a");
-		add_member_control(this, "Use OptiX raycasting for tube rendering", optix.enabled, "check");
-		add_member_control(this, "Tube primitive", optix.primitive, "dropdown", "enums='Russig,Reshetov,Reshetov cubic'");
-		add_member_control(this, "Output debug visualization", optix.debug, "dropdown", "enums='OFF,albedo,depth,tangent+normal'");
+		add_member_control(this, "Use OptiX Raycasting for Tube Rendering", optix.enabled, "check");
+		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Reshetov,Reshetov cubic'");
+		add_member_control(this, "Output Debug Visualization", optix.debug, "dropdown", "enums='Off,Albedo,Depth,Tangent + Normal'");
 		align("\b");
 		end_tree_node(optix.enabled);
 	}

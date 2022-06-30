@@ -692,11 +692,6 @@ void main()
 			qtube.h.rad = qtube.h.rad;
 			qtube.e.rad = qtube.e.rad;
 		#endif
-		#if ATTRIB_MODE & 2
-			// fetch color from SBO
-			color0 = n0.color.rgb;
-			color1 = mix(n0.color.rgb, n1.color.rgb, 0.5);
-		#endif
 		}
 		else
 		{
@@ -710,12 +705,12 @@ void main()
 			qtube.h.rad = qtube.h.rad;
 			qtube.e.rad = qtube.e.rad;
 		#endif
+		}
 		#if ATTRIB_MODE & 2
 			// fetch color from SBO
-			color0 = mix(n0.color.rgb, n1.color.rgb, 0.5);
+			color0 = n0.color.rgb;
 			color1 = n1.color.rgb;
 		#endif
-		}
 	#else
 		const QTube qtube = qTube_fs;
 	#endif
