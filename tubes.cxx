@@ -516,8 +516,7 @@ void tubes::on_set(void *member_ptr) {
 	if (data_set_changed) {
 		render.data = &(traj_mgr.get_render_data());
 		if (from_demo) {
-			// reset from handcrafted AO settings
-			ao_style = ao_style_bak;
+			ao_style = ao_style_bak;	// reset from handcrafted AO settings
 			update_member(&ao_style);
 		}
 
@@ -563,7 +562,7 @@ void tubes::on_set(void *member_ptr) {
 		if (optix.initialized) {
 			optix.tracer_russig.update_accelds(render.data);
 			optix.tracer_builtin.update_accelds(render.data);
-			optix.tracer_builtin_cubic.update_accelds(render.data);
+			//optix.tracer_builtin_cubic.update_accelds(render.data);
 			optix_register_resources(ctx);
 		}
 
@@ -806,8 +805,8 @@ void tubes::on_set(void *member_ptr) {
 	{
 		if (optix.primitive == OPR_RESHETOV)
 			optix.tracer = &optix.tracer_builtin;
-		else if (optix.primitive == OPR_RESHETOV_CUBIC)
-			optix.tracer = &optix.tracer_builtin_cubic;
+		/*else if (optix.primitive == OPR_RESHETOV_CUBIC)
+			optix.tracer = &optix.tracer_builtin_cubic;*/
 		else
 			optix.tracer = &optix.tracer_russig;
 	}
@@ -1553,7 +1552,7 @@ bool tubes::init (cgv::render::context &ctx)
 void tubes::optix_cleanup (void)
 {
 	optix.tracer_builtin.destroy();
-	optix.tracer_builtin_cubic.destroy();
+	//optix.tracer_builtin_cubic.destroy();
 	CUDA_SAFE_DESTROY_STREAM(optix.stream);
 }
 
@@ -1600,8 +1599,8 @@ bool tubes::optix_ensure_init (context &ctx)
 		success = success && optix.tracer_russig.built();
 		optix.tracer_builtin = optixtracer_textured_spline_tube_builtin::build(optix.context, render.data);
 		success = success && optix.tracer_builtin.built();
-		optix.tracer_builtin_cubic = optixtracer_textured_spline_tube_builtincubic::build(optix.context, render.data);
-		success = success && optix.tracer_builtin_cubic.built();
+		/*optix.tracer_builtin_cubic = optixtracer_textured_spline_tube_builtincubic::build(optix.context, render.data);
+		success = success && optix.tracer_builtin_cubic.built();*/
 		success = success && optix_register_resources(ctx);
 	}
 	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
@@ -2004,7 +2003,7 @@ void tubes::create_gui(void) {
 	if (begin_tree_node("OptiX", optix.enabled, false)) {
 		align("\a");
 		add_member_control(this, "Use OptiX Raycasting for Tube Rendering", optix.enabled, "check");
-		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Reshetov,Reshetov cubic'");
+		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Reshetov'"); // ,Reshetov cubic
 		add_member_control(this, "Output Debug Visualization", optix.debug, "dropdown", "enums='Off,Albedo,Depth,Tangent + Normal'");
 		align("\b");
 		end_tree_node(optix.enabled);
