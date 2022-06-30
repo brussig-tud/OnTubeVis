@@ -1874,6 +1874,8 @@ void tubes::init_frame (cgv::render::context &ctx)
 
 			benchmark.total_frames = 0u;
 			benchmark.last_seconds_since_start = 0.0;
+			benchmark.sort_time_total = 0.0;
+			benchmark.num_sorts = 0;
 		}
 	}
 
@@ -1980,6 +1982,9 @@ void tubes::after_finish(context& ctx) {
 			ss.precision(2);
 			ss << std::fixed;
 			ss << "Average FPS: " << avg_fps << " | " << (1000.0f / avg_fps) << "ms";
+			
+			//ss << std::endl;
+			//ss << "Sorted " << benchmark.num_sorts << " times with mean duration of " << (benchmark.sort_time_total / static_cast<double>(benchmark.num_sorts)) << "ms" << std::endl;
 
 			std::cout << ss.str() << std::endl;
 		}
@@ -2575,8 +2580,10 @@ void tubes::draw_trajectories(context& ctx)
 		}
 
 		// sort the segment indices
-		if(debug.sort && do_sort && !debug.force_initial_order)
-			render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
+		if(debug.sort && do_sort && !debug.force_initial_order) {
+			benchmark.sort_time_total += render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
+			++benchmark.num_sorts;
+		}
 
 		tstr.set_eye_pos(eye_pos);
 		tstr.set_view_dir(view_dir);

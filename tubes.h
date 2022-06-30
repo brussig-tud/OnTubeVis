@@ -395,6 +395,9 @@ protected:
 		unsigned total_frames;
 		/// store last seconds since the start of the run
 		double last_seconds_since_start;
+
+		double sort_time_total = 0.0;
+		unsigned num_sorts = 0;
 	} benchmark;
 
 	/// the different debug render modes
