@@ -37,7 +37,7 @@ mat3 get_inverse_normal_matrix();
 //***** end interface of view.glsl ***********************************
 
 ////***** begin interface of surface.glsl ***********************************
-vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color, int side);
+vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color, int side, float specular_factor);
 ////***** end interface of surface.glsl ***********************************
 
 layout (binding = 0) uniform sampler2D albedo_tex;
@@ -889,7 +889,7 @@ float eval_cubic_hermite(float t, in vec4 Bk)
 }
 
 #define DEF_SPLAT_COLOR(I) \
-vec4 splat_color##I(in int gid, in vec2 p, in int color_map_idx, in int float_base_idx, in int color_base_idx, in int mapping_base_idx) { \
+vec4 splat_color##I(in int gid, in vec2 p, in int color_map_idx, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, out float non_outline_factor) { \
 	float itype = glyph_cf_param[float_base_idx]; \
 	int i0, i1;\
 	if(p.x < glyphs##I[gid].s) { \
@@ -927,6 +927,7 @@ vec4 splat_color##I(in int gid, in vec2 p, in int color_map_idx, in int float_ba
 		val = eval_cubic_hermite(t, Bk); \
 		val = clamp(val, 0.0, 1.0); \
 	} \
+	non_outline_factor = 1; \
 	return vec4(color_map_idx > -1 ? map_to_color(val, color_map_idx) : vec3(0.0), 1.0); \
 }
 	//return vec4(val < 0.0 ? vec3(-val, 0.0,  0.0) : vec3(0.0, val, 0.0), 1.0); \
@@ -1032,7 +1033,7 @@ vec4 splat_line_plot##I(in int gid, in vec2 p, in int float_base_idx, in int col
 
 
 #define DEF_SPLAT_LINE_PLOT(I, N) \
-vec4 splat_line_plot##I(in int gid, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline) { \
+vec4 splat_line_plot##I(in int gid, in vec2 p, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline, out float non_outline_factor) { \
 	int idx = int(float(N) * (0.5*p.y + 0.5)); \
 	idx = min(idx, N - 1); \
 	\
@@ -1087,9 +1088,11 @@ vec4 splat_line_plot##I(in int gid, in vec2 p, in int float_base_idx, in int col
 	vec3 glyph_color = glyph_cc_param[color_base_idx + idx]; \
 	\
 	if(outline < 0.01) { \
+		non_outline_factor = 1; \
 		return vec4(glyph_color, alpha.x); \
 	} else { \
 		vec4 color = vec4(vec3(0.0), alpha.y); \
+		non_outline_factor = 1.0-(alpha.y*(1.0-alpha.x)); \
 		return mix(color, vec4(glyph_color, 1.0), alpha.x); \
 	} \
 }
@@ -1181,7 +1184,7 @@ DEF_SPLAT_LINE_PLOT(3, L3_MAPPED_ATTRIB_COUNT);
 
 
 #define DEF_SPLAT_TEMPORAL_HEAT_MAP(I, N) \
-vec4 splat_temporal_heat_map##I(in int gid, in vec2 p, in int color_map_idx, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline) { \
+vec4 splat_temporal_heat_map##I(in int gid, in vec2 p, in int color_map_idx, in int float_base_idx, in int color_base_idx, in int mapping_base_idx, in float outline, out float non_outline_factor) { \
 	int idx = int(float(N) * (0.5*p.y + 0.5)); \
 	idx = min(idx, N - 1); \
 	\
@@ -1233,8 +1236,11 @@ vec4 splat_temporal_heat_map##I(in int gid, in vec2 p, in int color_map_idx, in 
 	const float antialias_width = general_settings.antialias_radius*fwidth(dist); \
 	float alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist); \
 	vec3 glyph_color = color_map_idx > -1 ? map_to_color(val, color_map_idx) : vec3(0.0); \
-	if(outline >= 0.01) \
+	if(outline >= 0.01) { \
+		non_outline_factor = alpha; \
 		glyph_color = mix(vec3(0.0), vec3(glyph_color), alpha); \
+	} \
+	non_outline_factor = 1; \
 	return vec4(glyph_color, 1.0); \
 }
 
@@ -1291,7 +1297,7 @@ float digit(vec2 uv, uint num) {
 	}
 */
 
-vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color, in float outline) {
+vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color, in float outline, out float non_outline_factor) {
 	
 	// debug only
 	// show otherwise not drawn glyphs
@@ -1310,9 +1316,11 @@ vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color,
 	vec2 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist2);
 	alpha *= alpha_fac;
 	if(outline < 0.01) {
+		non_outline_factor = 1;
 		return vec4(glyph_color, alpha.x);
 	} else {
 		vec4 color = vec4(vec3(0.0), alpha.y);
+		non_outline_factor = 1.0-(alpha.y*(1.0-alpha.x));
 		return mix(color, vec4(glyph_color, 1.0), alpha.x);
 	}
 
@@ -1378,6 +1386,7 @@ void main()
 	vec3 normal_eye = texture(normal_tex, texcoord_fs).xyz;
 	vec3 tangent_eye = texture(tangent_tex, texcoord_fs).xyz;
 	float depth = texture(depth_tex, texcoord_fs).r;
+	float specular_factor = 1;
 
 	if(depth == 1.0) {
 		// TODO: these fragments are never drawn to the screen (because depth is one)
@@ -1412,7 +1421,9 @@ void main()
 					glyphuv.t
 				);
 
+				float non_outline_factor = 1;
 				L0_GLYPH_DEFINITION
+				specular_factor = non_outline_factor*0.25;
 			}
 		}
 #endif
@@ -1430,7 +1441,9 @@ void main()
 					glyphuv.t
 				);
 
+				float non_outline_factor = 1;
 				L1_GLYPH_DEFINITION
+				specular_factor = specular_factor > 0 ? non_outline_factor*0.25 : specular_factor;
 			}
 		}
 #endif
@@ -1448,7 +1461,9 @@ void main()
 					glyphuv.t
 				);
 
+				float non_outline_factor = 1;
 				L2_GLYPH_DEFINITION
+				specular_factor = specular_factor > 0 ? non_outline_factor*0.25 : specular_factor;
 			}
 		}
 #endif
@@ -1466,7 +1481,9 @@ void main()
 					glyphuv.t
 				);
 
+				float non_outline_factor = 1;
 				L3_GLYPH_DEFINITION
+				specular_factor = specular_factor > 0 ? non_outline_factor*0.25 : specular_factor;
 			}
 		}
 #endif
@@ -1484,14 +1501,14 @@ void main()
 		color = mix(color, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
 #endif
 
-		frag_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(color, 1.0), 1);
+		frag_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(color, 1.0), 1, specular_factor);
 
 #if GRID_MODE & 2
 		vec3 gn = compute_grid_normal(uv);
 		vec3 bitangent_eye = cross(normal_eye, tangent_eye);
 		mat3 TBN = mat3(tangent_eye, bitangent_eye, normal_eye);
 		vec3 normal_eye_bump = mix(normal_eye, normalize(TBN * gn), normal_mapping_scale);
-		vec4 frag_color_bump = compute_reflected_appearance(pos_eye, normal_eye_bump, vec4(color, 1.0), 1);
+		vec4 frag_color_bump = compute_reflected_appearance(pos_eye, normal_eye_bump, vec4(color, 1.0), 1, specular_factor);
 		//color = 0.5*gn+0.5;
 		float aa_factor = min(aa_texture(grids[0].scaling*uv, grids[0].thickness, 0.5) + aa_texture(grids[1].scaling*uv, grids[1].thickness, 0.5), 1);
 		frag_color = mix(frag_color, frag_color_bump, aa_factor);

@@ -178,7 +178,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				if(color_parameter_strs.size() > 0)
 					color_str = color_parameter_strs[0];
 
-				splat_func = "splat_generic_glyph(glyph.debug_info, " + glyph_func + ", " + color_str + + ", " + glyph_outline_str + ")";
+				splat_func = "splat_generic_glyph(glyph.debug_info, " + glyph_func + ", " + color_str + + ", " + glyph_outline_str + ", non_outline_factor)";
 			} else {
 				// This is a special glyph.
 				// It uses its own splat function and value handling is fully manual.
@@ -192,7 +192,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				{
 					splat_func += layer_id + "(closest.id, uv, " + std::to_string(color_map_indices[1]) + ", ";
 					splat_func += index_params_string;
-					splat_func += ")";
+					splat_func += ", non_outline_factor)";
 				} break;
 				case GT_STAR:
 				{
@@ -205,14 +205,14 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					splat_func += layer_id + "(closest.id, uv, ";
 					splat_func += index_params_string + ", ";
 					splat_func += glyph_outline_str;
-					splat_func += ")";
+					splat_func += ", non_outline_factor)";
 				} break;
 				case GT_TEMPORAL_HEAT_MAP:
 				{
 					splat_func += layer_id + "(closest.id, uv, " + std::to_string(color_map_indices[2]) + ", ";
 					splat_func += index_params_string + ", ";
 					splat_func += glyph_outline_str;
-					splat_func += ")";
+					splat_func += ", non_outline_factor)";
 				} break;
 				default: break;
 				}
