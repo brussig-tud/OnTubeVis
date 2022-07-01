@@ -1820,13 +1820,12 @@ void tubes::init_frame (cgv::render::context &ctx)
 		view_ptr->set_view_up_dir(0, 1, 0);
 
 	// keep the framebuffer up to date with the viewport size
-	// TODO: check for changes and reset accumulation
 	bool updated = false;
-	updated = updated || fbc.ensure(ctx);
-	updated = updated || fbc_shading.ensure(ctx);
-	updated = updated || fbc_post.ensure(ctx);
-	updated = updated || fbc_hist.ensure(ctx);
-	updated = updated || fbc_final.ensure(ctx);
+	if(fbc.ensure(ctx)) updated = true;
+	if(fbc_shading.ensure(ctx)) updated = true;
+	if(fbc_post.ensure(ctx)) updated = true;
+	if(fbc_hist.ensure(ctx)) updated = true;
+	if(fbc_final.ensure(ctx)) updated = true;
 	if(updated) {
 		taa.reset();
 
