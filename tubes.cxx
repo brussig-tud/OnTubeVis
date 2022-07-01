@@ -36,7 +36,9 @@
 // ###############################
 
 void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* cbdata */) {
-	std::cerr << "["<<std::setw(2)<<lvl<<"]["<<std::setw(12)<<tag<<"]: " << msg << std::endl;
+	// hide compile feedback
+	if (cgv::utils::to_upper(tag).compare("COMPILE FEEDBACK"))
+		std::cerr << "["<<std::setw(2)<<lvl<<"]["<<std::setw(12)<<tag<<"]: " << msg << std::endl;
 }
 
 // ###############################
