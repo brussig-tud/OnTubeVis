@@ -68,14 +68,36 @@ bool color_map_manager::update_texture(cgv::render::context& ctx) {
 
 	std::vector<uint8_t> data(3 * color_maps.size() * res);
 
+	/*const auto step = [](float edge, float x) {
+		if(x < edge) return 0.0f;
+		return 1.0f;
+	};
+
+	const auto rgb2hsv = [step](rgb c) {
+		vec4 K = vec4(0.0f, -1.0f / 3.0f, 2.0f / 3.0f, -1.0f);
+		vec4 p = cgv::math::lerp(vec4(c.B(), c.G(), K.w(), K.z()), vec4(c.G(), c.B(), K.x(), K.y()), step(c.B(), c.G()));
+		vec4 q = cgv::math::lerp(vec4(p.x(), p.y(), p.w(), c.R()), vec4(c.R(), p.y(), p.z(), p.x()), step(p.x(), c.R()));
+
+		float d = q.x() - std::min(q.w(), q.y());
+		float e = 1.0e-10;
+		return vec3(abs(q.z() + (q.w() - q.y()) / (6.0f * d + e)), d / (q.x() + e), q.x());
+	};*/
+
 	size_t base_idx = 0;
 	for(size_t i = 0; i < color_maps.size(); ++i) {
 		std::vector<rgb> cm_data = color_maps[i].cm.interpolate_color(static_cast<size_t>(res));
 
 		for(size_t j = 0; j < res; ++j) {
-			data[base_idx + 0] = static_cast<uint8_t>(255.0f * cm_data[j].R());
-			data[base_idx + 1] = static_cast<uint8_t>(255.0f * cm_data[j].G());
-			data[base_idx + 2] = static_cast<uint8_t>(255.0f * cm_data[j].B());
+			rgb color = cm_data[j];
+			/*
+			vec3 hsv = rgb2hsv(cm_data[j]);
+			data[base_idx + 0] = static_cast<uint8_t>(255.0f * hsv.x());
+			data[base_idx + 1] = static_cast<uint8_t>(255.0f * hsv.y());
+			data[base_idx + 2] = static_cast<uint8_t>(255.0f * hsv.z());
+			*/
+			data[base_idx + 0] = static_cast<uint8_t>(255.0f * color.R());
+			data[base_idx + 1] = static_cast<uint8_t>(255.0f * color.G());
+			data[base_idx + 2] = static_cast<uint8_t>(255.0f * color.B());
 			base_idx += 3;
 		}
 	}
