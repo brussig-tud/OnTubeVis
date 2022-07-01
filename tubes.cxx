@@ -2790,7 +2790,7 @@ void tubes::draw_trajectories(context& ctx)
 
 			resolve_prog.set_uniform(ctx, "curr_projection_matrix", curr_projection_matrix);
 			resolve_prog.set_uniform(ctx, "curr_eye_to_prev_clip_matrix", taa.prev_modelview_projection_matrix * inv(curr_modelview_matrix));
-			resolve_prog.set_uniform(ctx, "settings.use_velocity", taa.use_velocity);
+			resolve_prog.set_uniform(ctx, "settings.use_velocity", taa.use_velocity && clip_enabled);
 			resolve_prog.set_uniform(ctx, "settings.closest_depth", taa.closest_depth);
 			resolve_prog.set_uniform(ctx, "settings.clip_color", taa.clip_color && clip_enabled);
 
