@@ -105,10 +105,10 @@ protected:
 		optixtracer_textured_spline_tube_russig tracer_russig;
 
 		// Optix-builtin phantom-ray-hair-intersector for disc-based quadratic spline tubes
-		optixtracer_textured_spline_tube_builtin tracer_builtin;
+		optixtracer_textured_spline_tube_reshetov tracer_reshetov;
 
 		// Optix-builtin phantom-ray-hair-intersector for disc-based cubic spline tubes
-		//optixtracer_textured_spline_tube_builtincubic tracer_builtin_cubic;
+		//optixtracer_textured_spline_tube_reshetovcubic tracer_reshetov_cubic;
 
 		// the intersector/primitive to use for raytracing
 		OptixPrimitive primitive = OPR_RUSSIG;

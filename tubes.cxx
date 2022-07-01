@@ -561,8 +561,8 @@ void tubes::on_set(void *member_ptr) {
 
 		if (optix.initialized) {
 			optix.tracer_russig.update_accelds(render.data);
-			optix.tracer_builtin.update_accelds(render.data);
-			//optix.tracer_builtin_cubic.update_accelds(render.data);
+			optix.tracer_reshetov.update_accelds(render.data);
+			//optix.tracer_reshetov_cubic.update_accelds(render.data);
 			optix_register_resources(ctx);
 		}
 
@@ -804,9 +804,9 @@ void tubes::on_set(void *member_ptr) {
 	if (member_ptr == &optix.primitive)
 	{
 		if (optix.primitive == OPR_RESHETOV)
-			optix.tracer = &optix.tracer_builtin;
+			optix.tracer = &optix.tracer_reshetov;
 		/*else if (optix.primitive == OPR_RESHETOV_CUBIC)
-			optix.tracer = &optix.tracer_builtin_cubic;*/
+			optix.tracer = &optix.tracer_reshetov_cubic;*/
 		else
 			optix.tracer = &optix.tracer_russig;
 	}
@@ -1551,8 +1551,8 @@ bool tubes::init (cgv::render::context &ctx)
 
 void tubes::optix_cleanup (void)
 {
-	optix.tracer_builtin.destroy();
-	//optix.tracer_builtin_cubic.destroy();
+	optix.tracer_reshetov.destroy();
+	//optix.tracer_reshetov_cubic.destroy();
 	CUDA_SAFE_DESTROY_STREAM(optix.stream);
 }
 
@@ -1597,10 +1597,10 @@ bool tubes::optix_ensure_init (context &ctx)
 	if (traj_mgr.has_data()) {
 		optix.tracer_russig = optixtracer_textured_spline_tube_russig::build(optix.context, render.data);
 		success = success && optix.tracer_russig.built();
-		optix.tracer_builtin = optixtracer_textured_spline_tube_builtin::build(optix.context, render.data);
-		success = success && optix.tracer_builtin.built();
-		/*optix.tracer_builtin_cubic = optixtracer_textured_spline_tube_builtincubic::build(optix.context, render.data);
-		success = success && optix.tracer_builtin_cubic.built();*/
+		optix.tracer_reshetov = optixtracer_textured_spline_tube_reshetov::build(optix.context, render.data);
+		success = success && optix.tracer_reshetov.built();
+		/*optix.tracer_reshetov_cubic = optixtracer_textured_spline_tube_reshetovcubic::build(optix.context, render.data);
+		success = success && optix.tracer_reshetov_cubic.built();*/
 		success = success && optix_register_resources(ctx);
 	}
 	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());

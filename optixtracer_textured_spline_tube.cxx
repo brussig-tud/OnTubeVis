@@ -687,27 +687,27 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 
 
 ////
-// optixtracer_textured_spline_tube_builtin
+// optixtracer_textured_spline_tube_reshetov
 
-optixtracer_textured_spline_tube_builtin::optixtracer_textured_spline_tube_builtin()
+optixtracer_textured_spline_tube_reshetov::optixtracer_textured_spline_tube_reshetov()
 {}
 
-optixtracer_textured_spline_tube_builtin::optixtracer_textured_spline_tube_builtin(
-	optixtracer_textured_spline_tube_builtin &&other
+optixtracer_textured_spline_tube_reshetov::optixtracer_textured_spline_tube_reshetov(
+	optixtracer_textured_spline_tube_reshetov &&other
 )
 	: optixtracer_textured_spline_tube(std::move(other))
 {
 	// we don't have any additional data, so just delegate to base...
 }
 
-optixtracer_textured_spline_tube_builtin::~optixtracer_textured_spline_tube_builtin()
+optixtracer_textured_spline_tube_reshetov::~optixtracer_textured_spline_tube_reshetov()
 {
 	// delegate to destroy method
 	destroy();
 }
 
-optixtracer_textured_spline_tube_builtin& optixtracer_textured_spline_tube_builtin::operator= (
-	optixtracer_textured_spline_tube_builtin &&other
+optixtracer_textured_spline_tube_reshetov& optixtracer_textured_spline_tube_reshetov::operator= (
+	optixtracer_textured_spline_tube_reshetov &&other
 )
 {
 	// we don't have any additional data, so just delegate to base
@@ -717,40 +717,40 @@ optixtracer_textured_spline_tube_builtin& optixtracer_textured_spline_tube_built
 	return *this;
 }
 
-void optixtracer_textured_spline_tube_builtin::destroy (void)
+void optixtracer_textured_spline_tube_reshetov::destroy (void)
 {
 	destroy_pipeline();
 	destroy_accelds();
 	context = nullptr;
 }
 
-bool optixtracer_textured_spline_tube_builtin::built (void) const
+bool optixtracer_textured_spline_tube_reshetov::built (void) const
 {
 	// we _must_ be good to go if somehow we ended up with a valid pipeline
 	return lp.pipeline;
 }
 
-optixtracer_textured_spline_tube_builtin optixtracer_textured_spline_tube_builtin::build (
+optixtracer_textured_spline_tube_reshetov optixtracer_textured_spline_tube_reshetov::build (
 	OptixDeviceContext context, const traj_manager<float>::render_data *render_data
 )
 {
-	optixtracer_textured_spline_tube_builtin tracer;
+	optixtracer_textured_spline_tube_reshetov tracer;
 	tracer.context = context;
 	if (!tracer.update_accelds(render_data))
-		return optixtracer_textured_spline_tube_builtin();
+		return optixtracer_textured_spline_tube_reshetov();
 	if (!tracer.update_pipeline())
-		return optixtracer_textured_spline_tube_builtin();
+		return optixtracer_textured_spline_tube_reshetov();
 	tracer.lp.sbt = &tracer.sbt;
 	return tracer;
 }
 
-void optixtracer_textured_spline_tube_builtin::destroy_accelds (void)
+void optixtracer_textured_spline_tube_reshetov::destroy_accelds (void)
 {
 	lp.accelds = 0; // ToDo: check if we can really leave the accelds handle dangling like this (there appears to be no destroy function for it?)
 	CUDA_SAFE_FREE(accelds_mem);
 }
 
-void optixtracer_textured_spline_tube_builtin::destroy_pipeline (void)
+void optixtracer_textured_spline_tube_reshetov::destroy_pipeline (void)
 {
 	CUDA_SAFE_FREE(lp.params); lp.params_size = 0;
 	OPTIX_SAFE_DESTROY_PIPELINE(lp.pipeline);
@@ -762,7 +762,7 @@ void optixtracer_textured_spline_tube_builtin::destroy_pipeline (void)
 	sbt = {}; lp.sbt = nullptr;
 }
 
-bool optixtracer_textured_spline_tube_builtin::update_accelds (const traj_manager<float>::render_data *render_data)
+bool optixtracer_textured_spline_tube_reshetov::update_accelds (const traj_manager<float>::render_data *render_data)
 {
 	// make sure we start with a blank slate
 	destroy_accelds();
@@ -902,7 +902,7 @@ bool optixtracer_textured_spline_tube_builtin::update_accelds (const traj_manage
 	return success;
 }
 
-bool optixtracer_textured_spline_tube_builtin::update_pipeline (void)
+bool optixtracer_textured_spline_tube_reshetov::update_pipeline (void)
 {
 	////
 	// Prelude
@@ -1125,27 +1125,27 @@ bool optixtracer_textured_spline_tube_builtin::update_pipeline (void)
 
 
 ////
-// optixtracer_textured_spline_tube_builtincubic
+// optixtracer_textured_spline_tube_reshetovcubic
 
-optixtracer_textured_spline_tube_builtincubic::optixtracer_textured_spline_tube_builtincubic()
+optixtracer_textured_spline_tube_reshetovcubic::optixtracer_textured_spline_tube_reshetovcubic()
 {}
 
-optixtracer_textured_spline_tube_builtincubic::optixtracer_textured_spline_tube_builtincubic(
-	optixtracer_textured_spline_tube_builtincubic &&other
+optixtracer_textured_spline_tube_reshetovcubic::optixtracer_textured_spline_tube_reshetovcubic(
+	optixtracer_textured_spline_tube_reshetovcubic &&other
 )
 	: optixtracer_textured_spline_tube(std::move(other))
 {
 	// we don't have any additional data, so just delegate to base...
 }
 
-optixtracer_textured_spline_tube_builtincubic::~optixtracer_textured_spline_tube_builtincubic()
+optixtracer_textured_spline_tube_reshetovcubic::~optixtracer_textured_spline_tube_reshetovcubic()
 {
 	// delegate to destroy method
 	destroy();
 }
 
-optixtracer_textured_spline_tube_builtincubic& optixtracer_textured_spline_tube_builtincubic::operator= (
-	optixtracer_textured_spline_tube_builtincubic &&other
+optixtracer_textured_spline_tube_reshetovcubic& optixtracer_textured_spline_tube_reshetovcubic::operator= (
+	optixtracer_textured_spline_tube_reshetovcubic &&other
 )
 {
 	// we don't have any additional data, so just delegate to base
@@ -1155,40 +1155,40 @@ optixtracer_textured_spline_tube_builtincubic& optixtracer_textured_spline_tube_
 	return *this;
 }
 
-void optixtracer_textured_spline_tube_builtincubic::destroy (void)
+void optixtracer_textured_spline_tube_reshetovcubic::destroy (void)
 {
 	destroy_pipeline();
 	destroy_accelds();
 	context = nullptr;
 }
 
-bool optixtracer_textured_spline_tube_builtincubic::built (void) const
+bool optixtracer_textured_spline_tube_reshetovcubic::built (void) const
 {
 	// we _must_ be good to go if somehow we ended up with a valid pipeline
 	return lp.pipeline;
 }
 
-optixtracer_textured_spline_tube_builtincubic optixtracer_textured_spline_tube_builtincubic::build (
+optixtracer_textured_spline_tube_reshetovcubic optixtracer_textured_spline_tube_reshetovcubic::build (
 	OptixDeviceContext context, const traj_manager<float>::render_data *render_data
 )
 {
-	optixtracer_textured_spline_tube_builtincubic tracer;
+	optixtracer_textured_spline_tube_reshetovcubic tracer;
 	tracer.context = context;
 	if (!tracer.update_accelds(render_data))
-		return optixtracer_textured_spline_tube_builtincubic();
+		return optixtracer_textured_spline_tube_reshetovcubic();
 	if (!tracer.update_pipeline())
-		return optixtracer_textured_spline_tube_builtincubic();
+		return optixtracer_textured_spline_tube_reshetovcubic();
 	tracer.lp.sbt = &tracer.sbt;
 	return tracer;
 }
 
-void optixtracer_textured_spline_tube_builtincubic::destroy_accelds (void)
+void optixtracer_textured_spline_tube_reshetovcubic::destroy_accelds (void)
 {
 	lp.accelds = 0; // ToDo: check if we can really leave the accelds handle dangling like this (there appears to be no destroy function for it?)
 	CUDA_SAFE_FREE(accelds_mem);
 }
 
-void optixtracer_textured_spline_tube_builtincubic::destroy_pipeline (void)
+void optixtracer_textured_spline_tube_reshetovcubic::destroy_pipeline (void)
 {
 	CUDA_SAFE_FREE(lp.params); lp.params_size = 0;
 	OPTIX_SAFE_DESTROY_PIPELINE(lp.pipeline);
@@ -1200,7 +1200,7 @@ void optixtracer_textured_spline_tube_builtincubic::destroy_pipeline (void)
 	sbt = {}; lp.sbt = nullptr;
 }
 
-bool optixtracer_textured_spline_tube_builtincubic::update_accelds (const traj_manager<float>::render_data *render_data)
+bool optixtracer_textured_spline_tube_reshetovcubic::update_accelds (const traj_manager<float>::render_data *render_data)
 {
 	// make sure we start with a blank slate
 	destroy_accelds();
@@ -1328,7 +1328,7 @@ bool optixtracer_textured_spline_tube_builtincubic::update_accelds (const traj_m
 	return success;
 }
 
-bool optixtracer_textured_spline_tube_builtincubic::update_pipeline (void)
+bool optixtracer_textured_spline_tube_reshetovcubic::update_pipeline (void)
 {
 	////
 	// Prelude
