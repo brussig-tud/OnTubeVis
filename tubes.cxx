@@ -94,6 +94,7 @@ tubes::tubes() : application_plugin("Tubes")
 	const std::string color_format = "flt32[R,G,B,A]";
 	//const std::string color_format = "uint8[R,G,B]";
 
+	fbc_shading.add_attachment("depth", "[D]");
 	fbc_shading.add_attachment("color", color_format);
 
 	fbc_post.add_attachment("color", color_format);
@@ -2639,7 +2640,7 @@ void tubes::draw_trajectories(context& ctx)
 		// only render into the shading framebuffer if we are using taa - otherwise render directly to the screen
 		if(taa.enable_taa) {
 			fbc_shading.enable(ctx);
-			glDepthFunc(GL_ALWAYS);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		}
 		
 		shader_program& prog = shaders.get("tube_shading");
@@ -2741,6 +2742,8 @@ void tubes::draw_trajectories(context& ctx)
 			// if we are not using taa we are done here
 			return;
 		}
+
+		glDepthFunc(GL_ALWAYS);
 
 		// perform a pass of fast approximate anti-aliasing (FXAA) befor the temporal accumulation
 		if(taa.enable_fxaa) {
