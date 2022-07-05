@@ -27,9 +27,8 @@
 // local includes
 #include "arclen_helper.h"
 #include "glyph_compiler.h"
+#ifdef RTX_SUPPORT
 #include "optix_curves.h"
-
-
 
 // ###############################
 // ### BEGIN: OptiX integration
@@ -44,6 +43,7 @@ void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* 
 // ###############################
 // ###  END:  OptiX integration
 // ###############################
+#endif
 
 
 // TODO: grid_mode enum does not get set properly thorugh config, because it is reflected as a boolean
@@ -143,7 +143,7 @@ tubes::tubes() : application_plugin("Tubes")
 	debug.segment_rs.rounded_caps = true;
 
 	connect(cgv::gui::get_animation_trigger().shoot, this, &tubes::timer_event);
-
+#ifdef RTX_SUPPORT
 	// ###############################
 	// ### BEGIN: OptiX integration
 	// ###############################
@@ -154,10 +154,12 @@ tubes::tubes() : application_plugin("Tubes")
 	// ###############################
 	// ###  END:  OptiX integration
 	// ###############################
+#endif
 }
 
 tubes::~tubes()
 {
+#ifdef RTX_SUPPORT
 	// ###############################
 	// ### BEGIN: OptiX integration
 	// ###############################
@@ -175,6 +177,7 @@ tubes::~tubes()
 	// ###############################
 	// ###  END:  OptiX integration
 	// ###############################
+#endif
 }
 
 void tubes::handle_args (std::vector<std::string> &args)
@@ -244,9 +247,11 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("grid_normal_inwards", grid_normal_inwards) &&
 		rh.reflect_member("grid_normal_variant", grid_normal_variant) &&
 		rh.reflect_member("voxelize_gpu", voxelize_gpu) &&
+#ifdef RTX_SUPPORT
 		rh.reflect_member("use_optix", optix.enabled) &&
 		rh.reflect_member("optix_primitive", optix.primitive) &&
 		rh.reflect_member("optix_debug_mode", optix.debug) &&
+#endif
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
@@ -528,7 +533,7 @@ void tubes::on_set(void *member_ptr) {
 		for (const auto& a : traj_mgr.dataset(0).attributes())
 			std::cerr << " - ["<<a.first<<"] - "<<a.second.get_timestamps().size()<<" samples" << std::endl;
 		std::cerr << std::endl;
-
+#ifdef RTX_SUPPORT
 		// ###############################
 		// ### BEGIN: OptiX integration
 		// ###############################
@@ -539,7 +544,7 @@ void tubes::on_set(void *member_ptr) {
 		// ###############################
 		// ###  END:  OptiX integration
 		// ###############################
-
+#endif
 		update_attribute_bindings();
 		update_grid_ratios();
 
@@ -557,7 +562,7 @@ void tubes::on_set(void *member_ptr) {
 		fh.has_unsaved_changes = false;
 		update_member(&fh.file_name);
 		on_set(&fh.has_unsaved_changes);
-
+#ifdef RTX_SUPPORT
 		// ###############################
 		// ### BEGIN: OptiX integration
 		// ###############################
@@ -572,7 +577,7 @@ void tubes::on_set(void *member_ptr) {
 		// ###############################
 		// ###  END:  OptiX integration
 		// ###############################
-
+#endif
 		post_recreate_gui();
 	}
 
@@ -796,6 +801,7 @@ void tubes::on_set(void *member_ptr) {
 		update_member(&test_dir[2]);
 	}
 
+#ifdef RTX_SUPPORT
 	// ###############################
 	// ### BEGIN: OptiX integration
 	// ###############################
@@ -817,6 +823,7 @@ void tubes::on_set(void *member_ptr) {
 	// ###############################
 	// ###  END:  OptiX integration
 	// ###############################
+#endif
 
 	// default implementation for all members
 	// - remaining logic
@@ -1527,7 +1534,7 @@ bool tubes::init (cgv::render::context &ctx)
 	// use white background for paper screenshots
 	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
 
-
+#ifdef RTX_SUPPORT
 	// ###############################
 	// ### BEGIN: OptiX integration
 	// ###############################
@@ -1541,13 +1548,14 @@ bool tubes::init (cgv::render::context &ctx)
 	// ###############################
 	// ###  END:  OptiX integration
 	// ###############################
+#endif
 
 
 	// done
 	return success;
 }
 
-
+#ifdef RTX_SUPPORT
 // ###############################
 // ### BEGIN: OptiX integration
 // ###############################
@@ -1783,7 +1791,7 @@ void tubes::optix_draw_trajectories (context &ctx)
 // ###############################
 // ###  END:  OptiX integration
 // ###############################
-
+#endif
 
 void tubes::init_frame (cgv::render::context &ctx)
 {
@@ -1836,7 +1844,7 @@ void tubes::init_frame (cgv::render::context &ctx)
 		);
 		taa.generate_jitter_offsets(viewport_size);
 	}
-
+#ifdef RTX_SUPPORT
 	// ###############################
 	// ### BEGIN: OptiX integration
 	// ###############################
@@ -1855,7 +1863,7 @@ void tubes::init_frame (cgv::render::context &ctx)
 	// ###############################
 	// ###  END:  OptiX integration
 	// ###############################
-
+#endif
 	// query the current viewport dimensions as this is needed for multiple draw methods
 	glGetIntegerv(GL_VIEWPORT, viewport);
 
@@ -2002,6 +2010,7 @@ void tubes::create_gui(void) {
 
 	// rendering settings
 	add_decorator("Rendering", "heading", "level=1");
+#ifdef RTX_SUPPORT
 	if (begin_tree_node("OptiX", optix.enabled, false)) {
 		align("\a");
 		add_member_control(this, "Use OptiX Raycasting for Tube Rendering", optix.enabled, "check");
@@ -2010,6 +2019,7 @@ void tubes::create_gui(void) {
 		align("\b");
 		end_tree_node(optix.enabled);
 	}
+#endif
 	if (begin_tree_node("Bounds", show_bbox, false)) {
 		align("\a");
 		add_member_control(this, "Color", bbox_style.surface_color);
@@ -2530,13 +2540,19 @@ void tubes::draw_trajectories(context& ctx)
 	tstr.set_render_style(render.style);
 	// - the depth texture to use
 	//   (workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats)
+#ifdef RTX_SUPPORT
 	texture &tex_depth = (optix.enabled && optix.initialized) ? optix.fb.depth : *fbc.attachment_texture_ptr("depth");
+#else
+	texture& tex_depth = *fbc.attachment_texture_ptr("depth");
+#endif
 	// - node attribute data needed by both rasterization and raytracing
 	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
 	// - TAA data that needs to be accessed across local scopes
 	mat4 curr_projection_matrix, curr_modelview_matrix;
 
+#ifdef RTX_SUPPORT
 	if (!optix.enabled || !optix.initialized)
+#endif
 	{
 		// enable drawing framebuffer
 		fbc.enable(ctx);
@@ -2623,6 +2639,7 @@ void tubes::draw_trajectories(context& ctx)
 		// disable the drawing framebuffer
 		fbc.disable(ctx);
 	}
+#ifdef RTX_SUPPORT
 	else
 	{
 		// delegate to OptiX raytracing
@@ -2631,9 +2648,11 @@ void tubes::draw_trajectories(context& ctx)
 		// workaround for weird framework material behavior
 		tstr.enable(ctx); tstr.disable(ctx);
 	}
-
+#endif
+#ifdef RTX_SUPPORT
 	if (   (!optix.enabled || !optix.initialized)
 		|| (!optix.debug && optix.enabled && optix.initialized))
+#endif
 	{
 		// perform the deferred shading pass and draw the image into the shading framebuffer when not using OptiX (for now)
 

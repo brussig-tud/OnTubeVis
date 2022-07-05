@@ -37,9 +37,10 @@
 #include "color_map_manager.h"
 #include "textured_spline_tube_renderer.h"
 #include "color_map_viewer.h"
+#ifdef RTX_SUPPORT
 #include "optix_integration.h"
 #include "optixtracer_textured_spline_tube.h"
-
+#endif
 
 
 using namespace cgv::render;
@@ -64,7 +65,7 @@ public:
 	cgv::type::DummyEnum voxel_grid_resolution;
 
 protected:
-
+#ifdef RTX_SUPPORT
 	// ###############################
 	// ### BEGIN: OptiX integration
 	// ###############################
@@ -146,7 +147,7 @@ protected:
 	// ###############################
 	// ###  END:  OptiX integration
 	// ###############################
-
+#endif
 
 	cgv::glutil::color_map_editor_ptr cm_editor_ptr;
 	cgv::glutil::color_map_editor_ptr tf_editor_ptr;
