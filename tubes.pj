@@ -16,7 +16,6 @@ addIncDirs=[
 excludeSourceFiles=[INPUT_DIR."/optixtracer_textured_spline_tube.cxx", INPUT_DIR."/optix_integration.cxx"];
 if (env["CUDA_PATH"]) {
 	if (env["OPTIX_PATH"]) {
-		addDefines=["RTX_SUPPORT"];
 		excludeSourceFiles=[];
 		addIncDirs=addIncDirs.[
 		env["CUDA_PATH"]."/include",
@@ -33,6 +32,7 @@ if (env["CUDA_PATH"]) {
 			["cuda", "all"], ["cudart", "all"], ["nvrtc", "all"]
 		];
 		addDefines=[
+			"RTX_SUPPORT",
 			'CUDA_RUNTIME_COMPILER__INC_DIR_CUDA="'.env["CUDA_PATH"].'/include"',
 			'CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX="'.env["OPTIX_PATH"].'/include"',
 			'CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK="'.env["OPTIX_PATH"].'/SDK"',
