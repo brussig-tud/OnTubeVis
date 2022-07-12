@@ -500,7 +500,7 @@ protected:
 
 	/// helper methods
 	shader_define_map build_tube_shading_defines();
-
+	void on_register();
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
 
 public:

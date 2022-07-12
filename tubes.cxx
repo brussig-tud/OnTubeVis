@@ -50,6 +50,13 @@ void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* 
 // TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
 // TODO: star and line plot: the first mapped entry will always get mapped to the first overall color
 // Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
+#include <cgv/gui/application.h>
+
+void tubes::on_register()
+{
+	cgv::gui::application::get_window(0)->set("title", "OnTubeVis");
+}
+
 
 tubes::tubes() : application_plugin("Tubes")
 {

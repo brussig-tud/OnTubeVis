@@ -14,6 +14,7 @@
 #include <cgv/base/register.h>
 #include <cgv/utils/scan.h>
 #include <cgv/utils/advanced_scan.h>
+#include <cgv/utils/progression.h>
 
 // local includes
 #include "demo.h"
@@ -258,9 +259,12 @@ traj_dataset<flt_type> tgen_handler<flt_type>::read (
 
 	// generate dataset
 	std::vector<demo::trajectory> trajs;
-	for (unsigned i=0; i<num; i++)
-		trajs.emplace_back(demo::gen_trajectory(segs, seed+i));
-
+	trajs.resize(num);
+	cgv::utils::progression prog("gen traj", num, 10);
+	for (int i = 0; i < (int)num; i++) {
+		trajs[i] = demo::gen_trajectory(segs, seed + i);
+		prog.step();
+	}
 	// done!
 	return demo::compile_dataset(trajs);
 }
