@@ -1,24 +1,14 @@
 #pragma once
 
-#include <cgv/gui/event_handler.h>
-#include <cgv/gui/provider.h>
-#include <cgv/render/drawable.h>
 #include <cgv/render/texture.h>
-#include <cgv_glutil/frame_buffer_container.h>
-#include <cgv_glutil/overlay.h>
+#include <cgv_glutil/canvas_overlay.h>
 #include <cgv_glutil/color_map.h>
+#include <cgv_glutil/msdf_gl_canvas_font_renderer.h>
 #include <cgv_glutil/2d/canvas.h>
 #include <cgv_glutil/2d/shape2d_styles.h>
-#include <cgv_glutil/msdf_gl_font_renderer.h>
 
-class color_map_viewer : public cgv::glutil::overlay {
+class color_map_viewer : public cgv::glutil::canvas_overlay {
 protected:
-	int last_theme_idx = -1;
-	cgv::glutil::frame_buffer_container fbc;
-
-	cgv::glutil::canvas canvas, overlay_canvas;
-	cgv::glutil::shape2d_style container_style, border_style, color_map_style;
-	
 	struct layout_attributes {
 		int padding;
 		int band_height;
@@ -32,28 +22,20 @@ protected:
 			color_map_rect.set_size(parent_size - 2 * padding);
 		}
 	} layout;
-	
+
 	bool texts_out_of_date = false;
+	
 	std::vector<std::string> names;
+
+	cgv::glutil::shape2d_style container_style, border_style, color_map_style;
 	texture* tex;
-
-
-
 
 	// text appearance
 	float font_size = 14.0f;
-	cgv::render::TextAlignment text_align_h, text_align_v;
 
 	cgv::glutil::shape2d_style text_style;
-	cgv::glutil::msdf_font msdf_font;
 	cgv::glutil::msdf_text_geometry texts;
-	cgv::glutil::msdf_gl_font_renderer font_renderer;
-
-
-
-
-
-
+	
 	void init_styles(context& ctx);
 	void update_texts();
 
@@ -71,10 +53,9 @@ public:
 
 	bool init(cgv::render::context& ctx);
 	void init_frame(cgv::render::context& ctx);
-	void draw(cgv::render::context& ctx);
+	void draw_content(cgv::render::context& ctx);
 	
 	void create_gui();
-	void create_gui(cgv::gui::provider& p);
 
 	void set_color_map_names(const std::vector<std::string>& names);
 

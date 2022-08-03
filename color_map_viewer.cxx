@@ -19,25 +19,17 @@ color_map_viewer::color_map_viewer() {
 	set_overlay_margin(ivec2(-3));
 	set_overlay_size(ivec2(200u, layout.total_height));
 	
-	fbc.add_attachment("color", "flt32[R,G,B,A]");
-	fbc.set_size(get_overlay_size());
-
-	canvas.register_shader("rectangle", cgv::glutil::canvas::shaders_2d::rectangle);
-	canvas.register_shader("color_maps", "color_maps.glpr");
+	register_shader("rectangle", cgv::glutil::canvas::shaders_2d::rectangle);
+	register_shader("color_maps", "color_maps.glpr");
 	
-	overlay_canvas.register_shader("rectangle", cgv::glutil::canvas::shaders_2d::rectangle);
-
 	tex = nullptr;
 }
 
 void color_map_viewer::clear(cgv::render::context& ctx) {
 
-	msdf_font.destruct(ctx);
-	font_renderer.destruct(ctx);
-
-	canvas.destruct(ctx);
-	overlay_canvas.destruct(ctx);
-	fbc.clear(ctx);
+	canvas_overlay::clear(ctx);
+	cgv::glutil::ref_msdf_font(ctx, -1);
+	cgv::glutil::ref_msdf_gl_canvas_font_renderer(ctx, -1);
 }
 
 bool color_map_viewer::self_reflect(cgv::reflect::reflection_handler& _rh) {
@@ -64,108 +56,78 @@ void color_map_viewer::on_set(void* member_ptr) {
 		set_overlay_size(size);
 	}
 
+	has_damage = true;
 	update_member(member_ptr);
 	post_redraw();
 }
 
 bool color_map_viewer::init(cgv::render::context& ctx) {
 	
-	bool success = true;
+	bool success = canvas_overlay::init(ctx);
 
-	success &= fbc.ensure(ctx);
-	success &= canvas.init(ctx);
-	success &= overlay_canvas.init(ctx);
+	auto& font = cgv::glutil::ref_msdf_font(ctx, 1);
+	cgv::glutil::ref_msdf_gl_canvas_font_renderer(ctx, 1);
 
-	success &= font_renderer.init(ctx);
 	if (success)
 		init_styles(ctx);
-	if (msdf_font.init(ctx)) {
-		texts.set_msdf_font(&msdf_font);
+
+	if (font.is_initialized()) {
+		texts.set_msdf_font(&font);
 		texts.set_font_size(font_size);
 	}
+
 	return success;
 }
 
 void color_map_viewer::init_frame(cgv::render::context& ctx) 
 {
-	if(ensure_overlay_layout(ctx)) {
+	if(ensure_layout(ctx)) {
 		ivec2 container_size = get_overlay_size();
 		layout.update(container_size);
 
 		update_texts();
-
-		fbc.set_size(container_size);
-		fbc.ensure(ctx);
-
-		canvas.set_resolution(ctx, container_size);
-		overlay_canvas.set_resolution(ctx, get_viewport_size());
 	}
 
-	int theme_idx = cgv::gui::theme_info::instance().get_theme_idx();
-	if(last_theme_idx != theme_idx) {
-		last_theme_idx = theme_idx;
+	if(ensure_theme())
 		init_styles(ctx);
-	}
 
 	if(texts_out_of_date)
 		update_texts();
 }
 
-void color_map_viewer::draw(cgv::render::context& ctx) {
+void color_map_viewer::draw_content(cgv::render::context& ctx) {
 
-	if(!show || !tex)
+	if(!tex)
 		return;
 
-	fbc.enable(ctx);
-	
-	glDisable(GL_DEPTH_TEST);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+	begin_content(ctx);
+	enable_blending();
 	
 	ivec2 container_size = get_overlay_size();
 	
 	// draw container
-	auto& rect_prog = canvas.enable_shader(ctx, "rectangle");
+	auto& rect_prog = content_canvas.enable_shader(ctx, "rectangle");
 	container_style.apply(ctx, rect_prog);
-	canvas.draw_shape(ctx, ivec2(0), container_size);
+	content_canvas.draw_shape(ctx, ivec2(0), container_size);
 	
 	// draw inner border
 	border_style.apply(ctx, rect_prog);
-	canvas.draw_shape(ctx, ivec2(layout.padding - 1), container_size - 2*layout.padding + 2);
-	canvas.disable_current_shader(ctx);
+	content_canvas.draw_shape(ctx, ivec2(layout.padding - 1), container_size - 2*layout.padding + 2);
+	content_canvas.disable_current_shader(ctx);
 	
 	// draw color scale texture
-	auto& color_maps_prog = canvas.enable_shader(ctx, "color_maps");
+	auto& color_maps_prog = content_canvas.enable_shader(ctx, "color_maps");
 	color_map_style.apply(ctx, color_maps_prog);
 	tex->enable(ctx, 0);
-	canvas.draw_shape(ctx, layout.color_map_rect.pos(), layout.color_map_rect.size());
+	content_canvas.draw_shape(ctx, layout.color_map_rect.pos(), layout.color_map_rect.size());
 	tex->disable(ctx);
-	canvas.disable_current_shader(ctx);
+	content_canvas.disable_current_shader(ctx);
 	
 	// draw color scale names
-	auto& font_prog = font_renderer.ref_prog();
-	font_prog.enable(ctx);
-	text_style.apply(ctx, font_prog);
-	canvas.set_view(ctx, font_prog);
-	font_prog.disable(ctx);
-	font_renderer.render(ctx, get_overlay_size(), texts);
+	cgv::glutil::ref_msdf_gl_canvas_font_renderer(ctx).render(ctx, content_canvas, texts, text_style);
 
-	glDisable(GL_BLEND);
-
-	fbc.disable(ctx);
-
-	// draw frame buffer texture to screen
-	auto& final_prog = overlay_canvas.enable_shader(ctx, "rectangle");
-	fbc.enable_attachment(ctx, "color", 0);
-	overlay_canvas.draw_shape(ctx, get_overlay_position(), container_size);
-	fbc.disable_attachment(ctx, "color");
-
-	overlay_canvas.disable_current_shader(ctx);
-	
-	glEnable(GL_DEPTH_TEST);
+	disable_blending();
+	end_content(ctx);
 }
 
 void color_map_viewer::create_gui() {
@@ -174,20 +136,18 @@ void color_map_viewer::create_gui() {
 	add_member_control(this, "Band Height", layout.band_height, "value_slider", "min=5;max=50;step=5;ticks=true");
 }
 
-void color_map_viewer::create_gui(cgv::gui::provider& p) {
-
-	p.add_member_control(this, "Show", show, "check");
-}
-
 void color_map_viewer::set_color_map_names(const std::vector<std::string>& names) {
 
 	this->names = names;
 	texts_out_of_date = true;
+	has_damage = true;
 }
 
 void color_map_viewer::set_color_map_texture(texture* tex) {
+
 	this->tex = tex;
 	on_set(&layout.total_height);
+	has_damage = true;
 }
 
 void color_map_viewer::init_styles(context& ctx) {
@@ -199,8 +159,6 @@ void color_map_viewer::init_styles(context& ctx) {
 
 	// configure style for the container rectangle
 	container_style.apply_gamma = false;
-	//container_style.fill_color = rgba(0.9f, 0.9f, 0.9f, 1.0f);
-	//container_style.border_color = rgba(0.2f, 0.2f, 0.2f, 1.0f);
 	container_style.fill_color = group_color;
 	container_style.border_color = background_color;
 	container_style.border_width = 3.0f;
@@ -208,7 +166,6 @@ void color_map_viewer::init_styles(context& ctx) {
 	
 	// configure style for the border rectangles
 	border_style = container_style;
-	//border_style.fill_color = rgba(0.2f, 0.2f, 0.2f, 1.0f);
 	border_style.fill_color = border_color;
 	border_style.border_width = 0.0f;
 	
@@ -222,17 +179,6 @@ void color_map_viewer::init_styles(context& ctx) {
 	text_style.border_radius = 0.25f;
 	text_style.border_width = 0.75f;
 	text_style.use_blending = true;
-
-	// configure style for final blitting of overlay into main frame buffer
-	cgv::glutil::shape2d_style final_style;
-	final_style.fill_color = rgba(1.0f);
-	final_style.use_texture = true;
-	final_style.use_blending = false;
-	final_style.feather_width = 0.0f;
-
-	auto& final_prog = overlay_canvas.enable_shader(ctx, "rectangle");
-	final_style.apply(ctx, final_prog);
-	overlay_canvas.disable_current_shader(ctx);
 }
 
 void color_map_viewer::update_texts() {
