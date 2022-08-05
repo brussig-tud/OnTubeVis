@@ -56,9 +56,8 @@ void color_map_viewer::on_set(void* member_ptr) {
 		set_overlay_size(size);
 	}
 
-	has_damage = true;
 	update_member(member_ptr);
-	post_redraw();
+	post_damage();
 }
 
 bool color_map_viewer::init(cgv::render::context& ctx) {
@@ -140,14 +139,14 @@ void color_map_viewer::set_color_map_names(const std::vector<std::string>& names
 
 	this->names = names;
 	texts_out_of_date = true;
-	has_damage = true;
+	post_damage();
 }
 
 void color_map_viewer::set_color_map_texture(texture* tex) {
 
 	this->tex = tex;
 	on_set(&layout.total_height);
-	has_damage = true;
+	post_damage();
 }
 
 void color_map_viewer::init_styles(context& ctx) {
@@ -158,7 +157,6 @@ void color_map_viewer::init_styles(context& ctx) {
 	rgba border_color = rgba(ti.border(), 1.0f);
 
 	// configure style for the container rectangle
-	container_style.apply_gamma = false;
 	container_style.fill_color = group_color;
 	container_style.border_color = background_color;
 	container_style.border_width = 3.0f;
