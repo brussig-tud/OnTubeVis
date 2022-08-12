@@ -1239,7 +1239,7 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 					Vec3 pos((flt_type)relpos[0], (flt_type)relpos[1], (flt_type)relpos[2]);
 				#else
 					const auto mercator = wgs84::toCartesian(refpos, latlong{gpspos.x(), gpspos.y()});
-					Vec3 pos((flt_type)mercator[0], (flt_type)mercator[1], altitude);
+					Vec3 pos((flt_type)mercator[0], altitude, (flt_type)mercator[1]);
 				#endif
 				if (sample != traj.gps.cbegin())
 				{

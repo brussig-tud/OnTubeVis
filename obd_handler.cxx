@@ -278,7 +278,7 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 				vec3 pos((flt_type)relpos[0], (flt_type)relpos[1], (flt_type)relpos[2]);
 			#else
 				const auto mercator = wgs84::toCartesian(refpos, latlong{gps_info.latitude, gps_info.longitude});
-				vec3 pos((flt_type)mercator[0]*mscale, (flt_type)mercator[1]*mscale, (flt_type)gps_info.altitude*mscale);
+				vec3 pos((flt_type)mercator[0]*mscale, (flt_type)gps_info.altitude*mscale, (flt_type)mercator[1]*mscale);
 			#endif
 
 			// keep track of segment length and throw out non-monotone samples
