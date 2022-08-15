@@ -65,6 +65,9 @@ struct curve_rt_params
 	float          cam_P[16];
 	float          cam_N[16];
 
+	// Misc options
+	bool show_bvol;
+
 	// the accelleration datastructure to trace
 	OptixTraversableHandle accelds;
 };

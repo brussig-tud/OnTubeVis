@@ -230,6 +230,12 @@ extern "C" __global__ void __intersection__russig (void)
 			float_as_int(nodes[0].x), float_as_int(nodes[0].y), float_as_int(nodes[0].z),
 			float_as_int(nodes[1].x), float_as_int(nodes[1].y), float_as_int(nodes[1].z)
 		);
+	else if (params.show_bvol)
+		optixReportIntersection(
+			0.1f, 0u/* hit kind, unused*/, float_as_int(0.5f),
+			float_as_int(nodes[0].x), float_as_int(nodes[0].y), float_as_int(nodes[0].z),
+			float_as_int(nodes[1].x), float_as_int(nodes[1].y), float_as_int(nodes[1].z)
+		);
 }
 #endif
 

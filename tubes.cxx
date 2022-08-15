@@ -1727,6 +1727,7 @@ void tubes::optix_draw_trajectories (context &ctx)
 		params.taa_jitter_scale = taa.jitter_scale;
 		params.fb_width = ctx.get_width();
 		params.fb_height = ctx.get_height();
+		params.show_bvol = optix.debug_bvol;
 		params.accelds = lp.accelds;
 		params.cam_eye = make_float3(eye.x(), eye.y(), eye.z());
 		params.cam_clip = make_float2(.1f, 128.f);
@@ -2023,6 +2024,7 @@ void tubes::create_gui(void) {
 		add_member_control(this, "Use OptiX Raycasting for Tube Rendering", optix.enabled, "check");
 		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Reshetov'"); // ,Reshetov cubic
 		add_member_control(this, "Output Debug Visualization", optix.debug, "dropdown", "enums='Off,Albedo,Depth,Tangent + Normal'");
+		add_member_control(this, "Show BLAS Bounding Volumes", optix.debug_bvol, "check");
 		align("\b");
 		end_tree_node(optix.enabled);
 	}

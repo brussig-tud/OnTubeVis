@@ -99,6 +99,9 @@ protected:
 		// result output mode
 		OptixDebugVisualization debug = OXV_OFF;
 
+		// Wether to show BLAS bounding volumes (Russig intersector only for now)
+		bool debug_bvol = false;
+
 		// OptiX device context
 		OptixDeviceContext context = nullptr;
 

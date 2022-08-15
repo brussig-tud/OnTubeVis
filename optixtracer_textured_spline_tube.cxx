@@ -23,7 +23,7 @@
 // OptiX/CUDA kernels
 #include "optix_curves.h"
 
-#include "ptx_source.h"
+//#include "ptx_source.h"
 
 //////
 //
@@ -516,9 +516,9 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM;
 
 		//const std::vector<char> &ptx = ptx_isect/*compile_cu2ptx( "optix_curves.cu", "_isect",
-		const auto ptx = ptx_isect/*compile_cu2ptx( "optix_curves.cu", "_isect",
-		                                             {CUDA_NVRTC_OPTIONS, "-DOTV_PRIMITIVE_RUSSIG"}, &compiler_log)*/;
-		const size_t            ptx_size = sizeof(ptx_isect);// ptx.size();
+		const auto ptx = /*ptx_isect/**/compile_cu2ptx( "optix_curves.cu", "_isect",
+		                                             {CUDA_NVRTC_OPTIONS, "-DOTV_PRIMITIVE_RUSSIG"}, &compiler_log);
+		const size_t            ptx_size = /*sizeof(ptx_isect);//*/ptx.size();
 		if (!ptx_size)
 		{
 			std::cerr << "ERROR compiling OptiX device code! Log:" << std::endl
@@ -527,7 +527,7 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 		}
 		OPTIX_CHECK_LOG_SET(
 			optixModuleCreateFromPTX(
-				context, &mod_options, &pipeline_options, ptx/*.data()*/, ptx_size, log, &sizeof_log, &mod_shading
+				context, &mod_options, &pipeline_options, ptx.data(), ptx_size, log, &sizeof_log, &mod_shading
 			),
 			log, sizeof_log, success
 		);
@@ -948,9 +948,9 @@ bool optixtracer_textured_spline_tube_reshetov::update_pipeline (void)
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_QUADRATIC_BSPLINE;
 
 		//const std::vector<char> &ptx = ptx_rt/*compile_cu2ptx( "optix_curves.cu", "_rt",
-		const auto ptx = ptx_rt/*compile_cu2ptx( "optix_curves.cu", "_rt",
-		                                             {CUDA_NVRTC_OPTIONS, "-DOTV_PRIMITIVE_BUILTIN"}, &compiler_log)*/;
-		const size_t            ptx_size = sizeof(ptx_rt);// ptx.size();
+		const auto ptx = /*ptx_rt//*/compile_cu2ptx( "optix_curves.cu", "_rt",
+		                                             {CUDA_NVRTC_OPTIONS, "-DOTV_PRIMITIVE_BUILTIN"}, &compiler_log);
+		const size_t            ptx_size = /*sizeof(ptx_rt);//*/ptx.size();
 		if (!ptx_size)
 		{
 			std::cerr << "ERROR compiling OptiX device code! Log:" << std::endl
@@ -959,7 +959,7 @@ bool optixtracer_textured_spline_tube_reshetov::update_pipeline (void)
 		}
 		OPTIX_CHECK_LOG_SET(
 			optixModuleCreateFromPTX(
-				context, &mod_options, &pipeline_options, ptx/*.data()*/, ptx_size, log, &sizeof_log, &mod_shading
+				context, &mod_options, &pipeline_options, ptx.data(), ptx_size, log, &sizeof_log, &mod_shading
 			),
 			log, sizeof_log, success
 		);
