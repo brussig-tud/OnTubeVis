@@ -50,7 +50,7 @@ using namespace cgv::render;
 
 /// baseline visualization plugin for arbitrary trajectory data as tubes using the framework tube renderers and
 /// trajectory loading facilities
-class tubes :
+class on_tube_vis :
 	public cgv::base::argument_handler, // derive from argument handler to be able to process custom arguments
 	public cgv::glutil::application_plugin	// derive from application plugin, which is a node, drawable, gui provider and event handler and can handle overlays
 {
@@ -507,8 +507,8 @@ protected:
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
 
 public:
-	tubes();
-	~tubes();
+	on_tube_vis();
+	~on_tube_vis();
 
 	std::string get_type_name() const { return "tubes"; }
 	void handle_args(std::vector<std::string> &args);

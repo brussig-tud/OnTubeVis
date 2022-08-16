@@ -1,6 +1,6 @@
 @=
 projectType="application_plugin";
-projectName="tubes";
+projectName="OnTubeVis";
 projectGUID="FB8C657D-2C3A-4FB1-A783-D31E3759B7AC";
 excludeSourceDirs=[INPUT_DIR."/testdata", INPUT_DIR."/3rd/peridetic/examples"];
 addProjectDirs=[CGV_DIR."/libs", CGV_DIR."/plugins", CGV_DIR."/3rd"];

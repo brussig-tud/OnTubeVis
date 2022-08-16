@@ -1,4 +1,6 @@
-#include "tubes.h"
+
+// Implemented header
+#include "on_tube_vis.h"
 
 // C++ STL
 #include <filesystem>
@@ -17,18 +19,17 @@
 // CGV framework graphics utility
 #include <cgv_glutil/color_map_reader.h>
 #include <cgv_glutil/color_map_writer.h>
-
-// fltk_gl_view for controlling instant redraw
+// - fltk_gl_view for controlling instant redraw
 #include <plugins/cg_fltk/fltk_gl_view.h>
-
-// stereo_view_interactor for controlling fix_view_up_dir
+// - stereo_view_interactor for controlling fix_view_up_dir
 #include <plugins/crg_stereo_view/stereo_view_interactor.h>
 
-// local includes
+// Local includes
 #include "arclen_helper.h"
 #include "glyph_compiler.h"
 #ifdef RTX_SUPPORT
 #include "optix_curves.h"
+
 
 // ###############################
 // ### BEGIN: OptiX integration
@@ -52,13 +53,13 @@ void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* 
 // Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
 #include <cgv/gui/application.h>
 
-void tubes::on_register()
+void on_tube_vis::on_register()
 {
 	cgv::gui::application::get_window(0)->set("title", "OnTubeVis");
 }
 
 
-tubes::tubes() : application_plugin("Tubes")
+on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 {
 	// adjust render style defaults
 	//render.style.illumination_mode = IM_OFF;
@@ -149,7 +150,7 @@ tubes::tubes() : application_plugin("Tubes")
 
 	debug.segment_rs.rounded_caps = true;
 
-	connect(cgv::gui::get_animation_trigger().shoot, this, &tubes::timer_event);
+	connect(cgv::gui::get_animation_trigger().shoot, this, &on_tube_vis::timer_event);
 #ifdef RTX_SUPPORT
 	// ###############################
 	// ### BEGIN: OptiX integration
@@ -164,7 +165,7 @@ tubes::tubes() : application_plugin("Tubes")
 #endif
 }
 
-tubes::~tubes()
+on_tube_vis::~on_tube_vis()
 {
 #ifdef RTX_SUPPORT
 	// ###############################
@@ -187,7 +188,7 @@ tubes::~tubes()
 #endif
 }
 
-void tubes::handle_args (std::vector<std::string> &args)
+void on_tube_vis::handle_args (std::vector<std::string> &args)
 {
 	// look out for potential dataset files/dirs
 	std::vector<unsigned> arg_ids;
@@ -210,7 +211,7 @@ void tubes::handle_args (std::vector<std::string> &args)
 	}
 }
 
-void tubes::clear(cgv::render::context &ctx) {
+void on_tube_vis::clear(cgv::render::context &ctx) {
 	// decrease reference count of the renderers by one
 	ref_textured_spline_tube_renderer(ctx, -1);
 	ref_box_renderer(ctx, -1);
@@ -239,7 +240,7 @@ void tubes::clear(cgv::render::context &ctx) {
 	render.sorter = nullptr;
 }
 
-bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
+bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 {
 	return
 		rh.reflect_member("datapath", datapath) &&
@@ -267,14 +268,14 @@ bool tubes::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("enable_fxaa", taa.enable_fxaa);
 }
 
-void tubes::stream_help (std::ostream &os)
+void on_tube_vis::stream_help (std::ostream &os)
 {
 	os << "tubes: adapt <R>adius, toggle b<O>unds, <W>ire bounds" << std::endl;
 }
 
 #define SET_MEMBER(m, v) m = v; update_member(&m);
 
-bool tubes::handle_event(cgv::gui::event &e) {
+bool on_tube_vis::handle_event(cgv::gui::event &e) {
 
 	unsigned et = e.get_kind();
 	unsigned char modifiers = e.get_modifiers();
@@ -488,7 +489,7 @@ bool tubes::handle_event(cgv::gui::event &e) {
 	return false;
 }
 
-void tubes::on_set(void *member_ptr) {
+void on_tube_vis::on_set(void *member_ptr) {
 	// dataset settings
 	bool data_set_changed = false;
 	bool from_demo = false;
@@ -839,7 +840,7 @@ void tubes::on_set(void *member_ptr) {
 	post_redraw();
 }
 
-bool tubes::on_exit_request() {
+bool on_tube_vis::on_exit_request() {
 	// TODO: does not seem to fire when window is maximized?
 #ifndef _DEBUG
 	if(fh.has_unsaved_changes) {
@@ -850,13 +851,13 @@ bool tubes::on_exit_request() {
 }
 
 
-void tubes::reload_shader() {
+void on_tube_vis::reload_shader() {
 
 	shaders.reload(*get_context(), "tube_shading", tube_shading_defines);
 	post_redraw();
 }
 
-bool tubes::save_layer_configuration(const std::string& file_name) {
+bool on_tube_vis::save_layer_configuration(const std::string& file_name) {
 	const auto& gams = glyph_layer_mgr.ref_glyph_attribute_mappings();
 
 	auto to_col_uint8 = [](const float& val) {
@@ -1002,7 +1003,7 @@ bool tubes::save_layer_configuration(const std::string& file_name) {
 	return cgv::utils::file::write(file_name, content, true);
 }
 
-bool tubes::read_layer_configuration(const std::string& file_name) {
+bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 	if(!cgv::utils::file::exists(file_name) || cgv::utils::to_upper(cgv::utils::file::get_extension(file_name)) != "XML")
 		return false;
 
@@ -1298,7 +1299,7 @@ bool tubes::read_layer_configuration(const std::string& file_name) {
 	return true;
 }
 
-void tubes::update_glyph_layer_manager() {
+void on_tube_vis::update_glyph_layer_manager() {
 	if(!traj_mgr.has_data()) {
 		std::cout << "Warning: update_glyph_layer_manager - trajectory manager has no data" << std::endl;
 		return;
@@ -1322,13 +1323,13 @@ void tubes::update_glyph_layer_manager() {
 	glyph_layer_mgr.set_color_map_names(color_map_mgr.get_names());
 }
 
-void tubes::timer_event(double t, double dt)
+void on_tube_vis::timer_event(double t, double dt)
 {
 	if (has_changed && t > change_time + recalc_delay)
 		compile_glyph_attribs();
 }
 
-void tubes::glyphs_out_of_date(bool state) 
+void on_tube_vis::glyphs_out_of_date(bool state) 
 {
 	auto ctrl = find_element("Compile Attributes");
 	if (state) {
@@ -1342,7 +1343,7 @@ void tubes::glyphs_out_of_date(bool state)
 		ctrl->set("color", state ? cgv::gui::theme_info::instance().warning_hex() : "");
 }
 
-bool tubes::compile_glyph_attribs (void)
+bool on_tube_vis::compile_glyph_attribs (void)
 {
 	bool success = false;
 	if(glyph_layers_config.layer_configs.size() > 0) {
@@ -1396,7 +1397,7 @@ bool tubes::compile_glyph_attribs (void)
 	return success;
 }
 
-bool tubes::init (cgv::render::context &ctx)
+bool on_tube_vis::init (cgv::render::context &ctx)
 {
 #ifdef CGV_FORCE_STATIC
 	std::string app_path = cgv::base::ref_prog_path_prefix();
@@ -1570,21 +1571,21 @@ bool tubes::init (cgv::render::context &ctx)
 // ### BEGIN: OptiX integration
 // ###############################
 
-void tubes::optix_cleanup (void)
+void on_tube_vis::optix_cleanup (void)
 {
 	optix.tracer_reshetov.destroy();
 	//optix.tracer_reshetov_cubic.destroy();
 	CUDA_SAFE_DESTROY_STREAM(optix.stream);
 }
 
-void tubes::optix_unregister_resources (void)
+void on_tube_vis::optix_unregister_resources (void)
 {
 	CUDA_SAFE_UNREGISTER(optix.sbo_alen);
 	CUDA_SAFE_UNREGISTER(optix.sbo_nodeids);
 	CUDA_SAFE_UNREGISTER(optix.sbo_nodes);
 }
 
-bool tubes::optix_ensure_init (context &ctx)
+bool on_tube_vis::optix_ensure_init (context &ctx)
 {
 	// report OK if nothing needs to be done
 	if (optix.initialized)
@@ -1650,7 +1651,7 @@ bool tubes::optix_ensure_init (context &ctx)
 	return success;
 }
 
-bool tubes::optix_register_resources (context &ctx)
+bool on_tube_vis::optix_register_resources (context &ctx)
 {
 	// unregister previous version (when our function is called, the SSBOs were very likely exchanged for new ones)
 	optix_unregister_resources();
@@ -1683,7 +1684,7 @@ bool tubes::optix_register_resources (context &ctx)
 	return success;
 }
 
-void tubes::optix_draw_trajectories (context &ctx)
+void on_tube_vis::optix_draw_trajectories (context &ctx)
 {
 	////
 	// Launch OptiX
@@ -1804,7 +1805,7 @@ void tubes::optix_draw_trajectories (context &ctx)
 // ###############################
 #endif
 
-void tubes::init_frame (cgv::render::context &ctx)
+void on_tube_vis::init_frame (cgv::render::context &ctx)
 {
 	if(!view_ptr) {
 		view_ptr = find_view_as_node();
@@ -1929,7 +1930,7 @@ void tubes::init_frame (cgv::render::context &ctx)
 	}
 }
 
-void tubes::draw (cgv::render::context &ctx)
+void on_tube_vis::draw (cgv::render::context &ctx)
 {
 	if(!view_ptr) return;
 
@@ -1977,7 +1978,7 @@ void tubes::draw (cgv::render::context &ctx)
 		draw_dnd(ctx);
 }
 
-void tubes::after_finish(context& ctx) {
+void on_tube_vis::after_finish(context& ctx) {
 
 	if(benchmark.running) {
 		++benchmark.total_frames;
@@ -2011,7 +2012,7 @@ void tubes::after_finish(context& ctx) {
 	}
 }
 
-void tubes::create_gui(void) {
+void on_tube_vis::create_gui(void) {
 	// dataset settings
 	add_decorator("Dataset", "heading", "level=1");
 	//add_member_control(this, "data file/path", datapath);
@@ -2120,8 +2121,8 @@ void tubes::create_gui(void) {
 		add_gui("File", fh.file_name, "file_name", "title='Open Transfer Function';filter='" + filter + "';save=false;w=136;small_icon=true;align_gui=' '" + (fh.has_unsaved_changes ? ";text_color=" + cgv::gui::theme_info::instance().warning_hex() : ""));
 		add_gui("save_file_name", fh.save_file_name, "file_name", "title='Save Transfer Function';filter='" + filter + "';save=true;control=false;small_icon=true");
 		add_decorator("", "separator", "level=3");
-		connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &tubes::reload_shader));
-		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &tubes::compile_glyph_attribs));
+		connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &on_tube_vis::reload_shader));
+		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &on_tube_vis::compile_glyph_attribs));
 		add_member_control(this, "Max Count (Debug)", max_glyph_count, "value_slider", "min=1;max=100;step=1;ticks=true");
 		add_member_control(this, "Show Hidden Glyphs", include_hidden_glyphs, "check");
 		glyph_layer_mgr.create_gui(this, *this);
@@ -2209,7 +2210,7 @@ void tubes::create_gui(void) {
 	}
 }
 
-void tubes::create_vec3_gui(const std::string& name, vec3& value, float min, float max) {
+void on_tube_vis::create_vec3_gui(const std::string& name, vec3& value, float min, float max) {
 
 	std::string value_config = "w=55;min=" + std::to_string(min) + ";max=" + std::to_string(max);
 	std::string slider_config = "w=55;min=" + std::to_string(min) + ";max=" + std::to_string(max) + ";step=0.0001;ticks=true";
@@ -2222,7 +2223,7 @@ void tubes::create_vec3_gui(const std::string& name, vec3& value, float min, flo
 	add_member_control(this, "", value[2], "slider", slider_config);
 }
 
-void tubes::set_view(void)
+void on_tube_vis::set_view(void)
 {
 	if (!view_ptr || !traj_mgr.has_data()) return;
 
@@ -2241,7 +2242,7 @@ void tubes::set_view(void)
 	}
 }
 
-void tubes::update_grid_ratios(void) {
+void on_tube_vis::update_grid_ratios(void) {
 	auto& ctx = *get_context();
 
 	if (!render.data->datasets.empty())
@@ -2272,7 +2273,7 @@ void tubes::update_grid_ratios(void) {
 	}
 }
 
-void tubes::update_attribute_bindings(void) {
+void on_tube_vis::update_attribute_bindings(void) {
 	auto &ctx = *get_context();
 
 	if (traj_mgr.has_data())
@@ -2361,7 +2362,7 @@ void tubes::update_attribute_bindings(void) {
 	last_sort_dir = vec3(0.0f);
 }
 
-void tubes::update_debug_attribute_bindings() {
+void on_tube_vis::update_debug_attribute_bindings() {
 	auto &ctx = *get_context();
 
 	auto& nodes = debug.node_rd;
@@ -2397,7 +2398,7 @@ void tubes::update_debug_attribute_bindings() {
 	}
 }
 
-void tubes::calculate_bounding_box(void) {
+void on_tube_vis::calculate_bounding_box(void) {
 
 	cgv::utils::stopwatch s(true);
 	std::cout << "Calculating bounding box... ";
@@ -2438,7 +2439,7 @@ void tubes::calculate_bounding_box(void) {
 	std::cout << "Bounding box min: " << bbox.get_min_pnt() << "| max: " << bbox.get_max_pnt() << "| extent: " << bbox.get_extent() << std::endl;
 }
 
-void tubes::create_density_volume(context& ctx, unsigned resolution) {
+void on_tube_vis::create_density_volume(context& ctx, unsigned resolution) {
 
 	density_volume.initialize_voxel_grid(bbox, resolution);
 	ivec3 res = density_volume.ref_voxel_grid().resolution;
@@ -2485,7 +2486,7 @@ void tubes::create_density_volume(context& ctx, unsigned resolution) {
 	ao_style.derive_voxel_grid_parameters(density_volume.ref_voxel_grid());
 }
 
-void tubes::draw_dnd(context& ctx) {
+void on_tube_vis::draw_dnd(context& ctx) {
 	const auto& ti = cgv::gui::theme_info::instance();
 
 	//static const rgb dnd_col(1, 0.5f, 0.5f);
@@ -2535,7 +2536,7 @@ void tubes::draw_dnd(context& ctx) {
 	ctx.pop_pixel_coords();
 }
 
-void tubes::draw_trajectories(context& ctx)
+void on_tube_vis::draw_trajectories(context& ctx)
 {
 	// common init
 	// - view-related info
@@ -2885,7 +2886,7 @@ void tubes::draw_trajectories(context& ctx)
 	}
 }
 
-void tubes::draw_density_volume(context& ctx) {
+void on_tube_vis::draw_density_volume(context& ctx) {
 
 	auto& vr = ref_volume_renderer(ctx);
 	vr.set_render_style(vstyle);
@@ -2898,7 +2899,7 @@ void tubes::draw_density_volume(context& ctx) {
 	vr.render(ctx, 0, 0);
 }
 
-shader_define_map tubes::build_tube_shading_defines() {
+shader_define_map on_tube_vis::build_tube_shading_defines() {
 	shader_define_map defines;
 
 	// debug defines
@@ -2936,7 +2937,7 @@ shader_define_map tubes::build_tube_shading_defines() {
 ////
 // Object registration
 
-cgv::base::object_registration<tubes> reg_tubes("");
+cgv::base::object_registration<on_tube_vis> reg_tubes("");
 cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
 
 #ifdef CGV_FORCE_STATIC
