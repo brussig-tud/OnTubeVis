@@ -39,6 +39,9 @@ if (env["CUDA_PATH"]) {
 			'CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK_CUDA=CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK "/cuda"',
 			'CUDA_RUNTIME_COMPILER__INC_DIR_SELF="'.INPUT_DIR.'"'
 		];
+		addRules=[
+			MAP.[ ["extensions",["cu"]], ["folder","cuda"], ["tool","res_prep"] ]
+		];
 	}
 }
 addProjectDeps=[
