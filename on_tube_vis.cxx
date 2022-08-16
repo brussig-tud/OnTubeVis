@@ -2937,14 +2937,18 @@ shader_define_map on_tube_vis::build_tube_shading_defines() {
 ////
 // Object registration
 
+// plugins
 cgv::base::object_registration<on_tube_vis> reg_tubes("");
 cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
 
 #ifdef CGV_FORCE_STATIC
-#include <OnTubeVis_shader_inc.h>
+	// shaders
+	#include <OnTubeVis_shader_inc.h>
+	#define REGISTER_SHADER_FILES
+	#include <cgv_glutil/shader_inc.h>
 
-#define REGISTER_SHADER_FILES
-#include <cgv_glutil/shader_inc.h>
+	// CUDA source code
+	#include <optix_curves.cu.h>
 #endif
 
 // Force the usage of the discrete Nvidia graphics card.

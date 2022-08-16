@@ -45,7 +45,7 @@ if (env["CUDA_PATH"]) {
 				["rules", [
 					MAP.[
 						["keep_extension",1],
-						["extension", "log"], 
+						["extension", "h"], 
 						["path", "$(PROJECT_BUILD_DIR)"]
 					]
 				]], 
