@@ -2941,7 +2941,7 @@ cgv::base::object_registration<on_tube_vis> reg_tubes("");
 cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
 
 #ifdef CGV_FORCE_STATIC
-#include <tubes_shader_inc.h>
+#include <OnTubeVis_shader_inc.h>
 
 #define REGISTER_SHADER_FILES
 #include <cgv_glutil/shader_inc.h>
