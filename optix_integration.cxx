@@ -11,7 +11,9 @@
 #include <GL/glew.h>
 
 // CGV framework
+#include <cgv/base/import.h>
 #include <cgv/render/texture.h>
+#include <cgv/render/shader_code.h>
 
 // CUDA/Optix
 #include <nvrtc.h>
@@ -56,35 +58,30 @@ std::vector<char> compile_cu2ptx (
 	if (mydir.back() == '/') mydir.pop_back(); // <-- needed for CUDA include paths below
 	const std::filesystem::path filename_abs = std::filesystem::path(mydir+"/"+file_component.string());
 
-	// check if cached .ptx file exists
-	// -determine cached filename
-	std::filesystem::path filename_ptx = filename_abs;
-	filename_ptx = filename_ptx.replace_extension().string()+name;
-	filename_ptx.replace_extension("ptx");
-	// - perform check, return cached .ptx if it exists
-	std::vector<char> ptx;
-	if (std::filesystem::is_regular_file(filename_ptx))
-	{
-		std::ifstream file(filename_ptx, std::ios::binary);
-		if (!file.good()) {
-			if (log_out)
-				*log_out = "Could not open file '"+filename+"'";
-			return ptx;
-		}
-		ptx = std::vector<char>(std::istreambuf_iterator<char>(file), {});
-		return ptx;
-	}
-
 	// set up CUDA runtime compiler include directories
 	const std::vector<std::string> include_args = {
 		"-I" CUDA_RUNTIME_COMPILER__INC_DIR_CUDA, "-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX,
 		"-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK, "-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK_CUDA, "-I"+mydir
 	};
 
-	// adapted from getCuStringFromFile(cu, location, sampleDir, filename)
+	// Read in CUDA source code
+	// - prelude
 	std::string cu;
-	{
-		std::ifstream file(filename_abs, std::ios::binary);
+	std::vector<char> ptx;
+	// - look for file in default locations (including loaded exe/dll resource sections)
+	/* local scope */ {
+		const std::string fn = cgv::render::shader_code::find_file(filename);
+		if (fn.empty()) {
+			if (log_out)
+				*log_out = "Could not find file '" + filename + "'";
+			return ptx;
+		}
+		if (!cgv::base::read_data_file(fn, cu, true)) {
+			if (log_out)
+				*log_out = "Could not read file '" + filename + "'";
+			return ptx;
+		}
+		/*std::ifstream file(filename_abs, std::ios::binary);
 		if (!file.good()) {
 			if (log_out)
 				*log_out = "Could not open file '"+filename+"'";
@@ -92,7 +89,7 @@ std::vector<char> compile_cu2ptx (
 		}
 		std::vector<unsigned char> buffer =
 			std::vector<unsigned char>(std::istreambuf_iterator<char>(file), {});
-		cu.assign(buffer.begin(), buffer.end());
+		cu.assign(buffer.begin(), buffer.end());*/
 	}
 
 	// create program
@@ -126,11 +123,11 @@ std::vector<char> compile_cu2ptx (
 	NVRTC_CHECK(nvrtcDestroyProgram(&prog));
 
 	// write cached ptx
-	/* local scope */ {
-		std::ofstream file;
-		file.open(filename_ptx, std::ios::out | std::ios::binary);
-		file.write(ptx.data(), ptx.size()-1 /*<-- minus terminating null*/);
-	}
+	///* local scope */ {
+	//	std::ofstream file;
+	//	file.open(filename_ptx, std::ios::out | std::ios::binary);
+	//	file.write(ptx.data(), ptx.size()-1 /*<-- minus terminating null*/);
+	//}
 
 	// done!
 	return std::move(ptx);
