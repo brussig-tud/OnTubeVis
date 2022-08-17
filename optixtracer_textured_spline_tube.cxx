@@ -515,10 +515,8 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM;
 
-		//const std::vector<char> &ptx = ptx_isect/*compile_cu2ptx( "optix_curves.cu", "_isect",
-		const auto ptx = /*ptx_isect/**/compile_cu2ptx( "optix_curves.cu", "_isect",
-		                                             {CUDA_NVRTC_OPTIONS, "-DOTV_PRIMITIVE_RUSSIG"}, &compiler_log);
-		const size_t            ptx_size = /*sizeof(ptx_isect);//*/ptx.size();
+		const auto ptx = compile_cu2ptx("optix_curves_russig.cu", "rayc_russig", {CUDA_NVRTC_OPTIONS}, &compiler_log);
+		const size_t ptx_size = ptx.size();
 		if (!ptx_size)
 		{
 			std::cerr << "ERROR compiling OptiX device code! Log:" << std::endl
@@ -947,10 +945,8 @@ bool optixtracer_textured_spline_tube_reshetov::update_pipeline (void)
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_QUADRATIC_BSPLINE;
 
-		//const std::vector<char> &ptx = ptx_rt/*compile_cu2ptx( "optix_curves.cu", "_rt",
-		const auto ptx = /*ptx_rt//*/compile_cu2ptx( "optix_curves.cu", "_rt",
-		                                             {CUDA_NVRTC_OPTIONS, "-DOTV_PRIMITIVE_BUILTIN"}, &compiler_log);
-		const size_t            ptx_size = /*sizeof(ptx_rt);//*/ptx.size();
+		const auto ptx = compile_cu2ptx("optix_curves_reshetov2.cu", "rayc_reshetov2", {CUDA_NVRTC_OPTIONS}, &compiler_log);
+		const size_t ptx_size = ptx.size();
 		if (!ptx_size)
 		{
 			std::cerr << "ERROR compiling OptiX device code! Log:" << std::endl
@@ -1374,9 +1370,8 @@ bool optixtracer_textured_spline_tube_reshetovcubic::update_pipeline (void)
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_CATMULLROM;
 
-		const std::vector<char> ptx = compile_cu2ptx( "optix_curves.cu", "_rt3",
-		                                             {CUDA_NVRTC_OPTIONS, "-DOTV_PRIMITIVE_BUILTIN_CUBIC"}, &compiler_log);
-		const size_t            ptx_size = ptx.size();
+		const auto ptx = compile_cu2ptx("optix_curves_reshetov3.cu", "rayc_reshetov3", {CUDA_NVRTC_OPTIONS}, &compiler_log);
+		const size_t ptx_size = ptx.size();
 		if (!ptx_size)
 		{
 			std::cerr << "ERROR compiling OptiX device code! Log:" << std::endl

@@ -36,9 +36,7 @@
 // ###############################
 
 void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* cbdata */) {
-	// hide compile feedback
-	if (cgv::utils::to_upper(tag).compare("COMPILE FEEDBACK"))
-		std::cerr << "["<<std::setw(2)<<lvl<<"]["<<std::setw(12)<<tag<<"]: " << msg << std::endl;
+	std::cerr << "["<<std::setw(2)<<lvl<<"]["<<std::setw(12)<<tag<<"]: " << msg << std::endl;
 }
 
 // ###############################
@@ -2947,8 +2945,8 @@ cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
 	#define REGISTER_SHADER_FILES
 	#include <cgv_glutil/shader_inc.h>
 
-	// CUDA source code
-	#include <optix_curves.cu.h>
+	// CUDA device code
+	//#include <optix_curves.cu.h>
 #endif
 
 // Force the usage of the discrete Nvidia graphics card.

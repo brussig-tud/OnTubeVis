@@ -37,8 +37,8 @@
 	/// default CUDA compiler options that will be used when compile_cu2ptx is called without
 	/// explicitly specifying them
 	#define CUDA_NVRTC_OPTIONS                                                   \
-		"-std=c++11", "-arch", "compute_50", "-use_fast_math", "-lineinfo",      \
-		"-default-device", "-rdc", "true", "-D__x86_64"
+		"-std=c++17", "-arch=compute_61", "--use_fast_math", "-dopt=on",         \
+		"-D__x86_64"
 #endif
 
 #define CUDA_CHECK(call)                                                         \

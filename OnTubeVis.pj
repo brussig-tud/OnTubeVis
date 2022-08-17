@@ -41,16 +41,20 @@ if (env["CUDA_PATH"]) {
 		];
 		addRules=[
 			MAP.[
-				["extensions",["cu"]], ["folder","cuda"], ["tool","res_prep"],
+				["extensions",["cu"]], ["folder","cuda"],
 				["rules", [
 					MAP.[
-						["keep_extension",1],
-						["extension", "h"], 
+						["keep_extension",0],
+						["extension", "ptx"], 
 						["path", "$(PROJECT_BUILD_DIR)"]
 					]
 				]], 
-				["command", ["res_prep", 0, 1]]
-			]
+				["command", [env["CUDA_PATH"]."/bin/nvcc",
+					0, "-o", 1, "-std=c++17", "-ptx", "-arch=compute_61", "--use_fast_math", "-O=3", "-dopt=on", "-D__x86_64", "-I".env["CUDA_PATH"]."/include",
+					"-I".env["OPTIX_PATH"]."/include", "-I".env["OPTIX_PATH"]."/SDK", "-I".env["OPTIX_PATH"]."/SDK/cuda", "-I".INPUT_DIR
+				]]
+			],
+			MAP.[["extensions",["cuh"]], ["folder","cuda/headers"]]
 		];
 	}
 }

@@ -32,15 +32,15 @@ struct Hit {
 	float t;
 };
 
-float Pow2(float x) { return x * x; }
-float Pow3(float x) { return x * x * x; }
+static __forceinline__ __device__ float Pow2(float x) { return x * x; }
+static __forceinline__ __device__ float Pow3(float x) { return x * x * x; }
 
-float sign(float x) {
+static __forceinline__ __device__ float sign(float x) {
 	const float tmp = x < 0.f ? -1.f : 0.f;
 	return x > 0.f ? 1.f : tmp;
 }
 
-vec2 SolveQuadratic(float a, float b, float c) {
+static __forceinline__ __device__ vec2 SolveQuadratic(float a, float b, float c) {
     if(abs(a) < flt_eps) {
 		if(abs(b) < flt_eps)
 			return make_float2(-2.f, 2.f);
@@ -56,7 +56,7 @@ vec2 SolveQuadratic(float a, float b, float c) {
     }
 }
 
-void Pow2(const float *c, float *o_c) {
+static __forceinline__ __device__ void Pow2(const float *c, float *o_c) {
 	o_c[0] = c[0] * c[0]; 
 	o_c[1] =  2.f * c[0] * c[1];
 	o_c[2] = c[1] * c[1] +  2.f * c[0] * c[2];
@@ -64,7 +64,7 @@ void Pow2(const float *c, float *o_c) {
 	o_c[4] = c[2] * c[2];
 }
 
-void Sub(const float *a, const float *b, float *o_c) {
+static __forceinline__ __device__ void Sub(const float *a, const float *b, float *o_c) {
 	o_c[0] = a[0] - b[0];
 	o_c[1] = a[1] - b[1];
 	o_c[2] = a[2] - b[2];
@@ -72,23 +72,23 @@ void Sub(const float *a, const float *b, float *o_c) {
 	o_c[4] = a[4] - b[4];
 }
 
-float EvalPoly(const float x, const float c0, const float c1, const float c2, const float c3, const float c4, const float c5, const float c6) { return x * (x * (x * (x * (x * (x * c6 + c5) + c4) + c3) + c2) + c1) + c0; }
-float EvalPoly(const float x, const float c0, const float c1, const float c2, const float c3, const float c4, const float c5) { return EvalPoly(x, c0,c1,c2,c3,c4,c5,0.f); }
-float EvalPoly(const float x, const float c0, const float c1, const float c2, const float c3, const float c4) { return EvalPoly(x, c0,c1,c2,c3,c4,0.f,0.f); }
-float EvalPoly(const float x, const float c0, const float c1, const float c2, const float c3) { return EvalPoly(x, c0,c1,c2,c3,0.f,0.f,0.f); }
-float EvalPoly(const float x, const float c0, const float c1, const float c2) { return EvalPoly(x, c0,c1,c2,0.f,0.f,0.f,0.f); }
-float EvalPoly(const float x, const float c0, const float c1) { return EvalPoly(x, c0,c1,0.f,0.f,0.f,0.f,0.f); }
-float EvalPoly(const float x, const float c0) { return EvalPoly(x, c0,0.f,0.f,0.f,0.f,0.f,0.f); }
+static __forceinline__ __device__ float EvalPoly(const float x, const float c0, const float c1, const float c2, const float c3, const float c4, const float c5, const float c6) { return x * (x * (x * (x * (x * (x * c6 + c5) + c4) + c3) + c2) + c1) + c0; }
+static __forceinline__ __device__ float EvalPoly(const float x, const float c0, const float c1, const float c2, const float c3, const float c4, const float c5) { return EvalPoly(x, c0,c1,c2,c3,c4,c5,0.f); }
+static __forceinline__ __device__ float EvalPoly(const float x, const float c0, const float c1, const float c2, const float c3, const float c4) { return EvalPoly(x, c0,c1,c2,c3,c4,0.f,0.f); }
+static __forceinline__ __device__ float EvalPoly(const float x, const float c0, const float c1, const float c2, const float c3) { return EvalPoly(x, c0,c1,c2,c3,0.f,0.f,0.f); }
+static __forceinline__ __device__ float EvalPoly(const float x, const float c0, const float c1, const float c2) { return EvalPoly(x, c0,c1,c2,0.f,0.f,0.f,0.f); }
+static __forceinline__ __device__ float EvalPoly(const float x, const float c0, const float c1) { return EvalPoly(x, c0,c1,0.f,0.f,0.f,0.f,0.f); }
+static __forceinline__ __device__ float EvalPoly(const float x, const float c0) { return EvalPoly(x, c0,0.f,0.f,0.f,0.f,0.f,0.f); }
 
-float EvalPolyD0_3(const float x, const float *c) { return EvalPoly(x, c[0], c[1], c[2]); }
-float EvalPolyD1_3(const float x, const float *c) { return EvalPoly(x, c[1], c[2] + c[2]); }
-float EvalPolyD2_3(const float x, const float *c) { return EvalPoly(x, c[2] + c[2]); }
-float EvalPolyD0_5(const float x, const float *c) { return EvalPoly(x, c[0], c[1], c[2], c[3], c[4]); }
-float EvalPolyD1_5(const float x, const float *c) { return EvalPoly(x, c[1], c[2] + c[2], c[3] + c[3] + c[3], c[4] + c[4] + c[4] + c[4]); }
-float EvalPolyD2_5(const float x, const float *c) { return EvalPoly(x, c[2] + c[2], c[3] * 6.f, c[4] * 12.f); }
-float EvalPolyD3_5(const float x, const float *c) { return EvalPoly(x, c[3] * 6.f, c[4] * 24.f); }
+static __forceinline__ __device__ float EvalPolyD0_3(const float x, const float *c) { return EvalPoly(x, c[0], c[1], c[2]); }
+static __forceinline__ __device__ float EvalPolyD1_3(const float x, const float *c) { return EvalPoly(x, c[1], c[2] + c[2]); }
+static __forceinline__ __device__ float EvalPolyD2_3(const float x, const float *c) { return EvalPoly(x, c[2] + c[2]); }
+static __forceinline__ __device__ float EvalPolyD0_5(const float x, const float *c) { return EvalPoly(x, c[0], c[1], c[2], c[3], c[4]); }
+static __forceinline__ __device__ float EvalPolyD1_5(const float x, const float *c) { return EvalPoly(x, c[1], c[2] + c[2], c[3] + c[3] + c[3], c[4] + c[4] + c[4] + c[4]); }
+static __forceinline__ __device__ float EvalPolyD2_5(const float x, const float *c) { return EvalPoly(x, c[2] + c[2], c[3] * 6.f, c[4] * 12.f); }
+static __forceinline__ __device__ float EvalPolyD3_5(const float x, const float *c) { return EvalPoly(x, c[3] * 6.f, c[4] * 24.f); }
 
-vec3 EvalCSpline(const vec3 &p1, const vec3 &t1, const vec3 &p2, const vec3 &t2, const float t)
+static __forceinline__ __device__ vec3 EvalCSpline(const vec3 &p1, const vec3 &t1, const vec3 &p2, const vec3 &t2, const float t)
 {
 	vec3 h1 = p1 + _1o3*t1;
 	vec3 h2 = p2 - _1o3*t2;
@@ -217,22 +217,22 @@ void FindRootsD0(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_
 	x_o[N] = x_i[N - 1];                                                                            \
 }
 
-DEF_FINDROOTS_D1(4)
-DEF_FINDROOTS_D0(5)
+static __device__ DEF_FINDROOTS_D1(4)
+static __device__ DEF_FINDROOTS_D0(5)
 
-vec3 GetOrthoVec(const vec3 &v)
+static __forceinline__ __device__ vec3 GetOrthoVec(const vec3 &v)
 {
     return abs(v.x) > abs(v.z) ? make_float3(-v.y, v.x, 0.f) : make_float3(0.f, -v.z, v.y);
 }
 
-void SplinePointsToPolyCoeffs(float p0, float h, float p1, float *o_c)
+static __forceinline__ __device__ void SplinePointsToPolyCoeffs(float p0, float h, float p1, float *o_c)
 {
 	o_c[0] = p0;
 	o_c[1] = -2.f * p0 + 2.f * h;
 	o_c[2] =   p0 + p1 - 2.f * h;
 }
 
-vec3 qSplineEval(float l, float curveX[N0], float curveY[N0], float curveZ[N0])
+static __forceinline__ __device__ vec3 qSplineEval(float l, float curveX[N0], float curveY[N0], float curveZ[N0])
 {
 	return make_float3(
 		EvalPolyD0_3(l, curveX),
@@ -241,7 +241,7 @@ vec3 qSplineEval(float l, float curveX[N0], float curveY[N0], float curveZ[N0])
 	);
 }
 
-float qSplineIDistEval(float t, float curveX[N0], float polyB_C[N1])
+static __forceinline__ __device__ float qSplineIDistEval(float t, float curveX[N0], float polyB_C[N1])
 {		
 	float term  = EvalPolyD0_3(t, curveX);
 	float discr = EvalPolyD0_5(t, polyB_C);
@@ -252,7 +252,7 @@ float qSplineIDistEval(float t, float curveX[N0], float polyB_C[N1])
 #define qSplineIDist_ParasDec float curveX[N0], float polyB_C[N1]
 #define qSplineIDist_Paras curveX, polyB_C
 
-float qSplineD1Eval(float t, float curveX[N0], float polyB_C[N1])
+static __forceinline__ __device__ float qSplineD1Eval(float t, float curveX[N0], float polyB_C[N1])
 {	 		
 	float f1D1 = EvalPolyD1_3(t, curveX);	
 	float f2D0 = EvalPolyD0_5(t, polyB_C);
@@ -263,7 +263,7 @@ float qSplineD1Eval(float t, float curveX[N0], float polyB_C[N1])
 #define qSplineD1_ParasDec float curveX[N0], float polyB_C[N1]
 #define qSplineD1_Paras curveX, polyB_C
 
-float qSplineD2Eval(float t, float curveX[N0], float polyB_C[N1])
+static __forceinline__ __device__ float qSplineD2Eval(float t, float curveX[N0], float polyB_C[N1])
 {		
 	float f1D1 = EvalPolyD1_3(t, curveX);
 	float f1D2 = EvalPolyD2_3(t, curveX);
@@ -279,7 +279,7 @@ float qSplineD2Eval(float t, float curveX[N0], float polyB_C[N1])
 #define qSplineD2_ParasDec float curveX[N0], float polyB_C[N1]
 #define qSplineD2_Paras curveX, polyB_C
 
-float qSplineD3Eval(float t, float polyB_C[N1])
+static __forceinline__ __device__ float qSplineD3Eval(float t, float polyB_C[N1])
 {
 	float f2D0 = EvalPolyD0_5(t, polyB_C);
 	float f2D1 = EvalPolyD1_5(t, polyB_C);
@@ -310,10 +310,10 @@ float func##_BinRootFinder_Eval(float n, float p, func##_ParasDec) \
 	return (n + p) * 0.5f;                                         \
 }
 
-DEF_binRootFinder(qSplineIDist)
-DEF_binRootFinder(qSplineD1)
-DEF_binRootFinder(qSplineD2)
-DEF_binRootFinder(qSplineD3)
+static __device__ DEF_binRootFinder(qSplineIDist)
+static __device__ DEF_binRootFinder(qSplineD1)
+static __device__ DEF_binRootFinder(qSplineD2)
+static __device__ DEF_binRootFinder(qSplineD3)
 #define binRootFinder_Eval(n, p, func) func##_BinRootFinder_Eval(n, p, func##_Paras)
 
 __device__ __forceinline__ void set_mat3_col (float *mat, const unsigned col, const float3 &vec) {
@@ -343,7 +343,7 @@ __device__ __forceinline__ float3 mul_vec_mat3 (const float3 &vec, const float *
 	return r;
 }
 
-Hit EvalSplineISect(const vec3 &ray_orig, const vec3 &dir, vec3 s, vec3 h, vec3 t, const float rs, const float rh, const float rt)
+static __device__ Hit EvalSplineISect(const vec3 &ray_orig, const vec3 &dir, vec3 s, vec3 h, vec3 t, const float rs, const float rh, const float rt)
 {
 	Hit hit;
 	hit.t = 0.f;

@@ -96,23 +96,23 @@ static __forceinline__ __device__ void set_payload (
 {
 	// albedo
 	optixSetPayload_0(pack_unorm_4x8(color));  // surface color as 8bit (per channel) RGBA
-	optixSetPayload_1(float_as_int(u));
-	optixSetPayload_2(float_as_int(v));
+	optixSetPayload_1(__float_as_int(u));
+	optixSetPayload_2(__float_as_int(v));
 	optixSetPayload_3(seg_id);
 	// position
-	optixSetPayload_4(float_as_int(position.x));
-	optixSetPayload_5(float_as_int(position.y));
-	optixSetPayload_6(float_as_int(position.z));
+	optixSetPayload_4(__float_as_int(position.x));
+	optixSetPayload_5(__float_as_int(position.y));
+	optixSetPayload_6(__float_as_int(position.z));
 	// normal
-	optixSetPayload_7(float_as_int(normal.x));
-	optixSetPayload_8(float_as_int(normal.y));
-	optixSetPayload_9(float_as_int(normal.z));
+	optixSetPayload_7(__float_as_int(normal.x));
+	optixSetPayload_8(__float_as_int(normal.y));
+	optixSetPayload_9(__float_as_int(normal.z));
 	// tangent
-	optixSetPayload_10(float_as_int(tangent.x));
-	optixSetPayload_11(float_as_int(tangent.y));
-	optixSetPayload_12(float_as_int(tangent.z));
+	optixSetPayload_10(__float_as_int(tangent.x));
+	optixSetPayload_11(__float_as_int(tangent.y));
+	optixSetPayload_12(__float_as_int(tangent.z));
 	// depth
-	optixSetPayload_13(float_as_int(depth));
+	optixSetPayload_13(__float_as_int(depth));
 }
 
 static __forceinline__ __device__ float eval_alen (const cuda_arclen &param, const float t)
@@ -165,24 +165,24 @@ extern "C" __global__ void __raygen__basic (void)
 	);
 	// - process payload	
 	float4 albedo;
-		albedo.x = int_as_float(pl_color);
-		albedo.y = int_as_float(pl_u);
-		albedo.z = int_as_float(pl_v);
-		albedo.w = int_as_float(pl_seg_id);
+		albedo.x = __int_as_float(pl_color);
+		albedo.y = __int_as_float(pl_u);
+		albedo.z = __int_as_float(pl_v);
+		albedo.w = __int_as_float(pl_seg_id);
 	float3 position;
-		position.x = int_as_float(pl_position_x);
-		position.y = int_as_float(pl_position_y);
-		position.z = int_as_float(pl_position_z);
+		position.x = __int_as_float(pl_position_x);
+		position.y = __int_as_float(pl_position_y);
+		position.z = __int_as_float(pl_position_z);
 	float3 normal;
-		normal.x = int_as_float(pl_normal_x);
-		normal.y = int_as_float(pl_normal_y);
-		normal.z = int_as_float(pl_normal_z);
+		normal.x = __int_as_float(pl_normal_x);
+		normal.y = __int_as_float(pl_normal_y);
+		normal.z = __int_as_float(pl_normal_z);
 	float3 tangent;
-		tangent.x = int_as_float(pl_tangent_x);
-		tangent.y = int_as_float(pl_tangent_y);
-		tangent.z = int_as_float(pl_tangent_z);
+		tangent.x = __int_as_float(pl_tangent_x);
+		tangent.y = __int_as_float(pl_tangent_y);
+		tangent.z = __int_as_float(pl_tangent_z);
 	float1 depth;
-		depth.x  = int_as_float(pl_depth);
+		depth.x  = __int_as_float(pl_depth);
 
 	// Record results in our output raster
 	const unsigned pxl = idx.y*params.fb_width + idx.x;
@@ -196,7 +196,7 @@ extern "C" __global__ void __raygen__basic (void)
 	const unsigned mid = (params.fb_height/2)*params.fb_width + (params.fb_width/2);
 	if (pxl == mid)
 		printf("segid: %d   u=%f  v=%f\n",
-		       float_as_int(params.albedo[pxl].w), albedo.y, albedo.z);
+		       __float_as_int(params.albedo[pxl].w), albedo.y, albedo.z);
 	// END:   DEBUG OUTPUT
 	//---------------------------*/
 }
@@ -226,15 +226,15 @@ extern "C" __global__ void __intersection__russig (void)
 	if (hit.l < pos_inf)
 		// report our intersection
 		optixReportIntersection(
-			hit.l/*0.1f/*hit.t*/, 0u/* hit kind, unused*/, float_as_int(hit.t/*0.5f/*hit.l*/),
-			float_as_int(nodes[0].x), float_as_int(nodes[0].y), float_as_int(nodes[0].z),
-			float_as_int(nodes[1].x), float_as_int(nodes[1].y), float_as_int(nodes[1].z)
+			hit.l/*0.1f/*hit.t*/, 0u/* hit kind, unused*/, __float_as_int(hit.t/*0.5f/*hit.l*/),
+			__float_as_int(nodes[0].x), __float_as_int(nodes[0].y), __float_as_int(nodes[0].z),
+			__float_as_int(nodes[1].x), __float_as_int(nodes[1].y), __float_as_int(nodes[1].z)
 		);
 	else if (params.show_bvol)
 		optixReportIntersection(
-			0.1f, 0u/* hit kind, unused*/, float_as_int(0.5f),
-			float_as_int(nodes[0].x), float_as_int(nodes[0].y), float_as_int(nodes[0].z),
-			float_as_int(nodes[1].x), float_as_int(nodes[1].y), float_as_int(nodes[1].z)
+			0.1f, 0u/* hit kind, unused*/, __float_as_int(0.5f),
+			__float_as_int(nodes[0].x), __float_as_int(nodes[0].y), __float_as_int(nodes[0].z),
+			__float_as_int(nodes[1].x), __float_as_int(nodes[1].y), __float_as_int(nodes[1].z)
 		);
 }
 #endif
@@ -277,8 +277,8 @@ extern "C" __global__ void __closesthit__ch (void)
 		const float ts = optixGetCurveParameter(), t  = .5f*(ts + float(subseg));
 		// retrieve node data
 		quadr_interpolator_vec3 curve; // ToDo: test performance with less attribute registers in exchange for more global mem access
-		curve.b[0] = make_float3(int_as_float(optixGetAttribute_1()), int_as_float(optixGetAttribute_2()), int_as_float(optixGetAttribute_3()));
-		curve.b[1] = make_float3(int_as_float(optixGetAttribute_4()), int_as_float(optixGetAttribute_5()), int_as_float(optixGetAttribute_6()));
+		curve.b[0] = make_float3(__int_as_float(optixGetAttribute_1()), __int_as_float(optixGetAttribute_2()), __int_as_float(optixGetAttribute_3()));
+		curve.b[1] = make_float3(__int_as_float(optixGetAttribute_4()), __int_as_float(optixGetAttribute_5()), __int_as_float(optixGetAttribute_6()));
 		curve.b[2] = params.positions[nid+2];
 		const linear_interpolator_vec3 dcurve = curve.derive();
 	#endif
