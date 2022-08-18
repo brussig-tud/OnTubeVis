@@ -1,0 +1,7 @@
+@=
+projectType="tool";
+projectName="cuda_resprep";
+projectGUID="C515B4D5-C17B-9135-8C8D-CE0B6D956B37";
+cppLanguageStandard="stdcpp17";
+sourceDirs=[INPUT_DIR];
+addDefines=["CGV_FORCE_STATIC"];

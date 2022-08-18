@@ -2,8 +2,8 @@
 projectType="application_plugin";
 projectName="OnTubeVis";
 projectGUID="FB8C657D-2C3A-4FB1-A783-D31E3759B7AC";
-excludeSourceDirs=[INPUT_DIR."/testdata", INPUT_DIR."/3rd/peridetic/examples"];
-addProjectDirs=[CGV_DIR."/libs", CGV_DIR."/plugins", CGV_DIR."/3rd"];
+excludeSourceDirs=[INPUT_DIR."/testdata", INPUT_DIR."/tool", INPUT_DIR."/3rd/peridetic/examples"];
+addProjectDirs=[CGV_DIR."/libs", CGV_DIR."/plugins", CGV_DIR."/3rd", INPUT_DIR."/tool/cuda_resprep"];
 addIncDirs=[
 	INPUT_DIR, 
 	CGV_DIR."/libs", INPUT_DIR."/arclength/fastgl", 
@@ -45,23 +45,23 @@ if (env["CUDA_PATH"]) {
 				["rules", [
 					MAP.[
 						["keep_extension",0],
-						["extension", "ptx"], 
+						["extension", "ptx.cxx"],
 						["path", "$(PROJECT_BUILD_DIR)"]
 					]
 				]], 
-				["command", [env["CUDA_PATH"]."/bin/nvcc",
-					0, "-o", 1, "-std=c++17", "-ptx", "-arch=compute_61", "--use_fast_math", "-O=3", "-dopt=on", "-D__x86_64", "-I".env["CUDA_PATH"]."/include",
+				["command", [CGV_BUILD."/bin/cuda_resprep",
+					env["CUDA_PATH"]."/bin/nvcc", 0, 1, "-std=c++17", "-ptx", "-arch=compute_61", "--use_fast_math", "-O=3", "-dopt=on", "-D__x86_64", "-I".env["CUDA_PATH"]."/include",
 					"-I".env["OPTIX_PATH"]."/include", "-I".env["OPTIX_PATH"]."/SDK", "-I".env["OPTIX_PATH"]."/SDK/cuda", "-I".INPUT_DIR
 				]]
 			],
-			MAP.[["extensions",["cuh"]], ["folder","cuda/headers"]]
+			MAP.[["extensions",["cut"]], ["folder","cuda/templates"]]
 		];
 	}
 }
 addProjectDeps=[
 	"cgv_utils", "cgv_type", "cgv_reflect", "cgv_data", "cgv_signal", "cgv_base", "cgv_media", 
 	"cgv_gui", "cgv_render", "cgv_os", "cgv_viewer", "glew", "cgv_gl", "cg_fltk", "cg_ext", 
-	"cmi_io", "crg_stereo_view", "crg_light", "crg_grid", "cgv_glutil"
+	"cmi_io", "crg_stereo_view", "crg_light", "crg_grid", "cgv_glutil", "cuda_resprep"
 ];
 addSharedDefines=["TUBES_EXPORTS"];
 cppLanguageStandard="stdcpp17";

@@ -3,4 +3,4 @@
 #define OTV_PRIMITIVE_BUILTIN_CUBIC 1
 
 // The code template
-#include "optix_curves_impl.cuh"
+#include "optix_curves_impl.cut"
