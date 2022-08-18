@@ -109,8 +109,6 @@ void FindRootsD1(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_
     m_o[0] = m_o[N] = 1;                                                                            \
 	x_o[0] = x_i[0];                                                                                \
 	                                                                                                \
-	unsigned j = 0;                                                                                 \
-	                                                                                                \
 	float x_l = x_i[0];                                                                             \
 	float y_l = EvalPolyD1_5(x_l, poly_C);                                                          \
 	float sy_l = sign(y_l);                                                                         \
@@ -165,8 +163,6 @@ void FindRootsD0(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_
 {	                                                                                                \
     m_o[0] = m_o[N] = 1;                                                                            \
 	x_o[0] = x_i[0];                                                                                \
-	                                                                                                \
-	unsigned j = 0;                                                                                 \
 	                                                                                                \
 	float x_l = x_i[0];                                                                             \
 	float y_l = EvalPolyD0_5(x_l, poly_C);                                                          \

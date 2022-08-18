@@ -54,7 +54,7 @@ if (env["CUDA_PATH"]) {
 					"-I".env["OPTIX_PATH"]."/include", "-I".env["OPTIX_PATH"]."/SDK", "-I".env["OPTIX_PATH"]."/SDK/cuda", "-I".INPUT_DIR
 				]]
 			],
-			MAP.[["extensions",["cut"]], ["folder","cuda/templates"]]
+			MAP.[["extensions",["cuh"]], ["folder","cuda/headers"]]
 		];
 	}
 }

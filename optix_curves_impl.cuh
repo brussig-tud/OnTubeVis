@@ -15,7 +15,7 @@
 #include "optix_curves.h"
 
 // Local includes
-#include "optix_tools.h"
+#include "optix_tools.cuh"
 
 
 
@@ -36,7 +36,7 @@ extern "C" {
 //
 
 #ifdef OTV_PRIMITIVE_RUSSIG
-	#include "optix_isect.h"
+	#include "optix_isect.cuh"
 #endif
 
 static __forceinline__ __device__ void compute_ray(uint3 idx, uint3 dim, float3& origin, float3& direction)
