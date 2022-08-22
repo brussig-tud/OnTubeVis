@@ -36,7 +36,9 @@ extern "C" {
 //
 
 #ifdef OTV_PRIMITIVE_RUSSIG
-	#include "optix_isect.cuh"
+	#include "optix_isect_russig.cuh"
+#elif defined(OTV_PRIMITIVE_RESHETOV)
+	#include "optix_isect_reshetov.cuh"
 #endif
 
 static __forceinline__ __device__ void compute_ray(uint3 idx, uint3 dim, float3& origin, float3& direction)

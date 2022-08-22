@@ -1,6 +1,6 @@
 
-#ifndef __OPTIX_ISECT_H__
-#define __OPTIX_ISECT_H__
+#ifndef __OPTIX_ISECT_RUSSIG_CUH__
+#define __OPTIX_ISECT_RUSSIG_CUH__
 
 
 //////
@@ -17,7 +17,7 @@
 //////
 //
 // ToDo: copy-paste-adapted from the rasterization fragment shader and thus introducing a lot of
-//       duplicated logic - rewrite to actually integrate better with our existing CUDA code
+//       duplicated logic - rewrite to actually integrate better with new OptiX/CUDA code
 
 #define ITERATION_COUNT 10
 #define N0 3
@@ -526,4 +526,4 @@ static __device__ Hit EvalSplineISect(const vec3 &ray_orig, const vec3 &dir, vec
 }
 
 
-#endif // ifndef __OPTIX_ISECT_H__
+#endif // ifndef __OPTIX_ISECT_RUSSIG_CUH__

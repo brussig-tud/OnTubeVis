@@ -575,7 +575,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 
 		if (optix.initialized) {
 			optix.tracer_russig.update_accelds(render.data);
-			optix.tracer_reshetov.update_accelds(render.data);
+			optix.tracer_builtin.update_accelds(render.data);
 			//optix.tracer_reshetov_cubic.update_accelds(render.data);
 			optix_register_resources(ctx);
 		}
@@ -819,7 +819,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 	if (member_ptr == &optix.primitive)
 	{
 		if (optix.primitive == OPR_RESHETOV)
-			optix.tracer = &optix.tracer_reshetov;
+			optix.tracer = &optix.tracer_builtin;
 		/*else if (optix.primitive == OPR_RESHETOV_CUBIC)
 			optix.tracer = &optix.tracer_reshetov_cubic;*/
 		else
@@ -1571,7 +1571,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 void on_tube_vis::optix_cleanup (void)
 {
-	optix.tracer_reshetov.destroy();
+	optix.tracer_builtin.destroy();
 	//optix.tracer_reshetov_cubic.destroy();
 	CUDA_SAFE_DESTROY_STREAM(optix.stream);
 }
@@ -1617,8 +1617,8 @@ bool on_tube_vis::optix_ensure_init (context &ctx)
 	if (traj_mgr.has_data()) {
 		optix.tracer_russig = optixtracer_textured_spline_tube_russig::build(optix.context, render.data);
 		success = success && optix.tracer_russig.built();
-		optix.tracer_reshetov = optixtracer_textured_spline_tube_reshetov::build(optix.context, render.data);
-		success = success && optix.tracer_reshetov.built();
+		optix.tracer_builtin = optixtracer_textured_spline_tube_builtin::build(optix.context, render.data);
+		success = success && optix.tracer_builtin.built();
 		/*optix.tracer_reshetov_cubic = optixtracer_textured_spline_tube_reshetovcubic::build(optix.context, render.data);
 		success = success && optix.tracer_reshetov_cubic.built();*/
 		success = success && optix_register_resources(ctx);

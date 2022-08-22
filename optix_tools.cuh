@@ -586,4 +586,93 @@ struct cubic_interpolator_vec3
 };
 
 
+// Static-size dense matrix template
+template <int N /* rows */,  int M /* columns */>
+struct Matrix
+{};
+
+
+// 4x4 matrix
+template <> class Matrix<4, 4>
+{
+public:
+
+	using col_type = float4;
+
+	union {
+		float c[16];
+		col_type col[4];
+		struct {
+			col_type col0, col1, col2, col3;
+		};
+		struct {
+			float c00, c01, c02, c03, c10, c11, c12, c13, c20, c21, c22, c23, c30, c31, c32, c33;
+		};
+	};
+
+public:
+
+	__device__ __forceinline__ Matrix() {}
+
+	__device__ __forceinline__ Matrix(const Matrix<4, 4> &other)
+		: col0(other.col0), col1(other.col1), col2(other.col2), col3(other.col3)
+	{}
+
+	__device__ __forceinline__ Matrix(const col_type cols[4])
+		: col0(cols[0]), col1(cols[1]), col2(cols[2]), col3(cols[3])
+	{}
+
+	__device__ __forceinline__ Matrix(const float data[16])
+	{
+		const auto &cols = (const col_type*)data;
+		col[0] = cols[0];
+		col[1] = cols[1];
+		col[2] = cols[2];
+		col[3] = cols[3];
+	}
+
+	__device__ __forceinline__ Matrix(
+		const float c00, const float c10, const float c20, const float c30,
+		const float c01, const float c11, const float c21, const float c31,
+		const float c02, const float c12, const float c22, const float c32,
+		const float c03, const float c13, const float c23, const float c33
+	)
+	{
+		const auto &cols = (const col_type*)&c00;
+		col[0] = cols[0];
+		col[1] = cols[1];
+		col[2] = cols[2];
+		col[3] = cols[3];
+	}
+
+	__device__ __forceinline__ Matrix(const float c00, const float c11, const float c22, const float c33)
+		: c00(c00), c01(0), c02(0), c03(0), c10(0), c11(c11), c12(0), c13(0),
+		  c20(0), c21(0), c22(c22), c23(0), c30(0), c31(0), c32(0), c33(c33)
+	{}
+
+	__device__ __forceinline__ Matrix(const float diagonal)
+		: c00(diagonal), c01(0), c02(0), c03(0), c10(0), c11(diagonal), c12(0), c13(0),
+		  c20(0), c21(0), c22(diagonal), c23(0), c30(0), c31(0), c32(0), c33(diagonal)
+	{}
+
+	__device__ __forceinline__ Matrix& operator= (const Matrix<4,4> &other)
+	{
+		col[0] = other.col[0];
+		col[1] = other.col[1];
+		col[2] = other.col[2];
+		col[3] = other.col[3];
+		return *this;
+	}
+
+	__device__ __forceinline__ float* data (void) { return c; };
+	__device__ __forceinline__ const float* data (void) const { return c; };
+
+	__device__ __forceinline__ float& operator() (int row, int col);
+	__device__ __forceinline__ float  operator() (size_t row, size_t col) const;
+
+	// Construct identity matrix
+	static __device__ __forceinline__ Matrix identity (void) { return Matrix<4,4>(1.f); }
+};
+
+
 #endif // ifndef __OPTIX_TOOLS_H__

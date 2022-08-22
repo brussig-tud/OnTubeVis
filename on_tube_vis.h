@@ -109,7 +109,7 @@ protected:
 		optixtracer_textured_spline_tube_russig tracer_russig;
 
 		// Optix-builtin phantom-ray-hair-intersector for disc-based quadratic spline tubes
-		optixtracer_textured_spline_tube_reshetov tracer_reshetov;
+		optixtracer_textured_spline_tube_builtin tracer_builtin;
 
 		// Optix-builtin phantom-ray-hair-intersector for disc-based cubic spline tubes
 		//optixtracer_textured_spline_tube_reshetovcubic tracer_reshetov_cubic;
