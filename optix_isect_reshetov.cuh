@@ -53,7 +53,7 @@ struct TransformToRCC
 	mat4 xformInv;
 
 	/// construct for given ray
-	inline TransformToRCC(const float3 &ray_orig, const float3 &dir)
+	__device__ __forceinline__ TransformToRCC(const float3 &ray_orig, const float3 &dir)
 	{
 		float3 e1;
 		float3 e2;
@@ -69,16 +69,16 @@ struct TransformToRCC
 	}
 
 	/// transform a point into the RCC
-	inline vec3 xfmPoint (const vec3 &pnt) { return mul3_mat_pos(xform, pnt); }
+	__device__ __forceinline__ vec3 xfmPoint (const vec3 &pnt) { return mul3_mat_pos(xform, pnt); }
 
 	/// transform a vector into the RCC
-	inline vec3 xfmVector (const vec3 &vec) { return mul3_mat_vec(xform, vec); }
+	__device__ __forceinline__ vec3 xfmVector (const vec3 &vec) { return mul3_mat_vec(xform, vec); }
 
 	/// transform a point given in RCC to world-space
-	inline vec3 xfmPointInv (const vec3 &pnt) { return mul3_mat_pos(xformInv, pnt); }
+	__device__ __forceinline__ vec3 xfmPointInv (const vec3 &pnt) { return mul3_mat_pos(xformInv, pnt); }
 
 	/// transform a vector given in RCC to world-space
-	inline vec3 xfmVectorInv (const vec3 &vec) { return mul3_mat_vec(xformInv, vec); }
+	__device__ __forceinline__ vec3 xfmVectorInv (const vec3 &vec) { return mul3_mat_vec(xformInv, vec); }
 };
 
 struct Curve
@@ -95,15 +95,15 @@ struct Curve
 	/// first derivative of the radius curve
 	linear_interpolator_float drad;
 
-	vec3 f (const float t) const { return pos.eval(t); }
-	vec3 dfdt (const float t) const { return dpos.eval(t); }
+	__device__ __forceinline__ vec3 f (const float t) const { return pos.eval(t); }
+	__device__ __forceinline__ vec3 dfdt (const float t) const { return dpos.eval(t); }
 
-	float r (const float t) const { return rad.eval(t); }
-	float drdt (const float t) const { return drad.eval(t); }
+	__device__ __forceinline__ float r (const float t) const { return rad.eval(t); }
+	__device__ __forceinline__ float drdt (const float t) const { return drad.eval(t); }
 
-	/// construct a curve from the given geometric bezier control points and constant radius
+	/// construct a curve from the given geometric Bezier control points and constant radius
 	/// (trusts nvcc to properly perform RVO/copy-elision)
-	static Curve make (
+	static __device__ __forceinline__ Curve make (
 		const float3 &s, const float3 &h, const float3 &t, const float r
 	)
 	{
@@ -112,7 +112,21 @@ struct Curve
 		curve.rad.from_bezier(r, r, r);
 		curve.dpos = curve.pos.derive();
 		curve.drad = curve.rad.derive();
-		return {};
+		return curve;
+	}
+
+	/// construct a curve from the given geometric and radius bezier control points
+	/// (trusts nvcc to properly perform RVO/copy-elision)
+	static __device__ __forceinline__ Curve make (
+		const float3 &s, const float3 &h, const float3 &t, const float rs, const float rh, const float rt
+	)
+	{
+		Curve curve;
+		curve.pos.from_bezier(s, h, t);
+		curve.rad.from_bezier(rs, rh, rt);
+		curve.dpos = curve.pos.derive();
+		curve.drad = curve.rad.derive();
+		return curve;
 	}
 };
 
@@ -169,16 +183,16 @@ static __device__ Hit isect (
 	hit.t = 0.f;
 	hit.l = pos_inf;
 
-	// construct our curve representation
+	// construct (untransformed) curve representation
 	const float radius = rs;
 	auto curve = Curve::make(s, h, t, radius);
 
-	// Early exit check against enclosing cylinder
+	// for early exit check against enclosing cylinder
 	auto distToCylinder = [&s, &t](vec3 pt) {
 		return length(cross(pt-s, pt-t)) / length(t-s);
 	};
 
-	// TODO: center cylinder inside convex hull of Bezier control points for a tighter fit
+	// ToDo: center cylinder inside convex hull of Bezier control points for a tighter fit
 	float rmax = distToCylinder(curve.f(0.5f)) + radius;
 
 	vec3 axis = normalize(t - s);
@@ -188,23 +202,15 @@ static __device__ Hit isect (
 	if (!intersectCylinder(ray_orig, dir, p0, p1, rmax))
 		return hit;
 
-	// Transform curve to RCC
-	/*TransformToRCC rcc(r);
-	Curve xcurve = make_curve(
-		rcc.xfmPoint(curve.w0),
-		rcc.xfmPoint(curve.w1),
-		rcc.xfmPoint(curve.w2),
-		rcc.xfmPoint(curve.w3),
-		curve.r
-	);
+	// transform curve to RCC
+	TransformToRCC rcc(ray_orig, dir);
+	auto xcurve = Curve::make(rcc.xfmPoint(s), rcc.xfmPoint(h), rcc.xfmPoint(t), radius);
 
-	// "Test for convergence. If the intersection is found,
-	// report it, otherwise start at the other endpoint."
+	// determine which curve end to start iterating from
+	// ToDo: seems to be using the wrong coordinate system! Should be done in world, not RCC... INVESTIGATE!!!
+	float tstart = dot(xcurve.pos.b[2] - xcurve.pos.b[0], dir) > 0.0f ? 0.0f : 1.0f;
 
-	// Compute curve end to start at
-	float tstart = dot(xcurve.w3 - xcurve.w0, r.dir) > 0.0f ? 0.0f : 1.0f;
-
-	for (int ep = 0; ep < 2; ++ep)
+	/*for (int ep = 0; ep < 2; ++ep)
 	{
 		float t   = tstart;
 
