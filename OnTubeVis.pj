@@ -14,6 +14,11 @@ addIncDirs=[
 	INPUT_DIR."/3rd/wgs84mercator"
 ];
 excludeSourceFiles=[INPUT_DIR."/optixtracer_textured_spline_tube.cxx", INPUT_DIR."/optix_integration.cxx"];
+addProjectDeps=[
+	"cgv_utils", "cgv_type", "cgv_reflect", "cgv_data", "cgv_signal", "cgv_base", "cgv_media", 
+	"cgv_gui", "cgv_render", "cgv_os", "cgv_viewer", "glew", "cgv_gl", "cg_fltk", "cg_ext", 
+	"cmi_io", "crg_stereo_view", "crg_light", "crg_grid", "cgv_glutil", "cuda_resprep"
+];
 if (env["CUDA_PATH"]) {
 	if (env["OPTIX_PATH"]) {
 		excludeSourceFiles=[];
@@ -49,20 +54,17 @@ if (env["CUDA_PATH"]) {
 						["path", "$(PROJECT_BUILD_DIR)"]
 					]
 				]], 
+				["tool","cuda_resprep"],
 				["command", [CGV_BUILD."/bin/cuda_resprep",
 					env["CUDA_PATH"]."/bin/nvcc", 0, 1, "-std=c++17", "-ptx", "-arch=compute_61", "--use_fast_math", "-O=3", "-dopt=on", "-D__x86_64", "-I".env["CUDA_PATH"]."/include",
 					"-I".env["OPTIX_PATH"]."/include", "-I".env["OPTIX_PATH"]."/SDK", "-I".env["OPTIX_PATH"]."/SDK/cuda", "-I".INPUT_DIR
 				]]
 			],
-			MAP.[["extensions",["cuh"]], ["folder","cuda/headers"]]
+			MAP.[["extensions",["cuh"]],
+			     ["folder","cuda/headers"]]
 		];
 	}
 }
-addProjectDeps=[
-	"cgv_utils", "cgv_type", "cgv_reflect", "cgv_data", "cgv_signal", "cgv_base", "cgv_media", 
-	"cgv_gui", "cgv_render", "cgv_os", "cgv_viewer", "glew", "cgv_gl", "cg_fltk", "cg_ext", 
-	"cmi_io", "crg_stereo_view", "crg_light", "crg_grid", "cgv_glutil", "cuda_resprep"
-];
 addSharedDefines=["TUBES_EXPORTS"];
 cppLanguageStandard="stdcpp17";
 useOpenMP=1;

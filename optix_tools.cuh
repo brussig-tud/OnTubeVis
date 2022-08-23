@@ -88,6 +88,17 @@ __device__ __forceinline__ unsigned pack_unorm_4x8 (const float4 v)
 	return (c3<<24) | (c2<<16) | (c1<<8) | c0;
 }
 
+__forceinline__ __device__ float3 get_ortho_vec (const float3 &v)
+{
+	return abs(v.x) > abs(v.z) ? make_float3(-v.y, v.x, 0.f) : make_float3(0.f, -v.z, v.y);
+}
+
+__device__ __forceinline__ void make_orthonormal_basis (float3 &e1, float3 &e2, const float3 &e3)
+{
+	e2 = normalize(get_ortho_vec(e3));
+    e1 = cross(e2, e3);
+}
+
 // set a column of the given 4x4 matrix to the given vector
 __device__ __forceinline__ void set_mat_col (float *mat, const unsigned col, const float4 &vec)
 {
@@ -242,6 +253,12 @@ __device__ __forceinline__ void make_local_frame (float *mat, const float3 &x, c
 	mat[3] = 0; mat[7] = 0; mat[11] = 0;	mat[15] = 1;
 }
 
+// calculate the determinant of the given 2x2 matrix
+__device__ __forceinline__ float det2 (const float m00, const float m01, const float m10, const float m11)
+{
+    return m00*m11 - m10*m01;
+}
+
 // apply w-clip to homogenous R^3 vector, returning ordinary R^3 vector
 __device__ __forceinline__ float3 w_clip (const float4 &hvec)
 {
@@ -303,7 +320,187 @@ __device__ __forceinline__ float2 obtain_jittered_subpxl_offset (unsigned i, flo
 // Structs
 //
 
-// a linear interpolator in R^3 space - uses Bezier basis internally for coherence with higher-order interpolators below
+
+// Static-size dense matrix template
+template <int N /* rows */,  int M /* columns */>
+struct Matrix
+{};
+
+// 4x4 matrix
+template <> class Matrix<4, 4>
+{
+public:
+
+	using col_type = float4;
+
+	union {
+		float c[16];
+		col_type col[4];
+		struct {
+			col_type col0, col1, col2, col3;
+		};
+		struct {
+			float c00, c01, c02, c03, c10, c11, c12, c13, c20, c21, c22, c23, c30, c31, c32, c33;
+		};
+	};
+
+public:
+
+	__device__ __forceinline__ Matrix() {}
+
+	__device__ __forceinline__ Matrix(const Matrix<4, 4> &other)
+		: col0(other.col0), col1(other.col1), col2(other.col2), col3(other.col3)
+	{}
+
+	__device__ __forceinline__ Matrix(const float data[16])
+	{
+		const auto &cols = (const col_type*)data;
+		col[0] = cols[0];
+		col[1] = cols[1];
+		col[2] = cols[2];
+		col[3] = cols[3];
+	}
+
+	__device__ __forceinline__ Matrix(
+		const float c00, const float c10, const float c20, const float c30,
+		const float c01, const float c11, const float c21, const float c31,
+		const float c02, const float c12, const float c22, const float c32,
+		const float c03, const float c13, const float c23, const float c33
+	)
+	{
+		const auto &cols = (const col_type*)&c00;
+		col[0] = cols[0];
+		col[1] = cols[1];
+		col[2] = cols[2];
+		col[3] = cols[3];
+	}
+
+	__device__ __forceinline__ Matrix(const col_type cols[4])
+		: col0(cols[0]), col1(cols[1]), col2(cols[2]), col3(cols[3])
+	{}
+
+	__device__ __forceinline__ Matrix(
+		const col_type &col0, const col_type &col1, const col_type &col2, const col_type &col3
+	)
+		: col0(col0), col1(col1), col2(col2), col3(col3)
+	{}
+
+	__device__ __forceinline__ Matrix(const float c00, const float c11, const float c22, const float c33)
+		: c00(c00), c01(0), c02(0), c03(0), c10(0), c11(c11), c12(0), c13(0),
+		  c20(0), c21(0), c22(c22), c23(0), c30(0), c31(0), c32(0), c33(c33)
+	{}
+
+	__device__ __forceinline__ Matrix(const float diagonal)
+		: c00(diagonal), c01(0), c02(0), c03(0), c10(0), c11(diagonal), c12(0), c13(0),
+		  c20(0), c21(0), c22(diagonal), c23(0), c30(0), c31(0), c32(0), c33(diagonal)
+	{}
+
+	__device__ __forceinline__ Matrix& operator= (const Matrix<4,4> &other)
+	{
+		col[0] = other.col[0];
+		col[1] = other.col[1];
+		col[2] = other.col[2];
+		col[3] = other.col[3];
+		return *this;
+	}
+
+	__device__ __forceinline__ float& operator() (const unsigned row, const unsigned col)
+	{
+		return c[col*4 + row];
+	}
+	__device__ __forceinline__ float operator() (const unsigned row, const unsigned col) const
+	{
+		return c[col*4 + row];
+	}
+
+	__device__ __forceinline__ operator float* (void) { return c; }
+	__device__ __forceinline__ operator const float* (void) const { return c; }
+
+	__device__ __forceinline__ float* data (void) { return c; };
+	__device__ __forceinline__ const float* data (void) const { return c; };
+
+	__device__ __forceinline__ float4 operator * (const float4 &vec)
+	{
+		return mul_mat_vec(c, vec);
+	}
+
+	__device__ Matrix inverse (void) const
+	{
+		const float s0 = det2(c00, c01, c10, c11), s1 = det2(c00, c02, c10, c12),
+		            s2 = det2(c00, c03, c10, c13), s3 = det2(c01, c02, c11, c12),
+		            s4 = det2(c01, c03, c11, c13), s5 = det2(c02, c03, c12, c13),
+		            c5 = det2(c22, c23, c32, c33), c4 = det2(c21, c23, c31, c33),
+		            c3 = det2(c21, c22, c31, c32), c2 = det2(c20, c23, c30, c33),
+		            c1 = det2(c20, c22, c30, c32), c0 = det2(c20, c21, c30, c31),
+		            det = s0*c5 - s1*c4 + s2*c3 + s3*c2 - s4*c1 + s5*c0;
+
+		return {
+			(+c11 * c5 - c12 * c4 + c13 * c3) / det,
+			(-c10 * c5 + c12 * c2 + c13 * c1) / det,
+			(+c10 * c4 - c11 * c2 + c13 * c0) / det,
+			(-c10 * c3 + c11 * c1 + c12 * c0) / det,
+			(-c01 * c5 + c02 * c4 - c03 * c3) / det,
+			(+c00 * c5 - c02 * c2 + c03 * c1) / det,
+			(-c00 * c4 + c01 * c2 - c03 * c0) / det,
+			(+c00 * c3 - c01 * c1 + c02 * c0) / det,
+			(+c31 * s5 - c32 * s4 + c33 * s3) / det,
+			(-c30 * s5 + c32 * s2 - c33 * s1) / det,
+			(+c30 * s4 - c31 * s2 + c33 * s0) / det,
+			(-c30 * s3 + c31 * s1 - c32 * s0) / det,
+			(-c21 * s5 + c22 * s4 - c23 * s3) / det,
+			(+c20 * s5 - c22 * s2 + c23 * s1) / det,
+			(-c20 * s4 + c21 * s2 - c23 * s0) / det,
+			(+c20 * s3 - c21 * s1 + c22 * s0) / det
+		};
+	}
+
+	// creates an identity matrix
+	static __device__ __forceinline__ Matrix identity (void) { return 1.f; }
+
+	// creates a matrix with diagonal set to value
+	static __device__ __forceinline__ Matrix diagonal (const float value) { return value; }
+
+	// creates a matrix with all components set to value
+	static __device__ __forceinline__ Matrix components (const float value) { return {
+		value, value, value, value, value, value, value, value, value, value, value, value, value, value, value, value
+	};}
+};
+
+// common instances of a dense matrix
+typedef Matrix<4, 4> mat4;
+
+// a scalar linear interpolator - uses Bezier basis internally as that maps directly onto fused-multiply-add instructions
+struct linear_interpolator_float
+{
+	// linear bezier basis coefficients
+	float b[2];
+
+	// initialize from Bezier control points
+	__device__ __forceinline__ void from_bezier (const float *b)
+	{
+		this->b[0] = b[0];
+		this->b[1] = b[1];
+	}
+	// initialize from Bezier control points
+	__device__ __forceinline__ void from_bezier (const float b0, const float b1)
+	{
+		b[0] = b0;
+		b[1] = b1;
+	}
+
+	// evaluate interpolation at given t
+	__device__ __forceinline__ float eval (const float t) const
+	{
+		// De-Casteljau level 0 (final result)
+		return mix(b[0], b[1], t);
+	}
+
+	// compute first derivative and return resulting curve (actually, just a constant in case
+	// of our linear interpolator).
+	__device__ __forceinline__ float derive (void) const { return b[1]-b[0]; }
+};
+
+// a linear interpolator in R^3 space - uses Bezier basis internally as that maps directly onto fused-multiply-add instructions
 struct linear_interpolator_vec3
 {
 	// linear bezier basis coefficients
@@ -314,6 +511,12 @@ struct linear_interpolator_vec3
 	{
 		this->b[0] = b[0];
 		this->b[1] = b[1];
+	}
+	// initialize from Bezier control points
+	__device__ __forceinline__ void from_bezier (const float3 &b0, const float3 &b1)
+	{
+		b[0] = b0;
+		b[1] = b1;
 	}
 
 	// initialize from Bezier control points with radius
@@ -330,6 +533,20 @@ struct linear_interpolator_vec3
 		this->b[1].z = b[1].z;
 	}
 
+	// initialize from Bezier control points with radius
+	__device__ __forceinline__ void from_bezier (const float4 &b0, const float4 &b1)
+	{
+		// b1
+		this->b[0].x = b0.x;
+		this->b[0].y = b0.y;
+		this->b[0].z = b0.z;
+
+		// b2
+		this->b[1].x = b1.x;
+		this->b[1].y = b1.y;
+		this->b[1].z = b1.z;
+	}
+
 	// evaluate interpolation at given t
 	__device__ __forceinline__ float3 eval (const float t) const
 	{
@@ -338,10 +555,67 @@ struct linear_interpolator_vec3
 	}
 
 	// compute first derivative and return resulting curve (actually, just a constant in case
-	// of our linear interpolator). Trusts nvcc to properly perform RVO/copy-elision.
+	// of our linear interpolator).
 	__device__ __forceinline__ float3 derive (void) const
 	{
 		return {b[1].x-b[0].x, b[1].y-b[0].y, b[1].z-b[0].z};
+	}
+};
+
+// a scalar quadratic interpolator - uses Bezier basis internally for efficient evaluation
+struct quadr_interpolator_float
+{
+	// quadratic bezier basis coefficients
+	float b[3];
+
+	// initialize from Bezier control points
+	__device__ __forceinline__ void from_bezier (const float *b)
+	{
+		this->b[0] = b[0];
+		this->b[1] = b[1];
+		this->b[2] = b[2];
+	}
+	// initialize from Bezier control points
+	__device__ __forceinline__ void from_bezier (const float b0, const float b1, const float b2)
+	{
+		b[0] = b0;
+		b[1] = b1;
+		b[2] = b2;
+	}
+
+	// initialize from B-spline control points
+	__device__ __forceinline__ void from_bspline (const float *s)
+	{
+		b[0] = .5f*(s[0] + s[1]);
+		b[1] = s[1];
+		b[2] = .5f*(s[1] + s[2]);
+	}
+
+	// evaluate interpolation at given t
+	__device__ __forceinline__ float eval (const float t) const
+	{
+		// De-Casteljau level 0
+		float v[2] = {
+			mix(b[0], b[1], t), mix(b[1], b[2], t)
+		};
+
+		// De-Casteljau level 1 (final result)
+		return mix(v[0], v[1], t);
+	}
+
+	// compute first derivative and return resulting curve as a quadratic interpolator
+	// (trusts nvcc to properly perform RVO/copy-elision)
+	__device__ __forceinline__ linear_interpolator_float derive (void) const
+	{
+		linear_interpolator_float der;
+
+		// b0
+		der.b[0] = 2.f*(b[1]-b[0]);
+
+		// b1
+		der.b[1] = 2.f*(b[2]-b[1]);
+
+		return der;
 	}
 };
 
@@ -358,9 +632,38 @@ struct quadr_interpolator_vec3
 		this->b[1] = b[1];
 		this->b[2] = b[2];
 	}
+	// initialize from Bezier control points with radius
+	__device__ __forceinline__ void from_bezier (
+		const float3 &b0, const float3 &b1, const float3 &b2
+	)
+	{
+		b[0] = b0;
+		b[1] = b1;
+		b[2] = b2;
+	}
 
 	// initialize from Bezier control points with radius
 	__device__ __forceinline__ void from_bezier (const float4 *b)
+	{
+		// b1
+		this->b[0].x = b[0].x;
+		this->b[0].y = b[0].y;
+		this->b[0].z = b[0].z;
+
+		// b2
+		this->b[1].x = b[1].x;
+		this->b[1].y = b[1].y;
+		this->b[1].z = b[1].z;
+
+		// b3
+		this->b[2].x = b[2].x;
+		this->b[2].y = b[2].y;
+		this->b[2].z = b[2].z;
+	}
+	// initialize from Bezier control points with radius
+	__device__ __forceinline__ void from_bezier (
+		const float4 &b0, const float4 &b1, const float4 &b2
+	)
 	{
 		// b1
 		this->b[0].x = b[0].x;
@@ -437,6 +740,85 @@ struct quadr_interpolator_vec3
 	}
 };
 
+// a scalar cubic interpolator - uses Bezier basis internally for efficient evaluation
+struct cubic_interpolator_float
+{
+	// cubic bezier basis coefficients
+	float b[4];
+
+	// initialize from Bezier control points
+	__device__ __forceinline__ void from_bezier (const float *b)
+	{
+		this->b[0] = b[0];
+		this->b[1] = b[1];
+		this->b[2] = b[2];
+		this->b[3] = b[3];
+	}
+	// initialize from Bezier control points
+	__device__ __forceinline__ void from_bezier (
+		const float&b0, const float b1, const float b2, const float b3
+	)
+	{
+		b[0] = b0;
+		b[1] = b1;
+		b[2] = b2;
+		b[3] = b3;
+	}
+
+	// initialize from Catmull-Rom control points
+	__device__ __forceinline__ void from_catmullrom (const float *cr)
+	{
+		b[0] = cr[1];
+		b[1] = cr[1] + (cr[2]-cr[0])/6;
+		b[2] = cr[2] - (cr[3]-cr[1])/6;
+		b[3] = cr[2];
+	}
+
+	// initialize from Hermite control points
+	__device__ __forceinline__ void from_hermite (const float p0, const float m0,
+	                                              const float p1, const float m1)
+	{
+		b[0] = p0;
+		b[1] = p0 + _1o3*m0;
+		b[2] = p1 - _1o3*m1;
+		b[3] = p1;
+	}
+
+	// evaluate interpolation at given t
+	__device__ __forceinline__ float eval (const float t) const
+	{
+		// De-Casteljau level 0
+		float v[3] = {
+			mix(b[0], b[1], t), mix(b[1], b[2], t), mix(b[2], b[3], t)
+		};
+
+		// De-Casteljau level 1 (reuse local storage from above)
+		v[0] = mix(v[0], v[1], t);
+		v[1] = mix(v[1], v[2], t);
+
+		// De-Casteljau level 2 (final result)
+		return mix(v[0], v[1], t);
+	}
+
+	// compute first derivative and return resulting curve as a quadratic interpolator
+	// (trusts nvcc to properly perform RVO/copy-elision)
+	__device__ __forceinline__ quadr_interpolator_float derive (void) const
+	{
+		quadr_interpolator_float der;
+
+		// b0
+		der.b[0] = 3.f*(b[1] - b[0]);
+
+		// b1
+		der.b[1] = 3.f*(b[2] - b[1]);
+
+		// b2
+		der.b[2] = 3.f*(b[3] - b[2]);
+
+		return der;
+	}
+};
+
 // a cubic interpolator in R^3 space - uses Bezier basis internally for efficient evaluation
 struct cubic_interpolator_vec3
 {
@@ -450,6 +832,16 @@ struct cubic_interpolator_vec3
 		this->b[1] = b[1];
 		this->b[2] = b[2];
 		this->b[3] = b[3];
+	}
+	// initialize from Bezier control points
+	__device__ __forceinline__ void from_bezier (
+		const float3 &b0, const float3 &b1, const float3 &b2, const float3 &b3
+	)
+	{
+		b[0] = b0;
+		b[1] = b1;
+		b[2] = b2;
+		b[3] = b3;
 	}
 
 	// initialize from Bezier control points with radius
@@ -475,6 +867,31 @@ struct cubic_interpolator_vec3
 		this->b[3].y = b[3].y;
 		this->b[3].z = b[3].z;
 	}
+	// initialize from Bezier control points with radius
+	__device__ __forceinline__ void from_bezier (
+		const float4 &b0, const float4 &b1, const float4 &b2, const float4 &b3
+	)
+	{
+		// b0
+		this->b[0].x = b0.x;
+		this->b[0].y = b0.y;
+		this->b[0].z = b0.z;
+
+		// b1
+		this->b[1].x = b1.x;
+		this->b[1].y = b1.y;
+		this->b[1].z = b1.z;
+
+		// b2
+		this->b[2].x = b2.x;
+		this->b[2].y = b2.y;
+		this->b[2].z = b2.z;
+
+		// b3
+		this->b[3].x = b3.x;
+		this->b[3].y = b3.y;
+		this->b[3].z = b3.z;
+	}
 
 	// initialize from Catmull-Rom control points
 	__device__ __forceinline__ void from_catmullrom (const float3 *cr)
@@ -484,7 +901,6 @@ struct cubic_interpolator_vec3
 		b[2] = cr[2] - (cr[3]-cr[1])/6;
 		b[3] = cr[2];
 	}
-
 	// initialize from Catmull-Rom control points with radius
 	__device__ __forceinline__ void from_catmullrom (const float4 *cr)
 	{
@@ -518,7 +934,6 @@ struct cubic_interpolator_vec3
 		b[2] = p1 - _1o3*m1;
 		b[3] = p1;
 	}
-
 	// initialize from Hermite control points with radius
 	__device__ __forceinline__ void from_hermite (const float4 &p0, const float4 &m0,
 	                                              const float4 &p1, const float4 &m1)
@@ -583,95 +998,6 @@ struct cubic_interpolator_vec3
 
 		return der;
 	}
-};
-
-
-// Static-size dense matrix template
-template <int N /* rows */,  int M /* columns */>
-struct Matrix
-{};
-
-
-// 4x4 matrix
-template <> class Matrix<4, 4>
-{
-public:
-
-	using col_type = float4;
-
-	union {
-		float c[16];
-		col_type col[4];
-		struct {
-			col_type col0, col1, col2, col3;
-		};
-		struct {
-			float c00, c01, c02, c03, c10, c11, c12, c13, c20, c21, c22, c23, c30, c31, c32, c33;
-		};
-	};
-
-public:
-
-	__device__ __forceinline__ Matrix() {}
-
-	__device__ __forceinline__ Matrix(const Matrix<4, 4> &other)
-		: col0(other.col0), col1(other.col1), col2(other.col2), col3(other.col3)
-	{}
-
-	__device__ __forceinline__ Matrix(const col_type cols[4])
-		: col0(cols[0]), col1(cols[1]), col2(cols[2]), col3(cols[3])
-	{}
-
-	__device__ __forceinline__ Matrix(const float data[16])
-	{
-		const auto &cols = (const col_type*)data;
-		col[0] = cols[0];
-		col[1] = cols[1];
-		col[2] = cols[2];
-		col[3] = cols[3];
-	}
-
-	__device__ __forceinline__ Matrix(
-		const float c00, const float c10, const float c20, const float c30,
-		const float c01, const float c11, const float c21, const float c31,
-		const float c02, const float c12, const float c22, const float c32,
-		const float c03, const float c13, const float c23, const float c33
-	)
-	{
-		const auto &cols = (const col_type*)&c00;
-		col[0] = cols[0];
-		col[1] = cols[1];
-		col[2] = cols[2];
-		col[3] = cols[3];
-	}
-
-	__device__ __forceinline__ Matrix(const float c00, const float c11, const float c22, const float c33)
-		: c00(c00), c01(0), c02(0), c03(0), c10(0), c11(c11), c12(0), c13(0),
-		  c20(0), c21(0), c22(c22), c23(0), c30(0), c31(0), c32(0), c33(c33)
-	{}
-
-	__device__ __forceinline__ Matrix(const float diagonal)
-		: c00(diagonal), c01(0), c02(0), c03(0), c10(0), c11(diagonal), c12(0), c13(0),
-		  c20(0), c21(0), c22(diagonal), c23(0), c30(0), c31(0), c32(0), c33(diagonal)
-	{}
-
-	__device__ __forceinline__ Matrix& operator= (const Matrix<4,4> &other)
-	{
-		col[0] = other.col[0];
-		col[1] = other.col[1];
-		col[2] = other.col[2];
-		col[3] = other.col[3];
-		return *this;
-	}
-
-	__device__ __forceinline__ float* data (void) { return c; };
-	__device__ __forceinline__ const float* data (void) const { return c; };
-
-	__device__ __forceinline__ float& operator() (int row, int col);
-	__device__ __forceinline__ float  operator() (size_t row, size_t col) const;
-
-	// Construct identity matrix
-	static __device__ __forceinline__ Matrix identity (void) { return Matrix<4,4>(1.f); }
 };
 
 

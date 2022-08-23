@@ -12,6 +12,9 @@
 #include <optix.h>
 #include <sutil/vec_math.h>
 
+// Local includes
+#include "optix_tools.cuh"
+
 
 
 //////
@@ -216,11 +219,6 @@ void FindRootsD0(float poly_C[N1], float x_i[N], int m_i[N], float *x_o, int *m_
 static __device__ DEF_FINDROOTS_D1(4)
 static __device__ DEF_FINDROOTS_D0(5)
 
-static __forceinline__ __device__ vec3 GetOrthoVec(const vec3 &v)
-{
-    return abs(v.x) > abs(v.z) ? make_float3(-v.y, v.x, 0.f) : make_float3(0.f, -v.z, v.y);
-}
-
 static __forceinline__ __device__ void SplinePointsToPolyCoeffs(float p0, float h, float p1, float *o_c)
 {
 	o_c[0] = p0;
@@ -349,7 +347,7 @@ static __device__ Hit EvalSplineISect(const vec3 &ray_orig, const vec3 &dir, vec
 	// - basis vectors
 	float RM3[9];
 	set_mat3_col(RM3, 0, dir);
-	set_mat3_col(RM3, 1, normalize(GetOrthoVec(dir)));
+	set_mat3_col(RM3, 1, normalize(get_ortho_vec(dir)));
 	set_mat3_col(RM3, 2, cross(dir, get_mat3_col(RM3, 1)));
 	/*float RS[16];
 	{ const float3 dir_ortho = normalize(GetOrthoVec(dir));
