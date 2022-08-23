@@ -77,7 +77,7 @@ static __forceinline__ __device__ float3 calc_hit_point (void)
 
 #ifndef OTV_PRIMITIVE_RUSSIG
 	template <class dcurve_type>
-	static __forceinline__ __device__ float3 calc_segment_surface_normal (
+	static __forceinline__ __device__ float3 calc_sweptdisc_surface_normal (
 		const float3 &p_surface, const float3 &p_curve, const dcurve_type &dcurve, const float ts
 	)
 	{
@@ -239,6 +239,37 @@ extern "C" __global__ void __intersection__russig (void)
 			__float_as_int(nodes[1].x), __float_as_int(nodes[1].y), __float_as_int(nodes[1].z)
 		);
 }
+#elif defined(OTV_PRIMITIVE_RESHETOV)
+extern "C" __global__ void __intersection__reshetov (void)
+{
+	// fetch quadratic node data
+	const unsigned nid = optixGetPrimitiveIndex()*3;
+	const float3 nodes[3] = {
+		params.positions[nid], params.positions[nid+1], params.positions[nid+2]
+	};
+	const float radii[3] = {
+		params.radii[nid].x, params.radii[nid+1].x, params.radii[nid+2].x
+	};
+
+	// perform intersection
+	const Hit hit = intersect_spline_tube(
+		optixGetWorldRayOrigin(), optixGetWorldRayDirection(),
+		nodes[0], nodes[1], nodes[2], radii[0], radii[1], radii[2]
+	);
+	if (hit.l < pos_inf)
+		// report our intersection
+		optixReportIntersection(
+			hit.l/*0.1f/*hit.t*/, 0u/* hit kind, unused*/, __float_as_int(hit.t/*0.5f/*hit.l*/),
+			__float_as_int(nodes[0].x), __float_as_int(nodes[0].y), __float_as_int(nodes[0].z),
+			__float_as_int(nodes[1].x), __float_as_int(nodes[1].y), __float_as_int(nodes[1].z)
+		);
+	else if (params.show_bvol)
+		optixReportIntersection(
+			0.1f, 0u/* hit kind, unused*/, __float_as_int(0.5f),
+			__float_as_int(nodes[0].x), __float_as_int(nodes[0].y), __float_as_int(nodes[0].z),
+			__float_as_int(nodes[1].x), __float_as_int(nodes[1].y), __float_as_int(nodes[1].z)
+		);
+}
 #endif
 
 extern "C" __global__ void __miss__ms (void)
@@ -296,10 +327,11 @@ extern "C" __global__ void __closesthit__ch (void)
 	// compute hit normal in eye-space
 	const float3 pos_curve = curve.eval(ts);
 	const float3 normal = normalize(mul3_mat_vec(params.cam_N,
-#ifdef OTV_PRIMITIVE_RUSSIG
-		pos - pos_curve
+#if defined(OTV_PRIMITIVE_RUSSIG)
+		pos - pos_curve  // swept-sphere makes this especially easy
 #else
-		calc_segment_surface_normal(pos, pos_curve, dcurve, ts)
+		// swept-disc tube normal calculation with special handling for end caps
+		calc_sweptdisc_surface_normal(pos, pos_curve, dcurve, ts)
 #endif
 	));	// in the general setting, we would first call optixTransformNormalFromObjectToWorldSpace()
 		// before doing anything with the normal, since the segment could be in a bottom-level acceleration

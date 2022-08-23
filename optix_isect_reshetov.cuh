@@ -22,6 +22,8 @@
 // Typedefs and constants
 //
 
+#define ITERATION_COUNT 40
+
 typedef float2 vec2;
 typedef float3 vec3;
 typedef float4 vec4;
@@ -173,7 +175,44 @@ __device__ bool intersectCylinder (
 	return false;
 }
 
-static __device__ Hit isect (
+struct RayConeIntersection
+{
+	__device__ bool intersect (float r, float dr)
+	{
+		float r2  = r * r;
+		float drr = r * dr;
+
+		float ddd = cd.x * cd.x + cd.y * cd.y;
+		dp        = c0.x * c0.x + c0.y * c0.y;
+		float cdd = c0.x * cd.x + c0.y * cd.y;
+		float cxd = c0.x * cd.y - c0.y * cd.x;
+
+		float c = ddd;
+		float b = cd.z * (drr - cdd);
+		float cdz2 = cd.z * cd.z;
+		ddd += cdz2;
+		float a = 2.0f * drr * cdd + cxd * cxd - ddd * r2 + dp * cdz2;
+
+		float discr = b * b - a * c;
+		s   = (b - (discr > 0.0f ? sqrtf(discr) : 0.0f)) / c;
+		dt  = (s * cd.z - cdd) / ddd;
+		dc  = s * s + dp;
+		sp  = cdd / cd.z;
+		dp += sp * sp;
+
+		return discr > 0.0f;
+	}
+
+	vec3  c0;
+	vec3  cd;
+	float s;
+	float dt;
+	float dp;
+	float dc;
+	float sp;
+};
+
+static __device__ Hit intersect_spline_tube (
 	const float3 &ray_orig, const float3 &dir, const float3 &s, const float3 &h, const float3 &t,
 	const float rs, const float rh, const float rt
 )
@@ -210,37 +249,36 @@ static __device__ Hit isect (
 	// ToDo: seems to be using the wrong coordinate system! Should be done in world, not RCC... INVESTIGATE!!!
 	float tstart = dot(xcurve.pos.b[2] - xcurve.pos.b[0], dir) > 0.0f ? 0.0f : 1.0f;
 
+<<<<<<< HEAD
 	/*for (int ep = 0; ep < 2; ++ep)
+=======
+	for (unsigned end=0; end<2; end++)
+>>>>>>> eafbc4d (Commit WIP for custom Phantom-Ray-Hair intersector)
 	{
-		float t   = tstart;
+		float t    = tstart;
+		float told = 0.0f;
+		float dt1  = 0.0f;
+		float dt2  = 0.0f;
 
 		RayConeIntersection rci;
-
-		float told = 0.0f;
-		float dt1 = 0.0f;
-		float dt2 = 0.0f;
-
-		for (int i = 0; i < 40; ++i)
+		for (unsigned i=0; i<ITERATION_COUNT; i++)
 		{
 			rci.c0 = xcurve.f(t);
 			rci.cd = xcurve.dfdt(t);
-
-			bool phantom = !rci.intersect(curve.r, 0.0f/*cylinder*//*);
+			bool phantom = !rci.intersect(xcurve.rad.eval(t), 0.0f/*cylinder*/);
 
 			// "In all examples in this paper we stop iterations when dt < 5x10^−5"
 			if (!phantom && fabsf(rci.dt) < 5e-5f)
 			{
 				//vec3 n = normalize(curve.dfdt(t));
 				rci.s += rci.c0.z;
-				result.t = rci.s;
-				result.u = t; // abuse param u to store curve's t
-				result.hit = true;
-				result.isect_pos = r.ori + result.t * r.dir;
-				break;
+				hit.l = rci.s;
+				hit.t = t; // abuse param u to store curve's t
+				return hit;
 			}
 
-			rci.dt = min(rci.dt, 0.5f);
-			rci.dt = max(rci.dt, -0.5f);
+			rci.dt = fmin(rci.dt,  0.5f);
+			rci.dt = fmax(rci.dt, -0.5f);
 
 			dt1 = dt2;
 			dt2 = rci.dt;
@@ -274,15 +312,9 @@ static __device__ Hit isect (
 			}
 		}
 
-		if (!result.hit)
-		{
-			tstart = 1.0f - tstart;
-		}
-		else
-		{
-			break;
-		}
-	}*/
+		// re-attempt iteration from the direction of the other end
+		tstart = 1.0f - tstart;
+	}
 
 	// done!
 	return hit;
