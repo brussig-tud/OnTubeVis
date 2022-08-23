@@ -249,11 +249,7 @@ static __device__ Hit intersect_spline_tube (
 	// ToDo: seems to be using the wrong coordinate system! Should be done in world, not RCC... INVESTIGATE!!!
 	float tstart = dot(xcurve.pos.b[2] - xcurve.pos.b[0], dir) > 0.0f ? 0.0f : 1.0f;
 
-<<<<<<< HEAD
-	/*for (int ep = 0; ep < 2; ++ep)
-=======
 	for (unsigned end=0; end<2; end++)
->>>>>>> eafbc4d (Commit WIP for custom Phantom-Ray-Hair intersector)
 	{
 		float t    = tstart;
 		float told = 0.0f;
