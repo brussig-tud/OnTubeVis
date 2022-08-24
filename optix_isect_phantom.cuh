@@ -1,6 +1,6 @@
 ﻿
-#ifndef __OPTIX_ISECT_RESHETOV_CUH__
-#define __OPTIX_ISECT_RESHETOV_CUH__
+#ifndef __OPTIX_ISECT_PHANTOM_CUH__
+#define __OPTIX_ISECT_PHANTOM_CUH__
 
 
 //////
@@ -317,4 +317,4 @@ static __device__ Hit intersect_spline_tube (
 }
 
 
-#endif // ifndef __OPTIX_ISECT_RESHETOV_CUH__
+#endif // ifndef __OPTIX_ISECT_PHANTOM_CUH__

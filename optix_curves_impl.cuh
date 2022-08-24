@@ -37,8 +37,8 @@ extern "C" {
 
 #ifdef OTV_PRIMITIVE_RUSSIG
 	#include "optix_isect_russig.cuh"
-#elif defined(OTV_PRIMITIVE_RESHETOV)
-	#include "optix_isect_reshetov.cuh"
+#elif defined(OTV_PRIMITIVE_PHANTOM)
+	#include "optix_isect_phantom.cuh"
 #endif
 
 static __forceinline__ __device__ void compute_ray(uint3 idx, uint3 dim, float3& origin, float3& direction)
@@ -239,8 +239,8 @@ extern "C" __global__ void __intersection__russig (void)
 			__float_as_int(nodes[1].x), __float_as_int(nodes[1].y), __float_as_int(nodes[1].z)
 		);
 }
-#elif defined(OTV_PRIMITIVE_RESHETOV)
-extern "C" __global__ void __intersection__reshetov (void)
+#elif defined(OTV_PRIMITIVE_PHANTOM)
+extern "C" __global__ void __intersection__phantom (void)
 {
 	// fetch quadratic node data
 	const unsigned nid = optixGetPrimitiveIndex()*3;

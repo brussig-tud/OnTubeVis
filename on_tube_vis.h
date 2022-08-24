@@ -74,8 +74,9 @@ protected:
 	enum OptixPrimitive
 	{
 		OPR_RUSSIG = 0,
-		OPR_RESHETOV = 1,
-		OPR_RESHETOV_CUBIC = 2
+		OPR_BUILTIN = 1,
+		OPR_BUILTIN_CUBIC = 2,
+		OPR_PHANTOM = 3
 	};
 
 	/// OptiX debug output options
@@ -108,11 +109,14 @@ protected:
 		// sphere-based hermite spline tube intersector by Russig et al.
 		optixtracer_textured_spline_tube_russig tracer_russig;
 
+		// Custom implementation of the phantom-ray-hair-intersector for disc-based cubic spline tubes
+		optixtracer_textured_spline_tube_phantom tracer_phantom;
+
 		// Optix-builtin phantom-ray-hair-intersector for disc-based quadratic spline tubes
 		optixtracer_textured_spline_tube_builtin tracer_builtin;
 
 		// Optix-builtin phantom-ray-hair-intersector for disc-based cubic spline tubes
-		//optixtracer_textured_spline_tube_reshetovcubic tracer_reshetov_cubic;
+		optixtracer_textured_spline_tube_builtincubic tracer_builtin_cubic;
 
 		// the intersector/primitive to use for raytracing
 		OptixPrimitive primitive = OPR_RUSSIG;

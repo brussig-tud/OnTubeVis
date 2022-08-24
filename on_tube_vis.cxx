@@ -575,8 +575,9 @@ void on_tube_vis::on_set(void *member_ptr) {
 
 		if (optix.initialized) {
 			optix.tracer_russig.update_accelds(render.data);
+			optix.tracer_phantom.update_accelds(render.data);
 			optix.tracer_builtin.update_accelds(render.data);
-			//optix.tracer_reshetov_cubic.update_accelds(render.data);
+			optix.tracer_builtin_cubic.update_accelds(render.data);
 			optix_register_resources(ctx);
 		}
 
@@ -818,10 +819,12 @@ void on_tube_vis::on_set(void *member_ptr) {
 
 	if (member_ptr == &optix.primitive)
 	{
-		if (optix.primitive == OPR_RESHETOV)
+		if (optix.primitive == OPR_PHANTOM)
+			optix.tracer = &optix.tracer_phantom;
+		else if (optix.primitive == OPR_BUILTIN)
 			optix.tracer = &optix.tracer_builtin;
-		/*else if (optix.primitive == OPR_RESHETOV_CUBIC)
-			optix.tracer = &optix.tracer_reshetov_cubic;*/
+		else if (optix.primitive == OPR_BUILTIN_CUBIC)
+			optix.tracer = &optix.tracer_builtin_cubic;
 		else
 			optix.tracer = &optix.tracer_russig;
 	}
@@ -1571,8 +1574,10 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 void on_tube_vis::optix_cleanup (void)
 {
+	optix.tracer_russig.destroy();
+	optix.tracer_phantom.destroy();
 	optix.tracer_builtin.destroy();
-	//optix.tracer_reshetov_cubic.destroy();
+	optix.tracer_builtin_cubic.destroy();
 	CUDA_SAFE_DESTROY_STREAM(optix.stream);
 }
 
@@ -1617,10 +1622,12 @@ bool on_tube_vis::optix_ensure_init (context &ctx)
 	if (traj_mgr.has_data()) {
 		optix.tracer_russig = optixtracer_textured_spline_tube_russig::build(optix.context, render.data);
 		success = success && optix.tracer_russig.built();
+		optix.tracer_phantom = optixtracer_textured_spline_tube_phantom::build(optix.context, render.data);
+		success = success && optix.tracer_phantom.built();
 		optix.tracer_builtin = optixtracer_textured_spline_tube_builtin::build(optix.context, render.data);
 		success = success && optix.tracer_builtin.built();
-		/*optix.tracer_reshetov_cubic = optixtracer_textured_spline_tube_reshetovcubic::build(optix.context, render.data);
-		success = success && optix.tracer_reshetov_cubic.built();*/
+		optix.tracer_builtin_cubic = optixtracer_textured_spline_tube_builtincubic::build(optix.context, render.data);
+		success = success && optix.tracer_builtin_cubic.built();
 		success = success && optix_register_resources(ctx);
 	}
 	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
@@ -2024,7 +2031,7 @@ void on_tube_vis::create_gui(void) {
 	if (begin_tree_node("OptiX", optix.enabled, false)) {
 		align("\a");
 		add_member_control(this, "Use OptiX Raycasting for Tube Rendering", optix.enabled, "check");
-		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Reshetov'"); // ,Reshetov cubic
+		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Built-in,Built-in (cubic),Phantom'");
 		add_member_control(this, "Output Debug Visualization", optix.debug, "dropdown", "enums='Off,Albedo,Depth,Tangent + Normal'");
 		add_member_control(this, "Show BLAS Bounding Volumes", optix.debug_bvol, "check");
 		align("\b");

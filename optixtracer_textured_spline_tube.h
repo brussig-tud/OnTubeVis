@@ -154,7 +154,7 @@ private:
 };
 
 // an optixtracer that uses the disc-based quadratic spline tube primitive defined for the Phantom-Ray-Hair-Intersector by Reshetov et al.
-class optixtracer_textured_spline_tube_reshetov : public optixtracer_textured_spline_tube, public cgv::render::render_types
+class optixtracer_textured_spline_tube_phantom : public optixtracer_textured_spline_tube, public cgv::render::render_types
 {
 
 public:
@@ -163,16 +163,16 @@ public:
 	typedef optixtracer_textured_spline_tube super;
 
 	/// default constructor - instance will be unusable until a functioning instance is moved in!
-	optixtracer_textured_spline_tube_reshetov();
+	optixtracer_textured_spline_tube_phantom();
 
 	/// move constructor
-	optixtracer_textured_spline_tube_reshetov(optixtracer_textured_spline_tube_reshetov &&other);
+	optixtracer_textured_spline_tube_phantom(optixtracer_textured_spline_tube_phantom &&other);
 
 	/// destructor
-	virtual ~optixtracer_textured_spline_tube_reshetov();
+	virtual ~optixtracer_textured_spline_tube_phantom();
 
 	/// move assign another instance of the tracer, destroying the current one
-	optixtracer_textured_spline_tube_reshetov& operator= (optixtracer_textured_spline_tube_reshetov &&other);
+	optixtracer_textured_spline_tube_phantom& operator= (optixtracer_textured_spline_tube_phantom &&other);
 
 	/// destroy the current instance
 	virtual void destroy (void);
@@ -181,7 +181,7 @@ public:
 	virtual bool built (void) const;
 
 	/// build an instance for the given hermite spline tube defintion
-	static optixtracer_textured_spline_tube_reshetov build (
+	static optixtracer_textured_spline_tube_phantom build (
 		OptixDeviceContext context, const traj_manager<float>::render_data *render_data
 	);
 
@@ -242,7 +242,7 @@ private:
 };
 
 // an optixtracer that uses the built-in disc-based cubic spline tube primitive defined for the Phantom-Ray-Hair-Intersector by Reshetov et al.
-class optixtracer_textured_spline_tube_reshetovcubic : public optixtracer_textured_spline_tube, public cgv::render::render_types
+class optixtracer_textured_spline_tube_builtincubic : public optixtracer_textured_spline_tube, public cgv::render::render_types
 {
 
 public:
@@ -251,16 +251,16 @@ public:
 	typedef optixtracer_textured_spline_tube super;
 
 	/// default constructor - instance will be unusable until a functioning instance is moved in!
-	optixtracer_textured_spline_tube_reshetovcubic();
+	optixtracer_textured_spline_tube_builtincubic();
 
 	/// move constructor
-	optixtracer_textured_spline_tube_reshetovcubic(optixtracer_textured_spline_tube_reshetovcubic &&other);
+	optixtracer_textured_spline_tube_builtincubic(optixtracer_textured_spline_tube_builtincubic &&other);
 
 	/// destructor
-	virtual ~optixtracer_textured_spline_tube_reshetovcubic();
+	virtual ~optixtracer_textured_spline_tube_builtincubic();
 
 	/// move assign another instance of the tracer, destroying the current one
-	optixtracer_textured_spline_tube_reshetovcubic& operator= (optixtracer_textured_spline_tube_reshetovcubic &&other);
+	optixtracer_textured_spline_tube_builtincubic& operator= (optixtracer_textured_spline_tube_builtincubic &&other);
 
 	/// destroy the current instance
 	virtual void destroy (void);
@@ -269,7 +269,7 @@ public:
 	virtual bool built (void) const;
 
 	/// build an instance for the given hermite spline tube defintion
-	static optixtracer_textured_spline_tube_reshetovcubic build (
+	static optixtracer_textured_spline_tube_builtincubic build (
 		OptixDeviceContext context, const traj_manager<float>::render_data *render_data
 	);
 

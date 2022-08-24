@@ -687,27 +687,27 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 
 
 ////
-// optixtracer_textured_spline_tube_reshetov
+// optixtracer_textured_spline_tube_phantom
 
-optixtracer_textured_spline_tube_reshetov::optixtracer_textured_spline_tube_reshetov()
+optixtracer_textured_spline_tube_phantom::optixtracer_textured_spline_tube_phantom()
 {}
 
-optixtracer_textured_spline_tube_reshetov::optixtracer_textured_spline_tube_reshetov(
-	optixtracer_textured_spline_tube_reshetov &&other
+optixtracer_textured_spline_tube_phantom::optixtracer_textured_spline_tube_phantom(
+	optixtracer_textured_spline_tube_phantom &&other
 )
 	: optixtracer_textured_spline_tube(std::move(other))
 {
 	// we don't have any additional data, so just delegate to base...
 }
 
-optixtracer_textured_spline_tube_reshetov::~optixtracer_textured_spline_tube_reshetov()
+optixtracer_textured_spline_tube_phantom::~optixtracer_textured_spline_tube_phantom()
 {
 	// delegate to destroy method
 	destroy();
 }
 
-optixtracer_textured_spline_tube_reshetov& optixtracer_textured_spline_tube_reshetov::operator= (
-	optixtracer_textured_spline_tube_reshetov &&other
+optixtracer_textured_spline_tube_phantom& optixtracer_textured_spline_tube_phantom::operator= (
+	optixtracer_textured_spline_tube_phantom &&other
 )
 {
 	// we don't have any additional data, so just delegate to base
@@ -717,34 +717,34 @@ optixtracer_textured_spline_tube_reshetov& optixtracer_textured_spline_tube_resh
 	return *this;
 }
 
-void optixtracer_textured_spline_tube_reshetov::destroy (void)
+void optixtracer_textured_spline_tube_phantom::destroy (void)
 {
 	destroy_pipeline();
 	destroy_accelds();
 	context = nullptr;
 }
 
-bool optixtracer_textured_spline_tube_reshetov::built (void) const
+bool optixtracer_textured_spline_tube_phantom::built (void) const
 {
 	// we _must_ be good to go if somehow we ended up with a valid pipeline
 	return lp.pipeline;
 }
 
-optixtracer_textured_spline_tube_reshetov optixtracer_textured_spline_tube_reshetov::build (
+optixtracer_textured_spline_tube_phantom optixtracer_textured_spline_tube_phantom::build (
 	OptixDeviceContext context, const traj_manager<float>::render_data *render_data
 )
 {
-	optixtracer_textured_spline_tube_reshetov tracer;
+	optixtracer_textured_spline_tube_phantom tracer;
 	tracer.context = context;
 	if (!tracer.update_accelds(render_data))
-		return optixtracer_textured_spline_tube_reshetov();
+		return optixtracer_textured_spline_tube_phantom();
 	if (!tracer.update_pipeline())
-		return optixtracer_textured_spline_tube_reshetov();
+		return optixtracer_textured_spline_tube_phantom();
 	tracer.lp.sbt = &tracer.sbt;
 	return tracer;
 }
 
-void optixtracer_textured_spline_tube_reshetov::destroy_accelds (void)
+void optixtracer_textured_spline_tube_phantom::destroy_accelds (void)
 {
 	lp.accelds = 0; // ToDo: check if we can really leave the accelds handle dangling like this (there appears to be no destroy function for it?)
 	CUDA_SAFE_FREE(accelds_mem);
@@ -752,7 +752,7 @@ void optixtracer_textured_spline_tube_reshetov::destroy_accelds (void)
 	CUDA_SAFE_FREE(lp.radii);
 }
 
-void optixtracer_textured_spline_tube_reshetov::destroy_pipeline (void)
+void optixtracer_textured_spline_tube_phantom::destroy_pipeline (void)
 {
 	CUDA_SAFE_FREE(lp.params); lp.params_size = 0;
 	OPTIX_SAFE_DESTROY_PIPELINE(lp.pipeline);
@@ -764,7 +764,7 @@ void optixtracer_textured_spline_tube_reshetov::destroy_pipeline (void)
 	sbt = {}; lp.sbt = nullptr;
 }
 
-bool optixtracer_textured_spline_tube_reshetov::update_accelds (const traj_manager<float>::render_data *render_data)
+bool optixtracer_textured_spline_tube_phantom::update_accelds (const traj_manager<float>::render_data *render_data)
 {
 	// make sure we start with a blank slate
 	destroy_accelds();
@@ -919,7 +919,7 @@ bool optixtracer_textured_spline_tube_reshetov::update_accelds (const traj_manag
 	return success;
 }
 
-bool optixtracer_textured_spline_tube_reshetov::update_pipeline (void)
+bool optixtracer_textured_spline_tube_phantom::update_pipeline (void)
 {
 	////
 	// Prelude
@@ -964,7 +964,7 @@ bool optixtracer_textured_spline_tube_reshetov::update_pipeline (void)
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM;
 
-		const auto ptx = compile_cu2ptx("optix_curves_reshetov.cu", "rayc_reshetov", {CUDA_NVRTC_OPTIONS}, &compiler_log);
+		const auto ptx = compile_cu2ptx("optix_curves_phantom.cu", "rayc_phantom", {CUDA_NVRTC_OPTIONS}, &compiler_log);
 		const size_t ptx_size = ptx.size();
 		if (!ptx_size)
 		{
@@ -1019,7 +1019,7 @@ bool optixtracer_textured_spline_tube_reshetov::update_pipeline (void)
 		prg_hit_desc.hitgroup.moduleCH = mod_shading;
 		prg_hit_desc.hitgroup.entryFunctionNameCH = "__closesthit__ch";
 		prg_hit_desc.hitgroup.moduleIS = mod_geom;
-		prg_hit_desc.hitgroup.entryFunctionNameIS = "__intersection__russig";
+		prg_hit_desc.hitgroup.entryFunctionNameIS = "__intersection__phantom";
 		OPTIX_CHECK_LOG_SET(
 			optixProgramGroupCreate(
 				context, &prg_hit_desc, 1/*num program groups*/, &prg_options, log, &sizeof_log, &prg_hit
@@ -1573,27 +1573,27 @@ bool optixtracer_textured_spline_tube_builtin::update_pipeline (void)
 
 
 ////
-// optixtracer_textured_spline_tube_reshetovcubic
+// optixtracer_textured_spline_tube_builtincubic
 
-optixtracer_textured_spline_tube_reshetovcubic::optixtracer_textured_spline_tube_reshetovcubic()
+optixtracer_textured_spline_tube_builtincubic::optixtracer_textured_spline_tube_builtincubic()
 {}
 
-optixtracer_textured_spline_tube_reshetovcubic::optixtracer_textured_spline_tube_reshetovcubic(
-	optixtracer_textured_spline_tube_reshetovcubic &&other
+optixtracer_textured_spline_tube_builtincubic::optixtracer_textured_spline_tube_builtincubic(
+	optixtracer_textured_spline_tube_builtincubic &&other
 )
 	: optixtracer_textured_spline_tube(std::move(other))
 {
 	// we don't have any additional data, so just delegate to base...
 }
 
-optixtracer_textured_spline_tube_reshetovcubic::~optixtracer_textured_spline_tube_reshetovcubic()
+optixtracer_textured_spline_tube_builtincubic::~optixtracer_textured_spline_tube_builtincubic()
 {
 	// delegate to destroy method
 	destroy();
 }
 
-optixtracer_textured_spline_tube_reshetovcubic& optixtracer_textured_spline_tube_reshetovcubic::operator= (
-	optixtracer_textured_spline_tube_reshetovcubic &&other
+optixtracer_textured_spline_tube_builtincubic& optixtracer_textured_spline_tube_builtincubic::operator= (
+	optixtracer_textured_spline_tube_builtincubic &&other
 )
 {
 	// we don't have any additional data, so just delegate to base
@@ -1603,40 +1603,40 @@ optixtracer_textured_spline_tube_reshetovcubic& optixtracer_textured_spline_tube
 	return *this;
 }
 
-void optixtracer_textured_spline_tube_reshetovcubic::destroy (void)
+void optixtracer_textured_spline_tube_builtincubic::destroy (void)
 {
 	destroy_pipeline();
 	destroy_accelds();
 	context = nullptr;
 }
 
-bool optixtracer_textured_spline_tube_reshetovcubic::built (void) const
+bool optixtracer_textured_spline_tube_builtincubic::built (void) const
 {
 	// we _must_ be good to go if somehow we ended up with a valid pipeline
 	return lp.pipeline;
 }
 
-optixtracer_textured_spline_tube_reshetovcubic optixtracer_textured_spline_tube_reshetovcubic::build (
+optixtracer_textured_spline_tube_builtincubic optixtracer_textured_spline_tube_builtincubic::build (
 	OptixDeviceContext context, const traj_manager<float>::render_data *render_data
 )
 {
-	optixtracer_textured_spline_tube_reshetovcubic tracer;
+	optixtracer_textured_spline_tube_builtincubic tracer;
 	tracer.context = context;
 	if (!tracer.update_accelds(render_data))
-		return optixtracer_textured_spline_tube_reshetovcubic();
+		return optixtracer_textured_spline_tube_builtincubic();
 	if (!tracer.update_pipeline())
-		return optixtracer_textured_spline_tube_reshetovcubic();
+		return optixtracer_textured_spline_tube_builtincubic();
 	tracer.lp.sbt = &tracer.sbt;
 	return tracer;
 }
 
-void optixtracer_textured_spline_tube_reshetovcubic::destroy_accelds (void)
+void optixtracer_textured_spline_tube_builtincubic::destroy_accelds (void)
 {
 	lp.accelds = 0; // ToDo: check if we can really leave the accelds handle dangling like this (there appears to be no destroy function for it?)
 	CUDA_SAFE_FREE(accelds_mem);
 }
 
-void optixtracer_textured_spline_tube_reshetovcubic::destroy_pipeline (void)
+void optixtracer_textured_spline_tube_builtincubic::destroy_pipeline (void)
 {
 	CUDA_SAFE_FREE(lp.params); lp.params_size = 0;
 	OPTIX_SAFE_DESTROY_PIPELINE(lp.pipeline);
@@ -1648,7 +1648,7 @@ void optixtracer_textured_spline_tube_reshetovcubic::destroy_pipeline (void)
 	sbt = {}; lp.sbt = nullptr;
 }
 
-bool optixtracer_textured_spline_tube_reshetovcubic::update_accelds (const traj_manager<float>::render_data *render_data)
+bool optixtracer_textured_spline_tube_builtincubic::update_accelds (const traj_manager<float>::render_data *render_data)
 {
 	// make sure we start with a blank slate
 	destroy_accelds();
@@ -1776,7 +1776,7 @@ bool optixtracer_textured_spline_tube_reshetovcubic::update_accelds (const traj_
 	return success;
 }
 
-bool optixtracer_textured_spline_tube_reshetovcubic::update_pipeline (void)
+bool optixtracer_textured_spline_tube_builtincubic::update_pipeline (void)
 {
 	////
 	// Prelude
