@@ -335,31 +335,23 @@ public:
 
 	union {
 		float c[16];
+		float m[4][4];
 		col_type col[4];
-		struct {
-			col_type col0, col1, col2, col3;
-		};
-		struct {
-			float c00, c01, c02, c03, c10, c11, c12, c13, c20, c21, c22, c23, c30, c31, c32, c33;
-		};
 	};
+
 
 public:
 
 	__device__ __forceinline__ Matrix() {}
 
 	__device__ __forceinline__ Matrix(const Matrix<4, 4> &other)
-		: col0(other.col0), col1(other.col1), col2(other.col2), col3(other.col3)
+		: col{other.col[0], other.col[1], other.col[2], other.col[3]}
 	{}
 
 	__device__ __forceinline__ Matrix(const float data[16])
-	{
-		const auto &cols = (const col_type*)data;
-		col[0] = cols[0];
-		col[1] = cols[1];
-		col[2] = cols[2];
-		col[3] = cols[3];
-	}
+		: col{((const col_type*)data)[0], ((const col_type*)data)[1],
+		      ((const col_type*)data)[2], ((const col_type*)data)[3]}
+	{}
 
 	__device__ __forceinline__ Matrix(
 		const float c00, const float c10, const float c20, const float c30,
@@ -367,32 +359,26 @@ public:
 		const float c02, const float c12, const float c22, const float c32,
 		const float c03, const float c13, const float c23, const float c33
 	)
-	{
-		const auto &cols = (const col_type*)&c00;
-		col[0] = cols[0];
-		col[1] = cols[1];
-		col[2] = cols[2];
-		col[3] = cols[3];
-	}
+		: col{((const col_type*)&c00)[0], ((const col_type*)&c00)[1],
+		      ((const col_type*)&c00)[2], ((const col_type*)&c00)[3]}
+	{}
 
 	__device__ __forceinline__ Matrix(const col_type cols[4])
-		: col0(cols[0]), col1(cols[1]), col2(cols[2]), col3(cols[3])
+		: col{cols[0], cols[1], cols[2], cols[3]}
 	{}
 
 	__device__ __forceinline__ Matrix(
 		const col_type &col0, const col_type &col1, const col_type &col2, const col_type &col3
 	)
-		: col0(col0), col1(col1), col2(col2), col3(col3)
+		: col{col0, col1, col2, col3}
 	{}
 
 	__device__ __forceinline__ Matrix(const float c00, const float c11, const float c22, const float c33)
-		: c00(c00), c01(0), c02(0), c03(0), c10(0), c11(c11), c12(0), c13(0),
-		  c20(0), c21(0), c22(c22), c23(0), c30(0), c31(0), c32(0), c33(c33)
+		: c{c00, 0.f, 0.f, 0.f, 0.f, c11, 0.f, 0.f, 0.f, 0.f, c22, 0.f, 0.f, 0.f, 0.f, c33}
 	{}
 
 	__device__ __forceinline__ Matrix(const float diagonal)
-		: c00(diagonal), c01(0), c02(0), c03(0), c10(0), c11(diagonal), c12(0), c13(0),
-		  c20(0), c21(0), c22(diagonal), c23(0), c30(0), c31(0), c32(0), c33(diagonal)
+		: c{diagonal, 0.f, 0.f, 0.f, 0.f, diagonal, 0.f, 0.f, 0.f, 0.f, diagonal, 0.f, 0.f, 0.f, 0.f, diagonal}
 	{}
 
 	__device__ __forceinline__ Matrix& operator= (const Matrix<4,4> &other)
@@ -426,31 +412,30 @@ public:
 
 	__device__ Matrix inverse (void) const
 	{
-		const float s0 = det2(c00, c01, c10, c11), s1 = det2(c00, c02, c10, c12),
-		            s2 = det2(c00, c03, c10, c13), s3 = det2(c01, c02, c11, c12),
-		            s4 = det2(c01, c03, c11, c13), s5 = det2(c02, c03, c12, c13),
-		            c5 = det2(c22, c23, c32, c33), c4 = det2(c21, c23, c31, c33),
-		            c3 = det2(c21, c22, c31, c32), c2 = det2(c20, c23, c30, c33),
-		            c1 = det2(c20, c22, c30, c32), c0 = det2(c20, c21, c30, c31),
+		const float s0 = det2(m[0][0], m[0][1], m[1][0], m[1][1]), s1 = det2(m[0][0], m[0][2], m[1][0], m[1][2]),
+		            s2 = det2(m[0][0], m[0][3], m[1][0], m[1][3]), s3 = det2(m[0][1], m[0][2], m[1][1], m[1][2]),
+		            s4 = det2(m[0][1], m[0][3], m[1][1], m[1][3]), s5 = det2(m[0][2], m[0][3], m[1][2], m[1][3]),
+		            c5 = det2(m[2][2], m[2][3], m[3][2], m[3][3]), c4 = det2(m[2][1], m[2][3], m[3][1], m[3][3]),
+		            c3 = det2(m[2][1], m[2][2], m[3][1], m[3][2]), c2 = det2(m[2][0], m[2][3], m[3][0], m[3][3]),
+		            c1 = det2(m[2][0], m[2][2], m[3][0], m[3][2]), c0 = det2(m[2][0], m[2][1], m[3][0], m[3][1]),
 		            det = s0*c5 - s1*c4 + s2*c3 + s3*c2 - s4*c1 + s5*c0;
-
 		return {
-			(+c11 * c5 - c12 * c4 + c13 * c3) / det,
-			(-c10 * c5 + c12 * c2 + c13 * c1) / det,
-			(+c10 * c4 - c11 * c2 + c13 * c0) / det,
-			(-c10 * c3 + c11 * c1 + c12 * c0) / det,
-			(-c01 * c5 + c02 * c4 - c03 * c3) / det,
-			(+c00 * c5 - c02 * c2 + c03 * c1) / det,
-			(-c00 * c4 + c01 * c2 - c03 * c0) / det,
-			(+c00 * c3 - c01 * c1 + c02 * c0) / det,
-			(+c31 * s5 - c32 * s4 + c33 * s3) / det,
-			(-c30 * s5 + c32 * s2 - c33 * s1) / det,
-			(+c30 * s4 - c31 * s2 + c33 * s0) / det,
-			(-c30 * s3 + c31 * s1 - c32 * s0) / det,
-			(-c21 * s5 + c22 * s4 - c23 * s3) / det,
-			(+c20 * s5 - c22 * s2 + c23 * s1) / det,
-			(-c20 * s4 + c21 * s2 - c23 * s0) / det,
-			(+c20 * s3 - c21 * s1 + c22 * s0) / det
+			(+m[1][1] * c5 - m[1][2] * c4 + m[1][3] * c3) / det,
+			(-m[1][0] * c5 + m[1][2] * c2 + m[1][3] * c1) / det,
+			(+m[1][0] * c4 - m[1][1] * c2 + m[1][3] * c0) / det,
+			(-m[1][0] * c3 + m[1][1] * c1 + m[1][2] * c0) / det,
+			(-m[0][1] * c5 + m[0][2] * c4 - m[0][3] * c3) / det,
+			(+m[0][0] * c5 - m[0][2] * c2 + m[0][3] * c1) / det,
+			(-m[0][0] * c4 + m[0][1] * c2 - m[0][3] * c0) / det,
+			(+m[0][0] * c3 - m[0][1] * c1 + m[0][2] * c0) / det,
+			(+m[3][1] * s5 - m[3][2] * s4 + m[3][3] * s3) / det,
+			(-m[3][0] * s5 + m[3][2] * s2 - m[3][3] * s1) / det,
+			(+m[3][0] * s4 - m[3][1] * s2 + m[3][3] * s0) / det,
+			(-m[3][0] * s3 + m[3][1] * s1 - m[3][2] * s0) / det,
+			(-m[2][1] * s5 + m[2][2] * s4 - m[2][3] * s3) / det,
+			(+m[2][0] * s5 - m[2][2] * s2 + m[2][3] * s1) / det,
+			(-m[2][0] * s4 + m[2][1] * s2 - m[2][3] * s0) / det,
+			(+m[2][0] * s3 - m[2][1] * s1 + m[2][2] * s0) / det
 		};
 	}
 
@@ -461,9 +446,10 @@ public:
 	static __device__ __forceinline__ Matrix diagonal (const float value) { return value; }
 
 	// creates a matrix with all components set to value
-	static __device__ __forceinline__ Matrix components (const float value) { return {
-		value, value, value, value, value, value, value, value, value, value, value, value, value, value, value, value
-	};}
+	static __device__ __forceinline__ Matrix all (const float value) {
+		const float4 col{value, value, value, value};
+		return {col, col, col, col};
+	}
 };
 
 // common instances of a dense matrix
