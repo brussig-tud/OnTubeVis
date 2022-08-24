@@ -35,6 +35,9 @@ constexpr float pi_inv = 0.31830988618379067153776752674503f;
 // one-over-three (aka 1/3)
 constexpr float _1o3 = 1.f/3.f;
 
+// one-over-six (aka 1/6)
+constexpr float _1o6 = 1.f/6.f;
+
 // R^3 null-vector
 __constant__ float3 nullvec3 = {0};
 
@@ -269,7 +272,7 @@ __device__ __forceinline__ float3 w_clip (const float4 &hvec)
 	return r;
 }
 
-// quick evaluation of scalar cuvic bezier function (without building interpolator first)
+// quick evaluation of scalar cubic bezier function (without building interpolator first)
 __device__ __forceinline__ float eval_cubic_bezier (const float4 &cp, const float t)
 {
 	// De-Casteljau level 0
@@ -283,6 +286,39 @@ __device__ __forceinline__ float eval_cubic_bezier (const float4 &cp, const floa
 
 	// De-Casteljau level 2 (final result)
 	return mix(v.x, v.y, t);
+}
+
+// quick evaluation of scalar cubic bezier function (without building interpolator first)
+__device__ __forceinline__ float eval_cubic_bezier (const float *cp, const float t)
+{
+	// De-Casteljau level 0
+	float3 v = {
+		mix(cp[0], cp[1], t), mix(cp[1], cp[2], t), mix(cp[2], cp[3], t)
+	};
+
+	// De-Casteljau level 1 (reuse local storage from above)
+	v.x = mix(v.x, v.y, t);
+	v.y = mix(v.y, v.z, t);
+
+	// De-Casteljau level 2 (final result)
+	return mix(v.x, v.y, t);
+}
+
+// quick evaluation of a vector-valued cubic bezier function (without building interpolator first)
+template <class vec_type>
+__device__ __forceinline__ vec_type eval_cubic_bezier (const vec_type *cp, const float t)
+{
+	// De-Casteljau level 0
+	vec_type v[3] = {
+		mix(cp[0], cp[1], t), mix(cp[1], cp[2], t), mix(cp[2], cp[3], t)
+	};
+
+	// De-Casteljau level 1 (reuse local storage from above)
+	v[0] = mix(v[0], v[1], t);
+	v[1] = mix(v[1], v[2], t);
+
+	// De-Casteljau level 2 (final result)
+	return mix(v[0], v[1], t);
 }
 
 // calculate n-th value of Van-der-Corput sequence
@@ -390,14 +426,8 @@ public:
 		return *this;
 	}
 
-	__device__ __forceinline__ float& operator() (const unsigned row, const unsigned col)
-	{
-		return c[col*4 + row];
-	}
-	__device__ __forceinline__ float operator() (const unsigned row, const unsigned col) const
-	{
-		return c[col*4 + row];
-	}
+	__device__ __forceinline__ float& operator() (const unsigned row, const unsigned col) { return m[col][row]; }
+	__device__ __forceinline__ float operator() (const unsigned row, const unsigned col) const { return m[col][row]; }
 
 	__device__ __forceinline__ operator float* (void) { return c; }
 	__device__ __forceinline__ operator const float* (void) const { return c; }
@@ -405,10 +435,7 @@ public:
 	__device__ __forceinline__ float* data (void) { return c; };
 	__device__ __forceinline__ const float* data (void) const { return c; };
 
-	__device__ __forceinline__ float4 operator * (const float4 &vec)
-	{
-		return mul_mat_vec(c, vec);
-	}
+	__device__ __forceinline__ float4 operator * (const float4 &vec) { return mul_mat_vec(c, vec); }
 
 	__device__ Matrix inverse (void) const
 	{
@@ -446,7 +473,8 @@ public:
 	static __device__ __forceinline__ Matrix diagonal (const float value) { return value; }
 
 	// creates a matrix with all components set to value
-	static __device__ __forceinline__ Matrix all (const float value) {
+	static __device__ __forceinline__ Matrix all (const float value)
+	{
 		const float4 col{value, value, value, value};
 		return {col, col, col, col};
 	}
@@ -483,7 +511,7 @@ struct linear_interpolator_float
 
 	// compute first derivative and return resulting curve (actually, just a constant in case
 	// of our linear interpolator).
-	__device__ __forceinline__ float derive (void) const { return b[1]-b[0]; }
+	__device__ __forceinline__ float derive (void) const { return b[1] - b[0]; }
 };
 
 // a linear interpolator in R^3 space - uses Bezier basis internally as that maps directly onto fused-multiply-add instructions
@@ -508,29 +536,14 @@ struct linear_interpolator_vec3
 	// initialize from Bezier control points with radius
 	__device__ __forceinline__ void from_bezier (const float4 *b)
 	{
-		// b1
-		this->b[0].x = b[0].x;
-		this->b[0].y = b[0].y;
-		this->b[0].z = b[0].z;
-
-		// b2
-		this->b[1].x = b[1].x;
-		this->b[1].y = b[1].y;
-		this->b[1].z = b[1].z;
+		this->b[0] = make_float3(b[0]);
+		this->b[1] = make_float3(b[1]);
 	}
-
 	// initialize from Bezier control points with radius
 	__device__ __forceinline__ void from_bezier (const float4 &b0, const float4 &b1)
 	{
-		// b1
-		this->b[0].x = b0.x;
-		this->b[0].y = b0.y;
-		this->b[0].z = b0.z;
-
-		// b2
-		this->b[1].x = b1.x;
-		this->b[1].y = b1.y;
-		this->b[1].z = b1.z;
+		b[0] = make_float3(b0);
+		b[1] = make_float3(b1);
 	}
 
 	// evaluate interpolation at given t
@@ -542,10 +555,7 @@ struct linear_interpolator_vec3
 
 	// compute first derivative and return resulting curve (actually, just a constant in case
 	// of our linear interpolator).
-	__device__ __forceinline__ float3 derive (void) const
-	{
-		return {b[1].x-b[0].x, b[1].y-b[0].y, b[1].z-b[0].z};
-	}
+	__device__ __forceinline__ float3 derive (void) const { return b[1] - b[0]; }
 };
 
 // a scalar quadratic interpolator - uses Bezier basis internally for efficient evaluation
@@ -589,19 +599,11 @@ struct quadr_interpolator_float
 		return mix(v[0], v[1], t);
 	}
 
-	// compute first derivative and return resulting curve as a quadratic interpolator
-	// (trusts nvcc to properly perform RVO/copy-elision)
+	// compute first derivative and return resulting curve as a linear interpolator
 	__device__ __forceinline__ linear_interpolator_float derive (void) const
 	{
-		linear_interpolator_float der;
-
-		// b0
-		der.b[0] = 2.f*(b[1]-b[0]);
-
-		// b1
-		der.b[1] = 2.f*(b[2]-b[1]);
-
-		return der;
+		const float b10 = b[1]-b[0], b21 = b[2]-b[1];
+		return {b10+b10, b21+b21};
 	}
 };
 
@@ -618,7 +620,7 @@ struct quadr_interpolator_vec3
 		this->b[1] = b[1];
 		this->b[2] = b[2];
 	}
-	// initialize from Bezier control points with radius
+	// initialize from Bezier control points
 	__device__ __forceinline__ void from_bezier (
 		const float3 &b0, const float3 &b1, const float3 &b2
 	)
@@ -631,40 +633,18 @@ struct quadr_interpolator_vec3
 	// initialize from Bezier control points with radius
 	__device__ __forceinline__ void from_bezier (const float4 *b)
 	{
-		// b1
-		this->b[0].x = b[0].x;
-		this->b[0].y = b[0].y;
-		this->b[0].z = b[0].z;
-
-		// b2
-		this->b[1].x = b[1].x;
-		this->b[1].y = b[1].y;
-		this->b[1].z = b[1].z;
-
-		// b3
-		this->b[2].x = b[2].x;
-		this->b[2].y = b[2].y;
-		this->b[2].z = b[2].z;
+		this->b[0] = make_float3(b[0]);
+		this->b[1] = make_float3(b[1]);
+		this->b[2] = make_float3(b[2]);
 	}
 	// initialize from Bezier control points with radius
 	__device__ __forceinline__ void from_bezier (
 		const float4 &b0, const float4 &b1, const float4 &b2
 	)
 	{
-		// b1
-		this->b[0].x = b[0].x;
-		this->b[0].y = b[0].y;
-		this->b[0].z = b[0].z;
-
-		// b2
-		this->b[1].x = b[1].x;
-		this->b[1].y = b[1].y;
-		this->b[1].z = b[1].z;
-
-		// b3
-		this->b[2].x = b[2].x;
-		this->b[2].y = b[2].y;
-		this->b[2].z = b[2].z;
+		b[0] = make_float3(b0);
+		b[1] = make_float3(b1);
+		b[2] = make_float3(b2);
 	}
 
 	// initialize from B-spline control points
@@ -706,23 +686,11 @@ struct quadr_interpolator_vec3
 		return mix(v[0], v[1], t);
 	}
 
-	// compute first derivative and return resulting curve as a quadratic interpolator
-	// (trusts nvcc to properly perform RVO/copy-elision)
+	// compute first derivative and return resulting curve as a linear interpolator
 	__device__ __forceinline__ linear_interpolator_vec3 derive (void) const
 	{
-		linear_interpolator_vec3 der;
-
-		// b0
-		der.b[0].x = 2.f*(b[1].x-b[0].x);
-		der.b[0].y = 2.f*(b[1].y-b[0].y);
-		der.b[0].z = 2.f*(b[1].z-b[0].z);
-
-		// b1
-		der.b[1].x = 2.f*(b[2].x-b[1].x);
-		der.b[1].y = 2.f*(b[2].y-b[1].y);
-		der.b[1].z = 2.f*(b[2].z-b[1].z);
-
-		return der;
+		const float3 b10 = b[1]-b[0], b21 = b[2]-b[1];
+		return {b10+b10, b21+b21};
 	}
 };
 
@@ -755,8 +723,8 @@ struct cubic_interpolator_float
 	__device__ __forceinline__ void from_catmullrom (const float *cr)
 	{
 		b[0] = cr[1];
-		b[1] = cr[1] + (cr[2]-cr[0])/6;
-		b[2] = cr[2] - (cr[3]-cr[1])/6;
+		b[1] = cr[1] + _1o6*(cr[2]-cr[0]);
+		b[2] = cr[2] - _1o6*(cr[3]-cr[1]);
 		b[3] = cr[2];
 	}
 
@@ -771,37 +739,13 @@ struct cubic_interpolator_float
 	}
 
 	// evaluate interpolation at given t
-	__device__ __forceinline__ float eval (const float t) const
-	{
-		// De-Casteljau level 0
-		float v[3] = {
-			mix(b[0], b[1], t), mix(b[1], b[2], t), mix(b[2], b[3], t)
-		};
-
-		// De-Casteljau level 1 (reuse local storage from above)
-		v[0] = mix(v[0], v[1], t);
-		v[1] = mix(v[1], v[2], t);
-
-		// De-Casteljau level 2 (final result)
-		return mix(v[0], v[1], t);
-	}
+	__device__ __forceinline__ float eval (const float t) const { return eval_cubic_bezier(b, t); }
 
 	// compute first derivative and return resulting curve as a quadratic interpolator
-	// (trusts nvcc to properly perform RVO/copy-elision)
 	__device__ __forceinline__ quadr_interpolator_float derive (void) const
 	{
-		quadr_interpolator_float der;
-
-		// b0
-		der.b[0] = 3.f*(b[1] - b[0]);
-
-		// b1
-		der.b[1] = 3.f*(b[2] - b[1]);
-
-		// b2
-		der.b[2] = 3.f*(b[3] - b[2]);
-
-		return der;
+		const float b10 = b[1]-b[0], b21 = b[2]-b[1], b32 = b[3]-b[2];
+		return {b10+b10+b10, b21+b21+b21, b32+b32+b32};
 	}
 };
 
@@ -833,58 +777,28 @@ struct cubic_interpolator_vec3
 	// initialize from Bezier control points with radius
 	__device__ __forceinline__ void from_bezier (const float4 *b)
 	{
-		// b0
-		this->b[0].x = b[0].x;
-		this->b[0].y = b[0].y;
-		this->b[0].z = b[0].z;
-
-		// b1
-		this->b[1].x = b[1].x;
-		this->b[1].y = b[1].y;
-		this->b[1].z = b[1].z;
-
-		// b2
-		this->b[2].x = b[2].x;
-		this->b[2].y = b[2].y;
-		this->b[2].z = b[2].z;
-
-		// b3
-		this->b[3].x = b[3].x;
-		this->b[3].y = b[3].y;
-		this->b[3].z = b[3].z;
+		this->b[0] = make_float3(b[0]);
+		this->b[1] = make_float3(b[1]);
+		this->b[2] = make_float3(b[2]);
+		this->b[3] = make_float3(b[3]);
 	}
 	// initialize from Bezier control points with radius
 	__device__ __forceinline__ void from_bezier (
 		const float4 &b0, const float4 &b1, const float4 &b2, const float4 &b3
 	)
 	{
-		// b0
-		this->b[0].x = b0.x;
-		this->b[0].y = b0.y;
-		this->b[0].z = b0.z;
-
-		// b1
-		this->b[1].x = b1.x;
-		this->b[1].y = b1.y;
-		this->b[1].z = b1.z;
-
-		// b2
-		this->b[2].x = b2.x;
-		this->b[2].y = b2.y;
-		this->b[2].z = b2.z;
-
-		// b3
-		this->b[3].x = b3.x;
-		this->b[3].y = b3.y;
-		this->b[3].z = b3.z;
+		b[0] = make_float3(b0);
+		b[1] = make_float3(b1);
+		b[2] = make_float3(b2);
+		b[3] = make_float3(b3);
 	}
 
 	// initialize from Catmull-Rom control points
 	__device__ __forceinline__ void from_catmullrom (const float3 *cr)
 	{
 		b[0] = cr[1];
-		b[1] = cr[1] + (cr[2]-cr[0])/6;
-		b[2] = cr[2] - (cr[3]-cr[1])/6;
+		b[1] = cr[1] + _1o6*(cr[2]-cr[0]);
+		b[2] = cr[2] - _1o6*(cr[3]-cr[1]);
 		b[3] = cr[2];
 	}
 	// initialize from Catmull-Rom control points with radius
@@ -896,14 +810,14 @@ struct cubic_interpolator_vec3
 		b[0].z = cr[1].z;
 
 		// b1
-		b[1].x = cr[1].x + (cr[2].x-cr[0].x)/6;
-		b[1].y = cr[1].y + (cr[2].y-cr[0].y)/6;
-		b[1].z = cr[1].z + (cr[2].z-cr[0].z)/6;
+		b[1].x = cr[1].x + _1o6*(cr[2].x-cr[0].x);
+		b[1].y = cr[1].y + _1o6*(cr[2].y-cr[0].y);
+		b[1].z = cr[1].z + _1o6*(cr[2].z-cr[0].z);
 
 		// b2
-		b[2].x = cr[2].x - (cr[3].x-cr[1].x)/6;
-		b[2].y = cr[2].y - (cr[3].y-cr[1].y)/6;
-		b[2].z = cr[2].z - (cr[3].z-cr[1].z)/6;
+		b[2].x = cr[2].x - _1o6*(cr[3].x-cr[1].x);
+		b[2].y = cr[2].y - _1o6*(cr[3].y-cr[1].y);
+		b[2].z = cr[2].z - _1o6*(cr[3].z-cr[1].z);
 
 		// b3
 		b[3].x = cr[2].x;
@@ -946,43 +860,13 @@ struct cubic_interpolator_vec3
 	}
 
 	// evaluate interpolation at given t
-	__device__ __forceinline__ float3 eval (const float t) const
-	{
-		// De-Casteljau level 0
-		float3 v[3] = {
-			mix(b[0], b[1], t), mix(b[1], b[2], t), mix(b[2], b[3], t)
-		};
-
-		// De-Casteljau level 1 (reuse local storage from above)
-		v[0] = mix(v[0], v[1], t);
-		v[1] = mix(v[1], v[2], t);
-
-		// De-Casteljau level 2 (final result)
-		return mix(v[0], v[1], t);
-	}
+	__device__ __forceinline__ float3 eval (const float t) const { return eval_cubic_bezier(b, t); }
 
 	// compute first derivative and return resulting curve as a quadratic interpolator
-	// (trusts nvcc to properly perform RVO/copy-elision)
 	__device__ __forceinline__ quadr_interpolator_vec3 derive (void) const
 	{
-		quadr_interpolator_vec3 der;
-
-		// b0
-		der.b[0].x = 3.f*(b[1].x - b[0].x);
-		der.b[0].y = 3.f*(b[1].y - b[0].y);
-		der.b[0].z = 3.f*(b[1].z - b[0].z);
-
-		// b1
-		der.b[1].x = 3.f*(b[2].x - b[1].x);
-		der.b[1].y = 3.f*(b[2].y - b[1].y);
-		der.b[1].z = 3.f*(b[2].z - b[1].z);
-
-		// b2
-		der.b[2].x = 3.f*(b[3].x - b[2].x);
-		der.b[2].y = 3.f*(b[3].y - b[2].y);
-		der.b[2].z = 3.f*(b[3].z - b[2].z);
-
-		return der;
+		const float3 b10 = b[1]-b[0], b21 = b[2]-b[1], b32 = b[3]-b[2];
+		return {b10+b10+b10, b21+b21+b21, b32+b32+b32};
 	}
 };
 
