@@ -243,7 +243,7 @@ extern "C" __global__ void __intersection__russig (void)
 extern "C" __global__ void __intersection__phantom (void)
 {
 	// fetch quadratic node data
-	const unsigned nid = optixGetPrimitiveIndex()*3;
+	const unsigned pid = optixGetPrimitiveIndex(), nid = pid*3;
 	const float3 nodes[3] = {
 		params.positions[nid], params.positions[nid+1], params.positions[nid+2]
 	};
@@ -256,16 +256,25 @@ extern "C" __global__ void __intersection__phantom (void)
 		optixGetWorldRayOrigin(), optixGetWorldRayDirection(),
 		nodes[0], nodes[1], nodes[2], radii[0], radii[1], radii[2]
 	);
+	/*//----------------------------
+	// BEGIN: DEBUG OUTPUT
+	const uint3 idx = optixGetLaunchIndex();
+	const unsigned pxl = idx.y*params.fb_width + idx.x,
+	               mid = (params.fb_height/2)*params.fb_width + (params.fb_width/2);
+	if (pxl == mid)
+		printf("t=: %f,  l=%f\n", hit.t, hit.l);
+	// END:   DEBUG OUTPUT
+	//---------------------------*/
 	if (hit.l < pos_inf)
 		// report our intersection
 		optixReportIntersection(
-			hit.l/*0.1f/*hit.t*/, 0u/* hit kind, unused*/, __float_as_int(hit.t/*0.5f/*hit.l*/),
+			hit.l, 0u/* hit kind, unused*/, __float_as_int(hit.t),
 			__float_as_int(nodes[0].x), __float_as_int(nodes[0].y), __float_as_int(nodes[0].z),
 			__float_as_int(nodes[1].x), __float_as_int(nodes[1].y), __float_as_int(nodes[1].z)
 		);
 	else if (params.show_bvol)
 		optixReportIntersection(
-			0.1f, 0u/* hit kind, unused*/, __float_as_int(0.5f),
+			0.1f, 0u/* hit kind, unused*/, __float_as_int(1.f),
 			__float_as_int(nodes[0].x), __float_as_int(nodes[0].y), __float_as_int(nodes[0].z),
 			__float_as_int(nodes[1].x), __float_as_int(nodes[1].y), __float_as_int(nodes[1].z)
 		);

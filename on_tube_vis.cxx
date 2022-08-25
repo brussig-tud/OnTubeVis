@@ -1707,7 +1707,7 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		// setup params for our launch
 		// - obtain values from selected tracer
 		const auto &lp = optix.tracer->ref_launch_params();
-		// - map our shared SSBOs (ToDo: include output surfaces in this mapping batch)
+		// - map our shared SSBOs (ToDo: include output surfaces in this batched mapping call)
 		cudaGraphicsResource_t inbufs[] = {optix.sbo_nodes, optix.sbo_nodeids, optix.sbo_alen};
 		CUDA_CHECK(cudaGraphicsMapResources(3, inbufs, optix.stream));
 		// - set values
@@ -2031,7 +2031,7 @@ void on_tube_vis::create_gui(void) {
 	if (begin_tree_node("OptiX", optix.enabled, false)) {
 		align("\a");
 		add_member_control(this, "Use OptiX Raycasting for Tube Rendering", optix.enabled, "check");
-		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Built-in,Built-in (cubic),Phantom'");
+		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Phantom,Built-in,Built-in (cubic)'");
 		add_member_control(this, "Output Debug Visualization", optix.debug, "dropdown", "enums='Off,Albedo,Depth,Tangent + Normal'");
 		add_member_control(this, "Show BLAS Bounding Volumes", optix.debug_bvol, "check");
 		align("\b");

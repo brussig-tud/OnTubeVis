@@ -372,7 +372,6 @@ public:
 	union {
 		float c[16];
 		float m[4][4];
-		col_type col[4];
 	};
 
 
@@ -381,12 +380,16 @@ public:
 	__device__ __forceinline__ Matrix() {}
 
 	__device__ __forceinline__ Matrix(const Matrix<4, 4> &other)
-		: col{other.col[0], other.col[1], other.col[2], other.col[3]}
-	{}
+	{
+		*(col_type*)m[0] = *(col_type*)other.m[0];
+		*(col_type*)m[1] = *(col_type*)other.m[1];
+		*(col_type*)m[2] = *(col_type*)other.m[2];
+		*(col_type*)m[3] = *(col_type*)other.m[3];
+	}
 
 	__device__ __forceinline__ Matrix(const float data[16])
-		: col{((const col_type*)data)[0], ((const col_type*)data)[1],
-		      ((const col_type*)data)[2], ((const col_type*)data)[3]}
+		: c{data[0], data[1], data[ 2], data[ 3], data[ 4], data[ 5], data[ 6], data[ 7],
+		    data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15]}
 	{}
 
 	__device__ __forceinline__ Matrix(
@@ -395,18 +398,23 @@ public:
 		const float c02, const float c12, const float c22, const float c32,
 		const float c03, const float c13, const float c23, const float c33
 	)
-		: col{((const col_type*)&c00)[0], ((const col_type*)&c00)[1],
-		      ((const col_type*)&c00)[2], ((const col_type*)&c00)[3]}
+		: c{c00, c10, c20, c30, c01, c11, c21, c31, c02, c12, c22, c32, c03, c13, c23, c33}
 	{}
 
 	__device__ __forceinline__ Matrix(const col_type cols[4])
-		: col{cols[0], cols[1], cols[2], cols[3]}
-	{}
+	{
+		*((col_type*)m[0]) = cols[0];
+		*((col_type*)m[1]) = cols[1];
+		*((col_type*)m[2]) = cols[2];
+		*((col_type*)m[3]) = cols[3];
+	}
 
 	__device__ __forceinline__ Matrix(
 		const col_type &col0, const col_type &col1, const col_type &col2, const col_type &col3
 	)
-		: col{col0, col1, col2, col3}
+		: //col{col0, col1, col2, col3}
+		  c{col0.x, col0.y, col0.z, col0.w, col1.x, col1.y, col1.z, col1.w,
+		    col2.x, col2.y, col2.z, col2.w, col3.x, col3.y, col3.z, col3.w}
 	{}
 
 	__device__ __forceinline__ Matrix(const float c00, const float c11, const float c22, const float c33)
@@ -419,10 +427,10 @@ public:
 
 	__device__ __forceinline__ Matrix& operator= (const Matrix<4,4> &other)
 	{
-		col[0] = other.col[0];
-		col[1] = other.col[1];
-		col[2] = other.col[2];
-		col[3] = other.col[3];
+		*(col_type*)m[0] = *(col_type*)other.m[0];
+		*(col_type*)m[1] = *(col_type*)other.m[1];
+		*(col_type*)m[2] = *(col_type*)other.m[2];
+		*(col_type*)m[3] = *(col_type*)other.m[3];
 		return *this;
 	}
 
@@ -432,37 +440,46 @@ public:
 	__device__ __forceinline__ operator float* (void) { return c; }
 	__device__ __forceinline__ operator const float* (void) const { return c; }
 
+	__device__ __forceinline__ float4 operator * (const float4 &vec) { return mul_mat_vec(c, vec); }
+
 	__device__ __forceinline__ float* data (void) { return c; };
 	__device__ __forceinline__ const float* data (void) const { return c; };
 
-	__device__ __forceinline__ float4 operator * (const float4 &vec) { return mul_mat_vec(c, vec); }
+	__device__ __forceinline__ col_type& col (unsigned i) { return *(col_type*)(m[i]); }
+	__device__ __forceinline__ const col_type& col (unsigned i) const { return *(col_type*)(m[i]); }
 
 	__device__ Matrix inverse (void) const
 	{
-		const float s0 = det2(m[0][0], m[0][1], m[1][0], m[1][1]), s1 = det2(m[0][0], m[0][2], m[1][0], m[1][2]),
-		            s2 = det2(m[0][0], m[0][3], m[1][0], m[1][3]), s3 = det2(m[0][1], m[0][2], m[1][1], m[1][2]),
-		            s4 = det2(m[0][1], m[0][3], m[1][1], m[1][3]), s5 = det2(m[0][2], m[0][3], m[1][2], m[1][3]),
-		            c5 = det2(m[2][2], m[2][3], m[3][2], m[3][3]), c4 = det2(m[2][1], m[2][3], m[3][1], m[3][3]),
-		            c3 = det2(m[2][1], m[2][2], m[3][1], m[3][2]), c2 = det2(m[2][0], m[2][3], m[3][0], m[3][3]),
-		            c1 = det2(m[2][0], m[2][2], m[3][0], m[3][2]), c0 = det2(m[2][0], m[2][1], m[3][0], m[3][1]),
+		const float s0 = det2(m[0][0], m[1][0], m[0][1], m[1][1]),
+		            s1 = det2(m[0][0], m[2][0], m[0][1], m[2][1]),
+		            s2 = det2(m[0][0], m[3][0], m[0][1], m[3][1]),
+		            s3 = det2(m[1][0], m[2][0], m[1][1], m[2][1]),
+		            s4 = det2(m[1][0], m[3][0], m[1][1], m[3][1]),
+		            s5 = det2(m[2][0], m[3][0], m[2][1], m[3][1]),
+		            c5 = det2(m[2][2], m[3][2], m[2][3], m[3][3]),
+		            c4 = det2(m[1][2], m[3][2], m[1][3], m[3][3]),
+		            c3 = det2(m[1][2], m[2][2], m[1][3], m[2][3]),
+		            c2 = det2(m[0][2], m[3][2], m[0][3], m[3][3]),
+		            c1 = det2(m[0][2], m[2][2], m[0][3], m[2][3]),
+		            c0 = det2(m[0][2], m[1][2], m[0][3], m[1][3]),
 		            det = s0*c5 - s1*c4 + s2*c3 + s3*c2 - s4*c1 + s5*c0;
 		return {
-			(+m[1][1] * c5 - m[1][2] * c4 + m[1][3] * c3) / det,
-			(-m[1][0] * c5 + m[1][2] * c2 + m[1][3] * c1) / det,
-			(+m[1][0] * c4 - m[1][1] * c2 + m[1][3] * c0) / det,
-			(-m[1][0] * c3 + m[1][1] * c1 + m[1][2] * c0) / det,
-			(-m[0][1] * c5 + m[0][2] * c4 - m[0][3] * c3) / det,
-			(+m[0][0] * c5 - m[0][2] * c2 + m[0][3] * c1) / det,
-			(-m[0][0] * c4 + m[0][1] * c2 - m[0][3] * c0) / det,
-			(+m[0][0] * c3 - m[0][1] * c1 + m[0][2] * c0) / det,
-			(+m[3][1] * s5 - m[3][2] * s4 + m[3][3] * s3) / det,
-			(-m[3][0] * s5 + m[3][2] * s2 - m[3][3] * s1) / det,
-			(+m[3][0] * s4 - m[3][1] * s2 + m[3][3] * s0) / det,
-			(-m[3][0] * s3 + m[3][1] * s1 - m[3][2] * s0) / det,
-			(-m[2][1] * s5 + m[2][2] * s4 - m[2][3] * s3) / det,
-			(+m[2][0] * s5 - m[2][2] * s2 + m[2][3] * s1) / det,
-			(-m[2][0] * s4 + m[2][1] * s2 - m[2][3] * s0) / det,
-			(+m[2][0] * s3 - m[2][1] * s1 + m[2][2] * s0) / det
+			(+m[1][1]*c5 - m[2][1]*c4 + m[3][1]*c3) / det,
+			(-m[0][1]*c5 + m[2][1]*c2 + m[3][1]*c1) / det,
+			(+m[0][1]*c4 - m[1][1]*c2 + m[3][1]*c0) / det,
+			(-m[0][1]*c3 + m[1][1]*c1 + m[2][1]*c0) / det,
+			(-m[1][0]*c5 + m[2][0]*c4 - m[3][0]*c3) / det,
+			(+m[0][0]*c5 - m[2][0]*c2 + m[3][0]*c1) / det,
+			(-m[0][0]*c4 + m[1][0]*c2 - m[3][0]*c0) / det,
+			(+m[0][0]*c3 - m[1][0]*c1 + m[2][0]*c0) / det,
+			(+m[1][3]*s5 - m[2][3]*s4 + m[3][3]*s3) / det,
+			(-m[0][3]*s5 + m[2][3]*s2 - m[3][3]*s1) / det,
+			(+m[0][3]*s4 - m[1][3]*s2 + m[3][3]*s0) / det,
+			(-m[0][3]*s3 + m[1][3]*s1 - m[2][3]*s0) / det,
+			(-m[1][2]*s5 + m[2][2]*s4 - m[3][2]*s3) / det,
+			(+m[0][2]*s5 - m[2][2]*s2 + m[3][2]*s1) / det,
+			(-m[0][2]*s4 + m[1][2]*s2 - m[3][2]*s0) / det,
+			(+m[0][2]*s3 - m[1][2]*s1 + m[2][2]*s0) / det
 		};
 	}
 

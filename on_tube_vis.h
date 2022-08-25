@@ -74,9 +74,9 @@ protected:
 	enum OptixPrimitive
 	{
 		OPR_RUSSIG = 0,
-		OPR_BUILTIN = 1,
-		OPR_BUILTIN_CUBIC = 2,
-		OPR_PHANTOM = 3
+		OPR_PHANTOM = 1,
+		OPR_BUILTIN = 2,
+		OPR_BUILTIN_CUBIC = 3
 	};
 
 	/// OptiX debug output options

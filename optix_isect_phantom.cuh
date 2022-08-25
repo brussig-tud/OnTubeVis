@@ -22,11 +22,8 @@
 // Typedefs and constants
 //
 
-#define ITERATION_COUNT 40
-
-typedef float2 vec2;
-typedef float3 vec3;
-typedef float4 vec4;
+#define MAX_ITERATIONS 32
+#define TOLERANCE 0.0001220703125f  // = 2^-13
 
 
 
@@ -46,41 +43,39 @@ struct Hit {
 
 /// struct encapsulating various helper data and functionality to transform geometry into a
 /// ray-centric coordinate system
-struct TransformToRCC
+struct RCC
 {
 	/// ray-centric coordiante system model transformation matrix
-	mat4 xform;
+	mat4 model;
 
 	/// ray-centric coordiante system transformation matrix
-	mat4 xformInv;
+	mat4 system;
 
 	/// construct for given ray
-	__device__ __forceinline__ TransformToRCC(const float3 &ray_orig, const float3 &dir)
+	__device__ __forceinline__ RCC(const float3 &ray_orig, const float3 &dir)
 	{
-		float3 e1;
-		float3 e2;
-		float3 e3 = normalize(dir);
+		float3 e1, e2, e3 = normalize(dir);
 		make_orthonormal_basis(e1, e2, e3);
-		xformInv = mat4(
+		model = mat4(
 			make_float4(e1, 0.f),
 			make_float4(e2, 0.f),
 			make_float4(e3, 0.f),
 			make_float4(ray_orig, 1.f)
 		);
-		xform = xformInv.inverse();
+		system = model.inverse();
 	}
 
 	/// transform a point into the RCC
-	__device__ __forceinline__ vec3 xfmPoint (const vec3 &pnt) { return mul3_mat_pos(xform, pnt); }
+	__device__ __forceinline__ float3 to (const float3 &pnt) { return mul3_mat_pos(system, pnt); }
 
 	/// transform a vector into the RCC
-	__device__ __forceinline__ vec3 xfmVector (const vec3 &vec) { return mul3_mat_vec(xform, vec); }
+	__device__ __forceinline__ float3 vec_to (const float3 &vec) { return mul3_mat_vec(system, vec); }
 
 	/// transform a point given in RCC to world-space
-	__device__ __forceinline__ vec3 xfmPointInv (const vec3 &pnt) { return mul3_mat_pos(xformInv, pnt); }
+	__device__ __forceinline__ float3 from (const float3 &pnt) { return mul3_mat_pos(model, pnt); }
 
 	/// transform a vector given in RCC to world-space
-	__device__ __forceinline__ vec3 xfmVectorInv (const vec3 &vec) { return mul3_mat_vec(xformInv, vec); }
+	__device__ __forceinline__ float3 vec_from (const float3 &vec) { return mul3_mat_vec(model, vec); }
 };
 
 struct Curve
@@ -97,8 +92,8 @@ struct Curve
 	/// first derivative of the radius curve
 	linear_interpolator_float drad;
 
-	__device__ __forceinline__ vec3 f (const float t) const { return pos.eval(t); }
-	__device__ __forceinline__ vec3 dfdt (const float t) const { return dpos.eval(t); }
+	__device__ __forceinline__ float3 f (const float t) const { return pos.eval(t); }
+	__device__ __forceinline__ float3 dfdt (const float t) const { return dpos.eval(t); }
 
 	__device__ __forceinline__ float r (const float t) const { return rad.eval(t); }
 	__device__ __forceinline__ float drdt (const float t) const { return drad.eval(t); }
@@ -140,11 +135,11 @@ struct Curve
 //
 
 __device__ bool intersectCylinder (
-	const float3 &ray_orig, const float3 &dir, const vec3 &p0, const vec3 &p1, float ra
+	const float3 &ray_orig, const float3 &dir, const float3 &p0, const float3 &p1, float ra
 )
 {
-	vec3 ba = p1 - p0;
-	vec3 oc = ray_orig - p0;
+	float3 ba = p1 - p0;
+	float3 oc = ray_orig - p0;
 
 	float baba = dot(ba, ba);
 	float bard = dot(ba, dir);
@@ -203,8 +198,8 @@ struct RayConeIntersection
 		return discr > 0.0f;
 	}
 
-	vec3  c0;
-	vec3  cd;
+	float3 c0;
+	float3 cd;
 	float s;
 	float dt;
 	float dp;
@@ -227,23 +222,61 @@ static __device__ Hit intersect_spline_tube (
 	auto curve = Curve::make(s, h, t, radius);
 
 	// for early exit check against enclosing cylinder
-	auto distToCylinder = [&s, &t](vec3 pt) {
+	auto distToCylinder = [&s, &t](float3 pt) {
 		return length(cross(pt-s, pt-t)) / length(t-s);
 	};
 
 	// ToDo: center cylinder inside convex hull of Bezier control points for a tighter fit
 	float rmax = distToCylinder(curve.f(0.5f)) + radius;
 
-	vec3 axis = normalize(t - s);
-	vec3 p0   = s - axis*radius;
-	vec3 p1   = t + axis*radius;
+	float3 axis = normalize(t - s);
+	float3 p0   = s - axis*radius;
+	float3 p1   = t + axis*radius;
 
+	// early rejection on bounding cylinder
 	if (!intersectCylinder(ray_orig, dir, p0, p1, rmax))
 		return hit;
 
 	// transform curve to RCC
-	TransformToRCC rcc(ray_orig, dir);
-	auto xcurve = Curve::make(rcc.xfmPoint(s), rcc.xfmPoint(h), rcc.xfmPoint(t), radius);
+	RCC rcc(ray_orig, dir);
+	auto xcurve = Curve::make(rcc.to(s), rcc.to(h), rcc.to(t), radius);
+
+	/* DEBUG *//*{
+		const uint3 idx = optixGetLaunchIndex();
+		const unsigned pxl = idx.y*params.fb_width + idx.x,
+		               mid = (params.fb_height/2)*params.fb_width + (params.fb_width/2);
+		if (pxl == mid)
+		{
+			const auto &m = rcc.xform, &mi = rcc.xformInv;
+			printf(" ===================================================\nRCC:\n"
+			       "  c = { %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f,\n"
+			       "        %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f}\n"
+			       "  m = { %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f,\n"
+			       "        %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f}\n"
+			       "col = { %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f,\n"
+			       "        %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f}\n",
+			       m.c[0], m.c[4], m.c[ 8], m.c[12], m.c[1], m.c[5], m.c[ 9], m.c[13],
+			       m.c[2], m.c[6], m.c[10], m.c[14], m.c[3], m.c[7], m.c[11], m.c[15],
+			       m.m[0][0], m.m[1][0], m.m[2][0], m.m[3][0], m.m[0][1], m.m[1][1], m.m[2][1], m.m[3][1],
+			       m.m[0][2], m.m[1][2], m.m[2][2], m.m[3][2], m.m[0][3], m.m[1][3], m.m[2][3], m.m[3][3],
+			       m.col(0).x, m.col(1).x, m.col(2).x, m.col(3).x, m.col(0).y, m.col(1).y, m.col(2).y, m.col(3).y,
+			       m.col(0).z, m.col(1).z, m.col(2).z, m.col(3).z, m.col(0).w, m.col(1).w, m.col(2).w, m.col(3).w);
+			printf("  -------\nRCC_inv:\n"
+			       "  c = { %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f,\n"
+			       "        %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f}\n"
+			       "  m = { %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f,\n"
+			       "        %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f}\n"
+			       "col = { %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f,\n"
+			       "        %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f}\n"
+			       " ===================================================\n",
+			       mi.c[0], mi.c[4], mi.c[ 8], mi.c[12], mi.c[1], mi.c[5], mi.c[ 9], mi.c[13],
+			       mi.c[2], mi.c[6], mi.c[10], mi.c[14], mi.c[3], mi.c[7], mi.c[11], mi.c[15],
+			       mi.m[0][0], mi.m[1][0], mi.m[2][0], mi.m[3][0], mi.m[0][1], mi.m[1][1], mi.m[2][1], mi.m[3][1],
+			       mi.m[0][2], mi.m[1][2], mi.m[2][2], mi.m[3][2], mi.m[0][3], mi.m[1][3], mi.m[2][3], mi.m[3][3],
+			       mi.col(0).x, mi.col(1).x, mi.col(2).x, mi.col(3).x, mi.col(0).y, mi.col(1).y, mi.col(2).y, mi.col(3).y,
+			       mi.col(0).z, mi.col(1).z, mi.col(2).z, mi.col(3).z, mi.col(0).w, mi.col(1).w, mi.col(2).w, mi.col(3).w);
+		}
+	}*/
 
 	// determine which curve end to start iterating from
 	// ToDo: seems to be using the wrong coordinate system! Should be done in world, not RCC... INVESTIGATE!!!
@@ -257,19 +290,18 @@ static __device__ Hit intersect_spline_tube (
 		float dt2  = 0.0f;
 
 		RayConeIntersection rci;
-		for (unsigned i=0; i<ITERATION_COUNT; i++)
+		for (unsigned i=0; i<MAX_ITERATIONS; i++)
 		{
 			rci.c0 = xcurve.f(t);
 			rci.cd = xcurve.dfdt(t);
 			bool phantom = !rci.intersect(xcurve.rad.eval(t), 0.0f/*cylinder*/);
 
-			// "In all examples in this paper we stop iterations when dt < 5x10^−5"
-			if (!phantom && fabsf(rci.dt) < 5e-5f)
+			// check convergence
+			if (   !phantom && fabsf(rci.dt) < TOLERANCE
+				&& t > 0.f && t < 1.f) // <-- seems necessary to prevent segment transition artifacts (ToDo: investigate!)
 			{
-				//vec3 n = normalize(curve.dfdt(t));
-				rci.s += rci.c0.z;
-				hit.l = rci.s;
-				hit.t = t; // abuse param u to store curve's t
+				hit.l = rci.s + rci.c0.z;
+				hit.t = t;
 				return hit;
 			}
 
@@ -279,20 +311,12 @@ static __device__ Hit intersect_spline_tube (
 			dt1 = dt2;
 			dt2 = rci.dt;
 
-			// Regula falsi
+			// regula falsi
 			if (dt1 * dt2 < 0.0f)
 			{
-				float tnext = 0.0f;
 				// "we use the simplest possible approach by switching
 				// to the bisection every 4th iteration:"
-				if ((i & 3) == 0)
-				{
-					tnext = 0.5f * (told + t);
-				}
-				else
-				{
-					tnext = (dt2 * told - dt1 * t) / (dt2 - dt1);
-				}
+				float tnext = ((i & 3) == 0) ? (0.5f * (told + t)) : ((dt2 * told - dt1 * t) / (dt2 - dt1));
 				told = t;
 				t = tnext;
 			}
@@ -302,10 +326,8 @@ static __device__ Hit intersect_spline_tube (
 				t += rci.dt;
 			}
 
-			if (t < 0.0f || t > 1.0f)
-			{
+			if (t < 0.0f-TOLERANCE || t > 1.0f+TOLERANCE)
 				break;
-			}
 		}
 
 		// re-attempt iteration from the direction of the other end
