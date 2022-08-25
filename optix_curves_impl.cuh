@@ -228,13 +228,13 @@ extern "C" __global__ void __intersection__russig (void)
 	if (hit.l < pos_inf)
 		// report our intersection
 		optixReportIntersection(
-			hit.l/*0.1f/*hit.t*/, 0u/* hit kind, unused*/, __float_as_int(hit.t/*0.5f/*hit.l*/),
+			hit.l, 0u/* hit kind, unused*/, __float_as_int(hit.t),
 			__float_as_int(nodes[0].x), __float_as_int(nodes[0].y), __float_as_int(nodes[0].z),
 			__float_as_int(nodes[1].x), __float_as_int(nodes[1].y), __float_as_int(nodes[1].z)
 		);
 	else if (params.show_bvol)
 		optixReportIntersection(
-			0.1f, 0u/* hit kind, unused*/, __float_as_int(0.5f),
+			.1f, 0u/* hit kind, unused*/, __float_as_int(1.f),
 			__float_as_int(nodes[0].x), __float_as_int(nodes[0].y), __float_as_int(nodes[0].z),
 			__float_as_int(nodes[1].x), __float_as_int(nodes[1].y), __float_as_int(nodes[1].z)
 		);
@@ -274,7 +274,7 @@ extern "C" __global__ void __intersection__phantom (void)
 		);
 	else if (params.show_bvol)
 		optixReportIntersection(
-			0.1f, 0u/* hit kind, unused*/, __float_as_int(1.f),
+			.1f, 0u/* hit kind, unused*/, __float_as_int(1.f),
 			__float_as_int(nodes[0].x), __float_as_int(nodes[0].y), __float_as_int(nodes[0].z),
 			__float_as_int(nodes[1].x), __float_as_int(nodes[1].y), __float_as_int(nodes[1].z)
 		);

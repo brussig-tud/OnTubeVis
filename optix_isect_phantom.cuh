@@ -22,8 +22,8 @@
 // Typedefs and constants
 //
 
-#define MAX_ITERATIONS 32
-#define TOLERANCE 0.0001220703125f  // = 2^-13
+#define MAX_ITERATIONS 24
+#define TOLERANCE 0.000244140625f  // = 2^-12
 
 
 
@@ -57,9 +57,9 @@ struct RCC
 		float3 e1, e2, e3 = normalize(dir);
 		make_orthonormal_basis(e1, e2, e3);
 		model = mat4(
-			make_float4(e1, 0.f),
-			make_float4(e2, 0.f),
-			make_float4(e3, 0.f),
+			make_float4(e1, .0f),
+			make_float4(e2, .0f),
+			make_float4(e3, .0f),
 			make_float4(ray_orig, 1.f)
 		);
 		system = model.inverse();
@@ -112,7 +112,7 @@ struct Curve
 		return curve;
 	}
 
-	/// construct a curve from the given geometric and radius bezier control points
+	/// construct a curve from the given geometric and radius Bezier control points
 	/// (trusts nvcc to properly perform RVO/copy-elision)
 	static __device__ __forceinline__ Curve make (
 		const float3 &s, const float3 &h, const float3 &t, const float rs, const float rh, const float rt
@@ -134,7 +134,7 @@ struct Curve
 // Functions
 //
 
-__device__ bool intersectCylinder (
+__device__ bool intersect_cylinder(
 	const float3 &ray_orig, const float3 &dir, const float3 &p0, const float3 &p1, float ra
 )
 {
@@ -151,7 +151,7 @@ __device__ bool intersectCylinder (
 
 	float h = k1 * k1 - k2 * k0;
 
-	if (h < 0.0f)
+	if (h < .0f)
 		return false;
 
 	h = sqrtf(h);
@@ -159,11 +159,11 @@ __device__ bool intersectCylinder (
 
 	// body
 	float y = baoc + t * bard;
-	if (y > 0.0f && y < baba)
+	if (y > .0f && y < baba)
 		return true;
 
 	// caps
-	t = ((y < 0.0f ? 0.0f : baba) - baoc) / bard;
+	t = ((y < .0f ? .0f : baba) - baoc) / bard;
 	if (fabsf(k1 + k2 * t) < h)
 		return true;
 
@@ -189,13 +189,13 @@ struct RayConeIntersection
 		float a = 2.0f * drr * cdd + cxd * cxd - ddd * r2 + dp * cdz2;
 
 		float discr = b * b - a * c;
-		s   = (b - (discr > 0.0f ? sqrtf(discr) : 0.0f)) / c;
+		s   = (b - (discr > .0f ? sqrtf(discr) : .0f)) / c;
 		dt  = (s * cd.z - cdd) / ddd;
 		dc  = s * s + dp;
 		sp  = cdd / cd.z;
 		dp += sp * sp;
 
-		return discr > 0.0f;
+		return discr > .0f;
 	}
 
 	float3 c0;
@@ -212,34 +212,37 @@ static __device__ Hit intersect_spline_tube (
 	const float rs, const float rh, const float rt
 )
 {
-	// return value initialization
+	// prelude
+	// - return value initialization
 	Hit hit;
-	hit.t = 0.f;
+	hit.t = .0f;
 	hit.l = pos_inf;
-
-	// construct (untransformed) curve representation
-	const float radius = rs;
-	auto curve = Curve::make(s, h, t, radius);
-
-	// for early exit check against enclosing cylinder
-	auto distToCylinder = [&s, &t](float3 pt) {
+	// - local helpers
+	const auto dist_to_cylinder = [&s, &t](float3 pt) {
 		return length(cross(pt-s, pt-t)) / length(t-s);
 	};
 
-	// ToDo: center cylinder inside convex hull of Bezier control points for a tighter fit
-	float rmax = distToCylinder(curve.f(0.5f)) + radius;
+	// construct (untransformed) curve representation
+	const float radius_bound = fmax(rs, fmax(rh, rt));
+	const auto curve = Curve::make(s, h, t, radius_bound);
 
-	float3 axis = normalize(t - s);
-	float3 p0   = s - axis*radius;
-	float3 p1   = t + axis*radius;
-
-	// early rejection on bounding cylinder
-	if (!intersectCylinder(ray_orig, dir, p0, p1, rmax))
+	// early rejection test on bounding cylinder
+	// ToDo: center cylinder inside convex hull of Bezier control points for a tighter fit, consider performing
+	//       exact extrema calculation as in Russig (and probably builtin) intersector
+	const float rmax = dist_to_cylinder(curve.f(.5f)) + radius_bound;
+	const float3 axis = normalize(t-s), p0 = s - axis*radius_bound, p1 = t + axis*radius_bound;
+	if (!intersect_cylinder(ray_orig, dir, p0, p1, rmax))
 		return hit;
+	/*else
+	{
+		hit.t = .5f;
+		hit.l = 1.f;
+		return hit;
+	}*/
 
 	// transform curve to RCC
 	RCC rcc(ray_orig, dir);
-	auto xcurve = Curve::make(rcc.to(s), rcc.to(h), rcc.to(t), radius);
+	auto xcurve = Curve::make(rcc.to(s), rcc.to(h), rcc.to(t), rs, rh, rt);
 
 	/* DEBUG *//*{
 		const uint3 idx = optixGetLaunchIndex();
@@ -279,46 +282,45 @@ static __device__ Hit intersect_spline_tube (
 	}*/
 
 	// determine which curve end to start iterating from
-	// ToDo: seems to be using the wrong coordinate system! Should be done in world, not RCC... INVESTIGATE!!!
-	float tstart = dot(xcurve.pos.b[2] - xcurve.pos.b[0], dir) > 0.0f ? 0.0f : 1.0f;
+	float tstart = dot(t - s, dir) > .0f ? .0f : 1.f;
 
+	// also attempt from the other end in case iteration from selected one fails
 	for (unsigned end=0; end<2; end++)
 	{
 		float t    = tstart;
-		float told = 0.0f;
-		float dt1  = 0.0f;
-		float dt2  = 0.0f;
+		float told = .0f;
+		float dt1  = .0f;
+		float dt2  = .0f;
 
 		RayConeIntersection rci;
 		for (unsigned i=0; i<MAX_ITERATIONS; i++)
 		{
 			rci.c0 = xcurve.f(t);
 			rci.cd = xcurve.dfdt(t);
-			bool phantom = !rci.intersect(xcurve.rad.eval(t), 0.0f/*cylinder*/);
+			bool phantom = !rci.intersect(xcurve.r(t), xcurve.drdt(t));
 
 			// check convergence
 			if (   !phantom && fabsf(rci.dt) < TOLERANCE
-				&& t > 0.f && t < 1.f) // <-- seems necessary to prevent segment transition artifacts (ToDo: investigate!)
+				&& t > .0f && t < 1.f) // <-- seems necessary to prevent segment transition artifacts (ToDo: investigate!)
 			{
 				hit.l = rci.s + rci.c0.z;
 				hit.t = t;
 				return hit;
 			}
 
-			rci.dt = fmin(rci.dt,  0.5f);
-			rci.dt = fmax(rci.dt, -0.5f);
+			rci.dt = fmin(rci.dt,  .5f);
+			rci.dt = fmax(rci.dt, -.5f);
 
 			dt1 = dt2;
 			dt2 = rci.dt;
 
 			// regula falsi
-			if (dt1 * dt2 < 0.0f)
+			if (dt1 * dt2 < .0f)
 			{
 				// "we use the simplest possible approach by switching
-				// to the bisection every 4th iteration:"
-				float tnext = ((i & 3) == 0) ? (0.5f * (told + t)) : ((dt2 * told - dt1 * t) / (dt2 - dt1));
+				//  to the bisection every 4th iteration:"
 				told = t;
-				t = tnext;
+				t = ((i&3) == 0) ? (.5f*(told+t)) : ((dt2*told - dt1*t) / (dt2-dt1));
 			}
 			else
 			{
@@ -326,12 +328,12 @@ static __device__ Hit intersect_spline_tube (
 				t += rci.dt;
 			}
 
-			if (t < 0.0f-TOLERANCE || t > 1.0f+TOLERANCE)
+			if (t < .0f || t > 1.f)
 				break;
 		}
 
 		// re-attempt iteration from the direction of the other end
-		tstart = 1.0f - tstart;
+		tstart = 1.f - tstart;
 	}
 
 	// done!
