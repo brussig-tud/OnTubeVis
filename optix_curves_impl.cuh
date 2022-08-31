@@ -265,6 +265,7 @@ extern "C" __global__ void __intersection__phantom (void)
 		printf("t=: %f,  l=%f\n", hit.t, hit.l);
 	// END:   DEBUG OUTPUT
 	//---------------------------*/
+
 	if (hit.l < pos_inf)
 		// report our intersection
 		optixReportIntersection(

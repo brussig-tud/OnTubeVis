@@ -755,7 +755,7 @@ float sd_triangle(in vec2 p, in vec2 p0, in vec2 p1, in vec2 p2) {
 #define DEF_SD_STAR(I, N) \
 vec3 sd_star##I(vec2 p, in glyph_desc##I gd, in int i0, in int i1, in int float_base_idx, in int mapping_base_idx) { \
 	const vec2 org = vec2(0.0); \
-	const float thickness = 0.01; \
+	const float thickness = 0.015625f; \
 	float d_axes = 1e20; \
 	\
 	vec2 ps0, ps1; \
