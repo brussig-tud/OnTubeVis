@@ -1,5 +1,5 @@
 <ColorMaps>
-<ColorMap name="RAINBOW" space="RGB">
+<ColorMap name="rainbow" space="RGB">
   <Point x="0.000000" o="1" r="1.0" g="0.0" b="0.0"/>
   <Point x="0.250000" o="1" r="1.0" g="1.0" b="0.0"/>
   <Point x="0.500000" o="1" r="0.0" g="1.0" b="0.0"/>
