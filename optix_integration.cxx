@@ -51,12 +51,11 @@ std::vector<char> compile_cu2ptx (
 	// figure out absolute path of input file and seperate out the actual filename from overall path
 	const std::filesystem::path
 		filepath(filename), file_component = filepath.filename().string(),
-		path_component = filepath.is_absolute() ?
+		pathcomponent_abs = filepath.is_absolute() ?
 			filepath.parent_path() :
-			std::filesystem::absolute(cwd + "/" + filepath.parent_path().string());
-	std::string mydir = flipped_backslashes(path_component.string());
+			std::filesystem::canonical(cwd+"/"+filepath.parent_path().string());
+	std::string mydir = flipped_backslashes(pathcomponent_abs.string());
 	if (mydir.back() == '/') mydir.pop_back(); // <-- needed for CUDA include paths below
-	const std::filesystem::path filename_abs = std::filesystem::path(mydir+"/"+file_component.string());
 
 #ifdef CGV_FORCE_STATIC
 	// check if ptx device code compiled from the given source file is embedded in our binary 
@@ -81,9 +80,10 @@ std::vector<char> compile_cu2ptx (
 	// - prelude
 	std::string cu;
 	std::vector<char> ptx;
-	// - look for file in default locations (including loaded exe/dll resource sections)
+	// - look for file in default locations
 	/* local scope */ {
-		const std::string fn = cgv::render::shader_code::find_file(filename);
+		std::string fn = filepath.is_absolute() ? filename : std::filesystem::canonical(cwd+"/"+filename).string();
+		fn = cgv::render::shader_code::find_file(fn);
 		if (fn.empty()) {
 			if (log_out)
 				*log_out = "Could not find file '" + filename + "'";
