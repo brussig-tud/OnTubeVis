@@ -33,3 +33,6 @@
 
 # CGV framework stuff
 config.cfg
+
+#Source folders
+export/
