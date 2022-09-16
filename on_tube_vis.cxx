@@ -1413,7 +1413,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	bool success = tstr.ref_prog().is_linked() && vr.ref_prog().is_linked();
 
 	// load all shaders in the library
-	success &= shaders.load_shaders(ctx);
+	success &= shaders.load_all(ctx);
 
 	color_map_mgr.init(ctx);
 	glyph_layers_config = glyph_layer_mgr.get_configuration();
