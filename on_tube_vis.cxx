@@ -2948,8 +2948,6 @@ cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
 
 #ifdef CGV_FORCE_STATIC
 	#include <OnTubeVis_shader_inc.h>
-	#define REGISTER_SHADER_FILES
-	#include <cgv_glutil/shader_inc.h>
 #endif
 
 // Force the usage of the discrete Nvidia graphics card.
