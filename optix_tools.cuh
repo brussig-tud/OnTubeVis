@@ -96,10 +96,10 @@ __forceinline__ __device__ float3 get_ortho_vec (const float3 &v)
 	return abs(v.x) > abs(v.z) ? make_float3(-v.y, v.x, 0.f) : make_float3(0.f, -v.z, v.y);
 }
 
-__device__ __forceinline__ void make_orthonormal_basis (float3 &e1, float3 &e2, const float3 &e3)
+__device__ __forceinline__ void make_orthonormal_basis (float3 &e0, float3 &e1, const float3 &e2)
 {
-	e2 = normalize(get_ortho_vec(e3));
-    e1 = cross(e2, e3);
+	e1 = normalize(get_ortho_vec(e2));
+    e0 = cross(e1, e2);
 }
 
 // set a column of the given 4x4 matrix to the given vector

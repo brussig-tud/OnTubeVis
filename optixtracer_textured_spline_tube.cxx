@@ -106,7 +106,7 @@ namespace {
 		const QuadraticCurve<float, dims> &bezier, const LinearRoots3<float> &extrema
 	)
 	{
-		const Vec<dims, float> bstart = evalBezier(bezier, 0.f),
+		const Vec<dims, float> bstart = evalBezier(bezier, .0f),
 		                       bend   = evalBezier(bezier, 1.f);
 		Vec<dims, float> pmin;
 		for (int i=0; i<3; i++)
@@ -124,7 +124,7 @@ namespace {
 		const QuadraticCurve<float, dims> &bezier, const LinearRoots3<float> &extrema
 	)
 	{
-		const Vec<dims, float> bstart = evalBezier(bezier, 0.f),
+		const Vec<dims, float> bstart = evalBezier(bezier, .0f),
 		                       bend   = evalBezier(bezier, 1.f);
 		Vec<dims, float> pmax;
 		for (int i=0; i<3; i++)

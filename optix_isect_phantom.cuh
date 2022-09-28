@@ -54,12 +54,12 @@ struct RCC
 	/// construct for given ray
 	__device__ __forceinline__ RCC(const float3 &ray_orig, const float3 &dir)
 	{
-		float3 e1, e2, e3 = normalize(dir);
-		make_orthonormal_basis(e1, e2, e3);
+		float3 e0, e1, e2 = normalize(dir);
+		make_orthonormal_basis(e0, e1, e2);
 		model = mat4(
+			make_float4(e0, .0f),
 			make_float4(e1, .0f),
 			make_float4(e2, .0f),
-			make_float4(e3, .0f),
 			make_float4(ray_orig, 1.f)
 		);
 		system = model.inverse();
