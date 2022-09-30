@@ -1,13 +1,13 @@
 #pragma once
 
+#include <cgv/render/color_map.h>
 #include <cgv/render/texture.h>
-#include <cgv_glutil/canvas_overlay.h>
-#include <cgv_glutil/color_map.h>
-#include <cgv_glutil/msdf_gl_canvas_font_renderer.h>
-#include <cgv_glutil/2d/canvas.h>
-#include <cgv_glutil/2d/shape2d_styles.h>
+#include <cgv_app/canvas_overlay.h>
+#include <cgv_g2d/msdf_gl_canvas_font_renderer.h>
+#include <cgv_g2d/canvas.h>
+#include <cgv_g2d/shape2d_styles.h>
 
-class color_map_viewer : public cgv::glutil::canvas_overlay {
+class color_map_viewer : public cgv::app::canvas_overlay {
 protected:
 	struct layout_attributes {
 		int padding;
@@ -15,7 +15,7 @@ protected:
 		int total_height;
 
 		// dependent members
-		cgv::glutil::rect color_map_rect;
+		cgv::g2d::rect color_map_rect;
 
 		void update(const ivec2& parent_size) {
 			color_map_rect.set_pos(ivec2(padding));
@@ -27,16 +27,16 @@ protected:
 	
 	std::vector<std::string> names;
 
-	cgv::glutil::shape2d_style container_style, border_style, color_map_style;
-	texture* tex;
+	cgv::g2d::shape2d_style container_style, border_style, color_map_style;
+	cgv::render::texture* tex;
 
 	// text appearance
 	float font_size = 14.0f;
 
-	cgv::glutil::shape2d_style text_style;
-	cgv::glutil::msdf_text_geometry texts;
+	cgv::g2d::shape2d_style text_style;
+	cgv::g2d::msdf_text_geometry texts;
 	
-	void init_styles(context& ctx);
+	void init_styles(cgv::render::context& ctx);
 	void update_texts();
 
 public:
@@ -59,5 +59,5 @@ public:
 
 	void set_color_map_names(const std::vector<std::string>& names);
 
-	void set_color_map_texture(texture* tex);
+	void set_color_map_texture(cgv::render::texture* tex);
 };

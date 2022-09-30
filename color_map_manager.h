@@ -7,7 +7,7 @@
 #include <cgv/render/context.h>
 #include <cgv/render/render_types.h>
 #include <cgv/render/texture.h>
-#include <cgv_glutil/color_map.h>
+#include <cgv/render/color_map.h>
 
 #include "gui_util.h"
 #include "glyph_attribute_mapping.h"
@@ -21,7 +21,7 @@ public:
 		/// the name of this color map
 		std::string name = "";
 		/// the actual color map object
-		cgv::glutil::color_map cm;
+		cgv::render::color_map cm;
 		/// whether this color map is custom or a default choice
 		bool custom = false;
 
@@ -77,7 +77,7 @@ public:
 	/// return a list of all color map names
 	std::vector<std::string> get_names();
 	/// add a color map from outside of this manager
-	void add_color_map(const std::string& name, const cgv::glutil::color_map& cm, bool custom);
+	void add_color_map(const std::string& name, const cgv::render::color_map& cm, bool custom);
 	/// remove a color map by its name
 	void remove_color_map_by_name(const std::string& name);
 	/// update the color map texture to the contents of the color maps

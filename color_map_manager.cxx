@@ -42,7 +42,7 @@ std::vector<std::string> color_map_manager::get_names() {
 	return names;
 }
 
-void color_map_manager::add_color_map(const std::string& name, const cgv::glutil::color_map& cm, bool custom) {
+void color_map_manager::add_color_map(const std::string& name, const cgv::render::color_map& cm, bool custom) {
 	color_map_container cmc(name);
 	cmc.cm = cm;
 	cmc.custom = custom;

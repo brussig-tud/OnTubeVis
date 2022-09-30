@@ -5,23 +5,10 @@ bool voxelizer::load_shader_programs(cgv::render::context& ctx) {
 	bool res = true;
 	std::string where = "voxelizer::load_shader_programs()";
 
-	/*shader_define_map distance_defines;
-	shader_code::set_define(distance_defines, "ORDER", sort_order, SO_ASCENDING);
-	shader_code::set_define(distance_defines, "INITIALIZE_VALUES", value_init_override, true);
-	shader_code::set_define(distance_defines, "USE_AUXILIARY_BUFFER", auxiliary_type_def != "", false);
-	shader_code::set_define(distance_defines, "VALUE_TYPE_DEFINITION", value_type_def, std::string("uint"));
-
-	if(data_type_def != "")
-		distance_defines["DATA_TYPE_DEFINITION"] = data_type_def;
-	if(auxiliary_type_def != "")
-		distance_defines["AUXILIARY_TYPE_DEFINITION"] = auxiliary_type_def;
-	if(key_definition != "")
-		distance_defines["KEY_DEFINITION"] = key_definition;*/
-
-	res = res && cgv::glutil::shader_library::load(ctx, clear_prog, "clear", true, where);
-	res = res && cgv::glutil::shader_library::load(ctx, voxelize_prog, "voxelize", true, where);
-	res = res && cgv::glutil::shader_library::load(ctx, clamp_prog, "clamp", true, where);
-	res = res && cgv::glutil::shader_library::load(ctx, mipmap_prog, "mipmap", true, where);
+	res = res && cgv::render::shader_library::load(ctx, clear_prog, "clear", true, where);
+	res = res && cgv::render::shader_library::load(ctx, voxelize_prog, "voxelize", true, where);
+	res = res && cgv::render::shader_library::load(ctx, clamp_prog, "clamp", true, where);
+	res = res && cgv::render::shader_library::load(ctx, mipmap_prog, "mipmap", true, where);
 
 	return res;
 }

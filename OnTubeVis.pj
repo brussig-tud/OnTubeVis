@@ -17,7 +17,7 @@ excludeSourceFiles=[INPUT_DIR."/optixtracer_textured_spline_tube.cxx", INPUT_DIR
 addProjectDeps=[
 	"cgv_utils", "cgv_type", "cgv_reflect", "cgv_data", "cgv_signal", "cgv_base", "cgv_media", 
 	"cgv_gui", "cgv_render", "cgv_os", "cgv_viewer", "glew", "cgv_gl", "cg_fltk", "cg_ext", 
-	"cmi_io", "crg_stereo_view", "crg_light", "crg_grid", "cgv_glutil", "cuda_resprep"
+	"cmi_io", "crg_stereo_view", "crg_light", "crg_grid", "cgv_g2d", "cgv_app", "cgv_gpgpu", "cuda_resprep"
 ];
 if (env["CUDA_PATH"]) {
 	if (env["OPTIX_PATH"]) {
@@ -66,13 +66,11 @@ if (env["CUDA_PATH"]) {
 	}
 }
 addSharedDefines=["TUBES_EXPORTS"];
+addShaderPaths=[INPUT_DIR];
 cppLanguageStandard="stdcpp17";
 useOpenMP=1;
 workingDirectory=INPUT_DIR;
 addCommandLineArguments=[
 	'config:"'.INPUT_DIR.'/config.def"',
-	after(
-		"type(shader_config):shader_path='".INPUT_DIR."/glsl;".CGV_DIR."/libs/cgv_gl/glsl;".CGV_DIR."/libs/cgv_glutil/glsl;".CGV_DIR."/libs/cgv_glutil/glsl/2d'",
-		"cg_fltk"
-	)
+	after("SHADER_PATHS", "cg_fltk")
 ];

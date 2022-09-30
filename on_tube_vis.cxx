@@ -16,9 +16,11 @@
 #include <cgv/utils/advanced_scan.h>
 #include <cgv/utils/xml.h>
 
-// CGV framework graphics utility
-#include <cgv_glutil/color_map_reader.h>
-#include <cgv_glutil/color_map_writer.h>
+// CGV framework application utility
+#include <cgv_app/color_map_reader.h>
+#include <cgv_app/color_map_writer.h>
+
+// CGV framework plugins
 // - fltk_gl_view for controlling instant redraw
 #include <plugins/cg_fltk/fltk_gl_view.h>
 // - stereo_view_interactor for controlling fix_view_up_dir
@@ -109,20 +111,20 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 
 	fbc_final.add_attachment("color", color_format);
 
-	cm_editor_ptr = register_overlay<cgv::glutil::color_map_editor>("Color Scales");
+	cm_editor_ptr = register_overlay<cgv::app::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
 	cm_editor_ptr->gui_options.show_heading = false;
 
-	tf_editor_ptr = register_overlay<cgv::glutil::color_map_editor>("Volume TF");
+	tf_editor_ptr = register_overlay<cgv::app::color_map_editor>("Volume TF");
 	tf_editor_ptr->set_visibility(false);
 	tf_editor_ptr->gui_options.show_heading = false;
 	tf_editor_ptr->set_opacity_support(true);
 
-	navigator_ptr = register_overlay<cgv::glutil::navigator>("Navigator");
+	navigator_ptr = register_overlay<cgv::app::navigator>("Navigator");
 	navigator_ptr->set_visibility(false);
 	navigator_ptr->gui_options.show_heading = false;
 	navigator_ptr->gui_options.show_layout_options = false;
-	navigator_ptr->set_overlay_alignment(cgv::glutil::overlay::AO_START, cgv::glutil::overlay::AO_END);
+	navigator_ptr->set_overlay_alignment(cgv::app::overlay::AO_START, cgv::app::overlay::AO_END);
 	
 	cm_viewer_ptr = register_overlay<color_map_viewer>("Color Scale Viewer");
 	cm_viewer_ptr->gui_options.show_heading = false;
@@ -234,8 +236,7 @@ void on_tube_vis::clear(cgv::render::context &ctx) {
 
 	color_map_mgr.destruct(ctx);
 
-	delete render.sorter;
-	render.sorter = nullptr;
+	render.sorter.destruct(ctx);
 }
 
 bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
@@ -891,7 +892,7 @@ bool on_tube_vis::save_layer_configuration(const std::string& file_name) {
 	for(size_t i = 0; i < color_maps.size(); ++i) {
 		const auto& cmc = color_maps[i];
 		if(cmc.custom) {
-			content += cgv::glutil::color_map_writer::to_xml(cmc.name, cmc.cm, false);
+			content += cgv::app::color_map_writer::to_xml(cmc.name, cmc.cm, false);
 		}
 
 		/*const auto& cmc = color_maps[i];
@@ -1426,9 +1427,8 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	success &= density_volume.init(ctx, 0);
 
-	render.sorter = new cgv::glutil::radix_sort_4way();
-	render.sorter->set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent;");
-	render.sorter->set_auxiliary_type_override("uint a_idx; uint b_idx;");
+	render.sorter.set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent;");
+	render.sorter.set_auxiliary_type_override("uint a_idx; uint b_idx;");
 
 	std::string key_definition =
 		R"(aux_type indices = aux_values[idx]; \
@@ -1442,7 +1442,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 		float ddv = dot(eye_to_pos, view_dir); \
 		float key = (ddv < 0.0 ? -1.0 : 1.0) * dot(eye_to_pos, eye_to_pos);)";
 
-	render.sorter->set_key_definition_override(key_definition);
+	render.sorter.set_key_definition_override(key_definition);
 
 	// Initialize the last sort position and direction to zero to force a sorting step before the first draw call
 	last_sort_pos = vec3(0.0f);
@@ -2347,7 +2347,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 		tstr.set_indices(ctx, segment_indices);
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
-		if(!render.sorter->init(ctx, render.data->indices.size() / 2))
+		if(!render.sorter.init(ctx, render.data->indices.size() / 2))
 			std::cout << "Could not initialize gpu sorter" << std::endl;
 
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
@@ -2616,7 +2616,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		// sort the segment indices
 		if(debug.sort && do_sort && !debug.force_initial_order) {
-			benchmark.sort_time_total += render.sorter->sort(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
+			// measure sort time
+			//render.sorter.begin_time_query();
+			render.sorter.execute(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
+			//benchmark.sort_time_total += render.sorter.end_time_query();
 			++benchmark.num_sorts;
 		}
 

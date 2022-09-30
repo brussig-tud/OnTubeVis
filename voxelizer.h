@@ -3,10 +3,9 @@
 #include <vector>
 
 #include <cgv/render/render_types.h>
-//#include <cgv_gl/renderer.h>
 #include <cgv/render/context.h>
+#include <cgv/render/shader_library.h>
 #include <cgv_gl/gl/gl_context.h>
-#include <cgv_glutil/shader_library.h>
 
 #include "voxel_grid.h"
 #include "traj_loader.h"

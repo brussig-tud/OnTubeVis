@@ -19,7 +19,7 @@ color_map_viewer::color_map_viewer() {
 	set_overlay_margin(ivec2(-3));
 	set_overlay_size(ivec2(200u, layout.total_height));
 	
-	register_shader("rectangle", cgv::glutil::canvas::shaders_2d::rectangle);
+	register_shader("rectangle", cgv::g2d::canvas::shaders_2d::rectangle);
 	register_shader("color_maps", "color_maps.glpr");
 	
 	tex = nullptr;
@@ -28,8 +28,8 @@ color_map_viewer::color_map_viewer() {
 void color_map_viewer::clear(cgv::render::context& ctx) {
 
 	canvas_overlay::clear(ctx);
-	cgv::glutil::ref_msdf_font(ctx, -1);
-	cgv::glutil::ref_msdf_gl_canvas_font_renderer(ctx, -1);
+	cgv::g2d::ref_msdf_font(ctx, -1);
+	cgv::g2d::ref_msdf_gl_canvas_font_renderer(ctx, -1);
 }
 
 bool color_map_viewer::self_reflect(cgv::reflect::reflection_handler& _rh) {
@@ -64,8 +64,8 @@ bool color_map_viewer::init(cgv::render::context& ctx) {
 	
 	bool success = canvas_overlay::init(ctx);
 
-	auto& font = cgv::glutil::ref_msdf_font(ctx, 1);
-	cgv::glutil::ref_msdf_gl_canvas_font_renderer(ctx, 1);
+	auto& font = cgv::g2d::ref_msdf_font(ctx, 1);
+	cgv::g2d::ref_msdf_gl_canvas_font_renderer(ctx, 1);
 
 	if (success)
 		init_styles(ctx);
@@ -123,7 +123,7 @@ void color_map_viewer::draw_content(cgv::render::context& ctx) {
 	content_canvas.disable_current_shader(ctx);
 	
 	// draw color scale names
-	cgv::glutil::ref_msdf_gl_canvas_font_renderer(ctx).render(ctx, content_canvas, texts, text_style);
+	cgv::g2d::ref_msdf_gl_canvas_font_renderer(ctx).render(ctx, content_canvas, texts, text_style);
 
 	disable_blending();
 	end_content(ctx);
@@ -142,14 +142,14 @@ void color_map_viewer::set_color_map_names(const std::vector<std::string>& names
 	post_damage();
 }
 
-void color_map_viewer::set_color_map_texture(texture* tex) {
+void color_map_viewer::set_color_map_texture(cgv::render::texture* tex) {
 
 	this->tex = tex;
 	on_set(&layout.total_height);
 	post_damage();
 }
 
-void color_map_viewer::init_styles(context& ctx) {
+void color_map_viewer::init_styles(cgv::render::context& ctx) {
 	// get theme colors
 	auto& ti = cgv::gui::theme_info::instance();
 	rgba background_color = rgba(ti.background(), 1.0f);
@@ -191,7 +191,7 @@ void color_map_viewer::update_texts() {
 	for(const auto& name : names) {
 		ivec2 p = base;
 		p.y() += (names.size() - 1 - i)*step;
-		texts.add_text(name, p, TA_BOTTOM);
+		texts.add_text(name, p, cgv::render::TA_BOTTOM);
 		++i;
 	}
 	texts_out_of_date = false;

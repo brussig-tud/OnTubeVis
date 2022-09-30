@@ -9,22 +9,23 @@
 #include <cgv/gui/event_handler.h>
 #include <cgv/gui/provider.h>
 #include <cgv/render/drawable.h>
+#include <cgv/render/managed_frame_buffer.h>
+#include <cgv/render/shader_library.h>
 #include <cgv/utils/stopwatch.h>
 
 // CGV OpenGL lib
+#include <cgv_gl/box_wire_render_data.h>
+#include <cgv_gl/cone_render_data.h>
+#include <cgv_gl/sphere_render_data.h>
 #include <cgv_gl/volume_renderer.h>
 
-// CGV framework graphics utility
-#include <cgv_glutil/application_plugin.h>
-#include <cgv_glutil/box_wire_render_data.h>
-#include <cgv_glutil/cone_render_data.h>
-#include <cgv_glutil/color_map_editor.h>
-#include <cgv_glutil/frame_buffer_container.h>
-#include <cgv_glutil/navigator.h>
-#include <cgv_glutil/radix_sort_4way.h>
-#include <cgv_glutil/shader_library.h>
-#include <cgv_glutil/sphere_render_data.h>
-//#include <cgv_glutil/transfer_function_editor.h>
+// CGV framework application utility
+#include <cgv_app/application_plugin.h>
+#include <cgv_app/color_map_editor.h>
+#include <cgv_app/navigator.h>
+
+// CGV framework GPU algorithms
+#include <cgv_gpgpu/visibility_sort.h>
 
 // local includes
 #include "traj_loader.h"
@@ -52,7 +53,7 @@ using namespace cgv::render;
 /// trajectory loading facilities
 class on_tube_vis :
 	public cgv::base::argument_handler, // derive from argument handler to be able to process custom arguments
-	public cgv::glutil::application_plugin	// derive from application plugin, which is a node, drawable, gui provider and event handler and can handle overlays
+	public cgv::app::application_plugin	// derive from application plugin, which is a node, drawable, gui provider and event handler and can handle overlays
 {
 public:
 	/// data layout for per-node attributes within the attribute render SSBO
@@ -156,9 +157,9 @@ protected:
 	// ###############################
 #endif
 
-	cgv::glutil::color_map_editor_ptr cm_editor_ptr;
-	cgv::glutil::color_map_editor_ptr tf_editor_ptr;
-	cgv::data::ref_ptr<cgv::glutil::navigator> navigator_ptr;
+	cgv::app::color_map_editor_ptr cm_editor_ptr;
+	cgv::app::color_map_editor_ptr tf_editor_ptr;
+	cgv::data::ref_ptr<cgv::app::navigator> navigator_ptr;
 	cgv::data::ref_ptr <color_map_viewer> cm_viewer_ptr;
 
 	enum GridMode {
@@ -334,16 +335,16 @@ protected:
 		}
 	} taa;
 
-	cgv::glutil::frame_buffer_container fbc, fbc_shading, fbc_post, fbc_hist, fbc_final;
-	cgv::glutil::shader_library shaders;
+	cgv::render::managed_frame_buffer fbc, fbc_shading, fbc_post, fbc_hist, fbc_final;
+	cgv::render::shader_library shaders;
 	volume_render_style vstyle;
-	cgv::glutil::gl_color_map volume_tf;
+	cgv::render::gl_color_map volume_tf;
 
 	bool show_bbox = false;
 	bool show_wireframe_bbox = true;
 	cgv::render::box_render_style bbox_style;
-	cgv::glutil::box_render_data<> bbox_rd;
-	cgv::glutil::box_wire_render_data<> bbox_wire_rd;
+	cgv::render::box_render_data<> bbox_rd;
+	cgv::render::box_wire_render_data<> bbox_wire_rd;
 
 	vec3 last_sort_pos;
 	vec3 last_sort_dir;
@@ -376,7 +377,7 @@ protected:
 		attribute_array_manager aam;
 
 		/// the gpu sorter used to reorder the indices according to their corresponding segment visibility order
-		cgv::glutil::gpu_sorter* sorter = nullptr;
+		cgv::gpgpu::visibility_sort sorter;
 	} render;
 
 	/// trajectory manager
@@ -421,8 +422,8 @@ protected:
 		DebugRenderMode render_mode = DRM_NONE;
 
 		/// debug render data and styles
-		cgv::glutil::sphere_render_data<> node_rd;
-		cgv::glutil::cone_render_data<> segment_rd;
+		cgv::render::sphere_render_data<> node_rd;
+		cgv::render::cone_render_data<> segment_rd;
 		sphere_render_style node_rs;
 		cone_render_style segment_rs;
 
@@ -453,7 +454,7 @@ protected:
 	bool benchmark_mode_setup = false;
 	
 	/// members for rendering eye position and direction used to test sorting
-	cgv::glutil::sphere_render_data<> srd;
+	cgv::render::sphere_render_data<> srd;
 	vec3 test_eye = vec3(5.0f, 0.5f, 5.0f);
 	vec3 test_dir = vec3(0.0f, 0.0f, -1.0f);
 
