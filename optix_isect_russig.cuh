@@ -18,7 +18,6 @@
 
 
 //////
-//
 // ToDo: copy-paste-adapted from the rasterization fragment shader, and thus introducing a lot of
 //       duplicated logic. With CUDA C++ at our disposal, the whole routine could be written in a
 //       way that is much more elegant and readable.
@@ -342,6 +341,7 @@ __device__ __forceinline__ float3 mul_vec_mat3 (const float3 &vec, const float *
 
 static __device__ Hit EvalSplineISect (const mat4 &rcc, vec3 s, vec3 h, vec3 t, const float rs, const float rh, const float rt)
 {
+	// prelude
 	Hit hit;
 	hit.t = 0.f;
 	hit.l = pos_inf;

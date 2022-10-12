@@ -214,7 +214,6 @@ static __device__ Hit intersect_spline_tube (
 )
 {
 	// prelude
-	// - return value initialization
 	Hit hit;
 	hit.t = .0f;
 	hit.l = pos_inf;
@@ -238,16 +237,15 @@ static __device__ Hit intersect_spline_tube (
 		return hit;
 	}*/
 
-	// transform curve to RCC
+	// transform curve into ray-centric coordinate system
 	const auto xcurve = Curve::make(rcc.mul_pos(s), rcc.mul_pos(h), rcc.mul_pos(t), rs, rh, rt);
 
 	/* DEBUG *//*{
 		const uint3 idx = optixGetLaunchIndex();
 		const unsigned pxl = idx.y*params.fb_width + idx.x,
 		               mid = (params.fb_height/2)*params.fb_width + (params.fb_width/2);
-		if (pxl == mid) {
+		if (pxl == mid)
 			// do printf output here
-		}
 	}*/
 
 	// determine which curve end to start iterating from
