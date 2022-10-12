@@ -19,8 +19,9 @@
 
 //////
 //
-// ToDo: copy-paste-adapted from the rasterization fragment shader and thus introducing a lot of
-//       duplicated logic - rewrite to actually integrate better with new OptiX/CUDA code
+// ToDo: copy-paste-adapted from the rasterization fragment shader, and thus introducing a lot of
+//       duplicated logic. With CUDA C++ at our disposal, the whole routine could be written in a
+//       way that is much more elegant and readable.
 
 #define ITERATION_COUNT 10
 #define N0 3
@@ -310,6 +311,7 @@ static __device__ DEF_binRootFinder(qSplineD2)
 static __device__ DEF_binRootFinder(qSplineD3)
 #define binRootFinder_Eval(n, p, func) func##_BinRootFinder_Eval(n, p, func##_Paras)
 
+///// MOVE TO optix_tools.cuh ///////////////////////////////////////////////////////////////////////////////
 __device__ __forceinline__ void set_mat3_col (float *mat, const unsigned col, const float3 &vec) {
 	((float3*)mat)[col] = vec;
 }
@@ -336,40 +338,27 @@ __device__ __forceinline__ float3 mul_vec_mat3 (const float3 &vec, const float *
 	r.z = mat[6]*vec.x + mat[7]*vec.y + mat[8]*vec.z;
 	return r;
 }
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static __device__ Hit EvalSplineISect(const vec3 &ray_orig, const vec3 &dir, vec3 s, vec3 h, vec3 t, const float rs, const float rh, const float rt)
+static __device__ Hit EvalSplineISect (const mat4 &rcc, vec3 s, vec3 h, vec3 t, const float rs, const float rh, const float rt)
 {
 	Hit hit;
 	hit.t = 0.f;
 	hit.l = pos_inf;
 	
-	// transform control points into ray space
-	// - basis vectors
-	float RM3[9];
-	set_mat3_col(RM3, 0, dir);
-	set_mat3_col(RM3, 1, normalize(get_ortho_vec(dir)));
-	set_mat3_col(RM3, 2, cross(dir, get_mat3_col(RM3, 1)));
-	/*float RS[16];
-	{ const float3 dir_ortho = normalize(GetOrthoVec(dir));
-	  make_local_frame(RS, dir, dir_ortho, cross(dir, dir_ortho), ray_orig); }*/
+	// transform control points into ray-centric coordinate system
+	s = rcc.mul_pos(s);
+	h = rcc.mul_pos(h);
+	t = rcc.mul_pos(t);
 
-	// - transform control points
-	s = mul_vec_mat3(s, RM3);
-	t = mul_vec_mat3(t, RM3);
-	h = mul_vec_mat3(h, RM3);
-	/*s = mul3_pos_mat(s, RS);
-	t = mul3_pos_mat(t, RS);
-	h = mul3_pos_mat(h, RS);*/
-
+	// we work in monomial basis from here on
 	float curveX[N0];
 	float curveY[N0];
 	float curveZ[N0];
 	float rcurve[N0];
-	
 	SplinePointsToPolyCoeffs(s.x, h.x, t.x, curveX);
 	SplinePointsToPolyCoeffs(s.y, h.y, t.y, curveY);
 	SplinePointsToPolyCoeffs(s.z, h.z, t.z, curveZ);
-	
 	SplinePointsToPolyCoeffs(rs, rh, rt, rcurve);
 	
 	float polyB_C[N1];

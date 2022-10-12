@@ -137,6 +137,22 @@ extern "C" __global__ void __raygen__basic (void)
 	float3 ray_origin, ray_direction;
 	compute_ray(idx, dim, ray_origin, ray_direction);
 
+	// Pre-create ray-centric coordinate system for custom intersector
+	// ToDo: investigate unifying the RCC used across custom intersectors
+#if defined(OTV_PRIMITIVE_RUSSIG) || defined(OTV_PRIMITIVE_PHANTOM)
+	#ifdef OTV_PRIMITIVE_RUSSIG
+		// Russig et al. use x-aligned RCC
+		const mat4 rcc = RCC::calc_system_transform(ray_origin, ray_direction, RCC::x_axis);
+	#else // ifdef OTV_PRIMITIVE_PHANTOM
+		// Reshetov et al. use z-aligned RCC
+		const mat4 rcc = RCC::calc_system_transform(ray_origin, ray_direction, RCC::z_axis);
+	#endif
+	// encode pointer into two 4-byte ints for passing into the payload registers
+	#pragma nv_diag_suppress 69
+		const unsigned rcc_msb = (unsigned)(((size_t)&rcc)>>32), rcc_lsb = (unsigned)(size_t)&rcc;
+	#pragma nv_diag_default 69
+#endif
+
 	// Trace the ray against our scene hierarchy
 	// - create payload storage
 	unsigned int
@@ -164,6 +180,10 @@ extern "C" __global__ void __raygen__basic (void)
 		pl_normal_x, pl_normal_y, pl_normal_z,
 		pl_tangent_x, pl_tangent_y, pl_tangent_z,
 		pl_depth
+	#if defined(OTV_PRIMITIVE_RUSSIG) || defined(OTV_PRIMITIVE_PHANTOM)
+		// pass on ray-centric coordinate system to custom intersectors
+		, const_cast<unsigned&>(rcc_msb), const_cast<unsigned&>(rcc_lsb)
+	#endif
 	);
 	// - process payload	
 	float4 albedo;
@@ -215,15 +235,10 @@ extern "C" __global__ void __intersection__russig (void)
 		params.radii[nid].x, params.radii[nid+1].x, params.radii[nid+2].x
 	};
 
-	// transform nodes into eye-space, as this is what our copy-pasted intersection code assumes
-	const float4 nodes_eye[3] = {
-		mul_mat_pos(params.cam_MV, nodes[0]), mul_mat_pos(params.cam_MV, nodes[1]), mul_mat_pos(params.cam_MV, nodes[2])
-	};
-
 	// perform intersection
 	const Hit hit = EvalSplineISect(
-		optixGetWorldRayOrigin(), mul3_mat_vec(params.cam_N, optixGetWorldRayDirection()),  // ray directions in eye-space
-		make_float3(nodes_eye[0]), make_float3(nodes_eye[1]), make_float3(nodes_eye[2])/*, nodes[0], nodes[1], nodes[2]*/, radii[0], radii[1], radii[2]
+		*(mat4*)((((size_t)optixGetPayload_14())<<32) | optixGetPayload_15()),  // fetch ray-centric coordinate system
+		nodes[0], nodes[1], nodes[2], radii[0], radii[1], radii[2]
 	);
 	if (hit.l < pos_inf)
 		// report our intersection
@@ -253,6 +268,7 @@ extern "C" __global__ void __intersection__phantom (void)
 
 	// perform intersection
 	const Hit hit = intersect_spline_tube(
+		*(mat4*)((((size_t)optixGetPayload_14())<<32) | optixGetPayload_15()),  // fetch ray-centric coordinate system
 		optixGetWorldRayOrigin(), optixGetWorldRayDirection(),
 		nodes[0], nodes[1], nodes[2], radii[0], radii[1], radii[2]
 	);

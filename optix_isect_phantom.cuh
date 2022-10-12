@@ -33,49 +33,13 @@
 //
 
 /// struct representing a ray intersection with a spline tube
-struct Hit {
+struct Hit
+{
 	/// the ray parameter at the intersection
 	float l;
 
 	/// the curve parameter at the intersection
 	float t;
-};
-
-/// struct encapsulating various helper data and functionality to transform geometry into a
-/// ray-centric coordinate system
-struct RCC
-{
-	/// ray-centric coordiante system model transformation matrix
-	mat4 model;
-
-	/// ray-centric coordiante system transformation matrix
-	mat4 system;
-
-	/// construct for given ray
-	__device__ __forceinline__ RCC(const float3 &ray_orig, const float3 &dir)
-	{
-		float3 e0, e1, e2 = normalize(dir);
-		make_orthonormal_basis(e0, e1, e2);
-		model = mat4(
-			make_float4(e0, .0f),
-			make_float4(e1, .0f),
-			make_float4(e2, .0f),
-			make_float4(ray_orig, 1.f)
-		);
-		system = model.inverse();
-	}
-
-	/// transform a point into the RCC
-	__device__ __forceinline__ float3 to (const float3 &pnt) { return mul3_mat_pos(system, pnt); }
-
-	/// transform a vector into the RCC
-	__device__ __forceinline__ float3 vec_to (const float3 &vec) { return mul3_mat_vec(system, vec); }
-
-	/// transform a point given in RCC to world-space
-	__device__ __forceinline__ float3 from (const float3 &pnt) { return mul3_mat_pos(model, pnt); }
-
-	/// transform a vector given in RCC to world-space
-	__device__ __forceinline__ float3 vec_from (const float3 &vec) { return mul3_mat_vec(model, vec); }
 };
 
 struct Curve
@@ -207,9 +171,46 @@ struct RayConeIntersection
 	float sp;
 };
 
+__device__ __forceinline__ float dist_to_cylinder (const float3 &s, const float3 &t, const float3 &pt)
+{
+	return length(cross(pt-s, pt-t)) / length(t-s);
+}
+
+
+///// MOVE TO optix_tools.cuh ///////////////////////////////////////////////////////////////////////////////
+__device__ __forceinline__ void set_mat3_col (float *mat, const unsigned col, const float3 &vec) {
+	((float3*)mat)[col] = vec;
+}
+__device__ __forceinline__ const float3& get_mat3_col(const float *mat, const unsigned col) {
+	return ((float3*)mat)[col];
+}
+
+// right-multiply R^3 vector to 3x3 matrix
+__device__ __forceinline__ float3 mul_mat3_vec (const float *mat, const float3 &vec)
+{
+	float3 r;
+	r.x = mat[0]*vec.x + mat[3]*vec.y + mat[6]*vec.z;
+	r.y = mat[1]*vec.x + mat[4]*vec.y + mat[7]*vec.z;
+	r.z = mat[2]*vec.x + mat[5]*vec.y + mat[8]*vec.z;
+	return r;
+}
+
+// left-multiply R^3 vector to 3x3 matrix
+__device__ __forceinline__ float3 mul_vec_mat3 (const float3 &vec, const float *mat)
+{
+	float3 r;
+	r.x = mat[0]*vec.x + mat[1]*vec.y + mat[2]*vec.z;
+	r.y = mat[3]*vec.x + mat[4]*vec.y + mat[5]*vec.z;
+	r.z = mat[6]*vec.x + mat[7]*vec.y + mat[8]*vec.z;
+	return r;
+}
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 static __device__ Hit intersect_spline_tube (
-	const float3 &ray_orig, const float3 &dir, const float3 &s, const float3 &h, const float3 &t,
-	const float rs, const float rh, const float rt
+	const mat4 &rcc, const float3 &ray_orig, const float3 &dir,
+	const float3 &s, const float3 &h, const float3 &t, const float rs, const float rh, const float rt
 )
 {
 	// prelude
@@ -217,72 +218,40 @@ static __device__ Hit intersect_spline_tube (
 	Hit hit;
 	hit.t = .0f;
 	hit.l = pos_inf;
-	// - local helpers
-	const auto dist_to_cylinder = [&s, &t](float3 pt) {
-		return length(cross(pt-s, pt-t)) / length(t-s);
-	};
 
 	// construct (untransformed) curve representation
 	const float radius_bound = fmax(rs, fmax(rh, rt));
 	const auto curve = Curve::make(s, h, t, radius_bound);
 
 	// early rejection test on bounding cylinder
-	// ToDo: center cylinder inside convex hull of Bezier control points for a tighter fit, consider performing
-	//       exact extrema calculation as in Russig (and probably builtin) intersector
-	const float rmax = dist_to_cylinder(curve.f(.5f)) + radius_bound;
+	// Todos:
+	// 	- move these calculations to ray-centric coordinates (more efficient + gets rid of ray orig/dir params
+	// 	- center cylinder inside convex hull of Bezier control points for a tighter fit, consider performing
+	//    exact extrema calculation as in Russig et al. intersector (and probably the builtin one too)
+	const float rmax = dist_to_cylinder(s, t, curve.f(.5f)) + radius_bound;
 	const float3 axis = normalize(t-s), p0 = s - axis*radius_bound, p1 = t + axis*radius_bound;
 	if (!intersect_cylinder(ray_orig, dir, p0, p1, rmax))
 		return hit;
-	/*else
-	{
+	/*else {
 		hit.t = .5f;
 		hit.l = 1.f;
 		return hit;
 	}*/
 
 	// transform curve to RCC
-	RCC rcc(ray_orig, dir);
-	auto xcurve = Curve::make(rcc.to(s), rcc.to(h), rcc.to(t), rs, rh, rt);
+	const auto xcurve = Curve::make(rcc.mul_pos(s), rcc.mul_pos(h), rcc.mul_pos(t), rs, rh, rt);
 
 	/* DEBUG *//*{
 		const uint3 idx = optixGetLaunchIndex();
 		const unsigned pxl = idx.y*params.fb_width + idx.x,
 		               mid = (params.fb_height/2)*params.fb_width + (params.fb_width/2);
-		if (pxl == mid)
-		{
-			const auto &m = rcc.xform, &mi = rcc.xformInv;
-			printf(" ===================================================\nRCC:\n"
-			       "  c = { %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f,\n"
-			       "        %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f}\n"
-			       "  m = { %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f,\n"
-			       "        %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f}\n"
-			       "col = { %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f,\n"
-			       "        %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f}\n",
-			       m.c[0], m.c[4], m.c[ 8], m.c[12], m.c[1], m.c[5], m.c[ 9], m.c[13],
-			       m.c[2], m.c[6], m.c[10], m.c[14], m.c[3], m.c[7], m.c[11], m.c[15],
-			       m.m[0][0], m.m[1][0], m.m[2][0], m.m[3][0], m.m[0][1], m.m[1][1], m.m[2][1], m.m[3][1],
-			       m.m[0][2], m.m[1][2], m.m[2][2], m.m[3][2], m.m[0][3], m.m[1][3], m.m[2][3], m.m[3][3],
-			       m.col(0).x, m.col(1).x, m.col(2).x, m.col(3).x, m.col(0).y, m.col(1).y, m.col(2).y, m.col(3).y,
-			       m.col(0).z, m.col(1).z, m.col(2).z, m.col(3).z, m.col(0).w, m.col(1).w, m.col(2).w, m.col(3).w);
-			printf("  -------\nRCC_inv:\n"
-			       "  c = { %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f,\n"
-			       "        %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f}\n"
-			       "  m = { %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f,\n"
-			       "        %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f}\n"
-			       "col = { %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f,\n"
-			       "        %f,  %f,  %f,  %f,\n        %f,  %f,  %f,  %f}\n"
-			       " ===================================================\n",
-			       mi.c[0], mi.c[4], mi.c[ 8], mi.c[12], mi.c[1], mi.c[5], mi.c[ 9], mi.c[13],
-			       mi.c[2], mi.c[6], mi.c[10], mi.c[14], mi.c[3], mi.c[7], mi.c[11], mi.c[15],
-			       mi.m[0][0], mi.m[1][0], mi.m[2][0], mi.m[3][0], mi.m[0][1], mi.m[1][1], mi.m[2][1], mi.m[3][1],
-			       mi.m[0][2], mi.m[1][2], mi.m[2][2], mi.m[3][2], mi.m[0][3], mi.m[1][3], mi.m[2][3], mi.m[3][3],
-			       mi.col(0).x, mi.col(1).x, mi.col(2).x, mi.col(3).x, mi.col(0).y, mi.col(1).y, mi.col(2).y, mi.col(3).y,
-			       mi.col(0).z, mi.col(1).z, mi.col(2).z, mi.col(3).z, mi.col(0).w, mi.col(1).w, mi.col(2).w, mi.col(3).w);
+		if (pxl == mid) {
+			// do printf output here
 		}
 	}*/
 
 	// determine which curve end to start iterating from
-	float tstart = dot(t - s, dir) > .0f ? .0f : 1.f;
+	float tstart = dot(t-s, dir) > .0f ? .0f : 1.f;
 
 	// also attempt from the other end in case iteration from selected one fails
 	for (unsigned end=0; end<2; end++)
@@ -297,7 +266,7 @@ static __device__ Hit intersect_spline_tube (
 		{
 			rci.c0 = xcurve.f(t);
 			rci.cd = xcurve.dfdt(t);
-			bool phantom = !rci.intersect(xcurve.r(t), xcurve.drdt(t));
+			const bool phantom = !rci.intersect(xcurve.r(t), xcurve.drdt(t));
 
 			// check convergence
 			if (   !phantom && fabsf(rci.dt) < TOLERANCE
@@ -322,8 +291,7 @@ static __device__ Hit intersect_spline_tube (
 				told = t;
 				t = ((i&3) == 0) ? (.5f*(told+t)) : ((dt2*told - dt1*t) / (dt2-dt1));
 			}
-			else
-			{
+			else {
 				told = t;
 				t += rci.dt;
 			}

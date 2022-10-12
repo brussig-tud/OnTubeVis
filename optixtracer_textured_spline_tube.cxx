@@ -502,7 +502,7 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 		mod_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
 
 		pipeline_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-		pipeline_options.numPayloadValues = 14;
+		pipeline_options.numPayloadValues = 16;
 		// - we report the curve parameter (1 attrib) as well as the first two bezier nodes (3 attribs each = 6). Unfortunately, the
 		//   closest-hit shader will have to fetch the third node from global memory, as we are out of attribute registers at this point.
 		pipeline_options.numAttributeValues = 7;
@@ -814,6 +814,7 @@ bool optixtracer_textured_spline_tube_phantom::update_accelds (const traj_manage
 				split_quadseg(&br0, &br1, &br2, &gr0, &gr1, &gr2,	r0, t0.w(), r1, t1.w());
 
 				// commit to staging buffers
+				// ToDo: AABBs are optimized for swept-sphere, can be marginally tighter in case of swept-disc
 				// - 1st segment
 				aabbs.emplace_back(get_quadr_bezier_tube_aabb(b0, b1, b2, br0, br1, br2));
 				positions.emplace_back(to_float3(b0));
@@ -951,7 +952,7 @@ bool optixtracer_textured_spline_tube_phantom::update_pipeline (void)
 		mod_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
 
 		pipeline_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-		pipeline_options.numPayloadValues = 14;
+		pipeline_options.numPayloadValues = 16;
 		// - we report the curve parameter (1 attrib) as well as the first two bezier nodes (3 attribs each = 6). Unfortunately, the
 		//   closest-hit shader will have to fetch the third node from global memory, as we are out of attribute registers at this point.
 		pipeline_options.numAttributeValues = 7;

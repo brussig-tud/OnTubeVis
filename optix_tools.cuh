@@ -359,15 +359,18 @@ __device__ __forceinline__ float2 obtain_jittered_subpxl_offset (unsigned i, flo
 
 // Static-size dense matrix template
 template <int N /* rows */,  int M /* columns */>
-struct Matrix
+struct matrix
 {};
 
 // 4x4 matrix
-template <> class Matrix<4, 4>
+template <> class matrix<4, 4>
 {
 public:
 
 	using col_type = float4;
+
+	struct row_tag {};
+	static const row_tag rows;
 
 	union {
 		float c[16];
@@ -377,9 +380,9 @@ public:
 
 public:
 
-	__device__ __forceinline__ Matrix() {}
+	__device__ __forceinline__ matrix() {}
 
-	__device__ __forceinline__ Matrix(const Matrix<4, 4> &other)
+	__device__ __forceinline__ matrix(const matrix<4, 4> &other)
 	{
 		*(col_type*)m[0] = *(col_type*)other.m[0];
 		*(col_type*)m[1] = *(col_type*)other.m[1];
@@ -387,12 +390,16 @@ public:
 		*(col_type*)m[3] = *(col_type*)other.m[3];
 	}
 
-	__device__ __forceinline__ Matrix(const float data[16])
+	__device__ __forceinline__ matrix(const float data[16])
 		: c{data[0], data[1], data[ 2], data[ 3], data[ 4], data[ 5], data[ 6], data[ 7],
 		    data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15]}
 	{}
+	__device__ __forceinline__ matrix(const float data[16], const row_tag)
+		: c{data[0], data[4], data[ 8], data[12], data[ 1], data[ 5], data[ 9], data[13],
+		    data[2], data[6], data[10], data[14], data[ 3], data[ 7], data[11], data[15]}
+	{}
 
-	__device__ __forceinline__ Matrix(
+	__device__ __forceinline__ matrix(
 		const float c00, const float c10, const float c20, const float c30,
 		const float c01, const float c11, const float c21, const float c31,
 		const float c02, const float c12, const float c22, const float c32,
@@ -401,31 +408,41 @@ public:
 		: c{c00, c10, c20, c30, c01, c11, c21, c31, c02, c12, c22, c32, c03, c13, c23, c33}
 	{}
 
-	__device__ __forceinline__ Matrix(const col_type cols[4])
+	__device__ __forceinline__ matrix(const col_type cols[4])
 	{
 		*((col_type*)m[0]) = cols[0];
 		*((col_type*)m[1]) = cols[1];
 		*((col_type*)m[2]) = cols[2];
 		*((col_type*)m[3]) = cols[3];
 	}
-
-	__device__ __forceinline__ Matrix(
-		const col_type &col0, const col_type &col1, const col_type &col2, const col_type &col3
-	)
-		: //col{col0, col1, col2, col3}
-		  c{col0.x, col0.y, col0.z, col0.w, col1.x, col1.y, col1.z, col1.w,
-		    col2.x, col2.y, col2.z, col2.w, col3.x, col3.y, col3.z, col3.w}
+	__device__ __forceinline__ matrix(const col_type rows[4], const row_tag)
+		: c{rows[0].x, rows[1].x, rows[2].x, rows[3].x, rows[0].y, rows[1].y, rows[2].y, rows[3].y,
+		    rows[0].z, rows[1].z, rows[2].z, rows[3].z, rows[0].w, rows[1].w, rows[2].w, rows[3].w}
 	{}
 
-	__device__ __forceinline__ Matrix(const float c00, const float c11, const float c22, const float c33)
+	__device__ __forceinline__ matrix(
+		const col_type &col0, const col_type &col1, const col_type &col2, const col_type &col3
+	)
+		: c{col0.x, col0.y, col0.z, col0.w, col1.x, col1.y, col1.z, col1.w,
+		    col2.x, col2.y, col2.z, col2.w, col3.x, col3.y, col3.z, col3.w}
+	{}
+	__device__ __forceinline__ matrix(
+		const col_type &row0, const col_type &row1, const col_type &row2, const col_type &row3,
+		const row_tag
+	)
+		: c{row0.x, row1.x, row2.x, row3.x, row0.y, row1.y, row2.y, row3.y,
+		    row0.z, row1.z, row2.z, row3.z, row0.w, row1.w, row2.w, row3.w}
+	{}
+
+	__device__ __forceinline__ matrix(const float c00, const float c11, const float c22, const float c33)
 		: c{c00, 0.f, 0.f, 0.f, 0.f, c11, 0.f, 0.f, 0.f, 0.f, c22, 0.f, 0.f, 0.f, 0.f, c33}
 	{}
 
-	__device__ __forceinline__ Matrix(const float diagonal)
+	__device__ __forceinline__ matrix(const float diagonal)
 		: c{diagonal, 0.f, 0.f, 0.f, 0.f, diagonal, 0.f, 0.f, 0.f, 0.f, diagonal, 0.f, 0.f, 0.f, 0.f, diagonal}
 	{}
 
-	__device__ __forceinline__ Matrix& operator= (const Matrix<4,4> &other)
+	__device__ __forceinline__ matrix& operator= (const matrix<4,4> &other)
 	{
 		*(col_type*)m[0] = *(col_type*)other.m[0];
 		*(col_type*)m[1] = *(col_type*)other.m[1];
@@ -448,7 +465,26 @@ public:
 	__device__ __forceinline__ col_type& col (unsigned i) { return *(col_type*)(m[i]); }
 	__device__ __forceinline__ const col_type& col (unsigned i) const { return *(col_type*)(m[i]); }
 
-	__device__ Matrix inverse (void) const
+	__device__ __forceinline__ float3 mul_pos (const float3 &pos) const { return mul3_mat_pos(c, pos); }
+	__device__ __forceinline__ float3 mul_dir (const float3 &dir) const { return mul3_mat_vec(c, dir); }
+
+	__device__ __forceinline__ void set_cols (const col_type &col0, const col_type &col1, const col_type &col2, const col_type &col3)
+	{
+		*(col_type*)m[0] = col0;
+		*(col_type*)m[1] = col1;
+		*(col_type*)m[2] = col2;
+		*(col_type*)m[3] = col3;
+	}
+
+	__device__ __forceinline__ void set_rows(const col_type &row0, const col_type &row1, const col_type &row2, const col_type &row3)
+	{
+		c[ 0] = row0.x; c[ 1] = row1.x; c[ 2] = row2.x; c[ 3] = row3.x;
+		c[ 4] = row0.y; c[ 5] = row1.y; c[ 6] = row2.y; c[ 7] = row3.y;
+		c[ 8] = row0.z; c[ 9] = row1.z; c[10] = row2.z; c[11] = row3.z;
+		c[12] = row0.w; c[13] = row1.w; c[14] = row2.w; c[15] = row3.w;
+	}
+
+	__device__ matrix inverse (void) const
 	{
 		const float s0 = det2(m[0][0], m[1][0], m[0][1], m[1][1]),
 		            s1 = det2(m[0][0], m[2][0], m[0][1], m[2][1]),
@@ -484,13 +520,13 @@ public:
 	}
 
 	// creates an identity matrix
-	static __device__ __forceinline__ Matrix identity (void) { return 1.f; }
+	static __device__ __forceinline__ matrix identity (void) { return 1.f; }
 
 	// creates a matrix with diagonal set to value
-	static __device__ __forceinline__ Matrix diagonal (const float value) { return value; }
+	static __device__ __forceinline__ matrix diagonal (const float value) { return value; }
 
 	// creates a matrix with all components set to value
-	static __device__ __forceinline__ Matrix all (const float value)
+	static __device__ __forceinline__ matrix all (const float value)
 	{
 		const float4 col{value, value, value, value};
 		return {col, col, col, col};
@@ -498,7 +534,195 @@ public:
 };
 
 // common instances of a dense matrix
-typedef Matrix<4, 4> mat4;
+typedef matrix<4, 4> mat4;
+
+/// struct encapsulating various helper data and functionality to build - transform geometry into - a ray-centric
+/// coordinate system
+struct RCC
+{
+	/// tag indicating the ray forms the x-axis of the RCC
+	struct x_axis_tag {};
+	static const x_axis_tag x_axis;
+
+	/// tag indicating the ray forms the y-axis of the RCC
+	struct y_axis_tag {};
+	static const y_axis_tag y_axis;
+
+	/// tag indicating the ray forms the z-axis of the RCC
+	struct z_axis_tag {};
+	static const z_axis_tag z_axis;
+
+	/// ray-centric coordiante system model transformation matrix
+	mat4 model;
+
+	/// ray-centric coordiante system transformation matrix
+	mat4 system;
+
+	/// construct the 2-way (system and model) transformation helper for the given ray with the ray direction
+	/// (assumed to be normalized) coinciding with the local x-axis
+	__device__ __forceinline__ RCC(const float3 &orig, const float3 &dir, const x_axis_tag)
+	{
+		float3 e0, e1;
+		make_orthonormal_basis(e0, e1, dir);
+		model.set_cols(
+			make_float4(dir, .0f),
+			make_float4(e0, .0f),
+			make_float4(e1, .0f),
+			make_float4(orig, 1.f)
+		);
+		system.set_rows(
+			make_float4(dir, -dir.x*orig.x - dir.y*orig.y - dir.z*orig.z),
+			make_float4(e0,   -e0.x*orig.x -  e0.y*orig.y -  e0.z*orig.z),
+			make_float4(e1,   -e1.x*orig.x -  e1.y*orig.y -  e1.z*orig.z),
+			make_float4(.0f, .0f, .0f, 1.f)
+		);
+	}
+
+	/// construct the 2-way (system and model) transformation helper for the given ray with the ray direction
+	/// (assumed to be normalized) coinciding with the local y-axis
+	__device__ __forceinline__ RCC(const float3 &orig, const float3 &dir, const y_axis_tag)
+	{
+		float3 e0, e1;
+		make_orthonormal_basis(e0, e1, dir);
+		model.set_cols(
+			make_float4(e0, .0f),
+			make_float4(dir, .0f),
+			make_float4(e1, .0f),
+			make_float4(orig, 1.f)
+		);
+		system.set_rows(
+			make_float4(e0,   -e0.x*orig.x -  e0.y*orig.y -  e0.z*orig.z),
+			make_float4(dir, -dir.x*orig.x - dir.y*orig.y - dir.z*orig.z),
+			make_float4(e1,   -e1.x*orig.x -  e1.y*orig.y -  e1.z*orig.z),
+			make_float4(.0f, .0f, .0f, 1.f)
+		);
+	}
+
+	/// construct the 2-way (system and model) transformation helper for the given ray with the ray direction
+	/// (assumed to be normalized) coinciding with the local z-axis
+	__device__ __forceinline__ RCC(const float3 &orig, const float3 &dir, const z_axis_tag)
+	{
+		float3 e0, e1;
+		make_orthonormal_basis(e0, e1, dir);
+		model.set_cols(
+			make_float4(e0, .0f),
+			make_float4(e1, .0f),
+			make_float4(dir, .0f),
+			make_float4(orig, 1.f)
+		);
+		system.set_rows(
+			make_float4(e0,   -e0.x*orig.x -  e0.y*orig.y -  e0.z*orig.z),
+			make_float4(e1,   -e1.x*orig.x -  e1.y*orig.y -  e1.z*orig.z),
+			make_float4(dir, -dir.x*orig.x - dir.y*orig.y - dir.z*orig.z),
+			make_float4(.0f, .0f, .0f, 1.f)
+		);
+	}
+
+	/// transform a point into the RCC
+	__device__ __forceinline__ float3 to (const float3 &pnt) const { return system.mul_pos(pnt); }
+
+	/// transform a vector into the RCC
+	__device__ __forceinline__ float3 vec_to (const float3 &vec) const { return system.mul_dir(vec); }
+
+	/// transform a point given in RCC to world-space
+	__device__ __forceinline__ float3 from (const float3 &pnt) const { return model.mul_pos(pnt); }
+
+	/// transform a vector given in RCC to world-space
+	__device__ __forceinline__ float3 vec_from (const float3 &vec) const { return model.mul_dir(vec); }
+
+	/// calculate the ray-centric coordinate system model transformation for the given ray with the ray direction
+	/// (assumed to be normalized) coinciding with the local x-axis
+	static __device__ __forceinline__ mat4 calc_model_transform (
+		const float3 &orig, const float3 &dir, const x_axis_tag
+	)
+	{
+		float3 e0, e1;
+		make_orthonormal_basis(e0, e1, dir);
+		return {
+			make_float4(dir, .0f),
+			make_float4(e0, .0f),
+			make_float4(e1, .0f),
+			make_float4(orig, 1.f)
+		};
+	}
+	/// calculate the ray-centric coordinate system transformation for the given ray with the ray direction
+	/// (assumed to be normalized) coinciding with the local x-axis
+	static __device__ __forceinline__ mat4 calc_system_transform (
+		const float3 &orig, const float3 &dir, const x_axis_tag
+	)
+	{
+		float3 e0, e1;
+		make_orthonormal_basis(e0, e1, dir);
+		return {
+			make_float4(dir, -dir.x*orig.x - dir.y*orig.y - dir.z*orig.z),
+			make_float4(e0,   -e0.x*orig.x -  e0.y*orig.y -  e0.z*orig.z),
+			make_float4(e1,   -e1.x*orig.x -  e1.y*orig.y -  e1.z*orig.z),
+			make_float4(.0f, .0f, .0f, 1.f), mat4::rows
+		};
+	}
+
+	/// calculate the ray-centric coordinate system model transformation for the given ray with the ray direction
+	/// (assumed to be normalized) coinciding with the local y-axis
+	static __device__ __forceinline__ mat4 calc_model_transform (
+		const float3 &orig, const float3 &dir, const y_axis_tag
+	)
+	{
+		float3 e0, e1;
+		make_orthonormal_basis(e0, e1, dir);
+		return {
+			make_float4(e0, .0f),
+			make_float4(dir, .0f),
+			make_float4(e1, .0f),
+			make_float4(orig, 1.f)
+		};
+	}
+	/// calculate the ray-centric coordinate system transformation for the given ray with the ray direction
+	/// (assumed to be normalized) coinciding with the local y-axis
+	static __device__ __forceinline__ mat4 calc_system_transform (
+		const float3 &orig, const float3 &dir, const y_axis_tag
+	)
+	{
+		float3 e0, e1;
+		make_orthonormal_basis(e0, e1, dir);
+		return {
+			make_float4(e0,   -e0.x*orig.x -  e0.y*orig.y -  e0.z*orig.z),
+			make_float4(dir, -dir.x*orig.x - dir.y*orig.y - dir.z*orig.z),
+			make_float4(e1,   -e1.x*orig.x -  e1.y*orig.y -  e1.z*orig.z),
+			make_float4(.0f, .0f, .0f, 1.f), mat4::rows
+		};
+	}
+
+	/// calculate the ray-centric coordinate system model transformation for the given ray with the ray direction
+	/// (assumed to be normalized) coinciding with the local z-axis
+	static __device__ __forceinline__ mat4 calc_model_transform (
+		const float3 &orig, const float3 &dir, const z_axis_tag
+	)
+	{
+		float3 e0, e1;
+		make_orthonormal_basis(e0, e1, dir);
+		return {
+			make_float4(e0, .0f),
+			make_float4(e1, .0f),
+			make_float4(dir, .0f),
+			make_float4(orig, 1.f)
+		};
+	}
+	/// calculate the ray-centric coordinate system transformation for the given ray with the ray direction
+	/// (assumed to be normalized) coinciding with the local z-axis
+	static __device__ __forceinline__ mat4 calc_system_transform (
+		const float3 &orig, const float3 &dir, const z_axis_tag
+	)
+	{
+		float3 e0, e1;
+		make_orthonormal_basis(e0, e1, dir);
+		return {
+			make_float4(e0,   -e0.x*orig.x -  e0.y*orig.y -  e0.z*orig.z),
+			make_float4(e1,   -e1.x*orig.x -  e1.y*orig.y -  e1.z*orig.z),
+			make_float4(dir, -dir.x*orig.x - dir.y*orig.y - dir.z*orig.z),
+			make_float4(.0f, .0f, .0f, 1.f), mat4::rows
+		};
+	}
+};
 
 // a scalar linear interpolator - uses Bezier basis internally as that maps directly onto fused-multiply-add instructions
 struct linear_interpolator_float
