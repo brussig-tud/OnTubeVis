@@ -163,6 +163,9 @@ extern "C" __global__ void __raygen__basic (void)
 		pl_depth;
 	// - launch ray
 	optixTrace(
+	#ifdef OTV_PRIMITIVE_RUSSIG
+		OPTIX_PAYLOAD_TYPE_ID_0,
+	#endif
 		params.accelds,
 		ray_origin,
 		ray_direction,
@@ -226,6 +229,8 @@ extern "C" __global__ void __raygen__basic (void)
 #ifdef OTV_PRIMITIVE_RUSSIG
 extern "C" __global__ void __intersection__russig (void)
 {
+	optixSetPayloadTypes(OPTIX_PAYLOAD_TYPE_ID_0); // ensure correct module usage
+
 	// fetch quadratic node data
 	const unsigned nid = optixGetPrimitiveIndex()*3;
 	const float3 nodes[3] = {
@@ -331,6 +336,9 @@ extern "C" __global__ void __closesthit__ch (void)
 		curve.from_catmullrom(nodes);
 		const quadr_interpolator_vec3 dcurve = curve.derive();
 	#else
+		#ifdef OTV_PRIMITIVE_RUSSIG
+			optixSetPayloadTypes(OPTIX_PAYLOAD_TYPE_ID_0);  // ensure correct module usage
+		#endif
 		const unsigned pid=optixGetPrimitiveIndex(), seg_id=pid/2, subseg=pid%2, nid=pid*3;
 		// retrieve curve parameter at hit
 		const float ts = optixGetCurveParameter(), t  = .5f*(ts + float(subseg));
