@@ -12,7 +12,7 @@
 #include <sutil/vec_math.h>
 
 // Host interface
-#include "optix_curves.h"
+#include "optix_interface.h"
 
 // Local includes
 #include "optix_tools.cuh"

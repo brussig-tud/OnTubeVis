@@ -30,7 +30,7 @@
 #include "arclen_helper.h"
 #include "glyph_compiler.h"
 #ifdef RTX_SUPPORT
-#include "optix_curves.h"
+#include "cuda/optix_interface.h"
 
 
 // ###############################

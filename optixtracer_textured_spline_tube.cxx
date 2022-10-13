@@ -15,13 +15,14 @@
 #include <cgv/render/texture.h>
 
 // local includes
+#include "optix_integration.h"
 #include "curveutils.h"
+
+// OptiX/CUDA kernels
+#include "cuda/optix_interface.h"
 
 // implemented header
 #include "optixtracer_textured_spline_tube.h"
-
-// OptiX/CUDA kernels
-#include "optix_curves.h"
 
 
 
@@ -515,7 +516,7 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM;
 
-		const auto ptx = compile_cu2ptx("optix_curves_russig.cu", "rayc_russig", {CUDA_NVRTC_OPTIONS}, &compiler_log);
+		const auto ptx = compile_cu2ptx("cuda/optix_curves_russig.cu", "rayc_russig", {CUDA_NVRTC_OPTIONS}, &compiler_log);
 		const size_t ptx_size = ptx.size();
 		if (!ptx_size)
 		{
@@ -965,7 +966,7 @@ bool optixtracer_textured_spline_tube_phantom::update_pipeline (void)
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM;
 
-		const auto ptx = compile_cu2ptx("optix_curves_phantom.cu", "rayc_phantom", {CUDA_NVRTC_OPTIONS}, &compiler_log);
+		const auto ptx = compile_cu2ptx("cuda/optix_curves_phantom.cu", "rayc_phantom", {CUDA_NVRTC_OPTIONS}, &compiler_log);
 		const size_t ptx_size = ptx.size();
 		if (!ptx_size)
 		{
@@ -1395,7 +1396,7 @@ bool optixtracer_textured_spline_tube_builtin::update_pipeline (void)
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_QUADRATIC_BSPLINE;
 
-		const auto ptx = compile_cu2ptx("optix_curves_builtin2.cu", "rayc_builtin2", {CUDA_NVRTC_OPTIONS}, &compiler_log);
+		const auto ptx = compile_cu2ptx("cuda/optix_curves_builtin2.cu", "rayc_builtin2", {CUDA_NVRTC_OPTIONS}, &compiler_log);
 		const size_t ptx_size = ptx.size();
 		if (!ptx_size)
 		{
@@ -1820,7 +1821,7 @@ bool optixtracer_textured_spline_tube_builtincubic::update_pipeline (void)
 		pipeline_options.pipelineLaunchParamsVariableName = "params";
 		pipeline_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_CATMULLROM;
 
-		const auto ptx = compile_cu2ptx("optix_curves_builtin3.cu", "rayc_builtin3", {CUDA_NVRTC_OPTIONS}, &compiler_log);
+		const auto ptx = compile_cu2ptx("cuda/optix_curves_builtin3.cu", "rayc_builtin3", {CUDA_NVRTC_OPTIONS}, &compiler_log);
 		const size_t ptx_size = ptx.size();
 		if (!ptx_size)
 		{
