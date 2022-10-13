@@ -1,5 +1,5 @@
 // The UI theme: light, mid, dark, darkest
-type(fltk_viewer_window):theme=light
+type(fltk_viewer_window):theme=dark
 
 // Data
 // - dataset to load
