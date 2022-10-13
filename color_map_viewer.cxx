@@ -129,9 +129,8 @@ void color_map_viewer::draw_content(cgv::render::context& ctx) {
 	end_content(ctx);
 }
 
-void color_map_viewer::create_gui() {
+void color_map_viewer::create_gui_impl() {
 
-	create_overlay_gui();
 	add_member_control(this, "Band Height", layout.band_height, "value_slider", "min=5;max=50;step=5;ticks=true");
 }
 

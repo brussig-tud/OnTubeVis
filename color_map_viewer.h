@@ -39,6 +39,8 @@ protected:
 	void init_styles(cgv::render::context& ctx);
 	void update_texts();
 
+	void create_gui_impl();
+
 public:
 	color_map_viewer();
 	std::string get_type_name() const { return "color_map_viewer"; }
@@ -55,8 +57,6 @@ public:
 	void init_frame(cgv::render::context& ctx);
 	void draw_content(cgv::render::context& ctx);
 	
-	void create_gui();
-
 	void set_color_map_names(const std::vector<std::string>& names);
 
 	void set_color_map_texture(cgv::render::texture* tex);
