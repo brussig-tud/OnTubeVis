@@ -184,12 +184,12 @@ void color_map_viewer::update_texts() {
 	if(names.size() == 0)
 		return;
 
-	int step = layout.color_map_rect.size().y() / names.size();
+	int step = layout.color_map_rect.size().y() / (int)names.size();
 	ivec2 base = layout.color_map_rect.pos() + ivec2(layout.color_map_rect.size().x() / 2, step / 2 - static_cast<int>(0.333f*font_size));
 	int i = 0;
 	for(const auto& name : names) {
 		ivec2 p = base;
-		p.y() += (names.size() - 1 - i)*step;
+		p.y() += (((unsigned)names.size()) - 1 - i)*step;
 		texts.add_text(name, p, cgv::render::TA_BOTTOM);
 		++i;
 	}
