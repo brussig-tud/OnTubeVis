@@ -169,17 +169,17 @@ namespace {
 
 	OptixPayloadType set_optix_custom_isect_payload_semantics (unsigned *semantics_out)
 	{
-		// payloads 0 and 1: two constant inputs for the custom intersection shader(s) defined at raygen,
+		// Payloads 0 and 1: two constant inputs for the custom intersection shader(s) defined at raygen,
 		// encoding a 64-bit pointer to the ray-centric coordinate system transformation living on the stack
 		// of the thread running an OptiX tracing kernel.
 		semantics_out[1] = semantics_out[0] =
 			OPTIX_PAYLOAD_SEMANTICS_TRACE_CALLER_WRITE | OPTIX_PAYLOAD_SEMANTICS_IS_READ;
 
-		// payloads 2 to 15: encodes the tracing results reported by the closest-hit shader. This includes
+		// Payloads 2 to 15: encodes the tracing results reported by the closest-hit shader. This includes
 		// tube color at hit point (1 slot), uv surface coordinates of hit point (2 slots), id of intersected
 		// curve segment (1 slot), hit position, surface normal and curve tangent (3x3=9 slots) and depth value
 		// at hit (1 slot), occupying 14 payload slots in total, which will remain unused until the very end of
-		// a trace, allowing OptiX to free up a lot of registers for general use
+		// a trace, allowing OptiX to free up a lot of registers for general use.
 		for (unsigned i=2; i<16; i++)
 			semantics_out[i] = OPTIX_PAYLOAD_SEMANTICS_TRACE_CALLER_READ | OPTIX_PAYLOAD_SEMANTICS_CH_WRITE;
 
