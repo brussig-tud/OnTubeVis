@@ -167,12 +167,12 @@ namespace {
 		return {pmin.x(), pmin.y(), pmin.z(), pmax.x(), pmax.y(), pmax.z()};
 	}
 
-	OptixPayloadType set_optix_custom_isect_payload_semantics (unsigned *semantics_out)
+	OptixPayloadType set_optix_custom_isect_payload_semantics (unsigned *semantics_storage)
 	{
 		// Payloads 0 and 1: two constant inputs for the custom intersection shader(s) defined at raygen,
 		// encoding a 64-bit pointer to the ray-centric coordinate system transformation living on the stack
 		// of the thread running an OptiX tracing kernel.
-		semantics_out[1] = semantics_out[0] =
+		semantics_storage[1] = semantics_storage[0] =
 			OPTIX_PAYLOAD_SEMANTICS_TRACE_CALLER_WRITE | OPTIX_PAYLOAD_SEMANTICS_IS_READ;
 
 		// Payloads 2 to 15: encodes the tracing results reported by the closest-hit or miss shaders. This
@@ -181,11 +181,11 @@ namespace {
 		// and depth value at hit (1 slot), occupying 14 payload slots in total, which will remain unused
 		// until the very end of a trace, allowing OptiX to free up a lot of registers for general use.
 		for (unsigned i=2; i<16; i++)
-			semantics_out[i] =   OPTIX_PAYLOAD_SEMANTICS_TRACE_CALLER_READ
-			                   | OPTIX_PAYLOAD_SEMANTICS_MS_WRITE | OPTIX_PAYLOAD_SEMANTICS_CH_WRITE;
+			semantics_storage[i] =   OPTIX_PAYLOAD_SEMANTICS_TRACE_CALLER_READ
+			                       | OPTIX_PAYLOAD_SEMANTICS_MS_WRITE | OPTIX_PAYLOAD_SEMANTICS_CH_WRITE;
 
 		// return ready-made OptiX payload descriptor
-		return {16, semantics_out};
+		return {16, semantics_storage};
 	}
 };
 

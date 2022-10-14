@@ -2024,17 +2024,7 @@ void on_tube_vis::create_gui(void) {
 
 	// rendering settings
 	add_decorator("Rendering", "heading", "level=1");
-#ifdef RTX_SUPPORT
-	if (begin_tree_node("OptiX", optix.enabled, false)) {
-		align("\a");
-		add_member_control(this, "Use OptiX Raycasting for Tube Rendering", optix.enabled, "check");
-		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Phantom,Built-in,Built-in (cubic)'");
-		add_member_control(this, "Output Debug Visualization", optix.debug, "dropdown", "enums='Off,Albedo,Depth,Tangent + Normal'");
-		add_member_control(this, "Show BLAS Bounding Volumes", optix.debug_bvol, "check");
-		align("\b");
-		end_tree_node(optix.enabled);
-	}
-#endif
+
 	if (begin_tree_node("Bounds", show_bbox, false)) {
 		align("\a");
 		add_member_control(this, "Color", bbox_style.surface_color);
@@ -2050,7 +2040,18 @@ void on_tube_vis::create_gui(void) {
 		end_tree_node(show_bbox);
 	}
 
-	if(begin_tree_node("Tube Style", render.style, false)) {
+#ifdef RTX_SUPPORT
+	if (begin_tree_node("Tube Style (OptiX)", optix.enabled, false)) {
+		align("\a");
+		add_member_control(this, "Enable OptiX Raycasting", optix.enabled, "check");
+		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Phantom,Built-in,Built-in (cubic)'");
+		add_member_control(this, "Output Debug Visualization", optix.debug, "dropdown", "enums='Off,Albedo,Depth,Tangent + Normal'");
+		add_member_control(this, "Show BLAS Bounding Volumes", optix.debug_bvol, "check");
+		align("\b");
+		end_tree_node(optix.enabled);
+	}
+#endif
+	if(begin_tree_node("Tube Style (Rasterization)", render.style, false)) {
 		align("\a");
 		add_gui("tube_style", render.style);
 		align("\b");

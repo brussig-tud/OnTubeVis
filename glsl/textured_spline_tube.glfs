@@ -2,12 +2,19 @@
 #define M_INV_PI 0.31830988618
 #define ONE_OVER_THREE (1.0/3.0)
 
+#define PRIMITIVE_INTERSECTOR 0
 #define USE_CONSERVATIVE_DEPTH 0
 #define USE_CUBIC_TANGENTS 1
 #define USE_VIEW_SPACE_POSITION 1
 
 #if USE_CONSERVATIVE_DEPTH == 1
 #extension GL_ARB_conservative_depth : enable
+#endif
+
+#if PRIMITIVE_INTERSECTOR == 0
+	#define PRIMITIVE_RUSSIG 1
+#else
+	#define PRIMITIVE_PHANTOM 1
 #endif
 
 /* 0: NO_OP
@@ -22,7 +29,6 @@
    3: Attribute-less (except segment and sub-curve ids) */
 #define ATTRIB_MODE 0
 
-#define ITERATION_COUNT 10
 #define FLT_EPS 1.19209290e-07
 #define POS_INF 3e+37
 #define NEG_INF -3e+37
@@ -262,6 +268,11 @@ void SplitTube1(Tube tube, out QTube qTube)
 	SPLIT_CURVE1(tube, rad, rad_tan, qTube);
 }
 
+#ifdef PRIMITIVE_RUSSIG
+
+// static options
+#define ITERATION_COUNT 10
+
 #define DEF_FINDROOTS(N, D)                                                                         \
 void FindRoots##D(float poly_C[N1], float x_i[N], int m_i[N], out float x_o[N+1], out int m_o[N+1]) \
 {	                                                                                                \
@@ -318,9 +329,11 @@ void FindRoots##D(float poly_C[N1], float x_i[N], int m_i[N], out float x_o[N+1]
 	                                                                                                \
 	x_o[N] = x_i[N - 1];                                                                            \
 }
-
 DEF_FINDROOTS(4, D1)
 DEF_FINDROOTS(5, D0)
+
+#endif // ifdef PRIMITIVE_RUSSIG
+
 
 //-----------------------------------------------------------//
 // Produces an orthogonal vector to v. Doesn’t require the input
@@ -402,6 +415,9 @@ float qSplineD3Eval(float t, float polyB_C[N1])
 
 #define qSplineD3_ParasDec float polyB_C[N1]
 #define qSplineD3_Paras polyB_C
+
+
+#ifdef PRIMITIVE_RUSSIG
 
 #define DEF_binRootFinder(func)                                    \
 float func##_BinRootFinder_Eval(float n, float p, func##_ParasDec) \
@@ -624,6 +640,88 @@ Hit EvalSplineISect(vec3 dir, vec3 s, vec3 h, vec3 t, float rs, float rh, float 
 	return hit;
 }
 
+//// MOVE TO PHANTOM ONCE DONE PORTING
+struct RayConeIntersection
+{
+	vec3 c0;
+	vec3 cd;
+	float s;
+	float dt;
+	float dp;
+	float dc;
+	float sp;
+};
+bool RayConeIntersect (out RayConeIntersection rci, const float r, const float dr)
+{
+	const float r2  = r*r;
+	const float rdr = r*dr;
+
+	const float cdd = rci.c0.x * rci.cd.x  +  rci.c0.y * rci.cd.y;
+	const float cxd = rci.c0.x * rci.cd.y  -  rci.c0.y * rci.cd.x;
+	      float ddd = rci.cd.x * rci.cd.x  +  rci.cd.y * rci.cd.y;
+	         rci.dp = rci.c0.x * rci.c0.x  +  rci.c0.y * rci.c0.y;
+
+	const float c = ddd;
+	const float b = rci.cd.z * (rdr-cdd);
+	const float cdz2 = rci.cd.z * rci.cd.z;
+	ddd += cdz2;
+	const float a = 2.0f * rdr*cdd + cxd*cxd - ddd*r2 + rci.dp*cdz2;
+
+	const float discr = b*b - a*c;
+	rci.s   = (b - (discr > 0 ? sqrt(discr) : 0)) / c;
+	rci.dt  = (rci.s*rci.cd.z - cdd) / ddd;
+	rci.dc  = rci.s*rci.s + rci.dp;
+	rci.sp  = cdd / rci.cd.z;
+	rci.dp += rci.sp*rci.sp;
+
+	return discr > .0f;
+}
+
+#endif // ifdef PRIMITIVE_RUSSIG
+
+#ifdef PRIMITIVE_PHANTOM
+
+// static options
+#define MAX_ITERATIONS 24
+#define TOLERANCE 0.000244140625f  // = 2^-12
+
+bool intersect_cylinder(const vec3 ray_orig, const vec3 dir, const vec3 p0,
+                        const vec3 p1, const float ra)
+{
+	vec3 ba = p1 - p0;
+	vec3 oc = ray_orig - p0;
+
+	float baba = dot(ba, ba);
+	float bard = dot(ba, dir);
+	float baoc = dot(ba, oc);
+
+	float k2 = baba - bard * bard;
+	float k1 = baba * dot(oc, dir) - baoc * bard;
+	float k0 = baba * dot(oc, oc) - baoc * baoc - ra * ra * baba;
+
+	float h = k1 * k1 - k2 * k0;
+
+	if (h < .0f)
+		return false;
+
+	h = sqrt(h);
+	float t = (-k1 - h) / k2;
+
+	// body
+	float y = baoc + t * bard;
+	if (y > .0f && y < baba)
+		return true;
+
+	// caps
+	t = ((y < .0f ? .0f : baba) - baoc) / bard;
+	if (abs(k1 + k2 * t) < h)
+		return true;
+
+	return false;
+}
+
+#endif
+
 vec3 eval_quadratic_bezier_tangent(QTube qtube, float t)
 {
 	mat3 Bk; // control point matrix
@@ -742,6 +840,13 @@ void main()
 	vec3 direction = normalize(position_fs);
 #endif
 
+	/*RayConeIntersection rci;
+	rci.c0 = qtube.s.pos;
+	rci.cd = normalize(qtube.e.pos-qtube.s.pos);
+	if (RayConeIntersect(rci, qtube.s.rad, qtube.e.rad-(qtube.s.rad)))
+		;
+	else
+		discard;*/
 	Hit hit = EvalSplineISect(direction,
 		qtube.s.pos, qtube.h.pos, qtube.e.pos,
 		qtube.s.rad, qtube.h.rad, qtube.e.rad

@@ -27,7 +27,6 @@ if (env["CUDA_PATH"]) {
 		env["CUDA_PATH"]."/include",
 		env["OPTIX_PATH"]."/include",
 		env["OPTIX_PATH"]."/SDK"];
-		
 		addLibDirs=[ [env["CUDA_PATH"]."/lib/x64", "all"] ];
 		addMapDeps=[
 			[["cuda", ["cuda", "cuda", "cuda", "cuda"]], "all"],
@@ -62,7 +61,7 @@ if (env["CUDA_PATH"]) {
 				]]
 			],
 			MAP.[["extensions",["cuh"]],
-			     ["folder","cuda/headers"]]
+			     ["folder","cuda_headers"]]
 		];
 	}
 }

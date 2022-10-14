@@ -24,6 +24,7 @@ namespace cgv {
 			fragment_mode = FM_RAY_CAST;
 			bounding_geometry = BG_ALIGNED_BOX_BILLBOARD;
 			attrib_mode = AM_ALL;
+			intersector = IS_RUSSIG;
 			use_conservative_depth = false;
 			use_cubic_tangents = true;
 			use_view_space_position = true;
@@ -77,6 +78,7 @@ namespace cgv {
 			shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
 			shader_code::set_define(defines, "USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
 			shader_code::set_define(defines, "ATTRIB_MODE", rs.attrib_mode, textured_spline_tube_render_style::AM_ALL);
+			shader_code::set_define(defines, "PRIMITIVE_INTERSECTOR", rs.intersector, textured_spline_tube_render_style::IS_RUSSIG);
 			shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
 			shader_code::set_define(defines, "MODE", rs.fragment_mode, textured_spline_tube_render_style::FM_RAY_CAST);
 
@@ -153,6 +155,7 @@ namespace cgv {
 			cgv::render::textured_spline_tube_render_style* rs_ptr = reinterpret_cast<cgv::render::textured_spline_tube_render_style*>(value_ptr);
 			cgv::base::base* b = dynamic_cast<cgv::base::base*>(p);
 
+			p->add_member_control(b, "Tube primitive", rs_ptr->intersector, "dropdown", "enums='Russig,Phantom'");
 			p->add_member_control(b, "Default Radius", rs_ptr->radius, "value_slider", "min=0.001;step=0.0001;max=10.0;log=true;ticks=true");
 			p->add_member_control(b, "Radius Scale", rs_ptr->radius_scale, "value_slider", "min=0.01;step=0.0001;max=100.0;log=true;ticks=true");
 
