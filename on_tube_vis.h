@@ -159,8 +159,8 @@ protected:
 
 	cgv::app::color_map_editor_ptr cm_editor_ptr;
 	cgv::app::color_map_editor_ptr tf_editor_ptr;
-	cgv::data::ref_ptr<cgv::app::navigator> navigator_ptr;
-	cgv::data::ref_ptr <color_map_viewer> cm_viewer_ptr;
+	cgv::app::navigator_ptr navigator_ptr;
+	cgv::data::ref_ptr<color_map_viewer> cm_viewer_ptr;
 
 	enum GridMode {
 		GM_NONE = 0,
@@ -525,6 +525,8 @@ public:
 	void stream_stats(std::ostream& os) {}
 
 	bool handle_event(cgv::gui::event& e);
+	void handle_color_map_change();
+	void handle_transfer_function_change();
 	void on_set(void* member_ptr);
 	bool on_exit_request();
 

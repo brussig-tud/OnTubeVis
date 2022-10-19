@@ -114,10 +114,12 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 	cm_editor_ptr = register_overlay<cgv::app::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
 	cm_editor_ptr->gui_options.create_default_tree_node = false;
+	cm_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_color_map_change, this));
 
 	tf_editor_ptr = register_overlay<cgv::app::color_map_editor>("Transfer Function");
 	tf_editor_ptr->set_visibility(false);
 	tf_editor_ptr->set_opacity_support(true);
+	tf_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_transfer_function_change, this));
 
 	navigator_ptr = register_overlay<cgv::app::navigator>("Navigator");
 	navigator_ptr->set_visibility(false);
@@ -483,6 +485,19 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 		}
 	}
 	return false;
+}
+
+void on_tube_vis::handle_color_map_change() {
+	if(cm_editor_ptr) {
+		color_map_mgr.update_texture(*get_context());
+		if(cm_viewer_ptr)
+			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+	}
+}
+
+void on_tube_vis::handle_transfer_function_change() {
+	if(tf_editor_ptr)
+		volume_tf.generate_texture(*get_context());
 }
 
 void on_tube_vis::on_set(void *member_ptr) {
@@ -1900,16 +1915,6 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 			benchmark.sort_time_total = 0.0;
 			benchmark.num_sorts = 0;
 		}
-	}
-
-	if(cm_editor_ptr && cm_editor_ptr->was_updated()) {
-		color_map_mgr.update_texture(ctx);
-		if(cm_viewer_ptr)
-			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
-	}
-
-	if(tf_editor_ptr && tf_editor_ptr->was_updated()) {
-		volume_tf.generate_texture(ctx);
 	}
 
 	if(!benchmark_mode_setup && benchmark_mode) {
