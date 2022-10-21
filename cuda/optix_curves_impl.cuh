@@ -12,10 +12,46 @@
 #include <sutil/vec_math.h>
 
 // Host interface
-#include "optix_curves.h"
+#include "optix_interface.h"
 
 // Local includes
 #include "optix_tools.cuh"
+#if defined(OTV_PRIMITIVE_RUSSIG) || defined(OTV_PRIMITIVE_PHANTOM)
+	#ifdef OTV_PRIMITIVE_RUSSIG
+		#include "optix_isect_russig.cuh"
+	#else
+		#include "optix_isect_phantom.cuh"
+	#endif
+	#define SET_RESULT_PAYLOAD_0 optixSetPayload_2
+	#define SET_RESULT_PAYLOAD_1 optixSetPayload_3
+	#define SET_RESULT_PAYLOAD_2 optixSetPayload_4
+	#define SET_RESULT_PAYLOAD_3 optixSetPayload_5
+	#define SET_RESULT_PAYLOAD_4 optixSetPayload_6
+	#define SET_RESULT_PAYLOAD_5 optixSetPayload_7
+	#define SET_RESULT_PAYLOAD_6 optixSetPayload_8
+	#define SET_RESULT_PAYLOAD_7 optixSetPayload_9
+	#define SET_RESULT_PAYLOAD_8 optixSetPayload_10
+	#define SET_RESULT_PAYLOAD_9 optixSetPayload_11
+	#define SET_RESULT_PAYLOAD_10 optixSetPayload_12
+	#define SET_RESULT_PAYLOAD_11 optixSetPayload_13
+	#define SET_RESULT_PAYLOAD_12 optixSetPayload_14
+	#define SET_RESULT_PAYLOAD_13 optixSetPayload_15
+#else
+	#define SET_RESULT_PAYLOAD_0 optixSetPayload_0
+	#define SET_RESULT_PAYLOAD_1 optixSetPayload_1
+	#define SET_RESULT_PAYLOAD_2 optixSetPayload_2
+	#define SET_RESULT_PAYLOAD_3 optixSetPayload_3
+	#define SET_RESULT_PAYLOAD_4 optixSetPayload_4
+	#define SET_RESULT_PAYLOAD_5 optixSetPayload_5
+	#define SET_RESULT_PAYLOAD_6 optixSetPayload_6
+	#define SET_RESULT_PAYLOAD_7 optixSetPayload_7
+	#define SET_RESULT_PAYLOAD_8 optixSetPayload_8
+	#define SET_RESULT_PAYLOAD_9 optixSetPayload_9
+	#define SET_RESULT_PAYLOAD_10 optixSetPayload_10
+	#define SET_RESULT_PAYLOAD_11 optixSetPayload_11
+	#define SET_RESULT_PAYLOAD_12 optixSetPayload_12
+	#define SET_RESULT_PAYLOAD_13 optixSetPayload_13
+#endif
 
 
 
@@ -35,16 +71,10 @@ extern "C" {
 // Functions
 //
 
-#ifdef OTV_PRIMITIVE_RUSSIG
-	#include "optix_isect_russig.cuh"
-#elif defined(OTV_PRIMITIVE_PHANTOM)
-	#include "optix_isect_phantom.cuh"
-#endif
-
-static __forceinline__ __device__ void compute_ray(uint3 idx, uint3 dim, float3& origin, float3& direction)
+static __forceinline__ __device__ void compute_ray (uint3 idx, uint3 dim, float3& origin, float3& direction)
 {
 	// determine sub-pixel location
-	float2       subpxl_offset = obtain_jittered_subpxl_offset(params.taa_subframe_id, params.taa_jitter_scale);
+	float2 subpxl_offset = obtain_jittered_subpxl_offset(params.taa_subframe_id, params.taa_jitter_scale);
 
 	// compute exact point on the screen
 	const float2 d = 2.f * make_float2(
@@ -53,15 +83,8 @@ static __forceinline__ __device__ void compute_ray(uint3 idx, uint3 dim, float3&
 	) - 1.f;
 
 	// create resulting ray
-	/*#ifdef OTV_PRIMITIVE_RUSSIG
-		// trace in eye-space
-		origin = nullvec3;
-		direction = normalize(mul_mat_vec(params.cam_N, d.x*params.cam_u + d.y*params.cam_v + params.cam_w));
-	#else*/
-		// trace in world-space
-		origin = params.cam_eye;
-		direction = normalize(d.x*params.cam_u + d.y*params.cam_v + params.cam_w);/*
-	#endif*/
+	origin = params.cam_eye;
+	direction = normalize(d.x*params.cam_u + d.y*params.cam_v + params.cam_w);
 }
 
 static __forceinline__ __device__ float3 calc_hit_point (void)
@@ -97,24 +120,24 @@ static __forceinline__ __device__ void set_payload (
 )
 {
 	// albedo
-	optixSetPayload_0(pack_unorm_4x8(color));  // surface color as 8bit (per channel) RGBA
-	optixSetPayload_1(__float_as_int(u));
-	optixSetPayload_2(__float_as_int(v));
-	optixSetPayload_3(seg_id);
+	SET_RESULT_PAYLOAD_0(pack_unorm_4x8(color));  // surface color as 8bit (per channel) RGBA
+	SET_RESULT_PAYLOAD_1(__float_as_int(u));
+	SET_RESULT_PAYLOAD_2(__float_as_int(v));
+	SET_RESULT_PAYLOAD_3(seg_id);
 	// position
-	optixSetPayload_4(__float_as_int(position.x));
-	optixSetPayload_5(__float_as_int(position.y));
-	optixSetPayload_6(__float_as_int(position.z));
+	SET_RESULT_PAYLOAD_4(__float_as_int(position.x));
+	SET_RESULT_PAYLOAD_5(__float_as_int(position.y));
+	SET_RESULT_PAYLOAD_6(__float_as_int(position.z));
 	// normal
-	optixSetPayload_7(__float_as_int(normal.x));
-	optixSetPayload_8(__float_as_int(normal.y));
-	optixSetPayload_9(__float_as_int(normal.z));
+	SET_RESULT_PAYLOAD_7(__float_as_int(normal.x));
+	SET_RESULT_PAYLOAD_8(__float_as_int(normal.y));
+	SET_RESULT_PAYLOAD_9(__float_as_int(normal.z));
 	// tangent
-	optixSetPayload_10(__float_as_int(tangent.x));
-	optixSetPayload_11(__float_as_int(tangent.y));
-	optixSetPayload_12(__float_as_int(tangent.z));
+	SET_RESULT_PAYLOAD_10(__float_as_int(tangent.x));
+	SET_RESULT_PAYLOAD_11(__float_as_int(tangent.y));
+	SET_RESULT_PAYLOAD_12(__float_as_int(tangent.z));
 	// depth
-	optixSetPayload_13(__float_as_int(depth));
+	SET_RESULT_PAYLOAD_13(__float_as_int(depth));
 }
 
 static __forceinline__ __device__ float eval_alen (const cuda_arclen &param, const float t)
@@ -137,7 +160,7 @@ extern "C" __global__ void __raygen__basic (void)
 	float3 ray_origin, ray_direction;
 	compute_ray(idx, dim, ray_origin, ray_direction);
 
-	// Pre-create ray-centric coordinate system for custom intersector
+	// Pre-create ray-centric coordinate system for custom intersectors
 	// ToDo: investigate unifying the RCC used across custom intersectors
 #if defined(OTV_PRIMITIVE_RUSSIG) || defined(OTV_PRIMITIVE_PHANTOM)
 	#ifdef OTV_PRIMITIVE_RUSSIG
@@ -153,7 +176,7 @@ extern "C" __global__ void __raygen__basic (void)
 	#pragma nv_diag_default 69
 #endif
 
-	// Trace the ray against our scene hierarchy
+	// Trace the ray against our traversable
 	// - create payload storage
 	unsigned int
 		pl_color, pl_u, pl_v, pl_seg_id,
@@ -163,6 +186,9 @@ extern "C" __global__ void __raygen__basic (void)
 		pl_depth;
 	// - launch ray
 	optixTrace(
+	#if defined(OTV_PRIMITIVE_RUSSIG) || defined(OTV_PRIMITIVE_PHANTOM)
+		OPTIX_PAYLOAD_TYPE_ID_0, // ensure correct payload usage
+	#endif
 		params.accelds,
 		ray_origin,
 		ray_direction,
@@ -175,15 +201,15 @@ extern "C" __global__ void __raygen__basic (void)
 		1,                   // SBT stride   -- See SBT discussion
 		0,                   // missSBTIndex -- See SBT discussion
 		// payloads:
+	#if defined(OTV_PRIMITIVE_RUSSIG) || defined(OTV_PRIMITIVE_PHANTOM)
+		// pass on ray-centric coordinate system to custom intersectors
+		const_cast<unsigned&>(rcc_msb), const_cast<unsigned&>(rcc_lsb),
+	#endif
 		pl_color, pl_u, pl_v, pl_seg_id,
 		pl_position_x, pl_position_y, pl_position_z,
 		pl_normal_x, pl_normal_y, pl_normal_z,
 		pl_tangent_x, pl_tangent_y, pl_tangent_z,
 		pl_depth
-	#if defined(OTV_PRIMITIVE_RUSSIG) || defined(OTV_PRIMITIVE_PHANTOM)
-		// pass on ray-centric coordinate system to custom intersectors
-		, const_cast<unsigned&>(rcc_msb), const_cast<unsigned&>(rcc_lsb)
-	#endif
 	);
 	// - process payload	
 	float4 albedo;
@@ -226,6 +252,9 @@ extern "C" __global__ void __raygen__basic (void)
 #ifdef OTV_PRIMITIVE_RUSSIG
 extern "C" __global__ void __intersection__russig (void)
 {
+	// ensure correct payload usage
+	optixSetPayloadTypes(OPTIX_PAYLOAD_TYPE_ID_0);
+
 	// fetch quadratic node data
 	const unsigned nid = optixGetPrimitiveIndex()*3;
 	const float3 nodes[3] = {
@@ -237,7 +266,7 @@ extern "C" __global__ void __intersection__russig (void)
 
 	// perform intersection
 	const Hit hit = EvalSplineISect(
-		*(mat4*)((((size_t)optixGetPayload_14())<<32) | optixGetPayload_15()),  // fetch ray-centric coordinate system
+		*(mat4*)((((size_t)optixGetPayload_0())<<32) | optixGetPayload_1()),  // fetch ray-centric coordinate system
 		nodes[0], nodes[1], nodes[2], radii[0], radii[1], radii[2]
 	);
 	if (hit.l < pos_inf)
@@ -257,6 +286,9 @@ extern "C" __global__ void __intersection__russig (void)
 #elif defined(OTV_PRIMITIVE_PHANTOM)
 extern "C" __global__ void __intersection__phantom (void)
 {
+	// ensure correct payload usage
+	optixSetPayloadTypes(OPTIX_PAYLOAD_TYPE_ID_0);
+
 	// fetch quadratic node data
 	const unsigned pid = optixGetPrimitiveIndex(), nid = pid*3;
 	const float3 nodes[3] = {
@@ -268,7 +300,7 @@ extern "C" __global__ void __intersection__phantom (void)
 
 	// perform intersection
 	const Hit hit = intersect_spline_tube(
-		*(mat4*)((((size_t)optixGetPayload_14())<<32) | optixGetPayload_15()),  // fetch ray-centric coordinate system
+		*(mat4*)((((size_t)optixGetPayload_0())<<32) | optixGetPayload_1()),  // fetch ray-centric coordinate system
 		optixGetWorldRayOrigin(), optixGetWorldRayDirection(),
 		nodes[0], nodes[1], nodes[2], radii[0], radii[1], radii[2]
 	);
@@ -300,6 +332,9 @@ extern "C" __global__ void __intersection__phantom (void)
 
 extern "C" __global__ void __miss__ms (void)
 {
+	#if defined(OTV_PRIMITIVE_RUSSIG) || defined(OTV_PRIMITIVE_PHANTOM)
+		optixSetPayloadTypes(OPTIX_PAYLOAD_TYPE_ID_0); // ensure correct payload usage
+	#endif
 	data_miss *data  = reinterpret_cast<data_miss*>(optixGetSbtDataPointer());
 	set_payload(data->bgcolor, -1.f, 0.f, 0, nullvec3, nullvec3, nullvec3, 1.f);
 }
@@ -331,6 +366,9 @@ extern "C" __global__ void __closesthit__ch (void)
 		curve.from_catmullrom(nodes);
 		const quadr_interpolator_vec3 dcurve = curve.derive();
 	#else
+		// ensure correct payload usage
+		optixSetPayloadTypes(OPTIX_PAYLOAD_TYPE_ID_0);
+		// retrieve segment index
 		const unsigned pid=optixGetPrimitiveIndex(), seg_id=pid/2, subseg=pid%2, nid=pid*3;
 		// retrieve curve parameter at hit
 		const float ts = optixGetCurveParameter(), t  = .5f*(ts + float(subseg));
@@ -380,7 +418,7 @@ extern "C" __global__ void __closesthit__ch (void)
 #endif
 	tangent = normalize(mul3_mat_vec(params.cam_N, dcurve.eval(ts)));
 
-	// calculate pre-shading surface color
+	// evaluate pre-shading tube surface color
 	const float4 color = mix(n0.color, n1.color, t);
 
 	// calculate u texture coordinate (arclength at t)

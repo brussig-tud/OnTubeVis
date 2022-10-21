@@ -50,6 +50,12 @@ namespace cgv { // @<
 				AM_COLORLESS = 2,                           // don't store node color in proxy geometry attributes - original node colors will be fetched from SBO and color at sub-curve split will be calculated in the fragment shader
 				AM_ATTRIBLESS = AM_CURVELESS | AM_COLORLESS // don't store any shader-generated data in proxy geometry attributes (only segment ID and subcurve index will be stored)
 			} attrib_mode;
+			/// specifies the intersection routine to use
+			enum Interesctor
+			{
+				IS_RUSSIG = 0,                              // use intersector for swept-sphere spline tubes by Russig et al.
+				IS_PHANTOM = 1                              // use swept-disc Phantom Ray Hair intersector by Reshetov and Lübke.
+			} intersector;
 			/// whether to use conservative depth extension to re-enable early depth testing
 			bool use_conservative_depth;
 			/// whether to calculate tangents from the cubic hermite definition or from the two quadratic bezier segments

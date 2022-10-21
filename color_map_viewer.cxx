@@ -129,9 +129,8 @@ void color_map_viewer::draw_content(cgv::render::context& ctx) {
 	end_content(ctx);
 }
 
-void color_map_viewer::create_gui() {
+void color_map_viewer::create_gui_impl() {
 
-	create_overlay_gui();
 	add_member_control(this, "Band Height", layout.band_height, "value_slider", "min=5;max=50;step=5;ticks=true");
 }
 
@@ -185,12 +184,12 @@ void color_map_viewer::update_texts() {
 	if(names.size() == 0)
 		return;
 
-	int step = layout.color_map_rect.size().y() / names.size();
+	int step = layout.color_map_rect.size().y() / (int)names.size();
 	ivec2 base = layout.color_map_rect.pos() + ivec2(layout.color_map_rect.size().x() / 2, step / 2 - static_cast<int>(0.333f*font_size));
 	int i = 0;
 	for(const auto& name : names) {
 		ivec2 p = base;
-		p.y() += (names.size() - 1 - i)*step;
+		p.y() += (((unsigned)names.size()) - 1 - i)*step;
 		texts.add_text(name, p, cgv::render::TA_BOTTOM);
 		++i;
 	}

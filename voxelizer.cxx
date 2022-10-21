@@ -65,8 +65,8 @@ void voxelizer::voxelize_q_tube(const quadratic_bezier_tube& qt) {
 		float h0 = length(qt.a.pos - qt.b.pos);
 		float h1 = length(qt.b.pos - qt.c.pos);
 
-		float v0 = h0 * M_PI*r0*r0;
-		float v1 = h1 * M_PI*r1*r1;
+		float v0 = h0 * float(M_PI)*r0*r0;
+		float v1 = h1 * float(M_PI)*r1*r1;
 
 #pragma omp atomic
 		vg.data[idx] += (v0 + v1) / (vg.voxel_size*vg.voxel_size*vg.voxel_size);
@@ -267,7 +267,7 @@ void voxelizer::generate_mipmap(cgv::render::context& ctx, GLuint texture_handle
 	mipmap_prog.set_uniform(ctx, "output_tex", 1);
 
 	int max_res = std::max(res.x(), std::max(res.y(), res.z()));
-	int max_level = std::min(static_cast<unsigned int>(log2f(max_res)), 8u);
+	int max_level = std::min(static_cast<unsigned int>(log2f((float)max_res)), 8u);
 
 	ivec3 input_res = res;
 
@@ -275,11 +275,11 @@ void voxelizer::generate_mipmap(cgv::render::context& ctx, GLuint texture_handle
 		glBindImageTexture(1, texture_handle, i + 1, GL_TRUE, 0, GL_WRITE_ONLY, GL_R32F);
 
 		ivec3 output_res = res;
-		float divisor = pow(2, i + 1);
+		float divisor = (float)pow(2, i + 1);
 
-		output_res.x() /= divisor;
-		output_res.y() /= divisor;
-		output_res.z() /= divisor;
+		output_res.x() = ivec3::value_type(float(output_res.x())/divisor);
+		output_res.y() = ivec3::value_type(float(output_res.y())/divisor);
+		output_res.z() = ivec3::value_type(float(output_res.z())/divisor);
 
 		mipmap_prog.set_uniform(ctx, "level", (unsigned)i);
 		mipmap_prog.set_uniform(ctx, "output_res", output_res);

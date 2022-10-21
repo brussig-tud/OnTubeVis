@@ -250,10 +250,10 @@ __device__ __forceinline__ float4 mul_vec_mat (const float4 &vec, const float *m
 // create a system transformation matrix into the given local reference frame from basis vector and origin
 __device__ __forceinline__ void make_local_frame (float *mat, const float3 &x, const float3 &y, const float3 &z, const float3 &o)
 {
-	mat[0] = x.x; mat[4] = x.y; mat[ 8] = x.z;	mat[12] = -x.x*o.x - x.y*o.y - x.z*o.z;
-	mat[1] = y.y; mat[5] = y.y; mat[ 7] = y.y;	mat[13] = -y.x*o.x - y.y*o.y - y.z*o.z;
-	mat[2] = z.z; mat[6] = z.z; mat[10] = z.z;	mat[14] = -z.x*o.x - z.y*o.y - z.z*o.z;
-	mat[3] = 0; mat[7] = 0; mat[11] = 0;	mat[15] = 1;
+	mat[0] = x.x; mat[4] = x.y; mat[ 8] = x.z; mat[12] = -x.x*o.x - x.y*o.y - x.z*o.z;
+	mat[1] = y.x; mat[5] = y.y; mat[ 9] = y.z; mat[13] = -y.x*o.x - y.y*o.y - y.z*o.z;
+	mat[2] = z.x; mat[6] = z.y; mat[10] = z.z; mat[14] = -z.x*o.x - z.y*o.y - z.z*o.z;
+	mat[3] = 0;   mat[7] = 0;   mat[11] = 0;   mat[15] = 1;
 }
 
 // calculate the determinant of the given 2x2 matrix
@@ -266,9 +266,10 @@ __device__ __forceinline__ float det2 (const float m00, const float m01, const f
 __device__ __forceinline__ float3 w_clip (const float4 &hvec)
 {
 	float3 r;
-	r.x = hvec.x/hvec.w;
-	r.y = hvec.y/hvec.w;
-	r.z = hvec.z/hvec.w;
+	const float w_inv = 1.f/hvec.w;
+	r.x = hvec.x*w_inv;
+	r.y = hvec.y*w_inv;
+	r.z = hvec.z*w_inv;
 	return r;
 }
 
@@ -468,7 +469,9 @@ public:
 	__device__ __forceinline__ float3 mul_pos (const float3 &pos) const { return mul3_mat_pos(c, pos); }
 	__device__ __forceinline__ float3 mul_dir (const float3 &dir) const { return mul3_mat_vec(c, dir); }
 
-	__device__ __forceinline__ void set_cols (const col_type &col0, const col_type &col1, const col_type &col2, const col_type &col3)
+	__device__ __forceinline__ void set_cols (
+		const col_type &col0, const col_type &col1, const col_type &col2, const col_type &col3
+	)
 	{
 		*(col_type*)m[0] = col0;
 		*(col_type*)m[1] = col1;
@@ -476,7 +479,9 @@ public:
 		*(col_type*)m[3] = col3;
 	}
 
-	__device__ __forceinline__ void set_rows(const col_type &row0, const col_type &row1, const col_type &row2, const col_type &row3)
+	__device__ __forceinline__ void set_rows (
+		const col_type &row0, const col_type &row1, const col_type &row2, const col_type &row3
+	)
 	{
 		c[ 0] = row0.x; c[ 1] = row1.x; c[ 2] = row2.x; c[ 3] = row3.x;
 		c[ 4] = row0.y; c[ 5] = row1.y; c[ 6] = row2.y; c[ 7] = row3.y;
@@ -498,24 +503,24 @@ public:
 		            c2 = det2(m[0][2], m[3][2], m[0][3], m[3][3]),
 		            c1 = det2(m[0][2], m[2][2], m[0][3], m[2][3]),
 		            c0 = det2(m[0][2], m[1][2], m[0][3], m[1][3]),
-		            det = s0*c5 - s1*c4 + s2*c3 + s3*c2 - s4*c1 + s5*c0;
+		            det_inv = 1.f/(s0*c5 - s1*c4 + s2*c3 + s3*c2 - s4*c1 + s5*c0);
 		return {
-			(+m[1][1]*c5 - m[2][1]*c4 + m[3][1]*c3) / det,
-			(-m[0][1]*c5 + m[2][1]*c2 + m[3][1]*c1) / det,
-			(+m[0][1]*c4 - m[1][1]*c2 + m[3][1]*c0) / det,
-			(-m[0][1]*c3 + m[1][1]*c1 + m[2][1]*c0) / det,
-			(-m[1][0]*c5 + m[2][0]*c4 - m[3][0]*c3) / det,
-			(+m[0][0]*c5 - m[2][0]*c2 + m[3][0]*c1) / det,
-			(-m[0][0]*c4 + m[1][0]*c2 - m[3][0]*c0) / det,
-			(+m[0][0]*c3 - m[1][0]*c1 + m[2][0]*c0) / det,
-			(+m[1][3]*s5 - m[2][3]*s4 + m[3][3]*s3) / det,
-			(-m[0][3]*s5 + m[2][3]*s2 - m[3][3]*s1) / det,
-			(+m[0][3]*s4 - m[1][3]*s2 + m[3][3]*s0) / det,
-			(-m[0][3]*s3 + m[1][3]*s1 - m[2][3]*s0) / det,
-			(-m[1][2]*s5 + m[2][2]*s4 - m[3][2]*s3) / det,
-			(+m[0][2]*s5 - m[2][2]*s2 + m[3][2]*s1) / det,
-			(-m[0][2]*s4 + m[1][2]*s2 - m[3][2]*s0) / det,
-			(+m[0][2]*s3 - m[1][2]*s1 + m[2][2]*s0) / det
+			(+m[1][1]*c5 - m[2][1]*c4 + m[3][1]*c3) * det_inv,
+			(-m[0][1]*c5 + m[2][1]*c2 + m[3][1]*c1) * det_inv,
+			(+m[0][1]*c4 - m[1][1]*c2 + m[3][1]*c0) * det_inv,
+			(-m[0][1]*c3 + m[1][1]*c1 + m[2][1]*c0) * det_inv,
+			(-m[1][0]*c5 + m[2][0]*c4 - m[3][0]*c3) * det_inv,
+			(+m[0][0]*c5 - m[2][0]*c2 + m[3][0]*c1) * det_inv,
+			(-m[0][0]*c4 + m[1][0]*c2 - m[3][0]*c0) * det_inv,
+			(+m[0][0]*c3 - m[1][0]*c1 + m[2][0]*c0) * det_inv,
+			(+m[1][3]*s5 - m[2][3]*s4 + m[3][3]*s3) * det_inv,
+			(-m[0][3]*s5 + m[2][3]*s2 - m[3][3]*s1) * det_inv,
+			(+m[0][3]*s4 - m[1][3]*s2 + m[3][3]*s0) * det_inv,
+			(-m[0][3]*s3 + m[1][3]*s1 - m[2][3]*s0) * det_inv,
+			(-m[1][2]*s5 + m[2][2]*s4 - m[3][2]*s3) * det_inv,
+			(+m[0][2]*s5 - m[2][2]*s2 + m[3][2]*s1) * det_inv,
+			(-m[0][2]*s4 + m[1][2]*s2 - m[3][2]*s0) * det_inv,
+			(+m[0][2]*s3 - m[1][2]*s1 + m[2][2]*s0) * det_inv
 		};
 	}
 
@@ -570,12 +575,7 @@ struct RCC
 			make_float4(e1, .0f),
 			make_float4(orig, 1.f)
 		);
-		system.set_rows(
-			make_float4(dir, -dir.x*orig.x - dir.y*orig.y - dir.z*orig.z),
-			make_float4(e0,   -e0.x*orig.x -  e0.y*orig.y -  e0.z*orig.z),
-			make_float4(e1,   -e1.x*orig.x -  e1.y*orig.y -  e1.z*orig.z),
-			make_float4(.0f, .0f, .0f, 1.f)
-		);
+		make_local_frame(system, dir, e0, e1, orig);
 	}
 
 	/// construct the 2-way (system and model) transformation helper for the given ray with the ray direction
@@ -590,12 +590,7 @@ struct RCC
 			make_float4(e1, .0f),
 			make_float4(orig, 1.f)
 		);
-		system.set_rows(
-			make_float4(e0,   -e0.x*orig.x -  e0.y*orig.y -  e0.z*orig.z),
-			make_float4(dir, -dir.x*orig.x - dir.y*orig.y - dir.z*orig.z),
-			make_float4(e1,   -e1.x*orig.x -  e1.y*orig.y -  e1.z*orig.z),
-			make_float4(.0f, .0f, .0f, 1.f)
-		);
+		make_local_frame(system, e0, dir, e1, orig);
 	}
 
 	/// construct the 2-way (system and model) transformation helper for the given ray with the ray direction
@@ -610,12 +605,7 @@ struct RCC
 			make_float4(dir, .0f),
 			make_float4(orig, 1.f)
 		);
-		system.set_rows(
-			make_float4(e0,   -e0.x*orig.x -  e0.y*orig.y -  e0.z*orig.z),
-			make_float4(e1,   -e1.x*orig.x -  e1.y*orig.y -  e1.z*orig.z),
-			make_float4(dir, -dir.x*orig.x - dir.y*orig.y - dir.z*orig.z),
-			make_float4(.0f, .0f, .0f, 1.f)
-		);
+		make_local_frame(system, e0, e1, dir, orig);
 	}
 
 	/// transform a point into the RCC
@@ -653,12 +643,9 @@ struct RCC
 	{
 		float3 e0, e1;
 		make_orthonormal_basis(e0, e1, dir);
-		return {
-			make_float4(dir, -dir.x*orig.x - dir.y*orig.y - dir.z*orig.z),
-			make_float4(e0,   -e0.x*orig.x -  e0.y*orig.y -  e0.z*orig.z),
-			make_float4(e1,   -e1.x*orig.x -  e1.y*orig.y -  e1.z*orig.z),
-			make_float4(.0f, .0f, .0f, 1.f), mat4::rows
-		};
+		mat4 ret;
+		make_local_frame(ret, dir, e0, e1, orig);
+		return ret;
 	}
 
 	/// calculate the ray-centric coordinate system model transformation for the given ray with the ray direction
@@ -684,12 +671,9 @@ struct RCC
 	{
 		float3 e0, e1;
 		make_orthonormal_basis(e0, e1, dir);
-		return {
-			make_float4(e0,   -e0.x*orig.x -  e0.y*orig.y -  e0.z*orig.z),
-			make_float4(dir, -dir.x*orig.x - dir.y*orig.y - dir.z*orig.z),
-			make_float4(e1,   -e1.x*orig.x -  e1.y*orig.y -  e1.z*orig.z),
-			make_float4(.0f, .0f, .0f, 1.f), mat4::rows
-		};
+		mat4 ret;
+		make_local_frame(ret, e0, dir, e1, orig);
+		return ret;
 	}
 
 	/// calculate the ray-centric coordinate system model transformation for the given ray with the ray direction
@@ -715,12 +699,9 @@ struct RCC
 	{
 		float3 e0, e1;
 		make_orthonormal_basis(e0, e1, dir);
-		return {
-			make_float4(e0,   -e0.x*orig.x -  e0.y*orig.y -  e0.z*orig.z),
-			make_float4(e1,   -e1.x*orig.x -  e1.y*orig.y -  e1.z*orig.z),
-			make_float4(dir, -dir.x*orig.x - dir.y*orig.y - dir.z*orig.z),
-			make_float4(.0f, .0f, .0f, 1.f), mat4::rows
-		};
+		mat4 ret;
+		make_local_frame(ret, e0, e1, dir, orig);
+		return ret;
 	}
 };
 

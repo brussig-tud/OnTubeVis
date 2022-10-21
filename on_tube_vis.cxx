@@ -30,7 +30,7 @@
 #include "arclen_helper.h"
 #include "glyph_compiler.h"
 #ifdef RTX_SUPPORT
-#include "optix_curves.h"
+#include "cuda/optix_interface.h"
 
 
 // ###############################
@@ -113,21 +113,20 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 
 	cm_editor_ptr = register_overlay<cgv::app::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
-	cm_editor_ptr->gui_options.show_heading = false;
+	cm_editor_ptr->gui_options.create_default_tree_node = false;
+	cm_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_color_map_change, this));
 
-	tf_editor_ptr = register_overlay<cgv::app::color_map_editor>("Volume TF");
+	tf_editor_ptr = register_overlay<cgv::app::color_map_editor>("Transfer Function");
 	tf_editor_ptr->set_visibility(false);
-	tf_editor_ptr->gui_options.show_heading = false;
 	tf_editor_ptr->set_opacity_support(true);
+	tf_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_transfer_function_change, this));
 
 	navigator_ptr = register_overlay<cgv::app::navigator>("Navigator");
 	navigator_ptr->set_visibility(false);
-	navigator_ptr->gui_options.show_heading = false;
 	navigator_ptr->gui_options.show_layout_options = false;
 	navigator_ptr->set_overlay_alignment(cgv::app::overlay::AO_START, cgv::app::overlay::AO_END);
 	
 	cm_viewer_ptr = register_overlay<color_map_viewer>("Color Scale Viewer");
-	cm_viewer_ptr->gui_options.show_heading = false;
 	
 	grids.resize(2);
 	grids[0].scaling = vec2(1.0f, 1.0f);
@@ -486,6 +485,19 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 		}
 	}
 	return false;
+}
+
+void on_tube_vis::handle_color_map_change() {
+	if(cm_editor_ptr) {
+		color_map_mgr.update_texture(*get_context());
+		if(cm_viewer_ptr)
+			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+	}
+}
+
+void on_tube_vis::handle_transfer_function_change() {
+	if(tf_editor_ptr)
+		volume_tf.generate_texture(*get_context());
 }
 
 void on_tube_vis::on_set(void *member_ptr) {
@@ -1905,16 +1917,6 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		}
 	}
 
-	if(cm_editor_ptr && cm_editor_ptr->was_updated()) {
-		color_map_mgr.update_texture(ctx);
-		if(cm_viewer_ptr)
-			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
-	}
-
-	if(tf_editor_ptr && tf_editor_ptr->was_updated()) {
-		volume_tf.generate_texture(ctx);
-	}
-
 	if(!benchmark_mode_setup && benchmark_mode) {
 		misc_cfg.instant_redraw_proxy = true;
 		on_set(&misc_cfg.instant_redraw_proxy);
@@ -2027,17 +2029,7 @@ void on_tube_vis::create_gui(void) {
 
 	// rendering settings
 	add_decorator("Rendering", "heading", "level=1");
-#ifdef RTX_SUPPORT
-	if (begin_tree_node("OptiX", optix.enabled, false)) {
-		align("\a");
-		add_member_control(this, "Use OptiX Raycasting for Tube Rendering", optix.enabled, "check");
-		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Phantom,Built-in,Built-in (cubic)'");
-		add_member_control(this, "Output Debug Visualization", optix.debug, "dropdown", "enums='Off,Albedo,Depth,Tangent + Normal'");
-		add_member_control(this, "Show BLAS Bounding Volumes", optix.debug_bvol, "check");
-		align("\b");
-		end_tree_node(optix.enabled);
-	}
-#endif
+
 	if (begin_tree_node("Bounds", show_bbox, false)) {
 		align("\a");
 		add_member_control(this, "Color", bbox_style.surface_color);
@@ -2053,7 +2045,18 @@ void on_tube_vis::create_gui(void) {
 		end_tree_node(show_bbox);
 	}
 
-	if(begin_tree_node("Tube Style", render.style, false)) {
+#ifdef RTX_SUPPORT
+	if (begin_tree_node("Tube Style (OptiX)", optix.enabled, false)) {
+		align("\a");
+		add_member_control(this, "Enable OptiX Raycasting", optix.enabled, "check");
+		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Phantom,Built-in,Built-in (cubic)'");
+		add_member_control(this, "Output Debug Visualization", optix.debug, "dropdown", "enums='Off,Albedo,Depth,Tangent + Normal'");
+		add_member_control(this, "Show BLAS Bounding Volumes", optix.debug_bvol, "check");
+		align("\b");
+		end_tree_node(optix.enabled);
+	}
+#endif
+	if(begin_tree_node("Tube Style (Rasterization)", render.style, false)) {
 		align("\a");
 		add_gui("tube_style", render.style);
 		align("\b");
@@ -2135,28 +2138,17 @@ void on_tube_vis::create_gui(void) {
 		end_tree_node(glyph_layer_mgr);
 	}
 
-	if(begin_tree_node("Color Scales", cm_editor_ptr, false)) {
-		align("\a");
+	integrate_object_gui(cm_editor_ptr);
+	if(cm_editor_ptr->begin_overlay_gui()) {
 		color_map_mgr.create_gui(this, *this);
-		inline_object_gui(cm_editor_ptr);
-		align("\b");
-		end_tree_node(cm_editor_ptr);
+		cm_editor_ptr->create_gui();
+		cm_editor_ptr->end_overlay_gui();
 	}
+	
+	inline_object_gui(cm_viewer_ptr);
 
-	if(begin_tree_node("Color Scale Viewer", cm_viewer_ptr, false)) {
-		align("\a");
-		inline_object_gui(cm_viewer_ptr);
-		align("\b");
-		end_tree_node(cm_viewer_ptr);
-	}
-
-	if(begin_tree_node("Navigator", navigator_ptr, false)) {
-		align("\a");
-		inline_object_gui(navigator_ptr);
-		align("\b");
-		end_tree_node(navigator_ptr);
-	}
-
+	inline_object_gui(navigator_ptr);
+	
 	// Misc settings contractable section
 	add_decorator("Miscellaneous", "heading", "level=1");
 	if(begin_tree_node("Volume Style", vstyle, false)) {
@@ -2164,13 +2156,8 @@ void on_tube_vis::create_gui(void) {
 		add_member_control(this, "Show Volume", show_volume, "check");
 		add_gui("vstyle", vstyle);
 
-		if(begin_tree_node("Transfer Function Editor", tf_editor_ptr, false)) {
-			align("\a");
-			inline_object_gui(tf_editor_ptr);
-			align("\b");
-			end_tree_node(tf_editor_ptr);
-		}
-
+		inline_object_gui(tf_editor_ptr);
+		
 		align("\b");
 		end_tree_node(vstyle);
 	}

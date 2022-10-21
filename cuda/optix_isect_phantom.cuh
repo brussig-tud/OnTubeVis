@@ -138,26 +138,26 @@ struct RayConeIntersection
 {
 	__device__ bool intersect (float r, float dr)
 	{
-		float r2  = r * r;
-		float drr = r * dr;
+		const float r2  = r*r;
+		const float rdr = r*dr;
 
-		float ddd = cd.x * cd.x + cd.y * cd.y;
-		dp        = c0.x * c0.x + c0.y * c0.y;
-		float cdd = c0.x * cd.x + c0.y * cd.y;
-		float cxd = c0.x * cd.y - c0.y * cd.x;
+		const float cdd = c0.x*cd.x + c0.y*cd.y;
+		const float cxd = c0.x*cd.y - c0.y*cd.x;
+		      float ddd = cd.x*cd.x + cd.y*cd.y;
+		             dp = c0.x*c0.x + c0.y*c0.y;
 
-		float c = ddd;
-		float b = cd.z * (drr - cdd);
-		float cdz2 = cd.z * cd.z;
+		const float c = ddd;
+		const float b = cd.z * (rdr-cdd);
+		const float cdz2 = cd.z * cd.z;
 		ddd += cdz2;
-		float a = 2.0f * drr * cdd + cxd * cxd - ddd * r2 + dp * cdz2;
+		const float a = 2.0f * rdr*cdd + cxd*cxd - ddd*r2 + dp*cdz2;
 
-		float discr = b * b - a * c;
+		const float discr = b*b - a*c;
 		s   = (b - (discr > .0f ? sqrtf(discr) : .0f)) / c;
-		dt  = (s * cd.z - cdd) / ddd;
-		dc  = s * s + dp;
+		dt  = (s*cd.z - cdd) / ddd;
+		dc  = s*s + dp;
 		sp  = cdd / cd.z;
-		dp += sp * sp;
+		dp += sp*sp;
 
 		return discr > .0f;
 	}

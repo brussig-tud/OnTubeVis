@@ -53,7 +53,7 @@ void color_map_manager::remove_color_map_by_name(const std::string& name) {
 	int index = -1;
 	for(size_t i = 0; i < color_maps.size(); ++i) {
 		if(color_maps[i].name == name) {
-			index = i;
+			index = (int)i;
 			break;
 		}
 	}
@@ -147,7 +147,7 @@ void color_map_manager::remove_color_map(const size_t index) {
 void color_map_manager::edit_color_map(const size_t index) {
 	if(base_ptr) {
 		last_action_type = AT_EDIT_REQUEST;
-		edit_idx = index;
+		edit_idx = (int)index;
 		base_ptr->on_set(this);
 	}
 }
