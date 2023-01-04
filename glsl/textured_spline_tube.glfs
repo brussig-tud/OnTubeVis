@@ -128,13 +128,14 @@ layout (std430, binding = 1) readonly buffer arclen_buffer {
 };
 
 float eval_cubic_bezier(float t, vec4 cp) {
+	const vec4 monomials = vec4(1.0, t, t*t, t*t*t);
 	const mat4 Mc = mat4(
 		1, -3,  3, -1,
 		0,  3, -6,  3,
 		0,  0,  3, -3,
 		0,  0,  0,  1
 	);
-	return dot(vec4(1.0, t, t*t, t*t*t), Mc * cp);
+	return dot(monomials, Mc * cp);
 }
 
 // arclength evaluation
@@ -145,6 +146,36 @@ float alen (float t)
 	const int seg = max(int(min(t4, 3)), 0);
 	const float t_inner = t4 - seg;
 	return eval_cubic_bezier(t_inner, b[segment_id_fs][seg]);
+}
+
+// Produces an orthogonal vector to v. Doesn’t require the input
+// to be normalized and doesn’t normalise the output. 
+// source: http://lolengine.net/blog/2013/09/21/picking-orthogonal-vector-combing-coconuts
+vec3 GetOrthoVec(vec3 v)
+{
+    return abs(v.x) > abs(v.z) ? vec3(-v.y, v.x, 0.0f) : vec3(0.0f, -v.z, v.y);
+}
+
+// Constructs a model transformation from eye space to ray-centric coordinates where the ray
+// defines the local x axis
+mat3 calc_rcc_x (const vec3 dir)
+{
+	mat3 RCC;
+	RCC[0] = dir;
+	RCC[1] = normalize(GetOrthoVec(dir));
+	RCC[2] = cross(dir, RCC[1]);
+	return RCC;
+}
+
+// Constructs a model transformation from eye space to ray-centric coordinates where the ray
+// defines the local z axis
+mat3 calc_rcc_z (const vec3 dir)
+{
+	mat3 RCC;
+	RCC[2] = dir;
+	RCC[1] = normalize(GetOrthoVec(dir));
+	RCC[0] = cross(dir, RCC[1]);
+	return RCC;
 }
 
 float Pow2(float x) { return x * x; }
@@ -190,21 +221,21 @@ float EvalPoly(float x, float c0, float c1) { return EvalPoly(x, c0,c1,0.0,0.0,0
 float EvalPoly(float x, float c0) { return EvalPoly(x, c0,0.0,0.0,0.0,0.0,0.0,0.0); }
 
 //float EvalPolyD0(float x, float c[3]) { return EvalPoly(x, c[0], c[1], c[2]); }
-//float EvalPolyD1(float x, float c[3]) { return EvalPoly(x, c[1], c[2] * 2.0); }
-//float EvalPolyD2(float x, float c[3]) { return EvalPoly(x, c[2] * 2.0);       }
-//float EvalPolyD0(float x, float c[5]) { return EvalPoly(x, c[0], c[1], c[2], c[3], c[4]);             }
-//float EvalPolyD1(float x, float c[5]) { return EvalPoly(x, c[1], c[2] * 2.0, c[3] * 3.0, c[4] * 4.0); }
-//float EvalPolyD2(float x, float c[5]) { return EvalPoly(x, c[2] * 2.0, c[3] * 6.0, c[4] * 12.0);      }
-//float EvalPolyD3(float x, float c[5]) { return EvalPoly(x, c[3] * 6.0, c[4] * 24.0);                  }
+//float EvalPolyD1(float x, float c[3]) { return EvalPoly(x, c[1], c[2]*2.f);   }
+//float EvalPolyD2(float x, float c[3]) { return EvalPoly(x, c[2]*2.f);         }
+//float EvalPolyD0(float x, float c[5]) { return EvalPoly(x, c[0], c[1], c[2], c[3], c[4]);       }
+//float EvalPolyD1(float x, float c[5]) { return EvalPoly(x, c[1], c[2]*2.f, c[3]*3.f, c[4]*4.f); }
+//float EvalPolyD2(float x, float c[5]) { return EvalPoly(x, c[2]*2.f, c[3]*6.f, c[4]*12.f);      }
+//float EvalPolyD3(float x, float c[5]) { return EvalPoly(x, c[3]*6.f, c[4]*24.f);                }
 
 // same as above, but multiplication wit 2, 3, or 4 is replaced with addition (gives a small performance boost)
 float EvalPolyD0(float x, float c[3]) { return EvalPoly(x, c[0], c[1], c[2]); }
-float EvalPolyD1(float x, float c[3]) { return EvalPoly(x, c[1], c[2] + c[2]); }
-float EvalPolyD2(float x, float c[3]) { return EvalPoly(x, c[2] + c[2]); }
-float EvalPolyD0(float x, float c[5]) { return EvalPoly(x, c[0], c[1], c[2], c[3], c[4]); }
-float EvalPolyD1(float x, float c[5]) { return EvalPoly(x, c[1], c[2] + c[2], c[3] + c[3] + c[3], c[4] + c[4] + c[4] + c[4]); }
-float EvalPolyD2(float x, float c[5]) { return EvalPoly(x, c[2] + c[2], c[3] * 6.0, c[4] * 12.0); }
-float EvalPolyD3(float x, float c[5]) { return EvalPoly(x, c[3] * 6.0, c[4] * 24.0); }
+float EvalPolyD1(float x, float c[3]) { return EvalPoly(x, c[1], c[2]+c[2]);  }
+float EvalPolyD2(float x, float c[3]) { return EvalPoly(x, c[2]+c[2]);        }
+float EvalPolyD0(float x, float c[5]) { return EvalPoly(x, c[0], c[1], c[2], c[3], c[4]);                         }
+float EvalPolyD1(float x, float c[5]) { return EvalPoly(x, c[1], c[2]+c[2], c[3]+c[3]+c[3], c[4]+c[4]+c[4]+c[4]); }
+float EvalPolyD2(float x, float c[5]) { return EvalPoly(x, c[2]+c[2], c[3]*6.f, c[4]*12.f);                       }
+float EvalPolyD3(float x, float c[5]) { return EvalPoly(x, c[3]*6.f, c[4]*24.f);                                  }
 
 vec3 EvalCSpline(vec3 p1, vec3 t1, vec3 p2, vec3 t2, float l)
 {
@@ -335,15 +366,6 @@ DEF_FINDROOTS(5, D0)
 #endif // ifdef PRIMITIVE_RUSSIG
 
 
-//-----------------------------------------------------------//
-// Produces an orthogonal vector to v. Doesn’t require the input
-// to be normalized and doesn’t normalise the output. 
-// source: http://lolengine.net/blog/2013/09/21/picking-orthogonal-vector-combing-coconuts
-vec3 GetOrthoVec(vec3 v)
-{
-    return abs(v.x) > abs(v.z) ? vec3(-v.y, v.x, 0.0f) : vec3(0.0f, -v.z, v.y);
-}
-
 void SplinePointsToPolyCoeffs(float p0, float h, float p1, out float o_c[3])
 {
 	o_c[0] = p0;
@@ -357,6 +379,15 @@ vec3 qSplineEval(float l, float curveX[N0], float curveY[N0], float curveZ[N0])
 		EvalPolyD0(l, curveX), 
 		EvalPolyD0(l, curveY), 
 		EvalPolyD0(l, curveZ)
+	);
+}
+
+vec3 qSplineTangent(float l, float curveX[N0], float curveY[N0], float curveZ[N0])
+{
+	return vec3(
+		EvalPolyD1(l, curveX), 
+		EvalPolyD1(l, curveY), 
+		EvalPolyD1(l, curveZ)
 	);
 }
 
@@ -418,76 +449,146 @@ float qSplineD3Eval(float t, float polyB_C[N1])
 
 
 #ifdef PRIMITIVE_RUSSIG
+	#define DEF_binRootFinder(func)                                    \
+	float func##_BinRootFinder_Eval(float n, float p, func##_ParasDec) \
+	{		                                                           \
+		if(func##Eval(n, func##_Paras) > 0.0) return n;                \
+		if(func##Eval(p, func##_Paras) < 0.0) return p;		           \
+																	   \
+		for(uint i = 0; i < ITERATION_COUNT; ++i) {                    \
+			float m = (n + p) * 0.5;                                   \
+			float f = func##Eval(m, func##_Paras);                     \
+																	   \
+			if(f < 0.0) n = m;                                         \
+			else p = m;                                                \
+		}                                                              \
+																	   \
+		return (n + p) * 0.5;                                          \
+	}
 
-#define DEF_binRootFinder(func)                                    \
-float func##_BinRootFinder_Eval(float n, float p, func##_ParasDec) \
-{		                                                           \
-	if(func##Eval(n, func##_Paras) > 0.0) return n;                \
-	if(func##Eval(p, func##_Paras) < 0.0) return p;		           \
-		                                                           \
-	for(uint i = 0; i < ITERATION_COUNT; ++i) {                    \
-		float m = (n + p) * 0.5;                                   \
-		float f = func##Eval(m, func##_Paras);                     \
-			                                                       \
-		if(f < 0.0) n = m;                                         \
-		else p = m;                                                \
-	}                                                              \
-		                                                           \
-	return (n + p) * 0.5;                                          \
-}
+	DEF_binRootFinder(qSplineIDist)
+	DEF_binRootFinder(qSplineD1)
+	DEF_binRootFinder(qSplineD2)
+	DEF_binRootFinder(qSplineD3)
 
-DEF_binRootFinder(qSplineIDist)
-DEF_binRootFinder(qSplineD1)
-DEF_binRootFinder(qSplineD2)
-DEF_binRootFinder(qSplineD3)
+	#define binRootFinder_Eval(n, p, func) func##_BinRootFinder_Eval(n, p, func##_Paras)
 
-#define binRootFinder_Eval(n, p, func) func##_BinRootFinder_Eval(n, p, func##_Paras)
+#elif defined(PRIMITIVE_PHANTOM)
+	// static options
+	#define MAX_ITERATIONS 24
+	#define TOLERANCE 0.000244140625f  // = 2^-12
 
-Hit EvalSplineISect(vec3 dir, vec3 s, vec3 h, vec3 t, float rs, float rh, float rt)
+	float dist_to_line (const vec3 s, const vec3 t, const vec3 pt)
+	{
+		return length(cross(pt-s, pt-t)) / length(t-s);
+	}
+
+	bool intersect_cylinder (const vec3 ray_orig, const vec3 dir, const vec3 p0,
+							 const vec3 p1, const float ra)
+	{
+		vec3 ba = p1 - p0;
+		vec3 oc = ray_orig - p0;
+
+		float baba = dot(ba, ba);
+		float bard = dot(ba, dir);
+		float baoc = dot(ba, oc);
+
+		float k2 = baba - bard * bard;
+		float k1 = baba * dot(oc, dir) - baoc * bard;
+		float k0 = baba * dot(oc, oc) - baoc * baoc - ra * ra * baba;
+
+		float h = k1 * k1 - k2 * k0;
+
+		if (h < .0f)
+			return false;
+
+		h = sqrt(h);
+		float t = (-k1 - h) / k2;
+
+		// body
+		float y = baoc + t * bard;
+		if (y > .0f && y < baba)
+			return true;
+
+		// caps
+		t = ((y < .0f ? .0f : baba) - baoc) / bard;
+		if (abs(k1 + k2 * t) < h)
+			return true;
+
+		return false;
+	}
+
+	struct RayConeIntersection
+	{
+		vec3 c0;
+		vec3 cd;
+		float s;
+		float dt;
+		float dp;
+		float dc;
+		float sp;
+	};
+	bool RayConeIntersect (out RayConeIntersection rci, const float r, const float dr)
+	{
+		const float r2  = r*r;
+		const float rdr = r*dr;
+
+		const float cdd = rci.c0.x * rci.cd.x  +  rci.c0.y * rci.cd.y;
+		const float cxd = rci.c0.x * rci.cd.y  -  rci.c0.y * rci.cd.x;
+		      float ddd = rci.cd.x * rci.cd.x  +  rci.cd.y * rci.cd.y;
+		         rci.dp = rci.c0.x * rci.c0.x  +  rci.c0.y * rci.c0.y;
+
+		const float c = ddd;
+		const float b = rci.cd.z * (rdr-cdd);
+		const float cdz2 = rci.cd.z * rci.cd.z;
+		ddd += cdz2;
+		const float a = 2.0f * rdr*cdd + cxd*cxd - ddd*r2 + rci.dp*cdz2;
+
+		const float discr = b*b - a*c;
+		rci.s   = (b - (discr > 0 ? sqrt(discr) : 0)) / c;
+		rci.dt  = (rci.s*rci.cd.z - cdd) / ddd;
+		rci.dc  = rci.s*rci.s + rci.dp;
+		rci.sp  = cdd / rci.cd.z;
+		rci.dp += rci.sp*rci.sp;
+
+		return discr > .0f;
+	}
+#endif // ifdef PRIMITIVE_RUSSIG
+
+Hit EvalSplineISect(
+	const vec3 dir, const vec3 s, const vec3 h, const vec3 t,
+	const float rs, const float rh, const float rt
+)
 {
 	Hit hit;
 	hit.l = 0.0;
 	hit.t = POS_INF;
 	hit.normal = vec3(0.0);
 	
-	mat3 RM;
-	RM[0] = dir;
-	RM[1] = normalize(GetOrthoVec(dir));
-	RM[2] = cross(dir, RM[1]);
-	
-	s *= RM;
-	t *= RM;
-	h *= RM;
+	const mat3 RCC =
+		#ifdef PRIMITIVE_RUSSIG
+			calc_rcc_x(dir);
+		#elif defined(PRIMITIVE_PHANTOM)
+			calc_rcc_z(dir);
+		#endif
+	const vec3 s_rcc = s*RCC, h_rcc = h*RCC, t_rcc = t*RCC;
 
-	float curveX[N0];
-	float curveY[N0];
-	float curveZ[N0];
-
-	float rcurve[N0];
+	float curveX[N0]; SplinePointsToPolyCoeffs(s_rcc.x, h_rcc.x, t_rcc.x, curveX);
+	float curveY[N0]; SplinePointsToPolyCoeffs(s_rcc.y, h_rcc.y, t_rcc.y, curveY);
+	float curveZ[N0]; SplinePointsToPolyCoeffs(s_rcc.z, h_rcc.z, t_rcc.z, curveZ);
+	float rcurve[N0]; SplinePointsToPolyCoeffs(rs, rh, rt, rcurve);
 	
-	SplinePointsToPolyCoeffs(s.x, h.x, t.x, curveX);
-	SplinePointsToPolyCoeffs(s.y, h.y, t.y, curveY);
-	SplinePointsToPolyCoeffs(s.z, h.z, t.z, curveZ);	
-	
-	SplinePointsToPolyCoeffs(rs, rh, rt, rcurve);
-	
+#ifdef PRIMITIVE_RUSSIG
 	float polyB_C[N1];
 		
 	Pow2(rcurve, polyB_C);
 
-	{
-		float c[N1];
-		Pow2(curveY, c);
-		
-		Sub(polyB_C, c, polyB_C);
-	}
-	
-	{
-		float c[N1];
-		Pow2(curveZ, c);
-		
-		Sub(polyB_C, c, polyB_C);
-	}
+	{ float c[N1];
+	  Pow2(curveY, c);
+	  Sub(polyB_C, c, polyB_C); }
+	{ float c[N1];
+	  Pow2(curveZ, c);
+	  Sub(polyB_C, c, polyB_C); }
 	
 	float l1 = 0.0;
 	float l2 = 0.0;
@@ -608,11 +709,7 @@ Hit EvalSplineISect(vec3 dir, vec3 s, vec3 h, vec3 t, float rs, float rh, float 
 				hit.l = l2;
 			}
 
-			hit.cap = false;
-			if (hit.l == 0.0)
-				hit.cap = true;
-			if (hit.l == 1.0)
-				hit.cap = true;
+			hit.cap = hit.l == 0.0 || hit.l == 1.0;
 
 			// mitigate inter-segment artifacts
 			/*if (hit.l < 0.00001)
@@ -629,98 +726,83 @@ Hit EvalSplineISect(vec3 dir, vec3 s, vec3 h, vec3 t, float rs, float rh, float 
 			// get the position on the spline at l
 			hit.sp = qSplineEval(hit.l, curveX, curveY, curveZ);
 			// transform from ray space to eye space
-			hit.sp = RM * hit.sp;
+			hit.sp = RCC * hit.sp;
 			// calculate the intersection point of the ray with the spline tube
-			vec3 ip = hit.t * dir;
-			hit.normal = normalize(ip - hit.sp);
+			hit.normal = normalize(hit.t*dir - hit.sp);
 		}
 		//endregion
 	}
+#else
+	/*RayConeIntersection rci;
+	rci.c0 = s_rcc;
+	rci.cd = t_rcc-s_rcc;
+	if (RayConeIntersect(rci, rs, 0))
+	{
+		hit.t = rci.s + rci.c0.z;
+		hit.l = rci.dt;
+		hit.cap = hit.l == 0.0 || hit.l == 1.0;
+		hit.sp = RCC * (rci.c0 + hit.l*rci.cd);
+		hit.normal = normalize(hit.t*dir - hit.sp);
+	}*/
+	// determine which curve end to start iterating from
+	float tstart = dot(t-s, dir) > .0f ? .0f : 1.f;
+
+	// also attempt from the other end in case iteration from selected one fails
+	for (int end=0; end<2; end++)
+	{
+		float t    = tstart;
+		float told = .0f;
+		float dt1  = .0f;
+		float dt2  = .0f;
+
+		RayConeIntersection rci;
+		for (int i=0; i<MAX_ITERATIONS; i++)
+		{
+			rci.c0 = qSplineEval(t, curveX, curveY, curveZ);
+			rci.cd = qSplineTangent(t, curveX, curveY, curveZ);
+			const bool phantom = !RayConeIntersect(rci, EvalPolyD0(t, rcurve), EvalPolyD1(t, rcurve));
+
+			// check convergence
+			if (   !phantom && abs(rci.dt) < TOLERANCE
+				&& t > .0f && t < 1.f) // <-- seems necessary to prevent segment transition artifacts (ToDo: investigate!)
+			{
+				hit.l = rci.s + rci.c0.z;
+				hit.t = t;
+				hit.sp = RCC * qSplineEval(hit.t, curveX, curveY, curveZ);
+				hit.normal = normalize(hit.t*dir - hit.sp);
+				return hit;
+			}
+
+			rci.dt = min(rci.dt,  .5f);
+			rci.dt = max(rci.dt, -.5f);
+
+			dt1 = dt2;
+			dt2 = rci.dt;
+
+			// regula falsi
+			if (dt1 * dt2 < .0f) {
+				// "we use the simplest possible approach by switching
+				//  to the bisection every 4th iteration:"
+				told = t;
+				t = ((i&3) == 0) ? (.5f*(told+t)) : ((dt2*told - dt1*t) / (dt2-dt1));
+			}
+			else {
+				told = t;
+				t += rci.dt;
+			}
+
+			if (t < .0f || t > 1.f)
+				break;
+		}
+
+		// re-attempt iteration from the direction of the other end
+		tstart = 1.f - tstart;
+	}
+#endif // ifdef PRIMITIVE_RUSSIG
 
 	return hit;
 }
 
-//// MOVE TO PHANTOM ONCE DONE PORTING
-struct RayConeIntersection
-{
-	vec3 c0;
-	vec3 cd;
-	float s;
-	float dt;
-	float dp;
-	float dc;
-	float sp;
-};
-bool RayConeIntersect (out RayConeIntersection rci, const float r, const float dr)
-{
-	const float r2  = r*r;
-	const float rdr = r*dr;
-
-	const float cdd = rci.c0.x * rci.cd.x  +  rci.c0.y * rci.cd.y;
-	const float cxd = rci.c0.x * rci.cd.y  -  rci.c0.y * rci.cd.x;
-	      float ddd = rci.cd.x * rci.cd.x  +  rci.cd.y * rci.cd.y;
-	         rci.dp = rci.c0.x * rci.c0.x  +  rci.c0.y * rci.c0.y;
-
-	const float c = ddd;
-	const float b = rci.cd.z * (rdr-cdd);
-	const float cdz2 = rci.cd.z * rci.cd.z;
-	ddd += cdz2;
-	const float a = 2.0f * rdr*cdd + cxd*cxd - ddd*r2 + rci.dp*cdz2;
-
-	const float discr = b*b - a*c;
-	rci.s   = (b - (discr > 0 ? sqrt(discr) : 0)) / c;
-	rci.dt  = (rci.s*rci.cd.z - cdd) / ddd;
-	rci.dc  = rci.s*rci.s + rci.dp;
-	rci.sp  = cdd / rci.cd.z;
-	rci.dp += rci.sp*rci.sp;
-
-	return discr > .0f;
-}
-
-#endif // ifdef PRIMITIVE_RUSSIG
-
-#ifdef PRIMITIVE_PHANTOM
-
-// static options
-#define MAX_ITERATIONS 24
-#define TOLERANCE 0.000244140625f  // = 2^-12
-
-bool intersect_cylinder(const vec3 ray_orig, const vec3 dir, const vec3 p0,
-                        const vec3 p1, const float ra)
-{
-	vec3 ba = p1 - p0;
-	vec3 oc = ray_orig - p0;
-
-	float baba = dot(ba, ba);
-	float bard = dot(ba, dir);
-	float baoc = dot(ba, oc);
-
-	float k2 = baba - bard * bard;
-	float k1 = baba * dot(oc, dir) - baoc * bard;
-	float k0 = baba * dot(oc, oc) - baoc * baoc - ra * ra * baba;
-
-	float h = k1 * k1 - k2 * k0;
-
-	if (h < .0f)
-		return false;
-
-	h = sqrt(h);
-	float t = (-k1 - h) / k2;
-
-	// body
-	float y = baoc + t * bard;
-	if (y > .0f && y < baba)
-		return true;
-
-	// caps
-	t = ((y < .0f ? .0f : baba) - baoc) / bard;
-	if (abs(k1 + k2 * t) < h)
-		return true;
-
-	return false;
-}
-
-#endif
 
 vec3 eval_quadratic_bezier_tangent(QTube qtube, float t)
 {
@@ -840,13 +922,6 @@ void main()
 	vec3 direction = normalize(position_fs);
 #endif
 
-	/*RayConeIntersection rci;
-	rci.c0 = qtube.s.pos;
-	rci.cd = normalize(qtube.e.pos-qtube.s.pos);
-	if (RayConeIntersect(rci, qtube.s.rad, qtube.e.rad-(qtube.s.rad)))
-		;
-	else
-		discard;*/
 	Hit hit = EvalSplineISect(direction,
 		qtube.s.pos, qtube.h.pos, qtube.e.pos,
 		qtube.s.rad, qtube.h.rad, qtube.e.rad

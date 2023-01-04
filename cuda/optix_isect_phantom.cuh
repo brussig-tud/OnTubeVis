@@ -171,7 +171,7 @@ struct RayConeIntersection
 	float sp;
 };
 
-__device__ __forceinline__ float dist_to_cylinder (const float3 &s, const float3 &t, const float3 &pt)
+__device__ __forceinline__ float dist_to_line (const float3 &s, const float3 &t, const float3 &pt)
 {
 	return length(cross(pt-s, pt-t)) / length(t-s);
 }
@@ -227,7 +227,7 @@ static __device__ Hit intersect_spline_tube (
 	// 	- move these calculations to ray-centric coordinates (more efficient + gets rid of ray orig/dir params
 	// 	- center cylinder inside convex hull of Bezier control points for a tighter fit, consider performing
 	//    exact extrema calculation as in Russig et al. intersector (and probably the builtin one too)
-	const float rmax = dist_to_cylinder(s, t, curve.f(.5f)) + radius_bound;
+	const float rmax = dist_to_line(s, t, curve.f(.5f)) + radius_bound;
 	const float3 axis = normalize(t-s), p0 = s - axis*radius_bound, p1 = t + axis*radius_bound;
 	if (!intersect_cylinder(ray_orig, dir, p0, p1, rmax))
 		return hit;
