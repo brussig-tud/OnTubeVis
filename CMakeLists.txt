@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(flocking)
+project(OnTubeVis)
 
 # general prerequisites
-set(CXX_STANDARD 20)
+set(CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # preset CGV Framework options
@@ -16,9 +16,8 @@ option(ENABLE_OPTIX_SUPPORT ${ENABLE_OPTIX_SUPPORT_DOC} ON)
 # Fetch CGV Framework
 include(FetchContent)
 FetchContent_Declare(
-	cgv
-	GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG 234d797b2ce6fb8e89640f097cd28a73a5eb18ed
+	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
+	GIT_TAG 868ab8f620cf6bac7004e66d63764336aeda676b
 )
 FetchContent_GetProperties(cgv)
 FetchContent_MakeAvailable(cgv)
@@ -159,6 +158,8 @@ if (ENABLE_OPTIX_SUPPORT)
 		optixtracer_textured_spline_tube.h
 	)
 endif()
+# - resources (we'll likely get away with just globbing them)
+file(GLOB_RECURSE IMAGES RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.png" "*.bmp")
 
 # CUDA/OptiX support
 
@@ -168,7 +169,7 @@ cgv_add_target(OnTubeVis
 	SOURCES         ${SOURCES}
 	HEADERS         ${HEADERS}
 	SHADER_SOURCES  ${SHADERS}
-	#RESOURCES       ${IMAGES}
+	RESOURCES       ${IMAGES}
 	DEPENDENCIES
 		glew json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui cgv_render cgv_os
 		cg_fltk cgv_gl cg_ext cmi_io crg_stereo_view crg_light crg_grid cgv_g2d cgv_app cgv_gpgpu ${DEPENDENCY_OPENMP}
@@ -180,18 +181,18 @@ cgv_add_target(OnTubeVis
 )
 
 # make sure we can compile
-target_compile_features(OnTubeVis PUBLIC cxx_std_20)
-target_compile_features(OnTubeVis_static PUBLIC cxx_std_20)
-set_target_properties(OnTubeVis PROPERTIES CXX_STANDARD 20)
-set_target_properties(OnTubeVis_static PROPERTIES CXX_STANDARD 20)
+target_compile_features(OnTubeVis PUBLIC cxx_std_17)
+target_compile_features(OnTubeVis_static PUBLIC cxx_std_17)
+set_target_properties(OnTubeVis PROPERTIES CXX_STANDARD 17)
+set_target_properties(OnTubeVis_static PROPERTIES CXX_STANDARD 17)
 set_target_properties(OnTubeVis PROPERTIES CXX_STANDARD_REQUIRED ON)
-set_target_properties(OnTubeVis_static PROPERTIES CXX_STANDARD 20)
+set_target_properties(OnTubeVis_static PROPERTIES CXX_STANDARD_REQUIRED ON)
 set_target_properties(OnTubeVis PROPERTIES CXX_EXTENSIONS ON)
-set_target_properties(OnTubeVis_static PROPERTIES CXX_STANDARD 20)
+set_target_properties(OnTubeVis_static PROPERTIES CXX_EXTENSIONS ON)
 
-# set our config-dependent defines
-target_compile_definitions(OnTubeVis PUBLIC ${FEATURE_DEFINES})
-target_compile_definitions(OnTubeVis_static PUBLIC ${FEATURE_DEFINES})
+# set our additional defines
+target_compile_definitions(OnTubeVis PUBLIC ${FEATURE_DEFINES} "INPUT_DIR=${CMAKE_CURRENT_LIST_DIR}")
+target_compile_definitions(OnTubeVis_static PUBLIC ${FEATURE_DEFINES} "INPUT_DIR=.")
 
 # make sure to register our additional include directories
 target_include_directories(OnTubeVis PUBLIC ${ADDITIONAL_INCLUDES})

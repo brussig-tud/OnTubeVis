@@ -244,8 +244,14 @@ static __device__ Hit intersect_spline_tube (
 		const uint3 idx = optixGetLaunchIndex();
 		const unsigned pxl = idx.y*params.fb_width + idx.x,
 		               mid = (params.fb_height/2)*params.fb_width + (params.fb_width/2);
-		if (pxl == mid)
-			// do printf output here
+		if (pxl == mid) {
+			// Test ray-cone intersection
+			RayConeIntersection rci;
+			rci.c0 = xcurve.pos.b[0];
+			rci.cd = xcurve.pos.b[2]-xcurve.pos.b[0];
+			if (!rci.intersect(xcurve.rad.b[0], (.5f*xcurve.rad.b[2])-(xcurve.rad.b[0])))
+				return hit;
+		}
 	}*/
 
 	// determine which curve end to start iterating from
