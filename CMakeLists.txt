@@ -18,7 +18,7 @@ include(FetchContent)
 FetchContent_Declare(
 	cgv
 	GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG f03fca16ff8cddc20af45c69eceb11e3df3fad00
+	GIT_TAG 234d797b2ce6fb8e89640f097cd28a73a5eb18ed
 )
 FetchContent_GetProperties(cgv)
 FetchContent_MakeAvailable(cgv)
