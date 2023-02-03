@@ -44,6 +44,7 @@ struct attrib_handle_manager<flt_type>::Impl
 	// helper structs
 	struct attrib_ref
 	{
+		attrib_ref(unsigned sample_id, unsigned traj_id) : sample_id(sample_id), traj_id(traj_id) {}
 		unsigned sample_id;
 		unsigned traj_id;
 	};
@@ -143,7 +144,7 @@ void attrib_handle_manager<flt_type>::set_dataset (const traj_dataset<real> &dat
 			const unsigned sid_end = traj.i0 + traj.n;
 			for (unsigned sid=traj.i0; sid<sid_end; sid++)
 			{
-				attrib_refs.emplace_back(Impl::attrib_ref{sid, tid});
+				attrib_refs.emplace_back(sid, tid);
 				attrib_grid.insert(attrib_refs.size()-1);
 			}
 		}

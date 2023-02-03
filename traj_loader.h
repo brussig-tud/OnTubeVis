@@ -302,12 +302,12 @@ public:
 			auto it = std::min_element(
 				values.begin(), values.end(),
 				[](const elem_type &v1, const elem_type &v2) -> bool {
-					return smag(v1) < smag(v2);
+					return container_base::smag(v1) < container_base::smag(v2);
 				}
 			);
 			if (index)
 				*index = (unsigned)(it-values.begin());
-			return smag(*it);
+			return container_base::smag(*it);
 		}
 
 		/// returns the largest attribute value in the series (in case of vector-valued attributes, the largest magnitude), optionally
@@ -317,12 +317,12 @@ public:
 			auto it = std::max_element(
 				values.begin(), values.end(),
 				[](const elem_type &v1, const elem_type &v2) -> bool {
-					return smag(v1) < smag(v2); // NOTE: <-- don't reverse comparison here for maximum search...
+					return container_base::smag(v1) < container_base::smag(v2); // NOTE: <-- don't reverse comparison here for maximum search...
 				}
 			);
 			if (index)
 				*index = (unsigned)(it-values.begin());
-			return smag(*it);
+			return container_base::smag(*it);
 		}
 
 		/// obtain raw pointer to the contained data
@@ -339,12 +339,12 @@ public:
 
 		/// return a representation of the datapoint at the given index that contains its magnitude instead of the actual value
 		virtual datapoint_mag magnitude_at (unsigned index) const {
-			return { mag(const_cast<elem_type&>(values[index])), const_cast<flt_type&>(timestamps[index]) };
+			return { container_base::mag(const_cast<elem_type&>(values[index])), const_cast<flt_type&>(timestamps[index]) };
 		}
 
 		/// return a representation of the datapoint at the given index that contains its signed magnitude instead of the actual value
 		virtual datapoint_mag signed_magnitude_at(unsigned index) const {
-			return { smag(const_cast<elem_type&>(values[index])), const_cast<flt_type&>(timestamps[index]) };
+			return { container_base::smag(const_cast<elem_type&>(values[index])), const_cast<flt_type&>(timestamps[index]) };
 		}
 	};
 
@@ -521,7 +521,7 @@ public:
 			{
 				traj_attribute<real_type> ret(1);
 				const auto &data = get_data<real>();
-				auto &ret_data = ret.get_data<real_type>();
+				auto &ret_data = ret.template get_data<real_type>();
 				for (unsigned i=0; i<num(); i++)
 				{
 					const auto &sample = data[i];
@@ -533,7 +533,7 @@ public:
 			{
 				traj_attribute<real_type> ret(2);
 				const auto &data = get_data<Vec2>();
-				auto &ret_data = ret.get_data<target_atype::Vec2>();
+				auto &ret_data = ret.template get_data<target_atype::Vec2>();
 				for (unsigned i=0; i<num(); i++)
 				{
 					const auto &sample = data[i];
@@ -545,7 +545,7 @@ public:
 			{
 				traj_attribute<real_type> ret(3);
 				const auto &data = get_data<Vec3>();
-				auto &ret_data = ret.get_data<target_atype::Vec3>();
+				auto &ret_data = ret.template get_data<target_atype::Vec3>();
 				for (unsigned i=0; i<num(); i++)
 				{
 					const auto &sample = data[i];
@@ -557,7 +557,7 @@ public:
 			{
 				traj_attribute<real_type> ret(4);
 				const auto &data = get_data<Vec4>();
-				auto &ret_data = ret.get_data<target_atype::Vec4>();
+				auto &ret_data = ret.template get_data<target_atype::Vec4>();
 				for (unsigned i=0; i<num(); i++)
 				{
 					const auto &sample = data[i];
@@ -957,10 +957,10 @@ public:
 		traj_attribute<real> &attrib;
 
 		/// the actual data container of the attribute
-		traj_attribute<real>::container<T> &data;
+		typename traj_attribute<real>::template container<T> &data;
 
 		/// construct for given attribute
-		attrib_info(traj_attribute<real>& attribute) : attrib(attribute), data(attribute.get_data<T>()) {}
+		attrib_info(traj_attribute<real> &attribute) : attrib(attribute), data(attribute.template get_data<T>()) {}
 	};
 
 
@@ -1118,7 +1118,7 @@ public:
 			const auto &attrib = attrib_it.second;
 
 			// convert values and timestamps
-			auto &attrib_conv = ret.add_attribute(name, attrib.convert<real_type>());
+			auto &attrib_conv = ret.add_attribute(name, attrib.template convert<real_type>());
 
 			// copy trajectory info
 			const auto &trajs = trajectories(attrib);
@@ -1171,7 +1171,7 @@ public:
 protected:
 
 	/// Proxy for derived classes to gain write-access the "special" positions attribute
-	static traj_dataset<real>::attrib_info<Vec3> positions (traj_dataset<real> &dataset);
+	static typename traj_dataset<real>::template attrib_info<Vec3> positions (traj_dataset<real> &dataset);
 
 	/// Proxy for derived classes to gain write-access to the \link traj_dataset::attributes generic attributes \endlink .
 	static attribute_map<flt_type>& attributes (traj_dataset<real> &dataset);
@@ -1185,19 +1185,19 @@ protected:
 	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access
 	template <class T>
-	static typename traj_dataset<real>::attrib_info<T> add_attribute (traj_dataset<real> &dataset, const std::string &name)
+	static typename traj_dataset<real>::template attrib_info<T> add_attribute(traj_dataset<real> &dataset, const std::string &name)
 	{
-		return dataset.add_attribute<T>(name);
+		return dataset.template add_attribute<T>(name);
 	}
 
 	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access
 	template <class T, typename ... Args>
-	static typename traj_dataset<real>::attrib_info<T> add_attribute (
+	static typename traj_dataset<real>::template attrib_info<T> add_attribute (
 		traj_dataset<real> &dataset, const std::string &name, Args&& ... args
 	)
 	{
-		return dataset.add_attribute<T>(name, std::forward<Args>(args)...);
+		return dataset.template add_attribute<T>(name, std::forward<Args>(args)...);
 	}
 
 
@@ -1261,6 +1261,8 @@ public:
 		/// encapsulates various kinds of per-dataset ranges over the render attributes
 		struct dataset
 		{
+			dataset(const range irange, std::vector<range> &&trajs) : irange(irange), trajs(std::move(trajs)) {}
+
 			/// range over the index pairs occupied by the dataset
 			range irange;
 

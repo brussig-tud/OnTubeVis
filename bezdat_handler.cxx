@@ -1,5 +1,6 @@
 
 // C++ STL
+#include <list>
 #include <vector>
 #include <unordered_map>
 #include <string>
@@ -389,11 +390,11 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (
 	// commit attributes to common curve representation
 	// - create attributes in dataset
 	const unsigned num = (unsigned)nodes.size();
-	auto &P = add_attribute<Vec3>(ret, BEZDAT_POSITION_ATTRIB_NAME);
-	auto &dP = add_attribute<Vec4>(ret, BEZDAT_TANGENT_ATTRIB_NAME);
-	auto &R = add_attribute<real>(ret, BEZDAT_RADIUS_ATTRIB_NAME);
-	auto &C = add_attribute<Vec3>(ret, BEZDAT_COLOR_ATTRIB_NAME);
-	auto &dC = add_attribute<Vec3>(ret, BEZDAT_DCOLOR_ATTRIB_NAME);
+	auto P = traj_format_handler<flt_type>::template add_attribute<Vec3>(ret, BEZDAT_POSITION_ATTRIB_NAME);
+	auto dP = traj_format_handler<flt_type>::template add_attribute<Vec4>(ret, BEZDAT_TANGENT_ATTRIB_NAME);
+	auto R = traj_format_handler<flt_type>::template add_attribute<real>(ret, BEZDAT_RADIUS_ATTRIB_NAME);
+	auto C = traj_format_handler<flt_type>::template add_attribute<Vec3>(ret, BEZDAT_COLOR_ATTRIB_NAME);
+	auto dC = traj_format_handler<flt_type>::template add_attribute<Vec3>(ret, BEZDAT_DCOLOR_ATTRIB_NAME);
 	P.data.reserve(num);
 	dP.data.reserve(num);
 	R.data.reserve(num);
@@ -428,15 +429,15 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (
 			num_segs++;
 		}
 	}
-	set_avg_segment_length(ret, avg_dist/real(num_segs));
+	traj_format_handler<flt_type>::set_avg_segment_length(ret, avg_dist / real(num_segs));
 
 	// finalize
 	ret.set_mapping(Impl<real>::attrmap);
-	trajectories(ret, P.attrib) = ds_trajs;  // all attributes are sampled
-	trajectories(ret, dP.attrib) = ds_trajs; // equally, so we can just
-	trajectories(ret, R.attrib) = ds_trajs;  // duplicate the trajectory ranges
-	trajectories(ret, C.attrib) = ds_trajs;  // across all attributes
-	trajectories(ret, dC.attrib) = std::move(ds_trajs);
+	traj_format_handler<flt_type>::trajectories(ret, P.attrib) = ds_trajs;	// all attributes are sampled
+	traj_format_handler<flt_type>::trajectories(ret, dP.attrib) = ds_trajs; // equally, so we can just
+	traj_format_handler<flt_type>::trajectories(ret, R.attrib) = ds_trajs; // duplicate the trajectory ranges
+	traj_format_handler<flt_type>::trajectories(ret, C.attrib) = ds_trajs; // across all attributes
+	traj_format_handler<flt_type>::trajectories(ret, dC.attrib) = std::move(ds_trajs);
 
 	// print some stats
 	std::cout << "bezdat_handler: loading completed! Stats:" << std::endl

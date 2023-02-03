@@ -9,7 +9,7 @@ addIncDirs=[
 	CGV_DIR."/libs",
 	CGV_BUILD_DIR."/".projectName,
 	CGV_BUILD_DIR."/cgv_glutil",
-	CGV_DIR."/3rd/json/nlohmann",
+	CGV_DIR."/3rd/json",
 	INPUT_DIR."/3rd/fastgl",
 	INPUT_DIR."/3rd/peridetic",
 	INPUT_DIR."/3rd/wgs84mercator"
@@ -69,8 +69,8 @@ addSharedDefines=["TUBES_EXPORTS"];
 addShaderPaths=[INPUT_DIR];
 cppLanguageStandard="stdcpp17";
 useOpenMP=1;
+addDefines=addDefines.["OMP_SUPPORT"];
 workingDirectory=INPUT_DIR;
 addCommandLineArguments=[
-	'config:"'.INPUT_DIR.'/config.def"',
-	after("SHADER_PATHS", "cg_fltk")
+	'config:"'.INPUT_DIR.'/config.def"', after("SHADER_PATHS", "cg_fltk")
 ];

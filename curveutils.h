@@ -477,7 +477,7 @@ void toHermite (CubicCurve1<Real> &h, Real b0, Real b1, Real b2, Real b3)
 template <class CurveType>
 CurveType toHermite (const CurveType &b)
 {
-	return b * b2h<CurveType::value_type>;
+	return b * b2h<typename CurveType::value_type>;
 }
 
 /**
@@ -488,7 +488,7 @@ CurveType toHermite (const CurveType &b)
 template <class CurveType>
 void toHermite (CurveType &h, const CurveType &b)
 {
-	h = b * b2h<CurveType::value_type>;
+	h = b * b2h<typename CurveType::value_type>;
 }
 
 

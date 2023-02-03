@@ -6,7 +6,12 @@
 #include <utility>
 
 // OpenMP
-#include <omp.h>
+#ifdef OMP_SUPPORT
+	#include <omp.h>
+#endif
+
+// CGV Framework
+#include <cgv/math/functions.h>
 
 // arclength library
 #include "arclength/bezier.h"
@@ -47,7 +52,7 @@ struct curve_segment
 namespace arclen {
 
 template <class flt_type>
-parametrization compute_parametrization<flt_type> (const traj_manager<flt_type> &mgr)
+parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 {
 	typedef flt_type real;
 	typedef typename traj_manager<flt_type>::render_data::Vec3 vec3;
@@ -169,7 +174,7 @@ float eval (const cgv::render::render_types::mat4 &approx, float t)
 {
 	// determine sub-segment
 	const float t4 = t+t+t+t;
-	const unsigned seg = std::clamp((signed)t4, 0, 3);
+	const unsigned seg = cgv::math::clamp((signed)t4, 0, 3);
 	const float t_inner = t4 - (float)seg;
 	return evalBezier(approx.col(seg), t_inner);
 }
