@@ -170,7 +170,7 @@ cgv_add_target(OnTubeVis
 	RESOURCES       ${IMAGES}
 	DEPENDENCIES
 		glew json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui cgv_render cgv_os
-		cg_fltk cgv_gl cg_ext cmi_io crg_stereo_view crg_light crg_grid cgv_g2d cgv_app cgv_gpgpu ${DEPENDENCY_OPENMP}
+		cg_fltk cgv_gl cg_ext cmi_io cg_msdf crg_stereo_view crg_light crg_grid cgv_g2d cgv_app cgv_gpgpu ${DEPENDENCY_OPENMP}
 
 	ADDITIONAL_CMDLINE_ARGS
 		"config:\"${CMAKE_CURRENT_LIST_DIR}/config.def\""
