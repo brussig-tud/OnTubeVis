@@ -19,6 +19,8 @@ CMake support
 
 It is possible to build the OnTubeVis prototype on Linux or Windows using CMake, for which no dependencies other than OpenGL (and optionally CUDA/OptiX) need to be present. The CGV Framework will be fetched automatically if not present on the system and be integrated into the build. To compile the prototype into a working state, build either the "OnTubeVis" or "OnTubeVis_exe" targets. The latter will create a single executable that has all dependencies (except OpenGL, CUDA and OptiX) linked in statically and is ideal for re-distribution, while the former builds OnTubeVis as a dynamic plugin for the viewer application of the CGV Framework (and can be invoked using the launch script that will be generated in the root of your build folder).
 
+NOTE: Due to GCC bug #85282 (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85282) OnTubeVis can currently not be built using GCC! For building on *nix systems, using Clang is recommended.
+
 
 SHORT USAGE INSTRUCTIONS
 ========================
