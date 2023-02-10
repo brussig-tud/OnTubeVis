@@ -56,8 +56,8 @@ if (env["CUDA_PATH"]) {
 				]], 
 				["tool","cuda_resprep"],
 				["command", [CGV_BUILD."/bin/cuda_resprep",
-					"'".env["CUDA_PATH"]."/bin/nvcc'", 0, 1, "-std=c++17", "-ptx", "-arch=compute_61", "--use_fast_math", "-O=3", "-dopt=on", "-D__x86_64", "-I'".env["CUDA_PATH"]."/include'",
-					"-I'".env["OPTIX_PATH"]."/include'", "-I'".env["OPTIX_PATH"]."/SDK'", "-I'".env["OPTIX_PATH"]."/SDK/cuda'", "-I'".INPUT_DIR."'"
+					"nvcc", 0, 1, "-std=c++17", "-ptx", "-arch=compute_61", "--use_fast_math", "-O=3", "-dopt=on", "-D__x86_64", "-I".env["CUDA_PATH"]."/include",
+					"-I".env["OPTIX_PATH"]."/include", "-I".env["OPTIX_PATH"]."/SDK", "-I".env["OPTIX_PATH"]."/SDK/cuda", "-I".INPUT_DIR
 				]]
 			],
 			MAP.[["extensions",["cuh"]],
