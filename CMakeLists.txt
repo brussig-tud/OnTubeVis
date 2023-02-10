@@ -17,7 +17,7 @@ option(ENABLE_OPTIX_SUPPORT ${ENABLE_OPTIX_SUPPORT_DOC} ON)
 include(FetchContent)
 FetchContent_Declare(
 	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG d2d562ac293fe5962773ce5f4cd212b61d51f915
+	GIT_TAG 638f25ea98c9a197b1180b6f83a6b986b02f26a0
 )
 FetchContent_GetProperties(cgv)
 FetchContent_MakeAvailable(cgv)
@@ -160,8 +160,6 @@ if (ENABLE_OPTIX_SUPPORT)
 endif()
 # - resources (we'll likely get away with just globbing them)
 file(GLOB_RECURSE IMAGES RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.png" "*.bmp")
-
-# CUDA/OptiX support
 
 # create the OnTubeVis plugin wihtin the CGV Framework build infrastructure
 cgv_add_target(OnTubeVis
