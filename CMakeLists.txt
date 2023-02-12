@@ -17,7 +17,7 @@ option(ENABLE_OPTIX_SUPPORT ${ENABLE_OPTIX_SUPPORT_DOC} ON)
 include(FetchContent)
 FetchContent_Declare(
 	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG 260b7a9ff15cc9b4c13e3f7aabc0a837f774b6b5
+	GIT_TAG b0efe1fcff4dded794939b91793edfb9f988f6a8
 )
 FetchContent_GetProperties(cgv)
 FetchContent_MakeAvailable(cgv)
@@ -179,6 +179,12 @@ cgv_add_target(OnTubeVis
 
 	OVERRIDE_SHARED_EXPORT_DEFINE TUBES_EXPORTS
 )
+
+# print warning if OpenMP was missing - we do that down here to make sure it's easily visible
+if (NOT OpenMP_CXX_FOUND)
+	message("WARNING: OpenMP development files not found on the system!")
+	message("         Preprocessing for large datasets will be slow.")
+endif()
 
 # make sure we can compile
 target_compile_features(OnTubeVis PUBLIC cxx_std_17)
