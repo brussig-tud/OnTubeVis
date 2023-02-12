@@ -17,7 +17,7 @@ option(ENABLE_OPTIX_SUPPORT ${ENABLE_OPTIX_SUPPORT_DOC} ON)
 include(FetchContent)
 FetchContent_Declare(
 	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG 638f25ea98c9a197b1180b6f83a6b986b02f26a0
+	GIT_TAG 3dd9c6b42bfb1c8521a17a29003066572b992119
 )
 FetchContent_GetProperties(cgv)
 FetchContent_MakeAvailable(cgv)
@@ -171,6 +171,8 @@ cgv_add_target(OnTubeVis
 	DEPENDENCIES
 		glew json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui cgv_render cgv_os
 		cg_fltk cgv_gl cg_ext cmi_io cg_msdf crg_stereo_view crg_light crg_grid cgv_g2d cgv_app cgv_gpgpu ${DEPENDENCY_OPENMP}
+
+	LINKTIME_PLUGIN_DEPENDENCIES cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
 
 	ADDITIONAL_CMDLINE_ARGS
 		"config:\"${CMAKE_CURRENT_LIST_DIR}/config.def\""
