@@ -180,10 +180,14 @@ cgv_add_target(OnTubeVis
 	OVERRIDE_SHARED_EXPORT_DEFINE TUBES_EXPORTS
 )
 
-# print warning if OpenMP was missing - we do that down here to make sure it's easily visible
+# schedule a warning message at the very end of the configuration process to make sure it will be easily visible
+# we schedule the message after creating the OnTubeVis target such that it's deferred operations alert appears first
 if (NOT OpenMP_CXX_FOUND)
-	message("WARNING: OpenMP development files not found on the system!")
-	message("         Preprocessing for large datasets will be slow.")
+	cmake_language(
+		DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL message
+		"WARNING: OpenMP development files not found on the system!\n"
+		"         Preprocessing for large datasets will be slow."
+	)
 endif()
 
 # make sure we can compile
