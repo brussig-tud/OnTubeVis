@@ -35,7 +35,8 @@ find_package(OpenMP)
 
 # handle optional dependencies
 if (CUDA_FOUND AND OptiX_INCLUDE AND NOT OptiX_INCLUDE STREQUAL "OptiX_INCLUDE-NOTFOUND")
-	#list(APPEND FEATURE_DEFINES "RTX_SUPPORT=1")
+	set(__EMIT_OPTIX_WARNING TRUE)
+	set(ENABLE_OPTIX_SUPPORT OFF CACHE BOOL ${ENABLE_OPTIX_SUPPORT_DOC} FORCE) #list(APPEND FEATURE_DEFINES "RTX_SUPPORT=1")
 else()
 	set(ENABLE_OPTIX_SUPPORT OFF CACHE BOOL ${ENABLE_OPTIX_SUPPORT_DOC} FORCE)
 endif()
@@ -191,12 +192,11 @@ if (NOT OpenMP_CXX_FOUND)
 endif()
 
 # schedule temporary OptiX warning to make sure it will be seen - TODO: remove once ready
-if (ENABLE_OPTIX_SUPPORT)
-	set(ENABLE_OPTIX_SUPPORT OFF CACHE BOOL ${ENABLE_OPTIX_SUPPORT_DOC} FORCE)
+if (__EMIT_OPTIX_WARNING)
 	cmake_language(
 		DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL message
 		"WARNING: OptiX support is pending integration with CMake build system!\n"
-		"         Disabling... use native .pj build on Windows to enable OptiX."
+		"         disabling... use native .pj build on Windows to enable OptiX render path"
 	)
 endif()
 
