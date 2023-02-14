@@ -7,6 +7,7 @@ set(CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # preset CGV Framework options
+option(CGV_BUILD_WITH_AUDIO OFF)
 option(CGV_BUILD_EXAMPLES OFF)
 
 # OnTubeVis options
@@ -17,9 +18,8 @@ option(ENABLE_OPTIX_SUPPORT ${ENABLE_OPTIX_SUPPORT_DOC} ON)
 include(FetchContent)
 FetchContent_Declare(
 	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG e51f02073f6e0b6a2596b2c4e103c45a06de80c1
+	GIT_TAG 03e04c85ba393bbd04219e2a0fdb82b6e2db5528
 )
-FetchContent_GetProperties(cgv)
 FetchContent_MakeAvailable(cgv)
 
 # check optional dependencies
@@ -35,7 +35,7 @@ find_package(OpenMP)
 
 # handle optional dependencies
 if (CUDA_FOUND AND OptiX_INCLUDE AND NOT OptiX_INCLUDE STREQUAL "OptiX_INCLUDE-NOTFOUND")
-	list(APPEND FEATURE_DEFINES "RTX_SUPPORT=1")
+	#list(APPEND FEATURE_DEFINES "RTX_SUPPORT=1")
 else()
 	set(ENABLE_OPTIX_SUPPORT OFF CACHE BOOL ${ENABLE_OPTIX_SUPPORT_DOC} FORCE)
 endif()
@@ -187,6 +187,16 @@ if (NOT OpenMP_CXX_FOUND)
 		DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL message
 		"WARNING: OpenMP development files not found on the system!\n"
 		"         Preprocessing for large datasets will be slow."
+	)
+endif()
+
+# schedule temporary OptiX warning to make sure it will be seen - TODO: remove once ready
+if (ENABLE_OPTIX_SUPPORT)
+	set(ENABLE_OPTIX_SUPPORT OFF CACHE BOOL ${ENABLE_OPTIX_SUPPORT_DOC} FORCE)
+	cmake_language(
+		DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL message
+		"WARNING: OptiX support is pending integration with CMake build system!\n"
+		"         Disabling... use native .pj build on Windows to enable OptiX."
 	)
 endif()
 
