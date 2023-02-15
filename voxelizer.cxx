@@ -284,9 +284,9 @@ void voxelizer::generate_mipmap(cgv::render::context& ctx, GLuint texture_handle
 		mipmap_prog.set_uniform(ctx, "level", (unsigned)i);
 		mipmap_prog.set_uniform(ctx, "output_res", output_res);
 
-		GLuint work_groups_x = unsigned int(ceilf(output_res.x() / 4.0f));
-		GLuint work_groups_y = unsigned int(ceilf(output_res.y() / 4.0f));
-		GLuint work_groups_z = unsigned int(ceilf(output_res.z() / 4.0f));
+		GLuint work_groups_x = (GLuint)ceilf(output_res.x() / 4.0f);
+		GLuint work_groups_y = (GLuint)ceilf(output_res.y() / 4.0f);
+		GLuint work_groups_z = (GLuint)ceilf(output_res.z() / 4.0f);
 
 		glDispatchCompute(work_groups_x, work_groups_y, work_groups_z);
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);

@@ -18,19 +18,19 @@ template <class flt_type>
 struct obd_handler : public traj_format_handler<flt_type>
 {
 	/// real number type
-	typedef traj_format_handler::real real;
+	typedef typename traj_format_handler<flt_type>::real real;
 
 	/// 2D vector type
-	typedef traj_format_handler::Vec2 vec2;
+	typedef typename traj_format_handler<flt_type>::Vec2 vec2;
 
 	/// 3D vector type
-	typedef traj_format_handler::Vec3 vec3;
+	typedef typename traj_format_handler<flt_type>::Vec3 vec3;
 
 	/// 4D vector type
-	typedef traj_format_handler::Vec4 vec4;
+	typedef typename traj_format_handler<flt_type>::Vec4 vec4;
 
 	/// rgb color type
-	typedef traj_format_handler::Color color;
+	typedef typename traj_format_handler<flt_type>::Color color;
 
 	/// reports the known OBD file extensions the handler will claim regardless of content.
 	const std::vector<std::string>& handled_extensions (void) const;
@@ -39,5 +39,5 @@ struct obd_handler : public traj_format_handler<flt_type>
 	virtual bool can_handle (std::istream &contents) const;
 
 	/// parse the given stream containing the file contents and report whether any data was loaded
-	virtual traj_dataset<real> read (std::istream &contents, DatasetOrigin source, const std::string &path);
+	virtual traj_dataset<flt_type> read (std::istream &contents, DatasetOrigin source, const std::string &path);
 };

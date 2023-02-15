@@ -19,19 +19,19 @@ template <class flt_type>
 struct bezdat_handler : public traj_format_handler<flt_type>
 {
 	/// real number type
-	typedef traj_format_handler::real real;
+	typedef typename traj_format_handler<flt_type>::real real;
 
 	/// 2D vector type
-	typedef traj_format_handler::Vec2 Vec2;
+	typedef typename traj_format_handler<flt_type>::Vec2 Vec2;
 
 	/// 3D vector type
-	typedef traj_format_handler::Vec3 Vec3;
+	typedef typename traj_format_handler<flt_type>::Vec3 Vec3;
 
 	/// 4D vector type
-	typedef traj_format_handler::Vec4 Vec4;
+	typedef typename traj_format_handler<flt_type>::Vec4 Vec4;
 
 	/// rgb color type
-	typedef traj_format_handler::Color Color;
+	typedef typename traj_format_handler<flt_type>::Color Color;
 
 	/// reports a list with just "bezdat" in it - the handler will always claim files with this extension
 	const std::vector<std::string>& handled_extensions (void) const;
@@ -40,5 +40,5 @@ struct bezdat_handler : public traj_format_handler<flt_type>
 	bool can_handle (std::istream &contents) const;
 
 	/// parse the given stream containing the .bezdat file contents and report whether any data was loaded
-	traj_dataset<real> read (std::istream &contents, DatasetOrigin source, const std::string &path);
+	traj_dataset<flt_type> read (std::istream &contents, DatasetOrigin source, const std::string &path);
 };

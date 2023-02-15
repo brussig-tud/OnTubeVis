@@ -53,7 +53,7 @@ std::vector<char> compile_cu2ptx (
 		filepath(filename), file_component = filepath.filename().string(),
 		pathcomponent_abs = filepath.is_absolute() ?
 			filepath.parent_path() :
-			std::filesystem::canonical(cwd+"/"+filepath.parent_path().string());
+			std::filesystem::weakly_canonical(cwd+"/"+filepath.parent_path().string());
 	std::string mydir = flipped_backslashes(pathcomponent_abs.string());
 	if (mydir.back() == '/') mydir.pop_back(); // <-- needed for CUDA include paths below
 

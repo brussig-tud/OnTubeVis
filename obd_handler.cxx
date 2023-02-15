@@ -16,7 +16,7 @@
 #include <cgv/utils/advanced_scan.h>
 
 // 3rd party libs
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 #include <peridetic.h>
 #include <WGS84toCartesian.hpp>
 
@@ -242,11 +242,11 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 	};
 
 	// create synchronous attributes
-	auto P = add_attribute<vec3>(ret, OBD_POSITION_ATTRIB_NAME);
-	auto A = add_attribute<flt_type>(ret, OBD_ALTITUDE_ATTRIB_NAME);
-	auto V = add_attribute<flt_type>(ret, OBD_GPSSPEED_ATTRIB_NAME);
-	auto T = add_attribute<flt_type>(ret, OBD_TIME_ATTRIB_NAME); // for now, commiting timestamps as their own attribute is the only way to have them selectable in the layers
-	auto &Ptraj = trajectories(ret, P.attrib);
+	auto P = traj_format_handler<flt_type>::template add_attribute<vec3>(ret, OBD_POSITION_ATTRIB_NAME);
+	auto A = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, OBD_ALTITUDE_ATTRIB_NAME);
+	auto V = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, OBD_GPSSPEED_ATTRIB_NAME);
+	auto T = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, OBD_TIME_ATTRIB_NAME); // for now, commiting timestamps as their own attribute is the only way to have them selectable in the layers
+	auto &Ptraj = traj_format_handler<flt_type>::trajectories(ret, P.attrib);
 
 	// commit samples of each trajectory
 	// - prepare scale factor for mercator-projected cartesian positions
@@ -317,39 +317,39 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 		return traj_dataset<flt_type>(); // discard everything done up to now and just return an invalid dataset
 
 	// non-position trajectory infos
-	trajectories(ret, A.attrib) = Ptraj; // all attributes are sampled in sync with position, so we
-	trajectories(ret, V.attrib) = Ptraj; // can duplicate the trajectory info from the positions to
-	trajectories(ret, T.attrib) = Ptraj; // altitude, speed and time as well
+	traj_format_handler<flt_type>::trajectories(ret, A.attrib) = Ptraj; // all attributes are sampled in sync with position, so we
+	traj_format_handler<flt_type>::trajectories(ret, V.attrib) = Ptraj; // can duplicate the trajectory info from the positions to
+	traj_format_handler<flt_type>::trajectories(ret, T.attrib) = Ptraj; // altitude, speed and time as well
 
 	// invent radii
-	set_avg_segment_length(ret, flt_type(seg_dist_accum/num_segs));
-	auto R = add_attribute<flt_type>(ret, OBD_RADIUS_ATTRIB_NAME);
+	traj_format_handler<flt_type>::set_avg_segment_length(ret, flt_type(seg_dist_accum / num_segs));
+	auto R = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, OBD_RADIUS_ATTRIB_NAME);
 	R.data.values = std::vector<flt_type>(P.data.num(), ret.avg_segment_length()*real(0.125));
 	R.data.timestamps = P.data.timestamps;
-	trajectories(ret, R.attrib) = Ptraj;	// invented radius "samples" are again in sync with positions, so just copy traj info
+	traj_format_handler<flt_type>::trajectories(ret, R.attrib) = Ptraj; // invented radius "samples" are again in sync with positions, so just copy traj info
 
 	// commit async attributes
 	// ToDo: THIS ASSUMES THERE CAN ONLY EVER BE ONE TRAJECTORY IN AN OBD FILE!!! (which all evidence points to)
 	for (const auto &e : float_series)
 	{
-		auto F = add_attribute<flt_type>(ret, e.first);
+		auto F = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, e.first);
 		for (const auto &f : e.second)
 			F.data.append(f.value, convert_time(f.timestamp));
-		trajectories(ret, F.attrib).emplace_back(range{0, (unsigned)e.second.size()});
+		traj_format_handler<flt_type>::trajectories(ret, F.attrib).emplace_back(range{0, (unsigned)e.second.size()});
 	}
 	for (const auto &e : int_series)
 	{
-		auto I = add_attribute<flt_type>(ret, e.first);
+		auto I = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, e.first);
 		for (const auto &i : e.second)
 			I.data.append((flt_type)i.value, convert_time(i.timestamp));
-		trajectories(ret, I.attrib).emplace_back(range{0, (unsigned)e.second.size()});
+		traj_format_handler<flt_type>::trajectories(ret, I.attrib).emplace_back(range{0, (unsigned)e.second.size()});
 	}
 	for (const auto &e : bool_series)
 	{
-		auto B = add_attribute<flt_type>(ret, e.first);
+		auto B = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, e.first);
 		for (const auto &b : e.second)
 			B.data.append((flt_type)b.value, convert_time(b.timestamp));
-		trajectories(ret, B.attrib).emplace_back(range{0, (unsigned)e.second.size()});
+		traj_format_handler<flt_type>::trajectories(ret, B.attrib).emplace_back(range{0, (unsigned)e.second.size()});
 	}
 
 	// visual attribute mapping

@@ -235,32 +235,32 @@ struct csv_handler<flt_type>::Impl
 		{
 			case AttribType::SCALAR:
 			{
-				auto &dst_data = dest.get_data<real>();
-				const auto &src_data = src.get_data<real>();
+				auto &dst_data = dest.template get_data<real>();
+				const auto &src_data = src.template get_data<real>();
 				std::copy(src_data.values.begin(), src_data.values.end(), std::back_inserter(dst_data.values));
 				std::copy(src_data.timestamps.begin(), src_data.timestamps.end(), std::back_inserter(dst_data.timestamps));
 				break;
 			}
 			case AttribType::VEC2:
 			{
-				auto &dst_data = dest.get_data<Vec2>();
-				const auto &src_data = src.get_data<Vec2>();
+				auto &dst_data = dest.template get_data<Vec2>();
+				const auto &src_data = src.template get_data<Vec2>();
 				std::copy(src_data.values.begin(), src_data.values.end(), std::back_inserter(dst_data.values));
 				std::copy(src_data.timestamps.begin(), src_data.timestamps.end(), std::back_inserter(dst_data.timestamps));
 				break;
 			}
 			case AttribType::VEC3:
 			{
-				auto &dst_data = dest.get_data<Vec3>();
-				const auto &src_data = src.get_data<Vec3>();
+				auto &dst_data = dest.template get_data<Vec3>();
+				const auto &src_data = src.template get_data<Vec3>();
 				std::copy(src_data.values.begin(), src_data.values.end(), std::back_inserter(dst_data.values));
 				std::copy(src_data.timestamps.begin(), src_data.timestamps.end(), std::back_inserter(dst_data.timestamps));
 				break;
 			}
 			case AttribType::VEC4:
 			{
-				auto &dst_data = dest.get_data<Vec4>();
-				const auto &src_data = src.get_data<Vec4>();
+				auto &dst_data = dest.template get_data<Vec4>();
+				const auto &src_data = src.template get_data<Vec4>();
 				std::copy(src_data.values.begin(), src_data.values.end(), std::back_inserter(dst_data.values));
 				std::copy(src_data.timestamps.begin(), src_data.timestamps.end(), std::back_inserter(dst_data.timestamps));
 				break;
@@ -546,7 +546,7 @@ const std::vector<std::string>& csv_handler<flt_type>::handled_extensions (void)
 {
 	// for now, we don't claim any file extensions
 	// ToDo: add option to csv_descriptor to specify file extensions, which will then be reported to callers here
-	return traj_format_handler::handled_extensions();
+	return traj_format_handler<flt_type>::handled_extensions();
 }
 
 template <class flt_type>
@@ -633,7 +633,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	// route .csv file columns to declared attributes
 	const auto &props = impl.csv_desc.properties();
 	const auto &csv_attribs = impl.csv_desc.attributes();
-	std::vector<Impl::declared_attrib> declared_attribs;
+	std::vector<typename Impl::declared_attrib> declared_attribs;
 	declared_attribs.reserve(csv_attribs.size());
 	int timestamp_id = -1;
 	if (props.header)
@@ -685,7 +685,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		}
 	}
 	// route remaining .csv file columns to undeclared attributes
-	std::vector<Impl::undeclared_attrib> undeclared_attribs;
+	std::vector<typename Impl::undeclared_attrib> undeclared_attribs;
 	undeclared_attribs.reserve(undeclared_cols.size());
 	for (unsigned i : undeclared_cols)
 	{
@@ -745,13 +745,13 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		}
 
 		// make sure position traj exists for various kinds of forward queries
-		auto &P = Impl::ensure_traj(declared_attribs[props.pos_id].trajs, traj_id, 3).get_data<Vec3>().values;
+		auto &P = Impl::ensure_traj(declared_attribs[props.pos_id].trajs, traj_id, 3).template get_data<Vec3>().values;
 
 		// commit timestamp as actual data point if present
 		if(timestamp_id > -1) {
 			auto &ts_csv = declared_attribs[timestamp_id];
 			auto &ts_attrib = Impl::ensure_traj(ts_csv.trajs, traj_id, 1);
-			ts_attrib.get_data<real>().append(t, t);
+			ts_attrib.template get_data<real>().append(t, t);
 		} else {
 			t = (flt_type)P.size();
 		}
@@ -768,7 +768,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 				case 1:
 				{
 					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 1);
-					a.get_data<real>().append(
+					a.template get_data<real>().append(
 						Impl::parse_field(fields[attrib.field_ids.front()]), t
 					);
 					continue;
@@ -777,8 +777,8 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 				case 2:
 				{
 					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 2);
-					a.get_data<Vec2>().append(
-						std::move(Impl::parse_fields<2>(fields, attrib.field_ids)), t
+					a.template get_data<Vec2>().append(
+						std::move(Impl::template parse_fields<2>(fields, attrib.field_ids)), t
 					);
 					continue;
 				}
@@ -786,8 +786,8 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 				case 3:
 				{
 					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 3);
-					a.get_data<Vec3>().append(
-						std::move(Impl::parse_fields<3>(fields, attrib.field_ids)), t
+					a.template get_data<Vec3>().append(
+						std::move(Impl::template parse_fields<3>(fields, attrib.field_ids)), t
 					);
 					nothing_loaded = false; // this is guaranteed to capture the position attribute, since positions are always Vec3
 					continue;
@@ -796,8 +796,8 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 				case 4:
 				{
 					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 4);
-					a.get_data<Vec4>().append(
-						std::move(Impl::parse_fields<4>(fields, attrib.field_ids)), t
+					a.template get_data<Vec4>().append(
+						std::move(Impl::template parse_fields<4>(fields, attrib.field_ids)), t
 					);
 					continue;
 				}
@@ -811,7 +811,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		for (auto &attrib : undeclared_attribs)
 		{
 			auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 1);
-			a.get_data<real>().append(Impl::parse_field(fields[attrib.field_id]), t);
+			a.template get_data<real>().append(Impl::parse_field(fields[attrib.field_id]), t);
 		}
 
 		// update segment length counter
@@ -844,8 +844,8 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 			Impl::concat_attribute_containers(attr.ds_attrib, traj_attrib);
 		}
 		// commit to dataset
-		trajectories(ret, attr.ds_attrib) = std::move(ds_trajs);
-		attributes(ret).emplace(attr.desc.name, std::move(attr.ds_attrib));
+		traj_format_handler<flt_type>::trajectories(ret, attr.ds_attrib) = std::move(ds_trajs);
+		traj_format_handler<flt_type>::attributes(ret).emplace(attr.desc.name, std::move(attr.ds_attrib));
 	}
 	for (auto &attr : undeclared_attribs)
 	{
@@ -864,11 +864,11 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 			Impl::concat_attribute_containers(attr.ds_attrib, traj_attrib);
 		}
 		// commit to dataset
-		trajectories(ret, attr.ds_attrib) = std::move(ds_trajs);
-		attributes(ret).emplace(attr.name, std::move(attr.ds_attrib));
+		traj_format_handler<flt_type>::trajectories(ret, attr.ds_attrib) = std::move(ds_trajs);
+		traj_format_handler<flt_type>::attributes(ret).emplace(attr.name, std::move(attr.ds_attrib));
 	}
 	// prepare invented radii
-	auto R = add_attribute<real>(ret, "radius");
+	auto R = traj_format_handler<flt_type>::template add_attribute<real>(ret, "radius");
 
 	// set visual mapping
 	visual_attribute_mapping<real> vamap(impl.vmap_hints);
@@ -879,16 +879,16 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	ret.set_mapping(std::move(vamap));
 
 	// determine remaining stats
-	const auto &P = positions(ret);
+	const auto &P = traj_format_handler<flt_type>::positions(ret);
 	const unsigned
 		num_samples = P.data.num(),
-		num_segs = std::max<int>(num_samples - (unsigned)trajectories(ret, P.attrib).size(), 1);
-	set_avg_segment_length(ret, real(dist_accum / double(num_segs)));
+		num_segs = std::max<int>(num_samples - (unsigned)traj_format_handler<flt_type>::trajectories(ret, P.attrib).size(), 1);
+	traj_format_handler<flt_type>::set_avg_segment_length(ret, real(dist_accum / double(num_segs)));
 
 	// invent radii now that all stats are known
 	R.data.values = std::vector<real>(num_samples, ret.avg_segment_length()*real(0.25));
 	R.data.timestamps = P.data.timestamps;
-	trajectories(ret, R.attrib) = trajectories(ret, P.attrib);
+	traj_format_handler<flt_type>::trajectories(ret, R.attrib) = traj_format_handler<flt_type>::trajectories(ret, P.attrib);
 
 	// print stats
 	const unsigned num_trajs = (unsigned)declared_attribs[props.pos_id].trajs.size();

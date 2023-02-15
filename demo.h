@@ -26,8 +26,8 @@ struct demo : public traj_format_handler<float>
 	inline static const std::string ATTRIB_RADIUS = "radius";
 	inline static const std::string ATTRIB_COLOR = "color";
 
-	inline static const auto uni_0or1 = std::uniform_int_distribution<int>(0, 1);
-	inline static const auto uni_0to1 = std::uniform_real_distribution<float>(0, 1);
+	inline static auto uni_0or1 = std::uniform_int_distribution<int>(0, 1);
+	inline static auto uni_0to1 = std::uniform_real_distribution<float>(0, 1);
 
 	/// a single demo trajectory
 	struct trajectory
@@ -335,7 +335,7 @@ struct demo : public traj_format_handler<float>
 		return std::move(traj);
 	}
 
-	static typename traj_dataset<float> compile_dataset (const std::vector<trajectory> &trajectories)
+	static traj_dataset<float> compile_dataset (const std::vector<trajectory> &trajectories)
 	{
 		// our static visual attribute mapping
 		static const visual_attribute_mapping<float> attrmap({
@@ -344,7 +344,7 @@ struct demo : public traj_format_handler<float>
 		});
 
 		// prepare dataset
-		typename traj_dataset<float> ds("Fuzzball", "DEMO");
+		traj_dataset<float> ds("Fuzzball", "DEMO");
 		std::vector<range>
 			ds_trajs,
 			ds_trajs_scalar,
@@ -357,20 +357,20 @@ struct demo : public traj_format_handler<float>
 			ds_trajs_vec3,
 			ds_trajs_vec4;
 		// - create geometry attributes
-		auto &P = add_attribute<Vec3>(ds, ATTRIB_POSITION);
-		auto &T = add_attribute<Vec4>(ds, ATTRIB_TANGENT);
-		auto &R = add_attribute<real>(ds, ATTRIB_RADIUS);
-		auto &C = add_attribute<Vec3>(ds, ATTRIB_COLOR);
+		auto P = add_attribute<Vec3>(ds, ATTRIB_POSITION);
+		auto T = add_attribute<Vec4>(ds, ATTRIB_TANGENT);
+		auto R = add_attribute<real>(ds, ATTRIB_RADIUS);
+		auto C = add_attribute<Vec3>(ds, ATTRIB_COLOR);
 		// - create free attributes
-		auto &attrib_scalar = add_attribute<real>(ds, "scalar");
-		auto &attrib_scalar1 = add_attribute<real>(ds, "scalar1");
-		auto &attrib_scalar2 = add_attribute<real>(ds, "scalar2");
-		auto &attrib_scalar2_1 = add_attribute<real>(ds, "scalar2_1");
-		auto &attrib_scalar2_2 = add_attribute<real>(ds, "scalar2_2");
-		auto &attrib_scalar3 = add_attribute<real>(ds, "scalar3");
-		auto &attrib_vec2 = add_attribute<Vec2>(ds, "vec2");
-		auto &attrib_vec3 = add_attribute<Vec3>(ds, "vec3");
-		auto &attrib_vec4 = add_attribute<Vec4>(ds, "vec4");
+		auto attrib_scalar = add_attribute<real>(ds, "scalar");
+		auto attrib_scalar1 = add_attribute<real>(ds, "scalar1");
+		auto attrib_scalar2 = add_attribute<real>(ds, "scalar2");
+		auto attrib_scalar2_1 = add_attribute<real>(ds, "scalar2_1");
+		auto attrib_scalar2_2 = add_attribute<real>(ds, "scalar2_2");
+		auto attrib_scalar3 = add_attribute<real>(ds, "scalar3");
+		auto attrib_vec2 = add_attribute<Vec2>(ds, "vec2");
+		auto attrib_vec3 = add_attribute<Vec3>(ds, "vec3");
+		auto attrib_vec4 = add_attribute<Vec4>(ds, "vec4");
 
 		// compile
 		unsigned idx=0, idx_base=0, num_segs=0;

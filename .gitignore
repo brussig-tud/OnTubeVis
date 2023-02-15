@@ -1,3 +1,7 @@
+
+# CMake in-source build
+/build
+
 # Prerequisites
 *.d
 
@@ -34,5 +38,7 @@
 # CGV framework stuff
 config.cfg
 
-#Source folders
-export/
+# IDE folders
+.vs
+.vscode
+.idea

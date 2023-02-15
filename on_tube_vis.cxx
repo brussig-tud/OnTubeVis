@@ -2940,10 +2940,11 @@ cgv::base::registration_order_definition ro_def("stereo_view_interactor;tubes");
 	#include <OnTubeVis_shader_inc.h>
 #endif
 
-// Force the usage of the discrete Nvidia graphics card.
-// This is needed for systems with Nvidia Optimus technology.
-#define NOMINMAX
-#include <windows.h>
-extern "C" {
-	_declspec(dllexport) DWORD NvOptimusEnablement = true;
-}
+// Try to force the usage of the discrete Nvidia graphics card on Windows.
+// This probably only works on single executable builds.
+#if defined(_WIN32) || defined(WIN32)
+	#include <windows.h>
+	extern "C" {
+		_declspec(dllexport) DWORD NvOptimusEnablement = true;
+	}
+#endif

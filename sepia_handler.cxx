@@ -434,9 +434,9 @@ struct sepia_handler<flt_type>::Impl {
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
 		bool val;
-		if (str_lower.compare("betaetigt")==0 || str_lower.compare("betätigt")==0)
+		if (str_lower.compare("betaetigt")==0 || str_lower.compare("betï¿½tigt")==0)
 			val = true;
-		else if (str_lower.compare("nicht betaetigt")==0 || str_lower.compare("nicht betätigt")==0)
+		else if (str_lower.compare("nicht betaetigt")==0 || str_lower.compare("nicht betï¿½tigt")==0)
 			val = false;
 		else
 			throw std::invalid_argument("string contains no known representation for 'betaetigt' or 'nicht betaetigt'");
@@ -449,7 +449,7 @@ struct sepia_handler<flt_type>::Impl {
 		const std::string str_lower(cgv::utils::to_lower(str));
 		bool val;
 		// ToDo: find out what the flip the proper terms used by SePIA for an engaged handbrake are...
-		if (str_lower.compare("gezogen")==0 || str_lower.compare("angezogen")==0 || str_lower.compare("betaetigt")==0 || str_lower.compare("betätigt")==0)
+		if (str_lower.compare("gezogen")==0 || str_lower.compare("angezogen")==0 || str_lower.compare("betaetigt")==0 || str_lower.compare("betï¿½tigt")==0)
 			val = true;
 		else if (str_lower.compare("geloest") == 0)
 			val = false;
@@ -659,12 +659,12 @@ struct sepia_handler<flt_type>::Impl {
 	}
 	template <>
 	inline static bool traj_parse_prop(
-		typename sepia_traj_prop<typename trajectory<real>::gpsvec> *out, const char* name, const std::vector<std::string> &fields, const std::string &line
+		sepia_traj_prop<typename trajectory<real>::gpsvec> *out, const char* name, const std::vector<std::string> &fields, const std::string &line
 	) noexcept
 	{
 		if (cgv::utils::to_lower(fields[0]).compare(cgv::utils::to_lower(name)) == 0)
 		{
-			trajectory<real>::gpsvec::value_type c0, c1;
+			typename trajectory<real>::gpsvec::value_type c0, c1;
 			if (fields.size() >= 4 && parse_value(&c0, fields[2]) && parse_value(&c1, fields[3]))
 			{
 				out->val.set(c0, c1);
@@ -784,7 +784,7 @@ struct sepia_handler<flt_type>::Impl {
 
 		// properties
 		sepia_traj_prop<double_time> time0, timeN;
-		sepia_traj_prop<trajectory<real>::gpsvec> gps0, gpsN;
+		sepia_traj_prop<typename trajectory<real>::gpsvec> gps0, gpsN;
 
 		// trajectory properties
 		while (   !contents.eof()
@@ -1223,8 +1223,8 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 
 		// unify into common attribute trajectory structure
 		// - positions
-		auto P = add_attribute<Vec3>(ret, SEPIA_POSITION_ATTRIB_NAME);
-		auto &Ptraj = trajectories(ret, P.attrib);
+		auto P = traj_format_handler<flt_type>::template add_attribute<Vec3>(ret, SEPIA_POSITION_ATTRIB_NAME);
+		auto &Ptraj = traj_format_handler<flt_type>::trajectories(ret, P.attrib);
 		real seg_dist_accum = 0;
 		unsigned num_segs = 0;
 		for (const auto &traj : trajs)
@@ -1250,12 +1250,12 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 			}
 			Ptraj.emplace_back(range{offset, (unsigned)traj.gps.size()});
 		}
-		set_avg_segment_length(ret, seg_dist_accum / num_segs);
+		traj_format_handler<flt_type>::set_avg_segment_length(ret, seg_dist_accum / num_segs);
 		// - scalar attributes
 		for (const auto &aname : consistent_scalar_attribs)
 		{
-			auto A = add_attribute<real>(ret, aname);
-			auto &Atraj = trajectories(ret, A.attrib);
+			auto A = traj_format_handler<flt_type>::template add_attribute<real>(ret, aname);
+			auto &Atraj = traj_format_handler<flt_type>::trajectories(ret, A.attrib);
 			if (aname.compare(SEPIA_TIME_ATTRIB_NAME)) for (auto &traj : trajs)
 			{
 				const unsigned offset = A.data.num();
@@ -1276,8 +1276,8 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 		// - vec3 attributes
 		for (const auto &aname : consistent_vec3_attribs)
 		{
-			auto A = add_attribute<Vec3>(ret, aname);
-			auto &Atraj = trajectories(ret, A.attrib);
+			auto A = traj_format_handler<flt_type>::template add_attribute<Vec3>(ret, aname);
+			auto &Atraj = traj_format_handler<flt_type>::trajectories(ret, A.attrib);
 			for (auto &traj : trajs)
 			{
 				const unsigned offset = A.data.num();
@@ -1288,10 +1288,10 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 			}
 		}
 		// - invent radii
-		auto R = add_attribute<real>(ret, SEPIA_RADIUS_ATTRIB_NAME);
+		auto R = traj_format_handler<flt_type>::template add_attribute<real>(ret, SEPIA_RADIUS_ATTRIB_NAME);
 		R.data.values = std::vector<real>(P.data.num(), ret.avg_segment_length()*real(0.125));
 		R.data.timestamps = P.data.timestamps;
-		trajectories(ret, R.attrib) = trajectories(ret, P.attrib);
+		traj_format_handler<flt_type>::trajectories(ret, R.attrib) = traj_format_handler<flt_type>::trajectories(ret, P.attrib);
 		// - visual attribute mapping
 		ret.set_mapping(Impl::attrmap);
 	}

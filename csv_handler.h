@@ -139,7 +139,7 @@ public:
 			inline column& operator= (column &&other)
 			{
 				name = std::move(other.name);
-				case_sensitive = case_sensitive;
+				case_sensitive = other.case_sensitive;
 				number = other.number;
 				return *this;
 			}
@@ -319,19 +319,19 @@ class csv_handler : public traj_format_handler<flt_type>
 public:
 
 	/// real number type
-	typedef traj_format_handler::real real;
+	typedef typename traj_format_handler<flt_type>::real real;
 
 	/// 2D vector type
-	typedef traj_format_handler::Vec2 Vec2;
+	typedef typename traj_format_handler<flt_type>::Vec2 Vec2;
 
 	/// 3D vector type
-	typedef traj_format_handler::Vec3 Vec3;
+	typedef typename traj_format_handler<flt_type>::Vec3 Vec3;
 
 	/// 4D vector type
-	typedef traj_format_handler::Vec4 Vec4;
+	typedef typename traj_format_handler<flt_type>::Vec4 Vec4;
 
 	/// rgb color type
-	typedef traj_format_handler::Color Color;
+	typedef typename traj_format_handler<flt_type>::Color Color;
 
 
 private:
@@ -378,7 +378,7 @@ public:
 	virtual bool can_handle (std::istream &contents) const;
 
 	/// parse the given stream containing the .csv file contents and report whether any data was loaded
-	virtual traj_dataset<real> read (std::istream &contents, DatasetOrigin source, const std::string &path);
+	virtual traj_dataset<flt_type> read (std::istream &contents, DatasetOrigin source, const std::string &path);
 
 	/// Check if a given csv description is valid. Note that this only performs superficial checks that are computationally
 	/// cheap - does not catch all inconsistencies possible in a \ref csv_descriptor !

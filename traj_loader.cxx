@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <atomic>
 #include <utility>
+#include <memory>
 
 // CGV framework core
 #include <cgv/base/base.h>
@@ -887,28 +888,28 @@ struct visual_attribute_mapping<flt_type>::Impl
 	unsigned mapped_flags;
 
 	/// helper methods
-	Impl() : use_color_mapping(false), mapped_flags(NULL) {}
+	Impl() : use_color_mapping(false), mapped_flags(0) {}
 	Impl(const Impl *other)
 		: attrmap(other->attrmap), use_color_mapping(other->use_color_mapping), cm(other->cm),
 		  mapped_flags(other->mapped_flags)
 	{}
 	Impl(const std::map<VisualAttrib, attrib_reference> &mapping)
-		: attrmap(mapping), use_color_mapping(false), mapped_flags(NULL)
+		: attrmap(mapping), use_color_mapping(false), mapped_flags(0)
 	{
 		setup_mapped_flags(mapping);
 	}
 	Impl(std::map<VisualAttrib, attrib_reference> &&mapping)
-		: attrmap(std::move(mapping)), use_color_mapping(false), mapped_flags(NULL)
+		: attrmap(std::move(mapping)), use_color_mapping(false), mapped_flags(0)
 	{
 		setup_mapped_flags(attrmap);
 	}
 	Impl(const std::map<VisualAttrib, attrib_reference> &mapping, const colormap &cm)
-		: attrmap(mapping), use_color_mapping(true), cm(cm), mapped_flags(NULL)
+		: attrmap(mapping), use_color_mapping(true), cm(cm), mapped_flags(0)
 	{
 		setup_mapped_flags(mapping);
 	}
 	Impl(std::map<VisualAttrib, attrib_reference> &&mapping, const colormap &cm)
-		: attrmap(std::move(mapping)), use_color_mapping(true), cm(cm), mapped_flags(NULL)
+		: attrmap(std::move(mapping)), use_color_mapping(true), cm(cm), mapped_flags(0)
 	{
 		setup_mapped_flags(attrmap);
 	}
@@ -1089,7 +1090,7 @@ struct traj_dataset<flt_type>::Impl
 
 	// fields
 	std::string name, data_source;
-	typename traj_attribute<flt_type> *positions;
+	traj_attribute<flt_type> *positions;
 	attribute_map<flt_type> attribs;
 	std::unordered_map<unsigned, std::vector<range>> trajs;
 	std::vector<range> empty_default_trajectories;
@@ -1195,7 +1196,7 @@ std::string& traj_dataset<flt_type>::data_source (void)
 }
 
 template <class flt_type>
-traj_dataset<flt_type>::attrib_info<typename traj_dataset<flt_type>::Vec3> traj_dataset<flt_type>::positions (void)
+typename traj_dataset<flt_type>::template attrib_info<typename traj_dataset<flt_type>::Vec3> traj_dataset<flt_type>::positions (void)
 {
 	return attrib_info<Vec3>(*pimpl->positions);
 }
@@ -1207,7 +1208,7 @@ flt_type* traj_dataset<flt_type>::timestamps (void)
 }
 
 template <class flt_type>
-typename attribute_map<flt_type>& traj_dataset<flt_type>::attributes (void)
+attribute_map<flt_type>& traj_dataset<flt_type>::attributes(void)
 {
 	return pimpl->attribs;
 }
@@ -1245,7 +1246,7 @@ const std::string& traj_dataset<flt_type>::data_source (void) const
 }
 
 template <class flt_type>
-const traj_dataset<flt_type>::attrib_info<typename traj_dataset<flt_type>::Vec3> traj_dataset<flt_type>::positions (void) const
+const typename traj_dataset<flt_type>::template attrib_info<typename traj_dataset<flt_type>::Vec3> traj_dataset<flt_type>::positions (void) const
 {
 	return typename traj_dataset<flt_type>::attrib_info<Vec3>(*pimpl->positions);
 }
@@ -1263,7 +1264,7 @@ std::vector<std::string> traj_dataset<flt_type>::get_attribute_names (void) cons
 	std::vector<std::string> names;
 	std::transform(
 		impl.attribs.begin(), impl.attribs.end(), std::back_inserter(names),
-		[](const attribute_map<real>::value_type &elem) { return elem.first; }
+		[](const typename attribute_map<real>::value_type &elem) { return elem.first; }
 	);
 	return names;
 }
@@ -1354,7 +1355,7 @@ const visual_attribute_mapping<flt_type>& traj_dataset<flt_type>::mapping (void)
 // Class implementation - traj_format_handler
 
 template <class flt_type>
-traj_dataset<flt_type>::attrib_info<typename traj_dataset<flt_type>::Vec3> traj_format_handler<flt_type>::positions (traj_dataset<real> &dataset)
+typename traj_dataset<flt_type>::template attrib_info<typename traj_dataset<flt_type>::Vec3> traj_format_handler<flt_type>::positions (traj_dataset<real> &dataset)
 {
 	return dataset.positions();
 }
@@ -1476,7 +1477,7 @@ struct traj_manager<flt_type>::Impl
 			const auto &attrib = dataset.attribute(match.attrib_name);
 			if (ref.transform.is_identity())
 			{
-				const auto &data = attrib.get_data<T>();
+				const auto &data = attrib.template get_data<T>();
 				out->reserve(out->size() + data.num());
 				out->insert(out->end(), data.begin(), data.end());
 			}
@@ -1484,7 +1485,7 @@ struct traj_manager<flt_type>::Impl
 			{
 				case AttribType::SCALAR:
 				{
-					const auto &data = attrib.get_data<real>();
+					const auto &data = attrib.template get_data<real>();
 					out->reserve(out->size() + data.num());
 					for (unsigned i=0; i<data.num(); i++)
 					{
@@ -1495,7 +1496,7 @@ struct traj_manager<flt_type>::Impl
 				}
 				case AttribType::VEC2:
 				{
-					const auto &data = attrib.get_data<Vec2>();
+					const auto &data = attrib.template get_data<Vec2>();
 					out->reserve(out->size() + data.num());
 					for (unsigned i=0; i<data.num(); i++)
 					{
@@ -1506,7 +1507,7 @@ struct traj_manager<flt_type>::Impl
 				}
 				case AttribType::VEC3:
 				{
-					const auto &data = attrib.get_data<Vec3>();
+					const auto &data = attrib.template get_data<Vec3>();
 					out->reserve(out->size() + data.num());
 					for (unsigned i=0; i<data.num(); i++)
 					{
@@ -1517,7 +1518,7 @@ struct traj_manager<flt_type>::Impl
 				}
 				case AttribType::VEC4:
 				{
-					const auto &data = attrib.get_data<Vec4>();
+					const auto &data = attrib.template get_data<Vec4>();
 					out->reserve(out->size() + data.num());
 					for (unsigned i=0; i<data.num(); i++)
 					{
@@ -1611,7 +1612,7 @@ struct traj_manager<flt_type>::Impl
 			const auto &attrib = dataset.attribute(match.attrib_name);
 			if (ref.transform.is_identity())
 			{
-				const auto &data = attrib.get_data<Vec3>();
+				const auto &data = attrib.template get_data<Vec3>();
 				out->reserve(out->size() + data.num());
 				std::transform(
 					data.begin(), data.end(), std::back_inserter(*out),
@@ -1622,7 +1623,7 @@ struct traj_manager<flt_type>::Impl
 			{
 				case AttribType::SCALAR:
 				{
-					const auto &data = attrib.get_data<real>();
+					const auto &data = attrib.template get_data<real>();
 					out->reserve(out->size() + data.num());
 					if (mapping.uses_colormap())
 					{
@@ -1646,7 +1647,7 @@ struct traj_manager<flt_type>::Impl
 				}
 				case AttribType::VEC2:
 				{
-					const auto &data = attrib.get_data<Vec2>();
+					const auto &data = attrib.template get_data<Vec2>();
 					out->reserve(out->size() + data.num());
 					std::transform(
 						data.begin(), data.end(), std::back_inserter(*out),
@@ -1656,7 +1657,7 @@ struct traj_manager<flt_type>::Impl
 				}
 				case AttribType::VEC3:
 				{
-					const auto &data = attrib.get_data<Vec3>();
+					const auto &data = attrib.template get_data<Vec3>();
 					out->reserve(out->size() + data.num());
 					std::transform(
 						data.begin(), data.end(), std::back_inserter(*out),
@@ -1666,7 +1667,7 @@ struct traj_manager<flt_type>::Impl
 				}
 				case AttribType::VEC4:
 				{
-					const auto &data = attrib.get_data<Vec4>();
+					const auto &data = attrib.template get_data<Vec4>();
 					out->reserve(out->size() + data.num());
 					std::transform(
 						data.begin(), data.end(), std::back_inserter(*out),
@@ -1803,7 +1804,7 @@ bool traj_manager<flt_type>::can_load (const std::string &path) const
 	// test if we find a suitable handler
 	auto &handlers = trajectory_handler_registry<real>::handlers();
 	for (auto &h : handlers)
-		if (h->get_interface<traj_format_handler<flt_type> >()->can_handle_file(ext, file))
+		if (h->template get_interface<traj_format_handler<flt_type>>()->can_handle_file(ext, file))
 			// yes we can...
 			return true;
 	// no we can't...
@@ -1844,7 +1845,7 @@ unsigned traj_manager<flt_type>::load (const std::string &path)
 		stream_pos_guard g(file);
 
 		// delegate to handler
-		auto h = _h->get_interface<traj_format_handler<flt_type> >();
+		auto h = _h->template get_interface<traj_format_handler<flt_type>>();
 		if (h->can_handle_file(ext, file))
 		{
 			new_dataset = h->read(file, DOrig::FILE, path);
@@ -1967,10 +1968,10 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 					impl.rd.indices.push_back(impl.rd.indices.back());
 				traj_ranges.emplace_back(range{idx_traj_offset, (unsigned)impl.rd.indices.size()-idx_traj_offset});
 			}
-			impl.rd.datasets.emplace_back(render_data::dataset{
+			impl.rd.datasets.emplace_back(typename traj_manager<flt_type>::render_data::dataset(
 				/* full dataset range */ { idx_base, (unsigned)impl.rd.indices.size()-idx_base },
 				/* individual trajectory ranges*/ std::move(traj_ranges)
-			});
+			));
 			auto &ds_info = impl.rd.datasets.back();
 
 			// copy mapped attributes, applying the desired transformations (if any)

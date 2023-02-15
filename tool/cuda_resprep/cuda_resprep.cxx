@@ -9,6 +9,7 @@
 #include <sstream>
 #include <algorithm>
 #include <filesystem>
+#include <regex>
 
 
 
@@ -40,25 +41,38 @@ int main (int argc, char** argv)
 
 		// build nvcc command line
 		// - base invocation
-		std::stringstream cmd;
-		cmd << '"'<<nvcc<<"\" " << infile <<' '<< "-o="<<ptxfile;
+		std::stringstream cmd_part1, cmd_part2;
+		cmd_part1 << '"'<<infile<<"\" " << "-o=\""<<ptxfile<<'"';
 		// - forward additional options
 		for (int i=4; i<argc; i++)
-			cmd << ' '<<argv[i];
+			// TODO: support other NVCC options that take paths as input
+			if (std::strlen(argv[i]) > 2 && argv[i][0]=='-' && argv[i][1]=='I')
+			{
+				std::string path(argv[i] + 2);
+				std::replace(path.begin(), path.end(), '\\', '/');
+				cmd_part2 << " -I\""<<path<<"\"";
+			}
+			else
+				cmd_part2 << ' '<<argv[i];
 
 		// invoke nvcc
-		std::cout << "NVCC command:"<<std::endl<<"  "<<cmd.str() << std::endl;
-		int exitcode = system(cmd.str().c_str());
+		std::cout << "NVCC command:"<<std::endl<<"  " << nvcc <<' '<< cmd_part1.str() << cmd_part2.str() << std::endl;
+		// - compose final command with quotes escaped
+		std::string escaped_args_str = std::regex_replace(cmd_part2.str(), std::regex("\""), "\\\"");
+		std::stringstream cmd_final;
+		cmd_final << nvcc <<' '<< cmd_part1.str() << cmd_part2.str();
+		// - dispatch NVCC call
+		int exitcode = system(cmd_final.str().c_str());
 		if (exitcode != 0)
-			return 0;
+			return exitcode;
 
 		// invoke res_prep
 		// - build command line
-		cmd.clear(); cmd.str("");
-		cmd << "res_prep " << ptxfile <<' '<< outfile;
-		std::cout << std::endl<<"res_prep command:"<<std::endl<<"  "<<cmd.str() << std::endl;
+		cmd_final.clear(); cmd_final.str("");
+		cmd_final << "res_prep " << "\""<<ptxfile<<"\" \""<<outfile<<"\"";
+		std::cout << std::endl<<"res_prep command:"<<std::endl<<"  "<< cmd_final.str() << std::endl;
 		// - invoke
-		exitcode = system(cmd.str().c_str());
+		exitcode = system(cmd_final.str().c_str());
 
 		// done!
 		return exitcode;
