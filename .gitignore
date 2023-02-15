@@ -34,5 +34,9 @@
 # CGV framework stuff
 config.cfg
 
-#Source folders
+# Source folders
 export/
+
+# IDE folders
+*.vs
+*.vscode
