@@ -5,7 +5,7 @@ project(OnTubeVis)
 # preset CGV Framework options
 option(CGV_BUILD_WITH_AUDIO OFF)
 option(CGV_BUILD_EXAMPLES OFF)
-set(CGV_CPPSTD17 OFF CACHE BOOL "" FORCE) # FIXME: C++17 implementation of cgv_utils (using std::filesystem) is currently broken!
+set(CGV_STDCPP17 OFF CACHE BOOL "" FORCE) # FIXME: C++17 implementation of cgv_utils (using std::filesystem) is currently broken!
 
 # OnTubeVis options
 set(ENABLE_OPTIX_SUPPORT_DOC "Build with support for hardware raytracing using NVIDIA OptiX")
