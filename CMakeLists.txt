@@ -2,13 +2,10 @@ cmake_minimum_required(VERSION 3.20)
 
 project(OnTubeVis)
 
-# general prerequisites
-set(CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 # preset CGV Framework options
 option(CGV_BUILD_WITH_AUDIO OFF)
 option(CGV_BUILD_EXAMPLES OFF)
+set(CGV_CPPSTD17 OFF CACHE BOOL "" FORCE) # FIXME: C++17 implementation of cgv_utils (using std::filesystem) is currently broken!
 
 # OnTubeVis options
 set(ENABLE_OPTIX_SUPPORT_DOC "Build with support for hardware raytracing using NVIDIA OptiX")
@@ -203,12 +200,9 @@ endif()
 # make sure we can compile
 target_compile_features(OnTubeVis PUBLIC cxx_std_17)
 target_compile_features(OnTubeVis_static PUBLIC cxx_std_17)
-set_target_properties(OnTubeVis PROPERTIES CXX_STANDARD 17)
-set_target_properties(OnTubeVis_static PROPERTIES CXX_STANDARD 17)
-set_target_properties(OnTubeVis PROPERTIES CXX_STANDARD_REQUIRED ON)
-set_target_properties(OnTubeVis_static PROPERTIES CXX_STANDARD_REQUIRED ON)
-set_target_properties(OnTubeVis PROPERTIES CXX_EXTENSIONS ON)
-set_target_properties(OnTubeVis_static PROPERTIES CXX_EXTENSIONS ON)
+set_target_properties(OnTubeVis OnTubeVis_static PROPERTIES CXX_STANDARD 17)
+set_target_properties(OnTubeVis OnTubeVis_static PROPERTIES CXX_STANDARD_REQUIRED ON)
+set_target_properties(OnTubeVis OnTubeVis_static PROPERTIES CXX_EXTENSIONS ON)
 
 # set our additional defines
 target_compile_definitions(OnTubeVis PUBLIC ${FEATURE_DEFINES} "INPUT_DIR=${CMAKE_CURRENT_LIST_DIR}")
