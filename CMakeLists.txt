@@ -15,7 +15,7 @@ option(ENABLE_OPTIX_SUPPORT ${ENABLE_OPTIX_SUPPORT_DOC} ON)
 include(FetchContent)
 FetchContent_Declare(
 	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG b646c54d0bd9bf3b9c243847e788b55b9a42febe
+	GIT_TAG e7578322faff6f94a59f03fad98cf7f4cdc2ba0f
 )
 FetchContent_MakeAvailable(cgv)
 
@@ -159,7 +159,7 @@ endif()
 # - resources (we'll likely get away with just globbing them)
 file(GLOB_RECURSE IMAGES RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.png" "*.bmp")
 
-# create the OnTubeVis plugin wihtin the CGV Framework build infrastructure
+# create the OnTubeVis plugin within the CGV Framework build infrastructure
 cgv_add_target(OnTubeVis
 	TYPE plugin
 	SOURCES         ${SOURCES}
@@ -178,8 +178,8 @@ cgv_add_target(OnTubeVis
 	OVERRIDE_SHARED_EXPORT_DEFINE TUBES_EXPORTS
 )
 
-# schedule a warning message at the very end of the configuration process to make sure it will be easily visible
-# we schedule the message after creating the OnTubeVis target such that it's deferred operations alert appears first
+# schedule high-level warning messages at the very end of the configuration process to make sure they will be easily visible
+# - no OpenMP
 if (NOT OpenMP_CXX_FOUND)
 	cmake_language(
 		DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL message
@@ -187,8 +187,7 @@ if (NOT OpenMP_CXX_FOUND)
 		"         Preprocessing for large datasets will be slow."
 	)
 endif()
-
-# schedule temporary OptiX warning to make sure it will be seen - TODO: remove once ready
+# - OptiX support was selected - TODO: remove once ready
 if (__EMIT_OPTIX_WARNING)
 	cmake_language(
 		DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL message
