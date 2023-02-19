@@ -15,7 +15,7 @@ option(ENABLE_OPTIX_SUPPORT ${ENABLE_OPTIX_SUPPORT_DOC} ON)
 include(FetchContent)
 FetchContent_Declare(
 	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG 41025a6d333fda4fb9f304b3f9a3eb8f8b32b691
+	GIT_TAG d718dfdabce59457a3c0fd9aa0d3ce3b5c509d6a
 )
 FetchContent_MakeAvailable(cgv)
 
