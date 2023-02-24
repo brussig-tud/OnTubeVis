@@ -1077,8 +1077,8 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 		}
 	}
 
-	cgv::glutil::color_map_reader::result color_maps;
-	if(cgv::glutil::color_map_reader::read_from_xml(color_map_lines, color_maps)) {
+	cgv::app::color_map_reader::result color_maps;
+	if(cgv::app::color_map_reader::read_from_xml(color_map_lines, color_maps)) {
 		// clear previous custom color maps
 		std::vector<std::string> current_names;
 		const auto& current_color_maps = color_map_mgr.ref_color_maps();
@@ -1509,8 +1509,8 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 			std::filesystem::path entry_path = entry.path();
 			// only take xml files
 			if(entry_path.extension() == ".xml") {
-				cgv::glutil::color_map_reader::result color_maps;
-				if(cgv::glutil::color_map_reader::read_from_xml(entry_path.string(), color_maps))
+				cgv::app::color_map_reader::result color_maps;
+				if(cgv::app::color_map_reader::read_from_xml(entry_path.string(), color_maps))
 					for(const auto& entry : color_maps)
 						color_map_mgr.add_color_map(entry.first, entry.second, false);
 			}
@@ -1524,8 +1524,8 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 			std::filesystem::path entry_path = entry.path();
 			// only take xml files
 			if(entry_path.extension() == ".xml") {
-				cgv::glutil::color_map_reader::result color_maps;
-				if(cgv::glutil::color_map_reader::read_from_xml(entry_path.string(), color_maps))
+				cgv::app::color_map_reader::result color_maps;
+				if(cgv::app::color_map_reader::read_from_xml(entry_path.string(), color_maps))
 					for(const auto& entry : color_maps)
 						color_map_mgr.add_color_map(entry.first, entry.second, false);
 			}
@@ -1533,13 +1533,13 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	}
 
 	// load sequential RAINBOW color map
-	cgv::glutil::color_map_reader::result color_maps;
-	if(cgv::glutil::color_map_reader::read_from_xml(app_path + "res/color_maps/RAINBOW.xml", color_maps))
+	cgv::app::color_map_reader::result color_maps;
+	if(cgv::app::color_map_reader::read_from_xml(app_path + "res/color_maps/RAINBOW.xml", color_maps))
 		for(const auto& entry : color_maps)
 			color_map_mgr.add_color_map(entry.first, entry.second, false);
 	
 	// load sequential turbo color map
-	if(cgv::glutil::color_map_reader::read_from_xml(app_path + "res/color_maps/turbo.xml", color_maps))
+	if(cgv::app::color_map_reader::read_from_xml(app_path + "res/color_maps/turbo.xml", color_maps))
 		for(const auto& entry : color_maps)
 			color_map_mgr.add_color_map(entry.first, entry.second, false);
 
