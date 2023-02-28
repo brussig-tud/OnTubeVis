@@ -92,7 +92,7 @@ struct demo : public traj_format_handler<float>
 		return _pole.point;
 	}
 	template <>
-	static const float& pole<float> (void)
+	const float& pole<float> (void)
 	{
 		static const float _1 = 1;
 		return _1;
@@ -119,7 +119,7 @@ struct demo : public traj_format_handler<float>
 	template <class T>
 	inline static float len (const T &v) { return v.length(); }
 	template <>
-	inline static float len<float> (const float &v) { return std::abs(v); }
+	inline float len<float> (const float &v) { return std::abs(v); }
 
 	/// generic normalization template
 	template <class T>
@@ -161,7 +161,7 @@ struct demo : public traj_format_handler<float>
 		return std::move(result);
 	}
 	template <>
-	static float gen_unit_point<float> (std::mt19937&)
+	float gen_unit_point<float> (std::mt19937&)
 	{
 		// in the 1D case, we ignore direction and just return the unit ("north" on the 1-hypersphere). Negative "directions" can
 		// be achieved by providing appropriate mean and sigma values at the top level generator function .
@@ -214,7 +214,7 @@ struct demo : public traj_format_handler<float>
 		return result - pole<T>();
 	}
 	template <>
-	static float gen_dir_offset<float> (float, std::mt19937&)
+	float gen_dir_offset<float> (float, std::mt19937&)
 	{
 		// We ignore direction completely - just return a zero-offset
 		return 0;
@@ -230,7 +230,7 @@ struct demo : public traj_format_handler<float>
 	}
 	/// special handling of scalar case for efficiency (we don't call the direction-related stuff which wouldn't do anything anyway)
 	template <>
-	static float gen_vel_perturbation<float>(float t, const float&, float, const noise_function &noise, std::mt19937&)
+	float gen_vel_perturbation<float>(float t, const float&, float, const noise_function &noise, std::mt19937&)
 	{
 		return noise(t);
 	}

@@ -1239,7 +1239,7 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 					gam.set_attrib_source_index(static_cast<size_t>(shape_attrib_idx), attrib_idx);
 				}
 
-				if(attrib.modifiers && GAM_GLOBAL) {
+				if(attrib.modifiers & GAM_GLOBAL) {
 					it = tag.attributes.find("value");
 					if(it != end) {
 						std::string str = (*it).second;
