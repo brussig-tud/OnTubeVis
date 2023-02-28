@@ -13,7 +13,7 @@
 #include <traj_loader.h>
 
 
-// Workaround Clang/VS differing opinions of C++ standard
+// work around Clang/VS differing opinions on how to interprete the C++ standard
 #ifdef _MSC_VER
 	#define STATIC_TEMPLATE_SPECIALIZATION static
 #else
