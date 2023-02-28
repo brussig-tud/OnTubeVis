@@ -51,12 +51,13 @@ struct visual_attrib_match {
 	static visual_attrib_match find (const visual_attribute_mapping<flt_type> &mapping,
 	                                 VisualAttrib visual_attrib)
 	{
+		static const std::string empty_name("");
 		const auto &map = mapping.map();
 		const auto it = map.find(visual_attrib);
 		if (it != map.end())
 			return {true, it->second.name, it};
 		else
-			return {false, "", it};
+			return {false, empty_name, it};
 	}
 };
 
@@ -108,7 +109,7 @@ struct invalid_container : traj_attribute<flt_type>::container_base
 	virtual void* get_pointer (void) { return nullptr; }
 	virtual const void* get_pointer (void) const { return nullptr; }
 	virtual std::vector<flt_type>& get_timestamps (void) {
-		/* should never write-access */ return *(std::vector<flt_type>*)nullptr;
+		/* should never write-access */ throw nullptr;
 	}
 	virtual const std::vector<flt_type>& get_timestamps (void) const { return empty_ts; }
 	virtual typename traj_attribute<flt_type>::datapoint_mag magnitude_at (unsigned index) const {
