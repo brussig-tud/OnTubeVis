@@ -2310,7 +2310,8 @@ void on_tube_vis::update_attribute_bindings(void) {
 			render_attribs.emplace_back(node_attribs{
 				/* .pos_rad */  vec4(render.data->positions[i], render.data->radii[i]),
 				/* .color */    vec4(col.R(), col.G(), col.B(), 1),
-				/* .tangent */  render.data->tangents[i]  // <- does already contain radius deriv. in w-component
+				/* .tangent */  render.data->tangents[i],  // <- does already contain radius deriv. in w-component
+				/* .t */        vec4(render.data->timestamps[i], 0, 0, 0)
 			});
 		}
 		// - upload

@@ -103,6 +103,7 @@ struct node_data_type {
 	vec4 pos_rad;
 	vec4 color;
 	vec4 tangent;
+	vec4 t; // only uses .x component to store t, yzw are reserved for future use
 };
 
 layout(std430, binding = 0) readonly buffer data_buffer {
@@ -113,6 +114,7 @@ uniform float radius_scale;
 uniform vec3 eye_pos;
 uniform vec3 view_dir;
 uniform vec4 viewport;
+uniform float max_t;
 
 in flat uvec2 node_ids_gs[];
 in flat int segment_id_gs[];

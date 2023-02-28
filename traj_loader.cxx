@@ -27,7 +27,7 @@ namespace {
 
 // attribute datatype names
 namespace type_str {
-	static const std::string SCALAR       = "SCALAR";
+	static const std::string SCALAR     = "SCALAR";
 	static const std::string VEC2       = "VEC2";
 	static const std::string VEC3       = "VEC3";
 	static const std::string VEC4       = "VEC4";
@@ -40,6 +40,25 @@ unsigned get_unique_id(void)
 	static std::atomic<unsigned> id(0);
 	return id++;
 }
+
+// for returning a matching entry in visual attribute mappings
+template<class flt_type>
+struct visual_attrib_match {
+	bool found;
+	const std::string& attrib_name;
+	typename visual_attribute_mapping<flt_type>::map_type::const_iterator it;
+
+	static visual_attrib_match find (const visual_attribute_mapping<flt_type> &mapping,
+	                                 VisualAttrib visual_attrib)
+	{
+		const auto &map = mapping.map();
+		const auto it = map.find(visual_attrib);
+		if (it != map.end())
+			return {true, it->second.name, it};
+		else
+			return {false, "", it};
+	}
+};
 
 
 // trajectory handler registry
@@ -1095,16 +1114,19 @@ struct traj_dataset<flt_type>::Impl
 	std::unordered_map<unsigned, std::vector<range>> trajs;
 	std::vector<range> empty_default_trajectories;
 	visual_attribute_mapping<flt_type> attrmap;
+	std::pair<real, real> minmax_pos_ts;
 	real avg_seg_len;
 
 	/// helper methods
 	Impl() : positions(nullptr), avg_seg_len(0) {}
 	Impl(const std::string &name, const std::string &data_source)
-		: name(name), data_source(data_source), positions(nullptr), avg_seg_len(0)
+		: name(name), data_source(data_source), positions(nullptr), avg_seg_len(0),
+		  minmax_pos_ts(std::numeric_limits<real>::infinity(), -std::numeric_limits<real>::infinity())
 	{}
 	Impl(const Impl *other)
 		: name(other->name), data_source(other->data_source), positions(other->positions),
-		  attribs(other->attribs), attrmap(other->attrmap), avg_seg_len(other->avg_seg_len)
+		  attribs(other->attribs), attrmap(other->attrmap), avg_seg_len(other->avg_seg_len),
+		  minmax_pos_ts(other->minmax_pos_ts)
 	{}
 	void operator= (const Impl *other)
 	{
@@ -1114,6 +1136,7 @@ struct traj_dataset<flt_type>::Impl
 		attribs = other->attribs;
 		attrmap = other->attrmap;
 		avg_seg_len = other->avg_seg_len;
+		minmax_pos_ts = other->minmax_pos_ts;
 	}
 	void clear (void)
 	{
@@ -1122,6 +1145,10 @@ struct traj_dataset<flt_type>::Impl
 		positions = nullptr;
 		attribs.clear();
 		attrmap.clear();
+		minmax_pos_ts = std::pair(
+			 std::numeric_limits<real>::infinity(),
+			-std::numeric_limits<real>::infinity()
+		);
 	}
 };
 
@@ -1214,6 +1241,24 @@ attribute_map<flt_type>& traj_dataset<flt_type>::attributes(void)
 }
 
 template <class flt_type>
+void traj_dataset<flt_type>::determine_minmax_position_timestamp (void)
+{
+	const auto match = visual_attrib_match<real>::find(mapping(), VisualAttrib::POSITION);
+	const auto &position_attrib = attribute(match.attrib_name);
+	const auto &position_timestamps = position_attrib.get_timestamps();
+	real min_t = std::numeric_limits<real>::infinity(), max_t = -std::numeric_limits<real>::infinity();
+	for (const auto &traj : pimpl->trajs[position_attrib._id])
+		if (traj.n > 0)
+		{
+			const real traj_min_t = position_timestamps[traj.i0],
+			           traj_max_t = position_timestamps[traj.i0+traj.n-1];
+			min_t = std::min(traj_min_t, min_t);
+			max_t = std::max(traj_max_t, max_t);
+		}
+	pimpl->minmax_pos_ts = {min_t, max_t};
+}
+
+template <class flt_type>
 void traj_dataset<flt_type>::set_avg_segment_length (real length)
 {
 	pimpl->avg_seg_len = length;
@@ -1295,6 +1340,12 @@ template <class flt_type>
 flt_type traj_dataset<flt_type>::avg_segment_length (void) const
 {
 	return pimpl->avg_seg_len;
+}
+
+template <class flt_type>
+const std::pair<flt_type, flt_type>& traj_dataset<flt_type>::minmax_position_timestamp (void) const
+{
+	return pimpl->minmax_pos_ts;
 }
 
 template <class flt_type>
@@ -1414,13 +1465,6 @@ struct traj_manager<flt_type>::Impl
 	typedef typename traj_manager::Vec4 Vec4;
 	typedef typename traj_manager::Color Color;
 
-	// for returning a matching entry in visual attribute mappings
-	struct visual_attrib_match {
-		bool found;
-		const std::string &attrib_name;
-		typename visual_attribute_mapping<real>::map_type::const_iterator it;
-	};
-
 	// fields
 	std::vector<std::unique_ptr<traj_dataset<real>>> datasets;
 	render_data rd;
@@ -1455,22 +1499,12 @@ struct traj_manager<flt_type>::Impl
 		}
 #endif
 	}
-	static visual_attrib_match find_visual_attrib (const visual_attribute_mapping<real> &mapping,
-	                                               VisualAttrib visual_attrib)
-	{
-		const auto &map = mapping.map();
-		const auto it = map.find(visual_attrib);
-		if (it != map.end())
-			return {true, it->second.name, it};
-		else
-			return {false, "", it};
-	}
 	template <class T>
 	void transform_attrib_old (
 		std::vector<T> *out, VisualAttrib visual_attrib, const traj_dataset<real> &dataset, int auto_tangents_ds=-1
 	)
 	{
-		const auto match = Impl::find_visual_attrib(dataset.mapping(), visual_attrib);
+		const auto match = visual_attrib_match<real>::find(dataset.mapping(), visual_attrib);
 		if (match.found)
 		{
 			const auto &ref = match.it->second;
@@ -1605,7 +1639,7 @@ struct traj_manager<flt_type>::Impl
 	)
 	{
 		const auto &mapping = dataset.mapping();
-		const auto match = Impl::find_visual_attrib(mapping, visual_attrib);
+		const auto match = visual_attrib_match<real>::find(mapping, visual_attrib);
 		if (match.found)
 		{
 			const auto &ref = match.it->second;
@@ -1865,6 +1899,7 @@ unsigned traj_manager<flt_type>::load (const std::string &path)
 	{
 		// add a dataset for the loaded trajectories
 		new_dataset.data_source() = path;
+		new_dataset.determine_minmax_position_timestamp();
 		impl.datasets.emplace_back(new traj_dataset<real>(std::move(new_dataset)));
 		impl.dirty = true; // we will need to rebuild the render data
 		std::cerr << std::endl; // make console output spacing consistent with failure case below
@@ -1885,6 +1920,7 @@ unsigned traj_manager<flt_type>::add_dataset (const traj_dataset<real> &dataset)
 	auto &impl = *pimpl; // shortcut for saving one indirection
 	impl.datasets.emplace_back(new traj_dataset<real>(dataset));
 	Impl::ensure_dataset_defaults(*impl.datasets.back());
+	impl.datasets.back()->determine_minmax_position_timestamp();
 	impl.dirty = true; // we will need to rebuild the render data;
 	return (unsigned)impl.datasets.size() - 1;
 }
@@ -1894,6 +1930,7 @@ unsigned traj_manager<flt_type>::add_dataset (traj_dataset<real> &&dataset)
 {
 	auto &impl = *pimpl; // shortcut for saving one indirection
 	Impl::ensure_dataset_defaults(dataset);
+	dataset.determine_minmax_position_timestamp();
 	impl.datasets.emplace_back(new traj_dataset<real>(std::move(dataset)));
 	impl.dirty = true; // we will need to rebuild the render data
 	return (unsigned)impl.datasets.size() - 1;
@@ -1975,6 +2012,16 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 			auto &ds_info = impl.rd.datasets.back();
 
 			// copy mapped attributes, applying the desired transformations (if any)
+			// - commit timestamps of position samples
+			const auto position_attrib = visual_attrib_match<real>::find(dataset.mapping(), VisualAttrib::POSITION);
+			if (position_attrib.found) {
+				const auto &attrib = dataset.attribute(position_attrib.attrib_name);
+				const auto &ts = attrib.get_timestamps();
+				auto &rd_ts = impl.rd.timestamps;
+				rd_ts.reserve(rd_ts.size() + attrib.num());
+				rd_ts.insert(rd_ts.end(), ts.begin(), ts.end());
+			}
+			// - commit actual visual attributes
 			impl.transform_attrib_old(&impl.rd.positions, VisualAttrib::POSITION, dataset);
 			impl.transform_attrib_old(&impl.rd.radii, VisualAttrib::RADIUS, dataset);
 			impl.transform_attrib_old(&impl.rd.tangents, VisualAttrib::TANGENT, dataset, auto_tangents ? ds : -1);

@@ -64,6 +64,8 @@ namespace cgv { // @<
 			bool use_view_space_position;
 			/// the minimum distance from the camera from which segment end caps are clipped to prevent z-fighting artifacts
 			float cap_clip_distance;
+			/// draw only tube geometry up to timestep max_t
+			float max_t;
 			/// construct with default values
 			textured_spline_tube_render_style();
 		};
