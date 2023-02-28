@@ -1416,21 +1416,25 @@ void main()
 	color0_fs = packUnorm4x8(vec4(n0.color.rgb, 1.0));
 	color1_fs = packUnorm4x8(vec4(n1.color.rgb, 1.0));
 #endif
-	
-#if BOUNDING_GEOMETRY_TYPE==0 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
-	emit_bounding_box(0, qTube0);
-	emit_bounding_box(1, qTube1);
-#elif BOUNDING_GEOMETRY_TYPE == 1
-	emit_rounded_cone_billboard(0, qTube0);
-	emit_rounded_cone_billboard(1, qTube1);
-#elif BOUNDING_GEOMETRY_TYPE == 2
-	emit_exact_box_polygon(0, qTube0);
-	emit_exact_box_polygon(1, qTube1);
-#elif BOUNDING_GEOMETRY_TYPE == 3
-	emit_box_billboard(0, qTube0);
-	emit_box_billboard(1, qTube1);
-#else
-	emit_aligned_box_billboard(0, qTube0);
-	emit_aligned_box_billboard(1, qTube1);
-#endif
+
+	// only emit geometry if the tube at least partly passes the max_t threshold
+	if (n0.t.x < max_t)
+	{
+	#if BOUNDING_GEOMETRY_TYPE==0 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
+		emit_bounding_box(0, qTube0);
+		emit_bounding_box(1, qTube1);
+	#elif BOUNDING_GEOMETRY_TYPE == 1
+		emit_rounded_cone_billboard(0, qTube0);
+		emit_rounded_cone_billboard(1, qTube1);
+	#elif BOUNDING_GEOMETRY_TYPE == 2
+		emit_exact_box_polygon(0, qTube0);
+		emit_exact_box_polygon(1, qTube1);
+	#elif BOUNDING_GEOMETRY_TYPE == 3
+		emit_box_billboard(0, qTube0);
+		emit_box_billboard(1, qTube1);
+	#else
+		emit_aligned_box_billboard(0, qTube0);
+		emit_aligned_box_billboard(1, qTube1);
+	#endif
+	}
 }

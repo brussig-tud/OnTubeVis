@@ -549,7 +549,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 
 		// print out attribute statistics
 		std::cerr << "Data attributes:" << std::endl;
-		for (const auto& a : traj_mgr.dataset(0).attributes())
+		for (const auto &a : traj_mgr.dataset(0).attributes())
 			std::cerr << " - ["<<a.first<<"] - "<<a.second.get_timestamps().size()<<" samples" << std::endl;
 		std::cerr << std::endl;
 #ifdef RTX_SUPPORT
@@ -2272,6 +2272,12 @@ void on_tube_vis::update_attribute_bindings(void) {
 	{
 		calculate_bounding_box(); 
 		set_view();
+
+		// update min/max timestamps
+		render.style.data_t_minmax = render.data->t_minmax;
+		render.style.max_t = cgv::math::clamp(
+			render.style.max_t, render.style.data_t_minmax.first, render.style.data_t_minmax.second
+		);
 
 		// Clear range and attribute buffers for glyph layers
 		for(size_t i = 0; i < render.aindex_sbos.size(); ++i)

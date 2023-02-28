@@ -1301,6 +1301,9 @@ public:
 
 		/// all dataset-related ranges over the index pairs forming individual segments
 		std::vector<dataset> datasets;
+
+		/// the earliest and latest timestamp of any position sample across all datasets
+		std::pair<real, real> t_minmax;
 	};
 
 	/// convenience helper for iterating over datasets in the manager using range-based for loops

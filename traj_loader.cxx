@@ -1976,6 +1976,10 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 		impl.rd.radii.clear();
 		impl.rd.colors.clear();
 		impl.rd.indices.clear();
+		impl.rd.t_minmax = {
+			 std::numeric_limits<real>::infinity(),
+			-std::numeric_limits<real>::infinity()
+		};
 		for (unsigned ds=0; ds<(unsigned)impl.datasets.size(); ds++)
 		{
 			// convencience shorthands
@@ -2077,6 +2081,13 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 			}
 			else
 				ds_info.irange.med_radius = float(med_radii[med_radii.size()/2]);
+
+			// update earliest and latest position timestamp
+			const auto &[tmin, tmax] = dataset.minmax_position_timestamp();
+			impl.rd.t_minmax = {
+				std::min(tmin, impl.rd.t_minmax.first),
+				std::max(tmax, impl.rd.t_minmax.second)
+			};
 		}
 		impl.dirty = false;
 	}

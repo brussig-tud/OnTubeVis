@@ -81,8 +81,8 @@ struct Hit {
 uniform float radius_scale;
 uniform vec3 eye_pos;
 uniform vec4 viewport;
-uniform float cap_clip_distance;
 uniform float max_t;
+uniform float cap_clip_distance;
 
 struct node_data_type {
 	vec4 pos_rad;

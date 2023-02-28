@@ -30,7 +30,7 @@ namespace cgv {
 			use_cubic_tangents = true;
 			use_view_space_position = true;
 			cap_clip_distance = 20.0f;
-			max_t = 100.f;
+			max_t = std::numeric_limits<float>::infinity();
 		}
 
 		textured_spline_tube_renderer::textured_spline_tube_renderer()
@@ -106,6 +106,7 @@ namespace cgv {
 			ref_prog().set_uniform(ctx, "view_dir", view_dir);
 			ref_prog().set_uniform(ctx, "viewport", viewport);
 			ref_prog().set_uniform(ctx, "cap_clip_distance", rs.cap_clip_distance);
+			ref_prog().set_uniform(ctx, "max_t", rs.max_t);
 
 			return true;
 		}
@@ -165,7 +166,9 @@ namespace cgv {
 			p->add_member_control(b, "Cubic Tangents", rs_ptr->use_cubic_tangents, "check");
 			p->add_member_control(b, "View Space Position", rs_ptr->use_view_space_position, "check");
 
-			p->add_member_control(b, "Render Timestamps %", rs_ptr->max_t, "value_slider", "min=0.0;max=100.0;step=0.001;ticks=false");
+			p->add_member_control(
+				b, "Render up to t =", rs_ptr->max_t, "value_slider",
+				"min="+std::to_string(rs_ptr->data_t_minmax.first)+";max="+std::to_string(rs_ptr->data_t_minmax.second)+";step="+std::to_string((rs_ptr->data_t_minmax.second-rs_ptr->data_t_minmax.first)/100.f)+";ticks=false");
 			p->add_member_control(b, "Cap Clip Distance", rs_ptr->cap_clip_distance, "value_slider", "min=0.0;max=100.0;step=0.01;ticks=true");
 			p->add_member_control(b, "Attribute-Less Mode", rs_ptr->attrib_mode, "dropdown", "enums='Off,No curve data,No node color,Attribute-less'");
 
