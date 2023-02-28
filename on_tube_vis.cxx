@@ -227,11 +227,11 @@ void on_tube_vis::clear(cgv::render::context &ctx) {
 	debug.segment_rd.destruct(ctx);
 
 	shaders.clear(ctx);
-	fbc.clear(ctx);
-	fbc_shading.clear(ctx);
-	fbc_post.clear(ctx);
-	fbc_hist.clear(ctx);
-	fbc_final.clear(ctx);
+	fbc.destruct(ctx);
+	fbc_shading.destruct(ctx);
+	fbc_post.destruct(ctx);
+	fbc_hist.destruct(ctx);
+	fbc_final.destruct(ctx);
 
 	color_map_mgr.destruct(ctx);
 
