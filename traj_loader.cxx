@@ -1499,6 +1499,9 @@ struct traj_manager<flt_type>::Impl
 			assert(dataset.trajectories(a.second).size() == pos_trajs.size());
 		}
 #endif
+
+		// Make sure timestamp min/max is set
+		dataset.determine_minmax_position_timestamp();
 	}
 	template <class T>
 	void transform_attrib_old (
@@ -1900,7 +1903,6 @@ unsigned traj_manager<flt_type>::load (const std::string &path)
 	{
 		// add a dataset for the loaded trajectories
 		new_dataset.data_source() = path;
-		new_dataset.determine_minmax_position_timestamp();
 		impl.datasets.emplace_back(new traj_dataset<real>(std::move(new_dataset)));
 		impl.dirty = true; // we will need to rebuild the render data
 		std::cerr << std::endl; // make console output spacing consistent with failure case below
@@ -1921,7 +1923,6 @@ unsigned traj_manager<flt_type>::add_dataset (const traj_dataset<real> &dataset)
 	auto &impl = *pimpl; // shortcut for saving one indirection
 	impl.datasets.emplace_back(new traj_dataset<real>(dataset));
 	Impl::ensure_dataset_defaults(*impl.datasets.back());
-	impl.datasets.back()->determine_minmax_position_timestamp();
 	impl.dirty = true; // we will need to rebuild the render data;
 	return (unsigned)impl.datasets.size() - 1;
 }
@@ -1931,7 +1932,6 @@ unsigned traj_manager<flt_type>::add_dataset (traj_dataset<real> &&dataset)
 {
 	auto &impl = *pimpl; // shortcut for saving one indirection
 	Impl::ensure_dataset_defaults(dataset);
-	dataset.determine_minmax_position_timestamp();
 	impl.datasets.emplace_back(new traj_dataset<real>(std::move(dataset)));
 	impl.dirty = true; // we will need to rebuild the render data
 	return (unsigned)impl.datasets.size() - 1;
@@ -1977,6 +1977,7 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 		impl.rd.radii.clear();
 		impl.rd.colors.clear();
 		impl.rd.indices.clear();
+		impl.rd.timestamps.clear();
 		impl.rd.t_minmax = {
 			 std::numeric_limits<real>::infinity(),
 			-std::numeric_limits<real>::infinity()
@@ -2019,7 +2020,8 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 			// copy mapped attributes, applying the desired transformations (if any)
 			// - commit timestamps of position samples
 			const auto position_attrib = visual_attrib_match<real>::find(dataset.mapping(), VisualAttrib::POSITION);
-			if (position_attrib.found) {
+			if (position_attrib.found)
+			{
 				const auto &attrib = dataset.attribute(position_attrib.attrib_name);
 				const auto &ts = attrib.get_timestamps();
 				auto &rd_ts = impl.rd.timestamps;
@@ -2040,12 +2042,10 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 				segattribs_trajs.resize(trajectories.size());
 				//#pragma omp for
 				for (int st=0; st<(int)segattribs_trajs.size(); st++)
-				{
 					Impl::compile_segment_attrib_ranges(
 						/* output array */&segattribs_trajs[st],
 						/* target attrib */positions, /* other attrib */attrib, /* traj id */st, dataset
 					);
-				}
 			}
 
 			// ToDo: apply visual mapping to all involved attributes and distribute to user output draw arrays
