@@ -1422,19 +1422,24 @@ void main()
 	{
 	#if BOUNDING_GEOMETRY_TYPE==0 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
 		emit_bounding_box(0, qTube0);
-		emit_bounding_box(1, qTube1);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_bounding_box(1, qTube1);
 	#elif BOUNDING_GEOMETRY_TYPE == 1
 		emit_rounded_cone_billboard(0, qTube0);
-		emit_rounded_cone_billboard(1, qTube1);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_rounded_cone_billboard(1, qTube1);
 	#elif BOUNDING_GEOMETRY_TYPE == 2
 		emit_exact_box_polygon(0, qTube0);
-		emit_exact_box_polygon(1, qTube1);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_exact_box_polygon(1, qTube1);
 	#elif BOUNDING_GEOMETRY_TYPE == 3
 		emit_box_billboard(0, qTube0);
-		emit_box_billboard(1, qTube1);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_box_billboard(1, qTube1);
 	#else
 		emit_aligned_box_billboard(0, qTube0);
-		emit_aligned_box_billboard(1, qTube1);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_aligned_box_billboard(1, qTube1);
 	#endif
 	}
 }
