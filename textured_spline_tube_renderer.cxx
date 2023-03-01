@@ -166,9 +166,11 @@ namespace cgv {
 			p->add_member_control(b, "Cubic Tangents", rs_ptr->use_cubic_tangents, "check");
 			p->add_member_control(b, "View Space Position", rs_ptr->use_view_space_position, "check");
 
+			const auto &[tmin, tmax] = rs_ptr->data_t_minmax;
 			p->add_member_control(
 				b, "Render up to t =", rs_ptr->max_t, "value_slider",
-				"min="+std::to_string(rs_ptr->data_t_minmax.first)+";max="+std::to_string(rs_ptr->data_t_minmax.second)+";step="+std::to_string((rs_ptr->data_t_minmax.second-rs_ptr->data_t_minmax.first)/100.f)+";ticks=false");
+				"min="+std::to_string(tmin)+";max="+std::to_string(tmax)+";step="+std::to_string((tmax-tmin)/10000.f)+";ticks=false"
+			);
 			p->add_member_control(b, "Cap Clip Distance", rs_ptr->cap_clip_distance, "value_slider", "min=0.0;max=100.0;step=0.01;ticks=true");
 			p->add_member_control(b, "Attribute-Less Mode", rs_ptr->attrib_mode, "dropdown", "enums='Off,No curve data,No node color,Attribute-less'");
 
