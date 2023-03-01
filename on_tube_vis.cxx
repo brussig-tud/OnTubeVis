@@ -2631,13 +2631,14 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, arclen_handle);
-		if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
+		//if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
+			// for now we always bind the node indices buffer to enable smooth intra-segment t filtering
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, node_idx_handle);
 			tstr.render(ctx, 0, count);
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, 0);
-		}
+		/*}
 		else
-			tstr.render(ctx, 0, count);
+			tstr.render(ctx, 0, count);*/
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
 

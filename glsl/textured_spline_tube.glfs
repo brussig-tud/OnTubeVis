@@ -562,7 +562,7 @@ float qSplineD3Eval(float t, float polyB_C[N1])
 
 Hit EvalSplineISect(
 	const vec3 dir, const vec3 s, const vec3 h, const vec3 t,
-	const float rs, const float rh, const float rt
+	const float rs, const float rh, const float rt, const float l_max
 )
 {
 	Hit hit;
@@ -608,11 +608,11 @@ Hit EvalSplineISect(
 	x2[0] = 0.0;
 	x2[1] = r.x;
 	x2[2] = r.y;
-	x2[3] = 1.0;
+	x2[3] = min(l_max, 1.0);
 
 	m2[0] = 1;
-	m2[1] = (x2[1] <= 0.0 || x2[1] >= 1.0) ? 0 : 1;
-	m2[2] = (x2[2] <= 0.0 || x2[2] >= 1.0) ? 0 : 1;
+	m2[1] = (x2[1] <= x2[0] || x2[1] >= x2[3]) ? 0 : 1;
+	m2[2] = (x2[2] <= x2[0] || x2[2] >= x2[3]) ? 0 : 1;
 	m2[3] = 1;
 
 	float x3[5];
@@ -665,7 +665,7 @@ Hit EvalSplineISect(
 			rootType = 0;
 		}
 		
-		if(EvalPolyD0(1.0, polyB_C) > 0.0) {
+		if(EvalPolyD0(x2[3], polyB_C) > 0.0) {
 			if     (rn == 1)	{ roots.y =   1.0; rn = 1; rootType = rootType == 0 ? 30 : 10;	}
 			else				{ roots.w =   1.0; rn = 2; rootType = 20; 						}	
 		}
@@ -704,29 +704,17 @@ Hit EvalSplineISect(
 			if(hit1) {
 				if(t1 < t2 || !hit2) {
 					hit.t = t1;
-					hit.l = l1;
+					hit.l = min(l1, x2[3]);
 				} else {
 					hit.t = t2;
-					hit.l = l2;
+					hit.l = min(l2, x2[3]);
 				}
 			} else {
 				hit.t = t2;
-				hit.l = l2;
+				hit.l = min(l2, x2[3]);
 			}
 
-			hit.cap = hit.l == 0.0 || hit.l == 1.0;
-
-			// mitigate inter-segment artifacts
-			/*if (hit.l < 0.00001)
-			{
-				hit.l = 0.000001;
-				hit.t = qSplineIDistEval(hit.l, curveX, polyB_C);
-			}
-			else if (hit.l > 0.99999)
-			{
-				hit.l = 0.999999;
-				hit.t = qSplineIDistEval(hit.l, curveX, polyB_C);
-			}*/
+			hit.cap = hit.l == 0.0 || hit.l == x2[3];
 
 			// get the position on the spline at l
 			hit.sp = qSplineEval(hit.l, curveX, curveY, curveZ);
@@ -844,6 +832,7 @@ void main()
 	#if ATTRIB_MODE > 0
 		const node_data_type n0 = nodes[node_ids[segment_id_fs].x];
 		const node_data_type n1 = nodes[node_ids[segment_id_fs].y];
+		const float n0_t=n0.t.x, n1_t=n1.t.x;
 		vec3 color0, color1;
 
 		#if ATTRIB_MODE & 1
@@ -898,6 +887,8 @@ void main()
 		#endif
 	#else
 		const QTube qtube = qTube_fs;
+		const float n0_t = nodes[node_ids[segment_id_fs].x].t.x,
+		            n1_t = nodes[node_ids[segment_id_fs].y].t.x;
 	#endif
 
 #if MODE == 0
@@ -927,9 +918,13 @@ void main()
 	vec3 direction = normalize(position_fs);
 #endif
 
+	// determine tmax threshold within this segment's parameter space
+	const float l_max_cubic = (max_t - n0_t)/(n1_t - n0_t);
+	const float l_max = l_offset_fs > 0.0 ? 2*(l_max_cubic - 0.5) : l_max_cubic + l_max_cubic;
 	Hit hit = EvalSplineISect(direction,
 		qtube.s.pos, qtube.h.pos, qtube.e.pos,
-		qtube.s.rad, qtube.h.rad, qtube.e.rad
+		qtube.s.rad, qtube.h.rad, qtube.e.rad,
+		l_max
 	);
 
 #if MODE == 3
