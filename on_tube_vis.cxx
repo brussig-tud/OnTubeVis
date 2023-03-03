@@ -2458,10 +2458,9 @@ void on_tube_vis::create_density_volume(context& ctx, unsigned resolution) {
 	if(voxelize_gpu) {
 		// prepare SSBO and index buffer handles
 		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
-		const int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
-		const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0;
-		if(node_idx_handle > 0 && data_handle > 0)
-			density_volume.compute_density_volume_gpu(ctx, render.data, render.style.radius_scale, node_idx_handle, data_handle, density_tex);
+		const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
+		if(node_idx_buffer_ptr && render.render_sbo.is_created())
+			density_volume.compute_density_volume_gpu(ctx, render.data, render.style.radius_scale, *node_idx_buffer_ptr, render.render_sbo, density_tex);
 	} else {
 		density_volume.compute_density_volume(render.data, render.style.radius_scale);
 
@@ -2551,7 +2550,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 	texture& tex_depth = *fbc.attachment_texture_ptr("depth");
 #endif
 	// - node attribute data needed by both rasterization and raytracing
-	int node_idx_handle = tstr.get_vbo_handle(ctx, render.aam, "node_ids");
+	const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
 	// - TAA data that needs to be accessed across local scopes
 	mat4 curr_projection_matrix, curr_modelview_matrix;
 
@@ -2580,15 +2579,13 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// render tubes
 		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 
-		// prepare SSBO handles
-		const int data_handle = render.render_sbo.handle ? (const int&)render.render_sbo.handle - 1 : 0,
-				  arclen_handle = render.arclen_sbo.handle ? (const int&)render.arclen_sbo.handle - 1 : 0;
-		int segment_idx_handle = tstr.get_index_buffer_handle(render.aam);
+		// prepare index buffer pointer
+		const vertex_buffer* segment_idx_buffer_ptr = tstr.get_index_buffer_ptr(render.aam);
 
-		if (!data_handle ||
-			!arclen_handle ||
-			segment_idx_handle < 0 ||
-			node_idx_handle < 0)
+		if (!render.render_sbo.is_created() ||
+			!render.arclen_sbo.is_created() ||
+			segment_idx_buffer_ptr == nullptr ||
+			node_idx_buffer_ptr == nullptr)
 			return;
 
 		// onyl perform a new visibility sort step when the view configuration deviates significantly
@@ -2605,7 +2602,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		if(debug.sort && do_sort && !debug.force_initial_order) {
 			// measure sort time
 			//render.sorter.begin_time_query();
-			render.sorter.execute(ctx, data_handle, segment_idx_handle, eye_pos, view_dir, node_idx_handle);
+			render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, eye_pos, view_dir, node_idx_buffer_ptr);
 			//benchmark.sort_time_total += render.sorter.end_time_query();
 			++benchmark.num_sorts;
 		}
@@ -2622,18 +2619,15 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			count = static_cast<int>(debug.render_count);
 		}
 
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, data_handle);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, arclen_handle);
+		render.render_sbo.bind(ctx, VBT_STORAGE, 0);
+		render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
 		if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, node_idx_handle);
+			node_idx_buffer_ptr->bind(ctx, VBT_STORAGE, 2);
 			tstr.render(ctx, 0, count);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, 0);
 		}
 		else
 			tstr.render(ctx, 0, count);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
-
+		
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
 		// store the current matrices to use as the previous for the next frame
