@@ -20,6 +20,7 @@ struct data_type {
 	vec4 pos_rad;
 	vec4 color;
 	vec4 tangent;
+	vec4 t;
 };
 
 layout(std430, binding = 2) readonly buffer data_buffer {
