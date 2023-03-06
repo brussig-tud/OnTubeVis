@@ -149,7 +149,7 @@ void voxelizer::compute_density_volume(const traj_manager<float>::render_data *d
 	clamp_density();
 }
 
-void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj_manager<float>::render_data *data_set, const float radius_scale, GLuint index_buffer, GLuint data_buffer, cgv::render::texture& tex) {
+void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj_manager<float>::render_data *data_set, const float radius_scale, const cgv::render::vertex_buffer& index_buffer, const cgv::render::vertex_buffer& data_buffer, cgv::render::texture& tex) {
 
 	if(!data_set) {
 		std::cout << "Warning: compute_density_volume_gpu received nullptr for data_set." << std::endl;
@@ -205,8 +205,8 @@ void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj
 	voxelize_prog.set_uniform(ctx, "vvol", vg.voxel_size*vg.voxel_size*vg.voxel_size);
 	voxelize_prog.set_uniform(ctx, "radius_scale", radius_scale);
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, index_buffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, data_buffer);
+	index_buffer.bind(ctx, cgv::render::VBT_STORAGE, 1);
+	data_buffer.bind(ctx, cgv::render::VBT_STORAGE, 2);
 
 	glDispatchCompute((GLuint)ceil(primitive_count / 64.0f), 1, 1);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
@@ -225,8 +225,7 @@ void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj
 	clamp_prog.disable(ctx);
 
 	glBindImageTexture(0, 0, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R32F);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
-
+	
 	// calculate the mipmap via a compute shader
 	generate_mipmap(ctx, texture_handle);
 

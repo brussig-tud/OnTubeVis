@@ -5,6 +5,7 @@
 #include <cgv/render/render_types.h>
 #include <cgv/render/context.h>
 #include <cgv/render/shader_library.h>
+#include <cgv/render/vertex_buffer.h>
 #include <cgv_gl/gl/gl_context.h>
 
 #include "voxel_grid.h"
@@ -46,5 +47,5 @@ public:
 
 	void compute_density_volume(const traj_manager<float>::render_data *data_set, const float radius_scale);
 
-	void compute_density_volume_gpu(cgv::render::context& ctx, const traj_manager<float>::render_data *data_set, const float radius_scale, GLuint index_buffer, GLuint data_buffer, cgv::render::texture& tex);
+	void compute_density_volume_gpu(cgv::render::context& ctx, const traj_manager<float>::render_data *data_set, const float radius_scale, const cgv::render::vertex_buffer& index_buffer, const cgv::render::vertex_buffer& data_buffer, cgv::render::texture& tex);
 };
