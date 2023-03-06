@@ -5,7 +5,6 @@ project(OnTubeVis)
 # preset CGV Framework options
 option(CGV_BUILD_WITH_AUDIO OFF)
 option(CGV_BUILD_EXAMPLES OFF)
-set(CGV_STDCPP17 OFF CACHE BOOL "" FORCE) # FIXME: C++17 implementation of cgv_utils (using std::filesystem) is currently broken!
 
 # OnTubeVis options
 set(ENABLE_OPTIX_SUPPORT_DOC "Build with support for hardware raytracing using NVIDIA OptiX")
@@ -15,7 +14,7 @@ option(ENABLE_OPTIX_SUPPORT ${ENABLE_OPTIX_SUPPORT_DOC} ON)
 include(FetchContent)
 FetchContent_Declare(
 	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG 015bb7075c51031a6b63eaaf6e004f2689dc2ee9
+	GIT_TAG f8bee18c03bc930c3da59f48e6429ec91ddc8ac7
 )
 FetchContent_MakeAvailable(cgv)
 
