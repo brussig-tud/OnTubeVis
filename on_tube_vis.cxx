@@ -1679,19 +1679,19 @@ bool on_tube_vis::optix_register_resources (context &ctx)
 
 	// register the SSBOs with CUDA
 	// - node data
-	const GLuint nodes_handle = (const int&)render.render_sbo.handle - 1;
+	const GLuint nodes_handle = (const int&)render.render_sbo.handle-1;
 	CUDA_CHECK_SET(
 		cudaGraphicsGLRegisterBuffer(&optix.sbo_nodes, nodes_handle, cudaGraphicsRegisterFlagsReadOnly),
 		success
 	);
 	// - node indices
-	const GLuint nodeids_handle = ref_textured_spline_tube_renderer(ctx).get_vbo_handle(ctx, render.aam, "node_ids");
+	const auto nodeids_vbo = ref_textured_spline_tube_renderer(ctx).get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
 	CUDA_CHECK_SET(
-		cudaGraphicsGLRegisterBuffer(&optix.sbo_nodeids, nodeids_handle, cudaGraphicsRegisterFlagsReadOnly),
+		cudaGraphicsGLRegisterBuffer(&optix.sbo_nodeids, (const int&)(nodeids_vbo->handle)-1, cudaGraphicsRegisterFlagsReadOnly),
 		success
 	);
 	// - arclength
-	const GLuint alen_handle = (const int&)render.arclen_sbo.handle - 1;
+	const GLuint alen_handle = (const int&)render.arclen_sbo.handle-1;
 	CUDA_CHECK_SET(
 		cudaGraphicsGLRegisterBuffer(&optix.sbo_alen, alen_handle, cudaGraphicsRegisterFlagsReadOnly),
 		success
