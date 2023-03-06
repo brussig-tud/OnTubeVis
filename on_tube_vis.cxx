@@ -549,7 +549,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 
 		// print out attribute statistics
 		std::cerr << "Data attributes:" << std::endl;
-		for (const auto& a : traj_mgr.dataset(0).attributes())
+		for (const auto &a : traj_mgr.dataset(0).attributes())
 			std::cerr << " - ["<<a.first<<"] - "<<a.second.get_timestamps().size()<<" samples" << std::endl;
 		std::cerr << std::endl;
 #ifdef RTX_SUPPORT
