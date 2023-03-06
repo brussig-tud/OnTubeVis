@@ -568,7 +568,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 		update_attribute_bindings();
 		update_grid_ratios();
 
-		update_glyph_layer_manager();
+		update_glyph_layer_managers();
 
 		compile_glyph_attribs();
 		ah_mgr.set_dataset(traj_mgr.dataset(0));
@@ -658,8 +658,10 @@ void on_tube_vis::on_set(void *member_ptr) {
 	}
 
 	// visualization settings
-	if (member_ptr == &glyph_layer_mgr)
+	if (member_ptr == &(render.layer_configs.front().manager))
 	{
+		auto &glyph_layer_mgr = render.layer_configs.front().manager;
+		auto &glyph_layers_config = render.layer_configs.front().config;
 		const auto action = glyph_layer_mgr.action_type();
 		bool changes = false;
 		if(action == AT_CONFIGURATION_CHANGE) {
@@ -705,7 +707,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 					}
 				}
 			}
-			glyph_layer_mgr.set_color_map_names(color_map_mgr.get_names());
+			render.layer_configs.front().manager.set_color_map_names(color_map_mgr.get_names());
 
 			context& ctx = *get_context();
 			color_map_mgr.update_texture(ctx);
@@ -880,7 +882,7 @@ void on_tube_vis::reload_shader() {
 }
 
 bool on_tube_vis::save_layer_configuration(const std::string& file_name) {
-	const auto& gams = glyph_layer_mgr.ref_glyph_attribute_mappings();
+	const auto &gams = render.layer_configs.front().manager.ref_glyph_attribute_mappings();
 
 	auto to_col_uint8 = [](const float& val) {
 		int ival = cgv::math::clamp(static_cast<int>(255.0f * val + 0.5f), 0, 255);
@@ -1152,7 +1154,7 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 		return v;
 	};
 
-
+	auto &glyph_layer_mgr = render.layer_configs.front().manager;
 	glyph_layer_mgr.clear();
 
 	const auto attrib_names = traj_mgr.dataset(0).get_attribute_names();
@@ -1321,28 +1323,34 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 	return true;
 }
 
-void on_tube_vis::update_glyph_layer_manager() {
+void on_tube_vis::update_glyph_layer_managers() {
 	if(!traj_mgr.has_data()) {
-		std::cout << "Warning: update_glyph_layer_manager - trajectory manager has no data" << std::endl;
+		std::cout << "Warning: update_glyph_layer_managers - trajectory manager has no data" << std::endl;
 		return;
 	}
 
-	auto attrib_names = traj_mgr.dataset(0).get_attribute_names();
-	std::vector<vec2> attrib_ranges;
+	render.layer_configs.clear();
+	for (unsigned i=0; i< traj_mgr.num_datasets(); i++)
+	{
+		const auto& dataset = traj_mgr.dataset(i);
+		auto attrib_names = dataset.get_attribute_names();
+		std::vector<vec2> attrib_ranges;
 
-	// collect value ranges for available attributes
-	for(size_t i = 0; i < attrib_names.size(); ++i) {
-		const auto& attrib = traj_mgr.dataset(0).attribute(attrib_names[i]);
-		vec2 range(attrib.min(), attrib.max());
-		attrib_ranges.push_back(range);
+		// collect value ranges for available attributes
+		for(size_t i = 0; i < attrib_names.size(); ++i) {
+			const auto& attrib = traj_mgr.dataset(0).attribute(attrib_names[i]);
+			vec2 range(attrib.min(), attrib.max());
+			attrib_ranges.push_back(range);
+		}
+
+		auto &new_layer_config = render.layer_configs.emplace_back();
+		// clear old configuration of glyph layers and reset shader
+		new_layer_config.manager.clear();
+		// set new information of available attributes and ranges
+		new_layer_config.manager.set_attribute_names(attrib_names);
+		new_layer_config.manager.set_attribute_ranges(attrib_ranges);
+		new_layer_config.manager.set_color_map_names(color_map_mgr.get_names());
 	}
-
-	// clear old configuration of glyph layers and reset shader
-	glyph_layer_mgr.clear();
-	// set new information of available attributes and ranges
-	glyph_layer_mgr.set_attribute_names(attrib_names);
-	glyph_layer_mgr.set_attribute_ranges(attrib_ranges);
-	glyph_layer_mgr.set_color_map_names(color_map_mgr.get_names());
 }
 
 void on_tube_vis::timer_event(double t, double dt)
@@ -1368,49 +1376,55 @@ void on_tube_vis::glyphs_out_of_date(bool state)
 bool on_tube_vis::compile_glyph_attribs (void)
 {
 	bool success = false;
-	if(glyph_layers_config.layer_configs.size() > 0) {
-		cgv::utils::stopwatch s(true);
-		std::cout << "Compiling glyph attributes... ";
+	for (unsigned ds_idx=0; ds_idx<traj_mgr.num_datasets(); ds_idx++)
+	{
+		const auto &ds = traj_mgr.dataset(ds_idx);
+		auto &ds_config = render.layer_configs[ds_idx];
+		if(ds_config.config.layer_configs.size() > 0)
+		{
+			cgv::utils::stopwatch s(true);
+			std::cout << "Compiling glyph attributes for dataset "<<ds_idx<<" '"<<ds.name()<<"'... ";
 
-		glyph_compiler gc;
-		gc.length_scale = general_settings.length_scale;
-		gc.include_hidden_glyphs = include_hidden_glyphs;
+			glyph_compiler gc;
+			gc.length_scale = general_settings.length_scale;
+			gc.include_hidden_glyphs = include_hidden_glyphs;
 
-		const auto &dataset = traj_mgr.dataset(0);
+			const auto &dataset = traj_mgr.dataset(0);
 
-		success = gc.compile_glyph_attributes(dataset, render.arclen_data, glyph_layers_config);
+			success = gc.compile_glyph_attributes(dataset, render.arclen_data, ds_config.config);
 
-		// get context
-		const auto &ctx = *get_context();
+			// get context
+			const auto &ctx = *get_context();
 
-		for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
-			if(gc.layer_filled[layer_idx]) {
-				const auto& ranges = gc.layer_ranges[layer_idx];
-				const auto& attribs = gc.layer_attribs[layer_idx];
-				// - sanity check
-				{
-					const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size()) / 2;
-					assert(num_ranges == num_segs);
+			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
+				if(gc.layer_filled[layer_idx]) {
+					const auto& ranges = gc.layer_ranges[layer_idx];
+					const auto& attribs = gc.layer_attribs[layer_idx];
+					// - sanity check
+					{
+						const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size()) / 2;
+						assert(num_ranges == num_segs);
+					}
+
+					// - upload
+					vertex_buffer& attribs_sbo = render.attribs_sbos[layer_idx];
+					vertex_buffer& aindex_sbo = render.aindex_sbos[layer_idx];
+
+					// ...attrib nodes
+					attribs_sbo.destruct(ctx);
+					if(!attribs_sbo.create(ctx, attribs.data))
+						std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
+
+					// ...index ranges
+					aindex_sbo.destruct(ctx);
+					if(!aindex_sbo.create(ctx, ranges))
+						std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
 				}
-
-				// - upload
-				vertex_buffer& attribs_sbo = render.attribs_sbos[layer_idx];
-				vertex_buffer& aindex_sbo = render.aindex_sbos[layer_idx];
-
-				// ...attrib nodes
-				attribs_sbo.destruct(ctx);
-				if(!attribs_sbo.create(ctx, attribs.data))
-					std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
-
-				// ...index ranges
-				aindex_sbo.destruct(ctx);
-				if(!aindex_sbo.create(ctx, ranges))
-					std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
 			}
-		}
 
-		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
-		glyphs_out_of_date(false);
+			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+			glyphs_out_of_date(false);
+		}
 	}
 
 	if(success)
@@ -1437,7 +1451,10 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	success &= shaders.load_all(ctx);
 
 	color_map_mgr.init(ctx);
-	glyph_layers_config = glyph_layer_mgr.get_configuration();
+	if (render.layer_configs.empty())
+		render.layer_configs.emplace_back();
+	for (auto &ds_layers : render.layer_configs)
+		ds_layers.config = ds_layers.manager.get_configuration();
 
 	tube_shading_defines = build_tube_shading_defines();
 	shaders.reload(ctx, "tube_shading", tube_shading_defines);
@@ -1557,7 +1574,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 		cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 	}
 
-	update_glyph_layer_manager();
+	update_glyph_layer_managers();
 	compile_glyph_attribs();
 	ah_mgr.set_dataset(traj_mgr.dataset(0));
 
@@ -2127,10 +2144,10 @@ void on_tube_vis::create_gui(void) {
 		add_member_control(this, "Length Scale", general_settings.length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xb51c1c");
 		add_member_control(this, "Antialias Radius", general_settings.antialias_radius, "value_slider", "min=0;max=5;step=0.01;ticks=true");
 		align("\b");
-		end_tree_node(glyph_layer_mgr);
+		end_tree_node(general_settings);
 	}
 
-	if(begin_tree_node("Attribute Mapping", glyph_layer_mgr, true)) {
+	if(begin_tree_node("Attribute Mapping", render.layer_configs.front().manager, true)) {
 		align("\a");
 		add_decorator("Configuration File", "heading", "level=3");
 		std::string filter = "XML Files (xml):*.xml|All Files:*.*";
@@ -2141,9 +2158,9 @@ void on_tube_vis::create_gui(void) {
 		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &on_tube_vis::compile_glyph_attribs));
 		add_member_control(this, "Max Count (Debug)", max_glyph_count, "value_slider", "min=1;max=100;step=1;ticks=true");
 		add_member_control(this, "Show Hidden Glyphs", include_hidden_glyphs, "check");
-		glyph_layer_mgr.create_gui(this, *this);
+		render.layer_configs.front().manager.create_gui(this, *this);
 		align("\b");
-		end_tree_node(glyph_layer_mgr);
+		end_tree_node(render.layer_configs.front().manager);
 	}
 
 	integrate_object_gui(cm_editor_ptr);
@@ -2712,6 +2729,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		}
 
 		// set attribute mapping parameters
+		const auto &glyph_layers_config = render.layer_configs.front().config;
 		for(const auto& p : glyph_layers_config.constant_float_parameters)
 			prog.set_uniform(ctx, p.first, *p.second);
 
@@ -2923,6 +2941,7 @@ shader_define_map on_tube_vis::build_tube_shading_defines() {
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
 	// glyph layer defines
+	const auto &glyph_layers_config = render.layer_configs.front().config;
 	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
 
 	shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
