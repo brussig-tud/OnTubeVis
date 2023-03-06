@@ -58,6 +58,8 @@ class glyph_shape : public cgv::render::render_types {
 public:
 	typedef std::vector<glyph_attribute> attribute_list;
 
+	virtual ~glyph_shape() {}
+
 	virtual glyph_shape* clone() const = 0;
 
 	virtual GlyphType type() const = 0;
@@ -288,7 +290,7 @@ public:
 		
 		float as = sin(angle);
 		float ac = cos(angle);
-		mat2 R = (ac, as, -as, ac);
+		mat2 R = {ac, as, -as, ac};
 		
 		float half_base_width = 0.5f * param_values[0];
 		float half_height = 0.5f * param_values[1];

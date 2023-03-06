@@ -1017,6 +1017,10 @@ protected:
 	/// write-access the map containing all generic attributes (for use by trajectory format handlers)
 	attribute_map<flt_type>& attributes (void);
 
+	/// checks the first and last position sample of every trajectory in the dataset and commits these timestamps for
+	/// retrieval via \ref #minmax_position_timestamp (called after loading by the \ref traj_manager)
+	void determine_minmax_position_timestamp (void);
+
 	/// set the average segment length (for use by trajectory format handlers)
 	void set_avg_segment_length (real length);
 
@@ -1085,6 +1089,9 @@ public:
 
 	/// report the average length of line segments
 	real avg_segment_length (void) const;
+
+	/// reports the minimum and maximum timestamp among all position samples
+	const std::pair<real, real>& minmax_position_timestamp (void) const;
 
 	/// access the list of individual trajectory ranges for the given attribute. In case the dataset has no trajectory information for
 	/// this attribute, invalid range will be returned which is generally "safe to use" as it indicates 0 elements in the range.
@@ -1286,11 +1293,17 @@ public:
 		/// all node colors
 		std::vector<Color> colors;
 
+		/// node timestamps
+		std::vector<real> timestamps;
+
 		/// all indices (line-list semantics)
 		std::vector<unsigned> indices;
 
 		/// all dataset-related ranges over the index pairs forming individual segments
 		std::vector<dataset> datasets;
+
+		/// the earliest and latest timestamp of any position sample across all datasets
+		std::pair<real, real> t_minmax;
 	};
 
 	/// convenience helper for iterating over datasets in the manager using range-based for loops

@@ -1239,7 +1239,7 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 					gam.set_attrib_source_index(static_cast<size_t>(shape_attrib_idx), attrib_idx);
 				}
 
-				if(attrib.modifiers && GAM_GLOBAL) {
+				if(attrib.modifiers & GAM_GLOBAL) {
 					it = tag.attributes.find("value");
 					if(it != end) {
 						std::string str = (*it).second;
@@ -2273,6 +2273,12 @@ void on_tube_vis::update_attribute_bindings(void) {
 		calculate_bounding_box(); 
 		set_view();
 
+		// update min/max timestamps
+		render.style.data_t_minmax = render.data->t_minmax;
+		render.style.max_t = cgv::math::clamp(
+			render.style.max_t, render.style.data_t_minmax.first, render.style.data_t_minmax.second
+		);
+
 		// Clear range and attribute buffers for glyph layers
 		for(size_t i = 0; i < render.aindex_sbos.size(); ++i)
 			render.aindex_sbos[i].destruct(ctx);
@@ -2310,7 +2316,8 @@ void on_tube_vis::update_attribute_bindings(void) {
 			render_attribs.emplace_back(node_attribs{
 				/* .pos_rad */  vec4(render.data->positions[i], render.data->radii[i]),
 				/* .color */    vec4(col.R(), col.G(), col.B(), 1),
-				/* .tangent */  render.data->tangents[i]  // <- does already contain radius deriv. in w-component
+				/* .tangent */  render.data->tangents[i],  // <- does already contain radius deriv. in w-component
+				/* .t */        vec4(render.data->timestamps[i], 0, 0, 0)
 			});
 		}
 		// - upload
@@ -2456,7 +2463,7 @@ void on_tube_vis::create_density_volume(context& ctx, unsigned resolution) {
 	cgv::utils::stopwatch s(true);
 
 	if(voxelize_gpu) {
-		// prepare SSBO and index buffer handles
+		// prepare index buffer pointer
 		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
 		const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
 		if(node_idx_buffer_ptr && render.render_sbo.is_created())
@@ -2582,7 +2589,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// prepare index buffer pointer
 		const vertex_buffer* segment_idx_buffer_ptr = tstr.get_index_buffer_ptr(render.aam);
 
-		if (!render.render_sbo.is_created() ||
+		if(!render.render_sbo.is_created() ||
 			!render.arclen_sbo.is_created() ||
 			segment_idx_buffer_ptr == nullptr ||
 			node_idx_buffer_ptr == nullptr)

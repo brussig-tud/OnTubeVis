@@ -86,7 +86,7 @@ parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 					vec3(rd.tangents[seg.i0]), vec3(rd.tangents[seg.i1])
 				).to_bezier();
 
-				// --- UNCOMMENT BELOW FOR GETTING COPY-PASTABLE ARRAY OF PRECISE ARCLENGTH SAMPLES ---
+				// --- UNCOMMENT BELOW FOR GETTING COPY-PASTABLE ARRAY OF PRECISE ARCLENGTH SAMPLES IN YOUR DEBUGGER ---
 				/*#define NUM_LG_SAMPLES 64
 				real _t[NUM_LG_SAMPLES], _l[NUM_LG_SAMPLES];
 				for (unsigned K=0; K< NUM_LG_SAMPLES; K++) {

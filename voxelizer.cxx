@@ -225,8 +225,7 @@ void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj
 	clamp_prog.disable(ctx);
 
 	glBindImageTexture(0, 0, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R32F);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
-
+	
 	// calculate the mipmap via a compute shader
 	generate_mipmap(ctx, texture_handle);
 
@@ -246,7 +245,7 @@ void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj
 
 	std::cout << "done in " << (elapsed_time / 1000000.0f) / 1000.0f << " s" << std::endl;
 
-	/*accumulated_time += elapsed_time / (1000000.0f);
+	accumulated_time += elapsed_time / (1000000.0f);
 	++runs;
 
 	if(runs > 10) {

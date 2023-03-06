@@ -103,6 +103,7 @@ struct node_data_type {
 	vec4 pos_rad;
 	vec4 color;
 	vec4 tangent;
+	vec4 t; // only uses .x component to store t, yzw are reserved for future use
 };
 
 layout(std430, binding = 0) readonly buffer data_buffer {
@@ -113,6 +114,7 @@ uniform float radius_scale;
 uniform vec3 eye_pos;
 uniform vec3 view_dir;
 uniform vec4 viewport;
+uniform float max_t;
 
 in flat uvec2 node_ids_gs[];
 in flat int segment_id_gs[];
@@ -1414,21 +1416,30 @@ void main()
 	color0_fs = packUnorm4x8(vec4(n0.color.rgb, 1.0));
 	color1_fs = packUnorm4x8(vec4(n1.color.rgb, 1.0));
 #endif
-	
-#if BOUNDING_GEOMETRY_TYPE==0 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
-	emit_bounding_box(0, qTube0);
-	emit_bounding_box(1, qTube1);
-#elif BOUNDING_GEOMETRY_TYPE == 1
-	emit_rounded_cone_billboard(0, qTube0);
-	emit_rounded_cone_billboard(1, qTube1);
-#elif BOUNDING_GEOMETRY_TYPE == 2
-	emit_exact_box_polygon(0, qTube0);
-	emit_exact_box_polygon(1, qTube1);
-#elif BOUNDING_GEOMETRY_TYPE == 3
-	emit_box_billboard(0, qTube0);
-	emit_box_billboard(1, qTube1);
-#else
-	emit_aligned_box_billboard(0, qTube0);
-	emit_aligned_box_billboard(1, qTube1);
-#endif
+
+	// only emit geometry if the tube at least partly passes the max_t threshold
+	if (n0.t.x < max_t)
+	{
+	#if BOUNDING_GEOMETRY_TYPE==0 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
+		emit_bounding_box(0, qTube0);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_bounding_box(1, qTube1);
+	#elif BOUNDING_GEOMETRY_TYPE == 1
+		emit_rounded_cone_billboard(0, qTube0);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_rounded_cone_billboard(1, qTube1);
+	#elif BOUNDING_GEOMETRY_TYPE == 2
+		emit_exact_box_polygon(0, qTube0);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_exact_box_polygon(1, qTube1);
+	#elif BOUNDING_GEOMETRY_TYPE == 3
+		emit_box_billboard(0, qTube0);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_box_billboard(1, qTube1);
+	#else
+		emit_aligned_box_billboard(0, qTube0);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_aligned_box_billboard(1, qTube1);
+	#endif
+	}
 }

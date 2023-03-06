@@ -2,7 +2,7 @@
 projectType="application_plugin";
 projectName="OnTubeVis";
 projectGUID="FB8C657D-2C3A-4FB1-A783-D31E3759B7AC";
-excludeSourceDirs=[INPUT_DIR."/testdata", INPUT_DIR."/tool", INPUT_DIR."/3rd/peridetic/examples"];
+excludeSourceDirs=[INPUT_DIR."/testdata", INPUT_DIR."/tool", INPUT_DIR."/3rd/peridetic/examples", INPUT_DIR."/cmake"];
 addProjectDirs=[CGV_DIR."/libs", CGV_DIR."/plugins", CGV_DIR."/3rd", INPUT_DIR."/tool/cuda_resprep"];
 addIncDirs=[
 	INPUT_DIR,

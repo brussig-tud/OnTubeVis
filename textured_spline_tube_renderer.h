@@ -64,6 +64,10 @@ namespace cgv { // @<
 			bool use_view_space_position;
 			/// the minimum distance from the camera from which segment end caps are clipped to prevent z-fighting artifacts
 			float cap_clip_distance;
+			/// draw only tube geometry up to the given timestamp
+			float max_t;
+			/// fill this with the information what the earliest and latest timestamps among all position samples in your data are
+			std::pair<float, float> data_t_minmax;
 			/// construct with default values
 			textured_spline_tube_render_style();
 		};
