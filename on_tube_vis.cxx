@@ -501,9 +501,10 @@ void on_tube_vis::handle_transfer_function_change() {
 }
 
 void on_tube_vis::on_set(void *member_ptr) {
-	// dataset settings
-	bool data_set_changed = false;
-	bool from_demo = false;
+	// internal state flags
+	bool data_set_changed=false,
+	     from_demo=false,
+	     reset_taa=true;
 	// - configurable datapath
 	if (member_ptr == &datapath && !datapath.empty()) {
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
@@ -821,6 +822,10 @@ void on_tube_vis::on_set(void *member_ptr) {
 		update_member(&test_dir[2]);
 	}
 
+	// In case of timestep thresholding we don't want to reset TAA
+	if (member_ptr == &render.style.max_t)
+		reset_taa = false;
+
 #ifdef RTX_SUPPORT
 	// ###############################
 	// ### BEGIN: OptiX integration
@@ -850,7 +855,10 @@ void on_tube_vis::on_set(void *member_ptr) {
 	// default implementation for all members
 	// - remaining logic
 	update_member(member_ptr);
-	taa.reset();
+	if (reset_taa)
+		taa.reset();
+	else
+		taa.static_frame_count = 0; // Just make sure we keep multisampling
 	post_redraw();
 }
 
@@ -2816,6 +2824,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			}
 
 			if(taa.static_frame_count < taa.jitter_sample_count) {
+				clip_enabled = taa.clip_color && !taa.static_frame_count;
 				++taa.static_frame_count;
 				post_redraw();
 			}
