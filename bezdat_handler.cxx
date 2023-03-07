@@ -12,6 +12,7 @@
 
 // CGV framework core
 #include <cgv/base/register.h>
+#include <cgv/utils/file.h>
 #include <cgv/utils/scan.h>
 #include <cgv/utils/advanced_scan.h>
 
@@ -185,10 +186,7 @@ bool bezdat_handler<flt_type>::can_handle (std::istream &contents) const
 	// - .bezdat header
 	std::getline(contents, str);
 	if (cgv::utils::to_lower(str).compare("bezdata 1.0") != 0)
-	{
-		//std::cout << "bezdat_handler: first line in stream must be \"BezDatA 1.0\", but found \"" << str << "\" instead!" << std::endl;
 		return false;
-	}
 	// - check if rest of the file looks valid on first glance
 	do { std::getline(contents, str); } while (!contents.eof() && str.empty());
 	str = std::move(cgv::utils::to_upper(str.substr(0, 2)));
@@ -438,6 +436,10 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (
 	traj_format_handler<flt_type>::trajectories(ret, R.attrib) = ds_trajs; // duplicate the trajectory ranges
 	traj_format_handler<flt_type>::trajectories(ret, C.attrib) = ds_trajs; // across all attributes
 	traj_format_handler<flt_type>::trajectories(ret, dC.attrib) = std::move(ds_trajs);
+
+	// set dataset name (we use the filename since .bezdat does not support any kind of meta fields which could
+	// contain a name for the dataset)
+	traj_format_handler<flt_type>::name(ret) = cgv::utils::file::drop_extension(cgv::utils::file::get_file_name(path));
 
 	// print some stats
 	std::cout << "bezdat_handler: loading completed! Stats:" << std::endl

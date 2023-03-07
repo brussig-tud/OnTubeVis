@@ -1296,6 +1296,9 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 		ret.set_mapping(Impl::attrmap);
 	}
 
+	// set dataset name (we just use the filename for now)
+	traj_format_handler<flt_type>::name(ret) = cgv::utils::file::drop_extension(cgv::utils::file::get_file_name(path));
+
 	// done!
 	return std::move(ret);
 }

@@ -1407,6 +1407,12 @@ const visual_attribute_mapping<flt_type>& traj_dataset<flt_type>::mapping (void)
 // Class implementation - traj_format_handler
 
 template <class flt_type>
+std::string& traj_format_handler<flt_type>::name (traj_dataset<real> &dataset)
+{
+	return dataset.name();
+}
+
+template <class flt_type>
 typename traj_dataset<flt_type>::template attrib_info<typename traj_dataset<flt_type>::Vec3> traj_format_handler<flt_type>::positions (traj_dataset<real> &dataset)
 {
 	return dataset.positions();

@@ -2147,20 +2147,23 @@ void on_tube_vis::create_gui(void) {
 		end_tree_node(general_settings);
 	}
 
-	if(begin_tree_node("Attribute Mapping", render.layer_configs.front().manager, true)) {
-		align("\a");
-		add_decorator("Configuration File", "heading", "level=3");
-		std::string filter = "XML Files (xml):*.xml|All Files:*.*";
-		add_gui("File", fh.file_name, "file_name", "title='Open Transfer Function';filter='" + filter + "';save=false;w=136;small_icon=true;align_gui=' '" + (fh.has_unsaved_changes ? ";text_color=" + cgv::gui::theme_info::instance().warning_hex() : ""));
-		add_gui("save_file_name", fh.save_file_name, "file_name", "title='Save Transfer Function';filter='" + filter + "';save=true;control=false;small_icon=true");
-		add_decorator("", "separator", "level=3");
-		connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &on_tube_vis::reload_shader));
-		connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &on_tube_vis::compile_glyph_attribs));
-		add_member_control(this, "Max Count (Debug)", max_glyph_count, "value_slider", "min=1;max=100;step=1;ticks=true");
-		add_member_control(this, "Show Hidden Glyphs", include_hidden_glyphs, "check");
-		render.layer_configs.front().manager.create_gui(this, *this);
-		align("\b");
-		end_tree_node(render.layer_configs.front().manager);
+	for (unsigned ds=0; ds<(unsigned)render.layer_configs.size(); ds++)
+	{
+		if(begin_tree_node("Attributes '"+traj_mgr.dataset(ds).name()+"'", render.layer_configs[ds].manager, true)) {
+			align("\a");
+			add_decorator("Configuration File", "heading", "level=3");
+			std::string filter = "XML Files (xml):*.xml|All Files:*.*";
+			add_gui("File", fh.file_name, "file_name", "title='Open Transfer Function';filter='" + filter + "';save=false;w=136;small_icon=true;align_gui=' '" + (fh.has_unsaved_changes ? ";text_color=" + cgv::gui::theme_info::instance().warning_hex() : ""));
+			add_gui("save_file_name", fh.save_file_name, "file_name", "title='Save Transfer Function';filter='" + filter + "';save=true;control=false;small_icon=true");
+			add_decorator("", "separator", "level=3");
+			connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &on_tube_vis::reload_shader));
+			connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &on_tube_vis::compile_glyph_attribs));
+			add_member_control(this, "Max Count (Debug)", max_glyph_count, "value_slider", "min=1;max=100;step=1;ticks=true");
+			add_member_control(this, "Show Hidden Glyphs", include_hidden_glyphs, "check");
+			render.layer_configs.front().manager.create_gui(this, *this);
+			align("\b");
+			end_tree_node(render.layer_configs.front().manager);
+		}
 	}
 
 	integrate_object_gui(cm_editor_ptr);

@@ -1177,6 +1177,9 @@ public:
 
 protected:
 
+	/// Proxy for derived classes to gain write-access the dataset name attribute
+	static std::string& name (traj_dataset<real> &dataset);
+
 	/// Proxy for derived classes to gain write-access the "special" positions attribute
 	static typename traj_dataset<real>::template attrib_info<Vec3> positions (traj_dataset<real> &dataset);
 

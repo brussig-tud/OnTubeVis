@@ -14,6 +14,7 @@
 
 // CGV framework core
 #include <cgv/base/register.h>
+#include <cgv/utils/file.h>
 #include <cgv/utils/scan.h>
 #include <cgv/utils/advanced_scan.h>
 
@@ -732,7 +733,8 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 			const int traj_id_field = declared_attribs[props.traj_id].field_ids.front();
 			traj_id = std::atoi(fields[traj_id_field].c_str());
 		}
-		else if(timestamp_id > -1) {
+		else if(timestamp_id > -1)
+		{
 			if(!first) {
 				if(last_timestamp > t)
 					++running_traj_id;
@@ -740,9 +742,9 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 			first = false;
 			last_timestamp = t;
 			traj_id = running_traj_id;
-		} else {
-			traj_id = 0;
 		}
+		else
+			traj_id = 0;
 
 		// make sure position traj exists for various kinds of forward queries
 		auto &P = Impl::ensure_traj(declared_attribs[props.pos_id].trajs, traj_id, 3).template get_data<Vec3>().values;
@@ -882,13 +884,17 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	const auto &P = traj_format_handler<flt_type>::positions(ret);
 	const unsigned
 		num_samples = P.data.num(),
-		num_segs = std::max<int>(num_samples - (unsigned)traj_format_handler<flt_type>::trajectories(ret, P.attrib).size(), 1);
+		num_segs = std::max<int>(num_samples-(unsigned)traj_format_handler<flt_type>::trajectories(ret, P.attrib).size(), 1);
 	traj_format_handler<flt_type>::set_avg_segment_length(ret, real(dist_accum / double(num_segs)));
 
 	// invent radii now that all stats are known
 	R.data.values = std::vector<real>(num_samples, ret.avg_segment_length()*real(0.25));
 	R.data.timestamps = P.data.timestamps;
 	traj_format_handler<flt_type>::trajectories(ret, R.attrib) = traj_format_handler<flt_type>::trajectories(ret, P.attrib);
+
+	// set dataset name (we use the filename since our .csv model does not support other kinds of fields outside the actual data
+	// which could contain the name)
+	traj_format_handler<flt_type>::name(ret) = cgv::utils::file::drop_extension(cgv::utils::file::get_file_name(path));
 
 	// print stats
 	const unsigned num_trajs = (unsigned)declared_attribs[props.pos_id].trajs.size();
