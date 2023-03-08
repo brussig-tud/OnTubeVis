@@ -565,6 +565,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 		// ###  END:  OptiX integration
 		// ###############################
 #endif
+		render.style.max_t = render.style.data_t_minmax.second; // <-- make sure we initially display the whole newly loaded dataset
 		update_attribute_bindings();
 		update_grid_ratios();
 
@@ -658,10 +659,10 @@ void on_tube_vis::on_set(void *member_ptr) {
 	}
 
 	// visualization settings
-	if (member_ptr == &(render.layer_configs.front().manager))
+	if (member_ptr == &(render.visualizations.front().manager))
 	{
-		auto &glyph_layer_mgr = render.layer_configs.front().manager;
-		auto &glyph_layers_config = render.layer_configs.front().config;
+		auto &glyph_layer_mgr = render.visualizations.front().manager;
+		auto &glyph_layers_config = render.visualizations.front().config;
 		const auto action = glyph_layer_mgr.action_type();
 		bool changes = false;
 		if(action == AT_CONFIGURATION_CHANGE) {
@@ -707,7 +708,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 					}
 				}
 			}
-			render.layer_configs.front().manager.set_color_map_names(color_map_mgr.get_names());
+			render.visualizations.front().manager.set_color_map_names(color_map_mgr.get_names());
 
 			context& ctx = *get_context();
 			color_map_mgr.update_texture(ctx);
@@ -882,7 +883,7 @@ void on_tube_vis::reload_shader() {
 }
 
 bool on_tube_vis::save_layer_configuration(const std::string& file_name) {
-	const auto &gams = render.layer_configs.front().manager.ref_glyph_attribute_mappings();
+	const auto &gams = render.visualizations.front().manager.ref_glyph_attribute_mappings();
 
 	auto to_col_uint8 = [](const float& val) {
 		int ival = cgv::math::clamp(static_cast<int>(255.0f * val + 0.5f), 0, 255);
@@ -1154,7 +1155,7 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 		return v;
 	};
 
-	auto &glyph_layer_mgr = render.layer_configs.front().manager;
+	auto &glyph_layer_mgr = render.visualizations.front().manager;
 	glyph_layer_mgr.clear();
 
 	const auto attrib_names = traj_mgr.dataset(0).get_attribute_names();
@@ -1329,7 +1330,7 @@ void on_tube_vis::update_glyph_layer_managers() {
 		return;
 	}
 
-	render.layer_configs.clear();
+	render.visualizations.clear();
 	for (unsigned i=0; i< traj_mgr.num_datasets(); i++)
 	{
 		const auto& dataset = traj_mgr.dataset(i);
@@ -1343,7 +1344,7 @@ void on_tube_vis::update_glyph_layer_managers() {
 			attrib_ranges.push_back(range);
 		}
 
-		auto &new_layer_config = render.layer_configs.emplace_back();
+		auto &new_layer_config = render.visualizations.emplace_back();
 		// clear old configuration of glyph layers and reset shader
 		new_layer_config.manager.clear();
 		// set new information of available attributes and ranges
@@ -1379,7 +1380,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 	for (unsigned ds_idx=0; ds_idx<traj_mgr.num_datasets(); ds_idx++)
 	{
 		const auto &ds = traj_mgr.dataset(ds_idx);
-		auto &ds_config = render.layer_configs[ds_idx];
+		auto &ds_config = render.visualizations[ds_idx];
 		if(ds_config.config.layer_configs.size() > 0)
 		{
 			cgv::utils::stopwatch s(true);
@@ -1442,6 +1443,31 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	app_path += "/";
 #endif
 
+	// generate demo dataset
+	// - demo AO settings
+	ao_style_bak = ao_style;
+	ao_style.strength_scale = 15.0f;
+	update_member(&ao_style);
+	// - demo geometry
+	constexpr unsigned seed = 11;
+#ifdef _DEBUG
+	constexpr unsigned num_trajectories = 3;
+	constexpr unsigned num_nodes = 16;
+#else
+	constexpr unsigned num_trajectories = 256; // 1
+	constexpr unsigned num_nodes = 256; // 32
+#endif
+	for (unsigned i=0; i<num_trajectories; i++)
+		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_nodes, seed+i));
+	traj_mgr.add_dataset(
+		demo::compile_dataset(dataset.demo_trajs)
+	);
+	// - print out attribute statistics
+	std::cerr << "Data attributes:" << std::endl;
+	for (const auto& a : traj_mgr.dataset(0).attributes())
+		std::cerr << " - ["<<a.first<<"] - "<<a.second.get_timestamps().size()<<" samples" << std::endl;
+	std::cerr << std::endl;
+
 	// increase reference count of the renderers by one
 	auto &tstr = ref_textured_spline_tube_renderer(ctx, 1);
 	auto &vr = ref_volume_renderer(ctx, 1);
@@ -1450,11 +1476,11 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	// load all shaders in the library
 	success &= shaders.load_all(ctx);
 
-	color_map_mgr.init(ctx);
-	if (render.layer_configs.empty())
-		render.layer_configs.emplace_back();
-	for (auto &ds_layers : render.layer_configs)
-		ds_layers.config = ds_layers.manager.get_configuration();
+	// prepare render-time dataset state
+	for (const auto &ds : traj_mgr.datasets()) {
+		auto &vis = render.visualizations.emplace_back();
+		vis.config = vis.manager.get_configuration();
+	}
 
 	tube_shading_defines = build_tube_shading_defines();
 	shaders.reload(ctx, "tube_shading", tube_shading_defines);
@@ -1500,34 +1526,14 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	// enable ambient occlusion
 	ao_style.enable = true;
 
-	// generate demo
-	// - demo AO settings
-	ao_style_bak = ao_style;
-	ao_style.strength_scale = 15.0f;
-	update_member(&ao_style);
-	// - demo geometry
-	constexpr unsigned seed = 11;
-#ifdef _DEBUG
-	constexpr unsigned num_trajectories = 3;
-	constexpr unsigned num_nodes = 16;
-#else
-	constexpr unsigned num_trajectories = 256; // 1
-	constexpr unsigned num_nodes = 256; // 32
-#endif
-	for (unsigned i=0; i<num_trajectories; i++)
-		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_nodes, seed+i));
-	traj_mgr.add_dataset(
-		demo::compile_dataset(dataset.demo_trajs)
-	);
+	// init data-dependent render state
 	update_attribute_bindings();
 	update_grid_ratios();
-	// - print out attribute statistics
-	std::cerr << "Data attributes:" << std::endl;
-	for (const auto& a : traj_mgr.dataset(0).attributes())
-		std::cerr << " - ["<<a.first<<"] - "<<a.second.get_timestamps().size()<<" samples" << std::endl;
-	std::cerr << std::endl;
 
-	// load sequential color maps from the resource directory
+	// init color maps
+	// - manager
+	color_map_mgr.init(ctx);
+	// - load sequential color maps from the resource directory
 	std::string color_maps_path = app_path + "res/color_maps/sequential";
 	if(std::filesystem::exists(color_maps_path)) {
 		for(const auto &entry : std::filesystem::directory_iterator(color_maps_path)) {
@@ -1541,8 +1547,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 			}
 		}
 	}
-
-	// load diverging color maps from the resource directory
+	// - load diverging color maps from the resource directory
 	color_maps_path = app_path + "res/color_maps/diverging";
 	if(std::filesystem::exists(color_maps_path)) {
 		for(const auto &entry : std::filesystem::directory_iterator(color_maps_path)) {
@@ -1556,14 +1561,12 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 			}
 		}
 	}
-
-	// load sequential RAINBOW color map
+	// - load sequential rainbow color map
 	cgv::app::color_map_reader::result color_maps;
-	if(cgv::app::color_map_reader::read_from_xml(app_path + "res/color_maps/RAINBOW.xml", color_maps))
+	if(cgv::app::color_map_reader::read_from_xml(app_path + "res/color_maps/rainbow.xml", color_maps))
 		for(const auto& entry : color_maps)
 			color_map_mgr.add_color_map(entry.first, entry.second, false);
-	
-	// load sequential turbo color map
+	// - load sequential turbo color map
 	if(cgv::app::color_map_reader::read_from_xml(app_path + "res/color_maps/turbo.xml", color_maps))
 		for(const auto& entry : color_maps)
 			color_map_mgr.add_color_map(entry.first, entry.second, false);
@@ -2055,6 +2058,29 @@ void on_tube_vis::create_gui(void) {
 	// rendering settings
 	add_decorator("Rendering", "heading", "level=1");
 
+	if (begin_tree_node("Playback", playback, true)) {
+		align("\a");
+		const auto &[tmin, tmax] = render.data->t_minmax;
+		const std::string tmin_str=std::to_string(tmin), tmax_str=std::to_string(tmax),
+		                  step_str=std::to_string((tmax-tmin)/10000.f);
+		add_member_control(
+			this, "Play", playback.active, "toggle",
+			"tooltip='Controls whether to animate the dataset(s) within the set timeframe.'"
+		);
+		add_member_control(
+			this, "Playback speed", playback.speed, "value_slider", "min=0.01;max=1000;step=0.01;ticks=true;log=true"
+		);
+		add_member_control(
+			this, "Timeframe start", playback.tstart, "value_slider", "min="+tmin_str+";max="+tmax_str+";step="+step_str+";ticks=false"
+		);
+		add_member_control(
+			this, "Timeframe end", playback.tend, "value_slider", "min="+tmin_str+";max="+tmax_str+";step="+step_str+";ticks=false"
+		);
+		add_member_control(this, "Repeat", playback.repeat, "check");
+		align("\b");
+		end_tree_node(playback);
+	}
+
 	if (begin_tree_node("Bounds", show_bbox, false)) {
 		align("\a");
 		add_member_control(this, "Color", bbox_style.surface_color);
@@ -2147,9 +2173,9 @@ void on_tube_vis::create_gui(void) {
 		end_tree_node(general_settings);
 	}
 
-	for (unsigned ds=0; ds<(unsigned)render.layer_configs.size(); ds++)
+	for (unsigned ds=0; ds<(unsigned)render.visualizations.size(); ds++)
 	{
-		if(begin_tree_node("Attributes '"+traj_mgr.dataset(ds).name()+"'", render.layer_configs[ds].manager, true)) {
+		if(begin_tree_node("Attributes '"+traj_mgr.dataset(ds).name()+"'", render.visualizations[ds].manager, true)) {
 			align("\a");
 			add_decorator("Configuration File", "heading", "level=3");
 			std::string filter = "XML Files (xml):*.xml|All Files:*.*";
@@ -2160,9 +2186,9 @@ void on_tube_vis::create_gui(void) {
 			connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &on_tube_vis::compile_glyph_attribs));
 			add_member_control(this, "Max Count (Debug)", max_glyph_count, "value_slider", "min=1;max=100;step=1;ticks=true");
 			add_member_control(this, "Show Hidden Glyphs", include_hidden_glyphs, "check");
-			render.layer_configs.front().manager.create_gui(this, *this);
+			render.visualizations.front().manager.create_gui(this, *this);
 			align("\b");
-			end_tree_node(render.layer_configs.front().manager);
+			end_tree_node(render.visualizations.front().manager);
 		}
 	}
 
@@ -2302,10 +2328,10 @@ void on_tube_vis::update_attribute_bindings(void) {
 		set_view();
 
 		// update min/max timestamps
+		auto &[tmin, tmax] = render.style.data_t_minmax;
+		float pct = (render.style.max_t-tmin) / (tmax-tmin);
 		render.style.data_t_minmax = render.data->t_minmax;
-		render.style.max_t = cgv::math::clamp(
-			render.style.max_t, render.style.data_t_minmax.first, render.style.data_t_minmax.second
-		);
+		render.style.max_t = cgv::math::clamp(tmin + pct*(tmax-tmin), tmin, tmax);
 
 		// Clear range and attribute buffers for glyph layers
 		for(size_t i = 0; i < render.aindex_sbos.size(); ++i)
@@ -2363,7 +2389,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 			segment_indices[i] = i;
 
 		// Upload render attributes to legacy buffers
-		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+		auto &tstr = ref_textured_spline_tube_renderer(ctx);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 		tstr.set_node_id_array(ctx, reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count, sizeof(uvec2));
 		tstr.set_indices(ctx, segment_indices);
@@ -2492,7 +2518,7 @@ void on_tube_vis::create_density_volume(context& ctx, unsigned resolution) {
 
 	if(voxelize_gpu) {
 		// prepare index buffer pointer
-		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+		auto &tstr = ref_textured_spline_tube_renderer(ctx);
 		const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
 		if(node_idx_buffer_ptr && render.render_sbo.is_created())
 			density_volume.compute_density_volume_gpu(ctx, render.data, render.style.radius_scale, *node_idx_buffer_ptr, render.render_sbo, density_tex);
@@ -2575,7 +2601,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		static_cast<float>(fbc.ref_frame_buffer().get_height())
 	);
 	// - spline stube renderer setup relevant to deferred shading pass
-	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+	auto &tstr = ref_textured_spline_tube_renderer(ctx);
 	tstr.set_render_style(render.style);
 	// - the depth texture to use
 	//   (workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats)
@@ -2612,7 +2638,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		}
 
 		// render tubes
-		auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+		auto &tstr = ref_textured_spline_tube_renderer(ctx);
 
 		// prepare index buffer pointer
 		const vertex_buffer* segment_idx_buffer_ptr = tstr.get_index_buffer_ptr(render.aam);
@@ -2732,7 +2758,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		}
 
 		// set attribute mapping parameters
-		const auto &glyph_layers_config = render.layer_configs.front().config;
+		const auto &glyph_layers_config = render.visualizations.front().config;
 		for(const auto& p : glyph_layers_config.constant_float_parameters)
 			prog.set_uniform(ctx, p.first, *p.second);
 
@@ -2944,7 +2970,7 @@ shader_define_map on_tube_vis::build_tube_shading_defines() {
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
 	// glyph layer defines
-	const auto &glyph_layers_config = render.layer_configs.front().config;
+	const auto &glyph_layers_config = render.visualizations.front().config;
 	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
 
 	shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));

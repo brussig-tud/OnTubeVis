@@ -341,6 +341,15 @@ protected:
 	volume_render_style vstyle;
 	cgv::render::gl_color_map volume_tf;
 
+	// playback
+	struct {
+		bool active = false;
+		bool repeat = false;
+		double tstart = 0;
+		double tend = 1;
+		double speed = 1.;
+	} playback;
+
 	bool show_bbox = false;
 	bool show_wireframe_bbox = true;
 	cgv::render::box_render_style bbox_style;
@@ -350,9 +359,13 @@ protected:
 	vec3 last_sort_pos;
 	vec3 last_sort_dir;
 
-	struct on_tube_layer_config {
+	struct on_tube_visualization {
 		glyph_layer_manager::configuration config;
 		glyph_layer_manager manager;
+		/*context &ctx;
+
+		on_tube_visualization(context &ctx) : ctx(ctx) {}
+		~on_tube_visualization() {}*/
 	};
 
 	/// rendering state fields
@@ -364,7 +377,7 @@ protected:
 		const traj_manager<float>::render_data *data;
 
 		/// the on-tube visualization layers for each loaded dataset
-		std::vector<on_tube_layer_config> layer_configs;
+		std::vector<on_tube_visualization> visualizations;
 
 		/// segment-wise arclength approximations (set of 4 cubic bezier curves returning global
 		/// trajectory arclength at the segment, packed into the columns of a 4x4 matrix)
