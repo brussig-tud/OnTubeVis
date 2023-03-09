@@ -2359,6 +2359,8 @@ void on_tube_vis::update_attribute_bindings(void) {
 		float pct = (render.style.max_t-tmin) / (tmax-tmin);
 		render.style.data_t_minmax = render.data->t_minmax;
 		render.style.max_t = cgv::math::clamp(tmin + pct*(tmax-tmin), tmin, tmax);
+		playback.tstart = tmin;
+		playback.tend = tmax;
 
 		// Clear range and attribute buffers for glyph layers
 		for(size_t i = 0; i < render.aindex_sbos.size(); ++i)
