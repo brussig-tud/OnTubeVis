@@ -798,6 +798,13 @@ void on_tube_vis::on_set(void *member_ptr) {
 	if (member_ptr == &include_hidden_glyphs)
 		compile_glyph_attribs();
 
+	// playback controls
+	if (member_ptr == &playback.active && playback.active)
+	{
+		playback.timer.add_time();
+		render.style.max_t = playback.tstart;
+	}
+
 	// misc settings
 	// - instant redraw
 	if (member_ptr == &misc_cfg.instant_redraw_proxy)
@@ -1924,6 +1931,26 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	// query the current viewport dimensions as this is needed for multiple draw methods
 	glGetIntegerv(GL_VIEWPORT, viewport);
 
+	if (playback.active)
+	{
+		const double prev = playback.time_active;
+		playback.timer.add_time();
+		const double dt = playback.time_active - prev;
+		render.style.max_t = render.style.max_t + float(dt*playback.speed);
+		update_member(&render.style.max_t);
+		if (render.style.max_t >= playback.tend)
+		{
+			if (playback.repeat)
+				render.style.max_t = playback.tstart;
+			else
+			{
+				render.style.max_t = playback.tend;
+				playback.active = false;
+				update_member(&playback.active);
+			}
+		}
+	}
+
 	if(benchmark.requested) {
 		if(!misc_cfg.instant_redraw_proxy) {
 			misc_cfg.instant_redraw_proxy = true;
@@ -2875,6 +2902,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 				++taa.static_frame_count;
 				post_redraw();
 			}
+			else if (playback.active)
+				post_redraw();
 
 			resolve_prog.set_uniform(ctx, "curr_projection_matrix", curr_projection_matrix);
 			resolve_prog.set_uniform(ctx, "curr_eye_to_prev_clip_matrix", taa.prev_modelview_projection_matrix * inv(curr_modelview_matrix));

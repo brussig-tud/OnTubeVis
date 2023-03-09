@@ -345,9 +345,12 @@ protected:
 	struct {
 		bool active = false;
 		bool repeat = false;
-		double tstart = 0;
-		double tend = 1;
+		double tstart = 0.;
+		double tend = 1.;
 		double speed = 1.;
+
+		double time_active = 0.;
+		cgv::utils::stopwatch timer = &time_active;
 	} playback;
 
 	bool show_bbox = false;
