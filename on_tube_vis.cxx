@@ -803,6 +803,10 @@ void on_tube_vis::on_set(void *member_ptr) {
 	{
 		playback.timer.add_time();
 		render.style.max_t = playback.tstart;
+		const auto &ds = traj_mgr.dataset(0);
+		const auto &[pos_attrib, pos_data] = ds.positions();
+		const auto &traj_range = ds.trajectories(pos_attrib)[playback.follow_traj];
+		playback.follow_last_nid = find_sample(pos_attrib, traj_range, render.style.max_t);
 	}
 
 	// misc settings
@@ -1949,6 +1953,17 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 				update_member(&playback.active);
 			}
 		}
+		if (playback.follow && playback.active)
+		{
+			const auto &ds = traj_mgr.dataset(0);
+			const auto &[pos_attrib, pos_data] = ds.positions();
+			const auto &traj_range = ds.trajectories(pos_attrib)[playback.follow_traj];
+			const unsigned nid = find_sample_linear(
+				pos_attrib, traj_range, render.style.max_t, playback.follow_last_nid
+			);
+			const auto &node = pos_data.values[nid];
+			view_ptr->set_focus(node);
+		}
 	}
 
 	if(benchmark.requested) {
@@ -2104,6 +2119,11 @@ void on_tube_vis::create_gui(void) {
 			this, "Timeframe end", playback.tend, "value_slider", "min="+tmin_str+";max="+tmax_str+";step="+step_str+";ticks=false"
 		);
 		add_member_control(this, "Repeat", playback.repeat, "check");
+		add_member_control(this, "View follows trajectory", playback.follow, "check");
+		add_member_control(
+			this, "Trajectory ID", playback.follow_traj, "value_slider",
+			"min=0;max="+std::to_string(render.data->datasets[0].trajs.size()-1)+";step=1;ticks=true"
+		);
 		align("\b");
 		end_tree_node(playback);
 	}
@@ -2361,6 +2381,9 @@ void on_tube_vis::update_attribute_bindings(void) {
 		render.style.max_t = cgv::math::clamp(tmin + pct*(tmax-tmin), tmin, tmax);
 		playback.tstart = tmin;
 		playback.tend = tmax;
+		playback.follow_traj = std::min(
+			playback.follow_traj, (unsigned)render.data->datasets[0].trajs.size()-1
+		);
 
 		// Clear range and attribute buffers for glyph layers
 		for(size_t i = 0; i < render.aindex_sbos.size(); ++i)

@@ -2115,6 +2115,54 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 
 
 ////
+// Function implementations
+
+template <class flt_type>
+unsigned find_sample(const traj_attribute<flt_type> &attrib, const range &traj, double timestamp)
+{
+	const auto &timestamps = attrib.get_timestamps();
+	unsigned i0 = traj.i0, i1 = traj.i0+traj.n-1, w = traj.n, ic = (i0+i1)/2;
+	flt_type t0 = timestamps[i0], tc = timestamps[ic], t1 =timestamps[i1];
+	while (w > 1)
+	{
+		if (timestamp <= t0 || timestamp >= 1)
+			return timestamp < t1 ? i0 : i1;
+		if (timestamp < tc) {
+			i1 = ic;
+			t1 = tc;
+		}
+		else if (timestamp > tc) {
+			i0 = ic;
+			t0 = tc;
+		}
+		else
+			return ic;
+		w = (i1-i0);
+		ic = i0 + w/2;
+		tc = timestamps[ic];
+	}
+	return timestamp >= tc ? ic : std::max(signed(ic)-1, 0);
+}
+
+template <class flt_type>
+unsigned find_sample_linear (const traj_attribute<flt_type> &attrib, const range &traj, double timestamp, unsigned hint)
+{
+	const auto &timestamps = attrib.get_timestamps();
+	const auto t_hint = timestamps[hint];
+	if (timestamp >= t_hint) {
+		for (unsigned i=hint+1; i<traj.i0+traj.n; i++)
+			if (timestamps[i] > timestamp)
+				return i-1;
+		return traj.n-1;
+	}
+	for (signed i=signed(hint)-1; i>=traj.i0; i--)
+		if (timestamps[i] < timestamp)
+			return i+1;
+	return 0;
+}
+
+
+////
 // Explicit template instantiations
 
 // Only float and double variants are intended
@@ -2130,7 +2178,10 @@ template class traj_format_handler<float>;
 template class traj_format_handler<double>;
 template class traj_manager<float>;
 template class traj_manager<double>;
-
+template unsigned find_sample<float> (const traj_attribute<float>&, const range&, double);
+template unsigned find_sample<double> (const traj_attribute<double>&, const range&, double);
+template unsigned find_sample_linear<float>(const traj_attribute<float>&, const range&, double, unsigned);
+template unsigned find_sample_linear<double>(const traj_attribute<double>&, const range&, double, unsigned);
 
 ////
 // Object registration

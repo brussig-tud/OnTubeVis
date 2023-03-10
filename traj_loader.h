@@ -1407,6 +1407,16 @@ public:
 };
 
 
+/// Finds in log(n) time the index of the last sample of a \ref traj_attribute for the given trajectory that precedes the given
+/// timestamp, or the very first one in case the timestamp precedes the whole trajectory
+template <class flt_type>
+unsigned find_sample (const traj_attribute<flt_type> &attrib, const range &traj, double timestamp);
+
+/// Linearly searches for the index of the last/first sample of a \ref traj_attribute for the given trajectory that
+/// precedes/succeeds the given timestamp, starting the search from the the given hint.
+template <class flt_type>
+unsigned find_sample_linear(const traj_attribute<flt_type> &attrib, const range &traj, double timestamp, unsigned hint);
+
 /// converts (1-based) 3-vectors to float RGB colors
 template <class vec_type>
 inline typename cgv::media::color<float, cgv::media::RGB, cgv::media::NO_ALPHA> vec3_to_rgb (const vec_type &v)

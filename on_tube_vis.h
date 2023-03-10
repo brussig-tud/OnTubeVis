@@ -349,6 +349,10 @@ protected:
 		double tend = 1.;
 		double speed = 1.;
 
+		bool follow = false;
+		unsigned follow_traj = 0;
+		unsigned follow_last_nid = 0;
+
 		double time_active = 0.;
 		cgv::utils::stopwatch timer = &time_active;
 	} playback;
