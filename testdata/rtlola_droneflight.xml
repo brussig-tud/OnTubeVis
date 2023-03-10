@@ -1,0 +1,46 @@
+<GlyphConfiguration>
+  <ColorMaps>
+  </ColorMaps>
+  <Layers>
+    <Layer glyph="temporal_heat_map" sampling="original" >
+      <Property name="outline" value="0.000000" />
+      <Property name="interpolate" value="1.000000" />
+      <Property name="color" color_map_name="vik" />
+      <Property name="value_0" attrib_name="acc_avg" in_range="0.944000, 1.042000" out_range="0.000000, 1.000000" />
+      <Property name="value_1" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="value_2" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+    </Layer>
+    <Layer glyph="line_plot" sampling="original" >
+      <Property name="outline" value="0.000000" />
+      <Property name="interpolate" value="0.000000" />
+      <Property name="color_0" color="0.380286, 0.578035, 0.000000" />
+      <Property name="value_0" attrib_name="trigger_noisy_acc" in_range="0.000000, 1.000000" out_range="0.000000, 0.667000" />
+      <Property name="color_1" color="1.000000, 0.000000, 0.921053" />
+      <Property name="value_1" attrib_name="trigger_gps_missed_beat" in_range="0.000000, 1.000000" out_range="0.000000, 0.667000" />
+      <Property name="color_2" color="0.000000, 0.000000, 0.000000" />
+      <Property name="value_2" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="color_3" color="0.000000, 0.000000, 0.000000" />
+      <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+    </Layer>
+    <Layer glyph="line_plot" sampling="original" >
+      <Property name="outline" value="0.030000" />
+      <Property name="interpolate" value="1.000000" />
+      <Property name="color_0" color="0.344216, 0.872832, 0.872832" />
+      <Property name="value_0" attrib_name="battery_min" in_range="0.000000, 100.000000" out_range="0.000000, 0.500000" />
+      <Property name="color_1" color="0.000000, 0.000000, 0.000000" />
+      <Property name="value_1" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="color_2" color="0.000000, 0.000000, 0.000000" />
+      <Property name="value_2" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+      <Property name="color_3" color="0.000000, 0.000000, 0.000000" />
+      <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
+    </Layer>
+    <Layer glyph="triangle_isosceles" sampling="equidist" sampling_step="3.333333" >
+      <Property name="outline" value="0.050000" />
+      <Property name="color" attrib_name="time" color_map_name="roma" in_range="0.000000, 568.063049" />
+      <Property name="base_width" in_range="0.000000, 1.000000" out_range="0.000000, 0.667000" />
+      <Property name="height" in_range="0.000000, 1.000000" out_range="0.000000, 0.750000" />
+      <Property name="orientation" in_range="0.000000, 1.000000" out_range="0.000000, 360.000000" />
+    </Layer>
+  </Layers>
+</GlyphConfiguration>

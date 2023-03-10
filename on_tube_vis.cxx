@@ -410,6 +410,11 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				on_set(&show_wireframe_bbox);
 				handled = true;
 				break;
+			case ' ':
+				playback.active = !playback.active;
+				on_set(&playback.active);
+				handled = true;
+				break;
 			default:
 				break;
 			}
@@ -1960,9 +1965,23 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 			const auto &traj_range = ds.trajectories(pos_attrib)[playback.follow_traj];
 			const unsigned nid = find_sample_linear(
 				pos_attrib, traj_range, render.style.max_t, playback.follow_last_nid
-			);
-			const auto &node = pos_data.values[nid];
-			view_ptr->set_focus(node);
+			),
+			nid_next = std::min(nid+1, traj_range.i0+traj_range.n-1);
+			const vec3 &node = pos_data.values[nid], &node_next = pos_data.values[nid_next];
+			vec3 node_pos, node_pos_next;
+			const auto &ptransform = ds.mapping().map().at(VisualAttrib::POSITION).transform;
+			if (ptransform.is_identity()) {
+				node_pos = node;
+				node_pos_next = node_next;
+			}
+			else {
+				ptransform.exec(node_pos, node);
+				ptransform.exec(node_pos_next, node_next);
+			}
+			const float t0 = pos_data.timestamps[nid], t1 = pos_data.timestamps[nid_next];
+			const float l = (render.style.max_t-t0)/(t1-t0);
+			const vec3 focus_pos = cgv::math::lerp(node_pos, node_pos_next, l);
+			view_ptr->set_focus(focus_pos);
 		}
 	}
 

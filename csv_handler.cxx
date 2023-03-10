@@ -18,6 +18,9 @@
 #include <cgv/utils/scan.h>
 #include <cgv/utils/advanced_scan.h>
 
+// 3rd party libs
+#include <WGS84toCartesian.hpp>
+
 // local includes
 #include "regulargrid.h"
 
@@ -450,16 +453,16 @@ struct csv_handler<flt_type>::Impl
 			return TimeFmt::HMS_MS;
 		return TimeFmt::SIMPLE_NUMBER;
 	}
-	inline static real parse_timestamp_field (TimeFmt fmt, const std::string &field)
+	inline static double parse_timestamp_field (TimeFmt fmt, const std::string &field)
 	{
 		switch (fmt)
 		{
 			case TimeFmt::SIMPLE_NUMBER:
 			{
-				real val;
-				try { val = (real)std::stod(field); }
-				catch (const std::out_of_range&) { val = std::numeric_limits<real>::infinity(); }
-				catch (...) { val = -std::numeric_limits<real>::infinity(); }
+				double val;
+				try { val = std::stod(field); }
+				catch (const std::out_of_range&) { val = std::numeric_limits<double>::infinity(); }
+				catch (...) { val = -std::numeric_limits<double>::infinity(); }
 				return val;
 			}
 			case TimeFmt::HMS:
@@ -467,13 +470,13 @@ struct csv_handler<flt_type>::Impl
 				static const std::string seperators = ":.";
 				std::vector<cgv::utils::token> tokens;
 				cgv::utils::split_to_tokens(field, tokens, seperators, false);
-				real val[3];
+				double val[3];
 				for (unsigned i=0; i<3; i++)
 				{
 					const auto &token = tokens[i*2];
-					try { val[i] = (real)std::stod(std::string(token.begin, size_t(token.end - token.begin))); }
-					catch (const std::out_of_range&) { val[i] = std::numeric_limits<real>::infinity(); }
-					catch (...) { val[i] = -std::numeric_limits<real>::infinity(); }
+					try { val[i] = std::stod(std::string(token.begin, size_t(token.end - token.begin))); }
+					catch (const std::out_of_range&) { val[i] = std::numeric_limits<double>::infinity(); }
+					catch (...) { val[i] = -std::numeric_limits<double>::infinity(); }
 				}
 				return val[0]*60*60 + val[1]*60 + val[2];
 			}
@@ -482,13 +485,15 @@ struct csv_handler<flt_type>::Impl
 				static const std::string seperators = ":.";
 				std::vector<cgv::utils::token> tokens;
 				cgv::utils::split_to_tokens(field, tokens, seperators, false);
-				real val[4];
+				double val[4];
 				for (unsigned i=0; i<4; i++)
 				{
 					const auto &token = tokens[i*2];
-					try { val[i] = (real)std::stod(std::string(token.begin, size_t(token.end - token.begin))); }
-					catch (const std::out_of_range&) { val[i] = std::numeric_limits<real>::infinity(); }
-					catch (...) { val[i] = -std::numeric_limits<real>::infinity(); }
+					try { val[i] = std::stod(std::string(token.begin, size_t(token.end - token.begin))); }
+					catch (const std::out_of_range&) { val[i] = std::numeric_limits<double>::infinity(); }
+					catch (...) {
+					val[i] = -std::numeric_limits<double>::infinity();
+					}
 				}
 				return val[0]*60*60 + val[1]*60 + val[2] + val[3]/1000;
 			}
@@ -713,17 +718,19 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	bool nothing_loaded = true;
 	real dist_accum = 0;
 	unsigned running_traj_id = 0;
-	real last_timestamp = 0.0f;
+	double first_timestamp = 0, prev_timestamp = 0.;
 	bool first = true;
 	while (!contents.eof())
 	{
 		// read in timestamps if present
-		real t;
+		double t;
 		if(timestamp_id > -1) {
 			auto &ts_csv = declared_attribs[timestamp_id];
 			t = Impl::parse_timestamp_field(
 				timestamp_format, fields[ts_csv.field_ids.front()]
 			);
+			if (first && !props.multi_traj)
+				first_timestamp = t;
 		}
 
 		// determine trajectory id of this row
@@ -736,11 +743,11 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		else if(timestamp_id > -1)
 		{
 			if(!first) {
-				if(last_timestamp > t)
+				if(prev_timestamp > t)
 					++running_traj_id;
 			}
 			first = false;
-			last_timestamp = t;
+			prev_timestamp = t;
 			traj_id = running_traj_id;
 		}
 		else
@@ -750,12 +757,14 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		auto &P = Impl::ensure_traj(declared_attribs[props.pos_id].trajs, traj_id, 3).template get_data<Vec3>().values;
 
 		// commit timestamp as actual data point if present
+		real t_mod;
 		if(timestamp_id > -1) {
 			auto &ts_csv = declared_attribs[timestamp_id];
 			auto &ts_attrib = Impl::ensure_traj(ts_csv.trajs, traj_id, 1);
-			ts_attrib.template get_data<real>().append(t, t);
+			t_mod = (real)(t - first_timestamp);
+			ts_attrib.template get_data<real>().append(t_mod, t_mod);
 		} else {
-			t = (flt_type)P.size();
+			t_mod = (real)(t = (real)P.size());
 		}
 	
 		// read in all declared attributes
@@ -771,7 +780,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 				{
 					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 1);
 					a.template get_data<real>().append(
-						Impl::parse_field(fields[attrib.field_ids.front()]), t
+						Impl::parse_field(fields[attrib.field_ids.front()]), (real)t_mod
 					);
 					continue;
 				}
@@ -780,7 +789,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 				{
 					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 2);
 					a.template get_data<Vec2>().append(
-						std::move(Impl::template parse_fields<2>(fields, attrib.field_ids)), t
+						std::move(Impl::template parse_fields<2>(fields, attrib.field_ids)), (real)t_mod
 					);
 					continue;
 				}
@@ -789,7 +798,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 				{
 					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 3);
 					a.template get_data<Vec3>().append(
-						std::move(Impl::template parse_fields<3>(fields, attrib.field_ids)), t
+						std::move(Impl::template parse_fields<3>(fields, attrib.field_ids)), (real)t_mod
 					);
 					nothing_loaded = false; // this is guaranteed to capture the position attribute, since positions are always Vec3
 					continue;
@@ -799,7 +808,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 				{
 					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 4);
 					a.template get_data<Vec4>().append(
-						std::move(Impl::template parse_fields<4>(fields, attrib.field_ids)), t
+						std::move(Impl::template parse_fields<4>(fields, attrib.field_ids)), (real)t_mod
 					);
 					continue;
 				}
@@ -813,7 +822,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		for (auto &attrib : undeclared_attribs)
 		{
 			auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 1);
-			a.template get_data<real>().append(Impl::parse_field(fields[attrib.field_id]), t);
+			a.template get_data<real>().append(Impl::parse_field(fields[attrib.field_id]), (real)t_mod);
 		}
 
 		// update segment length counter
@@ -1080,38 +1089,6 @@ cgv::base::object_registration_2<
 > csv_pkg_drone_streamline_reg(
 	csv_pkg_drone_streamline_desc,
 	visual_attribute_mapping<float>({
-		{VisualAttrib::POSITION, {
-			// increase radius a bit to get thicker tubes with more visible area
-			"position", attrib_transform<float>::vec3_to_vec3(
-				[](csv_handler<float>::Vec3 &out, const csv_handler<float>::Vec3 &in) {
-					//float lat = cgv::math::deg2rad(in.y()); // latitude in degrees
-					//float lon = cgv::math::deg2rad(in.x()); // longitude in degrees
-					//float alt = in.z(); // altitude in meters above sea level
-					//
-					//const float earth_radius = 6371.0f * 1000.0f; // meter
-					//const float alt_scale = 1.0f; // scale the altitude for visualization reasons
-					//
-					//const float ref_lat = cgv::math::deg2rad(40.45804724f);
-					//const float ref_lon = cgv::math::deg2rad(-79.78239570000002f);
-					//const float ref_alt = 269.3324017f;
-					//const csv_handler<float>::Vec3 o =
-					//	csv_handler<float>::Vec3(
-					//		sin(M_PI_2 - ref_lat) * cos(ref_lon),
-					//		sin(M_PI_2 - ref_lat) * sin(ref_lon),
-					//		cos(M_PI_2 - ref_lat)
-					//	) * earth_radius + alt_scale*ref_alt;
-					//
-					//csv_handler<float>::Vec3 p;
-					//p.x() = sin(M_PI_2 - lat) * cos(lon);
-					//p.y() = sin(M_PI_2 - lat) * sin(lon);
-					//p.z() = cos(M_PI_2 - lat);
-					//
-					//p = (earth_radius + alt_scale*alt) * p;
-					//out = p - o;
-					out = in;
-				}
-			)
-		 }},
 		{VisualAttrib::RADIUS, {
 			// increase radius a bit to get thicker tubes with more visible area
 			"radius", attrib_transform<float>::real_to_real(
@@ -1119,8 +1096,41 @@ cgv::base::object_registration_2<
 					out = 4.0f*in;
 				}
 			)
-		}}
-		}
-		),
+		}}}
+	),
 	"csv handler (float) - " + csv_pkg_drone_streamline_desc.name()
+);
+
+// Register handler for RTLola trace export .csv files
+static const csv_descriptor csv_rtlola_desc("RTLola Trace", ",", {
+	{ "time", {"time", false, 0}, CSV::TIMESTAMP },
+	{ "position",  {{"lat", false, 1}, {"lon", false, 2}, {"altitude", false, 3}}, CSV::POS } }
+);
+
+cgv::base::object_registration_2<
+	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>
+> csv_rtlola_reg(
+	csv_rtlola_desc,
+	visual_attribute_mapping<float>({
+		{VisualAttrib::POSITION, {
+			// transform lat/long/alt to cartesian coordinates using mercator projection
+			"position", attrib_transform<float>::vec3_to_vec3(
+				[](csv_handler<float>::Vec3 &out, const csv_handler<float>::Vec3 &in) {
+					typedef std::array<double, 2> latlong;
+					const static latlong refpos = {in.x(), in.y()};
+					const auto mercator = wgs84::toCartesian(refpos, latlong{in.x(), in.y()});
+					out.set((float)mercator[0]*1.f, in.z()*1.f, (float)mercator[1]*1.f);
+				}
+			)
+		 }},
+		{VisualAttrib::RADIUS, {
+			// increase radius a bit to get thicker tubes with more visible area
+			"radius", attrib_transform<float>::real_to_real(
+				[](float &out, const float &in) {
+					out = in;
+				}
+			)
+		}}}
+	),
+	"csv handler (float) - " + csv_rtlola_desc.name()
 );
