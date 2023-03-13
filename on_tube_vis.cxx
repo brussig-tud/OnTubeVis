@@ -410,6 +410,10 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				on_set(&show_wireframe_bbox);
 				handled = true;
 				break;
+			case cgv::gui::Keys::KEY_Num_0:
+				post_redraw();
+				handled = true;
+				break;
 			case cgv::gui::Keys::KEY_Space:
 				playback.active = !playback.active;
 				on_set(&playback.active);
@@ -431,6 +435,11 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 			default:
 				break;
 			}
+		}
+		else if (ka == cgv::gui::KA_REPEAT && ke.get_key() == cgv::gui::Keys::KEY_Num_0)
+		{
+			post_redraw();
+			handled = true;
 		}
 
 		if(handled) {
