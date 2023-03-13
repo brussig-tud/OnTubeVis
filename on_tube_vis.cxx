@@ -410,9 +410,22 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				on_set(&show_wireframe_bbox);
 				handled = true;
 				break;
-			case ' ':
+			case cgv::gui::Keys::KEY_Space:
 				playback.active = !playback.active;
 				on_set(&playback.active);
+				handled = true;
+				break;
+			case cgv::gui::Keys::KEY_Home:
+				playback.follow = !playback.follow;
+				on_set(&playback.follow);
+				handled = true;
+				break;
+			case cgv::gui::Keys::KEY_Back_Space:
+				playback_rewind();
+				handled = true;
+				break;
+			case cgv::gui::Keys::KEY_End:
+				playback_reset_ds();
 				handled = true;
 				break;
 			default:
@@ -555,9 +568,13 @@ void on_tube_vis::on_set(void *member_ptr) {
 
 		// print out attribute statistics
 		std::cerr << "Data attributes:" << std::endl;
-		for (const auto &a : traj_mgr.dataset(0).attributes())
+		const auto &ds = traj_mgr.dataset(0);
+		for (const auto &a : ds.attributes())
 			std::cerr << " - ["<<a.first<<"] - "<<a.second.get_timestamps().size()<<" samples" << std::endl;
+		std::cerr << " - avg. segment length: " << ds.avg_segment_length();
 		std::cerr << std::endl;
+		render.style.cap_clip_distance = ds.avg_segment_length() * 20.f;
+		update_member(&render.style.cap_clip_distance);
 #ifdef RTX_SUPPORT
 		// ###############################
 		// ### BEGIN: OptiX integration
@@ -807,11 +824,19 @@ void on_tube_vis::on_set(void *member_ptr) {
 	if (member_ptr == &playback.active && playback.active)
 	{
 		playback.timer.add_time();
-		render.style.max_t = playback.tstart;
+		render.style.max_t =
+			render.style.max_t >= (float)playback.tend ? (float)playback.tstart : render.style.max_t;
 		const auto &ds = traj_mgr.dataset(0);
-		const auto &[pos_attrib, pos_data] = ds.positions();
-		const auto &traj_range = ds.trajectories(pos_attrib)[playback.follow_traj];
-		playback.follow_last_nid = find_sample(pos_attrib, traj_range, render.style.max_t);
+		const auto &pos = ds.positions();
+		const auto &traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
+		playback.follow_last_nid = find_sample(pos.attrib, traj_range, render.style.max_t);
+	}
+	if (member_ptr == &playback.follow_traj)
+	{
+		const auto& ds = traj_mgr.dataset(0);
+		const auto& pos = ds.positions();
+		const auto& traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
+		playback.follow_last_nid = find_sample(pos.attrib, traj_range, render.style.max_t);
 	}
 
 	// misc settings
@@ -1950,10 +1975,10 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		if (render.style.max_t >= playback.tend)
 		{
 			if (playback.repeat)
-				render.style.max_t = playback.tstart;
+				render.style.max_t = (float)playback.tstart;
 			else
 			{
-				render.style.max_t = playback.tend;
+				render.style.max_t = (float)playback.tend;
 				playback.active = false;
 				update_member(&playback.active);
 			}
@@ -2125,8 +2150,16 @@ void on_tube_vis::create_gui(void) {
 		const std::string tmin_str=std::to_string(tmin), tmax_str=std::to_string(tmax),
 		                  step_str=std::to_string((tmax-tmin)/10000.f);
 		add_member_control(
-			this, "Play", playback.active, "toggle",
+			this, "Play (space)", playback.active, "toggle",
 			"tooltip='Controls whether to animate the dataset(s) within the set timeframe.'"
+		);
+		connect_copy(
+			add_button("Rewind (backspace)", "tooltip='Resets playback time to start.'")->click,
+			cgv::signal::rebind(this, &on_tube_vis::playback_rewind)
+		);
+		connect_copy(
+			add_button("Display full dataset (end)", "tooltip='Cancels playback and displays the full data.'")->click,
+			cgv::signal::rebind(this, &on_tube_vis::playback_reset_ds)
 		);
 		add_member_control(
 			this, "Playback speed", playback.speed, "value_slider", "min=0.01;max=1000;step=0.01;ticks=true;log=true"
@@ -2138,7 +2171,7 @@ void on_tube_vis::create_gui(void) {
 			this, "Timeframe end", playback.tend, "value_slider", "min="+tmin_str+";max="+tmax_str+";step="+step_str+";ticks=false"
 		);
 		add_member_control(this, "Repeat", playback.repeat, "check");
-		add_member_control(this, "View follows trajectory", playback.follow, "check");
+		add_member_control(this, "View follows trajectory (home)", playback.follow, "check");
 		add_member_control(
 			this, "Trajectory ID", playback.follow_traj, "value_slider",
 			"min=0;max="+std::to_string(render.data->datasets[0].trajs.size()-1)+";step=1;ticks=true"

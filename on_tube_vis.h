@@ -357,6 +357,16 @@ protected:
 		cgv::utils::stopwatch timer = &time_active;
 	} playback;
 
+	void playback_rewind() {
+		render.style.max_t = (float)playback.tstart;
+		on_set(&render.style.max_t);
+	}
+	void playback_reset_ds() {
+		playback.active = false; update_member(&playback.active);
+		render.style.max_t = render.style.data_t_minmax.second;
+		on_set(&render.style.max_t);
+	}
+
 	bool show_bbox = false;
 	bool show_wireframe_bbox = true;
 	cgv::render::box_render_style bbox_style;
