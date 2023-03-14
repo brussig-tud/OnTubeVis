@@ -1119,7 +1119,7 @@ cgv::base::object_registration_2<
 					typedef std::array<double, 2> latlong;
 					const static latlong refpos = {in.x(), in.y()};
 					const auto mercator = wgs84::toCartesian(refpos, latlong{in.x(), in.y()});
-					out.set((float)mercator[0]*1.f, in.z()*1.f, (float)mercator[1]*1.f);
+					out.set((float)mercator[0], in.z(), (float)mercator[1]);
 				}
 			)
 		 }},

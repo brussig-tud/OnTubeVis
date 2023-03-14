@@ -572,6 +572,8 @@ void on_tube_vis::on_set(void *member_ptr) {
 			ao_style = ao_style_bak;	// reset from handcrafted AO settings
 			update_member(&ao_style);
 		}
+		if (traj_mgr.dataset(0).name().compare("rtlola_droneflight") == 0)
+			dataset.is_rtlola = true;
 
 		// print out attribute statistics
 		const auto &ds = traj_mgr.dataset(0);
@@ -1632,6 +1634,9 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	// use white background for paper screenshots
 	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
 
+	// load RTLola map texture
+	dataset.rtlola_map_tex.create_from_image(ctx, app_path+"res/rtlola_droneflight.png");
+
 #ifdef RTX_SUPPORT
 	// ###############################
 	// ### BEGIN: OptiX integration
@@ -2049,6 +2054,11 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 	if(!view_ptr) return;
 
 	//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());
+
+	if (dataset.is_rtlola)
+	{
+		// -35.37351256738954, 149.148490937838 to -35.351464248015866, 149.19215508498957
+	}
 
 	// draw dataset using selected renderer
 	if(show_volume) {

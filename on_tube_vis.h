@@ -235,6 +235,12 @@ protected:
 
 		/// generated demo dataset
 		std::vector<demo::trajectory> demo_trajs;
+
+		/// whether the RTLola drone flight demo dataset was detected
+		bool is_rtlola = false;
+
+		/// the map texture that will be displayed under the RTLola drone flight demo dataset
+		texture rtlola_map_tex;
 	} dataset;
 
 	// TODO: comment and cleanup members
