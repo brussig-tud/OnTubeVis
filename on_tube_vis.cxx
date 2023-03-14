@@ -243,8 +243,10 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 	return
 		rh.reflect_member("datapath", datapath) &&
 		rh.reflect_member("layer_config_file", fh.file_name) && // ToDo: figure out proper reflection name
-		rh.reflect_member("show_hidden_glyphs", include_hidden_glyphs) && // ToDo: which of these two names is better?
+		rh.reflect_member("show_hidden_glyphs", show_hidden_glyphs) &&
 		rh.reflect_member("render_style", render.style) &&
+		rh.reflect_member("attrib_mode", (unsigned&)render.style.attrib_mode) &&
+		rh.reflect_member("bounding_geometry", render.style.bounding_geometry) &&
 		rh.reflect_member("bounding_box_color", bbox_style.surface_color) &&
 		rh.reflect_member("show_bounding_box", show_bbox) &&
 		rh.reflect_member("show_wireframe_box", show_wireframe_bbox) &&
@@ -576,14 +578,12 @@ void on_tube_vis::on_set(void *member_ptr) {
 		}
 
 		// print out attribute statistics
-		std::cerr << "Data attributes:" << std::endl;
 		const auto &ds = traj_mgr.dataset(0);
+		std::cerr << "Avg. segment length: "<<ds.avg_segment_length() << "Data attributes:" << std::endl;
 		for (const auto &a : ds.attributes())
 			std::cerr << " - ["<<a.first<<"] - "<<a.second.get_timestamps().size()<<" samples" << std::endl;
-		std::cerr << " - avg. segment length: " << ds.avg_segment_length();
 		std::cerr << std::endl;
-		render.style.cap_clip_distance = ds.avg_segment_length() * 20.f;
-		update_member(&render.style.cap_clip_distance);
+		SET_MEMBER(render.style.cap_clip_distance, ds.avg_segment_length()*20.f);
 #ifdef RTX_SUPPORT
 		// ###############################
 		// ### BEGIN: OptiX integration
@@ -826,7 +826,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 			ctrl->set("text_color", fh.has_unsaved_changes ? cgv::gui::theme_info::instance().warning_hex() : "");
 	}
 
-	if (member_ptr == &include_hidden_glyphs)
+	if (member_ptr == &show_hidden_glyphs)
 		compile_glyph_attribs();
 
 	// playback controls
@@ -1438,7 +1438,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 			glyph_compiler gc;
 			gc.length_scale = general_settings.length_scale;
-			gc.include_hidden_glyphs = include_hidden_glyphs;
+			gc.include_hidden_glyphs = show_hidden_glyphs;
 
 			const auto &dataset = traj_mgr.dataset(0);
 
@@ -1978,8 +1978,7 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	{
 		const double prev = playback.time_active;
 		playback.timer.add_time();
-		const double dt = playback.time_active - prev;
-		render.style.max_t = render.style.max_t + float(dt*playback.speed);
+		render.style.max_t = render.style.max_t + float((playback.time_active-prev)*playback.speed);
 		update_member(&render.style.max_t);
 		if (render.style.max_t >= playback.tend)
 		{
@@ -2001,20 +2000,11 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 				pos_attrib, traj_range, render.style.max_t, playback.follow_last_nid
 			),
 			nid_next = std::min(nid+1, traj_range.i0+traj_range.n-1);
-			const vec3 &node = pos_data.values[nid], &node_next = pos_data.values[nid_next];
-			vec3 node_pos, node_pos_next;
-			const auto &ptransform = ds.mapping().map().at(VisualAttrib::POSITION).transform;
-			if (ptransform.is_identity()) {
-				node_pos = node;
-				node_pos_next = node_next;
-			}
-			else {
-				ptransform.exec(node_pos, node);
-				ptransform.exec(node_pos_next, node_next);
-			}
-			const float t0 = pos_data.timestamps[nid], t1 = pos_data.timestamps[nid_next];
-			const float l = (render.style.max_t-t0)/(t1-t0);
-			const vec3 focus_pos = cgv::math::lerp(node_pos, node_pos_next, l);
+			const float t0 = pos_data.timestamps[nid];
+			const vec3 focus_pos = cgv::math::lerp(
+				ds.mapped_position(nid), ds.mapped_position(nid_next),
+				(render.style.max_t-t0) / (pos_data.timestamps[nid_next]-t0)
+			);
 			view_ptr->set_focus(focus_pos);
 		}
 	}
@@ -2293,7 +2283,7 @@ void on_tube_vis::create_gui(void) {
 			connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &on_tube_vis::reload_shader));
 			connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &on_tube_vis::compile_glyph_attribs));
 			add_member_control(this, "Max Count (Debug)", max_glyph_count, "value_slider", "min=1;max=100;step=1;ticks=true");
-			add_member_control(this, "Show Hidden Glyphs", include_hidden_glyphs, "check");
+			add_member_control(this, "Show Hidden Glyphs", show_hidden_glyphs, "check");
 			render.visualizations.front().manager.create_gui(this, *this);
 			align("\b");
 			end_tree_node(render.visualizations.front().manager);

@@ -3,24 +3,38 @@ type(fltk_viewer_window):theme=dark
 
 // Data
 // - dataset to load
-type(tubes):datapath=""
+type(tubes):dataset_fn=""
 // - initial glyph layer config
 type(tubes):layer_config_file="./testdata/layerconf_1layer_defaultprocedural.xml"
 
 // Visualization and general settings
+// - How node attributes are made available to the spline tube shader when using the rasterization render path
+//   0 ... classical              - [DEFAULT] use attributes of the proxy geometry
+//   1 ... partial attribute-less - don't store curve data in proxy geometry attributes
+//   2 ... partial attribute-less - don't store node color in proxy geometry attributes
+//   3 ... fully attribute-less   - fetch everything from GPU storage buffer
+//type(tubes):attrib_mode=0
+// - What type of proxy geometry to use for rasterization
+//   0 ... oriented bounding boxes - may require using one of the attribute-less modes on older GPUs
+//   1 ... approximate billboard   - quadrilateral built from encapsulating the bounding box in a rounded cone and using the resulting analytic rounded cone billboard
+//   2 ... exact polygon           - flat polygon with 4 or 6 corners exactly covering the screen space silhouette of the oriented bounding box 
+//   3 ... box billboard           - a single quadrilateral covering the full bounding box
+//   4 ... aligned box billboard   - [DEFAULT] use the front side of a view-aligned bounding box (use any of the other modes if very long segments dissapear when viewed up close)
+//type(tubes):bounding_geometry=4
 // - Enable benchmark mode if desired
 //type(tubes):benchmark_mode=true
 // - Bounding box visibility
 type(tubes):show_bounding_box=false
 type(tubes):show_wireframe_box=true
 // - Grid mode: 0 - none, 1 - color only, 2 - normals only, 3 - color and normals (default)
-//type(tubes):grid_mode=1
+//type(tubes):grid_mode=3
 type(tubes):show_hidden_glyphs=false
 // - Voxelization device
 type(tubes):voxelize_gpu=false
 
 // Framework settings
 name(stereo_view_interactor):clip_relative_to_extent=false
-// - make persistent in your local .cfg
+
+persistent
 type(tubes):instant_redraw_proxy=false
 type(tubes):fix_view_up_dir_proxy=false

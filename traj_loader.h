@@ -1070,6 +1070,10 @@ public:
 	/// access the "special" positions attribute data.
 	const traj_dataset<real>::attrib_info<Vec3> positions (void) const;
 
+	/// return the idx-th position sample with all transformations defined by the currently active
+	/// \ref visual_attribute_mapping applied
+	const Vec3 mapped_position (unsigned idx) const;
+
 	/// access the timestamps at each position
 	const flt_type* timestamps (void) const;
 

@@ -1111,6 +1111,7 @@ struct traj_dataset<flt_type>::Impl
 	// fields
 	std::string name, data_source;
 	traj_attribute<flt_type> *positions;
+	const attrib_transform<flt_type> *pos_transform;
 	attribute_map<flt_type> attribs;
 	std::unordered_map<unsigned, std::vector<range>> trajs;
 	std::vector<range> empty_default_trajectories;
@@ -1121,23 +1122,28 @@ struct traj_dataset<flt_type>::Impl
 	/// helper methods
 	Impl() : positions(nullptr), avg_seg_len(0) {}
 	Impl(const std::string &name, const std::string &data_source)
-		: name(name), data_source(data_source), positions(nullptr), avg_seg_len(0),
+		: name(name), data_source(data_source), positions(nullptr), pos_transform(nullptr), avg_seg_len(0),
 		  minmax_pos_ts(std::numeric_limits<real>::infinity(), -std::numeric_limits<real>::infinity())
 	{}
 	Impl(const Impl *other)
-		: name(other->name), data_source(other->data_source), positions(other->positions),
-		  attribs(other->attribs), attrmap(other->attrmap), avg_seg_len(other->avg_seg_len),
-		  minmax_pos_ts(other->minmax_pos_ts)
-	{}
+		: name(other->name), data_source(other->data_source), attribs(other->attribs),
+		  attrmap(other->attrmap), avg_seg_len(other->avg_seg_len), minmax_pos_ts(other->minmax_pos_ts)
+	{
+		const auto &pos_ref = attrmap.map().at(VisualAttrib::POSITION);
+		positions = &attribs.at(pos_ref.name);
+		pos_transform = &pos_ref.transform;
+	}
 	void operator= (const Impl *other)
 	{
 		name = other->name;
 		data_source = other->data_source;
-		positions = other->positions;
 		attribs = other->attribs;
 		attrmap = other->attrmap;
 		avg_seg_len = other->avg_seg_len;
 		minmax_pos_ts = other->minmax_pos_ts;
+		const auto &pos_ref = attrmap.map().at(VisualAttrib::POSITION);
+		positions = &attribs.at(pos_ref.name);
+		pos_transform = &pos_ref.transform;
 	}
 	void clear (void)
 	{
@@ -1298,6 +1304,17 @@ const typename traj_dataset<flt_type>::template attrib_info<typename traj_datase
 }
 
 template <class flt_type>
+const typename traj_dataset<flt_type>::Vec3 traj_dataset<flt_type>::mapped_position (unsigned idx) const
+{
+	const auto &impl = *pimpl;
+	if (impl.pos_transform->is_identity())
+		return impl.positions->template get_data<Vec3>().values[idx];
+	Vec3 ret;
+	impl.pos_transform->exec(ret, impl.positions->template get_data<Vec3>().values[idx]);
+	return ret;
+}
+
+template <class flt_type>
 const flt_type* traj_dataset<flt_type>::timestamps (void) const
 {
 	return pimpl->positions->get_timestamps().data();
@@ -1371,6 +1388,7 @@ bool traj_dataset<flt_type>::set_mapping (const visual_attribute_mapping<real> &
 		{
 			impl.attrmap = visual_attrib_mapping;
 			impl.positions = &it_data->second;
+			impl.pos_transform = &it_visual->second.transform;
 			return true;
 		}
 	}
@@ -1390,6 +1408,7 @@ bool traj_dataset<flt_type>::set_mapping (visual_attribute_mapping<real> &&visua
 		{
 			impl.attrmap = std::move(visual_attrib_mapping);
 			impl.positions = &it_data->second;
+			impl.pos_transform = &it_visual->second.transform;
 			return true;
 		}
 	}
@@ -2056,8 +2075,7 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 
 			// ToDo: apply visual mapping to all involved attributes and distribute to user output draw arrays
 			/*for (unsigned i = 0; i<(unsigned)dataset.positions().size(); i++)
-			{
-			}*/
+			{}*/
 
 			// Calculate per-trajectory median of node radii as well as dataset median node radius
 			// ToDo: this should really also be weighted by segment length...
@@ -2155,7 +2173,7 @@ unsigned find_sample_linear (const traj_attribute<flt_type> &attrib, const range
 				return i-1;
 		return traj.n-1;
 	}
-	for (signed i=signed(hint)-1; i>=traj.i0; i--)
+	for (signed i=signed(hint)-1; ((unsigned)i)>=traj.i0; i--)
 		if (timestamps[i] < timestamp)
 			return i+1;
 	return 0;
@@ -2182,6 +2200,7 @@ template unsigned find_sample<float> (const traj_attribute<float>&, const range&
 template unsigned find_sample<double> (const traj_attribute<double>&, const range&, double);
 template unsigned find_sample_linear<float>(const traj_attribute<float>&, const range&, double, unsigned);
 template unsigned find_sample_linear<double>(const traj_attribute<double>&, const range&, double, unsigned);
+
 
 ////
 // Object registration

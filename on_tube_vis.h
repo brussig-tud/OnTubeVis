@@ -513,7 +513,7 @@ protected:
 	voxelizer density_volume;
 	ambient_occlusion_style ao_style, ao_style_bak; // the latter is used to restore defaults after demo data is unloaded
 
-	bool include_hidden_glyphs = false;
+	bool show_hidden_glyphs = false;
 	unsigned max_glyph_count = 10;
 	
 	void reload_shader();
