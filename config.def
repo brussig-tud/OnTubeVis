@@ -3,7 +3,7 @@ type(fltk_viewer_window):theme=dark
 
 // Data
 // - dataset to load
-type(tubes):dataset_fn=""
+//type(tubes):datapath=""
 // - initial glyph layer config
 type(tubes):layer_config_file="./testdata/layerconf_1layer_defaultprocedural.xml"
 
