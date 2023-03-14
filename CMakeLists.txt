@@ -9,12 +9,16 @@ option(CGV_BUILD_EXAMPLES OFF)
 # OnTubeVis options
 set(ENABLE_OPTIX_SUPPORT_DOC "Build with support for hardware raytracing using NVIDIA OptiX")
 option(ENABLE_OPTIX_SUPPORT ${ENABLE_OPTIX_SUPPORT_DOC} ON)
+option(ENABLE_HOLOGRAPHY
+	"Use the experimental Holo-View-Interactor of the CGV Framework for holography-compatible camera management (suitable e.g. for Looking Glass™ displays)"
+	OFF
+)
 
 # Fetch CGV Framework
 include(FetchContent)
 FetchContent_Declare(
 	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG 88b36677f5b2b90a18b4839346770cf885383064
+	GIT_TAG ba4780b659fe9ae2f89ef94fe9e3f8312027bc1b
 )
 FetchContent_MakeAvailable(cgv)
 
@@ -158,6 +162,12 @@ endif()
 # - resources (we'll likely get away with just globbing them)
 file(GLOB_RECURSE IMAGES RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.png" "*.bmp")
 
+# decide on the view interactor to use
+if (ENABLE_HOLOGRAPHY)
+	set(VIEW_INTERACTOR_PLUGIN crg_holo_view)
+else()
+	set(VIEW_INTERACTOR_PLUGIN crg_stereo_view)
+endif()
 # create the OnTubeVis plugin within the CGV Framework build infrastructure
 cgv_add_target(OnTubeVis
 	TYPE plugin
@@ -167,7 +177,7 @@ cgv_add_target(OnTubeVis
 	RESOURCES       ${IMAGES}
 	DEPENDENCIES
 		glew json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui cgv_render cgv_os
-		cg_fltk cgv_gl cg_ext cmi_io cg_msdf crg_stereo_view crg_light crg_grid cgv_g2d cgv_app cgv_gpgpu ${DEPENDENCY_OPENMP}
+		cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d cgv_app cgv_gpgpu ${DEPENDENCY_OPENMP}
 
 	LINKTIME_PLUGIN_DEPENDENCIES cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
 

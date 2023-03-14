@@ -35,6 +35,6 @@ type(tubes):voxelize_gpu=false
 // Framework settings
 name(stereo_view_interactor):clip_relative_to_extent=false
 
-persistent
+// - make this persistent in you local .cfg
 type(tubes):instant_redraw_proxy=false
 type(tubes):fix_view_up_dir_proxy=false

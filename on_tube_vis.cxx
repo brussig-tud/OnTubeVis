@@ -1980,8 +1980,7 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		{
 			if (playback.repeat)
 				render.style.max_t = (float)playback.tstart;
-			else
-			{
+			else {
 				render.style.max_t = (float)playback.tend;
 				playback.active = false;
 				update_member(&playback.active);
@@ -1997,11 +1996,10 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 			),
 			nid_next = std::min(nid+1, traj_range.i0+traj_range.n-1);
 			const float t0 = pos_data.timestamps[nid];
-			const vec3 focus_pos = cgv::math::lerp(
+			view_ptr->set_focus(cgv::math::lerp(
 				ds.mapped_position(nid), ds.mapped_position(nid_next),
 				(render.style.max_t-t0) / (pos_data.timestamps[nid_next]-t0)
-			);
-			view_ptr->set_focus(focus_pos);
+			));
 		}
 	}
 
