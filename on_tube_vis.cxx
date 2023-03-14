@@ -412,10 +412,6 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				on_set(&show_wireframe_bbox);
 				handled = true;
 				break;
-			case cgv::gui::Keys::KEY_Num_0:
-				post_redraw();
-				handled = true;
-				break;
 			case cgv::gui::Keys::KEY_Space:
 				playback.active = !playback.active;
 				on_set(&playback.active);
@@ -2927,6 +2923,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			fbc_shading.disable(ctx);
 		} else {
 			// if we are not using taa we are done here
+			if (playback.active)
+				post_redraw();
 			return;
 		}
 
@@ -3009,7 +3007,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			// arm accumulation
 			taa.accumulate = taa.enable_taa;
 			taa.accumulate_count = 0;
-			if (taa.accumulate)
+			if (taa.accumulate || playback.active)
 				post_redraw();
 		}
 
