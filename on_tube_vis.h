@@ -239,11 +239,18 @@ protected:
 		/// whether the RTLola drone flight demo dataset was detected
 		bool is_rtlola = false;
 
+		/// whether to show the map when the RTLola drone flight demo dataset was detected
+		bool rtlola_show_map = true;
+
 		/// the map texture that will be displayed under the RTLola drone flight demo dataset
 		texture rtlola_map_tex;
-	} dataset;
 
-	// TODO: comment and cleanup members
+		/// VAO used to draw the map for the RTLola drone flight demo dataset
+		attribute_array_binding rtlola_map_vao;
+
+		/// vertex buffer for the quad containing the map for the RTLola drone flight demo dataset
+		vertex_buffer rtlola_map_vbo;
+	} dataset;
 
 	struct {
 		/// the number of samples used to jitter the projection matrix
@@ -308,7 +315,8 @@ protected:
 			static_frame_count = 0;
 		}
 
-		float van_der_corput(int n, int base) {
+		float van_der_corput(int n, int base)
+		{
 			float vdc = 0.0f;
 			int denominator = 1;
 
@@ -326,9 +334,9 @@ protected:
 			return vec2(van_der_corput(k, base1), van_der_corput(k, base2));
 		}
 
-		void generate_jitter_offsets(ivec2 viewport_size) {
-			vec2 vps = static_cast<vec2>(viewport_size);
-			
+		void generate_jitter_offsets(ivec2 viewport_size)
+		{
+			const vec2 vps = static_cast<vec2>(viewport_size);
 			jitter_offsets.clear();
 			for(size_t i = 0; i < jitter_sample_count; ++i) {
 				vec2 sample = sample_halton_2d(static_cast<unsigned>(i + 1), 2, 3);

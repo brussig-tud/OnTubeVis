@@ -1118,6 +1118,12 @@ cgv::base::object_registration_2<
 				[](csv_handler<float>::Vec3 &out, const csv_handler<float>::Vec3 &in) {
 					typedef std::array<double, 2> latlong;
 					const static latlong refpos = {in.x(), in.y()};
+					//
+					const static latlong llmin = {-35.37080874562025f, 149.13721750526548f},
+										 llmax = {-35.34067082104956f, 149.18727521267593f},
+										 pmin = wgs84::toCartesian(refpos, llmin),
+										 pmax = wgs84::toCartesian(refpos, llmax);
+					//
 					const auto mercator = wgs84::toCartesian(refpos, latlong{in.x(), in.y()});
 					out.set((float)mercator[0], in.z(), (float)mercator[1]);
 				}

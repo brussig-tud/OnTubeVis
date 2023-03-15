@@ -412,6 +412,10 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				on_set(&show_wireframe_bbox);
 				handled = true;
 				break;
+			case cgv::gui::Keys::KEY_Num_0:
+				dataset.rtlola_show_map = !dataset.rtlola_show_map;
+				handled = true;
+				break;
 			case cgv::gui::Keys::KEY_Space:
 				playback.active = !playback.active;
 				on_set(&playback.active);
@@ -1634,8 +1638,46 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	// use white background for paper screenshots
 	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
 
-	// load RTLola map texture
-	dataset.rtlola_map_tex.create_from_image(ctx, app_path+"res/rtlola_droneflight.png");
+
+	////
+	// RTLola drone flight demo dataset map
+
+	// vertex structure for interleaved storage
+	struct rtlola_map_vertex {
+		vec4 pos;
+		vec4 color;
+		vec2 texcoord;
+	};
+
+	// vertex buffer element descriptors for each of our struct member types
+	const auto vec4desc = element_descriptor_traits<vec4>::get_type_descriptor(vec4());
+	const auto vec2desc = element_descriptor_traits<vec2>::get_type_descriptor(vec2());
+
+	// setup VBO and VAO
+	const shader_program &default_shader = ctx.ref_default_shader_program(true /* <-- texture support */);
+	success &= dataset.rtlola_map_vao.create(ctx);
+	success &= dataset.rtlola_map_vbo.create(ctx, std::vector<rtlola_map_vertex>{
+		{{-2544.4730907677954f, 581.5f, -837.50963767276119f, 1.f}, {1.f}, {0.f, 0.f}},
+		{{2004.4304399613477f, 581.5f, -837.50963767276119f, 1.f}, {1.f}, {1.f, 0.f}},
+		{{-2544.4730907677954f, 581.5f, 2506.1411020040873f, 1.f}, {1.f}, {0.f, 1.f}},
+		{{2004.4304399613477f, 581.5f, 2506.1411020040873f, 1.f}, {1.f}, {1.f, 1.f}}
+	});
+	success &= dataset.rtlola_map_vao.bind_attribute_array(
+		ctx, default_shader, "position", vec4desc,
+		dataset.rtlola_map_vbo, 0, 4, sizeof(rtlola_map_vertex)
+	);
+	success &= dataset.rtlola_map_vao.bind_attribute_array(
+		ctx, default_shader, "color", vec4desc,
+		dataset.rtlola_map_vbo, sizeof(vec4), 4, sizeof(rtlola_map_vertex)
+	);
+	success &= dataset.rtlola_map_vao.bind_attribute_array(
+		ctx, default_shader, "texcoord", vec2desc,
+		dataset.rtlola_map_vbo, 2*sizeof(vec4), 4, sizeof(rtlola_map_vertex)
+	);
+
+	// load map texture
+	success &= dataset.rtlola_map_tex.create_from_image(ctx, app_path+"res/rtlola_droneflight.png");
+
 
 #ifdef RTX_SUPPORT
 	// ###############################
@@ -2055,17 +2097,13 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 
 	//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());
 
-	if (dataset.is_rtlola)
-	{
-		// -35.37351256738954, 149.148490937838 to -35.351464248015866, 149.19215508498957
-	}
-
 	// draw dataset using selected renderer
-	if(show_volume) {
+	if(show_volume)
 		draw_density_volume(ctx);
-	} else {
-		if(traj_mgr.has_data()) {
-
+	else
+	{
+		if(traj_mgr.has_data())
+		{
 			int debug_idx_count = static_cast<int>(render.data->indices.size());
 			if(debug.limit_render_count)
 				debug_idx_count = static_cast<int>(2 * debug.render_count);
@@ -2084,7 +2122,25 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 				debug.node_rd.render(ctx, ref_sphere_renderer(ctx), debug.node_rs, 0, debug_idx_count);
 				debug.segment_rd.render(ctx, ref_cone_renderer(ctx), debug.segment_rs, 0, debug_idx_count);
 				break;
-			default: break;
+			default:
+				break;
+			}
+
+			if (dataset.is_rtlola && dataset.rtlola_show_map)
+			{
+				shader_program &default_shader = ctx.ref_default_shader_program(true /* <-- texture support */);
+
+				dataset.rtlola_map_tex.enable(ctx, 0);
+				default_shader.enable(ctx);
+
+				glDisable(GL_CULL_FACE);
+				dataset.rtlola_map_vao.enable(ctx);
+				glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+				dataset.rtlola_map_vao.disable(ctx);
+				glEnable(GL_CULL_FACE);
+
+				default_shader.disable(ctx);
+				dataset.rtlola_map_tex.disable(ctx);
 			}
 
 			if (show_wireframe_bbox)
