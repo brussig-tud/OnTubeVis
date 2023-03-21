@@ -65,13 +65,15 @@ int main (int argc, char** argv)
 		// - dispatch NVCC call
 		int exitcode = system(cmd_final.str().c_str());
 		if (exitcode != 0)
-			// report failure
 			return exitcode;
 
 		// invoke res_prep
 		// - build command line
 		cmd_final.clear(); cmd_final.str("");
-		cmd_final << "./res_prep " << "\""<<ptxfile<<"\" \""<<outfile<<"\"";
+		#ifndef _WIN32
+			cmd_final << "./";
+		#endif
+		cmd_final << "res_prep " << "\""<<ptxfile<<"\" \""<<outfile<<"\"";
 		std::cout << "res_prep command:"<<std::endl<<"  "<< cmd_final.str() << std::endl<<std::endl;
 		// - invoke
 		exitcode = system(cmd_final.str().c_str());
