@@ -70,7 +70,7 @@ int main (int argc, char** argv)
 		// - build command line
 		cmd_final.clear(); cmd_final.str("");
 		cmd_final << "res_prep " << "\""<<ptxfile<<"\" \""<<outfile<<"\"";
-		std::cout << std::endl<<"res_prep command:"<<std::endl<<"  "<< cmd_final.str() << std::endl;
+		std::cout << "res_prep command:"<<std::endl<<"  "<< cmd_final.str() << std::endl<<std::endl;
 		// - invoke
 		exitcode = system(cmd_final.str().c_str());
 
@@ -79,6 +79,6 @@ int main (int argc, char** argv)
 	}
 
 	// too few arguments
-	std::cerr << "usage: cuda_resprep  path_to_nvcc  resource_file  cuda_source_file  [...nvcc args]" << std::endl;
+	std::cerr << "usage: cuda_resprep  path_to_nvcc  cuda_source_file  out_resource_cppfile  [...nvcc args]" << std::endl;
 	return -1;
 }

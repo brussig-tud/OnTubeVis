@@ -8,7 +8,7 @@
 #include <fstream>
 
 // OpenGL
-#include <GL/glew.h>
+#include <libs/cgv_gl/gl/gl.h>
 
 // CGV framework
 #include <cgv/render/render_types.h>

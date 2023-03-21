@@ -18,7 +18,7 @@ option(ENABLE_HOLOGRAPHY
 include(FetchContent)
 FetchContent_Declare(
 	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG 857b3059a16a52b583cbc429b7d2afc1b65d3b6d
+	GIT_TAG be0024922eb9ecd0fb6391eca95b8470608c9d47
 )
 FetchContent_MakeAvailable(cgv)
 
@@ -34,14 +34,31 @@ endif()
 find_package(OpenMP)
 
 # handle optional dependencies
+set(OPTIONAL_DEPENDENCIES "")
 if (CUDA_FOUND AND OptiX_INCLUDE AND NOT OptiX_INCLUDE STREQUAL "OptiX_INCLUDE-NOTFOUND")
 	set(__EMIT_OPTIX_WARNING TRUE)
-	set(ENABLE_OPTIX_SUPPORT OFF CACHE BOOL ${ENABLE_OPTIX_SUPPORT_DOC} FORCE) #list(APPEND FEATURE_DEFINES "RTX_SUPPORT=1")
+	set(ENABLE_OPTIX_SUPPORT OFF CACHE BOOL ${ENABLE_OPTIX_SUPPORT_DOC} FORCE)
+	#add_subdirectory(tool/cuda_resprep) # build the cuda_resprep custom tool
+	#list(APPEND OPTIONAL_DEPENDENCIES ${CUDA_LIBRARIES})
+	#if(WIN32)
+	#	list(APPEND OPTIONAL_DEPENDENCIES "${CUDA_TOOLKIT_ROOT_DIR}/lib/x64/nvrtc.lib")
+	#else()
+	#	list(APPEND OPTIONAL_DEPENDENCIES libnvrtc)
+	#endif()
+	#list(APPEND FEATURE_DEFINES "RTX_SUPPORT=1")
+	#set(OTV_ADDITIONAL_INCLUDE_PATHS ${OptiX_INCLUDE} ${CUDA_TOOLKIT_INCLUDE})
+	#set(OTV_ADDITIONAL_INCLUDE_PATHS ${OptiX_INCLUDE} ${CUDA_TOOLKIT_INCLUDE})
+	#set(NVRTC_INCLUDE_DEFS
+	#	"CUDA_RUNTIME_COMPILER__INC_DIR_CUDA=\"${CUDA_TOOLKIT_INCLUDE}\""
+	#	"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX=\"${OptiX_INCLUDE}\""
+	#	"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK=\"${OptiX_INSTALL_DIR}/SDK\""
+	#	"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK_CUDA=\"${OptiX_INSTALL_DIR}/SDK/cuda\""
+	#)
 else()
 	set(ENABLE_OPTIX_SUPPORT OFF CACHE BOOL ${ENABLE_OPTIX_SUPPORT_DOC} FORCE)
 endif()
 if (OpenMP_CXX_FOUND)
-	set(DEPENDENCY_OPENMP OpenMP::OpenMP_CXX)
+	list(APPEND OPTIONAL_DEPENDENCIES OpenMP::OpenMP_CXX)
 	list(APPEND FEATURE_DEFINES "OMP_SUPPORT=1")
 endif()
 
@@ -168,6 +185,7 @@ if (ENABLE_HOLOGRAPHY)
 else()
 	set(VIEW_INTERACTOR_PLUGIN crg_stereo_view)
 endif()
+
 # create the OnTubeVis plugin within the CGV Framework build infrastructure
 cgv_add_target(OnTubeVis
 	TYPE plugin
@@ -176,18 +194,45 @@ cgv_add_target(OnTubeVis
 	SHADER_SOURCES  ${SHADERS}
 	RESOURCES       ${IMAGES}
 	DEPENDENCIES
-		glew json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui cgv_render cgv_os
-		cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d cgv_app cgv_gpgpu ${DEPENDENCY_OPENMP}
+		glew json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui cgv_render
+		cgv_os cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d cgv_app cgv_gpgpu
+		${OPTIONAL_DEPENDENCIES} 
 
 	LINKTIME_PLUGIN_DEPENDENCIES cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
+
+	ADDITIONAL_INCLUDE_PATHS ${OTV_ADDITIONAL_INCLUDE_PATHS}
 
 	ADDITIONAL_CMDLINE_ARGS
 		"config:\"${CMAKE_CURRENT_LIST_DIR}/config.def\""
 
 	OVERRIDE_SHARED_EXPORT_DEFINE TUBES_EXPORTS
+
+	ADDITIONAL_PRIVATE_DEFINES ${NVRTC_INCLUDE_DEFS}
 )
 
-# schedule high-level warning messages at the very end of the configuration process to make sure they will be easily visible
+if (ENABLE_OPTIX_SUPPORT)
+	# add CUDA sources to single-exec build (CUDA sources are compiled during runtime by the plugin build)
+	# - compile include path for nvcc pointing to CUDA and OptiX SDKs
+	set(NVCC_INCLUDE_PATH
+		"-I\"${CUDA_TOOLKIT_INCLUDE}\"" "-I\"${OptiX_INCLUDE}\"" "-I\"${OptiX_INSTALL_DIR}/SDK\""
+		"-I\"${OptiX_INSTALL_DIR}/SDK/cuda\"")
+	# - add the CUDA source files and build rule
+	cgv_add_custom_sources(OnTubeVis STATIC
+		SOURCES
+			cuda/optix_curves_builtin2.cu cuda/optix_curves_builtin3.cu cuda/optix_curves_phantom.cu
+			cuda/optix_curves_russig.cu
+
+		OUTFILE_TEMPLATE "<<<FN>>>_<<<EXT>>>.cpp"
+		BUILD_SUBDIR     "cuda"
+		BUILD_TOOL       cuda_resprep
+		BUILD_TOOL_ARGS
+			"${CUDA_NVCC_EXECUTABLE}" "<<<INFILE>>>" "<<<OUTFILE>>>" "-std=c++17" "-ptx" "-arch=compute_61"
+			"--use_fast_math" "-O=3" "-dopt=on" "-D__x86_64" "-I\"<<<INFILE_PATH>>>\"" ${NVCC_INCLUDE_PATH}
+	)
+endif()
+
+# schedule high-level warning messages at the very end of the configuration process to make sure they will be easily
+# visible
 # - no OpenMP
 if (NOT OpenMP_CXX_FOUND)
 	cmake_language(
