@@ -153,8 +153,8 @@ float alen (float t)
 	return eval_cubic_bezier(t_inner, b[segment_id_fs][seg]);
 }
 
-// Produces an orthogonal vector to v. Doesn’t require the input
-// to be normalized and doesn’t normalise the output. 
+// Produces an orthogonal vector to v. Doesnï¿½t require the input
+// to be normalized and doesnï¿½t normalise the output. 
 // source: http://lolengine.net/blog/2013/09/21/picking-orthogonal-vector-combing-coconuts
 vec3 GetOrthoVec(vec3 v)
 {
@@ -714,7 +714,7 @@ Hit EvalSplineISect(
 				hit.l = min(l2, x2[3]);
 			}
 
-			hit.cap = hit.l == 0.0 || hit.l == x2[3];
+			hit.cap = hit.l <= 0.0 || hit.l >= x2[3];
 
 			// get the position on the spline at l
 			hit.sp = qSplineEval(hit.l, curveX, curveY, curveZ);
@@ -944,10 +944,11 @@ void main()
 		vec3 hit_pos_eye = direction * hit.t;
 		float spline_t = hit.l * 0.5 + l_offset_fs;
 		// determine color - since we ignore the tangents, interpolation is just linear
+		const vec4 col = spline_t >= max_t ? vec4(0.75, 0.75, 0.75, 1) :
 		#if ATTRIB_MODE & 2
-			const vec4 col = vec4(mix(color0, color1, spline_t), 1.0);
+			vec4(mix(color0, color1, spline_t), 1.0);
 		#else
-			const vec4 col = vec4(mix(unpackUnorm4x8(color0_fs).rgb, unpackUnorm4x8(color1_fs).rgb, spline_t), 1.0); 
+			vec4(mix(unpackUnorm4x8(color0_fs).rgb, unpackUnorm4x8(color1_fs).rgb, spline_t), 1.0);
 		#endif
 
 		vec4 v_eye = vec4(hit_pos_eye, 1.0);

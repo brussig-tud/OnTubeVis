@@ -18,7 +18,7 @@ option(ENABLE_HOLOGRAPHY
 include(FetchContent)
 FetchContent_Declare(
 	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG be0024922eb9ecd0fb6391eca95b8470608c9d47
+	GIT_TAG 13f8a369aff2599d06e13d32547b77ab44f3477d
 )
 FetchContent_MakeAvailable(cgv)
 
@@ -28,6 +28,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 # - dependencies needed for hardware raytracing
 if (ENABLE_OPTIX_SUPPORT)
 	find_package(CUDA)
+	find_package(CUDAToolkit)
 	find_package(OptiX)
 endif()
 # - other optional dependencies
@@ -35,19 +36,11 @@ find_package(OpenMP)
 
 # handle optional dependencies
 set(OPTIONAL_DEPENDENCIES "")
-if (CUDA_FOUND AND OptiX_INCLUDE AND NOT OptiX_INCLUDE STREQUAL "OptiX_INCLUDE-NOTFOUND")
-	#set(__EMIT_OPTIX_WARNING TRUE)
-	#set(ENABLE_OPTIX_SUPPORT OFF CACHE BOOL ${ENABLE_OPTIX_SUPPORT_DOC} FORCE)
+if (CUDA_FOUND AND CUDAToolkit_FOUND AND OptiX_INCLUDE AND NOT OptiX_INCLUDE STREQUAL "OptiX_INCLUDE-NOTFOUND")
 	add_subdirectory(tool/cuda_resprep) # build the cuda_resprep custom tool
-	list(APPEND OPTIONAL_DEPENDENCIES ${CUDA_LIBRARIES})
-	if(WIN32)
-		list(APPEND OPTIONAL_DEPENDENCIES "${CUDA_TOOLKIT_ROOT_DIR}/lib/x64/nvrtc.lib")
-	else()
-		list(APPEND OPTIONAL_DEPENDENCIES libnvrtc)
-	endif()
+	list(APPEND OPTIONAL_DEPENDENCIES CUDA::cudart CUDA::nvrtc)
 	list(APPEND FEATURE_DEFINES "RTX_SUPPORT=1")
-	set(OTV_ADDITIONAL_INCLUDE_PATHS ${OptiX_INCLUDE} ${CUDA_TOOLKIT_INCLUDE})
-	set(OTV_ADDITIONAL_INCLUDE_PATHS ${OptiX_INCLUDE} ${CUDA_TOOLKIT_INCLUDE})
+	set(ADDITIONAL_INCLUDE_PATHS ${OptiX_INCLUDE}) #  ${CUDA_TOOLKIT_INCLUDE}
 	set(NVRTC_INCLUDE_DEFS
 		"CUDA_RUNTIME_COMPILER__INC_DIR_CUDA=\"${CUDA_TOOLKIT_INCLUDE}\""
 		"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX=\"${OptiX_INCLUDE}\""
@@ -200,7 +193,7 @@ cgv_add_target(OnTubeVis
 
 	LINKTIME_PLUGIN_DEPENDENCIES cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
 
-	ADDITIONAL_INCLUDE_PATHS ${OTV_ADDITIONAL_INCLUDE_PATHS}
+	ADDITIONAL_INCLUDE_PATHS ${ADDITIONAL_INCLUDE_PATHS}
 
 	ADDITIONAL_CMDLINE_ARGS
 		"config:\"${CMAKE_CURRENT_LIST_DIR}/config.def\""
@@ -239,14 +232,6 @@ if (NOT OpenMP_CXX_FOUND)
 		DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL message
 		"WARNING: OpenMP development files not found on the system!\n"
 		"         Preprocessing for large datasets will be slow."
-	)
-endif()
-# - OptiX support was selected - TODO: remove once ready
-if (__EMIT_OPTIX_WARNING)
-	cmake_language(
-		DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL message
-		"WARNING: OptiX support is pending integration with CMake build system!\n"
-		"         disabling... use native .pj build on Windows to enable OptiX render path"
 	)
 endif()
 

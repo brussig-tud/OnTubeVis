@@ -62,7 +62,7 @@ namespace {
 	template <class T>
 	inline T get_cr0 (const T &p0, const T &m0, const T &p1)
 	{
-		const T b1 = p0 + _1o3<T::value_type>*m0;
+		const T b1 = p0 + _1o3<typename T::value_type>*m0;
 		return p1 + 6.f*(p0 - b1);
 	}
 
@@ -74,7 +74,7 @@ namespace {
 	template <class T>
 	inline T get_cr3 (const T &p0, const T &p1, const T &m1)
 	{
-		const T b2 = p1 - _1o3<T::value_type>*m1;
+		const T b2 = p1 - _1o3<typename T::value_type> * m1;
 		return p0 + 6.f*(p1 - b2);
 	}
 
