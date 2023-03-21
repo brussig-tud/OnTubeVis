@@ -1,4 +1,4 @@
-﻿
+
 #ifndef __OPTIX_ISECT_PHANTOM_CUH__
 #define __OPTIX_ISECT_PHANTOM_CUH__
 
