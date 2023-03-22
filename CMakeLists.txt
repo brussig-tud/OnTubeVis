@@ -18,7 +18,7 @@ option(ENABLE_HOLOGRAPHY
 include(FetchContent)
 FetchContent_Declare(
 	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG 13f8a369aff2599d06e13d32547b77ab44f3477d
+	GIT_TAG 8de1121c6d74932784a0a83fcd2e78d029472a90
 )
 FetchContent_MakeAvailable(cgv)
 
