@@ -1865,6 +1865,7 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		params.tangent = optix.outbuf_tangent.map();
 		params.depth = optix.outbuf_depth.map();
 		params.cubic_tangents = render.style.use_cubic_tangents;
+		params.max_t = render.style.max_t;
 		params.taa_subframe_id = taa.enable_taa ? taa.accumulate_count : 0;
 		params.taa_jitter_scale = taa.jitter_scale;
 		params.fb_width = ctx.get_width();

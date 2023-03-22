@@ -48,8 +48,9 @@ struct curve_rt_params
 	float3*        tangent;
 	float1*        depth;
 
-	// tube primitive params
+	// tube primitive params (reflects properties from the textured spline tube render style)
 	bool           cubic_tangents;
+	float          max_t;
 
 	// TAA params
 	unsigned       taa_subframe_id;

@@ -255,8 +255,16 @@ extern "C" __global__ void __intersection__russig (void)
 	// ensure correct payload usage
 	optixSetPayloadTypes(OPTIX_PAYLOAD_TYPE_ID_0);
 
+	// determine which segment we're testing and its time frame
+	const unsigned pid = optixGetPrimitiveIndex(), subseg = pid%2;
+	const uint2 node_ids = params.node_ids[pid/2];
+	const float t0 = params.nodes[node_ids.x].t.x,
+	            t_mid = (t0 + params.nodes[node_ids.y].t.x)/2;
+	if ((subseg == 0 && params.max_t <= t0) || (subseg == 1 && params.max_t <= t_mid))
+		return;
+
 	// fetch quadratic node data
-	const unsigned nid = optixGetPrimitiveIndex()*3;
+	const unsigned nid = pid+pid+pid;
 	const float3 nodes[3] = {
 		params.positions[nid], params.positions[nid+1], params.positions[nid+2]
 	};
@@ -289,8 +297,16 @@ extern "C" __global__ void __intersection__phantom (void)
 	// ensure correct payload usage
 	optixSetPayloadTypes(OPTIX_PAYLOAD_TYPE_ID_0);
 
+	// determine which segment we're testing and its time frame
+	const unsigned pid = optixGetPrimitiveIndex(), subseg = pid%2;
+	const uint2 node_ids = params.node_ids[pid/2];
+	const float t0 = params.nodes[node_ids.x].t.x,
+	            t_mid = (t0 + params.nodes[node_ids.y].t.x)/2;
+	if ((subseg == 0 && params.max_t <= t0) || (subseg == 1 && params.max_t <= t_mid))
+		return;
+
 	// fetch quadratic node data
-	const unsigned pid = optixGetPrimitiveIndex(), nid = pid*3;
+	const unsigned nid = pid+pid+pid;
 	const float3 nodes[3] = {
 		params.positions[nid], params.positions[nid+1], params.positions[nid+2]
 	};
