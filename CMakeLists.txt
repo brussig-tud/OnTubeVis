@@ -18,7 +18,7 @@ option(ENABLE_HOLOGRAPHY
 include(FetchContent)
 FetchContent_Declare(
 	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG 8de1121c6d74932784a0a83fcd2e78d029472a90
+	GIT_TAG 2157a5f2eed33ec8da39d8b6f4b355c98647dc2d
 )
 FetchContent_MakeAvailable(cgv)
 
@@ -214,8 +214,12 @@ if (ENABLE_OPTIX_SUPPORT)
 		SOURCES
 			cuda/optix_curves_builtin2.cu cuda/optix_curves_builtin3.cu cuda/optix_curves_phantom.cu
 			cuda/optix_curves_russig.cu
+		HEADERS
+			cuda/optix_interface.h cuda/optix_curves_impl.cuh cuda/optix_isect_phantom.cuh
+			cuda/optix_isect_russig.cuh cuda/optix_tools.cuh
 
 		OUTFILE_TEMPLATE "<<<FN>>>_<<<EXT>>>.cpp"
+
 		BUILD_SUBDIR     "cuda"
 		BUILD_TOOL       cuda_resprep
 		BUILD_TOOL_ARGS
