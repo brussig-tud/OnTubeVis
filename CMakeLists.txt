@@ -14,13 +14,20 @@ option(ENABLE_HOLOGRAPHY
 	OFF
 )
 
-# Fetch CGV Framework
-include(FetchContent)
-FetchContent_Declare(
-	cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-	GIT_TAG 2157a5f2eed33ec8da39d8b6f4b355c98647dc2d
-)
-FetchContent_MakeAvailable(cgv)
+# Fetch the CGV Framework if it's not obviously present on the system
+if (DEFINED ENV{CGV_DIR})
+	set(CGV_DIR $ENV{CGV_DIR})
+	message("Using CGV Framework source found at:")
+	message("> ${CGV_DIR}")
+	add_subdirectory(${CGV_DIR} ./framework)
+else()
+	include(FetchContent)
+	FetchContent_Declare(
+		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
+		GIT_TAG 1601797fd767120b663427a7e7bec5cac4a1f259
+	)
+	FetchContent_MakeAvailable(cgv)
+endif()
 
 # check optional dependencies
 # - include additional find scripts
