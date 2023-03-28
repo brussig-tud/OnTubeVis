@@ -15,7 +15,7 @@ protected:
 		int total_height;
 
 		// dependent members
-		cgv::g2d::rect color_map_rect;
+		cgv::g2d::rect<int> color_map_rect;
 
 		void update(const ivec2& parent_size) {
 			color_map_rect.set_pos(ivec2(padding));
