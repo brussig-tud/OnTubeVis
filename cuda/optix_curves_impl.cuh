@@ -77,14 +77,29 @@ static __forceinline__ __device__ void compute_ray (uint3 idx, uint3 dim, float3
 	float2 subpxl_offset = obtain_jittered_subpxl_offset(params.taa_subframe_id, params.taa_jitter_scale);
 
 	// compute exact point on the screen
-	const float2 d = 2.f * make_float2(
+	/*const float2 d = 2.f * make_float2(
 		(static_cast<float>(idx.x)+subpxl_offset.x) / static_cast<float>(dim.x),
 		(static_cast<float>(idx.y)+subpxl_offset.y) / static_cast<float>(dim.y)
-	) - 1.f;
+	) - 1.f;*/
 
-	// create resulting ray
+	// find clip coordinates of the fragment indicated by OptiX launch ID
+	const float4 fragment = make_float4(
+		static_cast<float>(idx.x)+subpxl_offset.x,
+		static_cast<float>(idx.y)+subpxl_offset.y, 1.f, 1.f
+	),
+	frag_clip =   fragment * make_float4(2.f/float(dim.x), 2.f/float(dim.y), 2.f, .0f)
+	            + make_float4(-1, -1, -1, 1);
+
+	// transform fragment coordinates from clip to world space
+	const float4 frag_world = mul_mat_vec(params.cam_invMV, mul_mat_vec(params.cam_invP, frag_clip));
+
+	// calculate point on ray
+	const float3 ray_p = make_float3(frag_world.x/frag_world.w, frag_world.y/frag_world.w, frag_world.z/frag_world.w);
+
+	// output resulting ray
 	origin = params.cam_eye;
-	direction = normalize(d.x*params.cam_u + d.y*params.cam_v + params.cam_w);
+	direction = normalize(ray_p - origin);
+	//direction = normalize(d.x*params.cam_u + d.y*params.cam_v + params.cam_w);*/
 }
 
 static __forceinline__ __device__ float3 calc_hit_point (void)

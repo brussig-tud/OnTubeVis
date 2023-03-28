@@ -24,8 +24,7 @@ struct cuda_node
 };
 
 // GPU representation of arclength parametrization
-struct cuda_arclen
-{
+struct cuda_arclen {
 	float4 span [4];
 };
 
@@ -61,10 +60,12 @@ struct curve_rt_params
 	unsigned int   fb_height;
 
 	// camera parameters
-	float3         cam_eye, cam_u, cam_v, cam_w;
-	float2         cam_clip;
+	float3         cam_eye/*, cam_u, cam_v, cam_w;
+	float2         cam_clip*/;
 	float          cam_MV[16];
+	float          cam_invMV[16];
 	float          cam_P[16];
+	float          cam_invP[16];
 	float          cam_N[16];
 
 	// Misc options

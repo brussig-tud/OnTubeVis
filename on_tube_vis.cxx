@@ -1828,14 +1828,19 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 	// Launch OptiX
 
 	/* local scope */ {
+		// instantiante RT params
+		curve_rt_params params;
+
 		// prepare camera info
-		const float aspect = float(ctx.get_width())/float(ctx.get_height()),
+		const mat4 &invMV = *(mat4*)(&params.cam_invMV) = cgv::math::inv(ctx.get_modelview_matrix()),
+		           &invP  = *(mat4*)(&params.cam_invP)  = cgv::math::inv(ctx.get_projection_matrix());
+		/*const float aspect = float(ctx.get_width())/float(ctx.get_height()),
 		            optixV_len = (float)view_ptr->get_tan_of_half_of_fovy(true),
-		            optixU_len = optixV_len * aspect;
-		const vec3 &eye = view_ptr->get_eye(),
+		            optixU_len = optixV_len * aspect;*/
+		const vec3  eye = vec3_from_vec4h(invMV * vec4(.0f, .0f, .0f, 1.f))/*,
 		            optixW = cgv::math::normalize(view_ptr->get_view_dir()),
 		            optixV = cgv::math::normalize(view_ptr->get_view_up_dir()) * optixV_len,
-		            optixU = cgv::math::normalize(cgv::math::cross(optixW, optixV)) * optixU_len;
+		            optixU = cgv::math::normalize(cgv::math::cross(optixW, optixV)) * optixU_len*/;
 
 		// setup params for our launch
 		// - obtain values from selected tracer
@@ -1844,7 +1849,7 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		cudaGraphicsResource_t inbufs[] = {optix.sbo_nodes, optix.sbo_nodeids, optix.sbo_alen};
 		CUDA_CHECK(cudaGraphicsMapResources(3, inbufs, optix.stream));
 		// - set values
-		curve_rt_params params;
+		
 		params.nodes = nullptr; {
 			size_t size;
 			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.nodes), &size, optix.sbo_nodes));
@@ -1873,13 +1878,14 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		params.show_bvol = optix.debug_bvol;
 		params.accelds = lp.accelds;
 		params.cam_eye = make_float3(eye.x(), eye.y(), eye.z());
-		params.cam_clip = make_float2(.1f, 128.f);
+		/*{ const auto znear = invP*vec4(0, 0, 0, 1), zfar = invP*vec4(0, 0, 1, 1);
+		  params.cam_clip = make_float2(-znear.z()/znear.w(), -zfar.z()/zfar.w()); }
 		params.cam_u = make_float3(optixU.x(), optixU.y(), optixU.z());
 		params.cam_v = make_float3(optixV.x(), optixV.y(), optixV.z());
-		params.cam_w = make_float3(optixW.x(), optixW.y(), optixW.z());
+		params.cam_w = make_float3(optixW.x(), optixW.y(), optixW.z());*/
 		*(mat4*)(&params.cam_MV) = ctx.get_modelview_matrix();
 		*(mat4*)(&params.cam_P) = ctx.get_projection_matrix();
-		*(mat4*)(&params.cam_N) = cgv::math::transpose(cgv::math::inv(ctx.get_modelview_matrix()));
+		*(mat4*)(&params.cam_N) = cgv::math::transpose(invMV);
 		// - upload to device
 		CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(lp.params), &params, lp.params_size, cudaMemcpyHostToDevice));
 
