@@ -28,6 +28,21 @@ struct cuda_arclen {
 	float4 span [4];
 };
 
+// holographic rendering
+enum Holo {
+	// off
+	OFF = 0,
+
+	// render subpixel 1
+	SUBPIXEL_R,
+
+	// render subpixel 2
+	SUBPIXEL_G,
+
+	// render subpixel 3
+	SUBPIXEL_B
+};
+
 // OptiX launch parameters
 struct curve_rt_params
 {
@@ -70,6 +85,9 @@ struct curve_rt_params
 
 	// Misc options
 	bool show_bvol;
+
+	// holography
+	Holo holo;
 
 	// the accelleration datastructure to trace
 	OptixTraversableHandle accelds;

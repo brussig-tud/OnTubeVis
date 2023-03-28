@@ -66,12 +66,42 @@ extern "C" {
 
 
 
-//////
+///////
+//
+// Structs
+//
+
+/// struct representing a ray
+struct Ray
+{
+	/// the ray origin point
+	float3 orig;
+
+	/// the ray direction vector
+	float3 dir;
+};
+
+
+
+/////
 //
 // Functions
 //
 
-static __forceinline__ __device__ void compute_ray (uint3 idx, uint3 dim, float3& origin, float3& direction)
+static __forceinline__ __device__ float view_from_pixel_component (const float2 pixel, const Holo subpixel, const float subpixel_width)
+{
+	// looking Glass calibration values
+	constexpr float pitch  =  673.46088569750157f;
+	constexpr float slope  = -0.074780801514116493f;
+	constexpr float center =  0.076352536678314209f;
+
+	// compute view according to calibration info
+	float z = (pixel.x + subpixel_width*float(subpixel-1) + slope * pixel.y) * pitch - center;
+	z = 1. - fmodf(z + ceilf(fabsf(z)), 1.f);
+	return z+z - 1.;
+}
+
+static __forceinline__ __device__ Ray compute_ray (const uint3 &idx, const uint3 &dim, const Holo holo, const float subpixel_width)
 {
 	// determine sub-pixel location
 	float2 subpxl_offset = obtain_jittered_subpxl_offset(params.taa_subframe_id, params.taa_jitter_scale);
@@ -83,24 +113,27 @@ static __forceinline__ __device__ void compute_ray (uint3 idx, uint3 dim, float3
 	) - 1.f;*/
 
 	// find clip coordinates of the fragment indicated by OptiX launch ID
-	const float4 fragment = make_float4(
+	const float2 fragment {
 		static_cast<float>(idx.x)+subpxl_offset.x,
-		static_cast<float>(idx.y)+subpxl_offset.y,
-		1.f, 0.f
-	),
-	frag_clip =   fragment * make_float4(2.f/float(dim.x), 2.f/float(dim.y), 2.f, .0f)
-	            + make_float4(-1, -1, -1, 1);
+		static_cast<float>(idx.y)+subpxl_offset.y
+	};
+	const float4 frag_clip {
+		(fragment.x+fragment.x)/float(dim.x) - 1.f,
+		(fragment.y+fragment.y)/float(dim.y) - 1.f,
+		.0f, 1.f
+	};
 
 	// transform fragment coordinates from clip to world space
 	const float4 frag_world = mul_mat_vec(params.cam_invMV, mul_mat_vec(params.cam_invP, frag_clip));
 
 	// calculate point on ray
-	const float3 ray_p = make_float3(frag_world.x/frag_world.w, frag_world.y/frag_world.w, frag_world.z/frag_world.w);
+	const float3 ray_p {frag_world.x/frag_world.w, frag_world.y/frag_world.w, frag_world.z/frag_world.w};
 
 	// output resulting ray
-	origin = params.cam_eye;
-	direction = normalize(ray_p - origin);
-	//direction = normalize(d.x*params.cam_u + d.y*params.cam_v + params.cam_w);*/
+	return {
+		params.cam_eye,
+		normalize(ray_p - params.cam_eye) // normalize(d.x*params.cam_u + d.y*params.cam_v + params.cam_w)
+	};
 }
 
 static __forceinline__ __device__ float3 calc_hit_point (void)
@@ -170,21 +203,22 @@ extern "C" __global__ void __raygen__basic (void)
 	// Lookup our location within the launch grid
 	const uint3 idx = optixGetLaunchIndex();
 	const uint3 dim = optixGetLaunchDimensions();
+	const float subpixel_width = 1.f / dim.x; // in case holography is on, our launch grid will actually have
+	                                          // its subpixels expanded to full pixels by the host, essentially
+	                                          // resulting in a framebuffer 3x as wide as without holography
 
-	// Map our launch idx to a screen location and create a ray from the camera
-	// location through the screen pixel
-	float3 ray_origin, ray_direction;
-	compute_ray(idx, dim, ray_origin, ray_direction);
+	// Map our launch idx to a screen location and create a ray from the camera location through the screen pixel
+	const Ray ray = compute_ray(idx, dim, Holo::OFF, subpixel_width);
 
 	// Pre-create ray-centric coordinate system for custom intersectors
 	// ToDo: investigate unifying the RCC used across custom intersectors
 #if defined(OTV_PRIMITIVE_RUSSIG) || defined(OTV_PRIMITIVE_PHANTOM)
 	#ifdef OTV_PRIMITIVE_RUSSIG
 		// Russig et al. use x-aligned RCC
-		const mat4 rcc = RCC::calc_system_transform(ray_origin, ray_direction, RCC::x_axis);
+		const mat4 rcc = RCC::calc_system_transform(ray.orig, ray.dir, RCC::x_axis);
 	#else // ifdef OTV_PRIMITIVE_PHANTOM
-		// Reshetov et al. use z-aligned RCC
-		const mat4 rcc = RCC::calc_system_transform(ray_origin, ray_direction, RCC::z_axis);
+		// Reshetov and Luebke use z-aligned RCC
+		const mat4 rcc = RCC::calc_system_transform(ray.orig, ray.dir, RCC::z_axis);
 	#endif
 	// encode pointer into two 4-byte ints for passing into the payload registers
 	#pragma nv_diag_suppress 69
@@ -206,8 +240,7 @@ extern "C" __global__ void __raygen__basic (void)
 		OPTIX_PAYLOAD_TYPE_ID_0, // ensure correct payload usage
 	#endif
 		params.accelds,
-		ray_origin,
-		ray_direction,
+		ray.orig, ray.dir,
 		0.f,                 // Min intersection distance
 		1e16f,               // Max intersection distance
 		0.f,                 // rayTime -- used for motion blur

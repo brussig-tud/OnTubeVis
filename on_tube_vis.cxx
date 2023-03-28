@@ -1483,7 +1483,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 bool on_tube_vis::init (cgv::render::context &ctx)
 {
 #ifdef CGV_FORCE_STATIC
-	std::string app_path = cgv::base::ref_prog_path_prefix();
+	std::string app_path = "./"/*cgv::base::ref_prog_path_prefix()*/;
 #else
 	std::string app_path = QUOTE_SYMBOL_VALUE(INPUT_DIR);
 	app_path += "/";
@@ -1882,6 +1882,7 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		*(mat4*)(&params.cam_MV) = ctx.get_modelview_matrix();
 		*(mat4*)(&params.cam_P) = ctx.get_projection_matrix();
 		*(mat4*)(&params.cam_N) = cgv::math::transpose(invMV);
+		params.holo = Holo::OFF;
 		// - upload to device
 		CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(lp.params), &params, lp.params_size, cudaMemcpyHostToDevice));
 
