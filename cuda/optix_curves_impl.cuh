@@ -120,7 +120,7 @@ static __forceinline__ __device__ Ray compute_ray (const uint3 &idx, const uint3
 	const float4 frag_clip {
 		(fragment.x+fragment.x)/float(dim.x) - 1.f,
 		(fragment.y+fragment.y)/float(dim.y) - 1.f,
-		.0f, 1.f
+		1.f, 1.f
 	};
 
 	// transform fragment coordinates from clip to world space
