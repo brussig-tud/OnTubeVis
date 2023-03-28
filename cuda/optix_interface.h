@@ -60,7 +60,7 @@ struct curve_rt_params
 	unsigned int   fb_height;
 
 	// camera parameters
-	float3         cam_eye/*, cam_u, cam_v, cam_w;
+	float3         cam_eye, cam_cyclops/*, cam_u, cam_v, cam_w;
 	float2         cam_clip*/;
 	float          cam_MV[16];
 	float          cam_invMV[16];

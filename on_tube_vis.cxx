@@ -861,13 +861,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 		dynamic_cast<fltk_gl_view*>(get_context())->set_void("enable_vsynch", "bool", member_ptr);
 	// - fix view up dir
 	else if (member_ptr == &misc_cfg.fix_view_up_dir_proxy)
-		// ToDo: make stereo view interactors reflect this property, and handle the case that some other plugin that
-		//       is not derived from stereo_view_interactor handles viewing
-		//if (!misc_cfg.fix_view_up_dir_proxy)
-		//	dynamic_cast<stereo_view_interactor*>(find_view_as_node())->set("fix_view_up_dir", false);
-		//else
-		if(misc_cfg.fix_view_up_dir_proxy)
-			find_view_as_node()->set_view_up_dir(0, 1, 0);
+		dynamic_cast<node*>(find_view_as_node())->set("fix_view_up_dir", misc_cfg.fix_view_up_dir_proxy);
 
 	if (member_ptr == &test_dir[0] || member_ptr == &test_dir[1] || member_ptr == &test_dir[2])
 	{
@@ -1878,6 +1872,8 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		params.show_bvol = optix.debug_bvol;
 		params.accelds = lp.accelds;
 		params.cam_eye = make_float3(eye.x(), eye.y(), eye.z());
+		{ const auto cyclops = view_ptr->get_eye();
+		  params.cam_cyclops = make_float3((float)cyclops.x(), (float)cyclops.y(), (float)cyclops.z()); }
 		/*{ const auto znear = invP*vec4(0, 0, 0, 1), zfar = invP*vec4(0, 0, 1, 1);
 		  params.cam_clip = make_float2(-znear.z()/znear.w(), -zfar.z()/zfar.w()); }
 		params.cam_u = make_float3(optixU.x(), optixU.y(), optixU.z());
@@ -1953,7 +1949,7 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 void on_tube_vis::init_frame (cgv::render::context &ctx)
 {
 	if(!view_ptr) {
-		view_ptr = find_view_as_node();
+		view_ptr = dynamic_cast<stereo_view*>(find_view_as_node());
 		if(view_ptr) {
 			// do one-time initialization that needs the view if necessary
 			set_view();
@@ -1978,12 +1974,9 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		}
 	}
 
-	if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
-		// ToDo: make stereo view interactors reflect this property
-		/*dynamic_cast<stereo_view_interactor*>(find_view_as_node())->set(
-			"fix_view_up_dir", misc_cfg.fix_view_up_dir_proxy
-		);*/
-		view_ptr->set_view_up_dir(0, 1, 0);
+	// TODO: remove once all relevant view interactor provided by the framework properly fix the up-vector
+	/*if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
+		view_ptr->set_view_up_dir(0, 1, 0);*/
 
 	// keep the framebuffer up to date with the viewport size
 	bool updated = false;

@@ -196,8 +196,8 @@ protected:
 	shader_define_map tube_shading_defines;
 
 	/// store a pointer to the view for fast access
-	view* view_ptr = nullptr;
-	
+	view *view_ptr = nullptr;
+
 	/// store the current OpenGL viewport configuration
 	GLint viewport[4];
 

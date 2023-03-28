@@ -85,7 +85,8 @@ static __forceinline__ __device__ void compute_ray (uint3 idx, uint3 dim, float3
 	// find clip coordinates of the fragment indicated by OptiX launch ID
 	const float4 fragment = make_float4(
 		static_cast<float>(idx.x)+subpxl_offset.x,
-		static_cast<float>(idx.y)+subpxl_offset.y, 1.f, 1.f
+		static_cast<float>(idx.y)+subpxl_offset.y,
+		1.f, 0.f
 	),
 	frag_clip =   fragment * make_float4(2.f/float(dim.x), 2.f/float(dim.y), 2.f, .0f)
 	            + make_float4(-1, -1, -1, 1);
@@ -456,11 +457,13 @@ extern "C" __global__ void __closesthit__ch (void)
 	const float u = eval_alen(params.alen[seg_id], t);	
 
 	// calculate v texture coordinate
-	const float4 pos_eye = mul_mat_pos(params.cam_MV, pos);
-	const float3 bitangent = normalize(cross(tangent, w_clip(mul_mat_pos(params.cam_MV, pos_curve))));
+	const float3 bitangent = normalize(
+		cross(tangent, w_clip(mul_mat_pos(params.cam_N, pos_curve-params.cam_cyclops)))
+	);
 	const float v = acos(dot(bitangent, normal)) * pi_inv;
 
 	// calculate depth value
+	const float4 pos_eye = mul_mat_pos(params.cam_MV, pos);
 	const float4 pos_screen = mul_mat_vec(params.cam_P, pos_eye);
 	const float depth = .5f*(pos_screen.z/pos_screen.w) + .5f;
 
