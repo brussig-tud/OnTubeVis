@@ -105,6 +105,12 @@ protected:
 		// Wether to show BLAS bounding volumes (Russig intersector only for now)
 		bool debug_bvol = false;
 
+		// Whether to render a hologram
+		bool holographic = false;
+
+		// remembers whether TAA was enabeld since it currently needs to be force-disabled for holographic rendering
+		bool prev_TAA_state;
+
 		// OptiX device context
 		OptixDeviceContext context = nullptr;
 

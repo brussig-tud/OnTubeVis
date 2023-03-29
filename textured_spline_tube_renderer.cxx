@@ -102,7 +102,7 @@ namespace cgv {
 				return false;
 
 			ref_prog().set_uniform(ctx, "radius_scale", rs.radius_scale);
-			ref_prog().set_uniform(ctx, "eye_pos", eye_pos);
+			ref_prog().set_uniform(ctx, "cyclopic_eye", cyclopic_eye);
 			ref_prog().set_uniform(ctx, "view_dir", view_dir);
 			ref_prog().set_uniform(ctx, "viewport", viewport);
 			ref_prog().set_uniform(ctx, "cap_clip_distance", rs.cap_clip_distance);

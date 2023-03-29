@@ -91,6 +91,9 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 	shaders.add("fxaa", "fxaa.glpr");
 	shaders.add("taa_resolve", "taa_resolve.glpr");
 	shaders.add("screen", "screen.glpr");
+#ifdef RTX_SUPPORT
+	optix.prev_TAA_state = taa.enable_taa;
+#endif
 
 	// add framebuffer attachments needed for deferred rendering
 	fbc.add_attachment("depth", "[D]");
@@ -259,6 +262,7 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("use_optix", optix.enabled) &&
 		rh.reflect_member("optix_primitive", optix.primitive) &&
 		rh.reflect_member("optix_debug_mode", optix.debug) &&
+		rh.reflect_member("optix_holographic", optix.holographic) &&
 #endif
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
@@ -402,6 +406,11 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				on_set(&render.style.radius_scale);
 				handled = true;
 				break;
+			case 'T':
+				taa.enable_taa = false;
+				on_set(&taa.enable_taa);
+				handled = true;
+				break;
 			case 'O':
 				show_bbox = !show_bbox;
 				on_set(&show_bbox);
@@ -530,10 +539,10 @@ void on_tube_vis::handle_transfer_function_change() {
 }
 
 void on_tube_vis::on_set(void *member_ptr) {
+	// control flags
+	bool do_full_gui_update=false, data_set_changed=false, from_demo=false, reset_taa=true;
+
 	// internal state flags
-	bool data_set_changed=false,
-	     from_demo=false,
-	     reset_taa=true;
 	// - configurable datapath
 	if (member_ptr == &datapath && !datapath.empty()) {
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
@@ -633,7 +642,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 		// ###  END:  OptiX integration
 		// ###############################
 #endif
-		post_recreate_gui();
+		do_full_gui_update = true;
 	}
 
 	// render settings
@@ -698,7 +707,8 @@ void on_tube_vis::on_set(void *member_ptr) {
 		auto &glyph_layers_config = render.visualizations.front().config;
 		const auto action = glyph_layer_mgr.action_type();
 		bool changes = false;
-		if(action == AT_CONFIGURATION_CHANGE) {
+		if (action == AT_CONFIGURATION_CHANGE)
+		{
 			glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 			context& ctx = *get_context();
@@ -706,20 +716,20 @@ void on_tube_vis::on_set(void *member_ptr) {
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
 			compile_glyph_attribs();
-
-			post_recreate_gui();
 			
 			changes = true;
-		} else if(action == AT_CONFIGURATION_VALUE_CHANGE) {
+			do_full_gui_update = true;
+		}
+		else if (action == AT_CONFIGURATION_VALUE_CHANGE) {
 			glyph_layers_config = glyph_layer_mgr.get_configuration();
 			glyphs_out_of_date(true);
 			changes = true;
-		} else if(action == AT_MAPPING_VALUE_CHANGE) {
+		} else if (action == AT_MAPPING_VALUE_CHANGE) {
 			glyphs_out_of_date(true);
 			changes = true;
 		}
 
-		if(changes) {
+		if (changes) {
 			fh.has_unsaved_changes = true;
 			on_set(&fh.has_unsaved_changes);
 		}
@@ -727,42 +737,42 @@ void on_tube_vis::on_set(void *member_ptr) {
 
 	if (member_ptr == &color_map_mgr)
 	{
-		switch(color_map_mgr.action_type()) {
-		case AT_CONFIGURATION_CHANGE:
+		switch(color_map_mgr.action_type())
 		{
-			if(cm_editor_ptr) {
-				const auto& color_maps = color_map_mgr.ref_color_maps();
-				const auto* edit_cm_ptr = cm_editor_ptr->get_color_map();
-				for(size_t i = 0; i < color_maps.size(); ++i) {
-					if(&color_maps[i].cm == edit_cm_ptr) {
-						// TODO: use smart pointers for color map and in manager
-						cm_editor_ptr->set_color_map(nullptr);
-						cm_editor_ptr->set_visibility(false);
+			case AT_CONFIGURATION_CHANGE:
+			{
+				if(cm_editor_ptr) {
+					const auto& color_maps = color_map_mgr.ref_color_maps();
+					const auto* edit_cm_ptr = cm_editor_ptr->get_color_map();
+					for(size_t i = 0; i < color_maps.size(); ++i) {
+						if(&color_maps[i].cm == edit_cm_ptr) {
+							// TODO: use smart pointers for color map and in manager
+							cm_editor_ptr->set_color_map(nullptr);
+							cm_editor_ptr->set_visibility(false);
+						}
 					}
 				}
-			}
-			render.visualizations.front().manager.set_color_map_names(color_map_mgr.get_names());
+				render.visualizations.front().manager.set_color_map_names(color_map_mgr.get_names());
 
-			context& ctx = *get_context();
-			color_map_mgr.update_texture(ctx);
-			if(cm_viewer_ptr) {
-				cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
-				cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
-			}
-
-			post_recreate_gui();
-		}
-			break;
-		case AT_EDIT_REQUEST:
-			if(cm_editor_ptr) {
-				int idx = color_map_mgr.edit_index();
-				if(idx > -1 && idx < color_map_mgr.ref_color_maps().size()) {
-					cm_editor_ptr->set_color_map(&(color_map_mgr.ref_color_maps()[idx].cm));
-					cm_editor_ptr->set_visibility(true);
+				color_map_mgr.update_texture(*get_context());
+				if(cm_viewer_ptr) {
+					cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
+					cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 				}
+
+				do_full_gui_update = true;
+				break;
 			}
-			break;
-		default: break;
+			case AT_EDIT_REQUEST:
+				if(cm_editor_ptr) {
+					int idx = color_map_mgr.edit_index();
+					if(idx > -1 && idx < color_map_mgr.ref_color_maps().size()) {
+						cm_editor_ptr->set_color_map(&(color_map_mgr.ref_color_maps()[idx].cm));
+						cm_editor_ptr->set_visibility(true);
+					}
+				}
+				break;
+			default: break;
 		}
 		// TODO: add case for value change action type
 		fh.has_unsaved_changes = true;
@@ -877,14 +887,32 @@ void on_tube_vis::on_set(void *member_ptr) {
 
 #ifdef RTX_SUPPORT
 	// ###############################
-	// ### BEGIN: OptiX integration
+	/* ### BEGIN: OptiX integration */ {
 	// ###############################
 
-	if (member_ptr == &optix.enabled && optix.enabled)
-		if (!optix_ensure_init(*get_context()))
-			optix.enabled = false;
 
-	if (member_ptr == &optix.primitive)
+	const auto push_optix_holo_taa_state = [this]() {
+		optix.prev_TAA_state = taa.enable_taa;
+		taa.enable_taa = false;
+		update_member(&taa.enable_taa);
+	};
+	const auto pop_optix_holo_taa_state = [this]() {
+		taa.enable_taa = optix.prev_TAA_state;
+		update_member(&taa.enable_taa);
+	};
+
+	if (member_ptr == &optix.enabled && optix.enabled)
+	{
+		if (optix_ensure_init(*get_context())) {
+			if (optix.holographic) {
+				push_optix_holo_taa_state();
+				do_full_gui_update = true;
+			}
+		}
+		else
+			optix.enabled = false;
+	}
+	else if (member_ptr == &optix.primitive)
 	{
 		if (optix.primitive == OPR_PHANTOM)
 			optix.tracer = &optix.tracer_phantom;
@@ -895,19 +923,31 @@ void on_tube_vis::on_set(void *member_ptr) {
 		else
 			optix.tracer = &optix.tracer_russig;
 	}
+	else if (member_ptr == &optix.holographic && optix.enabled)
+	{
+		if (optix.holographic)
+			push_optix_holo_taa_state();
+		else
+			pop_optix_holo_taa_state();
+		do_full_gui_update = true;
+	}
 
 	// ###############################
-	// ###  END:  OptiX integration
+	/* ###  END:  OptiX integration */ }
 	// ###############################
 #endif
 
 	// default implementation for all members
-	// - remaining logic
+	// - update GUI
 	update_member(member_ptr);
+	if (do_full_gui_update)
+		post_recreate_gui();
+	// - reset TAA
 	if (reset_taa)
 		taa.reset();
 	else
 		taa.static_frame_count = 0; // Just make sure we keep multisampling
+	// - redraw scene
 	post_redraw();
 }
 
@@ -1831,7 +1871,7 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		/*const float aspect = float(ctx.get_width())/float(ctx.get_height()),
 		            optixV_len = (float)view_ptr->get_tan_of_half_of_fovy(true),
 		            optixU_len = optixV_len * aspect;*/
-		const vec3  eye = vec3_from_vec4h(invMV * vec4(.0f, .0f, .0f, 1.f))/*,
+		const vec3  eye = vec3_from_vec4h(invMV * vec4(0, 0, 0, 1))/*,
 		            optixW = cgv::math::normalize(view_ptr->get_view_dir()),
 		            optixV = cgv::math::normalize(view_ptr->get_view_up_dir()) * optixV_len,
 		            optixU = cgv::math::normalize(cgv::math::cross(optixW, optixV)) * optixU_len*/;
@@ -2204,7 +2244,7 @@ void on_tube_vis::create_gui(void) {
 	// rendering settings
 	add_decorator("Rendering", "heading", "level=1");
 
-	if (begin_tree_node("Playback", playback, true)) {
+	if (begin_tree_node("Playback", playback, false)) {
 		align("\a");
 		const auto &[tmin, tmax] = render.data->t_minmax;
 		const std::string tmin_str=std::to_string(tmin), tmax_str=std::to_string(tmax),
@@ -2262,6 +2302,7 @@ void on_tube_vis::create_gui(void) {
 		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Phantom,Built-in,Built-in (cubic)'");
 		add_member_control(this, "Output Debug Visualization", optix.debug, "dropdown", "enums='Off,Albedo,Depth,Tangent + Normal'");
 		add_member_control(this, "Show BLAS Bounding Volumes", optix.debug_bvol, "check");
+		add_member_control(this, "Render as hologram", optix.holographic, "check");
 		align("\b");
 		end_tree_node(optix.enabled);
 	}
@@ -2273,21 +2314,27 @@ void on_tube_vis::create_gui(void) {
 		end_tree_node(render.style);
 	}
 
+	const std::string taa_controls_active =
+	#ifdef RTX_SUPPORT
+		"active="+std::to_string(!optix.holographic);
+	#else
+		"active=true";
+	#endif
 	if(begin_tree_node("TAA", taa.enable_taa, false)) {
 		align("\a");
-		add_member_control(this, "Enable", taa.enable_taa, "toggle");
-		add_member_control(this, "Sample Count", taa.jitter_sample_count, "value_slider", "min=4;max=32;step=4");
-		add_member_control(this, "Mix Factor", taa.mix_factor, "value_slider", "min=0;max=1;step=0.001");
-		add_member_control(this, "Jitter Scale", taa.jitter_scale, "value_slider", "min=0;max=1;step=0.001");
+		add_member_control(this, "Enable", taa.enable_taa, "toggle", taa_controls_active);
+		add_member_control(this, "Sample Count", taa.jitter_sample_count, "value_slider", "min=4;max=32;step=4;"+taa_controls_active);
+		add_member_control(this, "Mix Factor", taa.mix_factor, "value_slider", "min=0;max=1;step=0.001;"+taa_controls_active);
+		add_member_control(this, "Jitter Scale", taa.jitter_scale, "value_slider", "min=0;max=1;step=0.001;"+taa_controls_active);
 
-		add_decorator("Resolve Settings", "heading", "level=3");
-		add_member_control(this, "Use Velocity", taa.use_velocity, "check");
-		add_member_control(this, "Use Closest Depth", taa.closest_depth, "check");
-		add_member_control(this, "Clip Color", taa.clip_color, "check");
-		add_member_control(this, "Static No-Clip", taa.static_no_clip, "check");
+		add_decorator("Resolve Settings", "heading", "level=3;"+taa_controls_active);
+		add_member_control(this, "Use Velocity", taa.use_velocity, "check", taa_controls_active);
+		add_member_control(this, "Use Closest Depth", taa.closest_depth, "check", taa_controls_active);
+		add_member_control(this, "Clip Color", taa.clip_color, "check", taa_controls_active);
+		add_member_control(this, "Static No-Clip", taa.static_no_clip, "check", taa_controls_active);
 
-		add_member_control(this, "Enable FXAA", taa.enable_fxaa, "toggle");
-		add_member_control(this, "FXAA Mix Factor", taa.fxaa_mix_factor, "value_slider", "min=0;max=1;step=0.0001");
+		add_member_control(this, "Enable FXAA", taa.enable_fxaa, "toggle", taa_controls_active);
+		add_member_control(this, "FXAA Mix Factor", taa.fxaa_mix_factor, "value_slider", "min=0;max=1;step=0.0001;"+taa_controls_active);
 
 		align("\b");
 		end_tree_node(taa.enable_taa);
@@ -2756,9 +2803,9 @@ void on_tube_vis::draw_trajectories(context& ctx)
 {
 	// common init
 	// - view-related info
-	const vec3 eye_pos = view_ptr->get_eye();
-	const vec3& view_dir = view_ptr->get_view_dir();
-	const vec3& view_up_dir = view_ptr->get_view_up_dir();
+	const vec3 &cyclopic_eye = view_ptr->get_eye();
+	const vec3 &view_dir = view_ptr->get_view_dir();
+	const vec3 &view_up_dir = view_ptr->get_view_up_dir();
 
 	vec2 viewport_size(
 		static_cast<float>(fbc.ref_frame_buffer().get_width()),
@@ -2815,11 +2862,11 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		// onyl perform a new visibility sort step when the view configuration deviates significantly
 		bool do_sort = false;
-		float pos_angle = dot(normalize(last_sort_pos), normalize(eye_pos));
+		float pos_angle = dot(normalize(last_sort_pos), normalize(cyclopic_eye));
 		float view_angle = dot(view_dir, last_sort_dir);
 		if(view_angle < 0.8f || pos_angle < 0.8f || !debug.lazy_sort) {
 			do_sort = true;
-			last_sort_pos = normalize(eye_pos);
+			last_sort_pos = normalize(cyclopic_eye);
 			last_sort_dir = view_dir;
 		}
 
@@ -2827,12 +2874,12 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		if(debug.sort && do_sort && !debug.force_initial_order) {
 			// measure sort time
 			//render.sorter.begin_time_query();
-			render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, eye_pos, view_dir, node_idx_buffer_ptr);
+			render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, cyclopic_eye, view_dir, node_idx_buffer_ptr);
 			//benchmark.sort_time_total += render.sorter.end_time_query();
 			++benchmark.num_sorts;
 		}
 
-		tstr.set_eye_pos(eye_pos);
+		tstr.set_cyclopic_eye(cyclopic_eye);
 		tstr.set_view_dir(view_dir);
 		tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
 		tstr.set_render_style(render.style);
@@ -3031,7 +3078,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 				taa.accumulate_count = 0;
 
 			bool clip_enabled = !taa.static_no_clip;
-			if(taa.prev_eye_pos != eye_pos || taa.prev_view_dir != view_dir || taa.prev_view_up_dir != view_up_dir) {
+			if(taa.prev_eye_pos != cyclopic_eye || taa.prev_view_dir != view_dir || taa.prev_view_up_dir != view_up_dir) {
 				clip_enabled = true;
 				taa.static_frame_count = 0;
 			}
@@ -3100,7 +3147,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		glDepthFunc(GL_LESS);
 
-		taa.prev_eye_pos = eye_pos;
+		taa.prev_eye_pos = cyclopic_eye;
 		taa.prev_view_dir = view_dir;
 		taa.prev_view_up_dir = view_up_dir;
 		taa.prev_modelview_projection_matrix = curr_projection_matrix * curr_modelview_matrix;

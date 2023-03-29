@@ -111,10 +111,12 @@ layout(std430, binding = 0) readonly buffer data_buffer {
 };
 
 uniform float radius_scale;
-uniform vec3 eye_pos;
+uniform vec3 cyclopic_eye;
 uniform vec3 view_dir;
 uniform vec4 viewport;
 uniform float max_t;
+
+const vec3 eye_pos = (get_inverse_modelview_matrix()*vec4(0, 0, 0, 1)).xyz;
 
 in flat uvec2 node_ids_gs[];
 in flat int segment_id_gs[];

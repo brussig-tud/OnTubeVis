@@ -82,8 +82,8 @@ namespace cgv { // @<
 			bool has_radii;
 			/// whether tangents are specified
 			bool has_tangents;
-			/// position of the eye point
-			vec3 eye_pos;
+			/// position of the cyclopian eye point (differs from eye point in case of stereoscopic rendering)
+			vec3 cyclopic_eye;
 			/// camera view direction
 			vec3 view_dir;
 			/// viewport rectangle (offset and size)
@@ -104,7 +104,7 @@ namespace cgv { // @<
 			/// call this after last render/draw call to ensure that no other users of renderer change attribute arrays of given manager
 			void disable_attribute_array_manager(const context& ctx, attribute_array_manager& aam);
 			///
-			void set_eye_pos(const vec3& eye_pos) { this->eye_pos = eye_pos; }
+			void set_cyclopic_eye(const vec3 & cyclopic_eye_pos) { this->cyclopic_eye = cyclopic_eye_pos; }
 			///
 			void set_view_dir(const vec3& view_dir) { this->view_dir = view_dir; }
 			///

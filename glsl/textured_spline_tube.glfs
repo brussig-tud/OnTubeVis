@@ -79,7 +79,7 @@ struct Hit {
 };
 
 uniform float radius_scale;
-uniform vec3 eye_pos;
+uniform vec3 cyclopic_eye;
 uniform vec4 viewport;
 uniform float max_t;
 uniform float cap_clip_distance;
@@ -964,7 +964,7 @@ void main()
 		tangent = normalize(get_normal_matrix() * tangent);
 #endif
 		// calculate a bitangent which is orthogonal to the plane defined by the tangent and the vector from the eye position to the hit position
-		vec3 b = normalize(cross(tangent, hit.sp-(get_modelview_matrix()*vec4(eye_pos,1)).xyz));
+		vec3 b = normalize(cross(tangent, hit.sp-(get_modelview_matrix()*vec4(cyclopic_eye, 1)).xyz));
 		// the texture coordinate around the tubes perimeter is the acos of the dot product between the normal and the bitangent
 		// normalized to [0,1]
 		// since we are only interested in the eye-facing side of the tube, acos is sufficient here
