@@ -77,6 +77,11 @@ uniform vec4 grid_color;
 uniform float normal_mapping_scale = 1.0;
 uniform grid_parameters grids[2];
 
+// holographic raycasting parameters
+uniform bool  holographic_raycast;
+uniform float viewport_width;
+uniform float framebuf_width;
+
 // attribute mapping parameters
 #if CONSTANT_FLOAT_UNIFORM_COUNT > 0
 uniform float glyph_cf_param[CONSTANT_FLOAT_UNIFORM_COUNT];
@@ -1395,25 +1400,42 @@ vec3 hash31(float p)
 }
 
 
-
-
-
 void main()
 {
-	vec4 albedo_texcoord_seg = texture(albedo_tex, texcoord_fs);
+	const uint num_subpixels = holographic_raycast ? 3 : 1;
+	const float subpxl_width = 1./framebuf_width;
+	const float pxl_width = 1./viewport_width;
+	const float intra_fbtexel_offset = subpxl_width*.125f;
+	const uint fbpxl = uint((texcoord_fs.x) * framebuf_width);
+	const float pxl = float(uint(fbpxl/num_subpixels));
+	const uint subpxl = fbpxl % 3;
+
+
+	/////////////////////////////////////////////
+	// BEGIN - holography loop
+	float frag_depth = 1;
+	for (uint subp=0; subp<num_subpixels; subp++) {
+
+	
+	const vec2 fb_uv = vec2(
+		/*(holographic_raycast ? pxl*subpxl_width : */pxl*pxl_width + subp*subpxl_width + intra_fbtexel_offset,
+		texcoord_fs.y
+	);
+	vec4 albedo_texcoord_seg = texture(albedo_tex, fb_uv);
 	vec3 color = unpackUnorm4x8(floatBitsToUint(albedo_texcoord_seg.x)).rgb;
 	vec2 texcoord = albedo_texcoord_seg.yz;
 	int segment_id = floatBitsToInt(albedo_texcoord_seg.w);
 
-	vec3 pos_eye = texture(position_tex, texcoord_fs).xyz;
-	vec3 normal_eye = texture(normal_tex, texcoord_fs).xyz;
-	vec3 tangent_eye = texture(tangent_tex, texcoord_fs).xyz;
-	float depth = texture(depth_tex, texcoord_fs).r;
+	vec3 pos_eye = texture(position_tex, fb_uv).xyz;
+	vec3 normal_eye = texture(normal_tex, fb_uv).xyz;
+	vec3 tangent_eye = texture(tangent_tex, fb_uv).xyz;
+	float depth = texture(depth_tex, fb_uv).r;
 	float specular_factor = 1;
 
+	vec4 subp_color;
 	if(depth == 1.0) {
 		// TODO: these fragments are never drawn to the screen (because depth is one)
-		frag_color = vec4(vec3(0.0), 1.0);
+		subp_color = vec4(vec3(0.0), 1.0);
 	} else {
 		vec2 uv = texcoord;
 
@@ -1428,7 +1450,7 @@ void main()
 		if(general_settings.use_curvature_correction)
 			uv.t = sin(0.5*M_PI*uv.t);
 
-		//frag_color = vec4(uv.s, uv.t, 0.0, 1.0);
+		//subp_color = vec4(uv.s, uv.t, 0.0, 1.0);
 
 		// glyph layer 0
 #if L0_VISIBLE > 0 && L0_MAPPED_ATTRIB_COUNT > 0
@@ -1524,36 +1546,49 @@ void main()
 		color = mix(color, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
 #endif
 
-		frag_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(color, 1.0), 1, specular_factor);
+		subp_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(color, 1.0), 1, specular_factor);
 
 #if GRID_MODE & 2
 		vec3 gn = compute_grid_normal(uv);
 		vec3 bitangent_eye = cross(normal_eye, tangent_eye);
 		mat3 TBN = mat3(tangent_eye, bitangent_eye, normal_eye);
 		vec3 normal_eye_bump = mix(normal_eye, normalize(TBN * gn), normal_mapping_scale);
-		vec4 frag_color_bump = compute_reflected_appearance(pos_eye, normal_eye_bump, vec4(color, 1.0), 1, specular_factor);
+		vec4 subp_color_bump = compute_reflected_appearance(pos_eye, normal_eye_bump, vec4(color, 1.0), 1, specular_factor);
 		//color = 0.5*gn+0.5;
 		float aa_factor = min(aa_texture(grids[0].scaling*uv, grids[0].thickness, 0.5) + aa_texture(grids[1].scaling*uv, grids[1].thickness, 0.5), 1);
-		frag_color = mix(frag_color, frag_color_bump, aa_factor);
+		subp_color = mix(subp_color, subp_color_bump, aa_factor);
 #endif
 
 		//if(ambient_occlusion.enable)
 #if ENABLE_AMBIENT_OCCLUSION == 1
-		frag_color.rgb *= compute_ambient_occlusion_factor(pos_eye, normal_eye);
+		subp_color.rgb *= compute_ambient_occlusion_factor(pos_eye, normal_eye);
 #endif
 
 		// Debug outputs:
-		//frag_color = vec4((pos_eye + 5.0)/10.0, 1.0); // position (adjusted for HotRoom)
-		//frag_color = vec4(0.5*normal_eye + 0.5, 1.0); // normal
-		//frag_color = vec4(0.5*tangent_eye + 0.5, 1.0); // tangent
-		//frag_color = vec4(vec3(depth), 1.0); // tangent
-		//frag_color = vec4(0.1*texcoord.x, texcoord.y, 0.0, 1.0); // texcoords
-		//frag_color = vec4(hash31(segment_id), 1.0); // segment_id
+		//subp_color = vec4((pos_eye + 5.0)/10.0, 1.0); // position (adjusted for HotRoom)
+		//subp_color = vec4(0.5*normal_eye + 0.5, 1.0); // normal
+		//subp_color = vec4(0.5*tangent_eye + 0.5, 1.0); // tangent
+		//subp_color = vec4(vec3(depth), 1.0); // tangent
+		//subp_color = vec4(0.1*texcoord.x, texcoord.y, 0.0, 1.0); // texcoords
+		//subp_color = vec4(hash31(segment_id), 1.0); // segment_id
 	}
 
 	if(use_gamma)
-		frag_color.rgb = pow(frag_color.rgb, vec3(2.2));
+		subp_color.rgb = pow(subp_color.rgb, vec3(2.2));
+
+	// write colorchannel corresponding to this subpixel
+	if (holographic_raycast)
+		frag_color[subp] = subp_color[subp];
+	else
+		frag_color = subp_color;
+
+	// update fragment depth if this subpixel's depth is smaller
+	frag_depth = depth < frag_depth ? depth : frag_depth;
+
+	}
+	// END - holography loop
+	/////////////////////////////////////////////
 	
 	// write the frag depth to enable the framework view to work properly
-	gl_FragDepth = depth;
+	gl_FragDepth = frag_depth;
 }

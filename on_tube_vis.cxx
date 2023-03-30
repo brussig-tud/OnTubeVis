@@ -384,6 +384,13 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				on_set(&grid_mode);
 				handled = true;
 				break;
+		#ifdef RTX_SUPPORT
+			case 'H':
+				optix.holographic = !optix.holographic;
+				on_set(&optix.holographic);
+				handled = true;
+				break;
+		#endif
 			case 'N':
 				if(navigator_ptr) {
 					bool visible = navigator_ptr->is_visible();
@@ -407,15 +414,35 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				handled = true;
 				break;
 			case 'T':
-				taa.enable_taa = false;
+				taa.enable_taa = !taa.enable_taa;
 				on_set(&taa.enable_taa);
 				handled = true;
 				break;
 			case 'O':
-				show_bbox = !show_bbox;
-				on_set(&show_bbox);
+			#ifdef RTX_SUPPORT
+				if (modifiers == cgv::gui::EM_CTRL) {
+					optix.enabled = !optix.enabled;
+					on_set(&optix.enabled);
+				}
+				else
+			#endif
+				{ show_bbox = !show_bbox;
+				  on_set(&show_bbox); }
 				handled = true;
 				break;
+		#ifdef RTX_SUPPORT
+			case 'P':
+				if (modifiers == cgv::gui::EM_CTRL) {
+					optix.unproject_mode_dbg = !optix.unproject_mode_dbg;
+					on_set(&optix.holographic); std::cerr << "unproject dbg: "<<optix.unproject_mode_dbg << std::endl;
+				}
+				else {
+					optix.primitive = (OptixPrimitive)((((unsigned)optix.primitive)+1) % 4);
+					on_set(&optix.primitive); std::cerr << "primitive type: "<<optix.primitive << std::endl;
+				}
+				handled = true;
+				break;
+		#endif
 			case 'W':
 				show_wireframe_bbox = !show_wireframe_bbox;
 				on_set(&show_wireframe_bbox);
@@ -894,23 +921,45 @@ void on_tube_vis::on_set(void *member_ptr) {
 	const auto push_optix_holo_taa_state = [this]() {
 		optix.prev_TAA_state = taa.enable_taa;
 		taa.enable_taa = false;
+		context &ctx = *get_context();
+		const ivec2 fbsize(ctx.get_width()*3, ctx.get_height());
+		fbc.set_size(fbsize);
+		fbc.ensure(ctx);
+		optix.fb.depth.set_resolution(0, fbsize.x());
+		optix.fb.depth.set_resolution(1, fbsize.y());
+		optix.fb.depth.ensure_state(ctx);
 		update_member(&taa.enable_taa);
 	};
 	const auto pop_optix_holo_taa_state = [this]() {
 		taa.enable_taa = optix.prev_TAA_state;
+		context &ctx = *get_context();
+		const ivec2 fbsize(ctx.get_width()*3, ctx.get_height());
+		fbc.set_size({ctx.get_width(), ctx.get_height()});
+		fbc.ensure(ctx);
+		optix.fb.depth.set_resolution(0, fbsize.x());
+		optix.fb.depth.set_resolution(1, fbsize.y());
+		optix.fb.depth.ensure_state(ctx);
 		update_member(&taa.enable_taa);
 	};
 
-	if (member_ptr == &optix.enabled && optix.enabled)
+	if (member_ptr == &taa.enable_taa)
+		optix.prev_TAA_state = taa.enable_taa;
+	else if (member_ptr == &optix.enabled)
 	{
-		if (optix_ensure_init(*get_context())) {
-			if (optix.holographic) {
-				push_optix_holo_taa_state();
-				do_full_gui_update = true;
+		if (optix.enabled) {
+			if (optix_ensure_init(*get_context())) {
+				if (optix.holographic) {
+					push_optix_holo_taa_state();
+					do_full_gui_update = true;
+				}
 			}
+			else
+				optix.enabled = false;
 		}
-		else
-			optix.enabled = false;
+		else {
+			pop_optix_holo_taa_state();
+			do_full_gui_update = true;
+		}
 	}
 	else if (member_ptr == &optix.primitive)
 	{
@@ -1797,11 +1846,12 @@ bool on_tube_vis::optix_ensure_init (context &ctx)
 		success = success && optix.tracer_builtin_cubic.built();
 		success = success && optix_register_resources(ctx);
 	}
-	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
-	success = success && optix.outbuf_position.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
-	success = success && optix.outbuf_normal.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
-	success = success && optix.outbuf_tangent.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
-	success = success && optix.outbuf_depth.reset(CUOutBuf::GL_INTEROP, ctx.get_width(), ctx.get_height());
+	const int w = ctx.get_width() * (optix.holographic ? 3 : 1);
+	success = success && optix.outbuf_albedo.reset(CUOutBuf::GL_INTEROP, w, ctx.get_height());
+	success = success && optix.outbuf_position.reset(CUOutBuf::GL_INTEROP, w, ctx.get_height());
+	success = success && optix.outbuf_normal.reset(CUOutBuf::GL_INTEROP, w, ctx.get_height());
+	success = success && optix.outbuf_tangent.reset(CUOutBuf::GL_INTEROP, w, ctx.get_height());
+	success = success && optix.outbuf_depth.reset(CUOutBuf::GL_INTEROP, w, ctx.get_height());
 
 	// create CUDA operations stream
 	CUDA_CHECK_FAIL(cudaStreamCreate(&optix.stream));
@@ -1866,11 +1916,12 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		curve_rt_params params;
 
 		// prepare camera info
+		const auto sview = (stereo_view*)view_ptr;
 		const mat4 &invMV = *(mat4*)(&params.cam_invMV) = cgv::math::inv(ctx.get_modelview_matrix()),
 		           &invP  = *(mat4*)(&params.cam_invP)  = cgv::math::inv(ctx.get_projection_matrix());
-		/*const float aspect = float(ctx.get_width())/float(ctx.get_height()),
+		const float aspect = float(ctx.get_width())/float(ctx.get_height())/*,
 		            optixV_len = (float)view_ptr->get_tan_of_half_of_fovy(true),
-		            optixU_len = optixV_len * aspect;*/
+		            optixU_len = optixV_len * aspect*/;
 		const vec3  eye = vec3_from_vec4h(invMV * vec4(0, 0, 0, 1))/*,
 		            optixW = cgv::math::normalize(view_ptr->get_view_dir()),
 		            optixV = cgv::math::normalize(view_ptr->get_view_up_dir()) * optixV_len,
@@ -1907,28 +1958,68 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		params.max_t = render.style.max_t;
 		params.taa_subframe_id = taa.enable_taa ? taa.accumulate_count : 0;
 		params.taa_jitter_scale = taa.jitter_scale;
-		params.fb_width = ctx.get_width();
-		params.fb_height = ctx.get_height();
+		params.viewport_dims = { ctx.get_width(), ctx.get_height() };
+		params.framebuf_dims = {
+			params.viewport_dims.x * (optix.holographic ? 3 : 1),
+			params.viewport_dims.y
+		};
 		params.show_bvol = optix.debug_bvol;
 		params.accelds = lp.accelds;
 		params.cam_eye = make_float3(eye.x(), eye.y(), eye.z());
-		{ const auto cyclops = view_ptr->get_eye();
-		  params.cam_cyclops = make_float3((float)cyclops.x(), (float)cyclops.y(), (float)cyclops.z()); }
-		/*{ const auto znear = invP*vec4(0, 0, 0, 1), zfar = invP*vec4(0, 0, 1, 1);
+		{ const auto cyclops = ctx.get_modelview_matrix()*dvec4(view_ptr->get_eye(), 1.);
+		  params.cam_cyclops_eyespace = make_float3((float)cyclops.x(), (float)cyclops.y(), (float)cyclops.z()); }
+		{ const auto znear = invP*vec4(0, 0, 0, 1), zfar = invP*vec4(0, 0, 1, 1);
 		  params.cam_clip = make_float2(-znear.z()/znear.w(), -zfar.z()/zfar.w()); }
-		params.cam_u = make_float3(optixU.x(), optixU.y(), optixU.z());
+		/*params.cam_u = make_float3(optixU.x(), optixU.y(), optixU.z());
 		params.cam_v = make_float3(optixV.x(), optixV.y(), optixV.z());
 		params.cam_w = make_float3(optixW.x(), optixW.y(), optixW.z());*/
 		*(mat4*)(&params.cam_MV) = ctx.get_modelview_matrix();
 		*(mat4*)(&params.cam_P) = ctx.get_projection_matrix();
 		*(mat4*)(&params.cam_N) = cgv::math::transpose(invMV);
-		params.holo = Holo::OFF;
+		params.holo = (Holo)optix.holographic;
+		params.unproject_mode_dbg = optix.unproject_mode_dbg;
+		params.screen_size = {
+			(float)view_ptr->get_y_extent_at_focus() * aspect,
+			(float)view_ptr->get_y_extent_at_focus()
+		};
+		params.holo_eye = optix.holo_eye;
+		params.parallax_zero_depth = sview->get_parallax_zero_depth();
+		// pre-calculate stereo MV/P matrices
+		auto stereo_projection_matrix = [&sview, &params, aspect](float e) -> mat4
+		{
+			return
+				cgv::math::stereo_frustum_screen4<double>(
+					e, sview->get_eye_distance(), sview->get_y_extent_at_focus()*aspect, sview->get_y_extent_at_focus(),
+					params.parallax_zero_depth, params.cam_clip.x, params.cam_clip.y
+				);
+		};
+		auto stereo_modelview_matrix = [&ctx, &sview, &params, aspect](float e) -> mat4
+		{
+			ctx.push_modelview_matrix();
+			ctx.set_modelview_matrix(cgv::math::identity4<double>());
+			ctx.mul_modelview_matrix(cgv::math::stereo_translate_screen4<double>(e, sview->get_eye_distance(), sview->get_y_extent_at_focus()*aspect));
+			ctx.mul_modelview_matrix(cgv::math::look_at4(sview->get_eye(), sview->get_focus(), sview->get_view_up_dir()));
+			const mat4 ret = ctx.get_modelview_matrix();
+			ctx.pop_modelview_matrix();
+			return ret;
+		};
+		*(mat4*)(&params.holo_MV_left)  = stereo_modelview_matrix(-1.f);
+		*(mat4*)(&params.holo_invMV_left) = cgv::math::inv(*(mat4*)(&params.holo_MV_left));
+		*(mat4*)(&params.holo_MV_right) = stereo_modelview_matrix( 1.f);
+		*(mat4*)(&params.holo_invMV_right) = cgv::math::inv(*(mat4*)(&params.holo_MV_right));
+		*(mat4*)(&params.holo_P_left)   = stereo_projection_matrix(-1.f);
+		*(mat4*)(&params.holo_invP_left) = cgv::math::inv(*(mat4*)(&params.holo_P_left));
+		*(mat4*)(&params.holo_P_right)  = stereo_projection_matrix( 1.f);
+		*(mat4*)(&params.holo_invP_right) = cgv::math::inv(*(mat4*)(&params.holo_P_right));
+		*(mat4*)(&params.holo_invMVP_left) = cgv::math::inv((*(mat4*)(&params.holo_P_left)) * (*(mat4*)(&params.holo_MV_left)));
+		*(mat4*)(&params.holo_invMVP_right) = cgv::math::inv((*(mat4*)(&params.holo_P_right)) * (*(mat4*)(&params.holo_MV_right)));
 		// - upload to device
-		CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(lp.params), &params, lp.params_size, cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(lp.params), &params, lp.params_size, cudaMemcpyHostToDevice));
 
 		// Launch!
 		OPTIX_CHECK(optixLaunch(
-			lp.pipeline, optix.stream, lp.params, lp.params_size, lp.sbt, params.fb_width, params.fb_height, /*depth=*/1
+			lp.pipeline, optix.stream, lp.params, lp.params_size, lp.sbt,
+			params.framebuf_dims.x, params.framebuf_dims.y, /*depth=*/1
 		));
 		CUDA_SYNC_CHECK();
 
@@ -2043,7 +2134,8 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	if (optix.initialized && optix.enabled)
 	{
 		// keep the optix interop buffer up to date with the viewport size
-		const unsigned w=ctx.get_width(), h=ctx.get_height();
+		const unsigned w = ctx.get_width() * (optix.holographic ? 3 : 1),
+		               h = ctx.get_height();
 		optix.outbuf_albedo.resize(w, h);
 		optix.outbuf_position.resize(w, h);
 		optix.outbuf_normal.resize(w, h);
@@ -2303,6 +2395,7 @@ void on_tube_vis::create_gui(void) {
 		add_member_control(this, "Output Debug Visualization", optix.debug, "dropdown", "enums='Off,Albedo,Depth,Tangent + Normal'");
 		add_member_control(this, "Show BLAS Bounding Volumes", optix.debug_bvol, "check");
 		add_member_control(this, "Render as hologram", optix.holographic, "check");
+		add_member_control(this, "Holo-eye test", optix.holo_eye, "value_slider", "min=-1;max=1;step=0.0625;ticks=true");
 		align("\b");
 		end_tree_node(optix.enabled);
 	}
@@ -2316,7 +2409,7 @@ void on_tube_vis::create_gui(void) {
 
 	const std::string taa_controls_active =
 	#ifdef RTX_SUPPORT
-		"active="+std::to_string(!optix.holographic);
+		"active="+std::to_string(!optix.holographic || !optix.enabled);
 	#else
 		"active=true";
 	#endif
@@ -2819,7 +2912,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 #ifdef RTX_SUPPORT
 	texture &tex_depth = (optix.enabled && optix.initialized) ? optix.fb.depth : *fbc.attachment_texture_ptr("depth");
 #else
-	texture& tex_depth = *fbc.attachment_texture_ptr("depth");
+	texture &tex_depth = *fbc.attachment_texture_ptr("depth");
 #endif
 	// - node attribute data needed by both rasterization and raytracing
 	const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
@@ -2989,6 +3082,15 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
 		prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
 		prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
+
+		#ifdef RTX_SUPPORT
+			prog.set_uniform(ctx, "holographic_raycast", optix.enabled && optix.initialized && optix.holographic);
+		#else
+			prog.set_uniform(ctx, "holographic_raycast", false);
+		#endif
+		prog.set_uniform(ctx, "viewport_width", (float)ctx.get_width());
+		const auto fb_size = fbc.get_size();
+		prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
 
 		fbc.enable_attachment(ctx, "albedo", 0);
 		fbc.enable_attachment(ctx, "position", 1);

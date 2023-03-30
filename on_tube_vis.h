@@ -106,7 +106,10 @@ protected:
 		bool debug_bvol = false;
 
 		// Whether to render a hologram
-		bool holographic = false;
+		bool holographic = false, unproject_mode_dbg=false;
+
+		// Eye selector for testing stereo transform with normal non-holo/non-stereo mode
+		float holo_eye = 0;
 
 		// remembers whether TAA was enabeld since it currently needs to be force-disabled for holographic rendering
 		bool prev_TAA_state;

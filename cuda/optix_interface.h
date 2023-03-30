@@ -30,17 +30,14 @@ struct cuda_arclen {
 
 // holographic rendering
 enum Holo {
-	// off
+	// disabled
 	OFF = 0,
 
-	// render subpixel 1
-	SUBPIXEL_R,
+	// render directly into hologram
+	ON,
 
-	// render subpixel 2
-	SUBPIXEL_G,
-
-	// render subpixel 3
-	SUBPIXEL_B
+	// render a lightfield quilt
+	QUILT
 };
 
 // OptiX launch parameters
@@ -70,13 +67,15 @@ struct curve_rt_params
 	unsigned       taa_subframe_id;
 	float          taa_jitter_scale;
 
-	// framebuffer dimensions
-	unsigned int   fb_width;
-	unsigned int   fb_height;
+	// viewport and framebuffer dimensions
+	// (framebuffer should be 3x as wide as viewport in holography mode, and identical when
+	// holography is disabled)
+	uint3          viewport_dims;
+	uint3          framebuf_dims;
 
 	// camera parameters
-	float3         cam_eye, cam_cyclops/*, cam_u, cam_v, cam_w;
-	float2         cam_clip*/;
+	float3         cam_eye, cam_cyclops_eyespace/*, cam_u, cam_v, cam_w*/;
+	float2         cam_clip;
 	float          cam_MV[16];
 	float          cam_invMV[16];
 	float          cam_P[16];
@@ -88,6 +87,13 @@ struct curve_rt_params
 
 	// holography
 	Holo holo;
+	float2 screen_size;
+	float parallax_zero_depth;
+	float holo_eye;
+	float holo_MV_left[16], holo_invMV_left[16], holo_MV_right[16], holo_invMV_right[16];
+	float holo_P_left[16], holo_invP_left[16], holo_P_right[16], holo_invP_right[16];
+	float holo_invMVP_left[16], holo_invMVP_right[16];
+	bool unproject_mode_dbg;
 
 	// the accelleration datastructure to trace
 	OptixTraversableHandle accelds;

@@ -64,6 +64,9 @@ extern "C" {
 	__constant__ curve_rt_params params;
 }
 
+/*__constant__ const uint3 mono_mult{1, 1, 1};
+__constant__ const uint3 holo_mult{3, 1, 1};*/
+
 
 
 ///////
@@ -81,6 +84,17 @@ struct Ray
 	float3 dir;
 };
 
+/// struct storing state related to holographic raycasting
+struct HoloState
+{
+	unsigned to_fullpxl_divisor;
+	float subpxl_width;
+	unsigned subpxl;
+	uint2 pxl;
+	float2 uv;
+	float view;
+};
+
 
 
 /////
@@ -88,7 +102,44 @@ struct Ray
 // Functions
 //
 
-static __forceinline__ __device__ float view_from_pixel_component (const float2 pixel, const Holo subpixel, const float subpixel_width)
+static __forceinline__ __device__ mat4 compute_frustum (
+	const float l, const float r, const float b, const float t, const float n, const float f
+)
+{
+	mat4 ret(.0f);
+	ret.m[0][0] = 2.f * n / (r - l);
+	ret.m[2][0] = (r + l) / (r - l);
+	ret.m[1][1] = 2.f * n / (t - b);
+	ret.m[2][1] = (t + b) / (t - b);
+	ret.m[2][2] = (n + f) / (n - f);
+	ret.m[3][2] = 2.f * n * f / (n - f);
+	ret.m[2][3] = -1.f;
+	return ret;
+}
+
+constexpr float eye_separation = .3f;
+
+// eye from left to right / -1 to 1
+static __forceinline__ __device__ mat4 compute_stereo_frustum_screen (const float eye)
+{
+	const float znear = params.cam_clip.x;
+	const float aspect = params.screen_size.x / params.screen_size.y;
+	const float top = .5f*params.screen_size.y*znear / params.parallax_zero_depth;
+	const float bottom = -top;
+	const float delta = .5*eye_separation*eye*params.screen_size.x*znear / params.parallax_zero_depth;
+	const float left = bottom * aspect - delta;
+	const float right = top * aspect - delta;
+	return compute_frustum(left, right, bottom, top, znear, params.cam_clip.y/*<-- z_far*/);
+}
+
+// eye from left to right / -1 to 1
+static __forceinline__ __device__ mat4 stereo_translate_modelview_matrix (const float eye) {
+	mat4 ret = params.cam_MV;
+	ret.col(3).x += -0.5 * eye_separation * eye * params.screen_size.x;
+	return ret;
+}
+
+static __forceinline__ __device__ float get_view (const HoloState &hs)
 {
 	// looking Glass calibration values
 	constexpr float pitch  =  673.46088569750157f;
@@ -96,15 +147,18 @@ static __forceinline__ __device__ float view_from_pixel_component (const float2 
 	constexpr float center =  0.076352536678314209f;
 
 	// compute view according to calibration info
-	float z = (pixel.x + subpixel_width*float(subpixel-1) + slope * pixel.y) * pitch - center;
-	z = 1. - fmodf(z + ceilf(fabsf(z)), 1.f);
-	return z+z - 1.;
+	float z = (hs.uv.x + hs.subpxl_width*float(hs.subpxl) + slope*hs.uv.y) * pitch - center;
+	z = 1.f - fmodf(z + ceilf(fabsf(z)), 1.f);
+	return z+z - 1.f;
 }
 
-static __forceinline__ __device__ Ray compute_ray (const uint3 &idx, const uint3 &dim, const Holo holo, const float subpixel_width)
+static __forceinline__ __device__ Ray compute_ray (const HoloState &hs)
 {
-	// determine sub-pixel location
-	float2 subpxl_offset = obtain_jittered_subpxl_offset(params.taa_subframe_id, params.taa_jitter_scale);
+	// for reconstructing stereo eye position
+	static const float4 stereo_eye_local {.0f, .0f, .0f, 1.f};
+
+	// determine sub-pixel jitter for TAA
+	float2 jitter_offset = obtain_jittered_subpxl_offset(params.taa_subframe_id, params.taa_jitter_scale);
 
 	// compute exact point on the screen
 	/*const float2 d = 2.f * make_float2(
@@ -112,28 +166,37 @@ static __forceinline__ __device__ Ray compute_ray (const uint3 &idx, const uint3
 		(static_cast<float>(idx.y)+subpxl_offset.y) / static_cast<float>(dim.y)
 	) - 1.f;*/
 
-	// find clip coordinates of the fragment indicated by OptiX launch ID
+	// find clip coordinates of the fragment corresponding to the OptiX launch ID
 	const float2 fragment {
-		static_cast<float>(idx.x)+subpxl_offset.x,
-		static_cast<float>(idx.y)+subpxl_offset.y
+		static_cast<float>(hs.pxl.x)+jitter_offset.x/hs.to_fullpxl_divisor + float(hs.subpxl)/hs.to_fullpxl_divisor,
+		static_cast<float>(hs.pxl.y)+jitter_offset.y
 	};
-	const float4 frag_clip {
-		(fragment.x+fragment.x)/float(dim.x) - 1.f,
-		(fragment.y+fragment.y)/float(dim.y) - 1.f,
-		1.f, 1.f
-	};
+	const float4 frag_clip = params.unproject_mode_dbg ? float4 {
+			 (hs.uv.x+hs.uv.x) - 1.f,
+			 (hs.uv.y+hs.uv.y) - 1.f,
+			 0.f,
+			 1.f
+		} : float4 {
+			(fragment.x+fragment.x)/float(params.viewport_dims.x) - 1.f,
+			(fragment.y+fragment.y)/float(params.viewport_dims.y) - 1.f,
+			0.f, 1.f
+		};
+
+	const float stereo = params.holo==Holo::OFF ? params.holo_eye : hs.view;
+	mat4 P = compute_stereo_frustum_screen(stereo), invP = P.inverse(),
+		 MV = stereo_translate_modelview_matrix(stereo), invMV = MV.inverse();
 
 	// transform fragment coordinates from clip to world space
-	const float4 frag_world = mul_mat_vec(params.cam_invMV, mul_mat_vec(params.cam_invP, frag_clip));
+	const float4 frag_world = mul_mat_vec(invMV, mul_mat_vec(invP, frag_clip));
 
-	// calculate point on ray
-	const float3 ray_p {frag_world.x/frag_world.w, frag_world.y/frag_world.w, frag_world.z/frag_world.w};
+	// calculate ray origin
+	const float3 ray_orig = w_clip(mul_mat_vec(invMV, stereo_eye_local));
 
 	// output resulting ray
 	return {
-		params.cam_eye,
-		normalize(ray_p - params.cam_eye) // normalize(d.x*params.cam_u + d.y*params.cam_v + params.cam_w)
-	};
+		ray_orig,
+		normalize(w_clip(frag_world) - ray_orig)
+	}; // { params.cam_eye, normalize(d.x*params.cam_u + d.y*params.cam_v + params.cam_w) }
 }
 
 static __forceinline__ __device__ float3 calc_hit_point (void)
@@ -201,14 +264,28 @@ static __forceinline__ __device__ float eval_alen (const cuda_arclen &param, con
 extern "C" __global__ void __raygen__basic (void)
 {
 	// Lookup our location within the launch grid
-	const uint3 idx = optixGetLaunchIndex();
-	const uint3 dim = optixGetLaunchDimensions();
-	const float subpixel_width = 1.f / dim.x; // in case holography is on, our launch grid will actually have
-	                                          // its subpixels expanded to full pixels by the host, essentially
-	                                          // resulting in a framebuffer 3x as wide as without holography
+	const uint3
+		dim = optixGetLaunchDimensions()/* / (params.holo==Holo::OFF ? mono_mult : holo_mult)*/,
+		idx = optixGetLaunchIndex()/*,
+		idx = params.holo==Holo::OFF ? idx_optix : make_uint3(
+			idx_optix.x / 3, idx_optix.y, idx_optix.z
+		)*/;
 
-	// Map our launch idx to a screen location and create a ray from the camera location through the screen pixel
-	const Ray ray = compute_ray(idx, dim, Holo::OFF, subpixel_width);
+	// initialize holography parameters
+	HoloState hs;
+	hs.to_fullpxl_divisor = params.holo==Holo::OFF ? 1 : 3;
+	hs.subpxl_width = 1.f / params.framebuf_dims.x;
+	hs.subpxl = idx.x % hs.to_fullpxl_divisor;
+	hs.pxl = {idx.x/hs.to_fullpxl_divisor, idx.y};
+	hs.uv = {
+		float(hs.pxl.x)/float(params.viewport_dims.x),
+		float(hs.pxl.y)/float(params.viewport_dims.y)
+	};
+	hs.view = get_view(hs);
+
+	// Map our launch idx to a subpixel (equivalent to full pixel when holography is disabled) and create a ray
+	// from the camera location through the subpixel
+	const Ray ray = compute_ray(hs);
 
 	// Pre-create ray-centric coordinate system for custom intersectors
 	// ToDo: investigate unifying the RCC used across custom intersectors
@@ -260,9 +337,20 @@ extern "C" __global__ void __raygen__basic (void)
 		pl_tangent_x, pl_tangent_y, pl_tangent_z,
 		pl_depth
 	);
-	// - process payload	
+	// - process payload
+	const float r = fmodf(.5f*(hs.view+1.f), 1.f), g = fmodf(r+0.333f, 1.f), b = fmodf(r+0.667f, 1.f);
 	float4 albedo;
-		albedo.x = __int_as_float(pl_color);
+		//if (params.holo == Holo::OFF)
+			albedo.x = __int_as_float(pl_color);
+		/*else {
+			albedo.x = __int_as_float(//pack_unorm_4x8(float4{r, g, b, 1})
+				hs.subpxl==0 ?
+					pack_unorm_4x8(float4{1, 0, 0, 1}) :
+					(hs.subpxl==1 ?
+						pack_unorm_4x8(float4{0, 1, 0, 1}) :
+						pack_unorm_4x8(float4{0, 0, 1, 1}))
+			);
+		}*/
 		albedo.y = __int_as_float(pl_u);
 		albedo.z = __int_as_float(pl_v);
 		albedo.w = __int_as_float(pl_seg_id);
@@ -282,7 +370,7 @@ extern "C" __global__ void __raygen__basic (void)
 		depth.x  = __int_as_float(pl_depth);
 
 	// Record results in our output raster
-	const unsigned pxl = idx.y*params.fb_width + idx.x;
+	const unsigned pxl = idx.y*params.framebuf_dims.x + idx.x;
 	params.albedo[pxl] = albedo;
 	params.position[pxl] = position;
 	params.normal[pxl] = normal;
@@ -290,7 +378,7 @@ extern "C" __global__ void __raygen__basic (void)
 	params.depth[pxl] = depth;
 	/*//----------------------------
 	// BEGIN: DEBUG OUTPUT
-	const unsigned mid = (params.fb_height/2)*params.fb_width + (params.fb_width/2);
+	const unsigned mid = (params.framebuf_dims.y/2)*params.framebuf_dims.x + (params.framebuf_dims.x/2);
 	if (pxl == mid)
 		printf("segid: %d   u=%f  v=%f\n",
 		       __float_as_int(params.albedo[pxl].w), albedo.y, albedo.z);
@@ -372,8 +460,8 @@ extern "C" __global__ void __intersection__phantom (void)
 	/*//----------------------------
 	// BEGIN: DEBUG OUTPUT
 	const uint3 idx = optixGetLaunchIndex();
-	const unsigned pxl = idx.y*params.fb_width + idx.x,
-	               mid = (params.fb_height/2)*params.fb_width + (params.fb_width/2);
+	const unsigned pxl = idx.y*params.framebuf_dims.x + idx.x,
+	               mid = (params.framebuf_dims.y/2)*params.framebuf_dims.x + (params.framebuf_dims.x/2);
 	if (pxl == mid)
 		printf("t=: %f,  l=%f\n", hit.t, hit.l);
 	// END:   DEBUG OUTPUT
@@ -491,7 +579,7 @@ extern "C" __global__ void __closesthit__ch (void)
 
 	// calculate v texture coordinate
 	const float3 bitangent = normalize(
-		cross(tangent, w_clip(mul_mat_pos(params.cam_N, pos_curve-params.cam_cyclops)))
+		cross(tangent, w_clip(mul_mat_pos(params.cam_MV, pos_curve))-params.cam_cyclops_eyespace)
 	);
 	const float v = acos(dot(bitangent, normal)) * pi_inv;
 
