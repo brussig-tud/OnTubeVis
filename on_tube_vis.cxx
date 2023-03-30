@@ -934,7 +934,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 		taa.enable_taa = optix.prev_TAA_state;
 		context &ctx = *get_context();
 		const ivec2 fbsize(ctx.get_width()*3, ctx.get_height());
-		fbc.set_size({ctx.get_width(), ctx.get_height()});
+		fbc.set_size({(int)ctx.get_width(), (int)ctx.get_height()});
 		fbc.ensure(ctx);
 		optix.fb.depth.set_resolution(0, fbsize.x());
 		optix.fb.depth.set_resolution(1, fbsize.y());
@@ -1983,7 +1983,7 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 			(float)view_ptr->get_y_extent_at_focus()
 		};
 		params.holo_eye = optix.holo_eye;
-		params.parallax_zero_depth = sview->get_parallax_zero_depth();
+		params.parallax_zero_depth = (float)sview->get_parallax_zero_depth();
 		// pre-calculate stereo MV/P matrices
 		auto stereo_projection_matrix = [&sview, &params, aspect](float e) -> mat4
 		{
