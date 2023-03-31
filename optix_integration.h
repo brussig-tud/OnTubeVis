@@ -391,8 +391,7 @@ inline std::string flipped_backslashes (const std::string &path)
 {
 	const size_t len = path.length();
 	std::string ret; ret.reserve(len);
-	for (unsigned i=0; i< len; i++)
-	{
+	for (unsigned i=0; i< len; i++) {
 		const std::string::value_type &ch = path[i];
 		ret.push_back(ch != '\\' ? ch : '/');
 	}
@@ -468,6 +467,17 @@ inline float2 to_float2 (const cgv::math::fvec<flt_type, 2>& v) { return{(float)
 /// take a 3D CGV vector and turn it into a CUDA float3 equivalent
 template <class flt_type>
 inline float3 to_float3 (const cgv::math::fvec<flt_type, 3> &v) { return{(float)v.x(), (float)v.y(), (float)v.z()}; }
+
+/// take a 4D CGV vector and turn it into a CUDA float3 by dropping the w-component
+template <class flt_type>
+inline float3 to_float3 (const cgv::math::fvec<flt_type, 4> &v) { return{(float)v.x(), (float)v.y(), (float)v.z()}; }
+
+/// take a 4D CGV vector and turn it into an equivalent CUDA float3 via dehomogenization
+template <class flt_type>
+inline float3 to_float3h (const cgv::math::fvec<flt_type, 4> &v) {
+	const flt_type w_inv = 1/v.w();
+	return{(float)(v.x()*w_inv), (float)(v.y()*w_inv), (float)(v.z()*w_inv)};
+}
 
 /// take a 4D CGV vector and turn it into a CUDA float4 equivalent
 template <class flt_type>

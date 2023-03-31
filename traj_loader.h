@@ -1411,26 +1411,26 @@ public:
 };
 
 
-/// Finds in log(n) time the index of the last sample of a \ref traj_attribute for the given trajectory that precedes the given
+/// finds in log(n) time the index of the last sample of a \ref traj_attribute for the given trajectory that precedes the given
 /// timestamp, or the very first one in case the timestamp precedes the whole trajectory
 template <class flt_type>
 unsigned find_sample (const traj_attribute<flt_type> &attrib, const range &traj, double timestamp);
 
-/// Linearly searches for the index of the last/first sample of a \ref traj_attribute for the given trajectory that
-/// precedes/succeeds the given timestamp, starting the search from the the given hint.
+/// linearly searches for the index of the last/first sample of a \ref traj_attribute for the given trajectory that
+/// precedes/succeeds the given timestamp, starting the search from the sample index given in the hint.
 template <class flt_type>
 unsigned find_sample_linear(const traj_attribute<flt_type> &attrib, const range &traj, double timestamp, unsigned hint);
 
-/// converts (1-based) 3-vectors to float RGB colors
+/// converts 3-vectors to float RGB colors, assuming both input and output to be 1-based.
 template <class vec_type>
-inline typename cgv::media::color<float, cgv::media::RGB, cgv::media::NO_ALPHA> vec3_to_rgb (const vec_type &v)
-{
-	return traj_format_handler<float>::Color((float)v.x(), (float)v.y(), (float)v.z());
+inline typename cgv::media::color<float, cgv::media::RGB, cgv::media::NO_ALPHA> vec3_to_rgb (const vec_type &v) {
+	return
+		traj_format_handler<float>::Color((float)v.x(), (float)v.y(), (float)v.z());
 }
 
 /// dehomogenizes a 4-vector to obtain an equivalent 3-vector
 template <class vec4_type>
-inline cgv::math::fvec<typename vec4_type::value_type, 3> vec3_from_vec4h(const vec4_type& v)
-{
-	return cgv::math::fvec<typename vec4_type::value_type, 3>(v.x()/v.w(), v.y()/v.w(), v.z()/v.w());
+inline cgv::math::fvec<typename vec4_type::value_type, 3> vec3_from_vec4h(const vec4_type& v) {
+	const typename vec4_type::value_type w_inv = 1/v.w();
+	return cgv::math::fvec<typename vec4_type::value_type, 3>(v.x()*w_inv, v.y()*w_inv, v.z()*w_inv);
 }

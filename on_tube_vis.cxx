@@ -1908,6 +1908,10 @@ bool on_tube_vis::optix_register_resources (context &ctx)
 
 void on_tube_vis::optix_draw_trajectories (context &ctx)
 {
+	// constants
+	const vec4 eyespace_origin(0, 0, 0, 1);
+
+
 	////
 	// Launch OptiX
 
@@ -1916,16 +1920,42 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		curve_rt_params params;
 
 		// prepare camera info
-		const auto sview = (stereo_view*)view_ptr;
-		const mat4 &invMV = *(mat4*)(&params.cam_invMV) = cgv::math::inv(ctx.get_modelview_matrix()),
-		           &invP  = *(mat4*)(&params.cam_invP)  = cgv::math::inv(ctx.get_projection_matrix());
-		const float aspect = float(ctx.get_width())/float(ctx.get_height())/*,
+		const auto  sview = (stereo_view*)view_ptr;
+		const mat4  &MV    = *(mat4*)(&params.cam_MV) = ctx.get_modelview_matrix(),
+		            &P     = *(mat4*)(&params.cam_P) = ctx.get_projection_matrix(),
+		            &invMV = *(mat4*)(&params.cam_invMV) = cgv::math::inv(MV),
+		            &invP  = *(mat4*)(&params.cam_invP) = cgv::math::inv(P);
+		const float aspect = float(ctx.get_width())/float(ctx.get_height()),
+		            stereo_eye_dist = sview->get_eye_distance()/*,
 		            optixV_len = (float)view_ptr->get_tan_of_half_of_fovy(true),
 		            optixU_len = optixV_len * aspect*/;
-		const vec3  eye = vec3_from_vec4h(invMV * vec4(0, 0, 0, 1))/*,
+		const vec2  screen_ext(sview->get_y_extent_at_focus()*aspect, sview->get_y_extent_at_focus());
+		const vec3  cyclops_worldspace = sview->get_eye(), eye = vec3_from_vec4h(invMV * eyespace_origin);
+		const mat4  MV_cam = cgv::math::look_at4<float>(
+		            	cyclops_worldspace, sview->get_focus(), sview->get_view_up_dir()
+		            )/*,
 		            optixW = cgv::math::normalize(view_ptr->get_view_dir()),
 		            optixV = cgv::math::normalize(view_ptr->get_view_up_dir()) * optixV_len,
 		            optixU = cgv::math::normalize(cgv::math::cross(optixW, optixV)) * optixU_len*/;
+
+		// helper function (careful - they need some fields of 'params' to be preset before being called)
+		const auto stereo_projection_matrix = [&params, &screen_ext, stereo_eye_dist] (float e) -> mat4 {
+			return
+				cgv::math::stereo_frustum_screen4<double>(
+					e, stereo_eye_dist, screen_ext.x(), screen_ext.y(), params.parallax_zero_depth,
+					params.cam_clip.x, params.cam_clip.y
+				);
+		};
+		const auto stereo_modelview_matrix = [&ctx, &params, &MV_cam, &screen_ext, stereo_eye_dist]
+		                                     (float e) -> mat4 {
+			ctx.push_modelview_matrix();
+			ctx.set_modelview_matrix(cgv::math::identity4<double>());
+			ctx.mul_modelview_matrix(cgv::math::stereo_translate_screen4<float>(e, stereo_eye_dist, screen_ext.x()));
+			ctx.mul_modelview_matrix(MV_cam);
+			const mat4 ret = ctx.get_modelview_matrix();
+			ctx.pop_modelview_matrix();
+			return ret;
+		};
 
 		// setup params for our launch
 		// - obtain values from selected tracer
@@ -1965,44 +1995,17 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		};
 		params.show_bvol = optix.debug_bvol;
 		params.accelds = lp.accelds;
-		params.cam_eye = make_float3(eye.x(), eye.y(), eye.z());
-		{ const auto cyclops = ctx.get_modelview_matrix()*dvec4(view_ptr->get_eye(), 1.);
-		  params.cam_cyclops_eyespace = make_float3((float)cyclops.x(), (float)cyclops.y(), (float)cyclops.z()); }
-		{ const auto znear = invP*vec4(0, 0, 0, 1), zfar = invP*vec4(0, 0, 1, 1);
-		  params.cam_clip = make_float2(-znear.z()/znear.w(), -zfar.z()/zfar.w()); }
-		/*params.cam_u = make_float3(optixU.x(), optixU.y(), optixU.z());
-		params.cam_v = make_float3(optixV.x(), optixV.y(), optixV.z());
-		params.cam_w = make_float3(optixW.x(), optixW.y(), optixW.z());*/
-		*(mat4*)(&params.cam_MV) = ctx.get_modelview_matrix();
-		*(mat4*)(&params.cam_P) = ctx.get_projection_matrix();
+		params.cam_eye = to_float3(cyclops_worldspace);
+		/*{ const auto cyclops = MV.mul_pos(cyclops_worldspace);
+		  params.cam_cyclops_eyespace = to_float3h(cyclops); }*/
+		{ const auto znear = invP*eyespace_origin, zfar = invP*vec4(0, 0, 1, 1);
+		  params.cam_clip = {-znear.z()/znear.w(), -zfar.z()/zfar.w()}; }
 		*(mat4*)(&params.cam_N) = cgv::math::transpose(invMV);
 		params.holo = (Holo)optix.holographic;
 		params.unproject_mode_dbg = optix.unproject_mode_dbg;
-		params.screen_size = {
-			(float)view_ptr->get_y_extent_at_focus() * aspect,
-			(float)view_ptr->get_y_extent_at_focus()
-		};
+		params.screen_size = to_float2(screen_ext);
 		params.holo_eye = optix.holo_eye;
 		params.parallax_zero_depth = (float)sview->get_parallax_zero_depth();
-		// pre-calculate stereo MV/P matrices
-		auto stereo_projection_matrix = [&sview, &params, aspect](float e) -> mat4
-		{
-			return
-				cgv::math::stereo_frustum_screen4<double>(
-					e, sview->get_eye_distance(), sview->get_y_extent_at_focus()*aspect, sview->get_y_extent_at_focus(),
-					params.parallax_zero_depth, params.cam_clip.x, params.cam_clip.y
-				);
-		};
-		auto stereo_modelview_matrix = [&ctx, &sview, &params, aspect](float e) -> mat4
-		{
-			ctx.push_modelview_matrix();
-			ctx.set_modelview_matrix(cgv::math::identity4<double>());
-			ctx.mul_modelview_matrix(cgv::math::stereo_translate_screen4<double>(e, sview->get_eye_distance(), sview->get_y_extent_at_focus()*aspect));
-			ctx.mul_modelview_matrix(cgv::math::look_at4(sview->get_eye(), sview->get_focus(), sview->get_view_up_dir()));
-			const mat4 ret = ctx.get_modelview_matrix();
-			ctx.pop_modelview_matrix();
-			return ret;
-		};
 		*(mat4*)(&params.holo_MV_left)  = stereo_modelview_matrix(-1.f);
 		*(mat4*)(&params.holo_invMV_left) = cgv::math::inv(*(mat4*)(&params.holo_MV_left));
 		*(mat4*)(&params.holo_MV_right) = stereo_modelview_matrix( 1.f);
@@ -2013,6 +2016,7 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		*(mat4*)(&params.holo_invP_right) = cgv::math::inv(*(mat4*)(&params.holo_P_right));
 		*(mat4*)(&params.holo_invMVP_left) = cgv::math::inv((*(mat4*)(&params.holo_P_left)) * (*(mat4*)(&params.holo_MV_left)));
 		*(mat4*)(&params.holo_invMVP_right) = cgv::math::inv((*(mat4*)(&params.holo_P_right)) * (*(mat4*)(&params.holo_MV_right)));
+		//params.holo_eye_left = (*(mat4*)(&params.holo_invMV_left)) * 
 		// - upload to device
 		CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(lp.params), &params, lp.params_size, cudaMemcpyHostToDevice));
 

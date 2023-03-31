@@ -169,23 +169,29 @@ namespace {
 
 	OptixPayloadType set_optix_custom_isect_payload_semantics (unsigned *semantics_storage)
 	{
-		// Payloads 0 and 1: two constant inputs for the custom intersection shader(s) defined at raygen,
-		// encoding a 64-bit pointer to the ray-centric coordinate system transformation living on the stack
-		// of the thread running an OptiX tracing kernel.
+		// Payloads 0 and 1: two constant inputs for the closet-hit shader(s) defined at raygen, encoding
+		// a 64-bit pointer to a struct holding camera-related transformation matrices living on the stack
+		// of the thread running the OptiX tracing kernel.
 		semantics_storage[1] = semantics_storage[0] =
+			OPTIX_PAYLOAD_SEMANTICS_TRACE_CALLER_WRITE | OPTIX_PAYLOAD_SEMANTICS_CH_READ;
+
+		// Payloads 2 and 3: two constant inputs for the custom intersection shader(s) defined at raygen,
+		// encoding a 64-bit pointer to the ray-centric coordinate system transformation living on the stack
+		// of the thread running the OptiX tracing kernel.
+		semantics_storage[3] = semantics_storage[2] =
 			OPTIX_PAYLOAD_SEMANTICS_TRACE_CALLER_WRITE | OPTIX_PAYLOAD_SEMANTICS_IS_READ;
 
-		// Payloads 2 to 15: encodes the tracing results reported by the closest-hit or miss shaders. This
+		// Payloads 4 to 17: encodes the tracing results reported by the closest-hit or miss shaders. This
 		// includes tube color at hit point (1 slot), uv surface coordinates of hit point (2 slots), id of
 		// intersected curve segment (1 slot), hit position, surface normal and curve tangent (3x3=9 slots)
 		// and depth value at hit (1 slot), occupying 14 payload slots in total, which will remain unused
 		// until the very end of a trace, allowing OptiX to free up a lot of registers for general use.
-		for (unsigned i=2; i<16; i++)
+		for (unsigned i=4; i<18; i++)
 			semantics_storage[i] =   OPTIX_PAYLOAD_SEMANTICS_TRACE_CALLER_READ
 			                       | OPTIX_PAYLOAD_SEMANTICS_MS_WRITE | OPTIX_PAYLOAD_SEMANTICS_CH_WRITE;
 
 		// return ready-made OptiX payload descriptor
-		return {16, semantics_storage};
+		return {18, semantics_storage};
 	}
 };
 
@@ -518,7 +524,7 @@ bool optixtracer_textured_spline_tube_russig::update_pipeline (void)
 	// Create modules
 
 	// fine-grained payload usage (enables OptiX to optimize register consumption)
-	unsigned payloads[16];
+	unsigned payloads[18];
 	OptixPayloadType payloadType = set_optix_custom_isect_payload_semantics(payloads);
 
 	/* local scope */ {
@@ -974,7 +980,7 @@ bool optixtracer_textured_spline_tube_phantom::update_pipeline (void)
 	// Create modules
 
 	// fine-grained payload usage (enables OptiX to optimize register consumption)
-	unsigned payloads[16];
+	unsigned payloads[18];
 	OptixPayloadType payloadType = set_optix_custom_isect_payload_semantics(payloads);
 
 	/* local scope */ {
@@ -1418,7 +1424,7 @@ bool optixtracer_textured_spline_tube_builtin::update_pipeline (void)
 		mod_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
 
 		pipeline_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-		pipeline_options.numPayloadValues = 14;
+		pipeline_options.numPayloadValues = 16;
 		pipeline_options.numAttributeValues = 1;
 	#ifdef _DEBUG  // Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
 		pipeline_options.exceptionFlags =
@@ -1843,7 +1849,7 @@ bool optixtracer_textured_spline_tube_builtincubic::update_pipeline (void)
 		mod_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
 
 		pipeline_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-		pipeline_options.numPayloadValues = 14;
+		pipeline_options.numPayloadValues = 16;
 		pipeline_options.numAttributeValues = 1;
 	#ifdef _DEBUG  // Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
 		pipeline_options.exceptionFlags =

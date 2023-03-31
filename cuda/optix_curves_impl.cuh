@@ -22,6 +22,21 @@
 	#else
 		#include "optix_isect_phantom.cuh"
 	#endif
+	#define SET_RESULT_PAYLOAD_0 optixSetPayload_4
+	#define SET_RESULT_PAYLOAD_1 optixSetPayload_5
+	#define SET_RESULT_PAYLOAD_2 optixSetPayload_6
+	#define SET_RESULT_PAYLOAD_3 optixSetPayload_7
+	#define SET_RESULT_PAYLOAD_4 optixSetPayload_8
+	#define SET_RESULT_PAYLOAD_5 optixSetPayload_9
+	#define SET_RESULT_PAYLOAD_6 optixSetPayload_10
+	#define SET_RESULT_PAYLOAD_7 optixSetPayload_11
+	#define SET_RESULT_PAYLOAD_8 optixSetPayload_12
+	#define SET_RESULT_PAYLOAD_9 optixSetPayload_13
+	#define SET_RESULT_PAYLOAD_10 optixSetPayload_14
+	#define SET_RESULT_PAYLOAD_11 optixSetPayload_15
+	#define SET_RESULT_PAYLOAD_12 optixSetPayload_16
+	#define SET_RESULT_PAYLOAD_13 optixSetPayload_17
+#else
 	#define SET_RESULT_PAYLOAD_0 optixSetPayload_2
 	#define SET_RESULT_PAYLOAD_1 optixSetPayload_3
 	#define SET_RESULT_PAYLOAD_2 optixSetPayload_4
@@ -36,21 +51,6 @@
 	#define SET_RESULT_PAYLOAD_11 optixSetPayload_13
 	#define SET_RESULT_PAYLOAD_12 optixSetPayload_14
 	#define SET_RESULT_PAYLOAD_13 optixSetPayload_15
-#else
-	#define SET_RESULT_PAYLOAD_0 optixSetPayload_0
-	#define SET_RESULT_PAYLOAD_1 optixSetPayload_1
-	#define SET_RESULT_PAYLOAD_2 optixSetPayload_2
-	#define SET_RESULT_PAYLOAD_3 optixSetPayload_3
-	#define SET_RESULT_PAYLOAD_4 optixSetPayload_4
-	#define SET_RESULT_PAYLOAD_5 optixSetPayload_5
-	#define SET_RESULT_PAYLOAD_6 optixSetPayload_6
-	#define SET_RESULT_PAYLOAD_7 optixSetPayload_7
-	#define SET_RESULT_PAYLOAD_8 optixSetPayload_8
-	#define SET_RESULT_PAYLOAD_9 optixSetPayload_9
-	#define SET_RESULT_PAYLOAD_10 optixSetPayload_10
-	#define SET_RESULT_PAYLOAD_11 optixSetPayload_11
-	#define SET_RESULT_PAYLOAD_12 optixSetPayload_12
-	#define SET_RESULT_PAYLOAD_13 optixSetPayload_13
 #endif
 
 
@@ -87,6 +87,8 @@ struct Ray
 /// struct storing state related to holographic raycasting
 struct HoloState
 {
+	mat4 P, invP, MV, invMV, N;
+	float3 cyclops_eyespace;	// position of the cyclopic eye relative to current view eye space
 	unsigned to_fullpxl_divisor;
 	float subpxl_width;
 	unsigned subpxl;
@@ -152,7 +154,7 @@ static __forceinline__ __device__ float get_view (const HoloState &hs)
 	return z+z - 1.f;
 }
 
-static __forceinline__ __device__ Ray compute_ray (const HoloState &hs)
+static __forceinline__ __device__ Ray compute_ray (HoloState &hs)
 {
 	// for reconstructing stereo eye position
 	static const float4 stereo_eye_local {.0f, .0f, .0f, 1.f};
@@ -182,15 +184,18 @@ static __forceinline__ __device__ Ray compute_ray (const HoloState &hs)
 			0.f, 1.f
 		};
 
+	// determine amera parameters of current view
 	const float stereo = params.holo==Holo::OFF ? params.holo_eye : hs.view;
-	mat4 P = compute_stereo_frustum_screen(stereo), invP = P.inverse(),
-		 MV = stereo_translate_modelview_matrix(stereo), invMV = MV.inverse();
+	hs.P = compute_stereo_frustum_screen(stereo); hs.invP = hs.P.inverse(),
+	hs.MV = stereo_translate_modelview_matrix(stereo); hs.invMV = hs.MV.inverse();
+	hs.N = hs.invMV.transposed();
+	hs.cyclops_eyespace = mul3_mat_pos(hs.MV, params.cam_eye);
 
 	// transform fragment coordinates from clip to world space
-	const float4 frag_world = mul_mat_vec(invMV, mul_mat_vec(invP, frag_clip));
+	const float4 frag_world = mul_mat_vec(hs.invMV, mul_mat_vec(hs.invP, frag_clip));
 
 	// calculate ray origin
-	const float3 ray_orig = w_clip(mul_mat_vec(invMV, stereo_eye_local));
+	const float3 ray_orig = w_clip(mul_mat_vec(hs.invMV, stereo_eye_local));
 
 	// output resulting ray
 	return {
@@ -264,14 +269,10 @@ static __forceinline__ __device__ float eval_alen (const cuda_arclen &param, con
 extern "C" __global__ void __raygen__basic (void)
 {
 	// Lookup our location within the launch grid
-	const uint3
-		dim = optixGetLaunchDimensions()/* / (params.holo==Holo::OFF ? mono_mult : holo_mult)*/,
-		idx = optixGetLaunchIndex()/*,
-		idx = params.holo==Holo::OFF ? idx_optix : make_uint3(
-			idx_optix.x / 3, idx_optix.y, idx_optix.z
-		)*/;
+	const uint3 dim = optixGetLaunchDimensions(),
+	            idx = optixGetLaunchIndex();
 
-	// initialize holography parameters
+	// Initialize holography parameters
 	HoloState hs;
 	hs.to_fullpxl_divisor = params.holo==Holo::OFF ? 1 : 3;
 	hs.subpxl_width = 1.f / params.framebuf_dims.x;
@@ -303,6 +304,11 @@ extern "C" __global__ void __raygen__basic (void)
 	#pragma nv_diag_default 69
 #endif
 
+	// Encode pointer to the HoloState struct into two 4-byte ints for passing into the payload registers
+	#pragma nv_diag_suppress 69
+		const unsigned hs_msb = (unsigned)(((size_t)&hs)>>32), hs_lsb = (unsigned)(size_t)&hs;
+	#pragma nv_diag_default 69
+
 	// Trace the ray against our traversable
 	// - create payload storage
 	unsigned int
@@ -313,30 +319,32 @@ extern "C" __global__ void __raygen__basic (void)
 		pl_depth;
 	// - launch ray
 	optixTrace(
-	#if defined(OTV_PRIMITIVE_RUSSIG) || defined(OTV_PRIMITIVE_PHANTOM)
+#if defined(OTV_PRIMITIVE_RUSSIG) || defined(OTV_PRIMITIVE_PHANTOM)
 		OPTIX_PAYLOAD_TYPE_ID_0, // ensure correct payload usage
 	#endif
 		params.accelds,
 		ray.orig, ray.dir,
-		0.f,                 // Min intersection distance
-		1e16f,               // Max intersection distance
-		0.f,                 // rayTime -- used for motion blur
+		0.f,					  // Min intersection distance
+		1e16f,					  // Max intersection distance
+		0.f,					  // rayTime -- used for motion blur
 		OptixVisibilityMask(255), // Specify always visible
-		OPTIX_RAY_FLAG_NONE,
-		0,                   // SBT offset   -- See SBT discussion
-		1,                   // SBT stride   -- See SBT discussion
-		0,                   // missSBTIndex -- See SBT discussion
+		(unsigned)OPTIX_RAY_FLAG_NONE,
+		0U, // SBT offset   -- See SBT discussion
+		1U, // SBT stride   -- See SBT discussion
+		0U, // missSBTIndex -- See SBT discussion
 		// payloads:
+		// - pass on pointer to struct containing current MV/P matrices
+		const_cast<unsigned&>(hs_msb), const_cast<unsigned&>(hs_lsb),
 	#if defined(OTV_PRIMITIVE_RUSSIG) || defined(OTV_PRIMITIVE_PHANTOM)
-		// pass on ray-centric coordinate system to custom intersectors
+		// - pass on ray-centric coordinate system to custom intersectors
 		const_cast<unsigned&>(rcc_msb), const_cast<unsigned&>(rcc_lsb),
 	#endif
+		// - output slots
 		pl_color, pl_u, pl_v, pl_seg_id,
 		pl_position_x, pl_position_y, pl_position_z,
 		pl_normal_x, pl_normal_y, pl_normal_z,
 		pl_tangent_x, pl_tangent_y, pl_tangent_z,
-		pl_depth
-	);
+		pl_depth);
 	// - process payload
 	const float r = fmodf(.5f*(hs.view+1.f), 1.f), g = fmodf(r+0.333f, 1.f), b = fmodf(r+0.667f, 1.f);
 	float4 albedo;
@@ -411,7 +419,7 @@ extern "C" __global__ void __intersection__russig (void)
 
 	// perform intersection
 	const Hit hit = EvalSplineISect(
-		*(mat4*)((((size_t)optixGetPayload_0())<<32) | optixGetPayload_1()),  // fetch ray-centric coordinate system
+		*(mat4*)((((size_t)optixGetPayload_2())<<32) | optixGetPayload_3()),  // fetch ray-centric coordinate system
 		nodes[0], nodes[1], nodes[2], radii[0], radii[1], radii[2]
 	);
 	if (hit.l < pos_inf)
@@ -453,7 +461,7 @@ extern "C" __global__ void __intersection__phantom (void)
 
 	// perform intersection
 	const Hit hit = intersect_spline_tube(
-		*(mat4*)((((size_t)optixGetPayload_0())<<32) | optixGetPayload_1()),  // fetch ray-centric coordinate system
+		*(mat4*)((((size_t)optixGetPayload_2())<<32) | optixGetPayload_3()),  // fetch ray-centric coordinate system
 		optixGetWorldRayOrigin(), optixGetWorldRayDirection(),
 		nodes[0], nodes[1], nodes[2], radii[0], radii[1], radii[2]
 	);
@@ -495,6 +503,9 @@ extern "C" __global__ void __miss__ms (void)
 
 extern "C" __global__ void __closesthit__ch (void)
 {
+	// retrieve holo state
+	auto hs = *(HoloState*)((((size_t)optixGetPayload_0())<<32) | optixGetPayload_1());
+
 	// retrieve curve parameter, hitpoint and segment index
 	#ifdef OTV_PRIMITIVE_BUILTIN
 		const unsigned pid = optixGetPrimitiveIndex(), seg_id = pid/2, subseg = pid%2;
@@ -543,8 +554,8 @@ extern "C" __global__ void __closesthit__ch (void)
 
 	// compute hit normal in eye-space
 	const float3 pos_curve = curve.eval(ts);
-	const float3 normal = normalize(mul3_mat_vec(params.cam_N,
-#if defined(OTV_PRIMITIVE_RUSSIG)
+	const float3 normal = normalize(mul3_mat_vec(hs.N, // <-- we use eye-dependent lighting in holo mode,
+#if defined(OTV_PRIMITIVE_RUSSIG)                      //     change to params.cam_N for cyclopic lighting
 		pos - pos_curve  // swept-sphere makes this especially easy
 #else
 		// swept-disc tube normal calculation with special handling for end caps
@@ -579,7 +590,7 @@ extern "C" __global__ void __closesthit__ch (void)
 
 	// calculate v texture coordinate
 	const float3 bitangent = normalize(
-		cross(tangent, w_clip(mul_mat_pos(params.cam_MV, pos_curve))-params.cam_cyclops_eyespace)
+		cross(tangent, mul3_mat_vec(params.cam_N, pos_curve-params.cam_eye)) //w_clip(mul_mat_pos(params.cam_MV, pos_curve))/*-params.cam_cyclops_eyespace*/)
 	);
 	const float v = acos(dot(bitangent, normal)) * pi_inv;
 

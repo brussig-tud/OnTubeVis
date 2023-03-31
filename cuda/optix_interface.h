@@ -68,13 +68,13 @@ struct curve_rt_params
 	float          taa_jitter_scale;
 
 	// viewport and framebuffer dimensions
-	// (framebuffer should be 3x as wide as viewport in holography mode, and identical when
-	// holography is disabled)
+	// (framebuffer dims should be 3x as wide as viewport dims in holography mode, and identical
+	// when holography is disabled)
 	uint3          viewport_dims;
 	uint3          framebuf_dims;
 
 	// camera parameters
-	float3         cam_eye, cam_cyclops_eyespace/*, cam_u, cam_v, cam_w*/;
+	float3         cam_eye;	// in holo mode, this is the cyclopic eye
 	float2         cam_clip;
 	float          cam_MV[16];
 	float          cam_invMV[16];

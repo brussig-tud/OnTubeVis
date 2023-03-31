@@ -263,14 +263,9 @@ __device__ __forceinline__ float det2 (const float m00, const float m01, const f
 }
 
 // apply w-clip to homogenous R^3 vector, returning ordinary R^3 vector
-__device__ __forceinline__ float3 w_clip (const float4 &hvec)
-{
-	float3 r;
+__device__ __forceinline__ float3 w_clip (const float4 &hvec) {
 	const float w_inv = 1.f/hvec.w;
-	r.x = hvec.x*w_inv;
-	r.y = hvec.y*w_inv;
-	r.z = hvec.z*w_inv;
-	return r;
+	return { hvec.x*w_inv, hvec.y*w_inv, hvec.z*w_inv };
 }
 
 // quick evaluation of scalar cubic bezier function (without building interpolator first)
@@ -327,27 +322,24 @@ __device__ __forceinline__ float van_der_corput (int n, int base)
 {
 	float vdc = 0.0f;
 	int den = 1;
-	while (n > 0)
-	{
+	while (n > 0) {
 		den *= base;
 		int remainder = n % base;
 		n /= base;
-		vdc += remainder / static_cast<float>(den);
+		vdc += remainder / (float)den;
 	}
 	return vdc;
 }
 
 // return the k-th location of a 2D halton sampling pattern
 __device__ __forceinline__ float2 sample_halton_2d (unsigned k, int base1, int base2) {
-	return {van_der_corput(k, base1), van_der_corput(k, base2)};
+	return { van_der_corput(k, base1), van_der_corput(k, base2) };
 }
 
 // obtain a sub-pixel jitter offset for some subframe i
-__device__ __forceinline__ float2 obtain_jittered_subpxl_offset (unsigned i, float scale=1.f)
-{
-	float2 sample = sample_halton_2d(i+1, 2, 3);
-	float2 offset = .5f + scale*((sample+sample) - 1.f);
-	return offset;
+__device__ __forceinline__ float2 obtain_jittered_subpxl_offset (unsigned i, float scale=1.f) {
+	const float2 sample = sample_halton_2d(i+1, 2, 3);
+	return .5f + scale*((sample+sample) - 1.f);
 }
 
 
@@ -487,6 +479,12 @@ public:
 		c[ 4] = row0.y; c[ 5] = row1.y; c[ 6] = row2.y; c[ 7] = row3.y;
 		c[ 8] = row0.z; c[ 9] = row1.z; c[10] = row2.z; c[11] = row3.z;
 		c[12] = row0.w; c[13] = row1.w; c[14] = row2.w; c[15] = row3.w;
+	}
+
+	__device__ __forceinline__ matrix transposed (void) const
+	{
+		return {c[0], c[4], c[ 8], c[12], c[1], c[5], c[ 9], c[13],
+		        c[2], c[6], c[10], c[14], c[3], c[7], c[11], c[15]};
 	}
 
 	__device__ matrix inverse (void) const
