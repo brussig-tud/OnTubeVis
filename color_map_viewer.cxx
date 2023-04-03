@@ -19,7 +19,7 @@ color_map_viewer::color_map_viewer() {
 	set_overlay_margin(ivec2(-3));
 	set_overlay_size(ivec2(200u, layout.total_height));
 	
-	register_shader("rectangle", cgv::g2d::canvas::shaders_2d::rectangle);
+	register_shader("rectangle", cgv::g2d::shaders::rectangle);
 	register_shader("color_maps", "color_maps.glpr");
 	
 	tex = nullptr;
@@ -28,7 +28,7 @@ color_map_viewer::color_map_viewer() {
 void color_map_viewer::clear(cgv::render::context& ctx) {
 
 	canvas_overlay::clear(ctx);
-	cgv::g2d::ref_msdf_font(ctx, -1);
+	cgv::g2d::ref_msdf_font_regular(ctx, -1);
 	cgv::g2d::ref_msdf_gl_canvas_font_renderer(ctx, -1);
 }
 
@@ -64,16 +64,14 @@ bool color_map_viewer::init(cgv::render::context& ctx) {
 	
 	bool success = canvas_overlay::init(ctx);
 
-	auto& font = cgv::g2d::ref_msdf_font(ctx, 1);
+	auto& font = cgv::g2d::ref_msdf_font_regular(ctx, 1);
 	cgv::g2d::ref_msdf_gl_canvas_font_renderer(ctx, 1);
 
 	if (success)
 		init_styles(ctx);
 
-	if (font.is_initialized()) {
+	if (font.is_initialized())
 		texts.set_msdf_font(&font);
-		texts.set_font_size(font_size);
-	}
 
 	return success;
 }
@@ -86,9 +84,6 @@ void color_map_viewer::init_frame(cgv::render::context& ctx)
 
 		update_texts();
 	}
-
-	if(ensure_theme())
-		init_styles(ctx);
 
 	if(texts_out_of_date)
 		update_texts();
@@ -176,6 +171,7 @@ void color_map_viewer::init_styles(cgv::render::context& ctx) {
 	text_style.border_radius = 0.25f;
 	text_style.border_width = 0.75f;
 	text_style.use_blending = true;
+	text_style.font_size = 14.0f;
 }
 
 void color_map_viewer::update_texts() {
@@ -185,7 +181,7 @@ void color_map_viewer::update_texts() {
 		return;
 
 	int step = layout.color_map_rect.size().y() / (int)names.size();
-	ivec2 base = layout.color_map_rect.pos() + ivec2(layout.color_map_rect.size().x() / 2, step / 2 - static_cast<int>(0.333f*font_size));
+	ivec2 base = layout.color_map_rect.pos() + ivec2(layout.color_map_rect.size().x() / 2, step / 2 - static_cast<int>(0.333f*text_style.font_size));
 	int i = 0;
 	for(const auto& name : names) {
 		ivec2 p = base;

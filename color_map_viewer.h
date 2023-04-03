@@ -31,9 +31,7 @@ protected:
 	cgv::render::texture* tex;
 
 	// text appearance
-	float font_size = 14.0f;
-
-	cgv::g2d::shape2d_style text_style;
+	cgv::g2d::text2d_style text_style;
 	cgv::g2d::msdf_text_geometry texts;
 	
 	void init_styles(cgv::render::context& ctx);
