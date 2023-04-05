@@ -23,6 +23,7 @@
 #include <cgv_app/application_plugin.h>
 #include <cgv_app/color_map_editor.h>
 #include <cgv_app/navigator.h>
+#include <cgv_app/performance_monitor.h>
 
 // CGV framework GPU algorithms
 #include <cgv_gpgpu/visibility_sort.h>
@@ -171,6 +172,7 @@ protected:
 	cgv::app::color_map_editor_ptr tf_editor_ptr;
 	cgv::app::navigator_ptr navigator_ptr;
 	cgv::data::ref_ptr<color_map_viewer> cm_viewer_ptr;
+	cgv::app::performance_monitor_ptr perfmon_ptr;
 
 	enum GridMode {
 		GM_NONE = 0,
