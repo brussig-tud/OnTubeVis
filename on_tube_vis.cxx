@@ -130,6 +130,12 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 	navigator_ptr->set_overlay_alignment(cgv::app::overlay::AO_START, cgv::app::overlay::AO_END);
 	
 	cm_viewer_ptr = register_overlay<color_map_viewer>("Color Scale Viewer");
+	cm_viewer_ptr->set_visibility(false);
+
+	perfmon_ptr = register_overlay<cgv::app::performance_monitor>("Performance Monitor");
+	perfmon_ptr->set_visibility(false);
+	perfmon_ptr->set_show_background(false);
+	perfmon_ptr->enable_monitoring_only_when_visible(true);
 	
 	grids.resize(2);
 	grids[0].scaling = vec2(1.0f, 1.0f);
@@ -911,6 +917,12 @@ void on_tube_vis::on_set(void *member_ptr) {
 	// In case of timestep thresholding we don't want to reset TAA
 	if (member_ptr == &render.style.max_t)
 		reset_taa = false;
+
+	if(member_ptr == &render.style.use_ribbons) {
+		general_settings.use_curvature_correction = !render.style.use_ribbons;
+		update_member(&general_settings.use_curvature_correction);
+		reset_taa = true;
+	}
 
 #ifdef RTX_SUPPORT
 	// ###############################
@@ -2238,6 +2250,7 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		update_member(&show_wireframe_bbox);
 		cm_viewer_ptr->set_visibility(false);
 		navigator_ptr->set_visibility(false);
+		perfmon_ptr->set_visibility(false);
 		debug.far_extent_factor = 0.4;
 		debug.near_extent_factor = 0.333333*debug.far_extent_factor;
 		set_view();
@@ -2524,6 +2537,8 @@ void on_tube_vis::create_gui(void) {
 	inline_object_gui(cm_viewer_ptr);
 
 	inline_object_gui(navigator_ptr);
+
+	inline_object_gui(perfmon_ptr);
 	
 	// Misc settings contractable section
 	add_decorator("Miscellaneous", "heading", "level=1");

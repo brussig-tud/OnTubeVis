@@ -1,0 +1,4 @@
+files:textured_spline_ribbon
+vertex_file:view.glsl
+geometry_file:view.glsl
+fragment_file:view.glsl

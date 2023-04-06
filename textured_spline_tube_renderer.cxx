@@ -24,6 +24,7 @@ namespace cgv {
 			radius = 1.0f;
 			fragment_mode = FM_RAY_CAST;
 			bounding_geometry = BG_ALIGNED_BOX_BILLBOARD;
+			use_ribbons = false;
 			attrib_mode = AM_ALL;
 			intersector = IS_RUSSIG;
 			use_conservative_depth = false;
@@ -83,13 +84,19 @@ namespace cgv {
 			shader_code::set_define(defines, "PRIMITIVE_INTERSECTOR", rs.intersector, textured_spline_tube_render_style::IS_RUSSIG);
 			shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
 			shader_code::set_define(defines, "MODE", rs.fragment_mode, textured_spline_tube_render_style::FM_RAY_CAST);
+			shader_code::set_define(defines, "USE_RIBBONS", rs.use_ribbons, true);
 
 			for(const auto& define : additional_defines)
 				defines.insert(define);
 		}
 		bool textured_spline_tube_renderer::build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines)
 		{
-			return prog.build_program(ctx, "textured_spline_tube.glpr", true, defines);
+			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
+
+			if(rs.use_ribbons)
+				return prog.build_program(ctx, "textured_spline_ribbon.glpr", true, defines);
+			else
+				return prog.build_program(ctx, "textured_spline_tube.glpr", true, defines);
 		}
 		bool textured_spline_tube_renderer::enable(context& ctx)
 		{
@@ -158,7 +165,8 @@ namespace cgv {
 			cgv::render::textured_spline_tube_render_style* rs_ptr = reinterpret_cast<cgv::render::textured_spline_tube_render_style*>(value_ptr);
 			cgv::base::base* b = dynamic_cast<cgv::base::base*>(p);
 
-			p->add_member_control(b, "Tube primitive", rs_ptr->intersector, "dropdown", "enums='Russig,Phantom'");
+			p->add_member_control(b, "Tube Primitive", rs_ptr->intersector, "dropdown", "enums='Russig,Phantom'");
+			p->add_member_control(b, "Ribbons", rs_ptr->use_ribbons, "check");
 			p->add_member_control(b, "Default Radius", rs_ptr->radius, "value_slider", "min=0.001;step=0.0001;max=10.0;log=true;ticks=true");
 			p->add_member_control(b, "Radius Scale", rs_ptr->radius_scale, "value_slider", "min=0.01;step=0.0001;max=100.0;log=true;ticks=true");
 

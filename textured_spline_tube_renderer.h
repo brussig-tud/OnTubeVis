@@ -42,6 +42,8 @@ namespace cgv { // @<
 				BG_ALIGNED_BOX_BILLBOARD_SPLITSIMUL1 = 7, // same as BG_ALIGNED_BOX_BILLBOARD, but subdividing the billboard 2 quads using a SINGLE triangle strip to simulate geometry load of splitting at inflection points
 				BG_ALIGNED_BOX_BILLBOARD_SPLITSIMUL2 = 8 // same as BG_ALIGNED_BOX_BILLBOARD, but subdividing the billboard 2 quads using TWO triangle strips to simulate geometry load of splitting at inflection points
 			} bounding_geometry;
+			/// whether to use ribbon primitives instead of tubes (ignores bounding geometry setting)
+			bool use_ribbons;
 			/// specifies the degree of attributeless-ness the renderer should be.
 			enum AttribMode
 			{
