@@ -1939,8 +1939,11 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		            optixU = cgv::math::normalize(cgv::math::cross(optixW, optixV)) * optixU_len*/;
 
 		// helper function (careful - they need some fields of 'params' to be preset before being called)
-		const auto stereo_projection_matrix = [&params, &screen_ext, stereo_eye_dist] (float e) -> mat4 {
-			return
+		const auto stereo_projection_matrix = [&params, &screen_ext, stereo_eye_dist] (float e, const mat4 &P_base) -> mat4 {
+			/*mat4 ret = P_base;
+			ret(0, 2) = -e * stereo_eye_dist;
+			return ret;
+			*/return
 				cgv::math::stereo_frustum_screen4<double>(
 					e, stereo_eye_dist, screen_ext.x(), screen_ext.y(), params.parallax_zero_depth,
 					params.cam_clip.x, params.cam_clip.y
@@ -2005,14 +2008,30 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		params.unproject_mode_dbg = optix.unproject_mode_dbg;
 		params.screen_size = to_float2(screen_ext);
 		params.holo_eye = optix.holo_eye;
+		params.holo_eyes_dist = stereo_eye_dist;
 		params.parallax_zero_depth = (float)sview->get_parallax_zero_depth();
 		*(mat4*)(&params.holo_MV_left)  = stereo_modelview_matrix(-1.f);
 		*(mat4*)(&params.holo_invMV_left) = cgv::math::inv(*(mat4*)(&params.holo_MV_left));
 		*(mat4*)(&params.holo_MV_right) = stereo_modelview_matrix( 1.f);
 		*(mat4*)(&params.holo_invMV_right) = cgv::math::inv(*(mat4*)(&params.holo_MV_right));
-		*(mat4*)(&params.holo_P_left)   = stereo_projection_matrix(-1.f);
+		mat4 &Pl = *(mat4*)(&params.holo_P_left)   = stereo_projection_matrix(-1.f, P);
 		*(mat4*)(&params.holo_invP_left) = cgv::math::inv(*(mat4*)(&params.holo_P_left));
-		*(mat4*)(&params.holo_P_right)  = stereo_projection_matrix( 1.f);
+		mat4 &Pr = *(mat4*)(&params.holo_P_right)  = stereo_projection_matrix( 1.f, P);
+		mat4 PC = stereo_projection_matrix(0, P), PCi = cgv::math::lerp(Pl, Pr, .5f);
+		//const_cast<mat4&>(P) = PCi; const_cast<mat4&>(invP) = cgv::math::inv(P);
+		mat4 invPl = cgv::math::inv(Pl), invPC = cgv::math::inv(PC), invPr = cgv::math::inv(Pr);
+		std::cerr << "=======================================================================================" << std::endl;
+		std::cerr << "P:" << std::endl << P << std::endl;
+		std::cerr << "PC:" << std::endl << PC << std::endl;
+		std::cerr << "PCi:" << std::endl << PCi << std::endl;
+		std::cerr << " -----------------------------------------------" << std::endl;
+		std::cerr << "Pl:" << std::endl << Pl << std::endl;
+		std::cerr << "Pr:" << std::endl << Pr << std::endl;
+		std::cerr << " -----------------------------------------------" << std::endl;
+		std::cerr << "invPl:" << std::endl << invPl << std::endl;
+		std::cerr << "invPC:" << std::endl << invPC << std::endl;
+		std::cerr << "invPr:" << std::endl << invPr << std::endl;
+		std::cerr << "=======================================================================================" << std::endl;
 		*(mat4*)(&params.holo_invP_right) = cgv::math::inv(*(mat4*)(&params.holo_P_right));
 		*(mat4*)(&params.holo_invMVP_left) = cgv::math::inv((*(mat4*)(&params.holo_P_left)) * (*(mat4*)(&params.holo_MV_left)));
 		*(mat4*)(&params.holo_invMVP_right) = cgv::math::inv((*(mat4*)(&params.holo_P_right)) * (*(mat4*)(&params.holo_MV_right)));

@@ -89,7 +89,7 @@ struct curve_rt_params
 	Holo holo;
 	float2 screen_size;
 	float parallax_zero_depth;
-	float holo_eye;
+	float holo_eye, holo_eyes_dist;
 	float holo_MV_left[16], holo_invMV_left[16], holo_MV_right[16], holo_invMV_right[16];
 	float holo_P_left[16], holo_invP_left[16], holo_P_right[16], holo_invP_right[16];
 	float holo_invMVP_left[16], holo_invMVP_right[16];

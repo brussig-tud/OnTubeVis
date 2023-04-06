@@ -128,17 +128,21 @@ static __forceinline__ __device__ mat4 compute_stereo_frustum_screen (const floa
 	const float aspect = params.screen_size.x / params.screen_size.y;
 	const float top = .5f*params.screen_size.y*znear / params.parallax_zero_depth;
 	const float bottom = -top;
-	const float delta = .5*eye_separation*eye*params.screen_size.x*znear / params.parallax_zero_depth;
+	const float delta = .5*params.holo_eyes_dist*eye*params.screen_size.x*znear / params.parallax_zero_depth;
 	const float left = bottom * aspect - delta;
 	const float right = top * aspect - delta;
-	return compute_frustum(left, right, bottom, top, znear, params.cam_clip.y/*<-- z_far*/);
+	return compute_frustum(left, right, bottom, top, znear, params.cam_clip.y/*<-- z_far*/);/*
+	const float *P = params.cam_P;
+	return {P[ 0], P[ 1], P[ 2], P[ 3], P[ 4], P[ 5], P[ 6], P[ 7],
+	        P[ 8], P[ 9], P[10], P[11], P[12], P[13], P[14], P[15]};*/
 }
 
 // eye from left to right / -1 to 1
-static __forceinline__ __device__ mat4 stereo_translate_modelview_matrix (const float eye) {
-	mat4 ret = params.cam_MV;
-	ret.col(3).x += -0.5 * eye_separation * eye * params.screen_size.x;
-	return ret;
+static __forceinline__ __device__ mat4 stereo_translate_modelview_matrix (const float eye)
+{
+	const float *MV = params.cam_MV;
+	return {MV[0], MV[1], MV[2], MV[3], MV[4], MV[5], MV[6], MV[7], MV[8], MV[9], MV[10], MV[11],
+	        MV[12] - .5f*params.holo_eyes_dist*eye*params.screen_size.x,  MV[13], MV[14], MV[15]};
 }
 
 static __forceinline__ __device__ float get_view (const HoloState &hs)
@@ -186,7 +190,9 @@ static __forceinline__ __device__ Ray compute_ray (HoloState &hs)
 
 	// determine amera parameters of current view
 	const float stereo = params.holo==Holo::OFF ? params.holo_eye : hs.view;
-	hs.P = compute_stereo_frustum_screen(stereo); hs.invP = hs.P.inverse(),
+	hs.P =
+		stereo==0 ? params.cam_P : compute_stereo_frustum_screen(stereo);
+		hs.invP = hs.P.inverse();
 	hs.MV = stereo_translate_modelview_matrix(stereo); hs.invMV = hs.MV.inverse();
 	hs.N = hs.invMV.transposed();
 	hs.cyclops_eyespace = mul3_mat_pos(hs.MV, params.cam_eye);

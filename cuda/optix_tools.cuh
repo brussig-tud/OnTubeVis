@@ -1091,4 +1091,22 @@ struct cubic_interpolator_vec3
 };
 
 
+
+//////
+//
+// Functions
+//
+
+// Optimized fused multiply-add linear mix implementation (4x4 matrix variant)
+__device__ __forceinline__ mat4 mix (const float m0[16], const float m1[16], const float t)
+{
+	return {
+		mix(m0[ 0], m1[ 0], t), mix(m0[ 1], m1[ 1], t), mix(m0[ 2], m1[ 2], t), mix(m0[ 3], m1[ 3], t),
+		mix(m0[ 4], m1[ 4], t), mix(m0[ 5], m1[ 5], t), mix(m0[ 6], m1[ 6], t), mix(m0[ 7], m1[ 7], t),
+		mix(m0[ 8], m1[ 8], t), mix(m0[ 9], m1[ 9], t), mix(m0[10], m1[10], t), mix(m0[11], m1[11], t),
+		mix(m0[12], m1[12], t), mix(m0[13], m1[13], t), mix(m0[14], m1[14], t), mix(m0[15], m1[15], t)
+	};
+}
+
+
 #endif // ifndef __OPTIX_TOOLS_H__
