@@ -11,10 +11,20 @@
 
 //////
 //
+// Macros & constants
+//
+
+/// Convenience helper for treating float arrays like a mat4
+#define MAT4(marray) (*(mat4*)(&marray))
+
+
+
+//////
+//
 // Structs
 //
 
-// GPU representation of tube node attribute data
+/// GPU representation of tube node attribute data
 struct cuda_node
 {
 	float4 pos_rad;
@@ -23,12 +33,12 @@ struct cuda_node
 	float4 t;
 };
 
-// GPU representation of arclength parametrization
+/// GPU representation of arclength parametrization
 struct cuda_arclen {
 	float4 span [4];
 };
 
-// holographic rendering
+/// holographic rendering mode
 enum Holo {
 	// disabled
 	OFF = 0,
@@ -40,7 +50,7 @@ enum Holo {
 	QUILT
 };
 
-// OptiX launch parameters
+/// OptiX launch parameters
 struct curve_rt_params
 {
 	// input buffers
