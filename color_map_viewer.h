@@ -18,8 +18,8 @@ protected:
 		cgv::g2d::rect<int> color_map_rect;
 
 		void update(const ivec2& parent_size) {
-			color_map_rect.set_pos(ivec2(padding));
-			color_map_rect.set_size(parent_size - 2 * padding);
+			color_map_rect.position = ivec2(padding);
+			color_map_rect.size = parent_size - 2 * padding;
 		}
 	} layout;
 

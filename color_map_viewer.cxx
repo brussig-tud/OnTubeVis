@@ -113,7 +113,7 @@ void color_map_viewer::draw_content(cgv::render::context& ctx) {
 	auto& color_maps_prog = content_canvas.enable_shader(ctx, "color_maps");
 	color_map_style.apply(ctx, color_maps_prog);
 	tex->enable(ctx, 0);
-	content_canvas.draw_shape(ctx, layout.color_map_rect.pos(), layout.color_map_rect.size());
+	content_canvas.draw_shape(ctx, layout.color_map_rect);
 	tex->disable(ctx);
 	content_canvas.disable_current_shader(ctx);
 	
@@ -180,8 +180,8 @@ void color_map_viewer::update_texts() {
 	if(names.size() == 0)
 		return;
 
-	int step = layout.color_map_rect.size().y() / (int)names.size();
-	ivec2 base = layout.color_map_rect.pos() + ivec2(layout.color_map_rect.size().x() / 2, step / 2 - static_cast<int>(0.333f*text_style.font_size));
+	int step = layout.color_map_rect.h() / (int)names.size();
+	ivec2 base = layout.color_map_rect.position + ivec2(layout.color_map_rect.w() / 2, step / 2 - static_cast<int>(0.333f*text_style.font_size));
 	int i = 0;
 	for(const auto& name : names) {
 		ivec2 p = base;
