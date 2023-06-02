@@ -901,7 +901,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 	// - vsync
 	if (member_ptr == &misc_cfg.vsync_proxy)
 		// ToDo: handle the (virtually impossible) case that some other plugin than cg_fltk provides the gl_context
-		dynamic_cast<fltk_gl_view*>(get_context())->set_void("enable_vsynch", "bool", member_ptr);
+		dynamic_cast<fltk_gl_view*>(get_context())->set_void("vsync", "bool", member_ptr);
 	// - fix view up dir
 	else if (member_ptr == &misc_cfg.fix_view_up_dir_proxy)
 		dynamic_cast<node*>(find_view_as_node())->set("fix_view_up_dir", misc_cfg.fix_view_up_dir_proxy);
