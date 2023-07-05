@@ -8,6 +8,7 @@
 #include <cgv/base/node.h>
 #include <cgv/gui/event_handler.h>
 #include <cgv/gui/provider.h>
+#include <cgv/gui/file_helper.h>
 #include <cgv/render/drawable.h>
 #include <cgv/render/managed_frame_buffer.h>
 #include <cgv/render/shader_library.h>
@@ -213,8 +214,8 @@ protected:
 	/// store the current OpenGL viewport configuration
 	GLint viewport[4];
 
-	/// path of the dataset to load - can be either a directory or a single file
-	std::string datapath;
+	/// file helper for path of the dataset to load - can be either a directory or a single file
+	cgv::gui::file_helper datapath_helper;
 
 	/// misc configurable fields
 	struct {
@@ -520,15 +521,9 @@ protected:
 	vec3 test_eye = vec3(5.0f, 0.5f, 5.0f);
 	vec3 test_dir = vec3(0.0f, 0.0f, -1.0f);
 
-	/// file handling fields
-	struct {
-		/// file name of loaded layer configuration
-		std::string file_name;
-		/// file name of to be saved layer configuration (used to trigger save action)
-		std::string save_file_name;
-		/// track whether the current configuration has unsaved changes
-		bool has_unsaved_changes = false;
-	} fh;
+	/// layer configuration file handling fields
+	cgv::gui::file_helper layer_config_file_helper;
+	bool layer_config_has_unsaved_changes = false;
 
 	bool voxelize_gpu = false;
 	bool show_volume = false;

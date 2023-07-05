@@ -157,7 +157,18 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 
 	//fh.file_name = QUOTE_SYMBOL_VALUE(INPUT_DIR);
 	//fh.file_name += "/res/";
-	fh.file_name = "";
+
+	layer_config_file_helper = cgv::gui::file_helper(this, "Open/Save Layer Configuration", cgv::gui::file_helper::Mode::kOpenAndSave);
+	layer_config_file_helper.add_filter("Layer Configuration XML", "xml");
+
+	datapath_helper = cgv::gui::file_helper(this, "Open Trajectory Data", cgv::gui::file_helper::Mode::kOpen);
+	datapath_helper.add_filter("All Trajectory Files", { "bezdat", "csv", "sepia", "ppcdf", "ipcdf", "tgen" });
+	datapath_helper.add_filter("Bezier Splines", "bezdat");
+	datapath_helper.add_filter("CSV", "csv");
+	datapath_helper.add_filter("Sepia Trajectories", "sepia");
+	datapath_helper.add_filter("On-Board Diagnostics", "ppcdf");
+	datapath_helper.add_filter("On-Board Diagnostics Extended", "ipcdf");
+	datapath_helper.add_filter("Trajectory Generator Config", "tgen");
 
 	debug.segment_rs.rounded_caps = true;
 
@@ -253,8 +264,8 @@ void on_tube_vis::clear(cgv::render::context &ctx) {
 bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 {
 	return
-		rh.reflect_member("datapath", datapath) &&
-		rh.reflect_member("layer_config_file", fh.file_name) && // ToDo: figure out proper reflection name
+		rh.reflect_member("datapath", datapath_helper.file_name) &&
+		rh.reflect_member("layer_config_file", layer_config_file_helper.file_name) && // ToDo: figure out proper reflection name
 		rh.reflect_member("show_hidden_glyphs", show_hidden_glyphs) &&
 		rh.reflect_member("render_style", render.style) &&
 		rh.reflect_member("attrib_mode", (unsigned&)render.style.attrib_mode) &&
@@ -537,9 +548,9 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 			if(dnd.filenames.size() == 1) {
 				std::string extension = cgv::utils::file::get_extension(dnd.filenames[0]);
 				if(cgv::utils::to_upper(extension) == "XML") {
-					fh.file_name = dnd.filenames[0];
-					update_member(&fh.file_name);
-					on_set(&fh.file_name);
+					layer_config_file_helper.file_name = dnd.filenames[0];
+					layer_config_file_helper.update();
+					on_set(&layer_config_file_helper.file_name);
 					try_load_dataset = false;
 				}
 			}
@@ -580,15 +591,15 @@ void on_tube_vis::on_set(void *member_ptr) {
 
 	// internal state flags
 	// - configurable datapath
-	if (member_ptr == &datapath && !datapath.empty()) {
+	if (member_ptr == &datapath_helper.file_name && !datapath_helper.file_name.empty()) {
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		traj_mgr.clear();
 		cgv::utils::stopwatch s(true);
-		std::cout << "Reading data set from " << datapath << " ..." << std::endl;
-		if(traj_mgr.load(datapath) != -1) {
+		std::cout << "Reading data set from " << datapath_helper.file_name << " ..." << std::endl;
+		if(traj_mgr.load(datapath_helper.file_name) != -1) {
 			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 			dataset.files.clear();
-			dataset.files.emplace(datapath);
+			dataset.files.emplace(datapath_helper.file_name);
 
 			data_set_changed = true;
 		}
@@ -597,7 +608,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 	else if (member_ptr == &dataset) {
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		// clear current dataset
-		datapath.clear();
+		datapath_helper.file_name.clear();
 		traj_mgr.clear();
 
 		// load new data
@@ -608,7 +619,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 			loaded_something = traj_mgr.load(file) != -1 || loaded_something;
 			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 		}
-		update_member(&datapath);
+		update_member(&datapath_helper.file_name);
 
 		// update render state
 		if(loaded_something)
@@ -657,10 +668,10 @@ void on_tube_vis::on_set(void *member_ptr) {
 		shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
 		// reset glyph layer configuration file
-		fh.file_name = "";
-		fh.has_unsaved_changes = false;
-		update_member(&fh.file_name);
-		on_set(&fh.has_unsaved_changes);
+		layer_config_file_helper.file_name = "";
+		layer_config_has_unsaved_changes = false;
+		layer_config_file_helper.update();
+		on_set(&layer_config_has_unsaved_changes);
 #ifdef RTX_SUPPORT
 		// ###############################
 		// ### BEGIN: OptiX integration
@@ -766,8 +777,8 @@ void on_tube_vis::on_set(void *member_ptr) {
 		}
 
 		if (changes) {
-			fh.has_unsaved_changes = true;
-			on_set(&fh.has_unsaved_changes);
+			layer_config_has_unsaved_changes = true;
+			on_set(&layer_config_has_unsaved_changes);
 		}
 	}
 
@@ -811,67 +822,61 @@ void on_tube_vis::on_set(void *member_ptr) {
 			default: break;
 		}
 		// TODO: add case for value change action type
-		fh.has_unsaved_changes = true;
-		on_set(&fh.has_unsaved_changes);
+		layer_config_has_unsaved_changes = true;
+		on_set(&layer_config_has_unsaved_changes);
 	}
 
-
-
-
-
-	if (member_ptr == &fh.file_name)
+	if (member_ptr == &layer_config_file_helper.file_name)
 	{
-		/*
-		#ifndef CGV_FORCE_STATIC
-				// TODO: implemenmt
-				std::cout << "IMPLEMENT" << std::endl;
-				//std::filesystem::path file_path(file_name);
-				//if(file_path.is_relative()) {
-				//	std::string debug_file_name = QUOTE_SYMBOL_VALUE(INPUT_DIR);
-				//	file_name = debug_file_name + "/" + file_name;
-				//}
-		#endif
-		*/
+		std::string& file_name = layer_config_file_helper.file_name;
 
-		std::string extension = cgv::utils::file::get_extension(fh.file_name);
-		// only try to read the filename if it ends with an xml extension
-		if (cgv::utils::to_upper(extension) == "XML") {
-			if (read_layer_configuration(fh.file_name)) {
-				fh.has_unsaved_changes = false;
-				on_set(&fh.has_unsaved_changes);
+		if(layer_config_file_helper.save())
+		{
+			layer_config_file_helper.ensure_extension("xml");
+			
+			if(layer_config_file_helper.compare_extension("xml")) {
+				if(save_layer_configuration(file_name)) {
+					layer_config_has_unsaved_changes = false;
+					on_set(&layer_config_has_unsaved_changes);
+				} else {
+					std::cout << "Error: Could not write glyph_ layer configuration to file: " << file_name << std::endl;
+				}
 			} else {
-				std::cout << "Error: could not read glyph layer configuration from " << fh.file_name << std::endl;
+				std::cout << "Please specify a xml file name." << std::endl;
 			}
 		}
-	}
+		else
+		{
+			/*
+			#ifndef CGV_FORCE_STATIC
+					// TODO: implemenmt
+					std::cout << "IMPLEMENT" << std::endl;
+					//std::filesystem::path file_path(file_name);
+					//if(file_path.is_relative()) {
+					//	std::string debug_file_name = QUOTE_SYMBOL_VALUE(INPUT_DIR);
+					//	file_name = debug_file_name + "/" + file_name;
+					//}
+			#endif
+			*/
 
-	if (member_ptr == &fh.save_file_name)
-	{
-		std::string extension = cgv::utils::file::get_extension(fh.save_file_name);
-
-		if(extension == "") {
-			extension = "xml";
-			fh.save_file_name += "." + extension;
-		}
-
-		if(cgv::utils::to_upper(extension) == "XML") {
-			if(save_layer_configuration(fh.save_file_name)) {
-				fh.file_name = fh.save_file_name;
-				update_member(&fh.file_name);
-				fh.has_unsaved_changes = false;
-				on_set(&fh.has_unsaved_changes);
-			} else {
-				std::cout << "Error: Could not write glyph_ layer configuration to file: " << fh.save_file_name << std::endl;
+			std::string extension = cgv::utils::file::get_extension(file_name);
+			// only try to read the filename if it ends with an xml extension
+			if(layer_config_file_helper.compare_extension("xml")) {
+				if(read_layer_configuration(file_name)) {
+					layer_config_has_unsaved_changes = false;
+					on_set(&layer_config_has_unsaved_changes);
+				} else {
+					std::cout << "Error: could not read glyph layer configuration from " << file_name << std::endl;
+				}
 			}
-		} else {
-			std::cout << "Please specify a xml file name." << std::endl;
 		}
+		
 	}
 
-	if (member_ptr == &fh.has_unsaved_changes) {
-		auto ctrl = find_control(fh.file_name);
+	if (member_ptr == &layer_config_has_unsaved_changes) {
+		auto ctrl = find_control(layer_config_file_helper.file_name);
 		if(ctrl)
-			ctrl->set("text_color", fh.has_unsaved_changes ? cgv::gui::theme_info::instance().warning_hex() : "");
+			ctrl->set("text_color", layer_config_has_unsaved_changes ? cgv::gui::theme_info::instance().warning_hex() : "");
 	}
 
 	if (member_ptr == &show_hidden_glyphs)
@@ -1018,7 +1023,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 bool on_tube_vis::on_exit_request() {
 	// TODO: does not seem to fire when window is maximized?
 #ifndef _DEBUG
-	if(fh.has_unsaved_changes) {
+	if(layer_config_has_unsaved_changes) {
 		return cgv::gui::question("The glyph layer configuration has unsaved changes. Are you sure you want to quit?");
 	}
 #endif
@@ -1954,10 +1959,8 @@ void on_tube_vis::after_finish(context& ctx) {
 void on_tube_vis::create_gui(void) {
 	// dataset settings
 	add_decorator("Dataset", "heading", "level=1");
-	//add_member_control(this, "data file/path", datapath);
-	add_gui("Data Path", datapath, "file_name", "title='Open Trajectory Data';"
-		"filter='Trajectory Files (bezdat, csv, sepia, obd, tgen):*.bezdat;*.csv;*.sepia;*.ipcdf;*.ppcdf;*.tgen|All Files:*.*';"
-		"small_icon=true;w=168");
+	
+	datapath_helper.create_gui("Data Path");
 
 	// rendering settings
 	add_decorator("Rendering", "heading", "level=1");
@@ -2103,9 +2106,7 @@ void on_tube_vis::create_gui(void) {
 		if(begin_tree_node("Attributes '"+traj_mgr.dataset(ds).name()+"'", render.visualizations[ds].manager, true)) {
 			align("\a");
 			add_decorator("Configuration File", "heading", "level=3");
-			std::string filter = "XML Files (xml):*.xml|All Files:*.*";
-			add_gui("File", fh.file_name, "file_name", "title='Open Transfer Function';filter='" + filter + "';save=false;w=136;small_icon=true;align_gui=' '" + (fh.has_unsaved_changes ? ";text_color=" + cgv::gui::theme_info::instance().warning_hex() : ""));
-			add_gui("save_file_name", fh.save_file_name, "file_name", "title='Save Transfer Function';filter='" + filter + "';save=true;control=false;small_icon=true");
+			layer_config_file_helper.create_gui("", layer_config_has_unsaved_changes ? "text_color=" + cgv::gui::theme_info::instance().warning_hex() : "");
 			add_decorator("", "separator", "level=3");
 			connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &on_tube_vis::reload_shader));
 			connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &on_tube_vis::compile_glyph_attribs));
