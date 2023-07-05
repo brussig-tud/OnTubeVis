@@ -14,7 +14,6 @@
 #include <cgv/math/ftransform.h>
 #include <cgv/media/image/image_reader.h>
 #include <cgv/utils/advanced_scan.h>
-#include <cgv/utils/xml.h>
 
 // CGV framework application utility
 #include <cgv_app/color_map_reader.h>
@@ -25,6 +24,10 @@
 #include <plugins/cg_fltk/fltk_gl_view.h>
 // - stereo_view_interactor for controlling fix_view_up_dir
 #include <plugins/crg_stereo_view/stereo_view_interactor.h>
+
+// CGV framework 3rd party libraries
+#include <3rd/xml/tinyxml2/tinyxml2.h>
+#include <3rd/xml/cgv_xml/query.h>
 
 // Local includes
 #include "arclen_helper.h"
@@ -1030,445 +1033,30 @@ void on_tube_vis::reload_shader() {
 }
 
 bool on_tube_vis::save_layer_configuration(const std::string& file_name) {
-	const auto &gams = render.visualizations.front().manager.ref_glyph_attribute_mappings();
 
-	auto to_col_uint8 = [](const float& val) {
-		int ival = cgv::math::clamp(static_cast<int>(255.0f * val + 0.5f), 0, 255);
-		return static_cast<unsigned char>(ival);
-	};
+	const auto& glyph_layer_mgr = render.visualizations.front().manager;
 
-	auto vec2_to_str = [](const vec2& v) {
-		return std::to_string(v.x()) + ", " + std::to_string(v.y());
-	};
-
-	auto rgb_to_str = [](const rgb& v) {
-		return std::to_string(v.R()) + ", " + std::to_string(v.G()) + ", " + std::to_string(v.B());
-	};
-
-	auto put = [](const std::string& n, const std::string& v) {
-		return n + "=\"" + v + "\" ";
-	};
-
-	std::string content = "";
-	content += "<GlyphConfiguration>\n";
-	std::string tab = "  ";
-	std::string t = tab;
-
-	const auto& color_maps = color_map_mgr.ref_color_maps();
-
-	content += t + "<ColorMaps>\n";
-	t += tab;
-
-	for(size_t i = 0; i < color_maps.size(); ++i) {
-		const auto& cmc = color_maps[i];
-		if(cmc.custom) {
-			content += cgv::app::color_map_writer::to_xml(cmc.name, cmc.cm, false);
-		}
-
-		/*const auto& cmc = color_maps[i];
-		content += t + "<ColorMap " + put("name", cmc.name) + put("custom", std::to_string(cmc.custom));
-		if(cmc.custom) {
-			content += ">\n";
-			t += tab;
-
-			const auto& cm = cmc.cm;
-			for(size_t j = 0; j < cm.ref_color_points().size(); ++j) {
-				const auto& p = cm.ref_color_points()[j];
-
-				content += t + "<Point ";
-				content += "x=\"" + std::to_string(p.first) + "\" ";
-				content += "o=\"1\" ";
-				content += "r=\"" + std::to_string(p.second.R()) + "\" ";
-				content += "g=\"" + std::to_string(p.second.G()) + "\" ";
-				content += "b=\"" + std::to_string(p.second.B()) + "\"";
-				content += "/>\n";
-			}
-
-			t = tab + tab;
-			content += t + "</ColorMap>\n";
-		} else {
-			content += "/>\n";
-		}*/
-	}
-
-	t = tab;
-	content += t + "</ColorMaps>\n";
-	content += t + "<Layers>\n";
-	t += tab;
-
-	for(size_t i = 0; i < gams.size(); ++i) {
-		const auto& gam = gams[i];
-		const auto* shape_ptr = gam.get_shape_ptr();
-
-		if(shape_ptr) {
-			content += t + "<Layer " + put("glyph", shape_ptr->name());
-
-			switch(gam.get_sampling_strategy()) {
-			case ASS_AT_SAMPLES:
-				content += put("sampling", "original");
-				break;
-			case ASS_UNIFORM:
-				content += put("sampling", "uniform");
-				content += put("sampling_step", std::to_string(gam.get_sampling_step()));
-				break;
-			case ASS_EQUIDIST:
-				content += put("sampling", "equidist");
-				content += put("sampling_step", std::to_string(gam.get_sampling_step()));
-				break;
-			}
-
-			content += ">\n";
-			t += tab;
-
-			const auto& attribs = shape_ptr->supported_attributes();
-			const auto attrib_indices = gam.get_attrib_indices();
-			const auto color_indices = gam.get_color_map_indices();
-			const auto& mapping_ranges = gam.ref_attrib_values();
-			const auto& colors = gam.ref_attrib_colors();
-
-			const auto& attrib_names = gam.ref_attribute_names();
-			const auto& color_map_names = gam.ref_color_map_names();
-
-			for(size_t j = 0; j < attribs.size(); ++j) {
-				const auto& attrib = attribs[j];
-				content += t + "<Property " + put("name", attrib.name);
-
-				if(!(attrib.modifiers & GAM_GLOBAL)) {
-					int a_idx = attrib_indices[j];
-					if(a_idx > -1)
-						content += put("attrib_name", attrib_names[a_idx]);
-				}
-
-				if(attrib.type == GAT_COLOR) {
-					int c_idx = color_indices[j];
-					if(c_idx > -1)
-						content += put("color_map_name", color_map_names[c_idx]);
-					else
-						content += put("color", rgb_to_str(colors[j]));
-				}
-
-				vec4 mr = mapping_ranges[j];
-				if(attrib.modifiers & GAM_GLOBAL) {
-					if(attrib.type != GAT_COLOR)
-						content += put("value", std::to_string(mr.w()));
-				} else {
-					content += put("in_range", vec2_to_str(vec2(mr.x(), mr.y())));
-				}
-				if(attrib.type != GAT_UNIT &&
-					attrib.type != GAT_SIGNED_UNIT &&
-					attrib.type != GAT_COLOR &&
-					attrib.type != GAT_OUTLINE
-					) {
-					content += put("out_range", vec2_to_str(vec2(mr.z(), mr.w())));
-				}
-				content += "/>\n";
-			}
-
-			t = tab + tab;
-			content += t + "</Layer>\n";
-		}
-	}
-	t = tab;
-	content += t + "</Layers>\n";
-	content += "</GlyphConfiguration>\n";
-
-	return cgv::utils::file::write(file_name, content, true);
+	return layer_configuration_io::write_layer_configuration(file_name, glyph_layer_mgr, color_map_mgr);
 }
 
 bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
-	if(!cgv::utils::file::exists(file_name) || cgv::utils::to_upper(cgv::utils::file::get_extension(file_name)) != "XML")
-		return false;
 
-	bool read_color_maps = false;
-	std::vector<std::string> color_map_lines;
+	auto& glyph_layer_mgr = render.visualizations.front().manager;
+	const auto attribute_names = traj_mgr.dataset(0).get_attribute_names();
 
-	bool read_layers = false;
-	std::vector<cgv::utils::xml_tag> layer_data;
-
-	std::string content;
-	cgv::utils::file::read(file_name, content, true);
-
-	bool read = true;
-	size_t nl_pos = content.find_first_of("\n");
-	size_t line_offset = 0;
-
-	while(read) {
-		std::string line = "";
-
-		if(nl_pos == std::string::npos) {
-			read = false;
-			line = content.substr(line_offset, std::string::npos);
-		} else {
-			size_t next_line_offset = nl_pos;
-			line = content.substr(line_offset, next_line_offset - line_offset);
-			line_offset = next_line_offset + 1;
-			nl_pos = content.find_first_of('\n', line_offset);
+	if(layer_configuration_io::read_layer_configuration(file_name, attribute_names, glyph_layer_mgr, color_map_mgr)) {
+		// update the dependent members
+		color_map_mgr.update_texture(*get_context());
+		if(cm_viewer_ptr) {
+			cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
+			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 		}
 
-		cgv::utils::xml_tag tag = cgv::utils::xml_read_tag(line);
-		if(tag.type == cgv::utils::XTT_UNDEF)
-			continue;
-
-		if(tag.name == "GlyphConfiguration") {
-			// root node indicates that this is a glyph layer configuration file
-			// do nothing
-		} else if(tag.name == "ColorMaps") {
-			if(tag.type == cgv::utils::XTT_OPEN) {
-				read_color_maps = true;
-			} else if(tag.type == cgv::utils::XTT_CLOSE) {
-				read_color_maps = false;
-			}
-		} else if(tag.name == "Layers") {
-			if(tag.type == cgv::utils::XTT_OPEN) {
-				read_layers = true;
-			} else if(tag.type == cgv::utils::XTT_CLOSE) {
-				read_layers = false;
-			}
-		}
-
-		if(read_color_maps) {
-			color_map_lines.push_back(line);
-		}
-
-		if(read_layers) {
-			layer_data.push_back(tag);
-		}
+		glyph_layer_mgr.notify_configuration_change();
+		return true;
 	}
 
-	cgv::app::color_map_reader::result color_maps;
-	if(cgv::app::color_map_reader::read_from_xml(color_map_lines, color_maps)) {
-		// clear previous custom color maps
-		std::vector<std::string> current_names;
-		const auto& current_color_maps = color_map_mgr.ref_color_maps();
-		for(size_t i = 0; i < current_color_maps.size(); ++i) {
-			if(current_color_maps[i].custom)
-				current_names.push_back(current_color_maps[i].name);
-		}
-
-		for(size_t i = 0; i < current_names.size(); ++i)
-			color_map_mgr.remove_color_map_by_name(current_names[i]);
-
-		// add new custom color maps
-		for(const auto& entry : color_maps)
-			color_map_mgr.add_color_map(entry.first, entry.second, true);
-	}
-	
-	// get a list of color map names
-	std::vector<std::string> color_map_names = color_map_mgr.get_names();
-
-	const auto index_of = [](const std::vector<std::string>& v, const std::string& elem) {
-		int idx = -1;
-		int c = 0;
-		for(const auto& s : v) {
-			if(s == elem) {
-				idx = c;
-				break;
-			}
-			++c;
-		}
-		return idx;
-	};
-	
-	const auto read_vec2 = [](const std::string& str) {
-		size_t space_pos = str.find_first_of(" ");
-		size_t last_space_pos = 0;
-
-		vec2 v(0.0f);
-		std::string value_str = str.substr(last_space_pos, space_pos - last_space_pos);
-		v[0] = std::strtof(value_str.c_str(), nullptr);
-
-		last_space_pos = space_pos + 1;
-		value_str = str.substr(space_pos + 1);
-		v[1] = std::strtof(value_str.c_str(), nullptr);
-		return v;
-	};
-
-	const auto read_vec3 = [](const std::string& str) {
-		size_t space_pos = str.find_first_of(" ");
-		size_t last_space_pos = 0;
-
-		vec3 v(0.0f);
-		std::string value_str = str.substr(last_space_pos, space_pos - last_space_pos);
-		v[0] = std::strtof(value_str.c_str(), nullptr);
-
-		last_space_pos = space_pos + 1;
-		space_pos = str.find_first_of(" ", last_space_pos);
-		value_str = str.substr(last_space_pos, space_pos - last_space_pos);
-		v[1] = std::strtof(value_str.c_str(), nullptr);
-
-		last_space_pos = space_pos + 1;
-		value_str = str.substr(space_pos + 1);
-		v[2] = std::strtof(value_str.c_str(), nullptr);
-		return v;
-	};
-
-	auto &glyph_layer_mgr = render.visualizations.front().manager;
-	glyph_layer_mgr.clear();
-
-	const auto attrib_names = traj_mgr.dataset(0).get_attribute_names();
-
-	bool read_layer = false;
-	glyph_attribute_mapping gam;
-	const glyph_shape* shape_ptr = nullptr;
-	std::vector<std::string> shape_attribute_names;
-
-	std::vector<std::pair<int, vec2>> input_ranges;
-
-	for(size_t i = 0; i < layer_data.size(); ++i) {
-		const cgv::utils::xml_tag& tag = layer_data[i];
-		const auto end = tag.attributes.end();
-
-		if(tag.name == "Layer") {
-			if(tag.type == cgv::utils::XTT_OPEN) {
-				read_layer = true;
-				gam = glyph_attribute_mapping();
-				shape_ptr = nullptr;
-				shape_attribute_names.clear();
-				input_ranges.clear();
-
-				auto it = tag.attributes.find("glyph");
-				if(it != end) {
-					GlyphType glyph_type = glyph_type_registry::type((*it).second);
-					gam.set_glyph_type(glyph_type);
-					shape_ptr = gam.get_shape_ptr();
-
-					for(const auto& a : shape_ptr->supported_attributes())
-						shape_attribute_names.push_back(a.name);
-				}
-
-				it = tag.attributes.find("sampling");
-				if(it != end) {
-					std::string str = (*it).second;
-					if(str == "original") {
-						gam.set_sampling_strategy(ASS_AT_SAMPLES);
-					} else if(str == "uniform") {
-						gam.set_sampling_strategy(ASS_UNIFORM);
-					} else if (str == "equidist") {
-						gam.set_sampling_strategy(ASS_EQUIDIST);
-					}
-				}
-
-				it = tag.attributes.find("sampling_step");
-				if(it != end) {
-					std::string str = (*it).second;
-					float step = std::strtof(str.c_str(), nullptr);
-					gam.set_sampling_step(step);
-				}
-			} else if(tag.type == cgv::utils::XTT_CLOSE) {
-				if(read_layer) {
-					glyph_layer_mgr.add_glyph_attribute_mapping(gam);
-
-					auto& last_gam = const_cast<glyph_attribute_mapping&>(glyph_layer_mgr.ref_glyph_attribute_mappings().back());
-
-					for(const auto& p : input_ranges)
-						if(p.first > -1)
-							last_gam.set_attrib_in_range(p.first, p.second);
-				}
-				read_layer = false;
-			}
-		} else if(tag.name == "Property") {
-			if(read_layer && shape_ptr) {
-				auto it = tag.attributes.find("name");
-				if(it == end)
-					// property has no name, skip
-					continue;
-
-				std::string name = (*it).second;
-				int shape_attrib_idx = index_of(shape_attribute_names, name);
-				if(shape_attrib_idx < 0)
-					// shape does not have this attribute
-					continue;
-
-				const auto& attrib = shape_ptr->supported_attributes()[shape_attrib_idx];
-
-				int attrib_idx = -1;
-				it = tag.attributes.find("attrib_name");
-				if(it != end) {
-					// the name for a mapped attribute is given
-					std::string attrib_name = (*it).second;
-					// if not -1, then this attribute is also present in the loaded data set
-					attrib_idx = index_of(attrib_names, attrib_name);
-				}
-
-				if(attrib_idx < 0) {
-					// the shape attribute is not mapped
-				} else {
-					// a data set attribute is mapped to the shape attribute
-					gam.set_attrib_source_index(static_cast<size_t>(shape_attrib_idx), attrib_idx);
-				}
-
-				if(attrib.modifiers & GAM_GLOBAL) {
-					it = tag.attributes.find("value");
-					if(it != end) {
-						std::string str = (*it).second;
-						vec2 r(0.0f);
-						r.y() = std::strtof(str.c_str(), nullptr);
-						gam.set_attrib_out_range(shape_attrib_idx, r);
-					}
-				}
-				
-				it = tag.attributes.find("in_range");
-				if(it != end) {
-					std::string str = (*it).second;
-					vec2 r = read_vec2(str);
-					gam.set_attrib_in_range(shape_attrib_idx, r);
-					input_ranges.push_back({ shape_attrib_idx, r });
-				} else {
-					input_ranges.push_back({ -1, vec2(0.0f) });
-				}
-
-				if( attrib.type != GAT_UNIT &&
-					attrib.type != GAT_SIGNED_UNIT &&
-					attrib.type != GAT_COLOR &&
-					attrib.type != GAT_OUTLINE
-					) {
-					it = tag.attributes.find("out_range");
-					if(it != end) {
-						std::string str = (*it).second;
-						vec2 r = read_vec2(str);
-						gam.set_attrib_out_range(shape_attrib_idx, r);
-					}
-				}
-
-				if(shape_ptr->supported_attributes()[shape_attrib_idx].type == GAT_COLOR) {
-					int color_map_idx = -1;
-					it = tag.attributes.find("color_map_name");
-					if(it != end) {
-						// the name for a color map is given
-						std::string color_map_name = (*it).second;
-						// if not -1, then this attribute is also present in the loaded data set
-						color_map_idx = index_of(color_map_names, color_map_name);
-					}
-
-					if(color_map_idx < 0) {
-						// no color map selected
-						it = tag.attributes.find("color");
-						if(it != end) {
-							std::string col_str = (*it).second;
-							vec3 v = read_vec3(col_str);
-							rgb col(v.x(), v.y(), v.z());
-							gam.set_attrib_color(shape_attrib_idx, col);
-						}
-					} else {
-						// a color map is selected
-						gam.set_color_source_index(shape_attrib_idx, color_map_idx);
-					}
-				}
-			}
-		}
-	}
-
-	// update the dependant members
-	color_map_mgr.update_texture(*get_context());
-	if(cm_viewer_ptr) {
-		cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
-		cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
-	}
-
-	glyph_layer_mgr.set_color_map_names(color_map_names);
-	glyph_layer_mgr.notify_configuration_change();
-	
-	return true;
+	return false;
 }
 
 void on_tube_vis::update_glyph_layer_managers() {
@@ -1575,8 +1163,10 @@ bool on_tube_vis::compile_glyph_attribs (void)
 		}
 	}
 
-	if(success)
+	if(success) {
+		taa.reset();
 		post_redraw();
+	}
 
 	return success;
 }
@@ -1688,7 +1278,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 			// only take xml files
 			if(entry_path.extension() == ".xml") {
 				cgv::app::color_map_reader::result color_maps;
-				if(cgv::app::color_map_reader::read_from_xml(entry_path.string(), color_maps))
+				if(cgv::app::color_map_reader::read_from_xml_file(entry_path.string(), color_maps))
 					for(const auto& entry : color_maps)
 						color_map_mgr.add_color_map(entry.first, entry.second, false);
 			}
@@ -1702,7 +1292,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 			// only take xml files
 			if(entry_path.extension() == ".xml") {
 				cgv::app::color_map_reader::result color_maps;
-				if(cgv::app::color_map_reader::read_from_xml(entry_path.string(), color_maps))
+				if(cgv::app::color_map_reader::read_from_xml_file(entry_path.string(), color_maps))
 					for(const auto& entry : color_maps)
 						color_map_mgr.add_color_map(entry.first, entry.second, false);
 			}
@@ -1710,11 +1300,11 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	}
 	// - load sequential rainbow color map
 	cgv::app::color_map_reader::result color_maps;
-	if(cgv::app::color_map_reader::read_from_xml(app_path + "res/color_maps/rainbow.xml", color_maps))
+	if(cgv::app::color_map_reader::read_from_xml_file(app_path + "res/color_maps/rainbow.xml", color_maps))
 		for(const auto& entry : color_maps)
 			color_map_mgr.add_color_map(entry.first, entry.second, false);
 	// - load sequential turbo color map
-	if(cgv::app::color_map_reader::read_from_xml(app_path + "res/color_maps/turbo.xml", color_maps))
+	if(cgv::app::color_map_reader::read_from_xml_file(app_path + "res/color_maps/turbo.xml", color_maps))
 		for(const auto& entry : color_maps)
 			color_map_mgr.add_color_map(entry.first, entry.second, false);
 

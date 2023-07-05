@@ -131,7 +131,7 @@ public:
 
 	void clear();
 
-	const std::vector<glyph_attribute_mapping>& ref_glyph_attribute_mappings() {
+	const std::vector<glyph_attribute_mapping>& ref_glyph_attribute_mappings() const {
 		return glyph_attribute_mappings;
 	}
 

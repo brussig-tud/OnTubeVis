@@ -72,6 +72,8 @@ public:
 	int edit_index() { return edit_idx; }
 	/// reference to the list of color maps
 	std::vector<color_map_container>& ref_color_maps() { return color_maps; }
+	/// const reference to the list of color maps
+	const std::vector<color_map_container>& ref_color_maps() const { return color_maps; }
 	/// reference to the texture
 	cgv::render::texture& ref_texture() { return tex; }
 	/// return a list of all color map names

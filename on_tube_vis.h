@@ -37,6 +37,7 @@
 #include "ambient_occlusion_style.h"
 #include "glyph_layer_manager.h"
 #include "color_map_manager.h"
+#include "layer_config_io.h"
 #include "textured_spline_tube_renderer.h"
 #include "color_map_viewer.h"
 #ifdef RTX_SUPPORT

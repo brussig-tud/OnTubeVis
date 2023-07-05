@@ -27,7 +27,6 @@ void glyph_layer_manager::set_color_map_names(const std::vector<std::string>& na
 
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		glyph_attribute_mappings[i].set_color_map_names(names);
-
 	}
 }
 
