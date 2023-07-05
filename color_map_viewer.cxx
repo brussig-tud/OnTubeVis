@@ -166,10 +166,10 @@ void color_map_viewer::init_styles(cgv::render::context& ctx) {
 	color_map_style.use_texture = true;
 
 	// configure text style
-	text_style.fill_color = rgba(rgb(1.0f), 0.666f);
-	text_style.border_color = rgba(rgb(0.0f), 0.666f);
-	text_style.border_radius = 0.25f;
-	text_style.border_width = 0.75f;
+	text_style.fill_color = rgba(rgb(1.0f), 0.75f);
+	text_style.border_color = rgba(rgb(0.0f), 0.75f);
+	text_style.border_radius = 0.5f;
+	text_style.border_width = 0.5f;
 	text_style.use_blending = true;
 	text_style.font_size = 14.0f;
 }
