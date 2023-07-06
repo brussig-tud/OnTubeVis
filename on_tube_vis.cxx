@@ -90,12 +90,8 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 #endif
 
 	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
-	//shaders.add("taa", "taa.glpr");
-	shaders.add("fxaa", "fxaa.glpr");
-	shaders.add("taa_resolve", "taa_resolve.glpr");
-	shaders.add("screen", "screen.glpr");
 #ifdef RTX_SUPPORT
-	optix.prev_TAA_state = taa.enable_taa;
+	optix.prev_TAA_state = taa.is_enabled();
 #endif
 
 	// add framebuffer attachments needed for deferred rendering
@@ -104,18 +100,6 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 	fbc.add_attachment("position", "flt32[R,G,B]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
-
-	const std::string color_format = "flt32[R,G,B,A]";
-	//const std::string color_format = "uint8[R,G,B]";
-
-	fbc_shading.add_attachment("depth", "[D]");
-	fbc_shading.add_attachment("color", color_format);
-
-	fbc_post.add_attachment("color", color_format);
-
-	fbc_hist.add_attachment("color", color_format, TF_LINEAR);
-
-	fbc_final.add_attachment("color", color_format);
 
 	cm_editor_ptr = register_overlay<cgv::app::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
@@ -251,14 +235,12 @@ void on_tube_vis::clear(cgv::render::context &ctx) {
 
 	shaders.clear(ctx);
 	fbc.destruct(ctx);
-	fbc_shading.destruct(ctx);
-	fbc_post.destruct(ctx);
-	fbc_hist.destruct(ctx);
-	fbc_final.destruct(ctx);
-
+	
 	color_map_mgr.destruct(ctx);
 
 	render.sorter.destruct(ctx);
+
+	taa.destruct(ctx);
 }
 
 bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
@@ -287,9 +269,9 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
-		rh.reflect_member("benchmark_mode", benchmark_mode) &&
-		rh.reflect_member("enable_taa", taa.enable_taa) &&
-		rh.reflect_member("enable_fxaa", taa.enable_fxaa);
+		rh.reflect_member("benchmark_mode", benchmark_mode);// &&
+		//rh.reflect_member("enable_taa", taa.enable_taa) &&
+		//rh.reflect_member("enable_fxaa", taa.enable_fxaa);
 }
 
 void on_tube_vis::stream_help (std::ostream &os)
@@ -434,8 +416,8 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				handled = true;
 				break;
 			case 'T':
-				taa.enable_taa = !taa.enable_taa;
-				on_set(&taa.enable_taa);
+				taa.set_enabled(!taa.is_enabled());
+				on_set(&taa);
 				handled = true;
 				break;
 			case 'O':
@@ -718,12 +700,6 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		}
 	}
 
-	if(m.is(taa.jitter_sample_count) && taa.enable_taa)
-		taa.generate_jitter_offsets({ fbc.ref_frame_buffer().get_width(), fbc.ref_frame_buffer().get_height() });
-
-	if(m.is(taa.mix_factor))
-		taa.mix_factor = cgv::math::clamp(taa.mix_factor, 0.0f, 1.0f);
-
 	// - debug render setting
 	if(m.is(debug.force_initial_order)) {
 		update_attribute_bindings();
@@ -934,8 +910,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 	// ###############################
 
 		const auto push_optix_holo_taa_state = [this]() {
-			optix.prev_TAA_state = taa.enable_taa;
-			taa.enable_taa = false;
+			optix.prev_TAA_state = taa.is_enabled();
+			taa.set_enabled(false);
 			context& ctx = *get_context();
 			const ivec2 fbsize(ctx.get_width() * 3, ctx.get_height());
 			fbc.set_size(fbsize);
@@ -943,10 +919,9 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 			optix.fb.depth.set_resolution(0, fbsize.x());
 			optix.fb.depth.set_resolution(1, fbsize.y());
 			optix.fb.depth.ensure_state(ctx);
-			update_member(&taa.enable_taa);
 		};
 		const auto pop_optix_holo_taa_state = [this]() {
-			taa.enable_taa = optix.prev_TAA_state;
+			taa.set_enabled(optix.prev_TAA_state);
 			context& ctx = *get_context();
 			const ivec2 fbsize(ctx.get_width() * 3, ctx.get_height());
 			fbc.set_size({ (int)ctx.get_width(), (int)ctx.get_height() });
@@ -954,12 +929,11 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 			optix.fb.depth.set_resolution(0, fbsize.x());
 			optix.fb.depth.set_resolution(1, fbsize.y());
 			optix.fb.depth.ensure_state(ctx);
-			update_member(&taa.enable_taa);
 		};
 
-		if(m.is(taa.enable_taa))
-			optix.prev_TAA_state = taa.enable_taa;
-		else if(m.is(optix.enabled)) {
+		if(m.member_of(taa)) {
+			optix.prev_TAA_state = taa.is_enabled();
+		} else if(m.is(optix.enabled)) {
 			if(optix.enabled) {
 				if(optix_ensure_init(*get_context())) {
 					if(optix.holographic) {
@@ -1003,7 +977,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 	if(reset_taa)
 		taa.reset();
 	else
-		taa.static_frame_count = 0; // Just make sure we keep multisampling
+		taa.reset_static_frame_count(); // Just make sure we keep multisampling
 	// - redraw scene
 	post_redraw();
 }
@@ -1313,6 +1287,11 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	volume_tf.init(ctx);
 
+	// initialize temporal anti-aliasing
+	success &= taa.init(ctx);
+	taa.set_mix_factor(0.125f);
+	taa.set_fxaa_mix_factor(0.5f);
+
 	// use white background for paper screenshots
 	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
 
@@ -1584,8 +1563,8 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		params.depth = optix.outbuf_depth.map();
 		params.cubic_tangents = render.style.use_cubic_tangents;
 		params.max_t = render.style.max_t;
-		params.taa_subframe_id = taa.enable_taa ? taa.accumulate_count : 0;
-		params.taa_jitter_scale = taa.jitter_scale;
+		params.taa_subframe_id = taa.is_enabled() ? taa.get_current_accumulation_count() : 0;
+		params.taa_jitter_scale = taa.get_jitter_scale();
 		params.viewport_dims = { ctx.get_width(), ctx.get_height() };
 		params.framebuf_dims = {
 			params.viewport_dims.x * (optix.holographic ? 3 : 1),
@@ -1698,30 +1677,29 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 
 void on_tube_vis::init_frame (cgv::render::context &ctx)
 {
-	if(!view_ptr) {
-		view_ptr = dynamic_cast<stereo_view*>(find_view_as_node());
-		if(view_ptr) {
-			// do one-time initialization that needs the view if necessary
-			set_view();
-			ensure_selected_in_tab_group_parent();
+	if(initialize_view_ptr()) {
+		// do one-time initialization that needs the view if necessary
+		set_view();
+		ensure_selected_in_tab_group_parent();
 
-			// set one of the loaded color maps as the transfer function for the volume renderer
-			if(tf_editor_ptr) {
-				auto& cmcs = color_map_mgr.ref_color_maps();
-				for(auto& cmc : cmcs) {
-					if(cmc.name == "imola") {
-						for(const auto& p : cmc.cm.ref_color_points())
-							volume_tf.add_color_point(p.first, p.second);
+		// set one of the loaded color maps as the transfer function for the volume renderer
+		if(tf_editor_ptr) {
+			auto& cmcs = color_map_mgr.ref_color_maps();
+			for(auto& cmc : cmcs) {
+				if(cmc.name == "imola") {
+					for(const auto& p : cmc.cm.ref_color_points())
+						volume_tf.add_color_point(p.first, p.second);
 
-						volume_tf.add_opacity_point(0.0f, 0.0f);
-						volume_tf.add_opacity_point(1.0f, 1.0f);
+					volume_tf.add_opacity_point(0.0f, 0.0f);
+					volume_tf.add_opacity_point(1.0f, 1.0f);
 
-						tf_editor_ptr->set_color_map(&volume_tf);
-						break;
-					}
+					tf_editor_ptr->set_color_map(&volume_tf);
+					break;
 				}
 			}
 		}
+
+		taa.set_view(view_ptr);
 	}
 
 	// TODO: remove once all relevant view interactor provided by the framework properly fix the up-vector
@@ -1729,21 +1707,10 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		view_ptr->set_view_up_dir(0, 1, 0);*/
 
 	// keep the framebuffer up to date with the viewport size
-	bool updated = false;
-	if(fbc.ensure(ctx)) updated = true;
-	if(fbc_shading.ensure(ctx)) updated = true;
-	if(fbc_post.ensure(ctx)) updated = true;
-	if(fbc_hist.ensure(ctx)) updated = true;
-	if(fbc_final.ensure(ctx)) updated = true;
-	if(updated) {
-		taa.reset();
+	fbc.ensure(ctx);
+	
+	taa.ensure(ctx);
 
-		ivec2 viewport_size(
-			fbc.ref_frame_buffer().get_width(),
-			fbc.ref_frame_buffer().get_height()
-		);
-		taa.generate_jitter_offsets(viewport_size);
-	}
 #ifdef RTX_SUPPORT
 	// ###############################
 	// ### BEGIN: OptiX integration
@@ -1856,6 +1823,8 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 	{
 		if(traj_mgr.has_data())
 		{
+			taa.begin(ctx);
+
 			int debug_idx_count = static_cast<int>(render.data->indices.size());
 			if(debug.limit_render_count)
 				debug_idx_count = static_cast<int>(2 * debug.render_count);
@@ -1900,6 +1869,8 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 
 			if (show_bbox)
 				bbox_rd.render(ctx, ref_box_renderer(ctx), bbox_style);
+
+			taa.end(ctx);
 		}
 
 		//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());
@@ -2030,24 +2001,11 @@ void on_tube_vis::create_gui(void) {
 	#else
 		"active=true";
 	#endif
-	if(begin_tree_node("TAA", taa.enable_taa, false)) {
+	if(begin_tree_node("TAA", taa, false)) {
 		align("\a");
-		add_member_control(this, "Enable", taa.enable_taa, "toggle", taa_controls_active);
-		add_member_control(this, "Sample Count", taa.jitter_sample_count, "value_slider", "min=4;max=32;step=4;"+taa_controls_active);
-		add_member_control(this, "Mix Factor", taa.mix_factor, "value_slider", "min=0;max=1;step=0.001;"+taa_controls_active);
-		add_member_control(this, "Jitter Scale", taa.jitter_scale, "value_slider", "min=0;max=1;step=0.001;"+taa_controls_active);
-
-		add_decorator("Resolve Settings", "heading", "level=3;"+taa_controls_active);
-		add_member_control(this, "Use Velocity", taa.use_velocity, "check", taa_controls_active);
-		add_member_control(this, "Use Closest Depth", taa.closest_depth, "check", taa_controls_active);
-		add_member_control(this, "Clip Color", taa.clip_color, "check", taa_controls_active);
-		add_member_control(this, "Static No-Clip", taa.static_no_clip, "check", taa_controls_active);
-
-		add_member_control(this, "Enable FXAA", taa.enable_fxaa, "toggle", taa_controls_active);
-		add_member_control(this, "FXAA Mix Factor", taa.fxaa_mix_factor, "value_slider", "min=0;max=1;step=0.0001;"+taa_controls_active);
-
+		taa.create_gui(this);
 		align("\b");
-		end_tree_node(taa.enable_taa);
+		end_tree_node(taa);
 	}
 
 	if(begin_tree_node("AO Style", ao_style, false)) {
@@ -2202,6 +2160,8 @@ void on_tube_vis::set_view(void)
 		clip_bbox.ref_max_pnt() += 0.25f*extent;
 		cview_ptr->set_scene_extent(clip_bbox);
 	}
+
+	taa.reset();
 }
 
 void on_tube_vis::update_grid_ratios(void) {
@@ -2533,9 +2493,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 #endif
 	// - node attribute data needed by both rasterization and raytracing
 	const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
-	// - TAA data that needs to be accessed across local scopes
-	mat4 curr_projection_matrix, curr_modelview_matrix;
-
+	
 #ifdef RTX_SUPPORT
 	if (!optix.enabled || !optix.initialized)
 #endif
@@ -2543,20 +2501,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// enable drawing framebuffer
 		fbc.enable(ctx);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		ctx.push_projection_matrix();
-
-		if(taa.enable_taa) {
-			// shear the projection matrix to jitter vertex positions
-			dmat4 m;
-			m.identity();
-
-			vec2 jitter_offset = taa.get_current_jitter_offset();
-			m(0, 2) = jitter_offset.x();
-			m(1, 2) = jitter_offset.y();
-
-			ctx.mul_projection_matrix(m);
-		}
 
 		// render tubes
 		auto &tstr = ref_textured_spline_tube_renderer(ctx);
@@ -2612,14 +2556,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
-		// store the current matrices to use as the previous for the next frame
-		curr_modelview_matrix = ctx.get_modelview_matrix();
-
-		ctx.pop_projection_matrix();
-
-		// need to store the projection matrix without jitter
-		curr_projection_matrix = ctx.get_projection_matrix();
-	
 		// disable the drawing framebuffer
 		fbc.disable(ctx);
 	}
@@ -2639,13 +2575,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
 #endif
 	{
 		// perform the deferred shading pass and draw the image into the shading framebuffer when not using OptiX (for now)
-
-		// only render into the shading framebuffer if we are using taa - otherwise render directly to the screen
-		if(taa.enable_taa) {
-			fbc_shading.enable(ctx);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		}
-		
 		shader_program& prog = shaders.get("tube_shading");
 		prog.enable(ctx);
 		// set render parameters
@@ -2748,127 +2677,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		prog.disable(ctx);
 
-		if(taa.enable_taa) {
-			// disable the shading framebuffer
-			fbc_shading.disable(ctx);
-		} else {
-			// if we are not using taa we are done here
-			if (playback.active)
-				post_redraw();
-			return;
-		}
-
-		glDepthFunc(GL_ALWAYS);
-
-		// perform a pass of fast approximate anti-aliasing (FXAA) befor the temporal accumulation
-		if(taa.enable_fxaa) {
-			// render the result to a seperate post-processing framebuffer
-			fbc_post.enable(ctx);
-
-			auto& fxaa_prog = shaders.get("fxaa");
-			fxaa_prog.enable(ctx);
-			fxaa_prog.set_uniform(ctx, "inverse_viewport_size", vec2(1.0f) / viewport_size);
-			fxaa_prog.set_uniform(ctx, "mix_factor", taa.fxaa_mix_factor);
-
-			fbc_shading.enable_attachment(ctx, "color", 0);
-
-			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-			fbc_shading.disable_attachment(ctx, "color");
-
-			fxaa_prog.disable(ctx);
-
-			fbc_post.disable(ctx);
-		}
-
-		// TODO: comment
-		bool first = !taa.accumulate;
-		if(taa.accumulate) {
-			// enable the final framebuffer to draw the resolved image into
-			fbc_final.enable(ctx);
-
-			auto& resolve_prog = shaders.get("taa_resolve");
-			resolve_prog.enable(ctx);
-			resolve_prog.set_uniform(ctx, "alpha", taa.mix_factor);
-
-			++taa.accumulate_count;
-			if(taa.accumulate_count > taa.jitter_sample_count - 1)
-				taa.accumulate_count = 0;
-
-			bool clip_enabled = !taa.static_no_clip;
-			if(taa.prev_eye_pos != cyclopic_eye || taa.prev_view_dir != view_dir || taa.prev_view_up_dir != view_up_dir) {
-				clip_enabled = true;
-				taa.static_frame_count = 0;
-			}
-
-			if(taa.static_frame_count < taa.jitter_sample_count) {
-				clip_enabled = taa.clip_color && !taa.static_frame_count;
-				++taa.static_frame_count;
-				post_redraw();
-			}
-			else if (playback.active)
-				post_redraw();
-
-			resolve_prog.set_uniform(ctx, "curr_projection_matrix", curr_projection_matrix);
-			resolve_prog.set_uniform(ctx, "curr_eye_to_prev_clip_matrix", taa.prev_modelview_projection_matrix * inv(curr_modelview_matrix));
-			resolve_prog.set_uniform(ctx, "settings.use_velocity", taa.use_velocity && clip_enabled);
-			resolve_prog.set_uniform(ctx, "settings.closest_depth", taa.closest_depth);
-			resolve_prog.set_uniform(ctx, "settings.clip_color", taa.clip_color && clip_enabled);
-
-			auto& color_src_fbc = taa.enable_fxaa ? fbc_post : fbc_shading;
-
-			color_src_fbc.enable_attachment(ctx, "color", 0);
-			fbc_hist.enable_attachment(ctx, "color", 1);
-			fbc.enable_attachment(ctx, "position", 2);
-			tex_depth.enable(ctx, 3);
-
-			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-			color_src_fbc.disable_attachment(ctx, "color");
-			fbc_hist.disable_attachment(ctx, "color");
-			fbc.disable_attachment(ctx, "position");
-			tex_depth.disable(ctx);
-
-			resolve_prog.disable(ctx);
-
-			// disable the final framebuffer
-			fbc_final.disable(ctx);
-		} else {
-			// arm accumulation
-			taa.accumulate = taa.enable_taa;
-			taa.accumulate_count = 0;
-			if (taa.accumulate || playback.active)
-				post_redraw();
-		}
-
-		auto& color_src_fbc = first ? (taa.enable_fxaa ? fbc_post : fbc_shading) : fbc_final;
-		
-		auto& screen_prog = shaders.get("screen");
-		screen_prog.enable(ctx);
-		screen_prog.set_uniform(ctx, "test", false);
-
-		color_src_fbc.enable_attachment(ctx, "color", 0);
-		tex_depth.enable(ctx, 1);
-
-		fbc_hist.enable(ctx);
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-		fbc_hist.disable(ctx);
-
-		screen_prog.set_uniform(ctx, "test", false);
-
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-		color_src_fbc.disable_attachment(ctx, "color");
-		tex_depth.disable(ctx);
-
-		screen_prog.disable(ctx);
-
-		glDepthFunc(GL_LESS);
-
-		taa.prev_eye_pos = cyclopic_eye;
-		taa.prev_view_dir = view_dir;
-		taa.prev_view_up_dir = view_up_dir;
-		taa.prev_modelview_projection_matrix = curr_projection_matrix * curr_modelview_matrix;
+		if(playback.active)
+			post_redraw();
 	}
 }
 

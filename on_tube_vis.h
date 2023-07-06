@@ -29,6 +29,9 @@
 // CGV framework GPU algorithms
 #include <cgv_gpgpu/visibility_sort.h>
 
+// CGV framework post processing algorithms
+#include <cgv_post/temporal_anti_aliasing.h>
+
 // local includes
 #include "traj_loader.h"
 #include "arclen_helper.h"
@@ -209,7 +212,7 @@ protected:
 	shader_define_map tube_shading_defines;
 
 	/// store a pointer to the view for fast access
-	view *view_ptr = nullptr;
+	//view *view_ptr = nullptr;
 
 	/// store the current OpenGL viewport configuration
 	GLint viewport[4];
@@ -265,105 +268,9 @@ protected:
 		vertex_buffer rtlola_map_vbo;
 	} dataset;
 
-	struct {
-		/// the number of samples used to jitter the projection matrix
-		size_t jitter_sample_count = 16;
+	cgv::post::temporal_anti_aliasing taa;
 
-		/// the viewport dependant jitter sample offsets
-		std::vector<vec2> jitter_offsets;
-		
-		/// the previous eye position (used to detect static frames)
-		vec3 prev_eye_pos = vec3(0.0f);
-
-		/// the previous view direction (used to detect static frames)
-		vec3 prev_view_dir = vec3(0.0f);
-
-		/// the previous view up direction (used to detect static frames)
-		vec3 prev_view_up_dir = vec3(0.0f);
-		
-		/// the previous modelview-projection matrix
-		mat4 prev_modelview_projection_matrix;
-
-		/// if temporal accumulation is active
-		bool accumulate = false;
-
-		/// number of so-far accumulated frames (is reset upon reaching <n_jitter_samples>)
-		unsigned accumulate_count = 0;
-
-		/// keep track of the number of static frames (no camera movement) rendered,
-		/// to request new frames if the accumulation is not finished
-		unsigned static_frame_count = 0;
-		
-		/// TAA settings:
-		/// whether to enable temporal anti-aliasing
-		bool enable_taa = true;
-
-		/// influence of the new frame on the history color
-		float mix_factor = 0.125f;
-
-		/// scale for the jitter offsets
-		float jitter_scale = 0.5f;
-
-		/// whether to use the velocity to offset history buffer samples (reduces motion blur)
-		bool use_velocity = true;
-
-		/// whether to use the closest depth sample to get the position (improves thin features)
-		bool closest_depth = true;
-
-		/// whether to clip the sampled history color (reduces ghosting)
-		bool clip_color = true;
-
-		/// whether to disable color clipping for static views to reduce flicker
-		bool static_no_clip = true;
-
-		/// FXAA settings:
-		/// whether to enable fast approximate anti-aliasing before accumulation
-		bool enable_fxaa = true;
-
-		/// influence factor of fxaa result with input image
-		float fxaa_mix_factor = 0.5f;
-
-		void reset() {
-			accumulate = false;
-			static_frame_count = 0;
-		}
-
-		float van_der_corput(int n, int base)
-		{
-			float vdc = 0.0f;
-			int denominator = 1;
-
-			while(n > 0) {
-				denominator *= base;
-				int remainder = n % base;
-				n /= base;
-				vdc += remainder / static_cast<float>(denominator);
-			}
-
-			return vdc;
-		}
-
-		vec2 sample_halton_2d(unsigned k, int base1, int base2) {
-			return vec2(van_der_corput(k, base1), van_der_corput(k, base2));
-		}
-
-		void generate_jitter_offsets(ivec2 viewport_size)
-		{
-			const vec2 vps = static_cast<vec2>(viewport_size);
-			jitter_offsets.clear();
-			for(size_t i = 0; i < jitter_sample_count; ++i) {
-				vec2 sample = sample_halton_2d(static_cast<unsigned>(i + 1), 2, 3);
-				vec2 offset = (2.0f * sample - 1.0f) / vps;
-				jitter_offsets.push_back(offset);
-			}
-		}
-
-		vec2 get_current_jitter_offset() {
-			return jitter_scale* jitter_offsets[accumulate_count];
-		}
-	} taa;
-
-	cgv::render::managed_frame_buffer fbc, fbc_shading, fbc_post, fbc_hist, fbc_final;
+	cgv::render::managed_frame_buffer fbc;
 	cgv::render::shader_library shaders;
 	volume_render_style vstyle;
 	cgv::render::gl_color_map volume_tf;

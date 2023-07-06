@@ -5,5 +5,5 @@ projectGUID="B7A17EFF-BA77-42EB-BF05-59A9CA40C83E";
 addProjectDeps=[
 	"cgv_utils", "cgv_type", "cgv_reflect", "cgv_data", "cgv_signal", "cgv_base", "cgv_media", 
 	"cgv_gui", "cgv_render", "cgv_os", "cgv_viewer", "glew", "cgv_gl", "cg_fltk", "cg_ext", 
-	"cmi_io", "crg_holo_view", "crg_light", "crg_grid", "cgv_g2d", "cgv_app", "cgv_gpgpu", "cuda_resprep"
+	"cmi_io", "crg_holo_view", "crg_light", "crg_grid", "cgv_g2d", "cgv_app", "cgv_post", "cgv_gpgpu", "cuda_resprep"
 ];

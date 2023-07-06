@@ -74,8 +74,8 @@ vec2 calculate_velocity_from_position(in float depth, in vec3 position) {
 	return 0.5*(curr_pos_clip.xy - prev_pos_clip.xy);
 }
 
-void main()
-{
+void main() {
+
 	float depth = texture(depth_tex, texcoord_fs).r;
 	vec3 curr_color = texture(curr_color_tex, texcoord_fs).rgb;
 
