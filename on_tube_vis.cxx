@@ -586,26 +586,36 @@ void on_tube_vis::handle_transfer_function_change() {
 }
 
 void on_tube_vis::on_set(void *member_ptr) {
+
+	handle_member_change(cgv::utils::pointer_test(member_ptr));
+}
+
+void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
+
 	// control flags
-	bool do_full_gui_update=false, data_set_changed=false, from_demo=false, reset_taa=true;
+	bool do_full_gui_update = false, data_set_changed = false, from_demo = false, reset_taa = true;
 
 	// internal state flags
 	// - configurable datapath
-	if (member_ptr == &datapath_helper.file_name && !datapath_helper.file_name.empty()) {
-		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
-		traj_mgr.clear();
-		cgv::utils::stopwatch s(true);
-		std::cout << "Reading data set from " << datapath_helper.file_name << " ..." << std::endl;
-		if(traj_mgr.load(datapath_helper.file_name) != -1) {
-			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
-			dataset.files.clear();
-			dataset.files.emplace(datapath_helper.file_name);
+	if(m.is(datapath_helper.file_name)) {
+		const auto& file_name = datapath_helper.file_name;
+		if(!file_name.empty()) {
+			from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
+			traj_mgr.clear();
+			cgv::utils::stopwatch s(true);
+			std::cout << "Reading data set from " << file_name << " ..." << std::endl;
 
-			data_set_changed = true;
+			if(traj_mgr.load(file_name) != -1) {
+				std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+				dataset.files.clear();
+				dataset.files.emplace(file_name);
+
+				data_set_changed = true;
+			}
 		}
 	}
 	// - non-configurable dataset logic
-	else if (member_ptr == &dataset) {
+	else if(m.is(dataset)) {
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		// clear current dataset
 		datapath_helper.file_name.clear();
@@ -613,7 +623,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 
 		// load new data
 		bool loaded_something = false;
-		for(const auto &file : dataset.files) {
+		for(const auto& file : dataset.files) {
 			cgv::utils::stopwatch s(true);
 			std::cout << "Reading data set from " << file << " ..." << std::endl;
 			loaded_something = traj_mgr.load(file) != -1 || loaded_something;
@@ -626,28 +636,28 @@ void on_tube_vis::on_set(void *member_ptr) {
 			data_set_changed = true;
 	}
 
-	if (data_set_changed) {
+	if(data_set_changed) {
 		render.data = &(traj_mgr.get_render_data());
-		if (from_demo) {
+		if(from_demo) {
 			ao_style = ao_style_bak;	// reset from handcrafted AO settings
 			update_member(&ao_style);
 		}
-		if (traj_mgr.dataset(0).name().compare("rtlola_droneflight") == 0)
+		if(traj_mgr.dataset(0).name().compare("rtlola_droneflight") == 0)
 			dataset.is_rtlola = true;
 
 		// print out attribute statistics
-		const auto &ds = traj_mgr.dataset(0);
-		std::cerr << "Avg. segment length: "<<ds.avg_segment_length() << "Data attributes:" << std::endl;
-		for (const auto &a : ds.attributes())
-			std::cerr << " - ["<<a.first<<"] - "<<a.second.get_timestamps().size()<<" samples" << std::endl;
+		const auto& ds = traj_mgr.dataset(0);
+		std::cerr << "Avg. segment length: " << ds.avg_segment_length() << "Data attributes:" << std::endl;
+		for(const auto& a : ds.attributes())
+			std::cerr << " - [" << a.first << "] - " << a.second.get_timestamps().size() << " samples" << std::endl;
 		std::cerr << std::endl;
-		SET_MEMBER(render.style.cap_clip_distance, ds.avg_segment_length()*20.f);
+		SET_MEMBER(render.style.cap_clip_distance, ds.avg_segment_length() * 20.f);
 #ifdef RTX_SUPPORT
 		// ###############################
 		// ### BEGIN: OptiX integration
 		// ###############################
 
-		if (optix.initialized)
+		if(optix.initialized)
 			optix_unregister_resources();
 
 		// ###############################
@@ -663,7 +673,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 		compile_glyph_attribs();
 		ah_mgr.set_dataset(traj_mgr.dataset(0));
 
-		context &ctx = *get_context();
+		context& ctx = *get_context();
 		tube_shading_defines = build_tube_shading_defines();
 		shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
@@ -677,7 +687,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 		// ### BEGIN: OptiX integration
 		// ###############################
 
-		if (optix.initialized) {
+		if(optix.initialized) {
 			optix.tracer_russig.update_accelds(render.data);
 			optix.tracer_phantom.update_accelds(render.data);
 			optix.tracer_builtin.update_accelds(render.data);
@@ -693,69 +703,65 @@ void on_tube_vis::on_set(void *member_ptr) {
 	}
 
 	// render settings
-	if (member_ptr == &debug.highlight_segments ||
-	    member_ptr == &ao_style.enable ||
-	    member_ptr == &grid_mode ||
-	    member_ptr == &grid_normal_settings ||
-	    member_ptr == &grid_normal_inwards ||
-	    member_ptr == &grid_normal_variant ||
-	    member_ptr == &enable_fuzzy_grid)
-	{
+	if(m.one_of(debug.highlight_segments,
+				ao_style.enable,
+				grid_mode,
+				grid_normal_settings,
+				grid_normal_inwards,
+				grid_normal_variant,
+				enable_fuzzy_grid)) {
 		shader_define_map defines = build_tube_shading_defines();
-		if (defines != tube_shading_defines) {
+		if(defines != tube_shading_defines) {
 			context& ctx = *get_context();
 			tube_shading_defines = defines;
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
 		}
 	}
-	
-	if (member_ptr == &taa.jitter_sample_count && taa.enable_taa)
-		taa.generate_jitter_offsets({fbc.ref_frame_buffer().get_width(), fbc.ref_frame_buffer().get_height()});
 
-	if(member_ptr == &taa.mix_factor)
+	if(m.is(taa.jitter_sample_count) && taa.enable_taa)
+		taa.generate_jitter_offsets({ fbc.ref_frame_buffer().get_width(), fbc.ref_frame_buffer().get_height() });
+
+	if(m.is(taa.mix_factor))
 		taa.mix_factor = cgv::math::clamp(taa.mix_factor, 0.0f, 1.0f);
 
 	// - debug render setting
-	if (member_ptr == &debug.force_initial_order) {
+	if(m.is(debug.force_initial_order)) {
 		update_attribute_bindings();
 	}
 
-	if (member_ptr == &debug.render_percentage) {
+	if(m.is(debug.render_percentage)) {
 		debug.render_count = static_cast<size_t>(debug.render_percentage * debug.segment_count);
 		update_member(&debug.render_count);
 	}
 
-	if (member_ptr == &debug.render_count) {
+	if(m.is(debug.render_count)) {
 		debug.render_percentage = static_cast<float>(debug.render_count) / static_cast<float>(debug.segment_count);
 		update_member(&debug.render_percentage);
 	}
 
-	if (member_ptr == &debug.render_mode) {
+	if(m.is(debug.render_mode)) {
 		update_debug_attribute_bindings();
 	}
 
 	// voxelization settings
-	if (member_ptr == &voxel_grid_resolution || member_ptr == &voxelize_gpu || member_ptr == &render.style.radius_scale)
-	{
+	if(m.one_of(voxel_grid_resolution, voxelize_gpu, render.style.radius_scale)) {
 		context& ctx = *get_context();
 		voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(cgv::math::clamp(static_cast<unsigned>(voxel_grid_resolution), 16u, 512u));
 		create_density_volume(ctx, voxel_grid_resolution);
 
-		if(member_ptr == &render.style.radius_scale) {
+		if(m.is(render.style.radius_scale)) {
 			update_grid_ratios();
 			glyphs_out_of_date(true);
 		}
 	}
 
 	// visualization settings
-	if (member_ptr == &(render.visualizations.front().manager))
-	{
-		auto &glyph_layer_mgr = render.visualizations.front().manager;
-		auto &glyph_layers_config = render.visualizations.front().config;
+	if(m.is(render.visualizations.front().manager)) {
+		auto& glyph_layer_mgr = render.visualizations.front().manager;
+		auto& glyph_layers_config = render.visualizations.front().config;
 		const auto action = glyph_layer_mgr.action_type();
 		bool changes = false;
-		if (action == AT_CONFIGURATION_CHANGE)
-		{
+		if(action == AT_CONFIGURATION_CHANGE) {
 			glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 			context& ctx = *get_context();
@@ -763,77 +769,72 @@ void on_tube_vis::on_set(void *member_ptr) {
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
 			compile_glyph_attribs();
-			
+
 			changes = true;
 			do_full_gui_update = true;
-		}
-		else if (action == AT_CONFIGURATION_VALUE_CHANGE) {
+		} else if(action == AT_CONFIGURATION_VALUE_CHANGE) {
 			glyph_layers_config = glyph_layer_mgr.get_configuration();
 			glyphs_out_of_date(true);
 			changes = true;
-		} else if (action == AT_MAPPING_VALUE_CHANGE) {
+		} else if(action == AT_MAPPING_VALUE_CHANGE) {
 			glyphs_out_of_date(true);
 			changes = true;
 		}
 
-		if (changes) {
+		if(changes) {
 			layer_config_has_unsaved_changes = true;
 			on_set(&layer_config_has_unsaved_changes);
 		}
 	}
 
-	if (member_ptr == &color_map_mgr)
-	{
-		switch(color_map_mgr.action_type())
+	if(m.is(color_map_mgr)) {
+		switch(color_map_mgr.action_type()) {
+		case AT_CONFIGURATION_CHANGE:
 		{
-			case AT_CONFIGURATION_CHANGE:
-			{
-				if(cm_editor_ptr) {
-					const auto& color_maps = color_map_mgr.ref_color_maps();
-					const auto* edit_cm_ptr = cm_editor_ptr->get_color_map();
-					for(size_t i = 0; i < color_maps.size(); ++i) {
-						if(&color_maps[i].cm == edit_cm_ptr) {
-							// TODO: use smart pointers for color map and in manager
-							cm_editor_ptr->set_color_map(nullptr);
-							cm_editor_ptr->set_visibility(false);
-						}
+			if(cm_editor_ptr) {
+				const auto& color_maps = color_map_mgr.ref_color_maps();
+				const auto* edit_cm_ptr = cm_editor_ptr->get_color_map();
+				for(size_t i = 0; i < color_maps.size(); ++i) {
+					if(&color_maps[i].cm == edit_cm_ptr) {
+						// TODO: use smart pointers for color map and in manager
+						cm_editor_ptr->set_color_map(nullptr);
+						cm_editor_ptr->set_visibility(false);
 					}
 				}
-				render.visualizations.front().manager.set_color_map_names(color_map_mgr.get_names());
-
-				color_map_mgr.update_texture(*get_context());
-				if(cm_viewer_ptr) {
-					cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
-					cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
-				}
-
-				do_full_gui_update = true;
-				break;
 			}
-			case AT_EDIT_REQUEST:
-				if(cm_editor_ptr) {
-					int idx = color_map_mgr.edit_index();
-					if(idx > -1 && idx < color_map_mgr.ref_color_maps().size()) {
-						cm_editor_ptr->set_color_map(&(color_map_mgr.ref_color_maps()[idx].cm));
-						cm_editor_ptr->set_visibility(true);
-					}
+			render.visualizations.front().manager.set_color_map_names(color_map_mgr.get_names());
+
+			color_map_mgr.update_texture(*get_context());
+			if(cm_viewer_ptr) {
+				cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
+				cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+			}
+
+			do_full_gui_update = true;
+			break;
+		}
+		case AT_EDIT_REQUEST:
+			if(cm_editor_ptr) {
+				int idx = color_map_mgr.edit_index();
+				if(idx > -1 && idx < color_map_mgr.ref_color_maps().size()) {
+					cm_editor_ptr->set_color_map(&(color_map_mgr.ref_color_maps()[idx].cm));
+					cm_editor_ptr->set_visibility(true);
 				}
-				break;
-			default: break;
+			}
+			break;
+		default: break;
 		}
 		// TODO: add case for value change action type
 		layer_config_has_unsaved_changes = true;
 		on_set(&layer_config_has_unsaved_changes);
 	}
 
-	if (member_ptr == &layer_config_file_helper.file_name)
-	{
+	if(m.is(layer_config_file_helper.file_name)) {
 		std::string& file_name = layer_config_file_helper.file_name;
 
-		if(layer_config_file_helper.save())
-		{
+		if(layer_config_file_helper.save()) {
 			layer_config_file_helper.ensure_extension("xml");
-			
+
 			if(layer_config_file_helper.compare_extension("xml")) {
 				if(save_layer_configuration(file_name)) {
 					layer_config_has_unsaved_changes = false;
@@ -844,9 +845,7 @@ void on_tube_vis::on_set(void *member_ptr) {
 			} else {
 				std::cout << "Please specify a xml file name." << std::endl;
 			}
-		}
-		else
-		{
+		} else {
 			/*
 			#ifndef CGV_FORCE_STATIC
 					// TODO: implemenmt
@@ -870,31 +869,29 @@ void on_tube_vis::on_set(void *member_ptr) {
 				}
 			}
 		}
-		
+
 	}
 
-	if (member_ptr == &layer_config_has_unsaved_changes) {
+	if(m.is(layer_config_has_unsaved_changes)) {
 		auto ctrl = find_control(layer_config_file_helper.file_name);
 		if(ctrl)
 			ctrl->set("text_color", layer_config_has_unsaved_changes ? cgv::gui::theme_info::instance().warning_hex() : "");
 	}
 
-	if (member_ptr == &show_hidden_glyphs)
+	if(m.is(show_hidden_glyphs))
 		compile_glyph_attribs();
 
 	// playback controls
-	if (member_ptr == &playback.active && playback.active)
-	{
+	if(m.is(playback.active) && playback.active) {
 		playback.timer.add_time();
 		render.style.max_t =
 			render.style.max_t >= (float)playback.tend ? (float)playback.tstart : render.style.max_t;
-		const auto &ds = traj_mgr.dataset(0);
-		const auto &pos = ds.positions();
-		const auto &traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
+		const auto& ds = traj_mgr.dataset(0);
+		const auto& pos = ds.positions();
+		const auto& traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
 		playback.follow_last_nid = find_sample(pos.attrib, traj_range, render.style.max_t);
 	}
-	if (member_ptr == &playback.follow_traj)
-	{
+	if(m.is(playback.follow_traj)) {
 		const auto& ds = traj_mgr.dataset(0);
 		const auto& pos = ds.positions();
 		const auto& traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
@@ -903,19 +900,18 @@ void on_tube_vis::on_set(void *member_ptr) {
 
 	// misc settings
 	// - instant redraw
-	if (member_ptr == &misc_cfg.instant_redraw_proxy)
+	if(m.is(misc_cfg.instant_redraw_proxy))
 		// ToDo: handle the (virtually impossible) case that some other plugin than cg_fltk provides the gl_context
-		dynamic_cast<fltk_gl_view*>(get_context())->set_void("instant_redraw", "bool", member_ptr);
+		dynamic_cast<fltk_gl_view*>(get_context())->set_void("instant_redraw", "bool", m.ptr);
 	// - vsync
-	if (member_ptr == &misc_cfg.vsync_proxy)
+	if(m.is(misc_cfg.vsync_proxy))
 		// ToDo: handle the (virtually impossible) case that some other plugin than cg_fltk provides the gl_context
-		dynamic_cast<fltk_gl_view*>(get_context())->set_void("vsync", "bool", member_ptr);
+		dynamic_cast<fltk_gl_view*>(get_context())->set_void("vsync", "bool", m.ptr);
 	// - fix view up dir
-	else if (member_ptr == &misc_cfg.fix_view_up_dir_proxy)
+	else if(m.is(misc_cfg.fix_view_up_dir_proxy))
 		dynamic_cast<node*>(find_view_as_node())->set("fix_view_up_dir", misc_cfg.fix_view_up_dir_proxy);
 
-	if (member_ptr == &test_dir[0] || member_ptr == &test_dir[1] || member_ptr == &test_dir[2])
-	{
+	if(m.member_of(test_dir)) {
 		test_dir = normalize(test_dir);
 		update_member(&test_dir[0]);
 		update_member(&test_dir[1]);
@@ -923,10 +919,10 @@ void on_tube_vis::on_set(void *member_ptr) {
 	}
 
 	// In case of timestep thresholding we don't want to reset TAA
-	if (member_ptr == &render.style.max_t)
+	if(m.is(render.style.max_t))
 		reset_taa = false;
 
-	if(member_ptr == &render.style.use_ribbons) {
+	if(m.is(render.style.use_ribbons)) {
 		general_settings.use_curvature_correction = !render.style.use_ribbons;
 		update_member(&general_settings.use_curvature_correction);
 		reset_taa = true;
@@ -937,82 +933,74 @@ void on_tube_vis::on_set(void *member_ptr) {
 	/* ### BEGIN: OptiX integration */ {
 	// ###############################
 
+		const auto push_optix_holo_taa_state = [this]() {
+			optix.prev_TAA_state = taa.enable_taa;
+			taa.enable_taa = false;
+			context& ctx = *get_context();
+			const ivec2 fbsize(ctx.get_width() * 3, ctx.get_height());
+			fbc.set_size(fbsize);
+			fbc.ensure(ctx);
+			optix.fb.depth.set_resolution(0, fbsize.x());
+			optix.fb.depth.set_resolution(1, fbsize.y());
+			optix.fb.depth.ensure_state(ctx);
+			update_member(&taa.enable_taa);
+		};
+		const auto pop_optix_holo_taa_state = [this]() {
+			taa.enable_taa = optix.prev_TAA_state;
+			context& ctx = *get_context();
+			const ivec2 fbsize(ctx.get_width() * 3, ctx.get_height());
+			fbc.set_size({ (int)ctx.get_width(), (int)ctx.get_height() });
+			fbc.ensure(ctx);
+			optix.fb.depth.set_resolution(0, fbsize.x());
+			optix.fb.depth.set_resolution(1, fbsize.y());
+			optix.fb.depth.ensure_state(ctx);
+			update_member(&taa.enable_taa);
+		};
 
-	const auto push_optix_holo_taa_state = [this]() {
-		optix.prev_TAA_state = taa.enable_taa;
-		taa.enable_taa = false;
-		context &ctx = *get_context();
-		const ivec2 fbsize(ctx.get_width()*3, ctx.get_height());
-		fbc.set_size(fbsize);
-		fbc.ensure(ctx);
-		optix.fb.depth.set_resolution(0, fbsize.x());
-		optix.fb.depth.set_resolution(1, fbsize.y());
-		optix.fb.depth.ensure_state(ctx);
-		update_member(&taa.enable_taa);
-	};
-	const auto pop_optix_holo_taa_state = [this]() {
-		taa.enable_taa = optix.prev_TAA_state;
-		context &ctx = *get_context();
-		const ivec2 fbsize(ctx.get_width()*3, ctx.get_height());
-		fbc.set_size({(int)ctx.get_width(), (int)ctx.get_height()});
-		fbc.ensure(ctx);
-		optix.fb.depth.set_resolution(0, fbsize.x());
-		optix.fb.depth.set_resolution(1, fbsize.y());
-		optix.fb.depth.ensure_state(ctx);
-		update_member(&taa.enable_taa);
-	};
-
-	if (member_ptr == &taa.enable_taa)
-		optix.prev_TAA_state = taa.enable_taa;
-	else if (member_ptr == &optix.enabled)
-	{
-		if (optix.enabled) {
-			if (optix_ensure_init(*get_context())) {
-				if (optix.holographic) {
-					push_optix_holo_taa_state();
-					do_full_gui_update = true;
-				}
+		if(m.is(taa.enable_taa))
+			optix.prev_TAA_state = taa.enable_taa;
+		else if(m.is(optix.enabled)) {
+			if(optix.enabled) {
+				if(optix_ensure_init(*get_context())) {
+					if(optix.holographic) {
+						push_optix_holo_taa_state();
+						do_full_gui_update = true;
+					}
+				} else
+					optix.enabled = false;
+			} else {
+				pop_optix_holo_taa_state();
+				do_full_gui_update = true;
 			}
+		} else if(m.is(optix.primitive)) {
+			if(optix.primitive == OPR_PHANTOM)
+				optix.tracer = &optix.tracer_phantom;
+			else if(optix.primitive == OPR_BUILTIN)
+				optix.tracer = &optix.tracer_builtin;
+			else if(optix.primitive == OPR_BUILTIN_CUBIC)
+				optix.tracer = &optix.tracer_builtin_cubic;
 			else
-				optix.enabled = false;
-		}
-		else {
-			pop_optix_holo_taa_state();
+				optix.tracer = &optix.tracer_russig;
+		} else if(m.is(optix.holographic) && optix.enabled) {
+			if(optix.holographic)
+				push_optix_holo_taa_state();
+			else
+				pop_optix_holo_taa_state();
 			do_full_gui_update = true;
 		}
-	}
-	else if (member_ptr == &optix.primitive)
-	{
-		if (optix.primitive == OPR_PHANTOM)
-			optix.tracer = &optix.tracer_phantom;
-		else if (optix.primitive == OPR_BUILTIN)
-			optix.tracer = &optix.tracer_builtin;
-		else if (optix.primitive == OPR_BUILTIN_CUBIC)
-			optix.tracer = &optix.tracer_builtin_cubic;
-		else
-			optix.tracer = &optix.tracer_russig;
-	}
-	else if (member_ptr == &optix.holographic && optix.enabled)
-	{
-		if (optix.holographic)
-			push_optix_holo_taa_state();
-		else
-			pop_optix_holo_taa_state();
-		do_full_gui_update = true;
-	}
 
-	// ###############################
-	/* ###  END:  OptiX integration */ }
-	// ###############################
+		// ###############################
+		/* ###  END:  OptiX integration */ }
+		// ###############################
 #endif
 
 	// default implementation for all members
 	// - update GUI
-	update_member(member_ptr);
-	if (do_full_gui_update)
+	update_member(const_cast<void*>(m.ptr));
+	if(do_full_gui_update)
 		post_recreate_gui();
 	// - reset TAA
-	if (reset_taa)
+	if(reset_taa)
 		taa.reset();
 	else
 		taa.static_frame_count = 0; // Just make sure we keep multisampling
@@ -2609,7 +2597,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		int count = static_cast<int>(render.data->indices.size() / 2);
 		if(debug.limit_render_count) {
-			//count = static_cast<int>(render.percentage * count);
 			count = static_cast<int>(debug.render_count);
 		}
 

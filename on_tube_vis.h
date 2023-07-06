@@ -584,6 +584,7 @@ public:
 	void handle_color_map_change();
 	void handle_transfer_function_change();
 	void on_set(void* member_ptr);
+	void handle_member_change(const cgv::utils::pointer_test& m);
 	bool on_exit_request();
 
 	bool init(context& ctx);
