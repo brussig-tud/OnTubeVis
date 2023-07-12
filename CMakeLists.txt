@@ -24,7 +24,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 505e492618a4cdc8fb1b3095909b418a30ed432a
+		GIT_TAG 7115ab65a7e944385dba08443b1ad8fd43e775ed
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -130,6 +130,7 @@ set(HEADERS
 	glyph_shapes.h
 	gui_util.h
 	hermite_spline_tube.h
+	layer_config_io.h
 	obd_handler.h
 	on_tube_vis.h
 	quadratic_bezier_tube.h
@@ -157,12 +158,16 @@ set (SHADERS
 	glsl/surface_mod.glsl
 	glsl/taa_resolve.glfs
 	glsl/taa_resolve.glpr
-	glsl/textured_spline_tube_shading.glfs
-	glsl/textured_spline_tube_shading.glpr
+	textured_spline_ribbon.glfs
+	textured_spline_ribbon.glgs
+	textured_spline_ribbon.glpr
+	textured_spline_ribbon.glvs
 	glsl/textured_spline_tube.glfs
 	glsl/textured_spline_tube.glgs
 	glsl/textured_spline_tube.glpr
 	glsl/textured_spline_tube.glvs
+	glsl/textured_spline_tube_shading.glfs
+	glsl/textured_spline_tube_shading.glpr
 	glsl/voxelize.glcs
 )
 # - add contitional source files
