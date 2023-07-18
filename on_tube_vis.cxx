@@ -1194,7 +1194,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	success &= density_volume.init(ctx, 0);
 
-	render.sorter.set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent;");
+	render.sorter.set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent; vec4 t;");
 	render.sorter.set_auxiliary_type_override("uint a_idx; uint b_idx;");
 
 	std::string key_definition =
