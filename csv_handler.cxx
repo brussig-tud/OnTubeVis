@@ -1140,3 +1140,27 @@ cgv::base::object_registration_2<
 	),
 	"csv handler (float) - " + csv_rtlola_desc.name()
 );
+
+// Register handler for SimpleDebugTrace .csv files
+static const csv_descriptor csv_dbg_trace_desc("SimpleDebugTrace", ",", {
+	{ "time", {"dbg_time", true, 0}, CSV::TIMESTAMP },
+	{ "position",  {{"dbg_x", true, 1}, {"dbg_y", true, 2}, {"dbg_z", true, 3}}, CSV::POS },
+	{ "dbg_attrib1", {"dbg_attrib1", true, 4}} }
+);
+
+cgv::base::object_registration_2<
+	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>
+> csv_dbg_trace_reg(
+	csv_dbg_trace_desc,
+	visual_attribute_mapping<float>({
+		{VisualAttrib::RADIUS, {
+			// increase radius a bit to get thicker tubes with more visible area
+			"radius", attrib_transform<float>::real_to_real(
+				[](float &out, const float &in) {
+					out = in;
+				}
+			)
+		 }}}
+	),
+	"csv handler (float) - " + csv_dbg_trace_desc.name()
+);
