@@ -15,8 +15,7 @@ namespace cgv { // @<
 			counter decreases to 0, singelton renderer is destructed. */
 		extern textured_spline_tube_renderer& ref_textured_spline_tube_renderer(context& ctx, int ref_count_change = 0);
 
-		/*!	Style to control the look of textured spline tubes.
-		*/
+		/*!	Style to control the look of textured spline tubes. */
 		struct textured_spline_tube_render_style : public surface_render_style
 		{
 			/// multiplied to the tube radius, initialized to 1
@@ -42,8 +41,6 @@ namespace cgv { // @<
 				BG_ALIGNED_BOX_BILLBOARD_SPLITSIMUL1 = 7, // same as BG_ALIGNED_BOX_BILLBOARD, but subdividing the billboard 2 quads using a SINGLE triangle strip to simulate geometry load of splitting at inflection points
 				BG_ALIGNED_BOX_BILLBOARD_SPLITSIMUL2 = 8 // same as BG_ALIGNED_BOX_BILLBOARD, but subdividing the billboard 2 quads using TWO triangle strips to simulate geometry load of splitting at inflection points
 			} bounding_geometry;
-			/// whether to use ribbon primitives instead of tubes (ignores bounding geometry setting)
-			bool use_ribbons;
 			/// specifies the degree of attributeless-ness the renderer should be.
 			enum AttribMode
 			{
@@ -53,11 +50,13 @@ namespace cgv { // @<
 				AM_ATTRIBLESS = AM_CURVELESS | AM_COLORLESS // don't store any shader-generated data in proxy geometry attributes (only segment ID and subcurve index will be stored)
 			} attrib_mode;
 			/// specifies the intersection routine to use
-			enum Interesctor
+			enum LinePrimitive
 			{
-				IS_RUSSIG = 0,                              // use intersector for swept-sphere spline tubes by Russig et al.
-				IS_PHANTOM = 1                              // use swept-disc Phantom Ray Hair intersector by Reshetov and Lübke.
-			} intersector;
+				LP_TUBE_RUSSIG = 0,                         // use intersector for swept-sphere spline tubes by Russig et al.
+				LP_TUBE_PHANTOM = 1,                        // use swept-disc Phantom Ray Hair intersector by Reshetov and Lübke
+				LP_RIBBON_RUSSIG = 2,                        // use raycasted view-aligned ribbon by Russig et al.
+				LP_RIBBON_GEOMETRY = 3,                     // use geometry-shader based triangle-strip tessellated view-aligned ribbon (ignores bounding geometry style options)
+			} line_primitive;
 			/// whether to use conservative depth extension to re-enable early depth testing
 			bool use_conservative_depth;
 			/// whether to calculate tangents from the cubic hermite definition or from the two quadratic bezier segments
@@ -70,8 +69,18 @@ namespace cgv { // @<
 			float max_t;
 			/// fill this with the information what the earliest and latest timestamps among all position samples in your data are
 			std::pair<float, float> data_t_minmax;
+
 			/// construct with default values
 			textured_spline_tube_render_style();
+
+			/// check wether chosen line primtive is a tube
+			inline bool is_tube (void) const {
+				return line_primitive < 2;
+			}
+			/// check wether chosen line primtive is a ribbon
+			inline bool is_ribbon (void) const {
+				return line_primitive > 1;
+			}
 		};
 
 		/// renderer that supports textured cubic hermite spline tubes
@@ -92,6 +101,8 @@ namespace cgv { // @<
 			vec4 viewport;
 			/// additional defines not dependant on the style and set from outside the renderer
 			shader_define_map additional_defines;
+			/// keep track of which line primitive was active the last time the renderer drew something
+			textured_spline_tube_render_style::LinePrimitive last_active_line_primitive;
 			/// overload to allow instantiation of box_renderer
 			render_style* create_render_style() const;
 			/// update shader defines based on render style
