@@ -246,7 +246,8 @@ uniform float radius_scale;
 uniform vec4 viewport;
 uniform float max_t;
 uniform float linearity_thr = .015625;
-uniform float subdiv_abort_thr = 4;
+uniform float screwiness_thr = .9375;
+uniform float subdiv_abort_thr = 512;
 
 
 struct node_data_type {
@@ -653,7 +654,7 @@ void main()
 			}
 
 			// Evaluate subdivision criteria and proceed accordingly
-			if (  (nonlinearness(curve) < linearity_thr && nonlinearness(radius) < linearity_thr && dot(bt[0], bt[1]) > .75)
+			if (  (nonlinearness(curve) < linearity_thr && nonlinearness(radius) < linearity_thr && dot(bt[0], bt[1]) > screwiness_thr)
 			    || sp > STACK_OVERFLOW_THRESHOLD || subdiv_abort)
 			{
 				// Subcurve is linear enough, intersect bilinear patch
@@ -759,15 +760,14 @@ void main()
 		);
 
 		// Shade fragment
+		float t_seg = .5*t + t_offset_fs;
 		#if defined(DBG_VISUALIZE_STATS) && DBG_VISUALIZE_STATS!=0
-			float svis;
+			float svis =
 			#if DBG_VISUALIZE_STATS==1
-				svis = min(iterations/75., 1.);
+				min(iterations/75., 1.);
 			#elif DBG_VISUALIZE_STATS==2
-				svis = min(stackusage/float(MAX_INTERSECTION_STACK_SIZE-1), 1.);
+				min(stackusage/float(MAX_INTERSECTION_STACK_SIZE-1), 1.);
 			#endif
-		#else
-			float t_seg = .5*t + t_offset_fs;
 		#endif
 		vec4 color = 
 			#if defined(DBG_VISUALIZE_LEAF_BBOXES) && DBG_VISUALIZE_LEAF_BBOXES!=0

@@ -54,8 +54,8 @@ namespace cgv { // @<
 			{
 				LP_TUBE_RUSSIG = 0,                         // use intersector for swept-sphere spline tubes by Russig et al.
 				LP_TUBE_PHANTOM = 1,                        // use swept-disc Phantom Ray Hair intersector by Reshetov and Lübke
-				LP_RIBBON_RUSSIG = 2,                        // use raycasted view-aligned ribbon by Russig et al.
-				LP_RIBBON_GEOMETRY = 3,                     // use geometry-shader based triangle-strip tessellated view-aligned ribbon (ignores bounding geometry style options)
+				LP_RIBBON_RAYCASTED = 2,                    // use raycasted view-aligned ribbon
+				LP_RIBBON_GEOMETRY = 3                      // use geometry-shader based triangle-strip tessellated view-aligned ribbon (ignores bounding geometry style options)
 			} line_primitive;
 			/// whether to use conservative depth extension to re-enable early depth testing
 			bool use_conservative_depth;
@@ -69,6 +69,44 @@ namespace cgv { // @<
 			float max_t;
 			/// fill this with the information what the earliest and latest timestamps among all position samples in your data are
 			std::pair<float, float> data_t_minmax;
+
+			/// special parameters for raycasted ribbon
+			struct {
+				/// linearity threshold at which to stop subdividing (0 means completely linear)
+				float linearity_thr;
+				/// threshold for the cosine of the maximum angle difference of bitangents allowed in a patch until which to keep subdividing
+				float screwiness_thr;
+				/// minimum subcurve length at which to force-stop subdividing, in multiples of machine epsilon
+				float subdiv_abort_thr;
+				/// defines the maximum depth of the subcurve stack - when the stack reaches this threshold, subcurves are intersected
+				/// as-is even if they don't yet fulfull the linearity threshold
+				unsigned max_intersection_stack_size;
+				/// whether to calculate exact tight-fitting ribbon bounding boxes or use a tube-based approximation
+				bool exact_ribbon_bboxes;
+				/// whether to transform subcurve patches to ray-centric coordinates (if they aren't already) for intersection
+				bool ray_centric_isects;
+				/// how to orient segment subcurve bounding boxes
+				enum BBoxOrientation {
+					BBO_SEGMENT = 0, /// all (sub-)boxes use original segment curve coordinate system
+					BBO_SUBCURVE = 1, /// each box uses a coordinate system oriented with its corresponding (sub-)curve
+					BBO_RCC = 2, // all (sub-)boxes use the ray-centric coordinate system of the fragment
+				} bbox_coord_system;
+
+				/// debug options
+				struct {
+					/// encode some statistic inside the ribbon surface color
+					enum VisualizeStats {
+						/// deactivated
+						VS_OFF = 0,
+						/// number of iterations needed until intersection
+						VS_INTERSECTIONS = 1,
+						/// stack usage
+						VS_STACK_USAGE = 2
+					} visualize_stats;
+					/// visualize leaf-level bounding boxes
+					bool visualize_leaf_bboxes;
+				} debug;
+			} ribbon_rc_params;
 
 			/// construct with default values
 			textured_spline_tube_render_style();
@@ -103,12 +141,14 @@ namespace cgv { // @<
 			shader_define_map additional_defines;
 			/// keep track of which line primitive was active the last time the renderer drew something
 			textured_spline_tube_render_style::LinePrimitive last_active_line_primitive;
+
 			/// overload to allow instantiation of box_renderer
 			render_style* create_render_style() const;
 			/// update shader defines based on render style
 			void update_defines(shader_define_map& defines);
 			/// build rounded cone program
 			bool build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines);
+
 		public:
 			/// initializes position_is_center to true 
 			textured_spline_tube_renderer();
