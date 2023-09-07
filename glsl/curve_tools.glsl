@@ -111,6 +111,10 @@ void   split_bezier (out vec4 b0, out vec4 b1, const vec4 bezier);
 void   split_bezier (out mat4x2 b0, out mat4x2 b1, const mat4x2 bezier);
 void   split_bezier (out mat4x3 b0, out mat4x3 b1, const mat4x3 bezier);
 void   split_bezier (out mat4 b0, out mat4 b1, const mat4 bezier);
+void   split_bezier (out vec4 b_half, const vec4 bezier, const bool second);
+void   split_bezier (out mat4x2 b_half, const mat4x2 bezier, const bool second);
+void   split_bezier (out mat4x3 b_half, const mat4x3 bezier, const bool second);
+void   split_bezier (out mat4 b_half, const mat4 bezier, const bool second);
 vec3   bitangent (const mat4x3 bezier, const mat3 dbezier, const float t, const vec3 eye);
 vec3   bitangent (const mat4x3 bezier, const float t, const vec3 eye);
 vec3   bitangent (const mat4x3 bezier, const int end, const vec3 eye);
@@ -871,7 +875,8 @@ mat4x2 solve_linear (const mat2x4 monomial)
 ////
 // Bezier curve tools
 
-// Compute the control points of two scalar cubic Bezier curves that each cover one half of the given cubic bezier curve.
+// Compute the control points of two scalar cubic Bezier curves that each cover one half of the given scalar cubic bezier
+// curve.
 void split_bezier (out vec4 b0, out vec4 b1, const vec4 bezier)
 {
 	// De-Casteljau level 0
@@ -890,7 +895,7 @@ void split_bezier (out vec4 b0, out vec4 b1, const vec4 bezier)
 	b1 = vec4(joint, v[1],  v[2], bezier[3]);
 }
 
-// Compute the control points of two 2D cubic Bezier curves that each cover one half of the given cubic bezier curve.
+// Compute the control points of two 2D cubic Bezier curves that each cover one half of the given 2D cubic bezier curve.
 void split_bezier (out mat4x2 b0, out mat4x2 b1, const mat4x2 bezier)
 {
 	// De-Casteljau level 0
@@ -909,7 +914,7 @@ void split_bezier (out mat4x2 b0, out mat4x2 b1, const mat4x2 bezier)
 	b1 = mat4x2(joint, v[1],  v[2], bezier[3]);
 }
 
-// Compute the control points of two 3D cubic Bezier curves that each cover one half of the given cubic bezier curve.
+// Compute the control points of two 3D cubic Bezier curves that each cover one half of the given 3D cubic bezier curve.
 void split_bezier (out mat4x3 b0, out mat4x3 b1, const mat4x3 bezier)
 {
 	// De-Casteljau level 0
@@ -928,7 +933,7 @@ void split_bezier (out mat4x3 b0, out mat4x3 b1, const mat4x3 bezier)
 	b1 = mat4x3(joint, v[1],  v[2], bezier[3]);
 }
 
-// Compute the control points of two 4D cubic Bezier curves that each cover one half of the given cubic bezier curve.
+// Compute the control points of two 4D cubic Bezier curves that each cover one half of the given 4D cubic bezier curve.
 void split_bezier (out mat4 b0, out mat4 b1, const mat4 bezier)
 {
 	// De-Casteljau level 0
@@ -945,6 +950,82 @@ void split_bezier (out mat4 b0, out mat4 b1, const mat4 bezier)
 	vec4 joint = mix(v[0], v[1], .5);
 	b0 = mat4(bezier[0], cp1_0, v[0], joint);
 	b1 = mat4(joint, v[1],  v[2], bezier[3]);
+}
+
+// Compute the control points of the scalar cubic Bezier curve that covers either exactly the first or second half of the
+// given scalar cubic bezier curve
+void split_bezier (out vec4 b_half, const vec4 bezier, const bool second)
+{
+	// De-Casteljau level 0
+	vec3 v = vec3(
+		mix(bezier[0], bezier[1], .5), mix(bezier[1], bezier[2], .5), mix(bezier[2], bezier[3], .5)
+	);
+	float cp1_0 = v[0];
+
+	// De-Casteljau level 1 (reuse local storage from above)
+	v[0] = mix(v[0], v[1], .5);
+	v[1] = mix(v[1], v[2], .5);
+
+	// De-Casteljau level 2 (final result)
+	float joint = mix(v[0], v[1], .5);
+	b_half = second ? vec4(joint, v[1],  v[2], bezier[3]) : vec4(bezier[0], cp1_0, v[0], joint);
+}
+
+// Compute the control points of the 2D cubic Bezier curve that covers either exactly the first or second half of the
+// given 2D cubic bezier curve
+void split_bezier (out mat4x2 b_half, const mat4x2 bezier, const bool second)
+{
+	// De-Casteljau level 0
+	mat3x2 v = mat3x2(
+		mix(bezier[0], bezier[1], .5), mix(bezier[1], bezier[2], .5), mix(bezier[2], bezier[3], .5)
+	);
+	vec2 cp1_0 = v[0];
+
+	// De-Casteljau level 1 (reuse local storage from above)
+	v[0] = mix(v[0], v[1], .5);
+	v[1] = mix(v[1], v[2], .5);
+
+	// De-Casteljau level 2 (final result)
+	vec2 joint = mix(v[0], v[1], .5);
+	b_half = second ? mat4x2(joint, v[1],  v[2], bezier[3]) : mat4x2(bezier[0], cp1_0, v[0], joint);;
+}
+
+// Compute the control points of the 3D cubic Bezier curve that covers either exactly the first or second half of the
+// given 3D cubic bezier curve
+void split_bezier (out mat4x3 b_half, const mat4x3 bezier, const bool second)
+{
+	// De-Casteljau level 0
+	mat3 v = mat3(
+		mix(bezier[0], bezier[1], .5), mix(bezier[1], bezier[2], .5), mix(bezier[2], bezier[3], .5)
+	);
+	vec3 cp1_0 = v[0];
+
+	// De-Casteljau level 1 (reuse local storage from above)
+	v[0] = mix(v[0], v[1], .5);
+	v[1] = mix(v[1], v[2], .5);
+
+	// De-Casteljau level 2 (final result)
+	vec3 joint = mix(v[0], v[1], .5);
+	b_half = second ? mat4x3(joint, v[1],  v[2], bezier[3]) : mat4x3(bezier[0], cp1_0, v[0], joint);;
+}
+
+// Compute the control points of the 4D cubic Bezier curve that covers either exactly the first or second half of the
+// given 4D cubic bezier curve
+void split_bezier (out mat4 b_half, const mat4 bezier, const bool second)
+{
+	// De-Casteljau level 0
+	mat3x4 v = mat3x4(
+		mix(bezier[0], bezier[1], .5), mix(bezier[1], bezier[2], .5), mix(bezier[2], bezier[3], .5)
+	);
+	vec4 cp1_0 = v[0];
+
+	// De-Casteljau level 1 (reuse local storage from above)
+	v[0] = mix(v[0], v[1], .5);
+	v[1] = mix(v[1], v[2], .5);
+
+	// De-Casteljau level 2 (final result)
+	vec4 joint = mix(v[0], v[1], .5);
+	b_half = second ? mat4(joint, v[1],  v[2], bezier[3]) : mat4(bezier[0], cp1_0, v[0], joint);;
 }
 
 

@@ -133,6 +133,10 @@ void   split_bezier (out vec4 b0, out vec4 b1, const vec4 bezier);
 void   split_bezier (out mat4x2 b0, out mat4x2 b1, const mat4x2 bezier);
 void   split_bezier (out mat4x3 b0, out mat4x3 b1, const mat4x3 bezier);
 void   split_bezier (out mat4 b0, out mat4 b1, const mat4 bezier);
+void   split_bezier (out vec4 b_half, const vec4 bezier, const bool second);
+void   split_bezier (out mat4x2 b_half, const mat4x2 bezier, const bool second);
+void   split_bezier (out mat4x3 b_half, const mat4x3 bezier, const bool second);
+void   split_bezier (out mat4 b_half, const mat4 bezier, const bool second);
 vec3   bitangent (const mat4x3 bezier, const mat3 dbezier, const float t, const vec3 eye);
 vec3   bitangent (const mat4x3 bezier, const float t, const vec3 eye);
 vec3   bitangent (const mat4x3 bezier, const int end, const vec3 eye);
@@ -185,7 +189,7 @@ float  nonlinearness (const mat4 bezier);
 /* 0: All attributes in geom->frag interface
    1: No curve attributes in geom->frag interface
    2: No color attributes in geom->frag interface
-   3: Attribute-less (except segment ids) */
+   3: Attribute-less (except sub-/segment ids) */
 #define ATTRIB_MODE 0
 
 
@@ -218,8 +222,12 @@ flat in uvec2 node_ids_gs[];
 flat in int segment_id_gs[];
 
 smooth out vec3 position_fs;
-flat out mat2x4 color_fs;
-flat out mat4 curve_fs;
+#if !(ATTRIB_MODE & 1)
+	flat out mat4 curve_fs;
+#endif
+#if !(ATTRIB_MODE & 2)
+	flat out mat2x4 color_fs;
+#endif
 flat out float t_offset_fs;
 flat out int segment_id_fs;
 
@@ -511,14 +519,19 @@ void main()
 	vec4 color_mid = .5*(n0.color + n1.color);
 	for (int i=0; i<2; i++)
 	{
-		// Set flat (non-varying) curve attributes
-		// - pack eye-space subcurve and -radius into combined curve/radius output attribute
-		curve_fs = mat4(
-			vec4(subcurve[i][0], subradius[i][0]), vec4(subcurve[i][1], subradius[i][1]),
-			vec4(subcurve[i][2], subradius[i][2]), vec4(subcurve[i][3], subradius[i][3])
-		);
+		// Set flat (non-varying) curve attributes, if enabled
+		// - eye-space subcurve and -radius
+		#if !(ATTRIB_MODE & 1)
+			// Pack into combined curve/radius output attribute
+			curve_fs = mat4(
+				vec4(subcurve[i][0], subradius[i][0]), vec4(subcurve[i][1], subradius[i][1]),
+				vec4(subcurve[i][2], subradius[i][2]), vec4(subcurve[i][3], subradius[i][3])
+			);
+		#endif
 		// - end node colors
-		color_fs = i==0 ? mat2x4(n0.color, color_mid) : mat2x4(color_mid, n1.color);
+		#if !(ATTRIB_MODE & 2)
+			color_fs = i==0 ? mat2x4(n0.color, color_mid) : mat2x4(color_mid, n1.color);
+		#endif
 		// - which subsegment
 		t_offset_fs = i==0 ? 0 : .5;
 

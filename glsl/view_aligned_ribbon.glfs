@@ -150,6 +150,10 @@ void   split_bezier (out vec4 b0, out vec4 b1, const vec4 bezier);
 void   split_bezier (out mat4x2 b0, out mat4x2 b1, const mat4x2 bezier);
 void   split_bezier (out mat4x3 b0, out mat4x3 b1, const mat4x3 bezier);
 void   split_bezier (out mat4 b0, out mat4 b1, const mat4 bezier);
+void   split_bezier (out vec4 b_half, const vec4 bezier, const bool second);
+void   split_bezier (out mat4x2 b_half, const mat4x2 bezier, const bool second);
+void   split_bezier (out mat4x3 b_half, const mat4x3 bezier, const bool second);
+void   split_bezier (out mat4 b_half, const mat4 bezier, const bool second);
 vec3   bitangent (const mat4x3 bezier, const mat3 dbezier, const float t, const vec3 eye);
 vec3   bitangent (const mat4x3 bezier, const float t, const vec3 eye);
 vec3   bitangent (const mat4x3 bezier, const int end, const vec3 eye);
@@ -217,6 +221,18 @@ RCC    rcc_create_z (const vec3 orig, const vec3 dir);
 ///***** end interface of rcc.glsl ********************************************/
 
 
+/* 0: NO_OP
+   1: RASTERIZE_DEBUG
+   2: RAYCAST_DEBUG
+   3: RAYCAST */
+#define MODE 3
+
+/* 0: All attributes in geom->frag interface
+   1: No curve attributes in geom->frag interface
+   2: No color attributes in geom->frag interface
+   3: Attribute-less (except sub-/segment ids) */
+#define ATTRIB_MODE 0
+
 // Defines the maximum depth of the subcurve stack (subcurves are intersected as-is even when their non-linearness is still too
 // high when this threshold is reached)
 #define MAX_INTERSECTION_STACK_SIZE 8
@@ -250,32 +266,38 @@ uniform float screwiness_thr = .9375;
 uniform float subdiv_abort_thr = 512;
 
 
-struct node_data_type {
-	vec4 pos_rad;
-	vec4 color;
-	vec4 tangent;
-	vec4 t; // only uses .x component to store t, yzw are reserved for future use
-};
+#if ATTRIB_MODE > 0
+	struct node_data_type {
+		vec4 pos_rad;
+		vec4 color;
+		vec4 tangent;
+		vec4 t; // only uses .x component to store t, yzw are reserved for future use
+	};
 
-// node attribute buffer
-layout(std430, binding=0) readonly buffer data_buffer {
-    node_data_type nodes[];
-};
+	// node attribute buffer
+	layout(std430, binding=0) readonly buffer data_buffer {
+		node_data_type nodes[];
+	};
+
+	// node index pair buffer
+	layout(std430, binding=2) readonly buffer nid_buffer {
+		uvec2 node_ids[];
+	};
+#endif
 
 // arclen approximations SBO
 layout (std430, binding=1) readonly buffer arclen_buffer { 
-  mat4 b[]; // 4 cubic beziers packed into colums of mat4
-};
-
-// node index pair buffer
-layout(std430, binding=2) readonly buffer nid_buffer {
-    uvec2 node_ids[];
+	mat4 b[]; // 4 cubic beziers packed into colums of mat4
 };
 
 
 smooth in vec3 position_fs;
-flat in mat2x4 color_fs;
-flat in mat4 curve_fs;
+#if !(ATTRIB_MODE & 1)
+	flat in mat4 curve_fs;
+#endif
+#if !(ATTRIB_MODE & 2)
+	flat in mat2x4 color_fs;
+#endif
 flat in float t_offset_fs;
 flat in int segment_id_fs;
 
@@ -550,7 +572,7 @@ void main()
 	float subdiv_abort_thr = subdiv_abort_thr*_eps();
 
 	// Subcurve intersection task stack
-	subcurve_task stack [MAX_INTERSECTION_STACK_SIZE];
+	subcurve_task stack[MAX_INTERSECTION_STACK_SIZE];
 	int sp = 0; // stack pointer
 
 	// Build ray information
@@ -559,8 +581,59 @@ void main()
 	ray.dir = normalize(position_fs);
 
 	// Init stack
-	// - unpack eye-space curve axis from attribute inputs
-	stack[0].curve = mat4x3(curve_fs);
+	// - retrieve segment curve data
+	#if ATTRIB_MODE > 0
+		#if ATTRIB_MODE & 2
+			// Re-declare the two color values since we don't have them as attribute inputs
+			mat2x4 color_fs;
+		#endif
+		#if ATTRIB_MODE & 1
+		/* local scope */ {
+			// Fetch nodes from attribute buffers
+			node_data_type n0 = nodes[node_ids[segment_id_fs].x],
+			               n1 = nodes[node_ids[segment_id_fs].y];
+
+			// Transform to eye-space, split and put onto stack as root task directly, without creating and converting from a
+			// Hermite curve first
+			bool select = t_offset_fs != 0;
+			split_bezier(
+				stack[0].curve,
+				mat4x3(get_modelview_matrix() * mat4(
+					vec4(n0.pos_rad.xyz, 1), vec4(n0.pos_rad.xyz + 1/3.*n0.tangent.xyz, 1),
+					vec4(n1.pos_rad.xyz - 1/3.*n1.tangent.xyz, 1), vec4(n1.pos_rad.xyz, 1)
+				)),
+				select
+			);
+			split_bezier(
+				stack[0].radius,
+				vec4(
+					n0.pos_rad.w * radius_scale, n0.pos_rad.w*radius_scale + 1/3.*radius_scale*n0.tangent.w,
+					n1.pos_rad.w*radius_scale - 1/3.*radius_scale*n1.tangent.w, n1.pos_rad.w * radius_scale
+				),
+				select
+			);
+
+			#if ATTRIB_MODE & 2
+				// Split node colors
+				select = !select;
+				color_fs[0] = select ? n0.color : .5*(n0.color+n1.color);
+				color_fs[1] = select ? .5*(n0.color+n1.color) : n1.color;
+			#endif
+		}
+		#elif ATTRIB_MODE & 2
+			color_fs = mat2x4(
+				nodes[node_ids[segment_id_fs].x].color,
+				nodes[node_ids[segment_id_fs].y].color
+			);
+			color_fs[0] = t_offset_fs == 0 ? color_fs[0] : .5*(color_fs[0]+color_fs[1]);
+			color_fs[1] = t_offset_fs == 0 ? .5*(color_fs[0]+color_fs[1]) : color_fs[1];
+		#endif
+	#endif
+	#if !(ATTRIB_MODE & 1)
+		// Unpack curve-related attributes into root task on stack
+		stack[0].curve = mat4x3(curve_fs);
+		stack[0].radius = vec4(curve_fs[0].w, curve_fs[1].w, curve_fs[2].w, curve_fs[3].w);
+	#endif
 	// - if applicable, immediatly transform according to chosen constant bbox coordinate system
 	#if BBOX_COORD_SYSTEM!=1
 		ray_t ray_local;
@@ -581,13 +654,12 @@ void main()
 	#if 0 && (defined(RAY_CENTRIC_ISECTS) && RAY_CENTRIC_ISECTS!=0 && BBOX_COORD_SYSTEM!=2)
 		mat3 Mrcc = make_orthonormal_system_z(ray.dir);
 	#endif
-	// - unpack curve radius from attribute inputs and store root parameter interval
-	stack[0].radius = vec4(curve_fs[0].w, curve_fs[1].w, curve_fs[2].w, curve_fs[3].w);
+	// - store root parameter interval
 	stack[0].t = vec2(0, 1);
 
 	// Main loop
 	// - prepare result variables
-	vec3 normal;
+	vec3 normal, tangent;
 	#if defined(DBG_VISUALIZE_STATS) && DBG_VISUALIZE_STATS==1
 		int iterations = 0;
 	#elif defined(DBG_VISUALIZE_STATS) && DBG_VISUALIZE_STATS==2
@@ -689,6 +761,11 @@ void main()
 							transpose(M) *
 						#endif
 						mix(cross(dcurve[0], bt[0]), cross(dcurve[2], bt[1]), isect.y);
+					tangent =
+						#if BBOX_COORD_SYSTEM==1
+							transpose(M) *
+						#endif
+						eval_bezier(dcurve, isect.y);
 				}
 				#if defined(DBG_VISUALIZE_LEAF_BBOXES) && DBG_VISUALIZE_LEAF_BBOXES!=0
 					else {
@@ -744,7 +821,7 @@ void main()
 			depth = .5*(frag_clip.z/frag_clip.w) + .5;
 		}
 
-		// Process output normal
+		// Process output normal and tangent
 		normal = normalize(
 			#if defined(DBG_VISUALIZE_LEAF_BBOXES) && DBG_VISUALIZE_LEAF_BBOXES!=0
 				t!= -1 ?
@@ -758,6 +835,13 @@ void main()
 				: cross(dFdx(pos_eye), dFdy(pos_eye))
 			#endif
 		);
+		tangent = (
+			#if BBOX_COORD_SYSTEM!=1
+				transpose(M) * tangent
+			#else
+				tangent
+			#endif
+		);
 
 		// Shade fragment
 		float t_seg = .5*t + t_offset_fs;
@@ -769,7 +853,7 @@ void main()
 				min(stackusage/float(MAX_INTERSECTION_STACK_SIZE-1), 1.);
 			#endif
 		#endif
-		vec4 color = 
+		vec4 color = (
 			#if defined(DBG_VISUALIZE_LEAF_BBOXES) && DBG_VISUALIZE_LEAF_BBOXES!=0
 				t!=-1 ?
 			#endif
@@ -781,14 +865,14 @@ void main()
 			#if defined(DBG_VISUALIZE_LEAF_BBOXES) && DBG_VISUALIZE_LEAF_BBOXES!=0
 				: vec4(.25, .25, .25, 1)
 			#endif
-		;
+		);
 
 		// Output shading results
 		//finish_fragment(color, depth);
 		frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(color)), alen(t_seg), v, intBitsToFloat(segment_id_fs));
 		frag_position = vec3(pos_eye);
 		frag_normal = normal;
-		frag_tangent = eval_bezier(derive_bezier(mat4x3(curve_fs)), t);
+		frag_tangent = tangent;
 	}
 	else {
 		frag_albedo = vec4(uintBitsToFloat(0xFF0000FF), 0.0, 0.0, intBitsToFloat(0));
