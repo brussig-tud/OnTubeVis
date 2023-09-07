@@ -2614,7 +2614,14 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			prog.set_uniform(ctx, p.first, *p.second);
 
 		// map global settings
-		prog.set_uniform(ctx, "general_settings.use_curvature_correction", render.style.is_tube() && general_settings.use_curvature_correction);
+		prog.set_uniform(
+			ctx, "general_settings.use_curvature_correction", (
+				#if RTX_SUPPORT
+					optix.enabled ||
+				#endif
+				render.style.is_tube()
+			) && general_settings.use_curvature_correction
+		);
 		prog.set_uniform(ctx, "general_settings.length_scale", general_settings.length_scale);
 		prog.set_uniform(ctx, "general_settings.antialias_radius", general_settings.antialias_radius);
 
