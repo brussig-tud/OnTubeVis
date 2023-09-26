@@ -1057,11 +1057,19 @@ cgv::base::object_registration_2<
 > csv_paraview_streamline_reg(
 	csv_paraview_streamline_desc,
 	visual_attribute_mapping<float>({
+		{VisualAttrib::POSITION, {
+			// scale up dataset to make intersectors more numerically stable
+			"position", attrib_transform<float>::vec3_to_vec3(
+				[](csv_handler<float>::Vec3& out, const csv_handler<float>::Vec3& in) {
+					out = 100.f*in;
+				}
+			)
+		}},
 		{VisualAttrib::RADIUS, {
-			// increase radius a bit to get thicker tubes with more visible area
+			// scale up radius accordingly and increase it a bit more to get thicker tubes with more visible area
 			"radius", attrib_transform<float>::real_to_real(
 				[](float &out, const float &in) {
-					out = 1.25f*in;
+					out = 112.5f*in;
 				}
 			)
 		 }}}
