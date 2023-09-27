@@ -1673,31 +1673,6 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 
 void on_tube_vis::init_frame (cgv::render::context &ctx)
 {
-	if(initialize_view_ptr()) {
-		// do one-time initialization that needs the view if necessary
-		set_view();
-		ensure_selected_in_tab_group_parent();
-
-		// set one of the loaded color maps as the transfer function for the volume renderer
-		if(tf_editor_ptr) {
-			auto& cmcs = color_map_mgr.ref_color_maps();
-			for(auto& cmc : cmcs) {
-				if(cmc.name == "imola") {
-					for(const auto& p : cmc.cm.ref_color_points())
-						volume_tf.add_color_point(p.first, p.second);
-
-					volume_tf.add_opacity_point(0.0f, 0.0f);
-					volume_tf.add_opacity_point(1.0f, 1.0f);
-
-					tf_editor_ptr->set_color_map(&volume_tf);
-					break;
-				}
-			}
-		}
-
-		taa.set_view(view_ptr);
-	}
-
 	// TODO: remove once all relevant view interactor provided by the framework properly fix the up-vector
 	/*if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
 		view_ptr->set_view_up_dir(0, 1, 0);*/
@@ -1878,6 +1853,31 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 }
 
 void on_tube_vis::after_finish(context& ctx) {
+
+	if(initialize_view_ptr()) {
+		// do one-time initialization that needs the view if necessary
+		set_view();
+		ensure_selected_in_tab_group_parent();
+
+		// set one of the loaded color maps as the transfer function for the volume renderer
+		if(tf_editor_ptr) {
+			auto& cmcs = color_map_mgr.ref_color_maps();
+			for(auto& cmc : cmcs) {
+				if(cmc.name == "imola") {
+					for(const auto& p : cmc.cm.ref_color_points())
+						volume_tf.add_color_point(p.first, p.second);
+
+					volume_tf.add_opacity_point(0.0f, 0.0f);
+					volume_tf.add_opacity_point(1.0f, 1.0f);
+
+					tf_editor_ptr->set_color_map(&volume_tf);
+					break;
+				}
+			}
+		}
+
+		taa.set_view(view_ptr);
+	}
 
 	if(benchmark.running) {
 		++benchmark.total_frames;
@@ -2388,7 +2388,7 @@ void on_tube_vis::create_density_volume(context& ctx, unsigned resolution) {
 		density_tex = texture("flt32[R,G,B]", TF_LINEAR, TF_LINEAR_MIPMAP_LINEAR, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER);
 		density_tex.create(ctx, dv, 0);
 		density_tex.set_border_color(0.0f, 0.0f, 0.0f, 0.0f);
-		density_tex.generate_mipmaps(ctx);
+		density_tex.create_mipmaps(ctx);
 	}
 
 	cgv::utils::stopwatch s(true);
