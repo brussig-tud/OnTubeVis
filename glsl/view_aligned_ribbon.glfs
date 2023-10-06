@@ -756,14 +756,17 @@ void main()
 					l = isect.z;
 					t = mix(t_stack.x, t_stack.y, isect.y);
 					v = isect.x;
+					#if BBOX_COORD_SYSTEM==1
+						mat3 M_transp = transpose(M);
+					#endif
 					normal =
 						#if BBOX_COORD_SYSTEM==1
-							transpose(M) *
+							M_transp *
 						#endif
 						mix(cross(dcurve[0], bt[0]), cross(dcurve[2], bt[1]), isect.y);
 					tangent =
 						#if BBOX_COORD_SYSTEM==1
-							transpose(M) *
+							M_transp *
 						#endif
 						eval_bezier(dcurve, isect.y);
 				}
@@ -822,12 +825,15 @@ void main()
 		}
 
 		// Process output normal and tangent
+		#if BBOX_COORD_SYSTEM!=1
+			mat3 M_transp = transpose(M);
+		#endif
 		normal = normalize(
 			#if defined(DBG_VISUALIZE_LEAF_BBOXES) && DBG_VISUALIZE_LEAF_BBOXES!=0
 				t!= -1 ?
 			#endif
 				#if BBOX_COORD_SYSTEM!=1
-					transpose(M) *normal
+					M_transp *normal
 				#else
 					normal
 				#endif
@@ -837,7 +843,7 @@ void main()
 		);
 		tangent = (
 			#if BBOX_COORD_SYSTEM!=1
-				transpose(M) * tangent
+				M_transp * tangent
 			#else
 				tangent
 			#endif
