@@ -149,17 +149,11 @@ set (SHADERS
 	glsl/color_maps.glfs
 	glsl/color_maps.glpr
 	glsl/curve_tools.glsl
-	glsl/fxaa.glfs
-	glsl/fxaa.glpr
 	glsl/mipmap.glcs
 	glsl/optix_display.glfs
 	glsl/optix_display.glpr
 	glsl/rcc.glsl
-	glsl/screen.glfs
-	glsl/screen.glpr
 	glsl/surface_mod.glsl
-	glsl/taa_resolve.glfs
-	glsl/taa_resolve.glpr
 	glsl/textured_line_primitive.glvs
 	glsl/textured_spline_ribbon.glfs
 	glsl/textured_spline_ribbon.glgs
