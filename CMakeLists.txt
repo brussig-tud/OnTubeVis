@@ -24,7 +24,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 32852662e0dd55c1d68c3d6a17466c701690cbc2
+		GIT_TAG c299debfefb96fdda2ec8278ec74b3c11f9d3098
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -148,26 +148,25 @@ set (SHADERS
 	glsl/clear.glcs
 	glsl/color_maps.glfs
 	glsl/color_maps.glpr
-	glsl/fxaa.glfs
-	glsl/fxaa.glpr
+	glsl/curve_tools.glsl
 	glsl/mipmap.glcs
 	glsl/optix_display.glfs
 	glsl/optix_display.glpr
-	glsl/screen.glfs
-	glsl/screen.glpr
+	glsl/rcc.glsl
 	glsl/surface_mod.glsl
-	glsl/taa_resolve.glfs
-	glsl/taa_resolve.glpr
-	textured_spline_ribbon.glfs
-	textured_spline_ribbon.glgs
-	textured_spline_ribbon.glpr
-	textured_spline_ribbon.glvs
+	glsl/textured_line_primitive.glvs
+	glsl/textured_spline_ribbon.glfs
+	glsl/textured_spline_ribbon.glgs
+	glsl/textured_spline_ribbon.glpr
 	glsl/textured_spline_tube.glfs
 	glsl/textured_spline_tube.glgs
 	glsl/textured_spline_tube.glpr
-	glsl/textured_spline_tube.glvs
 	glsl/textured_spline_tube_shading.glfs
 	glsl/textured_spline_tube_shading.glpr
+	glsl/transform.glsl
+	glsl/view_aligned_ribbon.glfs
+	glsl/view_aligned_ribbon.glgs
+	glsl/view_aligned_ribbon.glpr
 	glsl/voxelize.glcs
 )
 # - add contitional source files

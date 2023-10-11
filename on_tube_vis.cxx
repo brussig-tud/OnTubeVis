@@ -568,7 +568,6 @@ void on_tube_vis::handle_transfer_function_change() {
 }
 
 void on_tube_vis::on_set(void *member_ptr) {
-
 	handle_member_change(cgv::utils::pointer_test(member_ptr));
 }
 
@@ -898,11 +897,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 	if(m.is(render.style.max_t))
 		reset_taa = false;
 
-	if(m.is(render.style.use_ribbons)) {
-		general_settings.use_curvature_correction = !render.style.use_ribbons;
-		update_member(&general_settings.use_curvature_correction);
+	if(m.is(render.style.line_primitive))
 		reset_taa = true;
-	}
 
 #ifdef RTX_SUPPORT
 	// ###############################
@@ -2618,7 +2614,14 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			prog.set_uniform(ctx, p.first, *p.second);
 
 		// map global settings
-		prog.set_uniform(ctx, "general_settings.use_curvature_correction", general_settings.use_curvature_correction);
+		prog.set_uniform(
+			ctx, "general_settings.use_curvature_correction", (
+				#if RTX_SUPPORT
+					optix.enabled ||
+				#endif
+				render.style.is_tube()
+			) && general_settings.use_curvature_correction
+		);
 		prog.set_uniform(ctx, "general_settings.length_scale", general_settings.length_scale);
 		prog.set_uniform(ctx, "general_settings.antialias_radius", general_settings.antialias_radius);
 

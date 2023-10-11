@@ -26,7 +26,7 @@
 /* 0: All attributes in geom->frag interface
    1: No curve attributes in geom->frag interface
    2: No color attributes in geom->frag interface
-   3: Attribute-less (except segment and sub-curve ids) */
+   3: Attribute-less (except sub-/segment ids) */
 #define ATTRIB_MODE 0
 
 #define FLT_EPS 1.19209290e-07

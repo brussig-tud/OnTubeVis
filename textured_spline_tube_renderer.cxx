@@ -24,14 +24,24 @@ namespace cgv {
 			radius = 1.0f;
 			fragment_mode = FM_RAY_CAST;
 			bounding_geometry = BG_ALIGNED_BOX_BILLBOARD;
-			use_ribbons = false;
 			attrib_mode = AM_ALL;
-			intersector = IS_RUSSIG;
+			line_primitive = LP_TUBE_RUSSIG;
 			use_conservative_depth = false;
 			use_cubic_tangents = true;
 			use_view_space_position = true;
 			cap_clip_distance = 20.0f;
 			max_t = std::numeric_limits<float>::infinity();
+
+			ribbon_rc_params.linearity_thr = .015625f;
+			ribbon_rc_params.screwiness_thr= .9375;
+			ribbon_rc_params.subdiv_abort_thr = 512;
+			ribbon_rc_params.max_intersection_stack_size = 8;
+			ribbon_rc_params.exact_ribbon_bboxes = false;
+			ribbon_rc_params.ray_centric_isects = false;
+			ribbon_rc_params.bbox_coord_system = ribbon_rc_params.BBO_RCC;
+
+			ribbon_rc_params.debug.visualize_stats = ribbon_rc_params.debug.VS_OFF;
+			ribbon_rc_params.debug.visualize_leaf_bboxes = false;
 		}
 
 		textured_spline_tube_renderer::textured_spline_tube_renderer()
@@ -40,6 +50,7 @@ namespace cgv {
 			has_radii = false;
 			has_tangents = false;
 		}
+
 		/// call this before setting attribute arrays to manage attribute array in given manager
 		void textured_spline_tube_renderer::enable_attribute_array_manager(const context& ctx, attribute_array_manager& aam)
 		{
@@ -78,13 +89,29 @@ namespace cgv {
 			defines.clear();
 
 			shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
-			shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
-			shader_code::set_define(defines, "USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
-			shader_code::set_define(defines, "ATTRIB_MODE", rs.attrib_mode, textured_spline_tube_render_style::AM_ALL);
-			shader_code::set_define(defines, "PRIMITIVE_INTERSECTOR", rs.intersector, textured_spline_tube_render_style::IS_RUSSIG);
-			shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
-			shader_code::set_define(defines, "MODE", rs.fragment_mode, textured_spline_tube_render_style::FM_RAY_CAST);
-			shader_code::set_define(defines, "USE_RIBBONS", rs.use_ribbons, true);
+			if (rs.is_tube()) {
+				shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
+				shader_code::set_define(defines, "USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
+				shader_code::set_define(defines, "PRIMITIVE_INTERSECTOR", rs.line_primitive, rs.LP_TUBE_RUSSIG);
+				static const bool no = false;
+				shader_code::set_define(defines, "USE_RIBBONS", no, false);
+			}
+			else if (rs.line_primitive == rs.LP_RIBBON_GEOMETRY) {
+				static const bool yes = true;
+				shader_code::set_define(defines, "USE_RIBBONS", yes, false);
+			}
+			shader_code::set_define(defines, "ATTRIB_MODE", rs.attrib_mode, rs.AM_ALL);
+			shader_code::set_define(defines, "MODE", rs.fragment_mode, rs.FM_RAY_CAST);
+			if (rs.line_primitive != rs.LP_RIBBON_GEOMETRY)
+				shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, rs.BG_ALIGNED_BOX_BILLBOARD);
+			if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED) {
+				shader_code::set_define(defines, "EXACT_RIBBON_BBOXES", rs.ribbon_rc_params.exact_ribbon_bboxes, false);
+				shader_code::set_define(defines, "BBOX_COORD_SYSTEM", rs.ribbon_rc_params.bbox_coord_system, rs.ribbon_rc_params.BBO_RCC);
+				shader_code::set_define(defines, "RAY_CENTRIC_ISECTS", rs.ribbon_rc_params.ray_centric_isects, false);
+				shader_code::set_define(defines, "MAX_INTERSECTION_STACK_SIZE", rs.ribbon_rc_params.max_intersection_stack_size, (unsigned)8);
+				shader_code::set_define(defines, "DBG_VISUALIZE_STATS", rs.ribbon_rc_params.debug.visualize_stats, rs.ribbon_rc_params.debug.VS_OFF);
+				shader_code::set_define(defines, "DBG_VISUALIZE_LEAF_BBOXES", rs.ribbon_rc_params.debug.visualize_leaf_bboxes, false);
+			}
 
 			for(const auto& define : additional_defines)
 				defines.insert(define);
@@ -92,15 +119,23 @@ namespace cgv {
 		bool textured_spline_tube_renderer::build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines)
 		{
 			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
+			last_active_line_primitive = rs.line_primitive;
 
-			if(rs.use_ribbons)
-				return prog.build_program(ctx, "textured_spline_ribbon.glpr", true, defines);
-			else
+			if(rs.is_tube())
 				return prog.build_program(ctx, "textured_spline_tube.glpr", true, defines);
+			else if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED)
+				return prog.build_program(ctx, "view_aligned_ribbon.glpr", true, defines);
+			else
+				return prog.build_program(ctx, "textured_spline_ribbon.glpr", true, defines);
+
 		}
 		bool textured_spline_tube_renderer::enable(context& ctx)
 		{
 			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
+			if (last_active_line_primitive != rs.line_primitive) {
+				clear(ctx);
+				init(ctx);
+			}
 
 			if (!surface_renderer::enable(ctx))
 				return false;
@@ -114,6 +149,12 @@ namespace cgv {
 			ref_prog().set_uniform(ctx, "viewport", viewport);
 			ref_prog().set_uniform(ctx, "cap_clip_distance", rs.cap_clip_distance);
 			ref_prog().set_uniform(ctx, "max_t", rs.max_t);
+
+			if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED) {
+				ref_prog().set_uniform(ctx, "linearity_thr", rs.ribbon_rc_params.linearity_thr);
+				ref_prog().set_uniform(ctx, "screwiness_thr", std::min(rs.ribbon_rc_params.screwiness_thr, .9921875f));
+				ref_prog().set_uniform(ctx, "subdiv_abort_thr", rs.ribbon_rc_params.subdiv_abort_thr);
+			}
 
 			return true;
 		}
@@ -165,14 +206,28 @@ namespace cgv {
 			cgv::render::textured_spline_tube_render_style* rs_ptr = reinterpret_cast<cgv::render::textured_spline_tube_render_style*>(value_ptr);
 			cgv::base::base* b = dynamic_cast<cgv::base::base*>(p);
 
-			p->add_member_control(b, "Tube Primitive", rs_ptr->intersector, "dropdown", "enums='Russig,Phantom'");
-			p->add_member_control(b, "Ribbons", rs_ptr->use_ribbons, "check");
+			p->add_member_control(b, "Line Primitive", rs_ptr->line_primitive, "dropdown", "enums='Tube - Russig,Tube - Phantom,Ribbon - raycasted,Ribbon - geometry'");
 			p->add_member_control(b, "Default Radius", rs_ptr->radius, "value_slider", "min=0.001;step=0.0001;max=10.0;log=true;ticks=true");
 			p->add_member_control(b, "Radius Scale", rs_ptr->radius_scale, "value_slider", "min=0.01;step=0.0001;max=100.0;log=true;ticks=true");
 
 			p->add_member_control(b, "Conservative Depth", rs_ptr->use_conservative_depth, "check");
 			p->add_member_control(b, "Cubic Tangents", rs_ptr->use_cubic_tangents, "check");
 			p->add_member_control(b, "View Space Position", rs_ptr->use_view_space_position, "check");
+
+			if(p->begin_tree_node("Ribbon - raycasted", rs_ptr->ribbon_rc_params)) {
+				p->align("\a");
+				p->add_member_control(b, "linearity threshold", rs_ptr->ribbon_rc_params.linearity_thr, "value_slider", "min=0.001953125;step=0.001953125;max=0.125;log=true;ticks=true");
+				p->add_member_control(b, "screw angle threshold", rs_ptr->ribbon_rc_params.screwiness_thr, "value_slider", "min=-1;step=0.0625;max=0.9921875;ticks=true");
+				p->add_member_control(b, "subdiv. abort threshold", rs_ptr->ribbon_rc_params.subdiv_abort_thr, "value_slider", "min=1;step=1;max=4096;log=true;ticks=true");
+				p->add_member_control(b, "max isect stack size", rs_ptr->ribbon_rc_params.max_intersection_stack_size, "value_slider", "min=1;step=1;max=32");
+				p->add_member_control(b, "exact ribbon bboxes", rs_ptr->ribbon_rc_params.exact_ribbon_bboxes, "check");
+				p->add_member_control(b, "ray-centric patch isects", rs_ptr->ribbon_rc_params.ray_centric_isects, "check");
+				p->add_member_control(b, "subcurve BBox orientation", rs_ptr->ribbon_rc_params.bbox_coord_system, "dropdown", "enums='Segment,Subcurve,Ray-centric'");
+				p->add_member_control(b, "visualize stats", rs_ptr->ribbon_rc_params.debug.visualize_stats, "dropdown", "enums='off,Intersections,Stack Usage'");
+				p->add_member_control(b, "visualize leaf BBoxes", rs_ptr->ribbon_rc_params.debug.visualize_leaf_bboxes, "check");
+				p->align("\b");
+				p->end_tree_node(rs_ptr->ribbon_rc_params);
+			}
 
 			const auto &[tmin, tmax] = rs_ptr->data_t_minmax;
 			p->add_member_control(

@@ -15,8 +15,7 @@ namespace cgv { // @<
 			counter decreases to 0, singelton renderer is destructed. */
 		extern textured_spline_tube_renderer& ref_textured_spline_tube_renderer(context& ctx, int ref_count_change = 0);
 
-		/*!	Style to control the look of textured spline tubes.
-		*/
+		/*!	Style to control the look of textured spline tubes. */
 		struct textured_spline_tube_render_style : public surface_render_style
 		{
 			/// multiplied to the tube radius, initialized to 1
@@ -42,8 +41,6 @@ namespace cgv { // @<
 				BG_ALIGNED_BOX_BILLBOARD_SPLITSIMUL1 = 7, // same as BG_ALIGNED_BOX_BILLBOARD, but subdividing the billboard 2 quads using a SINGLE triangle strip to simulate geometry load of splitting at inflection points
 				BG_ALIGNED_BOX_BILLBOARD_SPLITSIMUL2 = 8 // same as BG_ALIGNED_BOX_BILLBOARD, but subdividing the billboard 2 quads using TWO triangle strips to simulate geometry load of splitting at inflection points
 			} bounding_geometry;
-			/// whether to use ribbon primitives instead of tubes (ignores bounding geometry setting)
-			bool use_ribbons;
 			/// specifies the degree of attributeless-ness the renderer should be.
 			enum AttribMode
 			{
@@ -53,11 +50,13 @@ namespace cgv { // @<
 				AM_ATTRIBLESS = AM_CURVELESS | AM_COLORLESS // don't store any shader-generated data in proxy geometry attributes (only segment ID and subcurve index will be stored)
 			} attrib_mode;
 			/// specifies the intersection routine to use
-			enum Interesctor
+			enum LinePrimitive
 			{
-				IS_RUSSIG = 0,                              // use intersector for swept-sphere spline tubes by Russig et al.
-				IS_PHANTOM = 1                              // use swept-disc Phantom Ray Hair intersector by Reshetov and Lübke.
-			} intersector;
+				LP_TUBE_RUSSIG = 0,                         // use intersector for swept-sphere spline tubes by Russig et al.
+				LP_TUBE_PHANTOM = 1,                        // use swept-disc Phantom Ray Hair intersector by Reshetov and Lübke
+				LP_RIBBON_RAYCASTED = 2,                    // use raycasted view-aligned ribbon
+				LP_RIBBON_GEOMETRY = 3                      // use geometry-shader based triangle-strip tessellated view-aligned ribbon (ignores bounding geometry style options)
+			} line_primitive;
 			/// whether to use conservative depth extension to re-enable early depth testing
 			bool use_conservative_depth;
 			/// whether to calculate tangents from the cubic hermite definition or from the two quadratic bezier segments
@@ -70,8 +69,56 @@ namespace cgv { // @<
 			float max_t;
 			/// fill this with the information what the earliest and latest timestamps among all position samples in your data are
 			std::pair<float, float> data_t_minmax;
+
+			/// special parameters for raycasted ribbon
+			struct {
+				/// linearity threshold at which to stop subdividing (0 means completely linear)
+				float linearity_thr;
+				/// threshold for the cosine of the maximum angle difference of bitangents allowed in a patch until which to keep subdividing
+				float screwiness_thr;
+				/// minimum subcurve length at which to force-stop subdividing, in multiples of machine epsilon
+				float subdiv_abort_thr;
+				/// defines the maximum depth of the subcurve stack - when the stack reaches this threshold, subcurves are intersected
+				/// as-is even if they don't yet fulfull the linearity threshold
+				unsigned max_intersection_stack_size;
+				/// whether to calculate exact tight-fitting ribbon bounding boxes or use a tube-based approximation
+				bool exact_ribbon_bboxes;
+				/// whether to transform subcurve patches to ray-centric coordinates (if they aren't already) for intersection
+				bool ray_centric_isects;
+				/// how to orient segment subcurve bounding boxes
+				enum BBoxOrientation {
+					BBO_SEGMENT = 0, /// all (sub-)boxes use original segment curve coordinate system
+					BBO_SUBCURVE = 1, /// each box uses a coordinate system oriented with its corresponding (sub-)curve
+					BBO_RCC = 2, // all (sub-)boxes use the ray-centric coordinate system of the fragment
+				} bbox_coord_system;
+
+				/// debug options
+				struct {
+					/// encode some statistic inside the ribbon surface color
+					enum VisualizeStats {
+						/// deactivated
+						VS_OFF = 0,
+						/// number of iterations needed until intersection
+						VS_INTERSECTIONS = 1,
+						/// stack usage
+						VS_STACK_USAGE = 2
+					} visualize_stats;
+					/// visualize leaf-level bounding boxes
+					bool visualize_leaf_bboxes;
+				} debug;
+			} ribbon_rc_params;
+
 			/// construct with default values
 			textured_spline_tube_render_style();
+
+			/// check wether chosen line primtive is a tube
+			inline bool is_tube (void) const {
+				return line_primitive < 2;
+			}
+			/// check wether chosen line primtive is a ribbon
+			inline bool is_ribbon (void) const {
+				return line_primitive > 1;
+			}
 		};
 
 		/// renderer that supports textured cubic hermite spline tubes
@@ -92,12 +139,16 @@ namespace cgv { // @<
 			vec4 viewport;
 			/// additional defines not dependant on the style and set from outside the renderer
 			shader_define_map additional_defines;
+			/// keep track of which line primitive was active the last time the renderer drew something
+			textured_spline_tube_render_style::LinePrimitive last_active_line_primitive;
+
 			/// overload to allow instantiation of box_renderer
 			render_style* create_render_style() const;
 			/// update shader defines based on render style
 			void update_defines(shader_define_map& defines);
 			/// build rounded cone program
 			bool build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines);
+
 		public:
 			/// initializes position_is_center to true 
 			textured_spline_tube_renderer();

@@ -1,0 +1,890 @@
+#version 430 core
+
+// Whether to support conservative depth
+#define USE_CONSERVATIVE_DEPTH 0
+#if USE_CONSERVATIVE_DEPTH == 1
+	#extension GL_ARB_conservative_depth : enable
+#endif
+
+
+///***** begin interface of view.glsl *****************************************/
+mat4 get_modelview_matrix();
+mat4 get_projection_matrix();
+mat4 get_modelview_projection_matrix();
+mat4 get_inverse_modelview_matrix();
+mat4 get_inverse_modelview_projection_matrix();
+mat3 get_normal_matrix();
+mat3 get_inverse_normal_matrix();
+///***** end interface of view.glsl *******************************************/
+
+
+///***** begin interface of surface.glsl **************************************/
+vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color, int side);
+///***** end interface of surface.glsl ****************************************/
+
+
+///***** begin interface of fragment.glsl *************************************/
+void finish_fragment(vec4 color);
+void finish_fragment(vec4 color, float depth);
+///***** end interface of fragment.glsl ***************************************/
+
+
+///***** begin interface of transform.glsl ************************************/
+vec3   ortho_vec (const vec3 v);
+void   make_orthonormal_basis (out vec3 e0, out vec3 e1, const vec3 ref);
+mat2x3 make_orthonormal_basis (const vec3 ref);
+void   make_orthonormal_system_x (out mat3 M, const vec3 ref);
+mat3   make_orthonormal_system_x (const vec3 ref);
+void   make_orthonormal_system_y (out mat3 M, const vec3 ref);
+mat3   make_orthonormal_system_y (const vec3 ref);
+void   make_orthonormal_system_z (out mat3 M, const vec3 ref);
+mat3   make_orthonormal_system_z (const vec3 ref);
+void   make_local_frame (out mat4 M, const vec3 x, const vec3 y, const vec3 z, const vec3 o);
+mat4   make_local_frame (const vec3 x, const vec3 y, const vec3 z, const vec3 o);
+///***** end interface of transforms.glsl *************************************/
+
+
+///***** begin interface of curve_tools.glsl **********************************/
+// --- link dependencies ---------------
+/* transform.glsl */
+// --- structs -------------------------
+// Representation of a 3D axis-aligned box
+struct AABox3 {
+	vec3 pmin, pmax;
+};
+// --- functions -----------------------
+float _pi();
+float _inv_pi();
+float _inf();
+float _neg_inf();
+float _eps();
+float _sqrt_eps();
+vec3  _inf3();
+vec3  _neg_inf3();
+AABox3 _initbox3();
+mat4  _h2b();
+mat4  _b2h();
+mat4  _b2m();
+mat4  _m2b();
+mat3  _b2m_2();
+mat3  _m2b_2();
+mat2  _b2m_1();
+mat2  _m2b_1();
+void   aabox3_add_point (inout AABox3 box, const vec3 point);
+vec3   aabox3_center (const AABox3 box);
+vec3   aabox3_extent (const AABox3 box);
+vec3   aabox3_half_extent (const AABox3 box);
+vec2   aabox3_project_onto_dir (const AABox3 box, const vec3 dir);
+float  eval_bezier (const vec2 bezier, const float t);
+vec2   eval_bezier (const mat2 bezier, const float t);
+vec3   eval_bezier (const mat2x3 bezier, const float t);
+vec4   eval_bezier (const mat2x4 bezier, const float t);
+float  eval_bezier (const vec3 bezier, const float t);
+vec2   eval_bezier (const mat3x2 bezier, const float t);
+vec3   eval_bezier (const mat3 bezier, const float t);
+vec4   eval_bezier (const mat3x4 bezier, const float t);
+float  eval_bezier (const vec4 bezier, const float t);
+vec2   eval_bezier (const mat4x2 bezier, const float t);
+vec3   eval_bezier (const mat4x3 bezier, const float t);
+vec4   eval_bezier (const mat4 bezier, const float t);
+vec4   to_bezier (const vec4 hermite);
+mat4x2 to_bezier (const mat4x2 hermite);
+mat4x3 to_bezier (const mat4x3 hermite);
+mat4   to_bezier (const mat4 hermite);
+vec4   to_hermite (const vec4 bezier);
+mat4x2 to_hermite (const mat4x2 bezier);
+mat4x3 to_hermite (const mat4x3 bezier);
+mat4   to_hermite (const mat4 bezier);
+vec4   to_monomial (const vec4 bezier);
+mat4x2 to_monomial (const mat4x2 bezier);
+mat4x3 to_monomial (const mat4x3 bezier);
+mat4   to_monomial (const mat4 bezier);
+vec3   to_monomial (const vec3 bezier);
+mat3x2 to_monomial (const mat3x2 bezier);
+mat3   to_monomial (const mat3 bezier);
+mat3x4 to_monomial (const mat3x4 bezier);
+vec2   to_monomial (const vec2 bezier);
+mat2   to_monomial (const mat2 bezier);
+mat2x3 to_monomial (const mat2x3 bezier);
+mat2x4 to_monomial (const mat2x4 bezier);
+vec4   transform_bezier_h (const vec4 bezier, const mat2 trans_h);
+mat4x2 transform_bezier_h (const mat4x2 bezier, const mat3 trans_h);
+mat4x3 transform_bezier_h (const mat4x3 bezier, const mat4 trans_h);
+vec3   transform_bezier_h (const vec3 bezier, const mat2 trans_h);
+mat3x2 transform_bezier_h (const mat3x2 bezier, const mat3 trans_h);
+mat3   transform_bezier_h (const mat3 bezier, const mat4 trans_h);
+vec3   derive_bezier (const vec4 bezier);
+mat3x2 derive_bezier (const mat4x2 bezier);
+mat3   derive_bezier (const mat4x3 bezier);
+mat3x4 derive_bezier (const mat4 bezier);
+vec2   derive_bezier (const vec3 bezier);
+mat2   derive_bezier (const mat3x2 bezier);
+mat2x3 derive_bezier (const mat3 bezier);
+mat2x4 derive_bezier (const mat3x4 bezier);
+float  derive_bezier (const vec2 bezier);
+vec2   derive_bezier (const mat2x2 bezier);
+vec3   derive_bezier (const mat2x3 bezier);
+vec4   derive_bezier (const mat2x4 bezier);
+vec3   derive_monomial (const vec4 monomial);
+mat3x2 derive_monomial (const mat4x2 monomial);
+mat3   derive_monomial (const mat4x3 monomial);
+mat3x4 derive_monomial (const mat4 monomial);
+vec2   derive_monomial (const vec3 monomial);
+mat2   derive_monomial (const mat3x2 monomial);
+mat2x3 derive_monomial (const mat3 monomial);
+mat2x4 derive_monomial (const mat3x4 monomial);
+float  derive_monomial (const vec2 monomial);
+vec2   derive_monomial (const mat2 monomial);
+vec3   derive_monomial (const mat2x3 monomial);
+vec4   derive_monomial (const mat2x4 monomial);
+vec3   solve_quadratic (const float _negb, const float _2a, const float D, const float _2c);
+vec3   solve_quadratic (const vec3 monomial);
+mat2x3 solve_quadratic (const mat3x2 monomial);
+mat3   solve_quadratic (const mat3 monomial);
+mat4x3 solve_quadratic (const mat3x4 monomial);
+vec2   solve_linear (const vec2 monomial);
+mat2   solve_linear (const mat2 monomial);
+mat3x2 solve_linear (const mat2x3 monomial);
+mat4x2 solve_linear (const mat2x4 monomial);
+void   split_bezier (out vec4 b0, out vec4 b1, const vec4 bezier);
+void   split_bezier (out mat4x2 b0, out mat4x2 b1, const mat4x2 bezier);
+void   split_bezier (out mat4x3 b0, out mat4x3 b1, const mat4x3 bezier);
+void   split_bezier (out mat4 b0, out mat4 b1, const mat4 bezier);
+void   split_bezier (out vec4 b_half, const vec4 bezier, const bool second);
+void   split_bezier (out mat4x2 b_half, const mat4x2 bezier, const bool second);
+void   split_bezier (out mat4x3 b_half, const mat4x3 bezier, const bool second);
+void   split_bezier (out mat4 b_half, const mat4 bezier, const bool second);
+vec3   bitangent (const mat4x3 bezier, const mat3 dbezier, const float t, const vec3 eye);
+vec3   bitangent (const mat4x3 bezier, const float t, const vec3 eye);
+vec3   bitangent (const mat4x3 bezier, const int end, const vec3 eye);
+vec3   bitangent0(const mat4x3 bezier, const vec3 eye);
+vec3   bitangent1(const mat4x3 bezier, const vec3 eye);
+vec3   bitangent (const mat3 bezier, const mat2x3 dbezier, const float t, const vec3 eye);
+vec3   bitangent (const mat3 bezier, const float t, const vec3 eye);
+vec3   bitangent (const mat3 bezier, const int end, const vec3 eye);
+vec3   bitangent0(const mat3 bezier, const vec3 eye);
+vec3   bitangent1(const mat3 bezier, const vec3 eye);
+AABox3 curve_bounds (const mat4x3 bezier, const float tmin, const float tmax);
+AABox3 curve_bounds (const mat3 bezier, const float tmin, const float tmax);
+AABox3 curve_bounds (const mat4x3 bezier, const vec4 radius, const float tmin, const float tmax);
+AABox3 curve_bounds (const mat3 bezier, const vec3 radius, const float tmin, const float tmax);
+AABox3 ribbon_bounds (const mat4x3 bezier, const mat3 dbezier, const vec4 radius, const vec3 eye);
+AABox3 ribbon_bounds (out mat2x3 bitangets, const mat4x3 bezier, const mat3 dbezier, const vec4 radius,
+                      const vec3 eye);
+AABox3 ribbon_bounds (const mat3 bezier, const mat2x3 dbezier, const vec3 radius, const vec3 eye);
+AABox3 ribbon_bounds (out mat2x3 bitangets, const mat3 bezier, const mat2x3 dbezier, const vec3 radius,
+                      const vec3 eye);
+mat3   curve_prinicipal_dirs (const mat4x3 bezier);
+mat3   curve_prinicipal_dirs (const mat3 bezier);
+mat4   curve_obb_trans (const mat4x3 curve, const vec4 radius);
+mat4   curve_obb_trans (const vec3 ref_dir, const mat4x3 curve, const vec4 radius);
+mat4   curve_obb_trans (const mat3 curve, const vec3 radius);
+mat4   curve_obb_trans (const vec3 ref_dir, const mat3 curve, const vec3 radius);
+mat4   curve_system_trans (const mat4x3 curve);
+mat4   curve_system_trans (const mat3 curve);
+float  nonlinearness (const float p0, const float p1, const float p2, const float t1);
+float  nonlinearness (const vec2 p0, const vec2 p1, const vec2 p2, const float t1);
+float  nonlinearness (const vec3 p0, const vec3 p1, const vec3 p2, const float t1);
+float  nonlinearness (const vec4 p0, const vec4 p1, const vec4 p2, const float t1);
+float  nonlinearness (const vec4 bezier);
+float  nonlinearness (const mat4x2 bezier);
+float  nonlinearness (const mat4x3 bezier);
+float  nonlinearness (const mat4 bezier);
+///***** end interface of curve_tools.glsl ************************************/
+
+
+///***** begin interface of rcc.glsl ******************************************/
+// --- link dependencies ---------------
+/* transform.glsl */
+// --- structs -------------------------
+// Representation of a ray-centric coordinate system
+struct RCC {
+	// The model transformation from ray-centric into whatever reference coordiante system was used.
+	mat4 model;
+	// The system transformation from whatever reference coordiante system was used into ray-centric coordinates.
+	mat4 system;
+	// The index of the coordiante axis that coincides with the ray.
+	int axis;
+	// The indices of the first and second non-ray axes.
+	int non_axes[2];
+};
+// --- functions -----------------------
+mat4   rcc_calc_model_transform_x (const vec3 orig, const vec3 dir);
+mat4   rcc_calc_system_transform_x (const vec3 orig, const vec3 dir);
+mat4   rcc_calc_model_transform_y (const vec3 orig, const vec3 dir);
+mat4   rcc_calc_system_transform_y (const vec3 orig, const vec3 dir);
+mat4   rcc_calc_model_transform_z (const vec3 orig, const vec3 dir);
+mat4   rcc_calc_system_transform_z (const vec3 orig, const vec3 dir);
+RCC    rcc_create_x (const vec3 orig, const vec3 dir);
+RCC    rcc_create_y (const vec3 orig, const vec3 dir);
+RCC    rcc_create_z (const vec3 orig, const vec3 dir);
+///***** end interface of rcc.glsl ********************************************/
+
+
+/* 0: NO_OP
+   1: RASTERIZE_DEBUG
+   2: RAYCAST_DEBUG
+   3: RAYCAST */
+#define MODE 3
+
+/* 0: All attributes in geom->frag interface
+   1: No curve attributes in geom->frag interface
+   2: No color attributes in geom->frag interface
+   3: Attribute-less (except sub-/segment ids) */
+#define ATTRIB_MODE 0
+
+// Defines the maximum depth of the subcurve stack (subcurves are intersected as-is even when their non-linearness is still too
+// high when this threshold is reached)
+#define MAX_INTERSECTION_STACK_SIZE 8
+
+// Holds the value that the stack pointer must have such that exactly one additional subdivision is possible with the current
+// stack size
+#define STACK_OVERFLOW_THRESHOLD (MAX_INTERSECTION_STACK_SIZE-2)
+
+// 0 - use (tube-based) conservative approximation, 1 - calculate exact tight-fitting boxes
+#define EXACT_RIBBON_BBOXES 0
+
+// 0 - perform patch intersection in same coordinate system as the subcurve,
+// 1 - transform patches to ray-centric coordinates if they aren't already
+#define RAY_CENTRIC_ISECTS 0
+
+// 0 - oriented to original curve, 1 - oriented to subcurves, 2 - ray-centric (z-axis)
+#define BBOX_COORD_SYSTEM 2
+
+// 0 - off, 1 - number of iterations needed until intersection, 2 - visualize stack usage
+#define DBG_VISUALIZE_STATS 0
+
+// 0 - off, 1 - visualize leaf-level bounding boxes
+#define DBG_VISUALIZE_LEAF_BBOXES 0
+
+
+uniform float radius_scale;
+uniform vec4 viewport;
+uniform float max_t;
+uniform float linearity_thr = .015625;
+uniform float screwiness_thr = .9375;
+uniform float subdiv_abort_thr = 512;
+
+
+#if ATTRIB_MODE > 0
+	struct node_data_type {
+		vec4 pos_rad;
+		vec4 color;
+		vec4 tangent;
+		vec4 t; // only uses .x component to store t, yzw are reserved for future use
+	};
+
+	// node attribute buffer
+	layout(std430, binding=0) readonly buffer data_buffer {
+		node_data_type nodes[];
+	};
+
+	// node index pair buffer
+	layout(std430, binding=2) readonly buffer nid_buffer {
+		uvec2 node_ids[];
+	};
+#endif
+
+// arclen approximations SBO
+layout (std430, binding=1) readonly buffer arclen_buffer { 
+	mat4 b[]; // 4 cubic beziers packed into colums of mat4
+};
+
+
+smooth in vec3 position_fs;
+#if !(ATTRIB_MODE & 1)
+	flat in mat4 curve_fs;
+#endif
+#if !(ATTRIB_MODE & 2)
+	flat in mat2x4 color_fs;
+#endif
+flat in float t_offset_fs;
+flat in int segment_id_fs;
+
+
+#if USE_CONSERVATIVE_DEPTH == 1
+	layout (depth_greater) out float gl_FragDepth;
+#endif
+
+layout (location=0) out vec4 frag_albedo;
+layout (location=1) out vec3 frag_position;
+layout (location=2) out vec3 frag_normal;
+layout (location=3) out vec3 frag_tangent;
+
+
+// Container for information about a ray.
+struct ray_t
+{
+	// The ray origin.
+	vec3 orig;
+
+	// The ray direction.
+	vec3 dir;
+
+	// Vector containing the reciprocals of each component of @ref dir .
+	vec3 dir_rcp;
+};
+
+// arclength evaluation
+float alen (float t)
+{
+	const float t4 = t+t+t+t;
+	const int seg = max(int(min(t4, 3)), 0);
+	const float t_inner = t4 - seg;
+	return eval_bezier(b[segment_id_fs][seg], t_inner);
+}
+
+#if BBOX_COORD_SYSTEM==2
+	// Performs a ray-centric intersection test with the given 3D axis-aligned box, where the ray direction vector equals the
+	// z-axis basis vector, returning the exact ray parameter at the intersection point.
+	float rcc_aabb_check_z (const AABox3 box) {
+		return (box.pmin.x <= 0 && box.pmin.y <= 0 && box.pmax.x >= 0 && box.pmax.y >= 0) ? box.pmin.z : _inf();
+	}
+#else
+	// Test the given ray for intersection with the given 3D axis-aligned bounding box, returning a conservative estimate (i.e.
+	// never an overestimation) of the ray parameter at the intersection point.
+	float ray_aabb_check (const ray_t ray, const AABox3 box)
+	{
+		// Automatically takes care of any component of ray.dir being 0 since the resulting
+		// infinities won't change the relation of the min/max values
+		float tmin, tmax;
+		{ float tx1 = (box.pmin.x - ray.orig.x) * ray.dir_rcp.x;
+		  float tx2 = (box.pmax.x - ray.orig.x) * ray.dir_rcp.x;
+		  tmin = min(tx1, tx2);
+		  tmax = max(tx1, tx2); }
+
+		{ float ty1 = (box.pmin.y - ray.orig.y) * ray.dir_rcp.y;
+		  float ty2 = (box.pmax.y - ray.orig.y) * ray.dir_rcp.y;
+		  tmin = max(tmin, min(ty1, ty2));
+		  tmax = min(tmax, max(ty1, ty2)); }
+
+		{ float tz1 = (box.pmin.z - ray.orig.z) * ray.dir_rcp.z;
+		  float tz2 = (box.pmax.z - ray.orig.z) * ray.dir_rcp.z;
+		  tmin = max(tmin, min(tz1, tz2));
+		  tmax = min(tmax, max(tz1, tz2)); }
+
+		// Return conservative estimate for ray parameter or infinity in case of miss
+		return tmax >= max(0, tmin) ?
+			   aabox3_project_onto_dir(box, ray.dir).x - dot(ray.orig, ray.dir)
+			: _inf();
+	}
+
+	// Calcs intersection with an axis-aligned box in the same coordinate system.
+	float box_isect (const ray_t ray, const AABox3 box) 
+	{
+		// Offset ray origin so coordinate system is centered around the box
+		vec3 ro = ray.orig - aabox3_center(box);
+		vec3 rad = aabox3_half_extent(box);
+
+		// Ray-box intersection in box space
+		vec3 s = vec3((ray.dir.x<0.0)?1.0:-1.0,
+					  (ray.dir.y<0.0)?1.0:-1.0,
+					  (ray.dir.z<0.0)?1.0:-1.0);
+		vec3 t1 = ray.dir_rcp*(-ro + s*rad);
+		vec3 t2 = ray.dir_rcp*(-ro - s*rad);
+
+		float tN = max(max( t1.x, t1.y ), t1.z );
+		float tF = min(min( t2.x, t2.y ), t2.z );
+
+		return (tN>tF || tF<0.0) ? _inf() : tN;
+	}
+#endif
+
+// XXX: Disabled as it does not work quite correctly in the shader (as opposed to the CPU, where it works perfectly - investigate!)
+#if 0 && (BBOX_COORD_SYSTEM==2 || defined(RAY_CENTRIC_ISECTS) && RAY_CENTRIC_ISECTS!=0)
+	// Calcs the ray intersection with the given bilinear patch, specified in a ray-centric coordinate system where the ray
+	// direction vector equals the z-axis basis vector.
+	vec3 rcc_bipatch_isect_z (const vec3 q00, const vec3 q10, const vec3 q01, const vec3 q11)
+	{
+		// Sketch of the bilinear interpolation problem:
+		//
+		// q01 ------*------ q11
+		//  | u      |        |    ↑
+		//  *--------O--------*    | c(t)
+		//  |        |        |    |
+		//  |        | v      |    | 
+		// q00 ------*------ q10
+		//
+		// Idea: <to-be-put-in-prose>
+
+
+		////
+		// Step 1: find the u-parameter(s) of the u-isoline(s) that go through the origin
+
+		// Pre-calculate common terms
+		float x01y10 = q01.x*q10.y, x11y00 = q11.x*q00.y,
+
+		// Calculate a, b, c of quadratic equation
+		a = (-q10.y + q11.y)*q00.x + (q00.y - q01.y)*q10.x + x01y10 - q01.x*q11.y - x11y00 + q11.x*q01.y,
+		b = (q10.y+q10.y - q11.y)*q00.x + (-q00.y-q00.y + q01.y)*q10.x - x01y10 + x11y00,
+		c = -q00.x*q10.y + q10.x*q00.y;
+
+		// Solve quadratic equation, yielding u parameter(s)
+		float u0, u1;
+		if (a == 0) {
+			// Linear problem - means the patch has a trapezoidal 2D "footprint"
+			u0 = -c / b;
+			u1 = _inf();
+			if (u0 < 0 || u0 > 1)
+				return vec3(u0, _inf(), _inf());
+		}
+		else {
+			float a2 = a+a, D = (-a2-a2)*c + b*b;
+			if (D < 0)
+				return _inf3();
+
+			// Compute the two roots yielding our candidate u parameters
+			float sqrtD = sqrt(D), a2_neg_inv = -1/a2;
+			u0 = (b + sqrtD) * a2_neg_inv;
+			u1 = (b - sqrtD) * a2_neg_inv;
+		}
+
+
+		////
+		// Step 2: infer v parameter from the position of the origin on the u-isoline(s)
+
+		// Initialize output values
+		float u, v, l;
+		v=u=l = _inf();
+
+		// Check first u candidate
+		vec3 v0, v1;
+		if (u0 >= 0 && u0 <= 1) {
+			v0 = mix(q00, q01, u0); v1 = mix(q10, q11, u0); // <-- form the actual u-isoline
+			v = v0.x / (v0.x-v1.x);
+			if (v < 0 || v > 1) {
+				u = u0;
+				l = mix(v0.z, v1.z, v);
+			}
+		}
+
+		// Check second u candidate
+		if (u1 >= 0 && u1 <= 1) {
+			v0 = mix(q00, q01, u1); v1 = mix(q10, q11, u1); // <-- form the actual u-isoline
+			float v_ =  v0.x / (v0.x-v1.x);
+			if (v_ >= 0 && v_ <= 1) {
+				float l_ = mix(v0.z, v1.z, v_);
+				if (l_ < l) {
+					u = u1;
+					l = l_;
+				}
+			}
+		}
+		vec3 hit = vec3(u, v, l);
+	}
+#endif
+
+#if 1 || BBOX_COORD_SYSTEM!=2
+	// Returns a value of magnitude mag with the sign of sgn.
+	float copysign (const float mag, const float sgn) {
+		return uintBitsToFloat((floatBitsToUint(sgn) & 0x80000000u) | (floatBitsToUint(mag) & 0x7fffffffu));
+	}
+
+	// Calcs the intersection of the given ray with the given bilinear patch.
+	vec3 ray_bipatch_isect (
+		const ray_t ray, const vec3 q00_, const vec3 q10_, const vec3 q01, const vec3 q11
+	){
+		// Construct edges
+		vec3 e10 = q10_ - q00_,                // q01 ------------- q11
+		     e11 = q11 - q10_,                 //  |                 |    ↑
+		     e00 = q01 - q00_,                 //  | e00         e11 |    | c(t)
+		     qn  = cross(q10_-q00_, q01-q11),  //  |       e10       |    |
+		q00 = q00_ - ray.orig,                 // q00 ------------- q10
+		q10 = q10_ - ray.orig;
+
+
+		// The overall logic of the intersection is more or less the same as the ray-centric case (see implementation
+		// above), but has to be formulated in a coordiante system-independent way.
+
+		// Determine determinant
+		float a = dot(cross(q00, ray.dir), e00),   // the equation is
+		      c = dot(qn, ray.dir);                // a  +  b u  +  c u^2
+		float b = dot(cross(q10, ray.dir), e11);   // first compute
+		b -= a + c;
+		float det = b*b - 4*a*c;
+		if (det < 0)
+			return _inf3();
+		det = sqrt(det);
+
+		// Initialize output values
+		vec3 hit; hit.z = _inf();
+
+		// Calculate the (up to two) roots, yielding candidate u-isolines
+		float u0, u1;
+		if (c == 0) {                                       // if c == 0, it is a trapezoid
+			u0 = -a/b; u1 = -1;                             // and there is only one root
+		}
+		else {                                              // (c != 0 in Stanford models)
+			u0 = (-b - copysign(det, b))*.5;                // numerically "stable" root
+			u1 = a/u0;                                      // Viete's formula for u1*u2
+			u0 /= c;
+		}
+
+		// Check first u candidate
+		if (u0 >= 0 && u0 <= 1)                             // is it inside the patch?
+		{
+			vec3  pa = mix(q00, q10, u0),                   // point on edge e10 (Fig. 4)
+			      pb = mix(e00, e11, u0),                   // it is, actually, pb - pa
+			      n  = cross(ray.dir, pb);
+			det = dot(n, n);
+			n = cross(n, pa);
+			float l1 = dot(n, pb), v1 = dot(n, ray.dir);    // no need to check l1 < l
+			if (l1 > 0 && 0 <= v1 && v1 <= det)             // if l1 > ray.lmax,
+				hit = vec3(u0, v1/det, l1/det);             // it will be rejected
+		}
+
+		// Check second u candidate
+		if (u1 >= 0 && u1 <= 1)                             // it is slightly different,
+		{
+			vec3 pa = mix(q00, q10, u1),                    // since u0 might be good
+			     pb = mix(e00, e11, u1),                    // and we need 0 < l2 < l1
+			     n  = cross(ray.dir, pb);
+			det = dot(n, n);
+			n = cross(n, pa);
+			float l2 = dot(n, pb)/det, v2 = dot(n, ray.dir);
+			if (0 <= v2 && v2 <= det && hit.z > l2 && l2 > 0)
+				hit = vec3(u1, v2/det, l2);
+		}
+
+		// Done!
+		return hit;
+	}
+#endif
+
+
+// Struct encapsulating an intersection task with a subcurve
+struct subcurve_task
+{
+	// The curve axis of the parent task that spawned this subcurve
+	mat4x3 curve;
+
+	// The radius sub-curve
+	vec4 radius;
+
+	// The subcurve parameter range
+	vec2 t;
+};
+
+
+void main()
+{
+	// Convert screwingess threshold
+	float subdiv_abort_thr = subdiv_abort_thr*_eps();
+
+	// Subcurve intersection task stack
+	subcurve_task stack[MAX_INTERSECTION_STACK_SIZE];
+	int sp = 0; // stack pointer
+
+	// Build ray information
+	ray_t ray;
+	ray.orig = vec3(0);
+	ray.dir = normalize(position_fs);
+
+	// Init stack
+	// - retrieve segment curve data
+	#if ATTRIB_MODE > 0
+		#if ATTRIB_MODE & 2
+			// Re-declare the two color values since we don't have them as attribute inputs
+			mat2x4 color_fs;
+		#endif
+		#if ATTRIB_MODE & 1
+		/* local scope */ {
+			// Fetch nodes from attribute buffers
+			node_data_type n0 = nodes[node_ids[segment_id_fs].x],
+			               n1 = nodes[node_ids[segment_id_fs].y];
+
+			// Transform to eye-space, split and put onto stack as root task directly, without creating and converting from a
+			// Hermite curve first
+			bool select = t_offset_fs != 0;
+			split_bezier(
+				stack[0].curve,
+				mat4x3(get_modelview_matrix() * mat4(
+					vec4(n0.pos_rad.xyz, 1), vec4(n0.pos_rad.xyz + 1/3.*n0.tangent.xyz, 1),
+					vec4(n1.pos_rad.xyz - 1/3.*n1.tangent.xyz, 1), vec4(n1.pos_rad.xyz, 1)
+				)),
+				select
+			);
+			split_bezier(
+				stack[0].radius,
+				vec4(
+					n0.pos_rad.w * radius_scale, n0.pos_rad.w*radius_scale + 1/3.*radius_scale*n0.tangent.w,
+					n1.pos_rad.w*radius_scale - 1/3.*radius_scale*n1.tangent.w, n1.pos_rad.w * radius_scale
+				),
+				select
+			);
+
+			#if ATTRIB_MODE & 2
+				// Split node colors
+				select = !select;
+				color_fs[0] = select ? n0.color : .5*(n0.color+n1.color);
+				color_fs[1] = select ? .5*(n0.color+n1.color) : n1.color;
+			#endif
+		}
+		#elif ATTRIB_MODE & 2
+			color_fs = mat2x4(
+				nodes[node_ids[segment_id_fs].x].color,
+				nodes[node_ids[segment_id_fs].y].color
+			);
+			color_fs[0] = t_offset_fs == 0 ? color_fs[0] : .5*(color_fs[0]+color_fs[1]);
+			color_fs[1] = t_offset_fs == 0 ? .5*(color_fs[0]+color_fs[1]) : color_fs[1];
+		#endif
+	#endif
+	#if !(ATTRIB_MODE & 1)
+		// Unpack curve-related attributes into root task on stack
+		stack[0].curve = mat4x3(curve_fs);
+		stack[0].radius = vec4(curve_fs[0].w, curve_fs[1].w, curve_fs[2].w, curve_fs[3].w);
+	#endif
+	// - if applicable, immediatly transform according to chosen constant bbox coordinate system
+	#if BBOX_COORD_SYSTEM!=1
+		ray_t ray_local;
+		ray_local.orig = vec3(0);
+		#if BBOX_COORD_SYSTEM==2
+			mat3 M = make_orthonormal_system_z(ray.dir);
+			ray_local.dir = vec3(0,0,1);
+			ray_local.dir_rcp = vec3(_inf(), _inf(), 1);
+		#else
+			mat3 M = transpose(curve_prinicipal_dirs(stack[0].curve));
+			ray_local.dir = M * ray.dir;
+			ray_local.dir_rcp = vec3(1) / ray_local.dir;
+		#endif
+		stack[0].curve = M * stack[0].curve;
+	#endif
+	// - in case ray-centric patch intersections are requested when we don't use ray-centric bbox tests, make sure we know the
+	//   ray centric coordinates anyway
+	#if 0 && (defined(RAY_CENTRIC_ISECTS) && RAY_CENTRIC_ISECTS!=0 && BBOX_COORD_SYSTEM!=2)
+		mat3 Mrcc = make_orthonormal_system_z(ray.dir);
+	#endif
+	// - store root parameter interval
+	stack[0].t = vec2(0, 1);
+
+	// Main loop
+	// - prepare result variables
+	vec3 normal, tangent;
+	#if defined(DBG_VISUALIZE_STATS) && DBG_VISUALIZE_STATS==1
+		int iterations = 0;
+	#elif defined(DBG_VISUALIZE_STATS) && DBG_VISUALIZE_STATS==2
+		int stackusage = 0;
+	#endif
+	float t, v, l = _inf();
+	while (sp > -1)
+	{
+		// Keep stats
+		#if defined(DBG_VISUALIZE_STATS) && DBG_VISUALIZE_STATS==1
+			iterations++;
+		#endif
+
+		// Check subcurve bounding box
+		// - build
+		#if BBOX_COORD_SYSTEM==1
+			mat4x3 stack_curve = stack[sp].curve;
+			vec4 radius = stack[sp].radius;
+			mat3 M; {
+				vec3 bt0  = bitangent0(stack_curve, ray.orig), bt1  = bitangent1(stack_curve, ray.orig);
+				make_orthonormal_system_x(M, radius[3] > radius[0] ? bt1 : bt0);
+			}
+			mat4x3 curve = M * stack_curve;
+			ray_t ray_local;
+			ray_local.orig = vec3(0);
+			ray_local.dir = M * ray.dir;
+			ray_local.dir_rcp = vec3(1) / ray_local.dir;
+			#define CUR_CURVE curve
+		#else
+			#define CUR_CURVE stack[sp].curve
+		#endif
+		#if defined(EXACT_RIBBON_BBOXES) && EXACT_RIBBON_BBOXES!=0
+			mat3 dcurve = derive_bezier(CUR_CURVE);
+			mat2x3 bt;
+			AABox3 bounds = ribbon_bounds(bt, CUR_CURVE, dcurve, stack[sp].radius, ray_local.orig);
+		#else
+			AABox3 bounds = curve_bounds(CUR_CURVE, stack[sp].radius, 0, 1);
+		#endif
+		// - check
+		#if BBOX_COORD_SYSTEM==2
+			float l_new = rcc_aabb_check_z(bounds);
+		#else
+			float l_new = ray_aabb_check(ray_local, bounds);
+		#endif
+
+		if (l_new < l)
+		{
+			// Eliminate current subcurve access indirection
+			#if BBOX_COORD_SYSTEM!=1
+				mat4x3 curve = stack[sp].curve;
+				vec4 radius = stack[sp].radius;
+			#endif
+			vec2 t_stack = stack[sp].t;
+
+			// Determine screwiness as additional subdivision criterion
+			#if !defined(EXACT_RIBBON_BBOXES) || EXACT_RIBBON_BBOXES==0
+				mat2x3 bt;
+				bt[0] = bitangent0(curve, ray_local.orig),
+				bt[1] = bitangent1(curve, ray_local.orig);
+			#endif
+			bool subdiv_abort; { // prevents infinite subdivision due to numerical issues
+				vec3 cdelta = curve[3]-curve[0];
+				subdiv_abort = dot(cdelta, cdelta) < subdiv_abort_thr;
+			}
+
+			// Evaluate subdivision criteria and proceed accordingly
+			if (  (nonlinearness(curve) < linearity_thr && nonlinearness(radius) < linearity_thr && dot(bt[0], bt[1]) > screwiness_thr)
+			    || sp > STACK_OVERFLOW_THRESHOLD || subdiv_abort)
+			{
+				// Subcurve is linear enough, intersect bilinear patch
+				// - augment bitangents with radius
+				bt[0] *= radius[0];
+				bt[1] *= radius[3];
+				// - determine vertices of bilinear patch
+				vec3 patch00 = curve[0] - bt[0], patch10 = curve[0] + bt[0],
+				     patch01 = curve[3] - bt[1], patch11 = curve[3] + bt[1],
+				// - perform intersection (NOTE: ray-centric version disabled for now (see comment above function definition)
+				#if 0 && (BBOX_COORD_SYSTEM==2 || (defined(RAY_CENTRIC_ISECTS) && RAY_CENTRIC_ISECTS!=0))
+					isect = rcc_bipatch_isect_z(
+						#if defined(RAY_CENTRIC_ISECTS) && RAY_CENTRIC_ISECTS!=0 && BBOX_COORD_SYSTEM!=2
+							Mrcc * patch00, Mrcc * patch10, Mrcc * patch01, Mrcc * patch11
+						#else
+							patch00, patch10, patch01, patch11
+						#endif
+					);
+				#else
+					isect = ray_bipatch_isect(ray_local, patch00, patch10, patch01, patch11);
+				#endif
+				if (isect.z < l) {
+					#if !defined(EXACT_RIBBON_BBOXES) || EXACT_RIBBON_BBOXES==0
+						mat3 dcurve = derive_bezier(curve);	// we need the curve derivative now at the lastest
+					#endif
+					// Update potential intersection
+					l = isect.z;
+					t = mix(t_stack.x, t_stack.y, isect.y);
+					v = isect.x;
+					#if BBOX_COORD_SYSTEM==1
+						mat3 M_transp = transpose(M);
+					#endif
+					normal =
+						#if BBOX_COORD_SYSTEM==1
+							M_transp *
+						#endif
+						mix(cross(dcurve[0], bt[0]), cross(dcurve[2], bt[1]), isect.y);
+					tangent =
+						#if BBOX_COORD_SYSTEM==1
+							M_transp *
+						#endif
+						eval_bezier(dcurve, isect.y);
+				}
+				#if defined(DBG_VISUALIZE_LEAF_BBOXES) && DBG_VISUALIZE_LEAF_BBOXES!=0
+					else {
+						l =
+							#if BBOX_COORD_SYSTEM!=2
+								min(l, box_isect(ray_local, bounds));
+							#else
+								l_new;
+							#endif
+						t = -1;
+					}
+				#endif
+				sp--; // branch completed, decrease stack pointer
+			}
+			else
+			{
+				// Subdivide
+				// - decide which subcurve to push last (so it's processed first) according to closeness to eye
+				#if BBOX_COORD_SYSTEM==1
+					// Split the global-system curve (not the locally-transformed one from top of loop body)
+					#define CURVE_REF stack_curve
+				#else
+					#define CURVE_REF curve
+				#endif
+				float d0 = dot(CURVE_REF[0], ray_local.dir),
+				      d1 = dot(CURVE_REF[3], ray_local.dir);
+				int decider = d1 > d0 ? 1 : 0, first = sp+decider, second = sp+((decider+1)%2);
+				// - perform split in determined order
+				split_bezier(stack[first].curve, stack[second].curve, CURVE_REF);
+				split_bezier(stack[first].radius, stack[second].radius, radius);
+				float tmid = .5*(t_stack.x + t_stack.y);
+				stack[first].t = vec2(t_stack.x, tmid);
+				stack[second].t = vec2(tmid, t_stack.y);
+				sp++; // increase stack pointer
+
+				// Keep stats
+				#if defined(DBG_VISUALIZE_STATS) && DBG_VISUALIZE_STATS==2
+					stackusage = max(sp, stackusage);
+				#endif
+			}
+		}
+		else
+			sp--; // branch completed, decrease stack pointer
+	}
+
+	// Process intersection if any
+	if (l < _inf())
+	{
+		// Calculate screen depth
+		float depth; vec3 pos_eye; {
+			pos_eye = ray.orig + l*ray.dir;
+			vec4 frag_clip = get_projection_matrix() * vec4(pos_eye, 1);
+			depth = .5*(frag_clip.z/frag_clip.w) + .5;
+		}
+
+		// Process output normal and tangent
+		#if BBOX_COORD_SYSTEM!=1
+			mat3 M_transp = transpose(M);
+		#endif
+		normal = normalize(
+			#if defined(DBG_VISUALIZE_LEAF_BBOXES) && DBG_VISUALIZE_LEAF_BBOXES!=0
+				t!= -1 ?
+			#endif
+				#if BBOX_COORD_SYSTEM!=1
+					M_transp *normal
+				#else
+					normal
+				#endif
+			#if defined(DBG_VISUALIZE_LEAF_BBOXES) && DBG_VISUALIZE_LEAF_BBOXES!=0
+				: cross(dFdx(pos_eye), dFdy(pos_eye))
+			#endif
+		);
+		tangent = (
+			#if BBOX_COORD_SYSTEM!=1
+				M_transp * tangent
+			#else
+				tangent
+			#endif
+		);
+
+		// Shade fragment
+		float t_seg = .5*t + t_offset_fs;
+		#if defined(DBG_VISUALIZE_STATS) && DBG_VISUALIZE_STATS!=0
+			float svis =
+			#if DBG_VISUALIZE_STATS==1
+				min(iterations/75., 1.);
+			#elif DBG_VISUALIZE_STATS==2
+				min(stackusage/float(MAX_INTERSECTION_STACK_SIZE-1), 1.);
+			#endif
+		#endif
+		vec4 color = (
+			#if defined(DBG_VISUALIZE_LEAF_BBOXES) && DBG_VISUALIZE_LEAF_BBOXES!=0
+				t!=-1 ?
+			#endif
+				  #if !defined(DBG_VISUALIZE_STATS) || DBG_VISUALIZE_STATS==0
+				  	mix(color_fs[0], color_fs[1], t)
+				  #else
+				  	vec4(svis, 1-svis, .25, 1)
+				  #endif
+			#if defined(DBG_VISUALIZE_LEAF_BBOXES) && DBG_VISUALIZE_LEAF_BBOXES!=0
+				: vec4(.25, .25, .25, 1)
+			#endif
+		);
+
+		// Output shading results
+		//finish_fragment(color, depth);
+		frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(color)), alen(t_seg), v, intBitsToFloat(segment_id_fs));
+		frag_position = vec3(pos_eye);
+		frag_normal = normal;
+		frag_tangent = tangent;
+	}
+	else {
+		frag_albedo = vec4(uintBitsToFloat(0xFF0000FF), 0.0, 0.0, intBitsToFloat(0));
+		frag_position = vec3(0.0, 0.0, 1.0);
+		frag_normal = vec3(0.0, 0.0, 1.0);
+		frag_tangent = vec3(1.0, 0.0, 0.0);
+		discard;
+	};
+}

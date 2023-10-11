@@ -1,0 +1,547 @@
+#version 430 core
+
+
+///***** begin interface of view.glsl *****************************************/
+mat4 get_modelview_matrix();
+mat4 get_projection_matrix();
+mat4 get_modelview_projection_matrix();
+mat4 get_inverse_modelview_matrix();
+mat4 get_inverse_modelview_projection_matrix();
+mat3 get_normal_matrix();
+mat3 get_inverse_normal_matrix();
+///***** end interface of view.glsl *******************************************/
+
+
+///***** begin interface of transform.glsl ************************************/
+vec3   ortho_vec (const vec3 v);
+void   make_orthonormal_basis (out vec3 e0, out vec3 e1, const vec3 ref);
+mat2x3 make_orthonormal_basis (const vec3 ref);
+void   make_orthonormal_system_x (out mat3 M, const vec3 ref);
+mat3   make_orthonormal_system_x (const vec3 ref);
+void   make_orthonormal_system_y (out mat3 M, const vec3 ref);
+mat3   make_orthonormal_system_y (const vec3 ref);
+void   make_orthonormal_system_z (out mat3 M, const vec3 ref);
+mat3   make_orthonormal_system_z (const vec3 ref);
+void   make_local_frame (out mat4 M, const vec3 x, const vec3 y, const vec3 z, const vec3 o);
+mat4   make_local_frame (const vec3 x, const vec3 y, const vec3 z, const vec3 o);
+///***** end interface of transforms.glsl *************************************/
+
+
+///***** begin interface of curve_tools.glsl **********************************/
+// --- link dependencies ---------------
+/* transform.glsl */
+// --- structs -------------------------
+// Representation of a 3D axis-aligned box
+struct AABox3 {
+	vec3 pmin, pmax;
+};
+// --- functions -----------------------
+float _pi();
+float _inv_pi();
+float _inf();
+float _neg_inf();
+float _eps();
+float _sqrt_eps();
+vec3  _inf3();
+vec3  _neg_inf3();
+AABox3 _initbox3();
+mat4  _h2b();
+mat4  _b2h();
+mat4  _b2m();
+mat4  _m2b();
+mat3  _b2m_2();
+mat3  _m2b_2();
+mat2  _b2m_1();
+mat2  _m2b_1();
+void   aabox3_add_point (inout AABox3 box, const vec3 point);
+vec3   aabox3_center (const AABox3 box);
+vec3   aabox3_extent (const AABox3 box);
+vec3   aabox3_half_extent (const AABox3 box);
+vec2   aabox3_project_onto_dir (const AABox3 box, const vec3 dir);
+float  eval_bezier (const vec2 bezier, const float t);
+vec2   eval_bezier (const mat2 bezier, const float t);
+vec3   eval_bezier (const mat2x3 bezier, const float t);
+vec4   eval_bezier (const mat2x4 bezier, const float t);
+float  eval_bezier (const vec3 bezier, const float t);
+vec2   eval_bezier (const mat3x2 bezier, const float t);
+vec3   eval_bezier (const mat3 bezier, const float t);
+vec4   eval_bezier (const mat3x4 bezier, const float t);
+float  eval_bezier (const vec4 bezier, const float t);
+vec2   eval_bezier (const mat4x2 bezier, const float t);
+vec3   eval_bezier (const mat4x3 bezier, const float t);
+vec4   eval_bezier (const mat4 bezier, const float t);
+vec4   to_bezier (const vec4 hermite);
+mat4x2 to_bezier (const mat4x2 hermite);
+mat4x3 to_bezier (const mat4x3 hermite);
+mat4   to_bezier (const mat4 hermite);
+vec4   to_hermite (const vec4 bezier);
+mat4x2 to_hermite (const mat4x2 bezier);
+mat4x3 to_hermite (const mat4x3 bezier);
+mat4   to_hermite (const mat4 bezier);
+vec4   to_monomial (const vec4 bezier);
+mat4x2 to_monomial (const mat4x2 bezier);
+mat4x3 to_monomial (const mat4x3 bezier);
+mat4   to_monomial (const mat4 bezier);
+vec3   to_monomial (const vec3 bezier);
+mat3x2 to_monomial (const mat3x2 bezier);
+mat3   to_monomial (const mat3 bezier);
+mat3x4 to_monomial (const mat3x4 bezier);
+vec2   to_monomial (const vec2 bezier);
+mat2   to_monomial (const mat2 bezier);
+mat2x3 to_monomial (const mat2x3 bezier);
+mat2x4 to_monomial (const mat2x4 bezier);
+vec4   transform_bezier_h (const vec4 bezier, const mat2 trans_h);
+mat4x2 transform_bezier_h (const mat4x2 bezier, const mat3 trans_h);
+mat4x3 transform_bezier_h (const mat4x3 bezier, const mat4 trans_h);
+vec3   transform_bezier_h (const vec3 bezier, const mat2 trans_h);
+mat3x2 transform_bezier_h (const mat3x2 bezier, const mat3 trans_h);
+mat3   transform_bezier_h (const mat3 bezier, const mat4 trans_h);
+vec3   derive_bezier (const vec4 bezier);
+mat3x2 derive_bezier (const mat4x2 bezier);
+mat3   derive_bezier (const mat4x3 bezier);
+mat3x4 derive_bezier (const mat4 bezier);
+vec2   derive_bezier (const vec3 bezier);
+mat2   derive_bezier (const mat3x2 bezier);
+mat2x3 derive_bezier (const mat3 bezier);
+mat2x4 derive_bezier (const mat3x4 bezier);
+float  derive_bezier (const vec2 bezier);
+vec2   derive_bezier (const mat2x2 bezier);
+vec3   derive_bezier (const mat2x3 bezier);
+vec4   derive_bezier (const mat2x4 bezier);
+vec3   derive_monomial (const vec4 monomial);
+mat3x2 derive_monomial (const mat4x2 monomial);
+mat3   derive_monomial (const mat4x3 monomial);
+mat3x4 derive_monomial (const mat4 monomial);
+vec2   derive_monomial (const vec3 monomial);
+mat2   derive_monomial (const mat3x2 monomial);
+mat2x3 derive_monomial (const mat3 monomial);
+mat2x4 derive_monomial (const mat3x4 monomial);
+float  derive_monomial (const vec2 monomial);
+vec2   derive_monomial (const mat2 monomial);
+vec3   derive_monomial (const mat2x3 monomial);
+vec4   derive_monomial (const mat2x4 monomial);
+vec3   solve_quadratic (const float _negb, const float _2a, const float D, const float _2c);
+vec3   solve_quadratic (const vec3 monomial);
+mat2x3 solve_quadratic (const mat3x2 monomial);
+mat3   solve_quadratic (const mat3 monomial);
+mat4x3 solve_quadratic (const mat3x4 monomial);
+vec2   solve_linear (const vec2 monomial);
+mat2   solve_linear (const mat2 monomial);
+mat3x2 solve_linear (const mat2x3 monomial);
+mat4x2 solve_linear (const mat2x4 monomial);
+void   split_bezier (out vec4 b0, out vec4 b1, const vec4 bezier);
+void   split_bezier (out mat4x2 b0, out mat4x2 b1, const mat4x2 bezier);
+void   split_bezier (out mat4x3 b0, out mat4x3 b1, const mat4x3 bezier);
+void   split_bezier (out mat4 b0, out mat4 b1, const mat4 bezier);
+void   split_bezier (out vec4 b_half, const vec4 bezier, const bool second);
+void   split_bezier (out mat4x2 b_half, const mat4x2 bezier, const bool second);
+void   split_bezier (out mat4x3 b_half, const mat4x3 bezier, const bool second);
+void   split_bezier (out mat4 b_half, const mat4 bezier, const bool second);
+vec3   bitangent (const mat4x3 bezier, const mat3 dbezier, const float t, const vec3 eye);
+vec3   bitangent (const mat4x3 bezier, const float t, const vec3 eye);
+vec3   bitangent (const mat4x3 bezier, const int end, const vec3 eye);
+vec3   bitangent0(const mat4x3 bezier, const vec3 eye);
+vec3   bitangent1(const mat4x3 bezier, const vec3 eye);
+vec3   bitangent (const mat3 bezier, const mat2x3 dbezier, const float t, const vec3 eye);
+vec3   bitangent (const mat3 bezier, const float t, const vec3 eye);
+vec3   bitangent (const mat3 bezier, const int end, const vec3 eye);
+vec3   bitangent0(const mat3 bezier, const vec3 eye);
+vec3   bitangent1(const mat3 bezier, const vec3 eye);
+AABox3 curve_bounds (const mat4x3 bezier, const float tmin, const float tmax);
+AABox3 curve_bounds (const mat3 bezier, const float tmin, const float tmax);
+AABox3 curve_bounds (const mat4x3 bezier, const vec4 radius, const float tmin, const float tmax);
+AABox3 curve_bounds (const mat3 bezier, const vec3 radius, const float tmin, const float tmax);
+AABox3 ribbon_bounds (const mat4x3 bezier, const mat3 dbezier, const vec4 radius, const vec3 eye);
+AABox3 ribbon_bounds (out mat2x3 bitangets, const mat4x3 bezier, const mat3 dbezier, const vec4 radius,
+                      const vec3 eye);
+AABox3 ribbon_bounds (const mat3 bezier, const mat2x3 dbezier, const vec3 radius, const vec3 eye);
+AABox3 ribbon_bounds (out mat2x3 bitangets, const mat3 bezier, const mat2x3 dbezier, const vec3 radius,
+                      const vec3 eye);
+mat3   curve_prinicipal_dirs (const mat4x3 bezier);
+mat3   curve_prinicipal_dirs (const mat3 bezier);
+mat4   curve_obb_trans (const mat4x3 curve, const vec4 radius);
+mat4   curve_obb_trans (const vec3 ref_dir, const mat4x3 curve, const vec4 radius);
+mat4   curve_obb_trans (const mat3 curve, const vec3 radius);
+mat4   curve_obb_trans (const vec3 ref_dir, const mat3 curve, const vec3 radius);
+mat4   curve_system_trans (const mat4x3 curve);
+mat4   curve_system_trans (const mat3 curve);
+float  nonlinearness (const float p0, const float p1, const float p2, const float t1);
+float  nonlinearness (const vec2 p0, const vec2 p1, const vec2 p2, const float t1);
+float  nonlinearness (const vec3 p0, const vec3 p1, const vec3 p2, const float t1);
+float  nonlinearness (const vec4 p0, const vec4 p1, const vec4 p2, const float t1);
+float  nonlinearness (const vec4 bezier);
+float  nonlinearness (const mat4x2 bezier);
+float  nonlinearness (const mat4x3 bezier);
+float  nonlinearness (const mat4 bezier);
+///***** end interface of curve_tools.glsl ************************************/
+
+
+// Whether to support conservative depth
+#define USE_CONSERVATIVE_DEPTH 0
+
+/* 0: BOX
+   1: APPROXIMATE_BILLBOARD
+   2: EXACT_POLYGON
+   3: BOX_BILLBOARD
+   4: ALIGNED_BOX_BILLBOARD */
+#define BOUNDING_GEOMETRY_TYPE 4
+
+/* 0: All attributes in geom->frag interface
+   1: No curve attributes in geom->frag interface
+   2: No color attributes in geom->frag interface
+   3: Attribute-less (except sub-/segment ids) */
+#define ATTRIB_MODE 0
+
+
+uniform float radius_scale;
+
+
+layout(points) in;
+#if BOUNDING_GEOMETRY_TYPE==0
+	layout(triangle_strip, max_vertices = 28) out;
+#elif BOUNDING_GEOMETRY_TYPE==2
+	layout(triangle_strip, max_vertices = 12) out;
+#else
+	layout(triangle_strip, max_vertices = 8) out;
+#endif
+
+
+struct node_data_type {
+	vec4 pos_rad;
+	vec4 color;
+	vec4 tangent;
+	vec4 t; // only uses .x component to store t, yzw are reserved for future use
+};
+
+layout(std430, binding=0) readonly buffer data_buffer {
+    node_data_type nodes[];
+};
+
+
+flat in uvec2 node_ids_gs[];
+flat in int segment_id_gs[];
+
+smooth out vec3 position_fs;
+#if !(ATTRIB_MODE & 1)
+	flat out mat4 curve_fs;
+#endif
+#if !(ATTRIB_MODE & 2)
+	flat out mat2x4 color_fs;
+#endif
+flat out float t_offset_fs;
+flat out int segment_id_fs;
+
+
+#if BOUNDING_GEOMETRY_TYPE==0
+	#define BBOX_LEFT_DN_FRNT bbox[0][0]
+	#define BBOX_LEFT_UP_FRNT bbox[0][1]
+	#define BBOX_RGHT_DN_FRNT bbox[0][2]
+	#define BBOX_RGHT_UP_FRNT bbox[0][3]
+	#define BBOX_RGHT_DN_BACK bbox[1][0]
+	#define BBOX_RGHT_UP_BACK bbox[1][1]
+	#define BBOX_LEFT_DN_BACK bbox[1][2]
+	#define BBOX_LEFT_UP_BACK bbox[1][3]
+	const mat4 unitCube[2] = mat4[2](
+		mat4(vec4(0, 0, 0, 1), vec4(0, 1, 0, 1),
+		     vec4(1, 0, 0, 1), vec4(1, 1, 0, 1)),
+		mat4(vec4(1, 0, 1, 1), vec4(1, 1, 1, 1),
+		     vec4(0, 0, 1, 1), vec4(0, 1, 1, 1))
+	);
+#elif BOUNDING_GEOMETRY_TYPE==1
+	#define _000_ 0
+	#define _100_ 1
+	#define _010_ 2
+	#define _001_ 3
+	const mat4 corners = mat4(
+		vec4(0, 0, 0, 1), vec4(1, 0, 0, 1),
+		vec4(0, 1, 0, 1), vec4(0, 0, 1, 1)
+	);
+#elif BOUNDING_GEOMETRY_TYPE==4
+	#define _000_ 0
+	#define _100_ 1
+	#define _010_ 2
+	#define _110_ 3
+	const mat4 corners = mat4(
+		vec4(0, 0, 0, 1), vec4(1, 0, 0, 1),
+		vec4(0, 1, 0, 1), vec4(1, 1, 0, 1)
+	);
+#endif
+
+
+#if BOUNDING_GEOMETRY_TYPE>0
+	mat4x3 quad(vec4 start, vec4 end)
+	{
+		vec3 ps = start.xyz;
+		vec3 pe = end.xyz;
+		vec2 rse = vec2(start.w, end.w);
+		vec3 delta = normalize(pe - ps);
+
+		vec3 start_to_eye = -ps;
+		vec3 end_to_eye   = -pe;
+	
+		vec2 dse = vec2(length(start_to_eye), length(end_to_eye));
+
+		vec2 pr_fac = rse / sqrt(dse*dse - rse*rse);
+
+		vec2 pr = dse * pr_fac;
+
+		start_to_eye /= dse.x;
+		end_to_eye /= dse.y;
+
+		vec2 pr2 = dse * vec2(max(pr_fac.x, pr_fac.y));
+
+		vec3 aligned_up = normalize(cross(delta, start_to_eye));
+		vec3 bitangent0 = cross(aligned_up, start_to_eye); // aligned_up and start_to_eye are perpendicular and unit vectors, so no normalization is needed
+		vec3 bitangent1 = cross(aligned_up, end_to_eye); // same as for bitangent0
+
+		vec3 p0 = ps + pr.x * bitangent0;
+		vec3 p1 = ps - pr.x * bitangent0;
+		vec3 p2 = pe + pr.y * bitangent1;
+		vec3 p3 = pe - pr.y * bitangent1;
+
+		vec3 test_dir = normalize(cross(aligned_up, vec3(0,0,-1)));
+
+		float mag0 = dot(normalize(p0), test_dir);
+		float mag1 = dot(normalize(p1), test_dir);
+		float mag2 = dot(normalize(p2), test_dir);
+		float mag3 = dot(normalize(p3), test_dir);
+
+		vec3 a = p0;
+		vec3 b = p3;
+		vec2 rab = pr2;
+
+		if(mag0 > mag2) {
+			a = p2;
+			rab.x = pr2.y;
+		}
+
+		if(mag1 > mag3) {
+			b = p1;
+			rab.y = pr2.x;
+		}
+
+		mat4x3 ret;
+		ret[0] = a - rab.x * aligned_up;
+		ret[1] = a + rab.x * aligned_up;
+		ret[2] = b - rab.y * aligned_up;
+		ret[3] = b + rab.y * aligned_up;
+
+		return ret;
+	}
+#endif
+
+#if BOUNDING_GEOMETRY_TYPE==1
+	// Rounded cone signed distance function from:
+	// https://iquilezles.org/www/articles/distfunctions/distfunctions.htm
+	float sd_rounded_cone(vec3 p, vec4 a, vec4 b)
+	{
+		// sampling independent computations (only depend on shape)
+		vec3  ba = b.xyz - a.xyz;
+		float l2 = dot(ba,ba);
+		float rr = a.w - b.w;
+		float a2 = l2 - rr*rr;
+		float il2 = 1.0/l2;
+
+		// sampling dependent computations
+		vec3 pa = p - a.xyz;
+		float y = dot(pa,ba);
+		float z = y - l2;
+		vec3 v = pa*l2 - ba*y;
+		float x2 = dot(v, v);
+		float y2 = y*y*l2;
+		float z2 = z*z*l2;
+
+		float k = sign(rr)*rr*rr*x2;
+
+		if(sign(z)*a2*z2 > k)
+			return sqrt(x2 + z2) * il2 - b.w;
+
+		if(sign(y)*a2*y2 < k)
+			return sqrt(x2 + y2) * il2 - a.w;
+
+		return (sqrt(x2*a2*il2) + y*rr) * il2 - a.w;
+	}
+#elif BOUNDING_GEOMETRY_TYPE > 1
+	// https://iquilezles.org/www/articles/distfunctions/distfunctions.htm
+	float sd_box(vec3 p, vec3 b) {
+		vec3 q = abs(p) - b;
+		return length(max(q, 0.0)) + min(max(q.x,max(q.y,q.z)), 0.0);
+	}
+#endif
+
+
+#if BOUNDING_GEOMETRY_TYPE==0
+	// Emits an oriented bounding box around the input curve
+	void emit_bounding_box (const mat4x3 curve, const vec4 radius, const mat4 P /* <-- projection matrix */)
+	{
+		// Determine curve obb model transformation
+		mat4 M = curve_obb_trans(curve, radius),
+		bbox[2] = mat4[2](M*unitCube[0], M*unitCube[1]); // <-- SIMD-enabled transform
+
+		// Emit box strip
+		// - 14 strip vertices, stripification according to Evans et al.
+		position_fs = BBOX_LEFT_UP_FRNT.xyz;
+		gl_Position = P * BBOX_LEFT_UP_FRNT;
+		EmitVertex();
+		position_fs = BBOX_RGHT_UP_FRNT.xyz;
+		gl_Position = P * BBOX_RGHT_UP_FRNT;
+		EmitVertex();
+		position_fs = BBOX_LEFT_DN_FRNT.xyz;
+		gl_Position = P * BBOX_LEFT_DN_FRNT;
+		EmitVertex();
+		position_fs = BBOX_RGHT_DN_FRNT.xyz;
+		gl_Position = P * BBOX_RGHT_DN_FRNT;
+		EmitVertex();
+		position_fs = BBOX_RGHT_DN_BACK.xyz;
+		gl_Position = P * BBOX_RGHT_DN_BACK;
+		EmitVertex();
+		position_fs = BBOX_RGHT_UP_FRNT.xyz;
+		gl_Position = P * BBOX_RGHT_UP_FRNT;
+		EmitVertex();
+		position_fs = BBOX_RGHT_UP_BACK.xyz;
+		gl_Position = P * BBOX_RGHT_UP_BACK;
+		EmitVertex();
+		position_fs = BBOX_LEFT_UP_FRNT.xyz;
+		gl_Position = P * BBOX_LEFT_UP_FRNT;
+		EmitVertex();
+		position_fs = BBOX_LEFT_UP_BACK.xyz;
+		gl_Position = P * BBOX_LEFT_UP_BACK;
+		EmitVertex();
+		position_fs = BBOX_LEFT_DN_FRNT.xyz;
+		gl_Position = P * BBOX_LEFT_DN_FRNT;
+		EmitVertex();
+		position_fs = BBOX_LEFT_DN_BACK.xyz;
+		gl_Position = P * BBOX_LEFT_DN_BACK;
+		EmitVertex();
+		position_fs = BBOX_RGHT_DN_BACK.xyz;
+		gl_Position = P * BBOX_RGHT_DN_BACK;
+		EmitVertex();
+		position_fs = BBOX_LEFT_UP_BACK.xyz;
+		gl_Position = P * BBOX_LEFT_UP_BACK;
+		EmitVertex();
+		position_fs = BBOX_RGHT_UP_BACK.xyz;
+		gl_Position = P * BBOX_RGHT_UP_BACK;
+		EmitVertex();
+		// - finalize
+		EndPrimitive();
+	}
+#elif BOUNDING_GEOMETRY_TYPE==1
+	// Emit a quadrilateral billboard covering the whole curve based on the rounded cone that fits into the oriented bounding
+	// box of the curve
+	void emit_rounded_cone_billboard (const mat4x3 curve, const vec4 radius, const mat4 P /* <-- projection matrix */)
+	{
+		mat4 M = curve_obb_trans(curve, radius),
+
+		p = M * corners; // <-- SIMD-enabled transform
+		vec3 dy = p[_010_].xyz - p[_000_].xyz,
+		     dz = p[_001_].xyz - p[_000_].xyz;
+
+		float r = max(length(dy), length(dz));
+		vec4 sp = vec4(p[_000_].xyz, r),
+		     ep = vec4(p[_100_].xyz, r);
+
+		mat4x3 ps = quad(sp, ep);
+
+		#if USE_CONSERVATIVE_DEPTH==1
+			float dist = sd_rounded_cone(vec3(0), sp, ep);
+			ps[0] = dist*normalize(ps[0]);
+			ps[1] = dist*normalize(ps[1]);
+			ps[2] = dist*normalize(ps[2]);
+			ps[3] = dist*normalize(ps[3]);
+		#endif
+
+		// Emit quad strip
+		position_fs = ps[0];
+		gl_Position = P * vec4(ps[0], 1); EmitVertex();
+		position_fs = ps[1];
+		gl_Position = P * vec4(ps[1], 1); EmitVertex();
+		position_fs = ps[2];
+		gl_Position = P * vec4(ps[2], 1); EmitVertex();
+		position_fs = ps[3];
+		gl_Position = P * vec4(ps[3], 1); EmitVertex();
+		EndPrimitive();
+	}
+#elif BOUNDING_GEOMETRY_TYPE==4
+	// Emit a quadrilateral billboard covering the whole curve by selecting the front-most face of a view aligned oriented
+	// bounding box of the curve
+	void emit_aligned_box_billboard (const mat4x3 curve, const vec4 radius, const mat4 P /* <-- projection matrix */)
+	{
+		// Determine curve obb model transformation
+		vec3 to_curve = normalize(.25*(curve[0] + curve[1] + curve[2] + curve[3]));
+		mat4 M = curve_obb_trans(to_curve, curve, radius);
+		mat4 p = M * corners; // <-- SIMD-enabled transform
+
+		// Emit quad strip
+		position_fs = p[_000_].xyz;
+		gl_Position = P * p[_000_]; EmitVertex();
+		position_fs = p[_100_].xyz;
+		gl_Position = P * p[_100_]; EmitVertex();
+		position_fs = p[_010_].xyz;
+		gl_Position = P * p[_010_]; EmitVertex();
+		position_fs = p[_110_].xyz;
+		gl_Position = P * p[_110_]; EmitVertex();
+		EndPrimitive();
+	}
+#endif
+
+void main()
+{
+	// Directly build internal Bezier curve representation from input without first creating and converting from a Hermite curve
+	node_data_type n0 = nodes[node_ids_gs[0].x], n1 = nodes[node_ids_gs[0].y];
+	mat4x3 curve = mat4x3(
+		n0.pos_rad.xyz, n0.pos_rad.xyz + 1/3.*n0.tangent.xyz,
+		n1.pos_rad.xyz - 1/3.*n1.tangent.xyz, n1.pos_rad.xyz
+	);
+	vec4 radius = vec4(
+		n0.pos_rad.w * radius_scale, n0.pos_rad.w*radius_scale + 1/3.*radius_scale*n0.tangent.w,
+		n1.pos_rad.w*radius_scale - 1/3.*radius_scale*n1.tangent.w, n1.pos_rad.w * radius_scale
+	);
+
+	// Transform to eye space and split into two subsegments
+	// - fetch MV/P matrices
+	mat4 MV = get_modelview_matrix(), P = get_projection_matrix();
+	// - transform curve into eye space and split into two subsegments
+	mat4x3 subcurve[2]; {
+		split_bezier(
+			subcurve[0], subcurve[1], mat4x3(MV * mat4(
+				vec4(curve[0], 1), vec4(curve[1], 1), vec4(curve[2], 1), vec4(curve[3], 1)
+			))
+		);
+	}
+	vec4 subradius[2]; {
+		split_bezier(subradius[0], subradius[1], radius);
+	}
+
+	// Set original spline segment id which is common to both outputted subsegments
+	segment_id_fs = segment_id_gs[0];
+
+	// Emit the two subsegments
+	vec4 color_mid = .5*(n0.color + n1.color);
+	for (int i=0; i<2; i++)
+	{
+		// Set flat (non-varying) curve attributes, if enabled
+		// - eye-space subcurve and -radius
+		#if !(ATTRIB_MODE & 1)
+			// Pack into combined curve/radius output attribute
+			curve_fs = mat4(
+				vec4(subcurve[i][0], subradius[i][0]), vec4(subcurve[i][1], subradius[i][1]),
+				vec4(subcurve[i][2], subradius[i][2]), vec4(subcurve[i][3], subradius[i][3])
+			);
+		#endif
+		// - end node colors
+		#if !(ATTRIB_MODE & 2)
+			color_fs = i==0 ? mat2x4(n0.color, color_mid) : mat2x4(color_mid, n1.color);
+		#endif
+		// - which subsegment
+		t_offset_fs = i==0 ? 0 : .5;
+
+		// Emit actual proxy geometry
+		#if BOUNDING_GEOMETRY_TYPE==0
+			emit_bounding_box(subcurve[i], subradius[i], P);
+		#elif BOUNDING_GEOMETRY_TYPE==1
+			emit_rounded_cone_billboard(subcurve[i], subradius[i], P);
+		#elif BOUNDING_GEOMETRY_TYPE==4
+			emit_aligned_box_billboard(subcurve[i], subradius[i], P);
+		#endif
+	}
+}
