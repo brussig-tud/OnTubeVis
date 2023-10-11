@@ -5,20 +5,35 @@ bool voxelizer::load_shader_programs(cgv::render::context& ctx) {
 	bool res = true;
 	std::string where = "voxelizer::load_shader_programs()";
 
-	res = res && cgv::render::shader_library::load(ctx, clear_prog, "clear", true, where);
 	res = res && cgv::render::shader_library::load(ctx, voxelize_prog, "voxelize", true, where);
-	res = res && cgv::render::shader_library::load(ctx, clamp_prog, "clamp", true, where);
-	res = res && cgv::render::shader_library::load(ctx, mipmap_prog, "mipmap", true, where);
 
 	return res;
 }
 
 bool voxelizer::init(cgv::render::context& ctx, size_t count) {
 
-	if(!load_shader_programs(ctx))
-		return false;
+	bool success = true;
 
-	return true;
+	if(!load_shader_programs(ctx))
+		success = false;
+
+	clamp_kernel.set_texture_format("r32f");
+	fill_kernel.set_value(vec4(0.0f));
+
+	success &= clamp_kernel.init(ctx);
+	success &= fill_kernel.init(ctx);
+	success &= mipmap_kernel.init(ctx);
+
+	return success;
+}
+
+void voxelizer::destruct(cgv::render::context& ctx) {
+
+	voxelize_prog.destruct(ctx);
+
+	clamp_kernel.destruct(ctx);
+	fill_kernel.destruct(ctx);
+	mipmap_kernel.destruct(ctx);
 }
 
 int voxelizer::sample_voxel(const ivec3& vidx, const quadratic_bezier_tube& qt) {
@@ -168,34 +183,16 @@ void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj
 
 	glBeginQuery(GL_TIME_ELAPSED, time_query);*/
 
-	const ivec3& res = vg.resolution;
+	fill_kernel.execute(ctx, tex);
 
-	// reset the values to zero
-	clear_prog.enable(ctx);
-	clear_prog.set_uniform(ctx, "res", res);
-
-	const int texture_handle = (const int&)tex.handle - 1;
-
-	glBindImageTexture(0, texture_handle, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R32F);
-
-	GLuint num_groups[3] = {
-		(GLuint)ceil(res.x() / 4.0f),
-		(GLuint)ceil(res.y() / 4.0f),
-		(GLuint)ceil(res.z() / 4.0f)
-	};
-
-	//glDispatchCompute((GLuint)ceil(res.x() / 4.0f), (GLuint)ceil(res.y() / 4.0f), (GLuint)ceil(res.z() / 4.0f));
-	glDispatchCompute(num_groups[0], num_groups[1], num_groups[2]);
-	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
-	clear_prog.disable(ctx);
+	tex.bind_as_image(ctx, 0, 0, false, 0, cgv::render::AccessType::AT_READ_WRITE);
 
 	// now voxelize the scene
 	const int primitive_count = static_cast<int>(data_set->indices.size() / 2);
 	
 	voxelize_prog.enable(ctx);
 	voxelize_prog.set_uniform(ctx, "primitive_count", primitive_count);
-	voxelize_prog.set_uniform(ctx, "res", res);
+	voxelize_prog.set_uniform(ctx, "res", vg.resolution);
 	voxelize_prog.set_uniform(ctx, "vbox_min", vg.bounds.ref_min_pnt());
 	voxelize_prog.set_uniform(ctx, "vsize", vg.voxel_size);
 	voxelize_prog.set_uniform(ctx, "vrad", 0.5f * vg.voxel_size);
@@ -214,25 +211,10 @@ void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj
 	voxelize_prog.disable(ctx);
 
 	// clamp the values to [0,1]
-	clamp_prog.enable(ctx);
-	clamp_prog.set_uniform(ctx, "particle_count", primitive_count);
-	clamp_prog.set_uniform(ctx, "res", res);
+	clamp_kernel.execute(ctx, tex);
 
-	//glDispatchCompute((GLuint)ceil(res.x() / 4.0f), (GLuint)ceil(res.y() / 4.0f), (GLuint)ceil(res.z() / 4.0f));
-	glDispatchCompute(num_groups[0], num_groups[1], num_groups[2]);
-	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
-	clamp_prog.disable(ctx);
-
-	glBindImageTexture(0, 0, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R32F);
-	
 	// calculate the mipmap via a compute shader
-	generate_mipmap(ctx, texture_handle);
-
-	// uncomment for standard mipmap calculation
-	//glBindTexture(GL_TEXTURE_3D, texture_handle);
-	//glGenerateMipmap(GL_TEXTURE_3D);
-	//glBindTexture(GL_TEXTURE_3D, 0);
+	mipmap_kernel.execute(ctx, tex);
 
 	// uncomment for benchmarking
 	/*glEndQuery(GL_TIME_ELAPSED);
@@ -251,50 +233,4 @@ void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj
 	if(runs > 10) {
 		std::cout << "done in " << accumulated_time/static_cast<float>(runs) << " ms" << std::endl;
 	}*/
-}
-
-void voxelizer::generate_mipmap(cgv::render::context& ctx, GLuint texture_handle) {
-
-	// manually generate a mipmap pyramid for all levels using a fast compute shader implementation
-	ivec3 res = vg.resolution;
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_3D, texture_handle);
-
-	mipmap_prog.enable(ctx);
-	mipmap_prog.set_uniform(ctx, "input_tex", 0);
-	mipmap_prog.set_uniform(ctx, "output_tex", 1);
-
-	int max_res = std::max(res.x(), std::max(res.y(), res.z()));
-	int max_level = std::min(static_cast<unsigned int>(log2f((float)max_res)), 8u);
-
-	ivec3 input_res = res;
-
-	for(int i = 0; i < max_level - 1; ++i) {
-		glBindImageTexture(1, texture_handle, i + 1, GL_TRUE, 0, GL_WRITE_ONLY, GL_R32F);
-
-		ivec3 output_res = res;
-		float divisor = (float)pow(2, i + 1);
-
-		output_res.x() = ivec3::value_type(float(output_res.x())/divisor);
-		output_res.y() = ivec3::value_type(float(output_res.y())/divisor);
-		output_res.z() = ivec3::value_type(float(output_res.z())/divisor);
-
-		mipmap_prog.set_uniform(ctx, "level", (unsigned)i);
-		mipmap_prog.set_uniform(ctx, "output_res", output_res);
-
-		GLuint work_groups_x = (GLuint)ceilf(output_res.x() / 4.0f);
-		GLuint work_groups_y = (GLuint)ceilf(output_res.y() / 4.0f);
-		GLuint work_groups_z = (GLuint)ceilf(output_res.z() / 4.0f);
-
-		glDispatchCompute(work_groups_x, work_groups_y, work_groups_z);
-		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
-		input_res = output_res;
-	}
-
-	glBindImageTexture(0, 0, 0, GL_TRUE, 0, GL_READ_ONLY, GL_R32F);
-	glBindImageTexture(1, 0, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_R32F);
-
-	mipmap_prog.disable(ctx);
 }

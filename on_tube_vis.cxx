@@ -240,6 +240,8 @@ void on_tube_vis::clear(cgv::render::context &ctx) {
 
 	render.sorter.destruct(ctx);
 
+	density_volume.destruct(ctx);
+
 	taa.destruct(ctx);
 }
 
@@ -2382,12 +2384,12 @@ void on_tube_vis::create_density_volume(context& ctx, unsigned resolution) {
 	}
 
 	if(!density_tex.is_created()) {
-		std::vector<float> density_data(res.x()*res.y()*res.z(), 0.5f);
+		std::vector<float> density_data(res.x()*res.y()*res.z(), 0.0f);
 
 		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res.x(), res.y(), res.z(), TI_FLT32, cgv::data::CF_R), density_data.data());
-		density_tex = texture("flt32[R,G,B]", TF_LINEAR, TF_LINEAR_MIPMAP_LINEAR, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER);
-		density_tex.create(ctx, dv, 0);
+		density_tex = texture("flt32[R]", TF_LINEAR, TF_LINEAR_MIPMAP_LINEAR, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER);
 		density_tex.set_border_color(0.0f, 0.0f, 0.0f, 0.0f);
+		density_tex.create(ctx, dv, 0);
 		density_tex.create_mipmaps(ctx);
 	}
 
@@ -2405,7 +2407,6 @@ void on_tube_vis::create_density_volume(context& ctx, unsigned resolution) {
 		std::vector<float>& density_data = density_volume.ref_voxel_grid().data;
 
 		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res.x(), res.y(), res.z(), TI_FLT32, cgv::data::CF_R), density_data.data());
-		
 		density_tex.replace(ctx, 0, 0, 0, dv);
 		density_tex.generate_mipmaps(ctx);
 	}

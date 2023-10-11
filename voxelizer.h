@@ -7,6 +7,9 @@
 #include <cgv/render/shader_library.h>
 #include <cgv/render/vertex_buffer.h>
 #include <cgv_gl/gl/gl_context.h>
+#include <cgv_gpgpu/clamp_texture.h>
+#include <cgv_gpgpu/fill_texture.h>
+#include <cgv_gpgpu/mipmap.h>
 
 #include "voxel_grid.h"
 #include "traj_loader.h"
@@ -14,10 +17,11 @@
 
 class voxelizer : public cgv::render::render_types {
 protected:
-	cgv::render::shader_program clear_prog;
 	cgv::render::shader_program voxelize_prog;
-	cgv::render::shader_program clamp_prog;
-	cgv::render::shader_program mipmap_prog;
+	
+	cgv::gpgpu::clamp_texture clamp_kernel;
+	cgv::gpgpu::fill_texture fill_kernel;
+	cgv::gpgpu::mipmap mipmap_kernel;
 
 	voxel_grid vg;
 
@@ -32,14 +36,14 @@ protected:
 
 	bool load_shader_programs(cgv::render::context& ctx);
 
-	void generate_mipmap(cgv::render::context& ctx, GLuint texture_handle);
-
 public:
 	voxelizer() {}
 
 	~voxelizer() {}
 
 	bool init(cgv::render::context& ctx, size_t count);
+
+	void destruct(cgv::render::context& ctx);
 
 	voxel_grid& ref_voxel_grid() { return vg; }
 
