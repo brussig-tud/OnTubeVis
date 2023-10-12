@@ -409,8 +409,8 @@ extern "C" __global__ void __intersection__russig (void)
 	// determine which segment we're testing and its time frame
 	const unsigned pid = optixGetPrimitiveIndex(), subseg = pid%2;
 	const uint2 node_ids = params.node_ids[pid/2];
-	const float t0 = params.nodes[node_ids.x].t.x,
-	            t_mid = (t0 + params.nodes[node_ids.y].t.x)/2;
+	const float t0 = params.nodes[node_ids.x].frame_normal_t.w,
+				t_mid = (t0 + params.nodes[node_ids.y].frame_normal_t.w) / 2;
 	if ((subseg == 0 && params.max_t <= t0) || (subseg == 1 && params.max_t <= t_mid))
 		return;
 
@@ -451,8 +451,8 @@ extern "C" __global__ void __intersection__phantom (void)
 	// determine which segment we're testing and its time frame
 	const unsigned pid = optixGetPrimitiveIndex(), subseg = pid%2;
 	const uint2 node_ids = params.node_ids[pid/2];
-	const float t0 = params.nodes[node_ids.x].t.x,
-	            t_mid = (t0 + params.nodes[node_ids.y].t.x)/2;
+	const float t0 = params.nodes[node_ids.x].frame_normal_t.x,
+				t_mid = (t0 + params.nodes[node_ids.y].frame_normal_t.x) / 2;
 	if ((subseg == 0 && params.max_t <= t0) || (subseg == 1 && params.max_t <= t_mid))
 		return;
 

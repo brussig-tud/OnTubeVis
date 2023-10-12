@@ -886,8 +886,8 @@ void main()
 		#endif
 	#else
 		const QTube qtube = qTube_fs;
-		const float n0_t = nodes[node_ids[segment_id_fs].x].t.x,
-		            n1_t = nodes[node_ids[segment_id_fs].y].t.x;
+		const float n0_t = nodes[node_ids[segment_id_fs].x].frame_normal_t.w,
+		            n1_t = nodes[node_ids[segment_id_fs].y].frame_normal_t.w;
 	#endif
 
 #if MODE == 0
