@@ -144,12 +144,9 @@ set(HEADERS
 )
 # - GLSL shaders
 set (SHADERS
-	glsl/clamp.glcs
-	glsl/clear.glcs
 	glsl/color_maps.glfs
 	glsl/color_maps.glpr
 	glsl/curve_tools.glsl
-	glsl/mipmap.glcs
 	glsl/optix_display.glfs
 	glsl/optix_display.glpr
 	glsl/rcc.glsl
