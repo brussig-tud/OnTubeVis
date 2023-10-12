@@ -1660,6 +1660,12 @@ struct traj_manager<flt_type>::Impl
 			// ^ ToDo: why does trying to do this simple fill operation with std::fill_n throw a runtime error
 			//         about non-seekable vectors???
 		}
+		if (visual_attrib == VisualAttrib::FRAME_NORMAL)
+		{
+			// Just create the attribute array without any sort of explicit initialization (will likely just contain garbage)
+			auto &o = *(std::vector<Vec3>*)out;
+			o.resize(o.size() + dataset.positions().data.num());
+		}
 	}
 	// ToDo: This specialization for the color attribute is not really ideal, should be handled more generically
 	template <>
@@ -1999,6 +2005,7 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 		impl.rd.datasets.clear();
 		impl.rd.positions.clear();
 		impl.rd.tangents.clear();
+		impl.rd.frame_normals.clear();
 		impl.rd.radii.clear();
 		impl.rd.colors.clear();
 		impl.rd.indices.clear();
@@ -2057,6 +2064,7 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 			impl.transform_attrib_old(&impl.rd.positions, VisualAttrib::POSITION, dataset);
 			impl.transform_attrib_old(&impl.rd.radii, VisualAttrib::RADIUS, dataset);
 			impl.transform_attrib_old(&impl.rd.tangents, VisualAttrib::TANGENT, dataset, auto_tangents ? ds : -1);
+			impl.transform_attrib_old(&impl.rd.frame_normals, VisualAttrib::FRAME_NORMAL, dataset);
 			impl.transform_attrib_old(&impl.rd.colors, VisualAttrib::COLOR, dataset);
 
 			// compile per-segment attribute ranges

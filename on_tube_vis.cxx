@@ -2247,10 +2247,10 @@ void on_tube_vis::update_attribute_bindings(void) {
 			const auto &col = render.data->colors[i];
 			// interleave and commit
 			render_attribs.emplace_back(node_attribs{
-				/* .pos_rad */  vec4(render.data->positions[i], render.data->radii[i]),
-				/* .color */    vec4(col.R(), col.G(), col.B(), 1),
-				/* .tangent */  render.data->tangents[i],  // <- does already contain radius deriv. in w-component
-				/* .t */        vec4(render.data->timestamps[i], 0, 0, 0)
+				/* .pos_rad */        vec4(render.data->positions[i], render.data->radii[i]),
+				/* .color */          vec4(col.R(), col.G(), col.B(), 1),
+				/* .tangent */        render.data->tangents[i],  // <- does already contain radius deriv. in .w
+				/* .frame_normal_t */ vec4(render.data->frame_normals[i], render.data->timestamps[i]) // <- contains timestamp in .w
 			});
 		}
 		// - upload

@@ -188,7 +188,7 @@ static __forceinline__ __device__ Ray compute_ray (HoloState &hs)
 			0.f, 1.f
 		};
 
-	// determine amera parameters of current view
+	// determine camera parameters of current view
 	const float stereo = params.holo==Holo::OFF ? params.holo_eye : hs.view;
 	hs.P =
 		stereo==0 ? params.cam_P : compute_stereo_frustum_screen(stereo);

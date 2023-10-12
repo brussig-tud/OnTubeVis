@@ -38,7 +38,7 @@ class traj_manager;
 /// enumeration of known visual attributes
 enum class VisualAttrib
 {
-	POSITION, TANGENT, RADIUS, COLOR
+	POSITION, TANGENT, FRAME_NORMAL, RADIUS, COLOR
 };
 /// underlying integer type of \ref VisualAttrib
 typedef typename std::underlying_type<VisualAttrib>::type VisualAttrib_int;
@@ -1293,6 +1293,9 @@ public:
 
 		/// all node tangents
 		std::vector<Vec4> tangents;
+
+		/// all frame normals
+		std::vector<Vec3> frame_normals;
 
 		/// all node radii
 		std::vector<real> radii;

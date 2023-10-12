@@ -30,7 +30,7 @@ struct cuda_node
 	float4 pos_rad;
 	float4 color;
 	float4 tangent;
-	float4 t;
+	float4 frame_normal_t;
 };
 
 /// GPU representation of arclength parametrization

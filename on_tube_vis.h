@@ -67,7 +67,7 @@ public:
 		vec4 pos_rad;
 		vec4 color;
 		vec4 tangent;
-		vec4 t; // only uses .x component to store t, yzw are reserved for future use
+		vec4 frame_normal_t; // stores the frame normal in .xyz, timestamp in .w
 	};
 
 	cgv::type::DummyEnum voxel_grid_resolution;
