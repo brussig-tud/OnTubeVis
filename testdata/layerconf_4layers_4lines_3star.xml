@@ -1,53 +1,52 @@
 <GlyphConfiguration>
-  <ColorMaps>
-    <ColorMap name="bam" custom="0" />
-    <ColorMap name="vanimo" custom="0" />
-    <ColorMap name="cork" custom="0" />
-    <ColorMap name="tofino" custom="0" />
-    <ColorMap name="broc" custom="0" />
-    <ColorMap name="lisbon" custom="0" />
-    <ColorMap name="vik" custom="0" />
-    <ColorMap name="berlin" custom="0" />
-    <ColorMap name="roma" custom="0" />
-    <ColorMap name="test" custom="1" >
-      <Point x="0.000000" o="1" r="0.000000" g="0.000000" b="0.000000"/>
-      <Point x="1.000000" o="1" r="1.000000" g="1.000000" b="1.000000"/>
-    </ColorMap>
-  </ColorMaps>
-  <Layers>
-    <Layer glyph="color" >
-      <Property name="color" attrib_name="scalar3" color_map_name="roma" in_range="-0.529609, 0.441430" out_range="0.000000, 1.000000" />
-    </Layer>
-    <Layer glyph="line_plot" >
-      <Property name="value_0" attrib_name="scalar2" in_range="-0.434125, 0.525305" out_range="0.000000, 1.000000" />
-      <Property name="color_0" color="0.762376, 0.467993, 0.720322" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="value_1" attrib_name="scalar2_1" in_range="-0.578605, 0.782003" out_range="0.000000, 1.000000" />
-      <Property name="color_1" color="1.000000, 1.000000, 1.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="value_2" attrib_name="scalar2_2" in_range="-1.666537, 2.363361" out_range="0.000000, 1.000000" />
-      <Property name="color_2" color="0.613112, 0.801980, 0.508185" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="color_3" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-    </Layer>
-    <Layer glyph="star" >
-      <Property name="radius" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="secondary_color" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="color_setting" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="blend_factor" in_range="0.000000, 1.000000" out_range="0.000000, 0.000000" />
-      <Property name="inner_transparency" in_range="0.000000, 1.000000" out_range="0.000000, 0.510000" />
-      <Property name="axis_0" attrib_name="scalar" in_range="-0.511449, 0.533196" out_range="0.150000, 1.000000" />
-      <Property name="color_0" color="1.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="axis_1" attrib_name="scalar1" in_range="-0.460438, 0.412918" out_range="0.150000, 1.000000" />
-      <Property name="color_1" color="0.000000, 1.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="axis_2" attrib_name="scalar3" in_range="-0.529609, 0.441430" out_range="0.150000, 1.000000" />
-      <Property name="color_2" color="0.000000, 0.000000, 1.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="axis_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="color_3" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="axis_4" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="color_4" color="0.000000, 0.000000, 0.000000" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-    </Layer>
-    <Layer glyph="circle" >
-      <Property name="color" attrib_name="scalar" color_map_name="berlin" in_range="-0.511449, 0.533196" out_range="0.000000, 1.000000" />
-      <Property name="radius" in_range="0.000000, 1.000000" out_range="0.000000, 0.150000" />
-    </Layer>
-  </Layers>
+    <ColorMaps>
+        <ColorMap name="test">
+            <ColorPoint x="0" r="0" g="0" b="0"/>
+            <ColorPoint x="1" r="1" g="1" b="1"/>
+            <OpacityPoint x="0" o="1"/>
+            <OpacityPoint x="1" o="1"/>
+        </ColorMap>
+    </ColorMaps>
+    <Layers>
+        <Layer name="Surface Color" glyph="color" sampling="original">
+            <Property name="interpolate" value="1.000000"/>
+            <Property name="color" attrib_name="scalar3" color_map_name="roma" in_range="-0.529609 0.44143"/>
+        </Layer>
+        <Layer name="Line Plot" glyph="line_plot" sampling="original">
+            <Property name="outline" value="0.000000"/>
+            <Property name="interpolate" value="1.000000"/>
+            <Property name="color_0" color="0.762376 0.467993 0.720322"/>
+            <Property name="value_0" attrib_name="scalar2" in_range="-0.434125 0.525305" out_range="0 1"/>
+            <Property name="color_1" color="1 1 1"/>
+            <Property name="value_1" attrib_name="scalar2_1" in_range="-0.578605 0.782003" out_range="0 1"/>
+            <Property name="color_2" color="0.613112 0.80198 0.508185"/>
+            <Property name="value_2" attrib_name="scalar2_2" in_range="-1.66654 2.36336" out_range="0 1"/>
+            <Property name="color_3" color="0 0 0"/>
+            <Property name="value_3" in_range="0 1" out_range="0 1"/>
+        </Layer>
+        <Layer name="Star" glyph="star" sampling="original">
+            <Property name="radius" value="1.000000" out_range="0 1"/>
+            <Property name="secondary_color" color="0 0 0"/>
+            <Property name="color_setting" value="1.000000"/>
+            <Property name="blend_factor" value="1.000000"/>
+            <Property name="inner_transparency" value="1.000000"/>
+            <Property name="axes_setting" value="1.000000"/>
+            <Property name="orientation" value="360.000000" out_range="0 360"/>
+            <Property name="color_0" color="1 0 0"/>
+            <Property name="axis_0" attrib_name="scalar" in_range="-0.511449 0.533196" out_range="0.15 1"/>
+            <Property name="color_1" color="0 1 0"/>
+            <Property name="axis_1" attrib_name="scalar1" in_range="-0.460438 0.412918" out_range="0.15 1"/>
+            <Property name="color_2" color="0 0 1"/>
+            <Property name="axis_2" attrib_name="scalar3" in_range="-0.529609 0.44143" out_range="0.15 1"/>
+            <Property name="color_3" color="0 0 0"/>
+            <Property name="axis_3" in_range="0 1" out_range="0 1"/>
+            <Property name="color_4" color="0 0 0"/>
+            <Property name="axis_4" in_range="0 1" out_range="0 1"/>
+        </Layer>
+        <Layer name="Circle" glyph="circle" sampling="original">
+            <Property name="outline" value="0.000000"/>
+            <Property name="color" attrib_name="scalar" color_map_name="berlin" in_range="-0.511449 0.533196"/>
+            <Property name="radius" in_range="0 1" out_range="0 0.15"/>
+        </Layer>
+    </Layers>
 </GlyphConfiguration>
