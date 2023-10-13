@@ -63,7 +63,13 @@ namespace cgv { // @<
 			bool use_cubic_tangents;
 			/// whether to use the vertex position in view space or the projected position for ray casting (reduces per-vertex output when turned off)
 			bool use_view_space_position;
-			/// the minimum distance from the camera from which segment end caps are clipped to prevent z-fighting artifacts
+			/// whether to correct for the tube curvature when computing radial texture coordinates (tubes only)
+			bool use_curvature_correction;
+			// length scale factor for longitudinal texture coordiante
+			float length_scale;
+			/// the radius used for texture filtering
+			float antialias_radius;
+			/// the minimum distance from the camera from which segment end caps are clipped to prevent z-fighting artifacts (tubes only)
 			float cap_clip_distance;
 			/// draw only tube geometry up to the given timestamp
 			float max_t;

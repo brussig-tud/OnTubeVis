@@ -50,11 +50,26 @@ void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* 
 #endif
 
 
-// TODO: grid_mode enum does not get set properly thorugh config, because it is reflected as a boolean
-// TODO: test sort order if primitives are behind camera and prevent drawing of invisible stuff? (probably irrelevant)
-// TODO: star and line plot: the first mapped entry will always get mapped to the first overall color
-// Example: map only axis 2, so axis 0 and 1 are unmapped. Then color 0 will be taken for the mapped axis 2.
+/* TODOs:
+* Check order of primitives behind the camera after sorting by distance and possibly prevent
+* drawing of invisible primitives (probably irrelevant)?
+* 
+* Resolve bug in star and line plot. The first non-empty/mapped entry will always get mapped
+* to the first color. Example for star plot: map only axis 2, so axis 0 and 1 are unmapped.
+* Then the color from axis 0 will be used for the mapped axis 2 while the color from axis 2
+* is ignored.
+*/
 #include <cgv/gui/application.h>
+
+namespace cgv {
+namespace reflect {
+
+enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
+	return enum_reflection_traits<GridMode>("GM_NONE,GM_COLOR,GM_NORMAL,GM_COLOR_AND_NORMAL");
+}
+
+}
+}
 
 void on_tube_vis::on_register()
 {
@@ -64,8 +79,7 @@ void on_tube_vis::on_register()
 
 on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 {
-	// adjust render style defaults
-	//render.style.illumination_mode = IM_OFF;
+	// adjust geometry and grid style defaults
 	render.style.material.set_brdf_type(
 		(cgv::media::illum::BrdfType)(cgv::media::illum::BrdfType::BT_STRAUSS_DIFFUSE
 			| cgv::media::illum::BrdfType::BT_COOK_TORRANCE)
@@ -77,12 +91,30 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 	render.style.material.set_specular_reflectance({ 0.05f, 0.05f, 0.05f });
 	render.style.use_conservative_depth = true;
 	
-	bbox_style.culling_mode = cgv::render::CM_FRONTFACE;
-	bbox_style.illumination_mode = cgv::render::IM_TWO_SIDED;
-	bbox_style.surface_color = rgb(0.7f);
+	bbox_rd.style.culling_mode = cgv::render::CM_FRONTFACE;
+	bbox_rd.style.illumination_mode = cgv::render::IM_TWO_SIDED;
+	bbox_rd.style.surface_color = rgb(0.7f);
 
 	vstyle.enable_depth_test = false;
 
+	debug.geometry.segments.style.rounded_caps = true;
+
+	grids.resize(2);
+	grids[0].scaling = vec2(1.0f, 1.0f);
+	grids[0].thickness = 0.05f;
+	grids[0].blend_factor = 0.5f;
+	grids[1].scaling = vec2(4.0f);
+	grids[1].thickness = 0.1f;
+	grids[1].blend_factor = 0.333f;
+	grid_color = rgba(0.25f, 0.25f, 0.25f, 0.75f);
+	grid_mode = GM_COLOR_AND_NORMAL;
+	grid_normal_settings = (cgv::type::DummyEnum)1u;
+	grid_normal_inwards = true;
+	grid_normal_variant = true;
+	normal_mapping_scale = 1.0f;
+	enable_fuzzy_grid = false;
+
+	// set default voxel grid resolution
 #ifdef _DEBUG
 	voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(32u);
 #else
@@ -90,9 +122,6 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 #endif
 
 	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
-#ifdef RTX_SUPPORT
-	optix.prev_TAA_state = taa.is_enabled();
-#endif
 
 	// add framebuffer attachments needed for deferred rendering
 	fbc.add_attachment("depth", "[D]");
@@ -101,6 +130,7 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
 
+	// register overlay widgets
 	cm_editor_ptr = register_overlay<cgv::app::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
 	cm_editor_ptr->gui_options.create_default_tree_node = false;
@@ -115,6 +145,7 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 	navigator_ptr->set_visibility(false);
 	navigator_ptr->gui_options.show_layout_options = false;
 	navigator_ptr->set_overlay_alignment(cgv::app::overlay::AO_START, cgv::app::overlay::AO_END);
+	navigator_ptr->set_size(100);
 	
 	cm_viewer_ptr = register_overlay<color_map_viewer>("Color Scale Viewer");
 	cm_viewer_ptr->set_visibility(false);
@@ -124,27 +155,10 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 	perfmon_ptr->set_show_background(false);
 	perfmon_ptr->enable_monitoring_only_when_visible(true);
 	
-	grids.resize(2);
-	grids[0].scaling = vec2(1.0f, 1.0f);
-	grids[0].thickness = 0.05f;
-	grids[0].blend_factor = 0.5f;
-	grids[1].scaling = vec2(4.0f);
-	grids[1].thickness = 0.1f;
-	grids[1].blend_factor = 0.333f;
-	grid_color = rgba(0.25f, 0.25f, 0.25f, 0.75f);
-	grid_mode = GM_COLOR_NORMAL;
-	grid_normal_settings = (cgv::type::DummyEnum)1u;
-	grid_normal_inwards = true;
-	grid_normal_variant = true;
-	normal_mapping_scale = 1.0f;
-	enable_fuzzy_grid = false;
-
-	//fh.file_name = QUOTE_SYMBOL_VALUE(INPUT_DIR);
-	//fh.file_name += "/res/";
-
 	layer_config_file_helper = cgv::gui::file_helper(this, "Open/Save Layer Configuration", cgv::gui::file_helper::Mode::kOpenAndSave);
 	layer_config_file_helper.add_filter("Layer Configuration XML", "xml");
 
+	// setup datapath input control
 	datapath_helper = cgv::gui::file_helper(this, "Open Trajectory Data", cgv::gui::file_helper::Mode::kOpen);
 	datapath_helper.add_filter("All Trajectory Files", { "bezdat", "csv", "sepia", "ppcdf", "ipcdf", "tgen" });
 	datapath_helper.add_filter("Bezier Splines", "bezdat");
@@ -154,9 +168,64 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 	datapath_helper.add_filter("On-Board Diagnostics Extended", "ipcdf");
 	datapath_helper.add_filter("Trajectory Generator Config", "tgen");
 
-	debug.segment_rs.rounded_caps = true;
+	// fill help message info
+	help.add_line("OnTubeVis Help");
+	help.add_line("");
+	help.add_line("Load Datasets and Configurations");
+	help.add_line("Open a dataset file or folder containing datasets through the \"Data Path\" input. Open a configuration through the \"Configuration\" input. Alternatively, Drag & Drop supported data files or configurations onto the window.");
 
+	help.add_line("");
+	help.add_line("Keybindings");
+
+	help.add_line("View:");
+	help.add_bullet_point(".\t\t\t : Near");
+	help.add_bullet_point(",\t\t\t : Far");
+	help.add_bullet_point("CTRL + Space : Reset");
+
+	help.add_line("Scene:");
+	help.add_bullet_point("B\t\t  : Toggle bounding box");
+	help.add_bullet_point("W\t\t  : Toggle wireframe bounding box");
+	help.add_bullet_point("R\t\t  : Double tube radius/ribbon width");
+	help.add_bullet_point("SHIFT + R : Halve tube radius/ribbon width");
+	help.add_bullet_point("G\t\t  : Cycle grid modes");
+	help.add_bullet_point("0\t\t  : Toggle RT-Lola map");
+
+	help.add_line("Rendering:");
+	help.add_bullet_point("A\t\t  : Toggle ambient occlusion");
+	help.add_bullet_point("T\t\t  : Toggle temporal anti-aliasing");
+
+#ifdef RTX_SUPPORT
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	help.add_bullet_point("CTRL + O : Toggle OptiX");
+	help.add_bullet_point("P\t\t  : Cycle OptiX primitive");
+	help.add_bullet_point("CTRL + P  : Toggle OptiX unproject mode");
+	help.add_bullet_point("H\t\t  : Toggle holographic rendering (OptiX only)");
+	
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
+#endif
+
+	help.add_line("Playback:");
+	help.add_bullet_point("Space\t   : Play/Pause");
+	help.add_bullet_point("Backspace : Rewind");
+	help.add_bullet_point("End\t\t   : Skip to end");
+	help.add_bullet_point("Home\t   : Follow active trajectory");
+
+	help.add_line("Widgets:");
+	help.add_bullet_point("M : Toggle color scale preview");
+	help.add_bullet_point("N : Toggle navigator");
+
+	help.add_line("Benchmark:");
+	help.add_bullet_point("[1-4]\t : Select preset");
+	help.add_bullet_point("CTRL + B : Start/Abort");
+
+	// connect animation timer callback
 	connect(cgv::gui::get_animation_trigger().shoot, this, &on_tube_vis::timer_event);
+
 #ifdef RTX_SUPPORT
 	// ###############################
 	// ### BEGIN: OptiX integration
@@ -164,6 +233,8 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 
 	// add display shader to library
 	shaders.add("optix_display", "optix_display.glpr");
+
+	optix.prev_TAA_state = taa.is_enabled();
 
 	// ###############################
 	// ###  END:  OptiX integration
@@ -220,18 +291,13 @@ void on_tube_vis::handle_args (std::vector<std::string> &args)
 void on_tube_vis::clear(cgv::render::context &ctx) {
 	// decrease reference count of the renderers by one
 	ref_textured_spline_tube_renderer(ctx, -1);
-	ref_box_renderer(ctx, -1);
-	ref_box_wire_renderer(ctx, -1);
-	ref_cone_renderer(ctx, -1);
-	ref_sphere_renderer(ctx, -1);
 	ref_volume_renderer(ctx, -1);
 
 	bbox_rd.destruct(ctx);
 	bbox_wire_rd.destruct(ctx);
 
-	srd.destruct(ctx);
-	debug.node_rd.destruct(ctx);
-	debug.segment_rd.destruct(ctx);
+	debug.geometry.nodes.destruct(ctx);
+	debug.geometry.segments.destruct(ctx);
 
 	shaders.clear(ctx);
 	fbc.destruct(ctx);
@@ -250,11 +316,11 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 	return
 		rh.reflect_member("datapath", datapath_helper.file_name) &&
 		rh.reflect_member("layer_config_file", layer_config_file_helper.file_name) && // ToDo: figure out proper reflection name
-		rh.reflect_member("show_hidden_glyphs", show_hidden_glyphs) &&
+		rh.reflect_member("show_hidden_glyphs", debug.show_hidden_glyphs) &&
 		rh.reflect_member("render_style", render.style) &&
 		rh.reflect_member("attrib_mode", (unsigned&)render.style.attrib_mode) &&
 		rh.reflect_member("bounding_geometry", render.style.bounding_geometry) &&
-		rh.reflect_member("bounding_box_color", bbox_style.surface_color) &&
+		rh.reflect_member("bounding_box_color", bbox_rd.style.surface_color) &&
 		rh.reflect_member("show_bounding_box", show_bbox) &&
 		rh.reflect_member("show_wireframe_box", show_wireframe_bbox) &&
 		rh.reflect_member("grid_mode", grid_mode) &&
@@ -271,9 +337,7 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
-		rh.reflect_member("benchmark_mode", benchmark_mode);// &&
-		//rh.reflect_member("enable_taa", taa.enable_taa) &&
-		//rh.reflect_member("enable_fxaa", taa.enable_fxaa);
+		rh.reflect_member("benchmark_mode", benchmark_mode);
 }
 
 void on_tube_vis::stream_help (std::ostream &os)
@@ -380,6 +444,9 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 						std::cout << "Starting benchmark..." << std::endl;
 						benchmark.requested = true;
 					}
+				} else {
+					show_bbox = !show_bbox;
+					on_set(&show_bbox);
 				}
 				handled = true;
 				break;
@@ -427,12 +494,9 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				if (modifiers == cgv::gui::EM_CTRL) {
 					optix.enabled = !optix.enabled;
 					on_set(&optix.enabled);
+					handled = true;
 				}
-				else
 			#endif
-				{ show_bbox = !show_bbox;
-				  on_set(&show_bbox); }
-				handled = true;
 				break;
 		#ifdef RTX_SUPPORT
 			case 'P':
@@ -457,9 +521,11 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				handled = true;
 				break;
 			case cgv::gui::Keys::KEY_Space:
-				playback.active = !playback.active;
-				on_set(&playback.active);
-				handled = true;
+				if(modifiers == 0) {
+					playback.active = !playback.active;
+					on_set(&playback.active);
+					handled = true;
+				}
 				break;
 			case cgv::gui::Keys::KEY_Home:
 				playback.follow = !playback.follow;
@@ -480,7 +546,6 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 		}
 		else if (ka == cgv::gui::KA_REPEAT && ke.get_key() == cgv::gui::Keys::KEY_Num_0)
 		{
-			post_redraw();
 			handled = true;
 		}
 
@@ -567,10 +632,6 @@ void on_tube_vis::handle_color_map_change() {
 void on_tube_vis::handle_transfer_function_change() {
 	if(tf_editor_ptr)
 		volume_tf.generate_texture(*get_context());
-}
-
-void on_tube_vis::on_set(void *member_ptr) {
-	handle_member_change(cgv::utils::pointer_test(member_ptr));
 }
 
 void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
@@ -717,6 +778,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 	}
 
 	if(m.is(debug.render_mode)) {
+		do_full_gui_update = true;
 		update_debug_attribute_bindings();
 	}
 
@@ -855,7 +917,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 			ctrl->set("text_color", layer_config_has_unsaved_changes ? cgv::gui::theme_info::instance().warning_hex() : "");
 	}
 
-	if(m.is(show_hidden_glyphs))
+	if(m.is(debug.show_hidden_glyphs))
 		compile_glyph_attribs();
 
 	// playback controls
@@ -875,6 +937,22 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		playback.follow_last_nid = find_sample(pos.attrib, traj_range, render.style.max_t);
 	}
 
+	// widget controls
+	if(m.is(show_navigator)) {
+		if(navigator_ptr)
+			navigator_ptr->set_visibility(show_navigator);
+	}
+
+	if(m.is(show_color_map_viewer)) {
+		if(cm_viewer_ptr)
+			cm_viewer_ptr->set_visibility(show_color_map_viewer);
+	}
+
+	if(m.is(show_performance_monitor)) {
+		if(perfmon_ptr)
+			perfmon_ptr->set_visibility(show_performance_monitor);
+	}
+
 	// misc settings
 	// - instant redraw
 	if(m.is(misc_cfg.instant_redraw_proxy))
@@ -888,13 +966,6 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 	else if(m.is(misc_cfg.fix_view_up_dir_proxy))
 		dynamic_cast<node*>(find_view_as_node())->set("fix_view_up_dir", misc_cfg.fix_view_up_dir_proxy);
 
-	if(m.member_of(test_dir)) {
-		test_dir = normalize(test_dir);
-		update_member(&test_dir[0]);
-		update_member(&test_dir[1]);
-		update_member(&test_dir[2]);
-	}
-
 	// In case of timestep thresholding we don't want to reset TAA
 	if(m.is(render.style.max_t))
 		reset_taa = false;
@@ -907,68 +978,65 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 	/* ### BEGIN: OptiX integration */ {
 	// ###############################
 
-		const auto push_optix_holo_taa_state = [this]() {
-			optix.prev_TAA_state = taa.is_enabled();
-			taa.set_enabled(false);
-			context& ctx = *get_context();
-			const ivec2 fbsize(ctx.get_width() * 3, ctx.get_height());
-			fbc.set_size(fbsize);
-			fbc.ensure(ctx);
-			optix.fb.depth.set_resolution(0, fbsize.x());
-			optix.fb.depth.set_resolution(1, fbsize.y());
-			optix.fb.depth.ensure_state(ctx);
-		};
-		const auto pop_optix_holo_taa_state = [this]() {
-			taa.set_enabled(optix.prev_TAA_state);
-			context& ctx = *get_context();
-			const ivec2 fbsize(ctx.get_width() * 3, ctx.get_height());
-			fbc.set_size({ (int)ctx.get_width(), (int)ctx.get_height() });
-			fbc.ensure(ctx);
-			optix.fb.depth.set_resolution(0, fbsize.x());
-			optix.fb.depth.set_resolution(1, fbsize.y());
-			optix.fb.depth.ensure_state(ctx);
-		};
+	const auto push_optix_holo_taa_state = [this]() {
+		optix.prev_TAA_state = taa.is_enabled();
+		taa.set_enabled(false);
+		context& ctx = *get_context();
+		const ivec2 fbsize(ctx.get_width() * 3, ctx.get_height());
+		fbc.set_size(fbsize);
+		fbc.ensure(ctx);
+		optix.fb.depth.set_resolution(0, fbsize.x());
+		optix.fb.depth.set_resolution(1, fbsize.y());
+		optix.fb.depth.ensure_state(ctx);
+	};
+	const auto pop_optix_holo_taa_state = [this]() {
+		taa.set_enabled(optix.prev_TAA_state);
+		context& ctx = *get_context();
+		const ivec2 fbsize(ctx.get_width() * 3, ctx.get_height());
+		fbc.set_size({ (int)ctx.get_width(), (int)ctx.get_height() });
+		fbc.ensure(ctx);
+		optix.fb.depth.set_resolution(0, fbsize.x());
+		optix.fb.depth.set_resolution(1, fbsize.y());
+		optix.fb.depth.ensure_state(ctx);
+	};
 
-		if(m.member_of(taa)) {
-			optix.prev_TAA_state = taa.is_enabled();
-		} else if(m.is(optix.enabled)) {
-			if(optix.enabled) {
-				if(optix_ensure_init(*get_context())) {
-					if(optix.holographic) {
-						push_optix_holo_taa_state();
-						do_full_gui_update = true;
-					}
-				} else
-					optix.enabled = false;
-			} else {
-				pop_optix_holo_taa_state();
-				do_full_gui_update = true;
-			}
-		} else if(m.is(optix.primitive)) {
-			if(optix.primitive == OPR_PHANTOM)
-				optix.tracer = &optix.tracer_phantom;
-			else if(optix.primitive == OPR_BUILTIN)
-				optix.tracer = &optix.tracer_builtin;
-			else if(optix.primitive == OPR_BUILTIN_CUBIC)
-				optix.tracer = &optix.tracer_builtin_cubic;
-			else
-				optix.tracer = &optix.tracer_russig;
-		} else if(m.is(optix.holographic) && optix.enabled) {
-			if(optix.holographic)
-				push_optix_holo_taa_state();
-			else
-				pop_optix_holo_taa_state();
-			do_full_gui_update = true;
+	if(m.member_of(taa)) {
+		optix.prev_TAA_state = taa.is_enabled();
+	} else if(m.is(optix.enabled)) {
+		do_full_gui_update = true;
+		if(optix.enabled) {
+			if(optix_ensure_init(*get_context())) {
+				if(optix.holographic)
+					push_optix_holo_taa_state();
+			} else
+				optix.enabled = false;
+		} else {
+			pop_optix_holo_taa_state();
 		}
+	} else if(m.is(optix.primitive)) {
+		if(optix.primitive == OPR_PHANTOM)
+			optix.tracer = &optix.tracer_phantom;
+		else if(optix.primitive == OPR_BUILTIN)
+			optix.tracer = &optix.tracer_builtin;
+		else if(optix.primitive == OPR_BUILTIN_CUBIC)
+			optix.tracer = &optix.tracer_builtin_cubic;
+		else
+			optix.tracer = &optix.tracer_russig;
+	} else if(m.is(optix.holographic) && optix.enabled) {
+		if(optix.holographic)
+			push_optix_holo_taa_state();
+		else
+			pop_optix_holo_taa_state();
+		do_full_gui_update = true;
+	}
 
-		// ###############################
-		/* ###  END:  OptiX integration */ }
-		// ###############################
+	// ###############################
+	/* ###  END:  OptiX integration */ }
+	// ###############################
 #endif
 
 	// default implementation for all members
 	// - update GUI
-	update_member(const_cast<void*>(m.ptr));
 	if(do_full_gui_update)
 		post_recreate_gui();
 	// - reset TAA
@@ -976,8 +1044,6 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		taa.reset();
 	else
 		taa.reset_static_frame_count(); // Just make sure we keep multisampling
-	// - redraw scene
-	post_redraw();
 }
 
 bool on_tube_vis::on_exit_request() {
@@ -988,13 +1054,6 @@ bool on_tube_vis::on_exit_request() {
 	}
 #endif
 	return true;
-}
-
-
-void on_tube_vis::reload_shader() {
-
-	shaders.reload(*get_context(), "tube_shading", tube_shading_defines);
-	post_redraw();
 }
 
 bool on_tube_vis::save_layer_configuration(const std::string& file_name) {
@@ -1087,8 +1146,8 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			std::cout << "Compiling glyph attributes for dataset "<<ds_idx<<" '"<<ds.name()<<"'... ";
 
 			glyph_compiler gc;
-			gc.length_scale = general_settings.length_scale;
-			gc.include_hidden_glyphs = show_hidden_glyphs;
+			gc.length_scale = render.style.length_scale;
+			gc.include_hidden_glyphs = debug.show_hidden_glyphs;
 
 			const auto &dataset = traj_mgr.dataset(0);
 
@@ -1138,13 +1197,6 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 bool on_tube_vis::init (cgv::render::context &ctx)
 {
-#ifdef CGV_FORCE_STATIC
-	std::string app_path = "./"/*cgv::base::ref_prog_path_prefix()*/;
-#else
-	std::string app_path = QUOTE_SYMBOL_VALUE(INPUT_DIR);
-	app_path += "/";
-#endif
-
 	// generate demo dataset
 	// - demo AO settings
 	ao_style_bak = ao_style;
@@ -1213,17 +1265,12 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	last_sort_pos = vec3(0.0f);
 	last_sort_dir = vec3(0.0f);
 
-	ref_box_renderer(ctx, 1);
-	ref_box_wire_renderer(ctx, 1);
 	bbox_rd.init(ctx);
 	bbox_wire_rd.init(ctx);
 
-	// initialize debug renderer
-	ref_sphere_renderer(ctx, 1);
-	ref_cone_renderer(ctx, 1);
-	srd.init(ctx);
-	debug.node_rd.init(ctx);
-	debug.segment_rd.init(ctx);
+	// initialize debug geometry
+	debug.geometry.nodes.init(ctx);
+	debug.geometry.segments.init(ctx);
 
 	// enable ambient occlusion
 	ao_style.enable = true;
@@ -1235,43 +1282,32 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	// init color maps
 	// - manager
 	color_map_mgr.init(ctx);
-	// - load sequential color maps from the resource directory
-	std::string color_maps_path = app_path + "res/color_maps/sequential";
-	if(std::filesystem::exists(color_maps_path)) {
-		for(const auto &entry : std::filesystem::directory_iterator(color_maps_path)) {
-			std::filesystem::path entry_path = entry.path();
-			// only take xml files
-			if(entry_path.extension() == ".xml") {
-				cgv::app::color_map_reader::result color_maps;
-				if(cgv::app::color_map_reader::read_from_xml_file(entry_path.string(), color_maps))
-					for(const auto& entry : color_maps)
-						color_map_mgr.add_color_map(entry.first, entry.second, false);
+
+	auto load_color_maps = [this](const std::string& file_name) {
+		cgv::app::color_map_reader::result color_maps;
+		if(cgv::app::color_map_reader::read_from_xml_file(file_name, color_maps))
+			for(const auto& entry : color_maps)
+				color_map_mgr.add_color_map(entry.first, entry.second, false);
+	};
+
+	auto load_color_maps_from_directory = [this, &load_color_maps](const std::string& dir_name) {
+		if(std::filesystem::exists(dir_name)) {
+			for(const auto& entry : std::filesystem::directory_iterator(dir_name)) {
+				std::filesystem::path entry_path = entry.path();
+				// only take xml files
+				if(entry_path.extension() == ".xml")
+					load_color_maps(entry_path.string());
 			}
 		}
-	}
-	// - load diverging color maps from the resource directory
-	color_maps_path = app_path + "res/color_maps/diverging";
-	if(std::filesystem::exists(color_maps_path)) {
-		for(const auto &entry : std::filesystem::directory_iterator(color_maps_path)) {
-			std::filesystem::path entry_path = entry.path();
-			// only take xml files
-			if(entry_path.extension() == ".xml") {
-				cgv::app::color_map_reader::result color_maps;
-				if(cgv::app::color_map_reader::read_from_xml_file(entry_path.string(), color_maps))
-					for(const auto& entry : color_maps)
-						color_map_mgr.add_color_map(entry.first, entry.second, false);
-			}
-		}
-	}
-	// - load sequential rainbow color map
-	cgv::app::color_map_reader::result color_maps;
-	if(cgv::app::color_map_reader::read_from_xml_file(app_path + "res/color_maps/rainbow.xml", color_maps))
-		for(const auto& entry : color_maps)
-			color_map_mgr.add_color_map(entry.first, entry.second, false);
-	// - load sequential turbo color map
-	if(cgv::app::color_map_reader::read_from_xml_file(app_path + "res/color_maps/turbo.xml", color_maps))
-		for(const auto& entry : color_maps)
-			color_map_mgr.add_color_map(entry.first, entry.second, false);
+	};
+
+	// - load sequential and diverging color maps from the resource directory
+	load_color_maps_from_directory("res/color_maps/sequential");
+	load_color_maps_from_directory("res/color_maps/diverging");
+	
+	// - load sequential rainbow and turbo color maps
+	load_color_maps("res/color_maps/rainbow.xml");
+	load_color_maps("res/color_maps/turbo.xml");
 
 	color_map_mgr.update_texture(ctx);
 	if(cm_viewer_ptr) {
@@ -1287,12 +1323,12 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	// initialize temporal anti-aliasing
 	success &= taa.init(ctx);
+	taa.set_jitter_sample_count(8);
 	taa.set_mix_factor(0.125f);
 	taa.set_fxaa_mix_factor(0.5f);
 
 	// use white background for paper screenshots
 	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
-
 
 	////
 	// RTLola drone flight demo dataset map
@@ -1331,7 +1367,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	);
 
 	// load map texture
-	success &= dataset.rtlola_map_tex.create_from_image(ctx, app_path+"res/rtlola_droneflight.png");
+	success &= dataset.rtlola_map_tex.create_from_image(ctx, "res/rtlola_droneflight.png");
 
 
 #ifdef RTX_SUPPORT
@@ -1787,68 +1823,62 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 {
 	if(!view_ptr) return;
 
-	//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());
-
-	// draw dataset using selected renderer
-	if(show_volume)
-		draw_density_volume(ctx);
-	else
+	// draw dataset using selected render mode
+	if(traj_mgr.has_data())
 	{
-		if(traj_mgr.has_data())
-		{
-			taa.begin(ctx);
+		taa.begin(ctx);
 
-			int debug_idx_count = static_cast<int>(render.data->indices.size());
-			if(debug.limit_render_count)
-				debug_idx_count = static_cast<int>(2 * debug.render_count);
+		int debug_idx_count = static_cast<int>(render.data->indices.size());
+		if(debug.limit_render_count)
+			debug_idx_count = static_cast<int>(2 * debug.render_count);
 
-			switch(debug.render_mode) {
-			case DRM_NONE:
-				draw_trajectories(ctx);
-				break;
-			case DRM_NODES:
-				debug.node_rd.render(ctx, ref_sphere_renderer(ctx), debug.node_rs, 0, debug_idx_count);
-				break;
-			case DRM_SEGMENTS:
-				debug.segment_rd.render(ctx, ref_cone_renderer(ctx), debug.segment_rs, 0, debug_idx_count);
-				break;
-			case DRM_NODES_SEGMENTS:
-				debug.node_rd.render(ctx, ref_sphere_renderer(ctx), debug.node_rs, 0, debug_idx_count);
-				debug.segment_rd.render(ctx, ref_cone_renderer(ctx), debug.segment_rs, 0, debug_idx_count);
-				break;
-			default:
-				break;
-			}
-
-			if (dataset.is_rtlola && dataset.rtlola_show_map)
-			{
-				shader_program &default_shader = ctx.ref_default_shader_program(true /* <-- texture support */);
-
-				dataset.rtlola_map_tex.enable(ctx, 0);
-				default_shader.enable(ctx);
-
-				glDisable(GL_CULL_FACE);
-				dataset.rtlola_map_vao.enable(ctx);
-				glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-				dataset.rtlola_map_vao.disable(ctx);
-				glEnable(GL_CULL_FACE);
-
-				default_shader.disable(ctx);
-				dataset.rtlola_map_tex.disable(ctx);
-			}
-
-			if (show_wireframe_bbox)
-				bbox_wire_rd.render(ctx, ref_box_wire_renderer(ctx), box_wire_render_style());
-
-			if (show_bbox)
-				bbox_rd.render(ctx, ref_box_renderer(ctx), bbox_style);
-
-			taa.end(ctx);
+		switch(debug.render_mode) {
+		case DRM_NONE:
+			draw_trajectories(ctx);
+			break;
+		case DRM_NODES:
+			debug.geometry.nodes.render(ctx, 0, debug_idx_count);
+			break;
+		case DRM_SEGMENTS:
+			debug.geometry.segments.render(ctx, 0, debug_idx_count);
+			break;
+		case DRM_NODES_SEGMENTS:
+			debug.geometry.nodes.render(ctx, 0, debug_idx_count);
+			debug.geometry.segments.render(ctx, 0, debug_idx_count);
+			break;
+		case DRM_VOLUME:
+			draw_density_volume(ctx);
+			break;
+		default:
+			break;
 		}
 
-		//srd.render(ctx, ref_sphere_renderer(ctx), sphere_render_style());
-	}
+		if (dataset.is_rtlola && dataset.rtlola_show_map)
+		{
+			shader_program &default_shader = ctx.ref_default_shader_program(true /* <-- texture support */);
 
+			dataset.rtlola_map_tex.enable(ctx, 0);
+			default_shader.enable(ctx);
+
+			glDisable(GL_CULL_FACE);
+			dataset.rtlola_map_vao.enable(ctx);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+			dataset.rtlola_map_vao.disable(ctx);
+			glEnable(GL_CULL_FACE);
+
+			default_shader.disable(ctx);
+			dataset.rtlola_map_tex.disable(ctx);
+		}
+
+		if (show_wireframe_bbox)
+			bbox_wire_rd.render(ctx);
+
+		if (show_bbox)
+			bbox_rd.render(ctx);
+
+		taa.end(ctx);
+	}
+	
 	// display drag-n-drop information, if a dnd operation is in progress
 	if(!dnd.text.empty())
 		draw_dnd(ctx);
@@ -1914,108 +1944,79 @@ void on_tube_vis::after_finish(context& ctx) {
 }
 
 void on_tube_vis::create_gui(void) {
-	// dataset settings
-	add_decorator("Dataset", "heading", "level=1");
+
+	auto add_heading = [&](const std::string& name) {
+		add_decorator(name, "heading", "level=1");
+	};
+
+	auto add_section_heading = [&](const std::string& name, int level) {
+		align("%y+=10");
+		add_decorator(name, "heading", "level=" + std::to_string(level), "\n%y-=14");
+		add_decorator("", "separator", "", "\n%y-=8");
+	};
+
+	// Scene settings
+	add_heading("Scene");
+
+	help.create_gui(this);
 	
 	datapath_helper.create_gui("Data Path");
 
-	// rendering settings
-	add_decorator("Rendering", "heading", "level=1");
+	add_member_control(this, "Bounds", bbox_rd.style.surface_color, "", "w=20", " ");
+	add_member_control(this, "Box", show_bbox, "toggle", "w=83", "%x+=2");
+	add_member_control(this, "Wireframe", show_wireframe_bbox, "toggle", "w=83");
 
-	if (begin_tree_node("Playback", playback, false)) {
+	if(begin_tree_node("Playback", playback, false)) {
 		align("\a");
-		const auto &[tmin, tmax] = render.data->t_minmax;
-		const std::string tmin_str=std::to_string(tmin), tmax_str=std::to_string(tmax),
-		                  step_str=std::to_string((tmax-tmin)/10000.f);
-		add_member_control(
-			this, "Play (space)", playback.active, "toggle",
-			"tooltip='Controls whether to animate the dataset(s) within the set timeframe.'"
-		);
+		const auto& [tmin, tmax] = render.data->t_minmax;
+		const std::string tmin_str = std::to_string(tmin), tmax_str = std::to_string(tmax),
+			step_str = std::to_string((tmax - tmin) / 10000.f);
+
 		connect_copy(
-			add_button("Rewind (backspace)", "tooltip='Resets playback time to start.'")->click,
+			add_button("@|<", "tooltip='(Backspace) Resets playback time to start.';w=50", " ")->click,
 			cgv::signal::rebind(this, &on_tube_vis::playback_rewind)
 		);
+		add_member_control(
+			this, "@play", playback.active, "toggle",
+			"tooltip='(Space) Controls whether to animate the dataset(s) within the set timeframe.';w=76", " "
+		);
 		connect_copy(
-			add_button("Display full dataset (end)", "tooltip='Cancels playback and displays the full data.'")->click,
+			add_button("@>|", "tooltip='(End) Cancels playback and displays the full data.';w=50")->click,
 			cgv::signal::rebind(this, &on_tube_vis::playback_reset_ds)
 		);
-		add_member_control(
-			this, "Playback speed", playback.speed, "value_slider", "min=0.01;max=1000;step=0.01;ticks=true;log=true"
-		);
-		add_member_control(
-			this, "Timeframe start", playback.tstart, "value_slider", "min="+tmin_str+";max="+tmax_str+";step="+step_str+";ticks=false"
-		);
-		add_member_control(
-			this, "Timeframe end", playback.tend, "value_slider", "min="+tmin_str+";max="+tmax_str+";step="+step_str+";ticks=false"
-		);
+
+		add_member_control(this, "Playback Speed", playback.speed, "value_slider", "min=0.01;max=1000;step=0.01;ticks=true;log=true");
+		add_member_control(this, "Timeframe Start", playback.tstart, "value_slider", "min=" + tmin_str + ";max=" + tmax_str + ";step=" + step_str + ";ticks=false");
+		add_member_control(this, "Timeframe End", playback.tend, "value_slider", "min=" + tmin_str + ";max=" + tmax_str + ";step=" + step_str + ";ticks=false");
 		add_member_control(this, "Repeat", playback.repeat, "check");
-		add_member_control(this, "View follows trajectory (home)", playback.follow, "check");
+		add_member_control(this, "Follow Trajectory", playback.follow, "check", "tooltip='(Home) If enabled the view follows the trajectory.'");
 		add_member_control(
 			this, "Trajectory ID", playback.follow_traj, "value_slider",
-			"min=0;max="+std::to_string(render.data->datasets[0].trajs.size()-1)+";step=1;ticks=true"
+			"min=0;max=" + std::to_string(render.data->datasets[0].trajs.size() - 1) + ";step=1;ticks=true"
 		);
 		align("\b");
 		end_tree_node(playback);
 	}
 
-	if (begin_tree_node("Bounds", show_bbox, false)) {
-		align("\a");
-		add_member_control(this, "Color", bbox_style.surface_color);
-		add_member_control(this, "Show", show_bbox, "check");
-		add_member_control(this, "Show Wireframe", show_wireframe_bbox, "check");
-		if (begin_tree_node("Bounds", bbox_style, false)) {
+	add_decorator("", "separator");
+	add_heading("Visualization");
+
+	// Attribute mapping settings
+	for(unsigned ds = 0; ds < (unsigned)render.visualizations.size(); ds++) {
+		if(begin_tree_node("Attributes '" + traj_mgr.dataset(ds).name() + "'", render.visualizations[ds].manager, true)) {
 			align("\a");
-			add_gui("box style", bbox_style);
+			layer_config_file_helper.create_gui("Configuration", layer_config_has_unsaved_changes ? "text_color=" + cgv::gui::theme_info::instance().warning_hex() : "");
+			align("%y-=8");
+			add_decorator("", "separator", "", "\n%y-=8");
+			connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &on_tube_vis::compile_glyph_attribs));
+			render.visualizations.front().manager.create_gui(this, *this);
 			align("\b");
-			end_tree_node(bbox_style);
+			end_tree_node(render.visualizations.front().manager);
 		}
-		align("\b");
-		end_tree_node(show_bbox);
 	}
 
-#ifdef RTX_SUPPORT
-	if (begin_tree_node("Tube Style (OptiX)", optix.enabled, false)) {
-		align("\a");
-		add_member_control(this, "Enable OptiX Raycasting", optix.enabled, "check");
-		add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Phantom,Built-in,Built-in (cubic)'");
-		add_member_control(this, "Output Debug Visualization", optix.debug, "dropdown", "enums='Off,Albedo,Depth,Tangent + Normal'");
-		add_member_control(this, "Show BLAS Bounding Volumes", optix.debug_bvol, "check");
-		add_member_control(this, "Render as hologram", optix.holographic, "check");
-		add_member_control(this, "Holo-eye test", optix.holo_eye, "value_slider", "min=-1;max=1;step=0.0625;ticks=true");
-		align("\b");
-		end_tree_node(optix.enabled);
-	}
-#endif
-	if(begin_tree_node("Tube Style (Rasterization)", render.style, false)) {
-		align("\a");
-		add_gui("tube_style", render.style);
-		align("\b");
-		end_tree_node(render.style);
-	}
+	add_decorator("", "separator");
 
-	const std::string taa_controls_active =
-	#ifdef RTX_SUPPORT
-		"active="+std::to_string(!optix.holographic || !optix.enabled);
-	#else
-		"active=true";
-	#endif
-	if(begin_tree_node("TAA", taa, false)) {
-		align("\a");
-		taa.create_gui(this);
-		align("\b");
-		end_tree_node(taa);
-	}
-
-	if(begin_tree_node("AO Style", ao_style, false)) {
-		align("\a");
-		add_gui("ao_style", ao_style);
-		add_member_control(this, "Voxel Grid Resolution", voxel_grid_resolution, "dropdown", "enums='16=16, 32=32, 64=64, 128=128, 256=256, 512=512'");
-		add_member_control(this, "Voxelize using GPU", voxelize_gpu, "check");
-		align("\b");
-		end_tree_node(ao_style);
-	}
-
-	// attribute mapping settings
 	if(begin_tree_node("Grid", grids, false)) {
 		align("\a");
 		add_member_control(this, "Mode", grid_mode, "dropdown", "enums='None, Color, Normal, Color + Normal'");
@@ -2036,93 +2037,127 @@ void on_tube_vis::create_gui(void) {
 		end_tree_node(grids);
 	}
 
-	if(begin_tree_node("General Settings", general_settings, false)) {
+	add_decorator("", "separator");
+
+	// Rendering settings
+	if(begin_tree_node("Rendering", render_gui_dummy, false, "level=1")) {
 		align("\a");
-		add_member_control(this, "Curvature Correction", general_settings.use_curvature_correction, "check");
-		add_member_control(this, "Length Scale", general_settings.length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xb51c1c");
-		add_member_control(this, "Antialias Radius", general_settings.antialias_radius, "value_slider", "min=0;max=5;step=0.01;ticks=true");
-		align("\b");
-		end_tree_node(general_settings);
-	}
 
-	for (unsigned ds=0; ds<(unsigned)render.visualizations.size(); ds++)
-	{
-		if(begin_tree_node("Attributes '"+traj_mgr.dataset(ds).name()+"'", render.visualizations[ds].manager, true)) {
-			align("\a");
-			add_decorator("Configuration File", "heading", "level=3");
-			layer_config_file_helper.create_gui("", layer_config_has_unsaved_changes ? "text_color=" + cgv::gui::theme_info::instance().warning_hex() : "");
-			add_decorator("", "separator", "level=3");
-			connect_copy(add_button("Reload Shader")->click, cgv::signal::rebind(this, &on_tube_vis::reload_shader));
-			connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &on_tube_vis::compile_glyph_attribs));
-			add_member_control(this, "Max Count (Debug)", max_glyph_count, "value_slider", "min=1;max=100;step=1;ticks=true");
-			add_member_control(this, "Show Hidden Glyphs", show_hidden_glyphs, "check");
-			render.visualizations.front().manager.create_gui(this, *this);
-			align("\b");
-			end_tree_node(render.visualizations.front().manager);
+#ifdef RTX_SUPPORT
+		add_member_control(this, "Enable OptiX Raycasting", optix.enabled, "check");
+
+		if(optix.enabled) {
+			if(begin_tree_node("OptiX Settings", optix.enabled, false)) {
+				align("\a");
+				add_member_control(this, "Tube Primitive", optix.primitive, "dropdown", "enums='Russig,Phantom,Built-in,Built-in (cubic)'");
+				add_member_control(this, "Debug Visualization", optix.debug, "dropdown", "enums='Off,Albedo,Depth,Tangent + Normal'");
+				add_member_control(this, "Show BLAS Bounding Volumes", optix.debug_bvol, "check");
+				add_member_control(this, "Render as Hologram", optix.holographic, "check");
+				add_member_control(this, "Holo-Eye Test", optix.holo_eye, "value_slider", "min=-1;max=1;step=0.0625;ticks=true");
+				align("\b");
+				end_tree_node(optix.enabled);
+			}
 		}
-	}
+#endif
 
+		if(begin_tree_node("Style", render.style, false)) {
+			align("\a");
+			add_gui("", render.style);
+			align("\b");
+			end_tree_node(render.style);
+		}
+
+		if(begin_tree_node("Anti-Aliasing", taa, false)) {
+			align("\a");
+			taa.create_gui(this);
+			align("\b");
+			end_tree_node(taa);
+		}
+
+		if(begin_tree_node("Ambient Occlusion", ao_style, false)) {
+			align("\a");
+			add_gui("ao_style", ao_style);
+			add_member_control(this, "Voxel Grid Resolution", voxel_grid_resolution, "dropdown", "enums='16=16, 32=32, 64=64, 128=128, 256=256, 512=512'");
+			add_member_control(this, "Voxelize using GPU", voxelize_gpu, "check");
+			align("\b");
+			end_tree_node(ao_style);
+		}
+
+		align("\b");
+		end_tree_node(render_gui_dummy);
+	}
+	
+	add_decorator("", "separator");
+
+	// Color scale manager and editor
 	integrate_object_gui(cm_editor_ptr);
 	if(cm_editor_ptr->begin_overlay_gui()) {
 		color_map_mgr.create_gui(this, *this);
 		cm_editor_ptr->create_gui();
 		cm_editor_ptr->end_overlay_gui();
 	}
+
+	add_decorator("", "separator");
 	
-	inline_object_gui(cm_viewer_ptr);
+	// Overlay widgets
+	add_member_control(this, "Scales", show_color_map_viewer, "toggle", "tooltip='Toggle visibility of the color scale preview.';w=65", "%x+=2");
+	add_member_control(this, "Navigator", show_navigator, "toggle", "tooltip='Toggle visibility of the navigator cube.';w=66", "%x+=2");
+	add_member_control(this, "Perfmon", show_performance_monitor, "toggle", "tooltip='Toggle visibility of the performance monitor.';w=65");
 
-	inline_object_gui(navigator_ptr);
+	add_decorator("", "separator");
 
-	inline_object_gui(perfmon_ptr);
-	
-	// Misc settings contractable section
-	add_decorator("Miscellaneous", "heading", "level=1");
-	if(begin_tree_node("Volume Style", vstyle, false)) {
-		align("\a");
-		add_member_control(this, "Show Volume", show_volume, "check");
-		add_gui("vstyle", vstyle);
-
-		inline_object_gui(tf_editor_ptr);
-		
-		align("\b");
-		end_tree_node(vstyle);
-	}
-
-	if(begin_tree_node("Tools (Persistent by Default)", misc_cfg, false)) {
-		align("\a");
-		add_member_control(
-			this, "instant_redraw_proxy", misc_cfg.instant_redraw_proxy, "toggle",
-			"tooltip='Controls the instant redraw state of the FLTK GL window.'"
-		);
-		add_member_control(
-			this, "vsync_redraw_proxy", misc_cfg.vsync_proxy, "toggle",
-			"tooltip='Controls the vsync state of the FLTK GL window.'"
-		);
-		add_member_control(
-			this, "fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy, "toggle",
-			"tooltip='Controls the \"fix_view_up_dir\" state of the view interactor.'"
-		);
-		align("\b");
-		end_tree_node(misc_cfg);
-	}
-
+	// Debug settings contractable section
 	if(begin_tree_node("(Debug)", benchmark, false)) {
 		align("\a");
-		add_member_control(this, "Render Mode", debug.render_mode, "dropdown", "enums='Default, Nodes, Segments, Nodes + Segments'");
-		add_member_control(this, "Show Segments", debug.highlight_segments, "check");
 
+		add_section_heading("Tools", 3);
+		add_member_control(
+			this, "Instant Redraw", misc_cfg.instant_redraw_proxy, "toggle",
+			"tooltip='Controls the instant redraw state of the FLTK GL window.'"
+		);
+		align("%y-=6");
+		add_member_control(
+			this, "VSync", misc_cfg.vsync_proxy, "toggle",
+			"tooltip='Controls the vsync state of the FLTK GL window.'"
+		);
+		align("%y-=6");
+		add_member_control(
+			this, "Fix View Up Dir", misc_cfg.fix_view_up_dir_proxy, "toggle",
+			"tooltip='Controls the \"fix_view_up_dir\" state of the view interactor.'"
+		);
+		
+		add_section_heading("Render Mode", 3);
+		add_member_control(this, "", debug.render_mode, "dropdown", "enums='Default,Nodes,Segments,Nodes + Segments,Volume'");
+		
+		if(debug.render_mode == DRM_VOLUME) {
+			if(begin_tree_node("Volume Style", vstyle, false, "level=3")) {
+				align("\a");
+				add_gui("vstyle", vstyle);
+
+				inline_object_gui(tf_editor_ptr);
+
+				align("\b");
+				end_tree_node(vstyle);
+			}
+		}
+
+		add_member_control(this, "Show Segments", debug.highlight_segments, "check");
+		add_member_control(this, "Show Hidden Glyphs", debug.show_hidden_glyphs, "check");
+
+		add_section_heading("Sorting", 3);
 		add_member_control(this, "Sort by Distance", debug.sort, "check");
 		add_member_control(this, "Lazy Sort", debug.lazy_sort, "check", "tooltip='Sort only after significant view changes.'");
 		add_member_control(this, "Force Initial Order", debug.force_initial_order, "check");
 
-		add_member_control(this, "Limit Render Count", debug.limit_render_count, "check");
-		add_member_control(this, "Render Percentage", debug.render_percentage, "value_slider", "min=0.0;step=0.001;max=1.0;ticks=true");
-		add_member_control(this, "Render Count", debug.render_count, "value", "w=70;min=0;step=1;max=" + std::to_string(debug.segment_count), " ");
+		add_section_heading("Render Count", 3);
+		add_member_control(this, "Limit", debug.limit_render_count, "check");
+		add_member_control(this, "Percentage", debug.render_percentage, "value_slider", "min=0.0;step=0.001;max=1.0;ticks=true");
+		add_member_control(this, "Count", debug.render_count, "value", "w=70;min=0;step=1;max=" + std::to_string(debug.segment_count), " ");
 		add_member_control(this, "", debug.render_count, "wheel", "w=120;min=0;step=1;max=" + std::to_string(debug.segment_count));
 		
-		add_member_control(this, "Start Benchmark", benchmark.requested, "toggle", "");
-		create_vec3_gui("Eye Pos", test_eye, -10.0f, 10.0f);
-		create_vec3_gui("Eye Dir", test_dir, -1.0f, 1.0f);
+		add_section_heading("Benchmark", 3);
+		add_member_control(this, "Start", benchmark.requested, "toggle", "");
+
 		align("\b");
 		end_tree_node(benchmark);
 	}
@@ -2178,7 +2213,9 @@ void on_tube_vis::update_grid_ratios(void) {
 		// adjust by the current radius scale
 		mean_rad *= render.style.radius_scale;
 		// we base everything on the mean of all trajectory median radii
-		grids[0].scaling.x() = general_settings.length_scale = 1.f / float(mean_rad);
+		float inv_mean_rad = 1.f / static_cast<float>(mean_rad);
+		render.style.length_scale = inv_mean_rad;
+		grids[0].scaling.x() = inv_mean_rad;
 		//grids[0].scaling.y() = grids[0].scaling.x()/4;
 		grids[0].scaling.y() = 1.0f;
 		grids[1].scaling.x() = grids[0].scaling.x()*4;
@@ -2189,7 +2226,7 @@ void on_tube_vis::update_grid_ratios(void) {
 			update_member(&(grids[i].scaling[0]));
 			update_member(&(grids[i].scaling[1]));
 		}
-		update_member(&general_settings.length_scale);
+		update_member(&render.style.length_scale);
 	}
 }
 
@@ -2297,8 +2334,8 @@ void on_tube_vis::update_attribute_bindings(void) {
 void on_tube_vis::update_debug_attribute_bindings() {
 	auto &ctx = *get_context();
 
-	auto& nodes = debug.node_rd;
-	auto& segments = debug.segment_rd;
+	auto& nodes = debug.geometry.nodes;
+	auto& segments = debug.geometry.segments;
 
 	nodes.clear();
 	segments.clear();
@@ -2616,15 +2653,16 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		// map global settings
 		prog.set_uniform(
-			ctx, "general_settings.use_curvature_correction", (
+			ctx, "use_curvature_correction", (
 				#if RTX_SUPPORT
 					optix.enabled ||
 				#endif
 				render.style.is_tube()
-			) && general_settings.use_curvature_correction
+			) && render.style.use_curvature_correction
 		);
-		prog.set_uniform(ctx, "general_settings.length_scale", general_settings.length_scale);
-		prog.set_uniform(ctx, "general_settings.antialias_radius", general_settings.antialias_radius);
+
+		prog.set_uniform(ctx, "length_scale", render.style.length_scale);
+		prog.set_uniform(ctx, "antialias_radius", render.style.antialias_radius);
 
 		const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
 

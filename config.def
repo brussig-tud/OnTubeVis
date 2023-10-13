@@ -26,8 +26,8 @@ type(tubes):layer_config_file="./testdata/layerconf_1layer_defaultprocedural.xml
 // - Bounding box visibility
 type(tubes):show_bounding_box=false
 type(tubes):show_wireframe_box=true
-// - Grid mode: 0 - none, 1 - color only, 2 - normals only, 3 - color and normals (default)
-//type(tubes):grid_mode=3
+// - Grid mode: GM_NONE - no grid, GM_COLOR - color only, GM_NORMAL - normal mapping only, GM_COLOR_AND_NORMAL - color and normal mapping (default)
+type(tubes):grid_mode=GM_COLOR_AND_NORMAL
 type(tubes):show_hidden_glyphs=false
 // - Voxelization device
 type(tubes):voxelize_gpu=false

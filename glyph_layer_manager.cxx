@@ -1,5 +1,7 @@
 #include "glyph_layer_manager.h"
 
+#include <cgv/utils/scan.h>
+
 void glyph_layer_manager::clear() {
 	visible.clear();
 	glyph_attribute_mappings.clear();
@@ -35,16 +37,6 @@ const std::string glyph_layer_manager::configuration::constant_color_parameter_n
 const std::string glyph_layer_manager::configuration::mapped_parameter_name_prefix = "glyph_m_param";
 
 const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration() {
-
-	const auto join = [](const std::vector<std::string>& strings, const std::string& delimiter, bool trailing_delimiter = false) {
-		std::string result = "";
-		for(size_t i = 0; i < strings.size(); ++i) {
-			result += strings[i];
-			if(i < strings.size() - 1 || trailing_delimiter)
-				result += delimiter;
-		}
-		return result;
-	};
 
 	// clear previous configuration
 	config.clear();
@@ -170,7 +162,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				std::string glyph_func = func_name_str + "(" + glyph_coord_str;
 				if(float_parameter_strs.size() > 0)
 					glyph_func += ", ";
-				glyph_func += join(float_parameter_strs, ", ");
+				glyph_func += cgv::utils::join(float_parameter_strs, ", ");
 				glyph_func += ")";
 
 				std::string color_str = "vec3(0.0)";
@@ -217,7 +209,6 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				}
 			}
 
-			//code = "splat_glyph(glyphuv, current_glyph, " + splat_func + ", " + color_str + ", color);";
 			layer_config.glyph_definition = "finalize_glyph(glyph.debug_info, glyphuv, " + splat_func + ", color);";
 
 			last_constant_float_parameters_size = config.constant_float_parameters.size();
@@ -252,32 +243,51 @@ ActionType glyph_layer_manager::action_type() {
 void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
 	base_ptr = bp;
 
-	connect_copy(p.add_button("Add Layer")->click, cgv::signal::rebind(this, &glyph_layer_manager::create_glyph_attribute_mapping));
 	for(unsigned i=0; i<(unsigned)glyph_attribute_mappings.size(); ++i) {
 		glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
-		bool node_is_open = p.begin_tree_node_void("Layer " + std::to_string(i + 1), &gam, -1, false, "level=2;options='w=80';align=''");
-		p.add_member_control(this, "Show", visible[i].v, "toggle", "w=40", " ");
+
+		std::string name = std::to_string(i + 1);
+		if(gam.get_name().empty())
+			name = "(Layer " + name + ")";
+		else
+			name = name + ": " + gam.get_name();
+
+		bool node_is_open = p.begin_tree_node_void(name, &gam, -1, false, "level=3;options='w=136';align=''");
+		p.add_member_control(this, visible[i].v ? "@tickboxfull" : "@tickboxempty", visible[i].v, "toggle", "w=20", "%x+=2");
 			
 		connect_copy(
-			//p.add_button("", "image='res://up32.png';fit_image=true;w=20;h=20;label=''", " ")->click,
-			p.add_button("@8>", "w=20;h=20", " ")->click,
+			p.add_button("@8>", "w=20;h=20", "%x+=2")->click,
 			cgv::signal::rebind(this, &glyph_layer_manager::move_glyph_attribute_mapping, cgv::signal::_c(i), cgv::signal::_c(-1))
 		);
 
 		connect_copy(
-			//p.add_button("", "image='res://down32.png';fit_image=true;w=20;h=20;label=''", " ")->click,
-			p.add_button("@2>", "w=20;h=20", " ")->click,
+			p.add_button("@2>", "w=20;h=20")->click,
 			cgv::signal::rebind(this, &glyph_layer_manager::move_glyph_attribute_mapping, cgv::signal::_c(i), cgv::signal::_c(1))
 		);
 
-		connect_copy(p.add_button("@9+", "w=20")->click, cgv::signal::rebind(this, &glyph_layer_manager::remove_glyph_attribute_mapping, cgv::signal::_c<size_t>(i)));
 		if(node_is_open) {
 			p.align("\a");
+
+			p.align("%x+=180");
+			connect_copy(p.add_button("@9+", "w=20;color=0xb51c1c")->click, cgv::signal::rebind(this, &glyph_layer_manager::remove_glyph_attribute_mapping, cgv::signal::_c<size_t>(i)));
+
+			p.align("%y-=28");
 			gam.create_gui(this, p);
+
 			p.align("\b");
 			p.end_tree_node(gam);
 		}
 	}
+
+	p.align("%y-=8");
+	p.add_decorator("", "separator", "", "\n%y-=8");
+
+	// Determine the active state of the add layer controls.
+	// The GUI will be recreated everytime a glyph attribute mapping is added or removed.
+	std::string active = "active=";
+	active += glyph_attribute_mappings.size() < 4 ? "true" : "false";
+	p.add_member_control(this, "Add Layer", new_attribute_mapping_name, "", "w=168;" + active, " ");
+	connect_copy(p.add_button("@+", "w=20;" + active)->click, cgv::signal::rebind(this, &glyph_layer_manager::create_glyph_attribute_mapping));
 }
 
 void glyph_layer_manager::on_set(void* member_ptr) {
@@ -292,19 +302,12 @@ void glyph_layer_manager::on_set(void* member_ptr) {
 		}
 
 		if(member_ptr == &gam) {
-			//if(gam.action_type() == AT_CONFIGURATION_CHANGE)
-			//	last_action_type = AT_CONFIGURATION_CHANGE;
 			last_action_type = gam.action_type();
 		}
 	}
 
-	/*for(size_t i = 0; i < layers.size(); ++i) {
-		glyph_attribute_mapping& gam = layers[i].gam;
-		if(member_ptr == &gam) {
-			if(gam.action_type() == AT_CONFIGURATION_CHANGE)
-				last_action_type = AT_CONFIGURATION_CHANGE;
-		}
-	}*/
+	if(member_ptr == &new_attribute_mapping_name)
+		last_action_type = AT_NONE;
 
 	if(base_ptr)
 		base_ptr->on_set(this);
@@ -312,17 +315,20 @@ void glyph_layer_manager::on_set(void* member_ptr) {
 
 void glyph_layer_manager::create_glyph_attribute_mapping() {
 	if(glyph_attribute_mappings.size() == 4) {
-		std::cout << "Cannot use more than 4 layers" << std::endl;
+		std::cout << "Warning: More than 4 layers are not supported" << std::endl;
 		return;
 	}
 
 	glyph_attribute_mappings.push_back(glyph_attribute_mapping());
 	auto& gam = glyph_attribute_mappings.back();
+	gam.set_name(new_attribute_mapping_name);
 	gam.set_attribute_names(attribute_names);
 	gam.set_attribute_ranges(attribute_ranges);
 	gam.set_color_map_names(color_map_names);
 
 	visible.push_back(true);
+
+	new_attribute_mapping_name = "";
 
 	notify_configuration_change();
 }

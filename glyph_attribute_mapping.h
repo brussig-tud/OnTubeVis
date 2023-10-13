@@ -25,6 +25,8 @@ class glyph_attribute_mapping : public cgv::render::render_types {
 protected:
 	ActionType last_action_type = AT_NONE;
 
+	std::string name = "";
+
 	std::vector<std::string> attribute_names;
 	std::vector<vec2> attribute_ranges;
 	std::vector<std::string> color_map_names;
@@ -40,6 +42,8 @@ protected:
 	std::vector<rgb> attrib_colors;
 	
 	void on_set(void* member_ptr, cgv::base::base* base_ptr);
+
+	void update_name(cgv::base::base* base_ptr);
 
 	void create_glyph_shape();
 
@@ -69,6 +73,10 @@ public:
 	~glyph_attribute_mapping();
 
 	ActionType action_type();
+
+	const std::string& get_name() const { return name; }
+
+	void set_name(const std::string& name) { this->name = name; }
 
 	const AttributeSamplingStrategy get_sampling_strategy() const { return sampling_strategy; }
 	
@@ -101,10 +109,6 @@ public:
 	void set_color_map_names(const std::vector<std::string>& names);
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
-
-
-
-
 
 	void set_attrib_source_index(size_t attrib_idx, int source_idx) {
 		if(attrib_idx < attrib_source_indices.size())
