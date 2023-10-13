@@ -35,16 +35,16 @@ namespace cgv {
 			cap_clip_distance = 20.0f;
 			max_t = std::numeric_limits<float>::infinity();
 
-			ribbon_rc_params.linearity_thr = .015625f;
-			ribbon_rc_params.screwiness_thr= .9375;
-			ribbon_rc_params.subdiv_abort_thr = 512;
-			ribbon_rc_params.max_intersection_stack_size = 8;
-			ribbon_rc_params.exact_ribbon_bboxes = false;
-			ribbon_rc_params.ray_centric_isects = false;
-			ribbon_rc_params.bbox_coord_system = ribbon_rc_params.BBO_RCC;
+			rcribbon.linearity_thr = .015625f;
+			rcribbon.screwiness_thr= .9375;
+			rcribbon.subdiv_abort_thr = 512;
+			rcribbon.max_intersection_stack_size = 8;
+			rcribbon.exact_ribbon_bboxes = false;
+			rcribbon.ray_centric_isects = false;
+			rcribbon.bbox_coord_system = rcribbon.BBO_RCC;
 
-			ribbon_rc_params.debug.visualize_stats = ribbon_rc_params.debug.VS_OFF;
-			ribbon_rc_params.debug.visualize_leaf_bboxes = false;
+			rcribbon.debug.visualize_stats = rcribbon.debug.VS_OFF;
+			rcribbon.debug.visualize_leaf_bboxes = false;
 		}
 
 		textured_spline_tube_renderer::textured_spline_tube_renderer()
@@ -108,12 +108,12 @@ namespace cgv {
 			if (rs.line_primitive != rs.LP_RIBBON_GEOMETRY)
 				shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, rs.BG_ALIGNED_BOX_BILLBOARD);
 			if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED) {
-				shader_code::set_define(defines, "EXACT_RIBBON_BBOXES", rs.ribbon_rc_params.exact_ribbon_bboxes, false);
-				shader_code::set_define(defines, "BBOX_COORD_SYSTEM", rs.ribbon_rc_params.bbox_coord_system, rs.ribbon_rc_params.BBO_RCC);
-				shader_code::set_define(defines, "RAY_CENTRIC_ISECTS", rs.ribbon_rc_params.ray_centric_isects, false);
-				shader_code::set_define(defines, "MAX_INTERSECTION_STACK_SIZE", rs.ribbon_rc_params.max_intersection_stack_size, (unsigned)8);
-				shader_code::set_define(defines, "DBG_VISUALIZE_STATS", rs.ribbon_rc_params.debug.visualize_stats, rs.ribbon_rc_params.debug.VS_OFF);
-				shader_code::set_define(defines, "DBG_VISUALIZE_LEAF_BBOXES", rs.ribbon_rc_params.debug.visualize_leaf_bboxes, false);
+				shader_code::set_define(defines, "EXACT_RIBBON_BBOXES", rs.rcribbon.exact_ribbon_bboxes, false);
+				shader_code::set_define(defines, "BBOX_COORD_SYSTEM", rs.rcribbon.bbox_coord_system, rs.rcribbon.BBO_RCC);
+				shader_code::set_define(defines, "RAY_CENTRIC_ISECTS", rs.rcribbon.ray_centric_isects, false);
+				shader_code::set_define(defines, "MAX_INTERSECTION_STACK_SIZE", rs.rcribbon.max_intersection_stack_size, (unsigned)8);
+				shader_code::set_define(defines, "DBG_VISUALIZE_STATS", rs.rcribbon.debug.visualize_stats, rs.rcribbon.debug.VS_OFF);
+				shader_code::set_define(defines, "DBG_VISUALIZE_LEAF_BBOXES", rs.rcribbon.debug.visualize_leaf_bboxes, false);
 			}
 
 			for(const auto& define : additional_defines)
@@ -130,7 +130,6 @@ namespace cgv {
 				return prog.build_program(ctx, "view_aligned_ribbon.glpr", true, defines);
 			else
 				return prog.build_program(ctx, "textured_spline_ribbon.glpr", true, defines);
-
 		}
 		bool textured_spline_tube_renderer::enable(context& ctx)
 		{
@@ -154,9 +153,9 @@ namespace cgv {
 			ref_prog().set_uniform(ctx, "max_t", rs.max_t);
 
 			if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED) {
-				ref_prog().set_uniform(ctx, "linearity_thr", rs.ribbon_rc_params.linearity_thr);
-				ref_prog().set_uniform(ctx, "screwiness_thr", std::min(rs.ribbon_rc_params.screwiness_thr, .9921875f));
-				ref_prog().set_uniform(ctx, "subdiv_abort_thr", rs.ribbon_rc_params.subdiv_abort_thr);
+				ref_prog().set_uniform(ctx, "linearity_thr", rs.rcribbon.linearity_thr);
+				ref_prog().set_uniform(ctx, "screwiness_thr", std::min(rs.rcribbon.screwiness_thr, .9921875f));
+				ref_prog().set_uniform(ctx, "subdiv_abort_thr", rs.rcribbon.subdiv_abort_thr);
 			}
 
 			return true;
@@ -184,7 +183,14 @@ namespace cgv {
 			return
 				rh.reflect_base(*static_cast<surface_render_style*>(this)) &&
 				rh.reflect_member("radius", radius) &&
-				rh.reflect_member("radius_scale", radius_scale);
+				rh.reflect_member("radius_scale", radius_scale) &&
+				rh.reflect_member("rcribbon_linearity_thr", rcribbon.linearity_thr) &&
+				rh.reflect_member("rcribbon_screwiness_thr", rcribbon.screwiness_thr) &&
+				rh.reflect_member("rcribbon_subdiv_abort_thr", rcribbon.subdiv_abort_thr) &&
+				rh.reflect_member("rcribbon_max_intersection_stack_size", rcribbon.max_intersection_stack_size) &&
+				rh.reflect_member("rcribbon_exact_ribbon_bboxes", rcribbon.exact_ribbon_bboxes) &&
+				rh.reflect_member("rcribbon_ray_centric_isects", rcribbon.ray_centric_isects) &&
+				rh.reflect_member("rcribbon_bbox_coord_system", rcribbon.bbox_coord_system);
 		}
 
 		cgv::reflect::extern_reflection_traits<textured_spline_tube_render_style, textured_spline_tube_render_style_reflect> get_reflection_traits(const textured_spline_tube_render_style&)
@@ -218,19 +224,19 @@ namespace cgv {
 			p->add_member_control(b, "Cubic Tangents", rs_ptr->use_cubic_tangents, "check");
 			p->add_member_control(b, "Curvature Correction", rs_ptr->use_curvature_correction, "check");
 
-			if(p->begin_tree_node("Ribbon - Raycasted", rs_ptr->ribbon_rc_params)) {
+			if(p->begin_tree_node("Ribbon - Raycasted", rs_ptr->rcribbon)) {
 				p->align("\a");
-				p->add_member_control(b, "Linearity Threshold", rs_ptr->ribbon_rc_params.linearity_thr, "value_slider", "min=0.001953125;step=0.001953125;max=0.125;log=true;ticks=true");
-				p->add_member_control(b, "Screw Angle Threshold", rs_ptr->ribbon_rc_params.screwiness_thr, "value_slider", "min=-1;step=0.0625;max=0.9921875;ticks=true");
-				p->add_member_control(b, "Subdiv. Abort Threshold", rs_ptr->ribbon_rc_params.subdiv_abort_thr, "value_slider", "min=1;step=1;max=4096;log=true;ticks=true");
-				p->add_member_control(b, "Max Isect Stack Size", rs_ptr->ribbon_rc_params.max_intersection_stack_size, "value_slider", "min=1;step=1;max=32");
-				p->add_member_control(b, "Exact Bounding Boxes", rs_ptr->ribbon_rc_params.exact_ribbon_bboxes, "check");
-				p->add_member_control(b, "Ray-Centric Patch Isects", rs_ptr->ribbon_rc_params.ray_centric_isects, "check");
-				p->add_member_control(b, "Subcurve BBox Orientation", rs_ptr->ribbon_rc_params.bbox_coord_system, "dropdown", "enums='Segment,Subcurve,Ray-centric'");
-				p->add_member_control(b, "Visualize Stats", rs_ptr->ribbon_rc_params.debug.visualize_stats, "dropdown", "enums='off,Intersections,Stack Usage'");
-				p->add_member_control(b, "Visualize Leaf BBoxes", rs_ptr->ribbon_rc_params.debug.visualize_leaf_bboxes, "check");
+				p->add_member_control(b, "Linearity Threshold", rs_ptr->rcribbon.linearity_thr, "value_slider", "min=0.001953125;step=0.001953125;max=0.125;log=true;ticks=true");
+				p->add_member_control(b, "Screw Angle Threshold", rs_ptr->rcribbon.screwiness_thr, "value_slider", "min=-1;step=0.0625;max=0.9921875;ticks=true");
+				p->add_member_control(b, "Subdiv. Abort Threshold", rs_ptr->rcribbon.subdiv_abort_thr, "value_slider", "min=1;step=1;max=4096;log=true;ticks=true");
+				p->add_member_control(b, "Max Isect Stack Size", rs_ptr->rcribbon.max_intersection_stack_size, "value_slider", "min=1;step=1;max=32");
+				p->add_member_control(b, "Exact Bounding Boxes", rs_ptr->rcribbon.exact_ribbon_bboxes, "check");
+				p->add_member_control(b, "Ray-Centric Patch Isects", rs_ptr->rcribbon.ray_centric_isects, "check");
+				p->add_member_control(b, "Subcurve BBox Orientation", rs_ptr->rcribbon.bbox_coord_system, "dropdown", "enums='Segment,Subcurve,Ray-centric'");
+				p->add_member_control(b, "Visualize Stats", rs_ptr->rcribbon.debug.visualize_stats, "dropdown", "enums='off,Intersections,Stack Usage'");
+				p->add_member_control(b, "Visualize Leaf BBoxes", rs_ptr->rcribbon.debug.visualize_leaf_bboxes, "check");
 				p->align("\b");
-				p->end_tree_node(rs_ptr->ribbon_rc_params);
+				p->end_tree_node(rs_ptr->rcribbon);
 			}
 
 			const auto &[tmin, tmax] = rs_ptr->data_t_minmax;
