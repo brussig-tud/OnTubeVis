@@ -5,6 +5,7 @@ glyph_attribute_mapping::glyph_attribute_mapping() {
 }
 
 glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& r) {
+	name = r.name;
 	sampling_strategy = r.sampling_strategy;
 	sampling_step = r.sampling_step;
 	type = r.type;
@@ -20,6 +21,7 @@ glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& 
 }
 
 glyph_attribute_mapping& glyph_attribute_mapping::operator=(const glyph_attribute_mapping& r) {
+	name = r.name;
 	sampling_strategy = r.sampling_strategy;
 	sampling_step = r.sampling_step;
 	type = r.type;
@@ -71,6 +73,9 @@ void glyph_attribute_mapping::set_glyph_type(GlyphType type) {
 void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
 	if(!shape_ptr)
 		return;
+
+	add_local_member_control(p, bp, "Name", name, "", "w=146", "%x+=2");
+	connect_copy(p.add_button("@1edit", "w=20")->click, cgv::signal::rebind(this, &glyph_attribute_mapping::update_name, cgv::signal::_c<cgv::base::base*>(bp)));
 
 	add_local_member_control(p, bp, "Sampling Strategy", sampling_strategy, "dropdown", "enums='Uniform Time,Equidistant,Original Samples'");
 	add_local_member_control(p, bp, "Sampling Step", sampling_step, "value_slider", "min=0;max=10;step=0.001;ticks=true;log=true");
@@ -132,6 +137,12 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 		if(member_ptr == &color_source_indices[i])
 			last_action_type = AT_CONFIGURATION_CHANGE;
 	
+	base_ptr->on_set(this);
+}
+
+void glyph_attribute_mapping::update_name(cgv::base::base* base_ptr) {
+
+	last_action_type = AT_CONFIGURATION_CHANGE;
 	base_ptr->on_set(this);
 }
 

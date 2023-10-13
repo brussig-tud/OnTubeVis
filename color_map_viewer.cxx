@@ -11,7 +11,7 @@ color_map_viewer::color_map_viewer() {
 	set_name("Color Map Viewer");
 
 	layout.padding = 13; // 10px plus 3px border
-	layout.band_height = 15;
+	layout.band_height = 18;
 	layout.total_height = 80;
 
 	set_overlay_alignment(AO_END, AO_END);
@@ -166,12 +166,13 @@ void color_map_viewer::init_styles(cgv::render::context& ctx) {
 	color_map_style.use_texture = true;
 
 	// configure text style
-	text_style.fill_color = rgba(rgb(1.0f), 0.75f);
-	text_style.border_color = rgba(rgb(0.0f), 0.75f);
-	text_style.border_radius = 0.5f;
-	text_style.border_width = 0.5f;
 	text_style.use_blending = true;
-	text_style.font_size = 14.0f;
+	text_style.fill_color = rgb(1.0f);
+	text_style.border_color = rgb(0.0f);
+	text_style.border_radius = 0.5f;
+	text_style.border_width = 0.75f;
+	text_style.feather_origin = 0.35f;
+	text_style.font_size = 16.0f;
 }
 
 void color_map_viewer::update_texts() {
@@ -185,7 +186,7 @@ void color_map_viewer::update_texts() {
 	int i = 0;
 	for(const auto& name : names) {
 		ivec2 p = base;
-		p.y() += (((unsigned)names.size()) - 1 - i)*step;
+		p.y() += (static_cast<int>(names.size()) - i - 1) * step - 1;
 		texts.add_text(name, p, cgv::render::TA_BOTTOM);
 		++i;
 	}

@@ -114,6 +114,8 @@ protected:
 
 	configuration config;
 
+	std::string new_attribute_mapping_name = "";
+
 	void on_set(void* member_ptr);
 
 	void create_glyph_attribute_mapping();

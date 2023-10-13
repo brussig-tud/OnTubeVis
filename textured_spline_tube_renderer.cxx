@@ -29,6 +29,9 @@ namespace cgv {
 			use_conservative_depth = false;
 			use_cubic_tangents = true;
 			use_view_space_position = true;
+			use_curvature_correction = true;
+			length_scale = 1.0f;
+			antialias_radius = 0.5f;
 			cap_clip_distance = 20.0f;
 			max_t = std::numeric_limits<float>::infinity();
 
@@ -206,25 +209,26 @@ namespace cgv {
 			cgv::render::textured_spline_tube_render_style* rs_ptr = reinterpret_cast<cgv::render::textured_spline_tube_render_style*>(value_ptr);
 			cgv::base::base* b = dynamic_cast<cgv::base::base*>(p);
 
-			p->add_member_control(b, "Line Primitive", rs_ptr->line_primitive, "dropdown", "enums='Tube - Russig,Tube - Phantom,Ribbon - raycasted,Ribbon - geometry'");
+			p->add_member_control(b, "Line Primitive", rs_ptr->line_primitive, "dropdown", "enums='Tube - Russig,Tube - Phantom,Ribbon - Raycasted,Ribbon - Geometry'");
 			p->add_member_control(b, "Default Radius", rs_ptr->radius, "value_slider", "min=0.001;step=0.0001;max=10.0;log=true;ticks=true");
 			p->add_member_control(b, "Radius Scale", rs_ptr->radius_scale, "value_slider", "min=0.01;step=0.0001;max=100.0;log=true;ticks=true");
 
 			p->add_member_control(b, "Conservative Depth", rs_ptr->use_conservative_depth, "check");
-			p->add_member_control(b, "Cubic Tangents", rs_ptr->use_cubic_tangents, "check");
 			p->add_member_control(b, "View Space Position", rs_ptr->use_view_space_position, "check");
+			p->add_member_control(b, "Cubic Tangents", rs_ptr->use_cubic_tangents, "check");
+			p->add_member_control(b, "Curvature Correction", rs_ptr->use_curvature_correction, "check");
 
-			if(p->begin_tree_node("Ribbon - raycasted", rs_ptr->ribbon_rc_params)) {
+			if(p->begin_tree_node("Ribbon - Raycasted", rs_ptr->ribbon_rc_params)) {
 				p->align("\a");
-				p->add_member_control(b, "linearity threshold", rs_ptr->ribbon_rc_params.linearity_thr, "value_slider", "min=0.001953125;step=0.001953125;max=0.125;log=true;ticks=true");
-				p->add_member_control(b, "screw angle threshold", rs_ptr->ribbon_rc_params.screwiness_thr, "value_slider", "min=-1;step=0.0625;max=0.9921875;ticks=true");
-				p->add_member_control(b, "subdiv. abort threshold", rs_ptr->ribbon_rc_params.subdiv_abort_thr, "value_slider", "min=1;step=1;max=4096;log=true;ticks=true");
-				p->add_member_control(b, "max isect stack size", rs_ptr->ribbon_rc_params.max_intersection_stack_size, "value_slider", "min=1;step=1;max=32");
-				p->add_member_control(b, "exact ribbon bboxes", rs_ptr->ribbon_rc_params.exact_ribbon_bboxes, "check");
-				p->add_member_control(b, "ray-centric patch isects", rs_ptr->ribbon_rc_params.ray_centric_isects, "check");
-				p->add_member_control(b, "subcurve BBox orientation", rs_ptr->ribbon_rc_params.bbox_coord_system, "dropdown", "enums='Segment,Subcurve,Ray-centric'");
-				p->add_member_control(b, "visualize stats", rs_ptr->ribbon_rc_params.debug.visualize_stats, "dropdown", "enums='off,Intersections,Stack Usage'");
-				p->add_member_control(b, "visualize leaf BBoxes", rs_ptr->ribbon_rc_params.debug.visualize_leaf_bboxes, "check");
+				p->add_member_control(b, "Linearity Threshold", rs_ptr->ribbon_rc_params.linearity_thr, "value_slider", "min=0.001953125;step=0.001953125;max=0.125;log=true;ticks=true");
+				p->add_member_control(b, "Screw Angle Threshold", rs_ptr->ribbon_rc_params.screwiness_thr, "value_slider", "min=-1;step=0.0625;max=0.9921875;ticks=true");
+				p->add_member_control(b, "Subdiv. Abort Threshold", rs_ptr->ribbon_rc_params.subdiv_abort_thr, "value_slider", "min=1;step=1;max=4096;log=true;ticks=true");
+				p->add_member_control(b, "Max Isect Stack Size", rs_ptr->ribbon_rc_params.max_intersection_stack_size, "value_slider", "min=1;step=1;max=32");
+				p->add_member_control(b, "Exact Bounding Boxes", rs_ptr->ribbon_rc_params.exact_ribbon_bboxes, "check");
+				p->add_member_control(b, "Ray-Centric Patch Isects", rs_ptr->ribbon_rc_params.ray_centric_isects, "check");
+				p->add_member_control(b, "Subcurve BBox Orientation", rs_ptr->ribbon_rc_params.bbox_coord_system, "dropdown", "enums='Segment,Subcurve,Ray-centric'");
+				p->add_member_control(b, "Visualize Stats", rs_ptr->ribbon_rc_params.debug.visualize_stats, "dropdown", "enums='off,Intersections,Stack Usage'");
+				p->add_member_control(b, "Visualize Leaf BBoxes", rs_ptr->ribbon_rc_params.debug.visualize_leaf_bboxes, "check");
 				p->align("\b");
 				p->end_tree_node(rs_ptr->ribbon_rc_params);
 			}
@@ -234,12 +238,15 @@ namespace cgv {
 				b, "Render up to t =", rs_ptr->max_t, "value_slider",
 				"min="+std::to_string(tmin)+";max="+std::to_string(tmax)+";step="+std::to_string((tmax-tmin)/10000.f)+";ticks=false"
 			);
+
+			p->add_member_control(b, "Antialias Radius", rs_ptr->antialias_radius, "value_slider", "min=0;max=5;step=0.01;ticks=true");
+			p->add_member_control(b, "Length Scale", rs_ptr->length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xb51c1c");
 			p->add_member_control(b, "Cap Clip Distance", rs_ptr->cap_clip_distance, "value_slider", "min=0.0;max=100.0;step=0.01;ticks=true");
 			p->add_member_control(b, "Attribute-Less Mode", rs_ptr->attrib_mode, "dropdown", "enums='Off,No curve data,No node color,Attribute-less'");
 
 			p->add_gui("surface_render_style", *static_cast<cgv::render::surface_render_style*>(rs_ptr));
 
-			if(p->begin_tree_node("Debug Options", rs_ptr->fragment_mode)) {
+			if(p->begin_tree_node("Debug Options", rs_ptr->fragment_mode, false, "level=3")) {
 				p->align("\a");
 				p->add_member_control(b, "Bounding Geometry", rs_ptr->bounding_geometry, "dropdown", "enums='Oriented box (use attribute-less mode),Approximate billboard,Exact oriented box flat polygon,Oriented box billboard,View-aligned box billboard,Oriented box simulated split (1 triangle strip),Oriented box simulated split (2 triangle strips),VABB simulated split (1 triangle strip),VABB simulated split (2 triangle strips)'");
 				p->add_member_control(b, "Fragment Mode", rs_ptr->fragment_mode, "dropdown", "enums='No-Op, Rasterize Debug, Ray Cast Debug, Ray Cast'");

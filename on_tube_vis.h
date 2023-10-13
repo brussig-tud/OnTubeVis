@@ -8,6 +8,7 @@
 #include <cgv/base/node.h>
 #include <cgv/gui/event_handler.h>
 #include <cgv/gui/provider.h>
+#include <cgv/gui/help_message.h>
 #include <cgv/gui/file_helper.h>
 #include <cgv/render/drawable.h>
 #include <cgv/render/managed_frame_buffer.h>
@@ -48,6 +49,25 @@
 #include "optix_integration.h"
 #include "optixtracer_textured_spline_tube.h"
 #endif
+
+
+// define GridMode outside of main on_tube_vis class to be able to use it with type reflection
+enum GridMode {
+	GM_NONE = 0,
+	GM_COLOR = 1,
+	GM_NORMAL = 2,
+	GM_COLOR_AND_NORMAL = 3
+};
+
+namespace cgv {
+namespace reflect {
+
+// define custom reflection traits for the GridMode
+enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&);
+
+}
+}
+
 
 
 using namespace cgv::render;
@@ -178,13 +198,9 @@ protected:
 	cgv::app::navigator_ptr navigator_ptr;
 	cgv::data::ref_ptr<color_map_viewer> cm_viewer_ptr;
 	cgv::app::performance_monitor_ptr perfmon_ptr;
-
-	enum GridMode {
-		GM_NONE = 0,
-		GM_COLOR = 1,
-		GM_NORMAL = 2,
-		GM_COLOR_NORMAL = 3
-	};
+	bool show_navigator = false;
+	bool show_color_map_viewer = false;
+	bool show_performance_monitor = false;
 
 	struct grid_parameters {
 		vec2 scaling;
@@ -201,21 +217,14 @@ protected:
 	std::vector<grid_parameters> grids;
 	bool enable_fuzzy_grid;
 
-	/// global tube render settings
-	struct {
-		bool use_curvature_correction = true;
-		float length_scale = 1.0;
-		float antialias_radius = 0.5f;
-	} general_settings;
-	
 	/// shader defines for the deferred shading pass
 	shader_define_map tube_shading_defines;
 
-	/// store a pointer to the view for fast access
-	//view *view_ptr = nullptr;
-
 	/// store the current OpenGL viewport configuration
 	GLint viewport[4];
+
+	/// GUI help message
+	cgv::gui::help_message help;
 
 	/// file helper for path of the dataset to load - can be either a directory or a single file
 	cgv::gui::file_helper datapath_helper;
@@ -269,7 +278,7 @@ protected:
 	} dataset;
 
 	cgv::post::temporal_anti_aliasing taa;
-
+	
 	cgv::render::managed_frame_buffer fbc;
 	cgv::render::shader_library shaders;
 	volume_render_style vstyle;
@@ -303,7 +312,6 @@ protected:
 
 	bool show_bbox = false;
 	bool show_wireframe_bbox = true;
-	cgv::render::box_render_style bbox_style;
 	cgv::render::box_render_data<> bbox_rd;
 	cgv::render::box_wire_render_data<> bbox_wire_rd;
 
@@ -313,10 +321,6 @@ protected:
 	struct on_tube_visualization {
 		glyph_layer_manager::configuration config;
 		glyph_layer_manager manager;
-		/*context &ctx;
-
-		on_tube_visualization(context &ctx) : ctx(ctx) {}
-		~on_tube_visualization() {}*/
 	};
 
 	/// rendering state fields
@@ -352,6 +356,7 @@ protected:
 		/// the gpu sorter used to reorder the indices according to their corresponding segment visibility order
 		cgv::gpgpu::visibility_sort sorter;
 	} render;
+	int render_gui_dummy = 0;
 
 	/// trajectory manager
 	traj_manager<float> traj_mgr;
@@ -384,21 +389,24 @@ protected:
 		DRM_NONE,
 		DRM_NODES,
 		DRM_SEGMENTS,
-		DRM_NODES_SEGMENTS
+		DRM_NODES_SEGMENTS,
+		DRM_VOLUME
 	};
 
 	/// debug state fields
 	struct {
 		DebugRenderMode render_mode = DRM_NONE;
 
-		/// debug render data and styles
-		cgv::render::sphere_render_data<> node_rd;
-		cgv::render::cone_render_data<> segment_rd;
-		sphere_render_style node_rs;
-		cone_render_style segment_rs;
-
+		/// debug render data
+		struct {
+			cgv::render::sphere_render_data<> nodes;
+			cgv::render::cone_render_data<> segments;
+		} geometry;
+		
 		/// whether to higlight individual segments in the textured spline tube renderer
 		bool highlight_segments = false;
+		/// whether to show glyphs that are normally not drawn due to overlap in a transparent fashion
+		bool show_hidden_glyphs = false;
 
 		/// whether to sort the segments, which is used to boost performance together with conservative depth testing
 		bool sort = true;
@@ -423,17 +431,11 @@ protected:
 	bool benchmark_mode = false;
 	bool benchmark_mode_setup = false;
 	
-	/// members for rendering eye position and direction used to test sorting
-	cgv::render::sphere_render_data<> srd;
-	vec3 test_eye = vec3(5.0f, 0.5f, 5.0f);
-	vec3 test_dir = vec3(0.0f, 0.0f, -1.0f);
-
 	/// layer configuration file handling fields
 	cgv::gui::file_helper layer_config_file_helper;
 	bool layer_config_has_unsaved_changes = false;
 
-	bool voxelize_gpu = false;
-	bool show_volume = false;
+	bool voxelize_gpu = true;
 	box3 bbox;
 	texture density_tex;
 	texture tf_tex;
@@ -441,10 +443,6 @@ protected:
 	voxelizer density_volume;
 	ambient_occlusion_style ao_style, ao_style_bak; // the latter is used to restore defaults after demo data is unloaded
 
-	bool show_hidden_glyphs = false;
-	unsigned max_glyph_count = 10;
-	
-	void reload_shader();
 	bool save_layer_configuration(const std::string& file_name);
 	bool read_layer_configuration(const std::string& file_name);
 
@@ -490,7 +488,6 @@ public:
 	bool handle_event(cgv::gui::event& e);
 	void handle_color_map_change();
 	void handle_transfer_function_change();
-	void on_set(void* member_ptr);
 	void handle_member_change(const cgv::utils::pointer_test& m);
 	bool on_exit_request();
 

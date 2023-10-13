@@ -77,6 +77,10 @@ uniform vec4 grid_color;
 uniform float normal_mapping_scale = 1.0;
 uniform grid_parameters grids[2];
 
+uniform bool use_curvature_correction;
+uniform float length_scale;
+uniform float antialias_radius;
+
 // holographic raycasting parameters
 uniform bool  holographic_raycast;
 uniform float viewport_width;
@@ -93,12 +97,6 @@ uniform vec3 glyph_cc_param[CONSTANT_COLOR_UNIFORM_COUNT];
 #if MAPPING_PARAMETER_UNIFORM_COUNT > 0
 uniform vec4 glyph_m_param[MAPPING_PARAMETER_UNIFORM_COUNT];
 #endif
-
-uniform struct {
-	bool use_curvature_correction;
-	float length_scale;
-	float antialias_radius;
-} general_settings;
 
 in vec2 texcoord_fs;
 
@@ -179,7 +177,7 @@ DEF_CLOSEST_SAMPLES(3, ranges3, glyphs3)
 
 		uv = vec2(
 			(closest.dp <= closest.dn ? closest.dp : -closest.dn)
-			* general_settings.length_scale, // <-- ToDo: replace with automatic uv re-projection method
+			* length_scale, // <-- ToDo: replace with automatic uv re-projection method
 			uv.t
 		);
 
@@ -387,8 +385,7 @@ vec3 grid_normal(in vec2 p, in float n) {
 }
 
 float compute_grid_factor(vec2 uv) {
-	float l = general_settings.length_scale;
-	//if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
+	//if(uv.s <= -length_scale || uv.s >= length_scale)// || uv.t <= -1.0 || uv.t >= 1.0)
 	//	return 0.0;
 
 	float grid_factor = 0.0;
@@ -398,8 +395,7 @@ float compute_grid_factor(vec2 uv) {
 }
 
 vec3 compute_grid_normal(vec2 uv) {
-	float l = general_settings.length_scale;
-	//if(uv.s <= -l || uv.s >= l)// || uv.t <= -1.0 || uv.t >= 1.0)
+	//if(uv.s <= -length_scale || uv.s >= length_scale)// || uv.t <= -1.0 || uv.t >= 1.0)
 	//	return vec3(0.0, 0.0, 1.0);
 	
 	vec3 normal = vec3(0.0, 0.0, 1.0);
@@ -716,7 +712,7 @@ vec4 splat_star##I(in glyph_desc##I gd, in vec2 p, in int float_base_idx, in int
 	\
 	vec3 dist3 = vec3(dist, op_onion(dist.y + 0.01, 0.01)); \
 	\
-	const vec3 antialias_width = general_settings.antialias_radius*fwidth(dist3); \
+	const vec3 antialias_width = antialias_radius*fwidth(dist3); \
 	vec3 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist3); \
 	\
 	float theta = atan(-p.x, p.y) + M_PI; \
@@ -806,7 +802,7 @@ vec4 splat_star##I(in glyph_desc##I gd, in vec2 p, in int float_base_idx, in int
 		alpha_fac = 0.5; \
 	\
 	\
-	const vec3 antialias_width = general_settings.antialias_radius*fwidth(dist3); \
+	const vec3 antialias_width = antialias_radius*fwidth(dist3); \
 	vec3 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist3); \
 	\
 	\
@@ -1048,7 +1044,7 @@ vec4 splat_line_plot##I(in int gid, in vec2 p, in int float_base_idx, in int col
 	float v = mix(v0, v1, t); \
 	float dist = p.y - v; \
 	vec2 dist2 = vec2(dist, dist - outline); \
-	const vec2 antialias_width = general_settings.antialias_radius*fwidth(dist2); \
+	const vec2 antialias_width = antialias_radius*fwidth(dist2); \
 	vec2 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist2); \
 	vec3 glyph_color = glyph_cc_param[color_base_idx + idx]; \
 	if(outline < 0.01) { \
@@ -1111,7 +1107,7 @@ vec4 splat_line_plot##I(in int gid, in vec2 p, in int float_base_idx, in int col
 	\
 	float dist = p.y - val; \
 	vec2 dist2 = vec2(dist, dist - outline); \
-	const vec2 antialias_width = general_settings.antialias_radius*fwidth(dist2); \
+	const vec2 antialias_width = antialias_radius*fwidth(dist2); \
 	vec2 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist2); \
 	vec3 glyph_color = glyph_cc_param[color_base_idx + idx]; \
 	\
@@ -1132,7 +1128,7 @@ vec4 splat_line_plot##I(in int gid, in vec2 p, in int float_base_idx, in int col
 //bool neg = val < 0.0; \
 //val = mix(range.z, range.w, abs(val)); \
 // add after glyph_color:
-//float gv = neg ? checker_texture_aa(vec2(general_settings.length_scale*4.0, 4.0)*p, 0.5, 1.0) : 1.0;\
+//float gv = neg ? checker_texture_aa(vec2(length_scale*4.0, 4.0)*p, 0.5, 1.0) : 1.0;\
 // change return vec4(glyph_color, alpha.x); to return vec4(glyph_color, gv * alpha.x);
 // change return mix(color, vec4(glyph_color, 1.0), alpha.x); to return mix(color, vec4(glyph_color, gv), alpha.x);
 
@@ -1165,7 +1161,7 @@ vec4 splat_line_plot##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_
 	float v = mix(v0, v1, t); \
 	float dist = p.y - v; \
 	vec2 dist2 = vec2(dist, dist - outline); \
-	const vec2 antialias_width = general_settings.antialias_radius*fwidth(dist2); \
+	const vec2 antialias_width = antialias_radius*fwidth(dist2); \
 	vec2 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist2); \
 	vec3 glyph_color = glyph_cc_param[color_base_idx + idx]; \
 	if(outline < 0.01) { \
@@ -1179,7 +1175,7 @@ vec4 splat_line_plot##I(in glyph_desc##I gd, in glyph_desc##I gd_prev, in glyph_
 /*
 float dist = p.y - vv; \
 	\
-	const float antialias_width = general_settings.antialias_radius*fwidth(dist); \
+	const float antialias_width = antialias_radius*fwidth(dist); \
 	float alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist); \
 	\
 	return vec4(glyph_cc_param[color_base_idx + idx], alpha); \
@@ -1261,7 +1257,7 @@ vec4 splat_temporal_heat_map##I(in int gid, in vec2 p, in int color_map_idx, in 
 	} \
 	\
 	float dist = p.y - 1.0 + outline; \
-	const float antialias_width = general_settings.antialias_radius*fwidth(dist); \
+	const float antialias_width = antialias_radius*fwidth(dist); \
 	float alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist); \
 	vec3 glyph_color = color_map_idx > -1 ? map_to_color(val, color_map_idx) : vec3(0.0); \
 	if(outline >= 0.01) { \
@@ -1340,7 +1336,7 @@ vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color,
 	#else
 	vec2 dist2 = vec2(dist + outline, dist);
 #endif
-	const vec2 antialias_width = general_settings.antialias_radius*fwidth(dist2);
+	const vec2 antialias_width = antialias_radius*fwidth(dist2);
 	vec2 alpha = 1.0 - smoothstep(-antialias_width, antialias_width, dist2);
 	alpha *= alpha_fac;
 	if(outline < 0.01) {
@@ -1447,7 +1443,7 @@ void main()
 		uv.t = 2.0 * uv.t - 1.0;
 
 		// Correct the perspective distortion caused by the curved tube surface by rescaling the v coordinate around the tube.
-		if(general_settings.use_curvature_correction)
+		if(use_curvature_correction)
 			uv.t = sin(0.5*M_PI*uv.t);
 
 		//subp_color = vec4(uv.s, uv.t, 0.0, 1.0);
@@ -1462,7 +1458,7 @@ void main()
 
 				glyphuv = vec2(
 					(closest.dp <= closest.dn ? closest.dp : -closest.dn)
-					* general_settings.length_scale, // <-- ToDo: replace with automatic uv re-projection method
+					* length_scale, // <-- ToDo: replace with automatic uv re-projection method
 					glyphuv.t
 				);
 
@@ -1482,7 +1478,7 @@ void main()
 
 				glyphuv = vec2(
 					(closest.dp <= closest.dn ? closest.dp : -closest.dn)
-					* general_settings.length_scale, // <-- ToDo: replace with automatic uv re-projection method
+					* length_scale, // <-- ToDo: replace with automatic uv re-projection method
 					glyphuv.t
 				);
 
@@ -1502,7 +1498,7 @@ void main()
 
 				glyphuv = vec2(
 					(closest.dp <= closest.dn ? closest.dp : -closest.dn)
-					* general_settings.length_scale, // <-- ToDo: replace with automatic uv re-projection method
+					* length_scale, // <-- ToDo: replace with automatic uv re-projection method
 					glyphuv.t
 				);
 
@@ -1522,7 +1518,7 @@ void main()
 
 				glyphuv = vec2(
 					(closest.dp <= closest.dn ? closest.dp : -closest.dn)
-					* general_settings.length_scale, // <-- ToDo: replace with automatic uv re-projection method
+					* length_scale, // <-- ToDo: replace with automatic uv re-projection method
 					glyphuv.t
 				);
 
