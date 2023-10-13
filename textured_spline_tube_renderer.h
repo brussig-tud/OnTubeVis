@@ -112,7 +112,7 @@ namespace cgv { // @<
 					/// visualize leaf-level bounding boxes
 					bool visualize_leaf_bboxes;
 				} debug;
-			} ribbon_rc_params;
+			} rcribbon;
 
 			/// construct with default values
 			textured_spline_tube_render_style();
