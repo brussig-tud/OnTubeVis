@@ -3,9 +3,9 @@ type(fltk_viewer_window):theme=dark
 
 // Data
 // - dataset to load
-//type(tubes):datapath=""
+//type(on_tube_vis):datapath=""
 // - initial glyph layer config
-type(tubes):layer_config_file="./testdata/layerconf_1layer_defaultprocedural.xml"
+type(on_tube_vis):layer_config_file="./testdata/layerconf_1layer_defaultprocedural.xml"
 
 // Visualization and general settings
 // - How node attributes are made available to the spline tube shader when using the rasterization render path
@@ -13,28 +13,38 @@ type(tubes):layer_config_file="./testdata/layerconf_1layer_defaultprocedural.xml
 //   1 ... partial attribute-less - don't store curve data in proxy geometry attributes
 //   2 ... partial attribute-less - don't store node color in proxy geometry attributes
 //   3 ... fully attribute-less   - fetch everything from GPU storage buffer
-//type(tubes):attrib_mode=0
+//type(on_tube_vis):attrib_mode=0
 // - What type of proxy geometry to use for rasterization
 //   0 ... oriented bounding boxes - may require using one of the attribute-less modes on older GPUs
 //   1 ... approximate billboard   - quadrilateral built from encapsulating the bounding box in a rounded cone and using the resulting analytic rounded cone billboard
 //   2 ... exact polygon           - flat polygon with 4 or 6 corners exactly covering the screen space silhouette of the oriented bounding box 
 //   3 ... box billboard           - a single quadrilateral covering the full bounding box
 //   4 ... aligned box billboard   - [DEFAULT] use the front side of a view-aligned bounding box (use any of the other modes if very long segments dissapear when viewed up close)
-//type(tubes):bounding_geometry=4
+//type(on_tube_vis):bounding_geometry=4
 // - Enable benchmark mode if desired
-//type(tubes):benchmark_mode=true
+//type(on_tube_vis):benchmark_mode=true
 // - Bounding box visibility
-type(tubes):show_bounding_box=false
-type(tubes):show_wireframe_box=true
+type(on_tube_vis):show_bounding_box=false
+type(on_tube_vis):show_wireframe_box=true
 // - Grid mode: GM_NONE - no grid, GM_COLOR - color only, GM_NORMAL - normal mapping only, GM_COLOR_AND_NORMAL - color and normal mapping (default)
-type(tubes):grid_mode=GM_COLOR_AND_NORMAL
-type(tubes):show_hidden_glyphs=false
+type(on_tube_vis):grid_mode=GM_COLOR_AND_NORMAL
+type(on_tube_vis):show_hidden_glyphs=false
 // - Voxelization device
-type(tubes):voxelize_gpu=false
+type(on_tube_vis):voxelize_gpu=false
 
 // Framework settings
 name(Stereo Interactor):clip_relative_to_extent=false
 
+// Raycasted ribbon renderer settings
+// - threshold for the linearity measure under which a (sub-)curve is considered linear (0 means actual true mathematical linearity)
+//type(on_tube_vis):render_style.rcribbon_linearity_thr=0.015625
+// - threshold for dot product between subsequent (unit-length) bitangents under which the curve is considered to be screwy
+//type(on_tube_vis):render_style.rcribbon_screwiness_thr=0.9375
+// - minimum length of a (sub-)curve at which no subdivisions will be performed anymore, in multiples of machine epsilon (roughly 0.00000012)
+//type(on_tube_vis):render_style.rcribbon_subdiv_abort_thr=512
+// - maximum size the in-shader subcurve stack is allowed to grow to (one element is one potential sub curve to intersect)
+//type(on_tube_vis):render_style.rcribbon_max_intersection_stack_size=8
+
 // - make this persistent in you local .cfg
-type(tubes):instant_redraw_proxy=false
-type(tubes):fix_view_up_dir_proxy=false
+type(on_tube_vis):instant_redraw_proxy=false
+type(on_tube_vis):fix_view_up_dir_proxy=false

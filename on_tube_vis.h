@@ -476,7 +476,7 @@ public:
 	on_tube_vis();
 	~on_tube_vis();
 
-	std::string get_type_name() const { return "tubes"; }
+	std::string get_type_name() const { return "on_tube_vis"; }
 	void handle_args(std::vector<std::string> &args);
 
 	void clear(context& ctx);
