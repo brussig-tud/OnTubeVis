@@ -51,7 +51,7 @@ layout (binding = 5) uniform sampler3D density_tex;
 layout (binding = 6) uniform sampler2D color_maps_tex;
 
 // general rendering parameters
-uniform bool use_gamma = false;
+uniform vec3 gamma3 = vec3(2.2);
 
 // ambient occlusion parameters
 uniform struct {
@@ -479,7 +479,7 @@ vec3 map_to_color(float v, int color_map_idx) {
 	vec2 ts = textureSize(color_maps_tex, 0);
 	float half_step = 0.5 * (1.0 / ts.y);
 	float map_coord = float(color_map_idx) / ts.y + half_step;
-	return texture(color_maps_tex, vec2(v, map_coord)).rgb;
+	return pow(texture(color_maps_tex, vec2(v, map_coord)).rgb, vec3(2.2));
 }
 
 // return a rotation matrix given angle in radians
@@ -1569,8 +1569,7 @@ void main()
 		//subp_color = vec4(hash31(segment_id), 1.0); // segment_id
 	}
 
-	if(use_gamma)
-		subp_color.rgb = pow(subp_color.rgb, vec3(2.2));
+	subp_color.rgb = pow(subp_color.rgb, 1.0/gamma3);
 
 	// write colorchannel corresponding to this subpixel
 	if (holographic_raycast)

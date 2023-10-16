@@ -51,13 +51,16 @@ void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* 
 
 
 /* TODOs:
-* Check order of primitives behind the camera after sorting by distance and possibly prevent
-* drawing of invisible primitives (probably irrelevant)?
+* > Find way of adjusting view z-Near to prevent z-fighting artifacts that occur with the default
+*   value (which is often much too small).
 * 
-* Resolve bug in star and line plot. The first non-empty/mapped entry will always get mapped
-* to the first color. Example for star plot: map only axis 2, so axis 0 and 1 are unmapped.
-* Then the color from axis 0 will be used for the mapped axis 2 while the color from axis 2
-* is ignored.
+* > Check order of primitives behind the camera after sorting by distance and possibly prevent
+*   drawing of invisible primitives (probably irrelevant)?
+* 
+* > Resolve bug in star and line plot. The first non-empty/mapped entry will always get mapped
+*   to the first color. Example for star plot: map only axis 2, so axis 0 and 1 are unmapped.
+*   Then the color from axis 0 will be used for the mapped axis 2 while the color from axis 2
+*   is ignored.
 */
 #include <cgv/gui/application.h>
 
@@ -87,7 +90,6 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 	render.style.material.set_roughness(0.25);
 	render.style.material.set_metalness(0.25);
 	render.style.material.set_ambient_occlusion(0.75);
-	render.style.material.set_emission({ 0.125f, 0.125f, 0.125f });
 	render.style.material.set_specular_reflectance({ 0.05f, 0.05f, 0.05f });
 	render.style.use_conservative_depth = true;
 	
@@ -124,7 +126,7 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
 
 	// add framebuffer attachments needed for deferred rendering
-	fbc.add_attachment("depth", "[D]");
+	fbc.add_attachment("depth", "uint32[D]");
 	fbc.add_attachment("albedo", "flt32[R,G,B,A]");
 	fbc.add_attachment("position", "flt32[R,G,B]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
@@ -464,15 +466,17 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 		#endif
 			case 'N':
 				if(navigator_ptr) {
-					bool visible = navigator_ptr->is_visible();
-					navigator_ptr->set_visibility(!visible);
+					show_navigator = !show_navigator;
+					update_member(&show_navigator);
+					navigator_ptr->set_visibility(show_navigator);
 					handled = true;
 				}
 				break;
 			case 'M':
 				if(cm_viewer_ptr) {
-					bool visible = cm_viewer_ptr->is_visible();
-					cm_viewer_ptr->set_visibility(!visible);
+					show_color_map_viewer = !show_color_map_viewer;
+					update_member(&show_color_map_viewer);
+					cm_viewer_ptr->set_visibility(show_color_map_viewer);
 					handled = true;
 				}
 				break;
@@ -695,6 +699,9 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		for(const auto& a : ds.attributes())
 			std::cerr << " - [" << a.first << "] - " << a.second.get_timestamps().size() << " samples" << std::endl;
 		std::cerr << std::endl;
+		// TODO: For some datasets, e.g. fisch_wehr_streamline.0.csv, this results in a much too small value and
+		// caps are subsequently clipped at too short distances. The resulting cracks get smoothed out by the anti-
+		// aliasing and are thus only hardly noticeable.
 		SET_MEMBER(render.style.cap_clip_distance, ds.avg_segment_length() * 20.f);
 #ifdef RTX_SUPPORT
 		// ###############################
