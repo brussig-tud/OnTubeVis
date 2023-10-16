@@ -1597,11 +1597,7 @@ struct traj_manager<flt_type>::Impl
 			// default to 1/4th the average segment length
 			const real r = dataset.avg_segment_length() / real(4);
 			const size_t num = dataset.positions().data.num();
-			out->reserve(out->size() + num);
-			for (size_t i=0; i<num; i++)
-				out->emplace_back(r);
-			// ^ ToDo: why does trying to do this simple fill operation with std::fill_n throw a runtime error
-			//         about non-seekable vectors???
+			std::fill_n(std::back_inserter(*out), num, r);
 			return;
 		}
 		if (visual_attrib == VisualAttrib::TANGENT)
@@ -1654,11 +1650,7 @@ struct traj_manager<flt_type>::Impl
 			// default to 0-length tangents (i.e. a poly-line)
 			const size_t num = dataset.positions().data.num();
 			auto &o = *(std::vector<Vec4>*)out;
-			o.reserve(o.size() + num);
-			for (size_t i=0; i<num; i++)
-				o.emplace_back(Vec4{0, 0, 0, 0});
-			// ^ ToDo: why does trying to do this simple fill operation with std::fill_n throw a runtime error
-			//         about non-seekable vectors???
+			std::fill_n(std::back_inserter(o), num, Vec4{0, 0, 0, 0});
 		}
 		if (visual_attrib == VisualAttrib::FRAME_NORMAL)
 		{
@@ -1749,11 +1741,7 @@ struct traj_manager<flt_type>::Impl
 		// default to dark-ish grey
 		const Color c(1.f/3.f);
 		const size_t num = dataset.positions().data.num();
-		out->reserve(out->size() + num);
-		for (size_t i=0; i<num; i++)
-			out->emplace_back(c);
-		// ^ ToDo: why does trying to do this simple fill operation with std::fill_n throw a runtime error
-		//         about non-seekable vectors???
+		std::fill_n(std::back_inserter(*out), num, c);
 	}
 
 	template <class T>
