@@ -90,22 +90,6 @@ protected:
 	//
 	ActionType last_action_type = AT_NONE;
 
-	/*struct layer_settings {
-		AttributeSamplingStrategy sampling_strategy;
-		float sample_step = 1.0f;
-	};
-
-	struct layer{
-		layer_settings settings;
-		glyph_attribute_mapping gam;
-	};
-	*/
-	// wrap bool to prevent vector specialization
-	struct Bool {
-		bool v;
-		Bool(bool v) : v(v) {}
-	};
-	std::vector<Bool> visible;
 	std::vector<glyph_attribute_mapping> glyph_attribute_mappings;
 
 	std::vector<std::string> attribute_names;
@@ -137,10 +121,6 @@ public:
 		return glyph_attribute_mappings;
 	}
 
-	//const std::vector<layer>& ref_layers() {
-	//	return layers;
-	//}
-
 	void set_attribute_names(const std::vector<std::string>& names);
 
 	void set_attribute_ranges(const std::vector<vec2>& ranges);
@@ -153,37 +133,7 @@ public:
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
 
-	void notify_configuration_change() {
-		last_action_type = AT_CONFIGURATION_CHANGE;
-		if(base_ptr)
-			base_ptr->on_set(this);
-	}
+	void notify_configuration_change();
 
-	void add_glyph_attribute_mapping(const glyph_attribute_mapping& attribute_mapping) {
-		if(glyph_attribute_mappings.size() == 4) {
-			std::cout << "Cannot use more than 4 layers" << std::endl;
-			return;
-		}
-
-		glyph_attribute_mappings.push_back(attribute_mapping);
-		auto& gam = glyph_attribute_mappings.back();
-		gam.set_attribute_names(attribute_names);
-		gam.set_attribute_ranges(attribute_ranges);
-		gam.set_color_map_names(color_map_names);
-		
-		visible.push_back(true);
-	}
-
-	/*void add_layer(const layer_settings& settings, const glyph_attribute_mapping& attribute_mapping) {
-		if(layers.size() == 4) {
-			std::cout << "Cannot use more than 4 layers" << std::endl;
-			return;
-		}
-
-		layers.push_back({ settings, attribute_mapping });
-		auto& gam = layers.back().gam;
-		gam.set_attribute_names(attribute_names);
-		gam.set_attribute_ranges(attribute_ranges);
-		gam.set_color_map_names(color_map_names);
-	}*/
+	void add_glyph_attribute_mapping(const glyph_attribute_mapping& attribute_mapping);
 };

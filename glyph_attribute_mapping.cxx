@@ -4,38 +4,29 @@ glyph_attribute_mapping::glyph_attribute_mapping() {
 	create_glyph_shape();
 }
 
-glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& r) {
-	name = r.name;
-	sampling_strategy = r.sampling_strategy;
-	sampling_step = r.sampling_step;
-	type = r.type;
-	if(r.shape_ptr)
-		shape_ptr = r.shape_ptr->clone();
-	attrib_source_indices = r.attrib_source_indices;
-	color_source_indices = r.color_source_indices;
-	attrib_mapping_values = r.attrib_mapping_values;
-	attrib_colors = r.attrib_colors;
-	attribute_names = r.attribute_names;
-	attribute_ranges = r.attribute_ranges;
-	color_map_names = r.color_map_names;
+glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& other) :
+	name(other.name),
+	active(other.active),
+	sampling_strategy(other.sampling_strategy),
+	sampling_step(other.sampling_step),
+	type(other.type),
+	attrib_source_indices(other.attrib_source_indices),
+	color_source_indices(other.color_source_indices),
+	attrib_mapping_values(other.attrib_mapping_values),
+	attrib_colors(other.attrib_colors),
+	attribute_names(other.attribute_names),
+	attribute_ranges(other.attribute_ranges),
+	color_map_names(other.color_map_names) {
+	if(other.shape_ptr)
+		shape_ptr = other.shape_ptr->copy();
 }
 
-glyph_attribute_mapping& glyph_attribute_mapping::operator=(const glyph_attribute_mapping& r) {
-	name = r.name;
-	sampling_strategy = r.sampling_strategy;
-	sampling_step = r.sampling_step;
-	type = r.type;
-	delete shape_ptr;
-	shape_ptr = nullptr;
-	if(r.shape_ptr)
-		shape_ptr = r.shape_ptr->clone();
-	attrib_source_indices = r.attrib_source_indices;
-	color_source_indices = r.color_source_indices;
-	attrib_mapping_values = r.attrib_mapping_values;
-	attrib_colors = r.attrib_colors;
-	attribute_names = r.attribute_names;
-	attribute_ranges = r.attribute_ranges;
-	color_map_names = r.color_map_names;
+glyph_attribute_mapping::glyph_attribute_mapping(glyph_attribute_mapping&& other) noexcept : glyph_attribute_mapping() {
+	swap(*this, other);
+}
+
+glyph_attribute_mapping& glyph_attribute_mapping::operator=(glyph_attribute_mapping other) {
+	swap(*this, other);
 	return *this;
 }
 

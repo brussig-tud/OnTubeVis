@@ -50,6 +50,7 @@ private:
 			printer.OpenElement("Layer");
 
 			cgv::xml::PushAttribute(printer, "name", gam.get_name());
+			cgv::xml::PushAttribute(printer, "active", gam.get_active());
 			cgv::xml::PushAttribute(printer, "glyph", shape_ptr->name());
 
 			std::string sampling_type = "";
@@ -190,6 +191,10 @@ private:
 		std::string layer_name = "";
 		if(cgv::xml::QueryStringAttribute(elem, "name", layer_name) == tinyxml2::XML_SUCCESS)
 			gam.set_name(layer_name);
+
+		bool layer_active = true;
+		if(cgv::xml::QueryBoolAttribute(elem, "active", layer_active) == tinyxml2::XML_SUCCESS)
+			gam.set_active(layer_active);
 
 		std::string glyph_name = "";
 		if(cgv::xml::QueryStringAttribute(elem, "glyph", glyph_name) == tinyxml2::XML_SUCCESS) {

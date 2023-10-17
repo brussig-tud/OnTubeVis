@@ -26,6 +26,7 @@ protected:
 	ActionType last_action_type = AT_NONE;
 
 	std::string name = "";
+	bool active = true;
 
 	std::vector<std::string> attribute_names;
 	std::vector<vec2> attribute_ranges;
@@ -66,17 +67,42 @@ protected:
 public:
 	glyph_attribute_mapping();
 
-	glyph_attribute_mapping(const glyph_attribute_mapping& r);
+	glyph_attribute_mapping(const glyph_attribute_mapping& other);
 
-	glyph_attribute_mapping& operator=(const glyph_attribute_mapping& r);
+	glyph_attribute_mapping(glyph_attribute_mapping&& other) noexcept;
+
+	glyph_attribute_mapping& operator=(glyph_attribute_mapping other);
 
 	~glyph_attribute_mapping();
+
+	friend void swap(glyph_attribute_mapping& first, glyph_attribute_mapping& second) {
+		std::swap(first.name, second.name);
+		std::swap(first.active, second.active);
+		std::swap(first.sampling_strategy, second.sampling_strategy);
+		std::swap(first.sampling_step, second.sampling_step);
+		std::swap(first.type, second.type);
+		std::swap(first.attrib_source_indices, second.attrib_source_indices);
+		std::swap(first.color_source_indices, second.color_source_indices);
+		std::swap(first.attrib_mapping_values, second.attrib_mapping_values);
+		std::swap(first.attrib_colors, second.attrib_colors);
+		std::swap(first.attribute_names, second.attribute_names);
+		std::swap(first.attribute_ranges, second.attribute_ranges);
+		std::swap(first.color_map_names, second.color_map_names);
+
+		std::swap(first.shape_ptr, second.shape_ptr);
+	}
 
 	ActionType action_type();
 
 	const std::string& get_name() const { return name; }
 
 	void set_name(const std::string& name) { this->name = name; }
+
+	bool& ref_active() { return active; }
+
+	bool get_active() const { return active; }
+
+	void set_active(bool flag) { active = flag; }
 
 	const AttributeSamplingStrategy get_sampling_strategy() const { return sampling_strategy; }
 	
