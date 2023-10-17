@@ -92,9 +92,7 @@ protected:
 
 	std::vector<glyph_attribute_mapping> glyph_attribute_mappings;
 
-	std::vector<std::string> attribute_names;
-	std::vector<vec2> attribute_ranges;
-	std::vector<std::string> color_map_names;
+	std::shared_ptr<const visualization_variables_info> visualization_variables;
 
 	configuration config;
 
@@ -121,12 +119,8 @@ public:
 		return glyph_attribute_mappings;
 	}
 
-	void set_attribute_names(const std::vector<std::string>& names);
+	void set_visualization_variables(std::shared_ptr<const visualization_variables_info> variables);
 
-	void set_attribute_ranges(const std::vector<vec2>& ranges);
-
-	void set_color_map_names(const std::vector<std::string>& names);
-	
 	const configuration& get_configuration();
 
 	ActionType action_type();

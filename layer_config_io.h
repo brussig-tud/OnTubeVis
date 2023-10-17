@@ -42,7 +42,10 @@ private:
 		printer.CloseElement();
 	}
 
-	static void write_layer(tinyxml2::XMLPrinter& printer, const glyph_attribute_mapping& gam) {
+	static void write_layer(
+		tinyxml2::XMLPrinter& printer,
+		std::shared_ptr<const visualization_variables_info> visualization_variables,
+		const glyph_attribute_mapping& gam) {
 
 		const auto* shape_ptr = gam.get_shape_ptr();
 
@@ -68,13 +71,17 @@ private:
 					cgv::xml::PushAttribute(printer, "sampling_step", std::to_string(gam.get_sampling_step()));
 			}
 
-			write_layer_properties(printer, gam, shape_ptr->supported_attributes());
+			write_layer_properties(printer, visualization_variables, gam, shape_ptr->supported_attributes());
 
 			printer.CloseElement();
 		}
 	}
 
-	static void write_layer_properties(tinyxml2::XMLPrinter& printer, const glyph_attribute_mapping& gam, const glyph_shape::attribute_list& shape_attributes) {
+	static void write_layer_properties(
+		tinyxml2::XMLPrinter& printer,
+		std::shared_ptr<const visualization_variables_info> visualization_variables,
+		const glyph_attribute_mapping& gam,
+		const glyph_shape::attribute_list& shape_attributes) {
 
 		const auto attribute_indices = gam.get_attrib_indices();
 		const auto color_indices = gam.get_color_map_indices();
@@ -82,8 +89,8 @@ private:
 		const auto& mapping_ranges = gam.ref_attrib_values();
 		const auto& colors = gam.ref_attrib_colors();
 
-		const auto& attrib_names = gam.ref_attribute_names();
-		const auto& color_map_names = gam.ref_color_map_names();
+		const auto& attribute_names = visualization_variables->ref_attribute_names();
+		const auto& color_map_names = visualization_variables->ref_color_map_names();
 
 		auto vec2_to_str = [](const cgv::render::vec2& v) {
 			return std::to_string(v.x()) + ", " + std::to_string(v.y());
@@ -102,7 +109,7 @@ private:
 			if(!(attribute.modifiers & GAM_GLOBAL)) {
 				int attribute_index = attribute_indices[i];
 				if(attribute_index > -1)
-					cgv::xml::PushAttribute(printer, "attrib_name", attrib_names[attribute_index]);
+					cgv::xml::PushAttribute(printer, "attrib_name", attribute_names[attribute_index]);
 			}
 
 			if(attribute.type == GAT_COLOR) {
@@ -307,7 +314,11 @@ public:
 	layer_configuration_io() = delete;
 	~layer_configuration_io() = delete;
 
-	static bool write_layer_configuration(const std::string& file_name, const glyph_layer_manager& glyph_layer_mgr, const color_map_manager& color_map_mgr) {// const std::vector<glyph_attribute_mapping>& glyph_attribute_mappings) {
+	static bool write_layer_configuration(
+		const std::string& file_name,
+		std::shared_ptr<const visualization_variables_info> visualization_variables,
+		const glyph_layer_manager& glyph_layer_mgr,
+		const color_map_manager& color_map_mgr) {
 
 		tinyxml2::XMLPrinter printer;
 		printer.OpenElement("GlyphConfiguration");
@@ -319,7 +330,7 @@ public:
 		const auto& glyph_attribute_mappings = glyph_layer_mgr.ref_glyph_attribute_mappings();
 
 		for(const auto& gam : glyph_attribute_mappings)
-			write_layer(printer, gam);
+			write_layer(printer, visualization_variables, gam);
 
 		printer.CloseElement();
 
@@ -329,7 +340,11 @@ public:
 		return cgv::utils::file::write(file_name, xml, true);
 	}
 
-	static bool read_layer_configuration(const std::string& file_name, const std::vector<std::string>& attribute_names, glyph_layer_manager& glyph_layer_mgr, color_map_manager& color_map_mgr) {
+	static bool read_layer_configuration(
+		const std::string& file_name,
+		std::shared_ptr<visualization_variables_info> visualization_variables,
+		glyph_layer_manager& glyph_layer_mgr,
+		color_map_manager& color_map_mgr) {
 
 		glyph_layer_mgr.clear();
 
@@ -348,7 +363,7 @@ public:
 
 		// get a list of color map names
 		std::vector<std::string> color_map_names = color_map_mgr.get_names();
-		glyph_layer_mgr.set_color_map_names(color_map_names);
+		visualization_variables->set_color_map_names(color_map_names);
 		
 		findElementByName.SetQueryName("Layers");
 		doc.Accept(&findElementByName);
@@ -357,7 +372,7 @@ public:
 			auto layer_elem = layers_elem->FirstChildElement();
 
 			while(layer_elem) {
-				extract_layer(*layer_elem, glyph_layer_mgr, attribute_names, color_map_names);
+				extract_layer(*layer_elem, glyph_layer_mgr, visualization_variables->ref_attribute_names(), color_map_names);
 				layer_elem = layer_elem->NextSiblingElement();
 			}
 		}

@@ -171,7 +171,7 @@ public:
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
-		// size is just the length/width
+		// size is just the length/width, height is irrelevant
 		return param_values[1];
 	}
 };
