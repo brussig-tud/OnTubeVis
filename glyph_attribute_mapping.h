@@ -5,6 +5,8 @@
 #ifndef _USE_MATH_DEFINES
 	#define _USE_MATH_DEFINES 1
 #endif
+#include <memory>
+
 #include <cgv/base/base.h>
 #include <cgv/data/ref_ptr.h>
 #include <cgv/gui/control.h>
