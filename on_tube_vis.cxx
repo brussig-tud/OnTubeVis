@@ -182,29 +182,30 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 	help.add_line("View:");
 	help.add_bullet_point(".\t\t\t : Near");
 	help.add_bullet_point(",\t\t\t : Far");
-	help.add_bullet_point("CTRL + Space : Reset");
+	help.add_bullet_point("CTRL+Space\t : Reset");
 
 	help.add_line("Scene:");
-	help.add_bullet_point("B\t\t  : Toggle bounding box");
-	help.add_bullet_point("W\t\t  : Toggle wireframe bounding box");
-	help.add_bullet_point("R\t\t  : Double tube radius/ribbon width");
-	help.add_bullet_point("SHIFT + R : Halve tube radius/ribbon width");
-	help.add_bullet_point("G\t\t  : Cycle grid modes");
-	help.add_bullet_point("0\t\t  : Toggle RT-Lola map");
+	help.add_bullet_point("NumP. Enter\t : Toggle tube/ribbon mode");
+	help.add_bullet_point("B\t\t\t : Toggle bounding box");
+	help.add_bullet_point("W\t\t\t : Toggle wireframe bounding box");
+	help.add_bullet_point("R\t\t\t : Double tube radius/ribbon width");
+	help.add_bullet_point("SHIFT+R\t\t : Halve tube radius/ribbon width");
+	help.add_bullet_point("G\t\t\t : Cycle grid modes");
+	help.add_bullet_point("NumPad 0\t : Toggle satellite image map (only for dataset \"rtlola_droneflight\")");
 
 	help.add_line("Rendering:");
-	help.add_bullet_point("A\t\t  : Toggle ambient occlusion");
-	help.add_bullet_point("T\t\t  : Toggle temporal anti-aliasing");
+	help.add_bullet_point("A\t\t\t : Toggle ambient occlusion");
+	help.add_bullet_point("T\t\t\t : Toggle temporal anti-aliasing");
 
 #ifdef RTX_SUPPORT
 	// ###############################
 	// ### BEGIN: OptiX integration
 	// ###############################
 
-	help.add_bullet_point("CTRL + O : Toggle OptiX");
-	help.add_bullet_point("P\t\t  : Cycle OptiX primitive");
-	help.add_bullet_point("CTRL + P  : Toggle OptiX unproject mode");
-	help.add_bullet_point("H\t\t  : Toggle holographic rendering (OptiX only)");
+	help.add_bullet_point("CTRL+O\t\t : Toggle OptiX");
+	help.add_bullet_point("P\t\t\t : Cycle OptiX primitive");
+	help.add_bullet_point("CTRL+P\t\t : Toggle OptiX unproject mode");
+	help.add_bullet_point("H\t\t\t : Toggle holographic rendering (OptiX only)");
 	
 	// ###############################
 	// ###  END:  OptiX integration
@@ -212,18 +213,18 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 #endif
 
 	help.add_line("Playback:");
-	help.add_bullet_point("Space\t   : Play/Pause");
-	help.add_bullet_point("Backspace : Rewind");
-	help.add_bullet_point("End\t\t   : Skip to end");
-	help.add_bullet_point("Home\t   : Follow active trajectory");
+	help.add_bullet_point("Space\t\t : Play/Pause");
+	help.add_bullet_point("Backspace\t : Rewind");
+	help.add_bullet_point("End\t\t\t : Skip to end");
+	help.add_bullet_point("Home\t\t : Follow active trajectory");
 
 	help.add_line("Widgets:");
-	help.add_bullet_point("M : Toggle color scale preview");
-	help.add_bullet_point("N : Toggle navigator");
+	help.add_bullet_point("M\t\t\t : Toggle color scale preview");
+	help.add_bullet_point("N\t\t\t : Toggle navigator");
 
 	help.add_line("Benchmark:");
-	help.add_bullet_point("[1-4]\t : Select preset");
-	help.add_bullet_point("CTRL + B : Start/Abort");
+	help.add_bullet_point("[1-4]\t\t : Select preset");
+	help.add_bullet_point("CTRL+B\t\t : Start/Abort");
 
 	// connect animation timer callback
 	connect(cgv::gui::get_animation_trigger().shoot, this, &on_tube_vis::timer_event);
@@ -342,9 +343,8 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("benchmark_mode", benchmark_mode);
 }
 
-void on_tube_vis::stream_help (std::ostream &os)
-{
-	os << "tubes: adapt <R>adius, toggle b<O>unds, <W>ire bounds" << std::endl;
+void on_tube_vis::stream_help (std::ostream &os) {
+	os << "on_tube_vis: adapt <R>adius, <B>ounding box, <W>ire bounding box, <NUM_Enter> toggle tube/ribbon" << std::endl;
 }
 
 #define SET_MEMBER(m, v) m = v; update_member(&m);
@@ -522,6 +522,12 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				break;
 			case cgv::gui::Keys::KEY_Num_0:
 				dataset.rtlola_show_map = !dataset.rtlola_show_map;
+				taa.reset();
+				handled = true;
+				break;
+			case cgv::gui::Keys::KEY_Num_Enter:
+				{ const bool new_state = render.style.is_tube();
+				  ui_state.tr_toggle.control->check_and_set_value(new_state); }
 				handled = true;
 				break;
 			case cgv::gui::Keys::KEY_Space:
@@ -979,7 +985,15 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		reset_taa = false;
 
 	if(m.is(render.style.line_primitive))
+	{
+		// perform smart toggle bookkeeping
+		if (!ui_state.tr_toggle.check_toggled())
+			if (render.style.is_tube())
+				ui_state.tr_toggle.last_tube_primitive = render.style.line_primitive;
+			else
+				ui_state.tr_toggle.last_ribbon_primitive = render.style.line_primitive;
 		reset_taa = true;
+	}
 
 #ifdef RTX_SUPPORT
 	// ###############################
@@ -1376,7 +1390,12 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	);
 
 	// load map texture
+#ifdef CGV_FORCE_STATIC
+	// TODO: why is loading embedded image files in case of single-exe builds not handled automatically?
+	success &= dataset.rtlola_map_tex.create_from_image(ctx, "res://rtlola_droneflight.png");
+#else
 	success &= dataset.rtlola_map_tex.create_from_image(ctx, "res/rtlola_droneflight.png");
+#endif
 
 
 #ifdef RTX_SUPPORT
@@ -1952,13 +1971,13 @@ void on_tube_vis::after_finish(context& ctx) {
 	}
 }
 
-void on_tube_vis::create_gui(void) {
-
-	auto add_heading = [&](const std::string& name) {
+void on_tube_vis::create_gui(void)
+{
+	const auto add_heading = [&](const std::string& name) {
 		add_decorator(name, "heading", "level=1");
 	};
 
-	auto add_section_heading = [&](const std::string& name, int level) {
+	const auto add_section_heading = [&](const std::string& name, int level) {
 		align("%y+=10");
 		add_decorator(name, "heading", "level=" + std::to_string(level), "\n%y-=14");
 		add_decorator("", "separator", "", "\n%y-=8");
@@ -1974,6 +1993,15 @@ void on_tube_vis::create_gui(void) {
 	add_member_control(this, "Bounds", bbox_rd.style.surface_color, "", "w=20", " ");
 	add_member_control(this, "Box", show_bbox, "toggle", "w=83", "%x+=2");
 	add_member_control(this, "Wireframe", show_wireframe_bbox, "toggle", "w=83");
+	/* Quick tube/ribbon toggle */ {
+		static bool dummy = render.style.is_ribbon();
+		ui_state.tr_toggle.control = add_control("Current: tubes (toggle)", dummy, "toggle", "");
+		if (ui_state.tr_toggle.control)
+			connect_copy(
+				ui_state.tr_toggle.control->value_change,
+				cgv::signal::rebind(this, &on_tube_vis::toggle_tube_ribbon)
+			);
+	}
 
 	if(begin_tree_node("Playback", playback, false)) {
 		align("\a");

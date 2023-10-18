@@ -311,6 +311,21 @@ protected:
 		on_set(&render.style.max_t);
 	}
 
+	void toggle_tube_ribbon()
+	{
+		if (render.style.is_tube()) {
+			render.style.line_primitive = ui_state.tr_toggle.last_ribbon_primitive;
+			ui_state.tr_toggle.control->set("label", "Current: ribbons (toggle)");
+		}
+		else {
+			render.style.line_primitive = ui_state.tr_toggle.last_tube_primitive;
+			ui_state.tr_toggle.control->set("label", "Current: tubes (toggle)");
+		}
+		ui_state.tr_toggle.control->update();
+		ui_state.tr_toggle.was_toggled = true;
+		on_set(&render.style.line_primitive);
+	}
+
 	bool show_bbox = false;
 	bool show_wireframe_bbox = true;
 	cgv::render::box_render_data<> bbox_rd;
@@ -433,6 +448,23 @@ protected:
 		double near_extent_factor = 0.3;
 		bool near_view = false;
 	} debug;
+
+	/// misc state needed for handling all kinds of user interaction (like "smart" convenience toggles)
+	struct {
+		/// "smart" tube/ribbon toggle
+		struct {
+			/// stores the most recent "explicitely" selected rasterization tube primitive type
+			textured_spline_tube_render_style::LinePrimitive last_tube_primitive = textured_spline_tube_render_style::LP_TUBE_RUSSIG;
+			/// stores the most recent "explicitely" selected ribbon tube primitive type
+			textured_spline_tube_render_style::LinePrimitive last_ribbon_primitive = textured_spline_tube_render_style::LP_RIBBON_RAYCASTED;
+			/// flags that the last change to the selected line primitive was from this toggle
+			bool was_toggled = false;
+			/// convencience function for check-and-resetting the toggle flag
+			bool check_toggled (void) { const bool toggled=was_toggled; was_toggled=false; return toggled; }
+			/// reference to the GUI control attached to the toggle
+			cgv::data::ref_ptr<cgv::gui::control<bool>> control;
+		} tr_toggle;
+	} ui_state;
 
 	bool benchmark_mode = false;
 	bool benchmark_mode_setup = false;

@@ -1,46 +1,45 @@
 <GlyphConfiguration>
-  <ColorMaps>
-  </ColorMaps>
-  <Layers>
-    <Layer glyph="temporal_heat_map" sampling="original" >
-      <Property name="outline" value="0.000000" />
-      <Property name="interpolate" value="1.000000" />
-      <Property name="color" color_map_name="vik" />
-      <Property name="value_0" attrib_name="acc_avg" in_range="0.950000, 1.060000" out_range="0.000000, 1.000000" />
-      <Property name="value_1" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="value_2" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-    </Layer>
-    <Layer glyph="line_plot" sampling="original" >
-      <Property name="outline" value="0.000000" />
-      <Property name="interpolate" value="0.000000" />
-      <Property name="color_0" color="0.380286, 0.578035, 0.000000" />
-      <Property name="value_0" attrib_name="trigger_noisy_acc" in_range="0.000000, 1.000000" out_range="0.000000, 0.667000" />
-      <Property name="color_1" color="1.000000, 0.000000, 0.921053" />
-      <Property name="value_1" attrib_name="trigger_gps_missed_beat" in_range="0.000000, 1.000000" out_range="0.000000, 0.667000" />
-      <Property name="color_2" color="0.000000, 0.000000, 0.000000" />
-      <Property name="value_2" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="color_3" color="0.000000, 0.000000, 0.000000" />
-      <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-    </Layer>
-    <Layer glyph="line_plot" sampling="original" >
-      <Property name="outline" value="0.050000" />
-      <Property name="interpolate" value="1.000000" />
-      <Property name="color_0" color="0.909804, 0.439216, 0.250980" />
-      <Property name="value_0" attrib_name="yawspeed_fused_max" in_range="0.000023, 1.000000" out_range="0.000000, 0.900000" />
-      <Property name="color_1" color="0.548571, 0.941118, 1.000000" />
-      <Property name="value_1" attrib_name="pitchspeed_fused_max" in_range="0.000009, 0.090000" out_range="0.000000, 0.900000" />
-      <Property name="color_2" color="0.054902, 0.027451, 0.674510" />
-      <Property name="value_2" attrib_name="rollspeed_fused_max" in_range="0.000019, 0.131000" out_range="0.000000, 0.750000" />
-      <Property name="color_3" color="0.000000, 0.000000, 0.000000" />
-      <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-    </Layer>
-    <Layer glyph="triangle_isosceles" sampling="equidist" sampling_step="3.333333" >
-      <Property name="outline" value="0.050000" />
-      <Property name="color" attrib_name="battery_min" color_map_name="roma" in_range="0.000000, 100.000000" />
-      <Property name="base_width" attrib_name="battery_min" in_range="0.000000, 100.000000" out_range="0.125000, 1.250000" />
-      <Property name="height" in_range="0.000000, 1.000000" out_range="0.000000, 1.250000" />
-      <Property name="orientation" in_range="0.000000, 1.000000" out_range="0.000000, 360.000000" />
-    </Layer>
-  </Layers>
+    <ColorMaps/>
+    <Layers>
+        <Layer name="Acceleration (color)" active="true" glyph="temporal_heat_map" sampling="original">
+            <Property name="outline" value="0.000000"/>
+            <Property name="interpolate" value="1.000000"/>
+            <Property name="color" color_map_name="vik"/>
+            <Property name="value_0" attrib_name="acc_avg" in_range="0.95 1.06" out_range="0 1"/>
+            <Property name="value_1" in_range="0 1" out_range="0 1"/>
+            <Property name="value_2" in_range="0 1" out_range="0 1"/>
+            <Property name="value_3" in_range="0 1" out_range="0 1"/>
+        </Layer>
+        <Layer name="Acc./GPS sensor faults" active="true" glyph="line_plot" sampling="original">
+            <Property name="outline" value="0.000000"/>
+            <Property name="interpolate" value="0.000000"/>
+            <Property name="color_0" color="0.380286 0.578035 0"/>
+            <Property name="value_0" attrib_name="trigger_noisy_acc" in_range="0 1" out_range="0 0.667"/>
+            <Property name="color_1" color="1 0 0.921053"/>
+            <Property name="value_1" attrib_name="trigger_gps_missed_beat" in_range="0 1" out_range="0 0.667"/>
+            <Property name="color_2" color="0 0 0"/>
+            <Property name="value_2" in_range="0 1" out_range="0 1"/>
+            <Property name="color_3" color="0 0 0"/>
+            <Property name="value_3" in_range="0 1" out_range="0 1"/>
+        </Layer>
+        <Layer name="Yaw, Pitch, Roll (plot)" active="true" glyph="line_plot" sampling="original">
+            <Property name="outline" value="0.050000"/>
+            <Property name="interpolate" value="1.000000"/>
+            <Property name="color_0" color="0.909804 0.439216 0.25098"/>
+            <Property name="value_0" attrib_name="yawspeed_fused_max" in_range="2.3e-05 1" out_range="0 0.9"/>
+            <Property name="color_1" color="0.548571 0.941118 1"/>
+            <Property name="value_1" attrib_name="pitchspeed_fused_max" in_range="9e-06 0.09" out_range="0 0.9"/>
+            <Property name="color_2" color="0.054902 0.027451 0.67451"/>
+            <Property name="value_2" attrib_name="rollspeed_fused_max" in_range="1.9e-05 0.131" out_range="0 0.75"/>
+            <Property name="color_3" color="0 0 0"/>
+            <Property name="value_3" in_range="0 1" out_range="0 1"/>
+        </Layer>
+        <Layer name="Direction + Battery" active="true" glyph="triangle_isosceles" sampling="equidist" sampling_step="3.333333">
+            <Property name="outline" value="0.050000"/>
+            <Property name="color" attrib_name="battery_min" color_map_name="roma" in_range="0 100"/>
+            <Property name="base_width" attrib_name="battery_min" in_range="0 100" out_range="0.125 1.25"/>
+            <Property name="height" in_range="0 1" out_range="0 1.25"/>
+            <Property name="orientation" in_range="0 1" out_range="0 360"/>
+        </Layer>
+    </Layers>
 </GlyphConfiguration>
