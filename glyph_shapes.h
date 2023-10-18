@@ -60,7 +60,7 @@ public:
 
 	virtual ~glyph_shape() {}
 
-	virtual glyph_shape* clone() const = 0;
+	virtual glyph_shape* copy() const = 0;
 
 	virtual GlyphType type() const = 0;
 	virtual std::string name() const = 0;
@@ -84,7 +84,7 @@ public:
 
 class color_glyph : public glyph_shape {
 public:
-	virtual color_glyph* clone() const {
+	virtual color_glyph* copy() const {
 		return new color_glyph(*this);
 	}
 
@@ -119,7 +119,7 @@ public:
 
 class circle_glyph : public glyph_shape {
 public:
-	virtual circle_glyph* clone() const {
+	virtual circle_glyph* copy() const {
 		return new circle_glyph(*this);
 	}
 
@@ -148,7 +148,7 @@ public:
 
 class rectangle_glyph : public glyph_shape {
 public:
-	virtual rectangle_glyph* clone() const {
+	virtual rectangle_glyph* copy() const {
 		return new rectangle_glyph(*this);
 	}
 
@@ -171,14 +171,14 @@ public:
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
-		// size is just the length/width
+		// size is just the length/width, height is irrelevant
 		return param_values[1];
 	}
 };
 
 class wedge_glyph : public glyph_shape {
 public:
-	virtual wedge_glyph* clone() const {
+	virtual wedge_glyph* copy() const {
 		return new wedge_glyph(*this);
 	}
 
@@ -210,7 +210,7 @@ public:
 
 class flat_arc_glyph : public glyph_shape {
 public:
-	virtual flat_arc_glyph* clone() const {
+	virtual flat_arc_glyph* copy() const {
 		return new flat_arc_glyph(*this);
 	}
 
@@ -243,7 +243,7 @@ public:
 
 class rounded_arc_glyph : public flat_arc_glyph {
 public:
-	virtual rounded_arc_glyph* clone() const {
+	virtual rounded_arc_glyph* copy() const {
 		return new rounded_arc_glyph(*this);
 	}
 
@@ -258,7 +258,7 @@ public:
 
 class isoceles_triangle_glyph : public glyph_shape {
 public:
-	virtual isoceles_triangle_glyph* clone() const {
+	virtual isoceles_triangle_glyph* copy() const {
 		return new isoceles_triangle_glyph(*this);
 	}
 
@@ -325,7 +325,7 @@ public:
 
 class drop_glyph : public glyph_shape {
 public:
-	virtual drop_glyph* clone() const {
+	virtual drop_glyph* copy() const {
 		return new drop_glyph(*this);
 	}
 
@@ -352,7 +352,7 @@ public:
 
 class sign_blob_glyph : public glyph_shape {
 public:
-	virtual sign_blob_glyph* clone() const {
+	virtual sign_blob_glyph* copy() const {
 		return new sign_blob_glyph(*this);
 	}
 
@@ -390,7 +390,7 @@ public:
 
 class star_glyph : public glyph_shape {
 public:
-	virtual star_glyph* clone() const {
+	virtual star_glyph* copy() const {
 		return new star_glyph(*this);
 	}
 
@@ -437,7 +437,7 @@ public:
 
 class line_plot_glyph : public glyph_shape {
 public:
-	virtual line_plot_glyph* clone() const {
+	virtual line_plot_glyph* copy() const {
 		return new line_plot_glyph(*this);
 	}
 
@@ -479,7 +479,7 @@ public:
 
 class temporal_heat_map_glyph : public glyph_shape {
 public:
-	virtual temporal_heat_map_glyph* clone() const {
+	virtual temporal_heat_map_glyph* copy() const {
 		return new temporal_heat_map_glyph(*this);
 	}
 

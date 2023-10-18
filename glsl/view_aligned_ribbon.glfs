@@ -841,7 +841,7 @@ void main()
 				: cross(dFdx(pos_eye), dFdy(pos_eye))
 			#endif
 		);
-		tangent = (
+		tangent = normalize(
 			#if BBOX_COORD_SYSTEM!=1
 				M_transp * tangent
 			#else

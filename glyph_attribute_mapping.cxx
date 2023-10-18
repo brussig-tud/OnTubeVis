@@ -4,38 +4,27 @@ glyph_attribute_mapping::glyph_attribute_mapping() {
 	create_glyph_shape();
 }
 
-glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& r) {
-	name = r.name;
-	sampling_strategy = r.sampling_strategy;
-	sampling_step = r.sampling_step;
-	type = r.type;
-	if(r.shape_ptr)
-		shape_ptr = r.shape_ptr->clone();
-	attrib_source_indices = r.attrib_source_indices;
-	color_source_indices = r.color_source_indices;
-	attrib_mapping_values = r.attrib_mapping_values;
-	attrib_colors = r.attrib_colors;
-	attribute_names = r.attribute_names;
-	attribute_ranges = r.attribute_ranges;
-	color_map_names = r.color_map_names;
+glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& other) :
+	name(other.name),
+	active(other.active),
+	sampling_strategy(other.sampling_strategy),
+	sampling_step(other.sampling_step),
+	type(other.type),
+	attrib_source_indices(other.attrib_source_indices),
+	color_source_indices(other.color_source_indices),
+	attrib_mapping_values(other.attrib_mapping_values),
+	attrib_colors(other.attrib_colors),
+	visualization_variables(other.visualization_variables) {
+	if(other.shape_ptr)
+		shape_ptr = other.shape_ptr->copy();
 }
 
-glyph_attribute_mapping& glyph_attribute_mapping::operator=(const glyph_attribute_mapping& r) {
-	name = r.name;
-	sampling_strategy = r.sampling_strategy;
-	sampling_step = r.sampling_step;
-	type = r.type;
-	delete shape_ptr;
-	shape_ptr = nullptr;
-	if(r.shape_ptr)
-		shape_ptr = r.shape_ptr->clone();
-	attrib_source_indices = r.attrib_source_indices;
-	color_source_indices = r.color_source_indices;
-	attrib_mapping_values = r.attrib_mapping_values;
-	attrib_colors = r.attrib_colors;
-	attribute_names = r.attribute_names;
-	attribute_ranges = r.attribute_ranges;
-	color_map_names = r.color_map_names;
+glyph_attribute_mapping::glyph_attribute_mapping(glyph_attribute_mapping&& other) noexcept : glyph_attribute_mapping() {
+	swap(*this, other);
+}
+
+glyph_attribute_mapping& glyph_attribute_mapping::operator=(glyph_attribute_mapping other) {
+	swap(*this, other);
 	return *this;
 }
 
@@ -126,7 +115,7 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 			last_action_type = AT_CONFIGURATION_CHANGE;
 			int attrib_idx = dummy_enum_to_int(attrib_source_indices[i]);
 			if(attrib_idx > -1) {
-				const vec2& range = attribute_ranges[attrib_idx];
+				const vec2& range = visualization_variables->ref_attribute_ranges()[attrib_idx];
 				attrib_mapping_values[i].x() = range.x();
 				attrib_mapping_values[i].y() = range.y();
 			}
@@ -144,27 +133,6 @@ void glyph_attribute_mapping::update_name(cgv::base::base* base_ptr) {
 
 	last_action_type = AT_CONFIGURATION_CHANGE;
 	base_ptr->on_set(this);
-}
-
-void glyph_attribute_mapping::set_attribute_names(const std::vector<std::string>& names) {
-	attribute_names = names;
-}
-
-void glyph_attribute_mapping::set_attribute_ranges(const std::vector<vec2>& ranges) {
-	attribute_ranges = ranges;
-
-	for(size_t i = 0; i < attrib_mapping_values.size(); ++i) {
-		int attrib_idx = dummy_enum_to_int(attrib_source_indices[i]);
-		if(attrib_idx > -1) {
-			const vec2& range = attribute_ranges[attrib_idx];
-			attrib_mapping_values[i].x() = range.x();
-			attrib_mapping_values[i].y() = range.y();
-		}
-	}
-}
-
-void glyph_attribute_mapping::set_color_map_names(const std::vector<std::string>& names) {
-	color_map_names = names;
 }
 
 void glyph_attribute_mapping::create_glyph_shape() {
@@ -272,49 +240,32 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 
 	std::string value_label = label;
 
+	std::string attrib_name_enums = "-,";
+	std::string color_map_name_enums = "-,";
+
+	if(is_non_const) {
+		attrib_name_enums = "(disabled),";
+		color_map_name_enums = "(disabled),";
+	}
+	
+	attrib_name_enums += visualization_variables->get_attribute_names_list();
+	color_map_name_enums += visualization_variables->get_color_map_names_list();
+
 	if(is_global) {
 		if(!global_block) {
 			value_label = "";
 			p.add_decorator(label, "heading", "level=4");
 
-			if(attrib.type == GAT_COLOR && attrib.modifiers & GAM_FORCE_MAPPABLE) {
-				std::string color_map_name_enums = "-,";
-				if(is_non_const)
-					color_map_name_enums = "(disabled),";
-				for(size_t i = 0; i < color_map_names.size(); ++i) {
-					color_map_name_enums += color_map_names[i];
-					if(i < color_map_names.size() - 1)
-						color_map_name_enums += ",";
-				}
-
+			if(attrib.type == GAT_COLOR && attrib.modifiers & GAM_FORCE_MAPPABLE)
 				add_local_member_control(p, bp, "Color Map", color_source_indices[i], "dropdown", "enums='" + color_map_name_enums + "'");
-			}
 		}
 	} else {
 		value_label = "Value";
 		p.add_decorator(label, "heading", "level=4");
 
-		std::string attrib_name_enums = "-,";
-		if(is_non_const)
-			attrib_name_enums = "(disabled),";
-		for(size_t i = 0; i < attribute_names.size(); ++i) {
-			attrib_name_enums += attribute_names[i];
-			if(i < attribute_names.size() - 1)
-				attrib_name_enums += ",";
-		}
-
 		add_local_member_control(p, bp, "Source Attribute", attrib_source_indices[i], "dropdown", "enums='" + attrib_name_enums + "'");
 		
 		if(attrib.type == GAT_COLOR) {
-			std::string color_map_name_enums = "-,";
-			if(is_non_const)
-				color_map_name_enums = "(disabled),";
-			for(size_t i = 0; i < color_map_names.size(); ++i) {
-				color_map_name_enums += color_map_names[i];
-				if(i < color_map_names.size() - 1)
-					color_map_name_enums += ",";
-			}
-
 			if(selected_attrib_src_idx > -1)
 				add_local_member_control(p, bp, "Color Map", color_source_indices[i], "dropdown", "enums='" + color_map_name_enums + "'");
 		}
@@ -330,7 +281,7 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 			add_local_member_control(p, bp, value_label, attrib_mapping_values[i][3], "value_slider", out_options_str);
 		}
 	} else {
-		const vec2& range = attribute_ranges[selected_attrib_src_idx];
+		const vec2& range = visualization_variables->ref_attribute_ranges()[selected_attrib_src_idx];
 		std::string in_options_str = "min=" + std::to_string(range.x()) + ";max=" + std::to_string(range.y()) + ";step=0.001;ticks=true";
 		
 		add_local_member_control(p, bp, "In Min", attrib_mapping_values[i][0], "value_slider", in_options_str);

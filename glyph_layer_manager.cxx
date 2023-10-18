@@ -3,33 +3,19 @@
 #include <cgv/utils/scan.h>
 
 void glyph_layer_manager::clear() {
-	visible.clear();
 	glyph_attribute_mappings.clear();
+	config.clear();
+	new_attribute_mapping_name = "";
+
 	notify_configuration_change();
 }
 
-void glyph_layer_manager::set_attribute_names(const std::vector<std::string>& names) {
-	attribute_names = names;
+void glyph_layer_manager::set_visualization_variables(std::shared_ptr<const visualization_variables_info> variables) {
 
-	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i)
-		glyph_attribute_mappings[i].set_attribute_names(names);
-}
+	visualization_variables = variables;
 
-void glyph_layer_manager::set_attribute_ranges(const std::vector<vec2>& ranges) {
-	attribute_ranges = ranges;
-
-	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
-		glyph_attribute_mappings[i].set_attribute_ranges(ranges);
-
-	}
-}
-
-void glyph_layer_manager::set_color_map_names(const std::vector<std::string>& names) {
-	color_map_names = names;
-
-	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
-		glyph_attribute_mappings[i].set_color_map_names(names);
-	}
+	for(auto& gam : glyph_attribute_mappings)
+		gam.set_visualization_variables(visualization_variables);
 }
 
 const std::string glyph_layer_manager::configuration::constant_float_parameter_name_prefix = "glyph_cf_param";
@@ -53,7 +39,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 		config.layer_configs.push_back(configuration::layer_configuration());
 		auto& layer_config = config.layer_configs.back();
 
-		layer_config.visible = visible[i].v;
+		layer_config.visible = gam.get_active();
 		layer_config.sampling_strategy = gam.get_sampling_strategy();
 		layer_config.sampling_step = gam.get_sampling_step();
 
@@ -243,7 +229,7 @@ ActionType glyph_layer_manager::action_type() {
 void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
 	base_ptr = bp;
 
-	for(unsigned i=0; i<(unsigned)glyph_attribute_mappings.size(); ++i) {
+	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
 
 		std::string name = std::to_string(i + 1);
@@ -253,7 +239,7 @@ void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p)
 			name = name + ": " + gam.get_name();
 
 		bool node_is_open = p.begin_tree_node_void(name, &gam, -1, false, "level=3;options='w=136';align=''");
-		p.add_member_control(this, visible[i].v ? "@tickboxfull" : "@tickboxempty", visible[i].v, "toggle", "w=20", "%x+=2");
+		p.add_member_control(this, gam.get_active() ? "@tickboxfull" : "@tickboxempty", gam.ref_active(), "toggle", "w=20", "%x+=2");
 			
 		connect_copy(
 			p.add_button("@8>", "w=20;h=20", "%x+=2")->click,
@@ -290,20 +276,34 @@ void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p)
 	connect_copy(p.add_button("@+", "w=20;" + active)->click, cgv::signal::rebind(this, &glyph_layer_manager::create_glyph_attribute_mapping));
 }
 
-void glyph_layer_manager::on_set(void* member_ptr) {
+void glyph_layer_manager::notify_configuration_change() {
+	last_action_type = AT_CONFIGURATION_CHANGE;
+	if(base_ptr)
+		base_ptr->on_set(this);
+}
 
+void glyph_layer_manager::add_glyph_attribute_mapping(const glyph_attribute_mapping& attribute_mapping) {
+	if(glyph_attribute_mappings.size() == 4) {
+		std::cout << "Cannot use more than 4 layers" << std::endl;
+		return;
+	}
+
+	glyph_attribute_mappings.push_back(attribute_mapping);
+	auto& gam = glyph_attribute_mappings.back();
+	gam.set_visualization_variables(visualization_variables);
+}
+
+void glyph_layer_manager::on_set(void* member_ptr) {
 	last_action_type = AT_MAPPING_VALUE_CHANGE;
 
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
 
-		if(member_ptr == &visible[i].v) {
-			last_action_type = AT_CONFIGURATION_CHANGE;
-		}
-
-		if(member_ptr == &gam) {
+		if(member_ptr == &gam)
 			last_action_type = gam.action_type();
-		}
+
+		if(member_ptr == &gam.ref_active())
+			last_action_type = AT_CONFIGURATION_CHANGE;
 	}
 
 	if(member_ptr == &new_attribute_mapping_name)
@@ -322,11 +322,7 @@ void glyph_layer_manager::create_glyph_attribute_mapping() {
 	glyph_attribute_mappings.push_back(glyph_attribute_mapping());
 	auto& gam = glyph_attribute_mappings.back();
 	gam.set_name(new_attribute_mapping_name);
-	gam.set_attribute_names(attribute_names);
-	gam.set_attribute_ranges(attribute_ranges);
-	gam.set_color_map_names(color_map_names);
-
-	visible.push_back(true);
+	gam.set_visualization_variables(visualization_variables);
 
 	new_attribute_mapping_name = "";
 
@@ -335,7 +331,6 @@ void glyph_layer_manager::create_glyph_attribute_mapping() {
 
 void glyph_layer_manager::remove_glyph_attribute_mapping(const size_t index) {
 	if(index < glyph_attribute_mappings.size()) {
-		visible.erase(visible.begin() + index);
 		glyph_attribute_mappings.erase(glyph_attribute_mappings.begin() + index);
 		
 		notify_configuration_change();
@@ -344,18 +339,17 @@ void glyph_layer_manager::remove_glyph_attribute_mapping(const size_t index) {
 
 void glyph_layer_manager::move_glyph_attribute_mapping(const size_t index, int offset) {
 	if(index < glyph_attribute_mappings.size()) {
-		int index1 = (int)index;
-		if(offset < 0 && index > 0) {
-			// move up if not the first element
-			index1--;
-		} else if(offset > 0 && index < glyph_attribute_mappings.size() - 1) {
-			// move down if not the last element
-			index1++;
-		}
+		size_t other_index = index;
+		
+		// move up if not the first element or down if not the last element
+		if(offset < 0 && index > 0)
+			--other_index;
+		else if(offset > 0 && index < glyph_attribute_mappings.size() - 1)
+			++other_index;
+		
+		if(index != other_index) {
+			swap(glyph_attribute_mappings[index], glyph_attribute_mappings[other_index]);
 
-		if(index != index1) {
-			std::swap(visible[index], visible[index1]);
-			std::swap(glyph_attribute_mappings[index], glyph_attribute_mappings[index1]);
 			notify_configuration_change();
 		}
 	}

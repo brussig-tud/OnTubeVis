@@ -848,7 +848,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 					}
 				}
 			}
-			render.visualizations.front().manager.set_color_map_names(color_map_mgr.get_names());
+			// TODO: remove commented line
+			render.visualizations.front().variables->set_color_map_names(color_map_mgr.get_names());
 
 			color_map_mgr.update_texture(*get_context());
 			if(cm_viewer_ptr) {
@@ -1065,17 +1066,16 @@ bool on_tube_vis::on_exit_request() {
 
 bool on_tube_vis::save_layer_configuration(const std::string& file_name) {
 
-	const auto& glyph_layer_mgr = render.visualizations.front().manager;
+	const auto& visualization = render.visualizations.front();
 
-	return layer_configuration_io::write_layer_configuration(file_name, glyph_layer_mgr, color_map_mgr);
+	return layer_configuration_io::write_layer_configuration(file_name, visualization.variables, visualization.manager, color_map_mgr);
 }
 
 bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 
-	auto& glyph_layer_mgr = render.visualizations.front().manager;
-	const auto attribute_names = traj_mgr.dataset(0).get_attribute_names();
+	auto& visualization = render.visualizations.front();
 
-	if(layer_configuration_io::read_layer_configuration(file_name, attribute_names, glyph_layer_mgr, color_map_mgr)) {
+	if(layer_configuration_io::read_layer_configuration(file_name, visualization.variables, visualization.manager, color_map_mgr)) {
 		// update the dependent members
 		color_map_mgr.update_texture(*get_context());
 		if(cm_viewer_ptr) {
@@ -1083,7 +1083,7 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 		}
 
-		glyph_layer_mgr.notify_configuration_change();
+		visualization.manager.notify_configuration_change();
 		return true;
 	}
 
@@ -1111,12 +1111,14 @@ void on_tube_vis::update_glyph_layer_managers() {
 		}
 
 		auto &new_layer_config = render.visualizations.emplace_back();
+		// set new information of available attributes and ranges
+		new_layer_config.variables->set_attribute_names(attrib_names);
+		new_layer_config.variables->set_attribute_ranges(attrib_ranges);
+		new_layer_config.variables->set_color_map_names(color_map_mgr.get_names());
 		// clear old configuration of glyph layers and reset shader
 		new_layer_config.manager.clear();
-		// set new information of available attributes and ranges
-		new_layer_config.manager.set_attribute_names(attrib_names);
-		new_layer_config.manager.set_attribute_ranges(attrib_ranges);
-		new_layer_config.manager.set_color_map_names(color_map_mgr.get_names());
+		// set visualization variable information in glyph layer manager
+		new_layer_config.manager.set_visualization_variables(new_layer_config.variables);
 	}
 }
 

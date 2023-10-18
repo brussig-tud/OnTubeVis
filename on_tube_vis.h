@@ -40,6 +40,7 @@
 #include "attrib_handle_manager.h"
 #include "voxelizer.h"
 #include "ambient_occlusion_style.h"
+#include "visualization_variables_info.h"
 #include "glyph_layer_manager.h"
 #include "color_map_manager.h"
 #include "layer_config_io.h"
@@ -321,6 +322,11 @@ protected:
 	struct on_tube_visualization {
 		glyph_layer_manager::configuration config;
 		glyph_layer_manager manager;
+		std::shared_ptr<visualization_variables_info> variables;
+
+		on_tube_visualization() {
+			variables = std::make_shared<visualization_variables_info>();
+		}
 	};
 
 	/// rendering state fields

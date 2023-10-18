@@ -12,6 +12,7 @@
 
 #include "gui_util.h"
 #include "glyph_shapes.h"
+#include "visualization_variables_info.h"
 
 
 
@@ -26,10 +27,9 @@ protected:
 	ActionType last_action_type = AT_NONE;
 
 	std::string name = "";
+	bool active = true;
 
-	std::vector<std::string> attribute_names;
-	std::vector<vec2> attribute_ranges;
-	std::vector<std::string> color_map_names;
+	std::shared_ptr<const visualization_variables_info> visualization_variables;
 
 	AttributeSamplingStrategy sampling_strategy = ASS_AT_SAMPLES;
 	float sampling_step = 1.0f;
@@ -66,17 +66,42 @@ protected:
 public:
 	glyph_attribute_mapping();
 
-	glyph_attribute_mapping(const glyph_attribute_mapping& r);
+	glyph_attribute_mapping(const glyph_attribute_mapping& other);
 
-	glyph_attribute_mapping& operator=(const glyph_attribute_mapping& r);
+	glyph_attribute_mapping(glyph_attribute_mapping&& other) noexcept;
+
+	glyph_attribute_mapping& operator=(glyph_attribute_mapping other);
 
 	~glyph_attribute_mapping();
+
+	friend void swap(glyph_attribute_mapping& first, glyph_attribute_mapping& second) {
+		using std::swap;
+
+		swap(first.name, second.name);
+		swap(first.active, second.active);
+		swap(first.sampling_strategy, second.sampling_strategy);
+		swap(first.sampling_step, second.sampling_step);
+		swap(first.type, second.type);
+		swap(first.attrib_source_indices, second.attrib_source_indices);
+		swap(first.color_source_indices, second.color_source_indices);
+		swap(first.attrib_mapping_values, second.attrib_mapping_values);
+		swap(first.attrib_colors, second.attrib_colors);
+		swap(first.visualization_variables, second.visualization_variables);
+
+		swap(first.shape_ptr, second.shape_ptr);
+	}
 
 	ActionType action_type();
 
 	const std::string& get_name() const { return name; }
 
 	void set_name(const std::string& name) { this->name = name; }
+
+	bool& ref_active() { return active; }
+
+	bool get_active() const { return active; }
+
+	void set_active(bool flag) { active = flag; }
 
 	const AttributeSamplingStrategy get_sampling_strategy() const { return sampling_strategy; }
 	
@@ -98,15 +123,25 @@ public:
 
 	const std::vector<rgb>& ref_attrib_colors() const { return attrib_colors; }
 
-	const std::vector<std::string>& ref_attribute_names() const { return attribute_names; }
+	const std::shared_ptr<const visualization_variables_info> get_visualization_variables() const { return visualization_variables; }
+
+	void set_visualization_variables(std::shared_ptr<const visualization_variables_info> variables) {
+		
+		visualization_variables = variables;
 	
-	const std::vector<std::string>& ref_color_map_names() const { return color_map_names; }
+		for(size_t i = 0; i < attrib_mapping_values.size(); ++i) {
+			int attrib_idx = dummy_enum_to_int(attrib_source_indices[i]);
+			if(attrib_idx > -1) {
+				const vec2& range = visualization_variables->ref_attribute_ranges()[attrib_idx];
+				attrib_mapping_values[i].x() = range.x();
+				attrib_mapping_values[i].y() = range.y();
+			}
+		}
+	}
 
-	void set_attribute_names(const std::vector<std::string>& names);
-
-	void set_attribute_ranges(const std::vector<vec2>& ranges);
-
-	void set_color_map_names(const std::vector<std::string>& names);
+	//const std::vector<std::string>& ref_attribute_names() const { return visualization_variables->ref_attribute_names(); }
+	//
+	//const std::vector<std::string>& ref_color_map_names() const { return visualization_variables->ref_color_map_names(); }
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
 
