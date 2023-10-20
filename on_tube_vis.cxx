@@ -162,7 +162,7 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
 
 	// setup datapath input control
 	datapath_helper = cgv::gui::file_helper(this, "Open Trajectory Data", cgv::gui::file_helper::Mode::kOpen);
-	datapath_helper.add_filter("All Trajectory Files", { "bezdat", "csv", "sepia", "ppcdf", "ipcdf", "tgen" });
+	datapath_helper.add_multi_filter("All Trajectory Files", {"bezdat", "csv", "sepia", "ppcdf", "ipcdf", "tgen"});
 	datapath_helper.add_filter("Bezier Splines", "bezdat");
 	datapath_helper.add_filter("CSV", "csv");
 	datapath_helper.add_filter("Sepia Trajectories", "sepia");
