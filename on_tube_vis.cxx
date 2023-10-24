@@ -2391,15 +2391,15 @@ void on_tube_vis::update_debug_attribute_bindings() {
 				// convenience shortcut
 				const auto &col = render.data->colors[i];
 
-				nodes.add(render.data->positions[i], render.data->radii[i], col);
-				segments.adds(render.data->positions[i]);
-				segments.adds(radius_scale * render.data->radii[i]);
-				segments.adds(col);
+				nodes.add(render.data->positions[i], col, render.data->radii[i]);
+				segments.add_position(render.data->positions[i]);
+				segments.add_radius(radius_scale * render.data->radii[i]);
+				segments.add_color(col);
 			}
 			// also use index buffer for nodes even though this means we render most nodes twice
 			// this is necessary for correct usage of the render count limit
-			nodes.ref_idx() = render.data->indices;
-			segments.ref_idx() = render.data->indices;
+			nodes.indices = render.data->indices;
+			segments.indices = render.data->indices;
 		}
 	}
 }
