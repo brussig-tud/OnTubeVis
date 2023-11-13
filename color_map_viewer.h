@@ -34,7 +34,7 @@ protected:
 	cgv::g2d::text2d_style text_style;
 	cgv::g2d::msdf_text_geometry texts;
 	
-	void init_styles(cgv::render::context& ctx);
+	void init_styles();
 	void update_texts();
 
 	void create_gui_impl();

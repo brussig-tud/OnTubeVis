@@ -27,9 +27,10 @@ color_map_viewer::color_map_viewer() {
 
 void color_map_viewer::clear(cgv::render::context& ctx) {
 
-	canvas_overlay::clear(ctx);
-	cgv::g2d::ref_msdf_font_regular(ctx, -1);
 	cgv::g2d::ref_msdf_gl_canvas_font_renderer(ctx, -1);
+	canvas_overlay::clear(ctx);
+	
+	texts.destruct(ctx);
 }
 
 bool color_map_viewer::self_reflect(cgv::reflect::reflection_handler& _rh) {
@@ -62,16 +63,10 @@ void color_map_viewer::on_set(void* member_ptr) {
 
 bool color_map_viewer::init(cgv::render::context& ctx) {
 	
-	bool success = canvas_overlay::init(ctx);
-
-	auto& font = cgv::g2d::ref_msdf_font_regular(ctx, 1);
 	cgv::g2d::ref_msdf_gl_canvas_font_renderer(ctx, 1);
 
-	if (success)
-		init_styles(ctx);
-
-	if (font.is_initialized())
-		texts.set_msdf_font(&font);
+	bool success = canvas_overlay::init(ctx);
+	success &= texts.init(ctx);
 
 	return success;
 }
@@ -143,7 +138,7 @@ void color_map_viewer::set_color_map_texture(cgv::render::texture* tex) {
 	post_damage();
 }
 
-void color_map_viewer::init_styles(cgv::render::context& ctx) {
+void color_map_viewer::init_styles() {
 	// get theme colors
 	auto& ti = cgv::gui::theme_info::instance();
 	rgba background_color = rgba(ti.background(), 1.0f);
