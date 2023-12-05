@@ -24,7 +24,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG f4f2d1ca04477f053919985b02fc988917c7d24a
+		GIT_TAG b8107100d1df0230017dd7016ccd15948632ddcf
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -43,17 +43,23 @@ find_package(OpenMP)
 
 # handle optional dependencies
 set(OPTIONAL_DEPENDENCIES "")
-if (CUDA_FOUND AND CUDAToolkit_FOUND AND OptiX_INCLUDE AND NOT OptiX_INCLUDE STREQUAL "OptiX_INCLUDE-NOTFOUND")
-	add_subdirectory(tool/cuda_resprep) # build the cuda_resprep custom tool
-	list(APPEND OPTIONAL_DEPENDENCIES CUDA::cudart CUDA::nvrtc)
-	list(APPEND FEATURE_DEFINES "RTX_SUPPORT=1")
-	set(ADDITIONAL_INCLUDE_PATHS ${OptiX_INCLUDE}) #  ${CUDA_TOOLKIT_INCLUDE}
-	set(NVRTC_INCLUDE_DEFS
-		"CUDA_RUNTIME_COMPILER__INC_DIR_CUDA=\"${CUDA_TOOLKIT_INCLUDE}\""
-		"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX=\"${OptiX_INCLUDE}\""
-		"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK=\"${OptiX_INSTALL_DIR}/SDK\""
-		"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK_CUDA=\"${OptiX_INSTALL_DIR}/SDK/cuda\""
+if (CUDA_FOUND AND CUDAToolkit_FOUND)
+	set(ONTUBEVIS_CUDA_RESPREP_HOST_COMPILER "" CACHE FILEPATH 
+		"The host compiler executable to use together with NVCC when preparing CUDA device code resources"
 	)
+	if (OptiX_INCLUDE AND NOT OptiX_INCLUDE STREQUAL "OptiX_INCLUDE-NOTFOUND")
+		add_subdirectory(tool/cuda_resprep) # build the cuda_resprep custom tool
+		list(APPEND OPTIONAL_DEPENDENCIES CUDA::cudart CUDA::nvrtc)
+		list(APPEND FEATURE_DEFINES "RTX_SUPPORT=1")
+		set(ADDITIONAL_INCLUDE_PATHS ${OptiX_INCLUDE}) #  ${CUDA_TOOLKIT_INCLUDE}
+		set(NVRTC_INCLUDE_DEFS
+			"CUDA_RUNTIME_COMPILER__INC_DIR_CUDA=\"${CUDA_TOOLKIT_INCLUDE}\""
+			"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX=\"${OptiX_INCLUDE}\""
+			"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK=\"${OptiX_INSTALL_DIR}/SDK\""
+			"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK_CUDA=\"${OptiX_INSTALL_DIR}/SDK/cuda\""
+			"CUDA_RUNTIME_COMPILER__HOSTCC=\"${ONTUBEVIS_CUDA_RESPREP_HOST_COMPILER}\""
+		)
+	endif()
 else()
 	set(ENABLE_OPTIX_SUPPORT OFF CACHE BOOL ${ENABLE_OPTIX_SUPPORT_DOC} FORCE)
 endif()
@@ -213,6 +219,13 @@ cgv_add_target(OnTubeVis
 
 if (ENABLE_OPTIX_SUPPORT)
 	# add CUDA sources to single-exec build (CUDA sources are compiled during runtime by the plugin build)
+	# - compile hostcc argument if requested
+	set(NVCC_BINCC_OPT "")
+	set(NVCC_BINCC_ARG "")
+	if(ONTUBEVIS_CUDA_RESPREP_HOST_COMPILER)
+		set(NVCC_BINCC_OPT -ccbin)
+		set(NVCC_BINCC_ARG "${ONTUBEVIS_CUDA_RESPREP_HOST_COMPILER}")
+	endif()
 	# - compile include path for nvcc pointing to CUDA and OptiX SDKs
 	set(NVCC_INCLUDE_PATH
 		"-I\"${CUDA_TOOLKIT_INCLUDE}\"" "-I\"${OptiX_INCLUDE}\"" "-I\"${OptiX_INSTALL_DIR}/SDK\""
@@ -231,8 +244,8 @@ if (ENABLE_OPTIX_SUPPORT)
 		BUILD_SUBDIR     "cuda"
 		BUILD_TOOL       cuda_resprep
 		BUILD_TOOL_ARGS
-			"${CUDA_NVCC_EXECUTABLE}" "<<<INFILE>>>" "<<<OUTFILE>>>" "-std=c++17" "-ptx" "-arch=compute_61"
-			"--use_fast_math" "-O=3" "-dopt=on" "-D__x86_64" "-I\"<<<INFILE_PATH>>>\"" ${NVCC_INCLUDE_PATH}
+			"${CUDA_NVCC_EXECUTABLE}" "<<<INFILE>>>" "<<<OUTFILE>>>" "${NVCC_BINCC_OPT}" "${NVCC_BINCC_ARG}" "-std=c++17" "-ptx"
+			"-arch=compute_61" "--use_fast_math" "-O=3" "-dopt=on" "-D__x86_64" "-I\"<<<INFILE_PATH>>>\"" ${NVCC_INCLUDE_PATH}
 	)
 endif()
 
