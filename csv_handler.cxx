@@ -1149,30 +1149,6 @@ cgv::base::object_registration_2<
 	"csv handler (float) - " + csv_rtlola_desc.name()
 );
 
-// Register handler for Trello flight log .csv files
-static const csv_descriptor csv_trello_log_desc("TrelloFlightLog", ",", {
-	{ "relTime", {"Clock:offsetTime", true, 1}, CSV::TIMESTAMP },
-	{ "position",  {{"MVO:posX[meters]", true, -1}, {"MVO:posY[meters]", true, -1}, {"MVO:posZ[meters]", true, -1}}, CSV::POS }
-});
-
-cgv::base::object_registration_2<
-	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>
-> csv_trello_log_reg(
-	csv_trello_log_desc,
-	visual_attribute_mapping<float>({
-		{VisualAttrib::RADIUS, {
-			// increase radius a bit to get thicker tubes with more visible area
-			"radius", attrib_transform<float>::real_to_real(
-				[](float &out, const float &in) {
-					out = in;
-				}
-			)
-		 }}}
-	),
-	"csv handler (float) - " + csv_trello_log_desc.name()
-);
-
-
 // Register handler for SimpleDebugTrace .csv files
 static const csv_descriptor csv_dbg_trace_desc("SimpleDebugTrace", ",", {
 	{ "time", {"dbg_time", true, 0}, CSV::TIMESTAMP },

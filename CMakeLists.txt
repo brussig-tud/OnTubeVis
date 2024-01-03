@@ -24,7 +24,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG b8107100d1df0230017dd7016ccd15948632ddcf
+		GIT_TAG 5e6770fb7daba03d128dfac133f28979f1b44979
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -101,6 +101,7 @@ set(SOURCES
 	textured_spline_tube_renderer.cxx
 	tgen_handler.cxx
 	traj_loader.cxx
+	trellocsv_handler.cxx
 	voxelizer.cxx
 )
 # - C/C++ headers
@@ -145,6 +146,7 @@ set(HEADERS
 	textured_spline_tube_renderer.h
 	tgen_handler.h
 	traj_loader.h
+	trellocsv_handler.h
 	voxel_grid.h
 	voxelizer.h
 )
