@@ -31,6 +31,9 @@ class csv_descriptor
 
 public:
 
+	/// Implementation details forward declaration
+	struct Impl;
+
 	/// collection of properties of a .csv descriptor
 	struct csv_properties
 	{
@@ -245,9 +248,6 @@ public:
 
 private:
 
-	/// implementation forward
-	struct Impl;
-
 	/// implementation handle
 	Impl *pimpl;
 
@@ -333,11 +333,11 @@ public:
 	/// rgb color type
 	typedef typename traj_format_handler<flt_type>::Color Color;
 
-
-private:
-
 	/// implementation forward
 	struct Impl;
+
+
+private:
 
 	/// implementation handle
 	Impl *pimpl;

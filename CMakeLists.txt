@@ -129,6 +129,7 @@ set(HEADERS
 	color_map_manager.h
 	color_map_viewer.h
 	csv_handler.h
+	csv_handler_detail.h
 	curveutils.h
 	demo.h
 	glyph_attribute_mapping.h

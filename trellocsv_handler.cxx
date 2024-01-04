@@ -1,6 +1,7 @@
 
 // C++ STL
 #include <vector>
+#include <unordered_set>
 #include <unordered_map>
 #include <string>
 #include <sstream>
@@ -19,6 +20,9 @@
 // 3rd party libs
 #include <peridetic.h>
 #include <WGS84toCartesian.hpp>
+
+// local includes
+#include "csv_handler_detail.h"
 
 // implemented header
 #include "trellocsv_handler.h"
@@ -39,20 +43,135 @@
 // identifyier to use for timestamp attribute
 #define TRELLO_TIME_ATTRIB_NAME "time"
 
+// Declare the proper csv_handler implementation type
+#define DECLARE_CSV_IMPL typedef typename csv_handler<flt_type>::Impl CSVImpl
 
-template <class flt_type>
-const std::vector<std::string>& trellocsv_handler<flt_type>::handled_extensions (void) const
+
+////
+// Module-private globals
+
+namespace {
+	// A single named trello column
+	struct TrelloColumn
+	{
+		const std::string name;
+		int id = -1;
+		TrelloColumn(const char *name) : name(name) {}
+	};
+
+	// A compound-value sourced from multiple Trello columns
+	template <unsigned num_cols>
+	struct TrelloCompound
+	{
+		TrelloColumn cols[num_cols];
+
+		template<class... T>
+		static TrelloCompound create(const T&... column_names) {
+			return {column_names...};
+		}
+
+		std::pair<bool, TrelloColumn&> find (const std::string &name)
+		{
+			for (auto &col : cols)
+				if (col.name.compare(name) == 0)
+					return {true, col};
+			TrelloColumn dummy("");
+			return {false, dummy};
+		}
+
+		bool check_found (void) const
+		{
+			bool found = true;
+			for (const auto &col : cols)
+				found &= col.id >= 0;
+			return found;
+		}
+	};
+
+	// Fields known to contain the 3D position
+	struct TrelloPos : public TrelloCompound<3>
+	{
+		TrelloColumn &x, &y, &z;
+		TrelloPos()
+			: TrelloCompound(TrelloCompound::create("MVO:posX[meters]", "MVO:posY[meters]", "MVO:posZ[meters]")),
+			  x(cols[0]), y(cols[1]), z(cols[2])
+		{}
+	};
+
+	// Fields known to contain the 3D velocity vector
+	struct TrelloVel : public TrelloCompound<3>
+	{
+		TrelloColumn &x, &y, &z;
+		TrelloVel()
+			: TrelloCompound(TrelloCompound::create("MVO:velX[meters/Sec]", "MVO:velY[meters/Sec]", "MVO:velZ[meters/Sec]")),
+			  x(cols[0]), y(cols[1]), z(cols[2])
+		{}
+	};
+};
+
+
+////
+// Class implementation - trellocsv_handler
+
+struct TrelloCSV
 {
-	static const std::vector<std::string> exts = {"csv"};
-	return exts;
-}
+	// list of all columns in the table
+	std::vector<std::string> columns;
+
+	// well-known column for timestamp
+	TrelloColumn time = TrelloColumn("Clock:offsetTime");
+
+	// well-known columns for position
+	TrelloPos pos;
+
+	// well-known columns for velocity
+	TrelloVel vel;
+
+	bool locate_known_fields (void)
+	{
+		for (unsigned i=0; i<(unsigned)columns.size(); i++)
+		{
+			// time
+			if (time.name.compare(columns[i]) == 0)
+				time.id = i;
+
+			/* position */ {
+				const auto it = pos.find(columns[i]);
+				if (it.first)
+					it.second.id = i;
+			}
+			/* velocity */ {
+				const auto it = vel.find(columns[i]);
+				if (it.first)
+					it.second.id = i;
+			}
+		}
+		bool success = time.id >= 0 && pos.check_found() && vel.check_found();
+		return success;
+	}
+};
 
 template <class flt_type>
 bool trellocsv_handler<flt_type>::can_handle (std::istream &contents) const
 {
+	// init
 	const stream_pos_guard g(contents);
-	
-	// ToDo: implement
+	DECLARE_CSV_IMPL;
+	CSVImpl csv_impl;
+	TrelloCSV csv;
+
+	// check for tell-tale stream contents
+	std::string line;
+	// - parse first row and check if there are enough columns
+	const std::string &separators = ",";
+	std::vector<cgv::utils::token> tokens;
+	if (CSVImpl::read_next_nonempty_line(&line, &tokens, separators, contents, &csv.columns) < 4)
+		return false;
+	if (!csv.locate_known_fields())
+		return false;
+
+	// CSV
+	CSVImpl::remove_enclosing_quotes(csv.columns);
 
 	return false;
 }

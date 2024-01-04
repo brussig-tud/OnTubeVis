@@ -15,8 +15,10 @@
 
 /// provides read capabilites for Trello flight logs in .csv format
 template <class flt_type>
-struct trellocsv_handler : public traj_format_handler<flt_type>
+class trellocsv_handler : public traj_format_handler<flt_type>
 {
+public:
+
 	/// real number type
 	typedef typename traj_format_handler<flt_type>::real real;
 
@@ -32,10 +34,23 @@ struct trellocsv_handler : public traj_format_handler<flt_type>
 	/// rgb color type
 	typedef typename traj_format_handler<flt_type>::Color color;
 
-	/// reports the known OBD file extensions the handler will claim regardless of content.
+
+private:
+
+	// implementation forward
+	struct Impl;
+
+	/// implementation handle
+	Impl *pimpl;
+
+
+public:
+
+	
+	/// reports the known file extensions the handler will claim regardless of content.
 	const std::vector<std::string>& handled_extensions (void) const;
 
-	/// test if the given data stream appears to be a supported OBD file
+	/// test if the given data stream appears to be a Trello flight log file in a supported .csv format
 	virtual bool can_handle (std::istream &contents) const;
 
 	/// parse the given stream containing the file contents and report whether any data was loaded
