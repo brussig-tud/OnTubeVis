@@ -101,7 +101,7 @@ set(SOURCES
 	textured_spline_tube_renderer.cxx
 	tgen_handler.cxx
 	traj_loader.cxx
-	trellocsv_handler.cxx
+	tellocsv_handler.cxx
 	voxelizer.cxx
 )
 # - C/C++ headers
@@ -147,7 +147,7 @@ set(HEADERS
 	textured_spline_tube_renderer.h
 	tgen_handler.h
 	traj_loader.h
-	trellocsv_handler.h
+	tellocsv_handler.h
 	voxel_grid.h
 	voxelizer.h
 )

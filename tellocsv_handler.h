@@ -15,7 +15,7 @@
 
 /// provides read capabilites for Trello flight logs in .csv format
 template <class flt_type>
-class trellocsv_handler : public traj_format_handler<flt_type>
+class tellocsv_handler : public traj_format_handler<flt_type>
 {
 public:
 

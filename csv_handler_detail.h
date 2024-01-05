@@ -199,13 +199,25 @@ struct csv_handler<flt_type>::Impl
 		// count each token that is not a separator as a field
 		unsigned count = 0;
 		std::vector<std::string> fields;
+		bool prevsep = false;
 		for (const auto &token : tokens)
-			if (!is_separator(token, separators))
+		{
+			if (is_separator(token, separators))
 			{
+				if (prevsep) {
+					count++;
+					fields.emplace_back();
+				}
+				prevsep = true;
+			}
+			else
+			{
+				prevsep = false;
 				count++;
 				if (out)
 					fields.emplace_back(std::string(token.begin, size_t(token.end - token.begin)));
 			}
+		}
 
 		// account for empty last field (indicated by last token being a separator)
 		if (count > 0 && is_separator(tokens.back(), separators))
@@ -245,7 +257,7 @@ struct csv_handler<flt_type>::Impl
 		real val;
 		try { val = (real)std::stod(field); }
 		catch (const std::out_of_range&) { val = std::numeric_limits<real>::infinity(); }
-		catch (...) { val = 0; }
+		catch (...) { val = std::numeric_limits<real>::quiet_NaN(); }
 		return val;
 	}
 	template <unsigned components>

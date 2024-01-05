@@ -25,7 +25,7 @@
 #include "csv_handler_detail.h"
 
 // implemented header
-#include "trellocsv_handler.h"
+#include "tellocsv_handler.h"
 
 
 // identifyier to use for position data
@@ -111,7 +111,7 @@ namespace {
 
 
 ////
-// Class implementation - trellocsv_handler
+// Class implementation - tellocsv_handler
 
 struct TrelloCSV
 {
@@ -126,6 +126,24 @@ struct TrelloCSV
 
 	// well-known columns for velocity
 	TrelloVel vel;
+
+	unsigned remove_trailing_meta_fields (void)
+	{
+		for (unsigned i=1; i<4; i++)
+		{
+			const auto &col = columns[columns.size()-i];
+			if (col.compare("ConvertDatV3") == 0) {
+				columns.pop_back();
+				columns.pop_back();
+				i-=2;
+			}
+			else if (col.compare("Attribute|Value") == 0) {
+				columns.pop_back();
+				i--;
+			}
+		}
+		return (unsigned)columns.size();
+	}
 
 	bool locate_known_fields (void)
 	{
@@ -152,7 +170,7 @@ struct TrelloCSV
 };
 
 template <class flt_type>
-bool trellocsv_handler<flt_type>::can_handle (std::istream &contents) const
+bool tellocsv_handler<flt_type>::can_handle (std::istream &contents) const
 {
 	// init
 	const stream_pos_guard g(contents);
@@ -165,19 +183,28 @@ bool trellocsv_handler<flt_type>::can_handle (std::istream &contents) const
 	// - parse first row and check if there are enough columns
 	const std::string &separators = ",";
 	std::vector<cgv::utils::token> tokens;
-	if (CSVImpl::read_next_nonempty_line(&line, &tokens, separators, contents, &csv.columns) < 4)
+	unsigned num_cols = CSVImpl::read_next_nonempty_line(&line, &tokens, separators, contents, &csv.columns);
+	if (num_cols < 7)
 		return false;
+	// - check if all the fields we want are there
+	CSVImpl::remove_enclosing_quotes(csv.columns);
+	num_cols = csv.remove_trailing_meta_fields();
 	if (!csv.locate_known_fields())
 		return false;
+	// - check if the first data line contains a readable timestamp and is of the same length as the header column
+	std::vector<std::string> fields;
+	if (CSVImpl::read_next_nonempty_line(&line, &tokens, separators, contents, &fields) < num_cols)
+		return false;
+	const real ts = CSVImpl::parse_field(fields[csv.time.id]);
+	if (ts < std::numeric_limits<real>::infinity())
+		return true;
 
-	// CSV
-	CSVImpl::remove_enclosing_quotes(csv.columns);
-
+	// the file is suspect!
 	return false;
 }
 
 template <class flt_type>
-traj_dataset<flt_type> trellocsv_handler<flt_type>::read(
+traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 	std::istream &contents, DatasetOrigin source, const std::string &path
 )
 {
@@ -425,13 +452,13 @@ traj_dataset<flt_type> trellocsv_handler<flt_type>::read(
 // Explicit template instantiations
 
 // Only float and double variants are intended
-template struct trellocsv_handler<float>;
-template struct trellocsv_handler<double>;
+template struct tellocsv_handler<float>;
+template struct tellocsv_handler<double>;
 
 
 ////
 // Object registration
 
 // Register both float and double handlers
-cgv::base::object_registration<trellocsv_handler<float> >  flt_trello_reg("Trello flight log handler (float)");
-cgv::base::object_registration<trellocsv_handler<double> > dbl_trello_reg("Trello flight log handler (double)");
+cgv::base::object_registration<tellocsv_handler<float> >  flt_trello_reg("Trello flight log handler (float)");
+cgv::base::object_registration<tellocsv_handler<double> > dbl_trello_reg("Trello flight log handler (double)");
