@@ -29,22 +29,19 @@
 
 
 // identifyier to use for position data
-#define TRELLO_POSITION_ATTRIB_NAME "position"
+#define TELLO_POSITION_ATTRIB_NAME "position"
 
 // identifyier to use for radius data
-#define TRELLOALTITUDE_ATTRIB_NAME "altitude"
+#define TELLO_RADIUS_ATTRIB_NAME "radius"
 
 // identifyier to use for radius data
-#define TRELLO_GPSSPEED_ATTRIB_NAME "gps_speed"
-
-// identifyier to use for radius data
-#define TRELLO_RADIUS_ATTRIB_NAME "radius"
+#define TELLO_VELOCITY_ATTRIB_NAME "altitude"
 
 // identifyier to use for timestamp attribute
-#define TRELLO_TIME_ATTRIB_NAME "time"
+#define TELLO_TIME_ATTRIB_NAME "time"
 
 // Declare the proper csv_handler implementation type
-#define DECLARE_CSV_IMPL typedef typename csv_handler<flt_type>::Impl CSVImpl
+#define DECLARE_CSV_IMPL_TYPE typedef typename csv_handler<real>::Impl CSVImpl
 
 
 ////
@@ -52,30 +49,30 @@
 
 namespace {
 	// A single named trello column
-	struct TrelloColumn
+	struct TelloColumn
 	{
 		const std::string name;
 		int id = -1;
-		TrelloColumn(const char *name) : name(name) {}
+		TelloColumn(const char *name) : name(name) {}
 	};
 
 	// A compound-value sourced from multiple Trello columns
 	template <unsigned num_cols>
-	struct TrelloCompound
+	struct TelloCompound
 	{
-		TrelloColumn cols[num_cols];
+		TelloColumn cols[num_cols];
 
 		template<class... T>
-		static TrelloCompound create(const T&... column_names) {
+		static TelloCompound create(const T&... column_names) {
 			return {column_names...};
 		}
 
-		std::pair<bool, TrelloColumn&> find (const std::string &name)
+		std::pair<bool, TelloColumn&> find (const std::string &name)
 		{
 			for (auto &col : cols)
 				if (col.name.compare(name) == 0)
 					return {true, col};
-			TrelloColumn dummy("");
+			TelloColumn dummy("");
 			return {false, dummy};
 		}
 
@@ -86,24 +83,55 @@ namespace {
 				found &= col.id >= 0;
 			return found;
 		}
+
+		bool is_part (unsigned col_id) const
+		{
+			for (const auto &col : cols)
+				if (col.id == col_id)
+					return true;
+			return false;
+		}
+
+		template <class flt_type>
+		void store_component (std::array<flt_type, num_cols> &databuf, unsigned col_id, flt_type val) {
+			for (unsigned c=0; c<num_cols; c++) {
+				if (cols[c].id == col_id)
+					databuf[c] = val;
+			}
+		}
+
+		template <class flt_type>
+		std::array<flt_type, num_cols> create_databuf (void) {
+			std::array<flt_type, num_cols> ret;
+			std::fill_n(ret.data(), num_cols, std::numeric_limits<flt_type>::quiet_NaN());
+			return ret;
+		}
+
+		template <class flt_type>
+		static bool validate_databuf (const std::array<flt_type, num_cols> &databuf) {
+			for (const auto &v : databuf)
+				if (!(v < std::numeric_limits<flt_type>::infinity()))
+					return false;
+			return true;
+		}
 	};
 
 	// Fields known to contain the 3D position
-	struct TrelloPos : public TrelloCompound<3>
+	struct TelloPos : public TelloCompound<3>
 	{
-		TrelloColumn &x, &y, &z;
-		TrelloPos()
-			: TrelloCompound(TrelloCompound::create("MVO:posX[meters]", "MVO:posY[meters]", "MVO:posZ[meters]")),
+		TelloColumn &x, &y, &z;
+		TelloPos()
+			: TelloCompound(TelloCompound::create("MVO:posX[meters]", "MVO:posY[meters]", "MVO:posZ[meters]")),
 			  x(cols[0]), y(cols[1]), z(cols[2])
 		{}
 	};
 
 	// Fields known to contain the 3D velocity vector
-	struct TrelloVel : public TrelloCompound<3>
+	struct TelloVel : public TelloCompound<3>
 	{
-		TrelloColumn &x, &y, &z;
-		TrelloVel()
-			: TrelloCompound(TrelloCompound::create("MVO:velX[meters/Sec]", "MVO:velY[meters/Sec]", "MVO:velZ[meters/Sec]")),
+		TelloColumn &x, &y, &z;
+		TelloVel()
+			: TelloCompound(TelloCompound::create("MVO:velX[meters/Sec]", "MVO:velY[meters/Sec]", "MVO:velZ[meters/Sec]")),
 			  x(cols[0]), y(cols[1]), z(cols[2])
 		{}
 	};
@@ -119,13 +147,13 @@ struct TrelloCSV
 	std::vector<std::string> columns;
 
 	// well-known column for timestamp
-	TrelloColumn time = TrelloColumn("Clock:offsetTime");
+	TelloColumn time = TelloColumn("Clock:offsetTime");
 
 	// well-known columns for position
-	TrelloPos pos;
+	TelloPos pos;
 
 	// well-known columns for velocity
-	TrelloVel vel;
+	TelloVel vel;
 
 	unsigned remove_trailing_meta_fields (void)
 	{
@@ -174,28 +202,28 @@ bool tellocsv_handler<flt_type>::can_handle (std::istream &contents) const
 {
 	// init
 	const stream_pos_guard g(contents);
-	DECLARE_CSV_IMPL;
+	DECLARE_CSV_IMPL_TYPE;
 	CSVImpl csv_impl;
-	TrelloCSV csv;
+	TrelloCSV tello;
 
 	// check for tell-tale stream contents
 	std::string line;
 	// - parse first row and check if there are enough columns
 	const std::string &separators = ",";
 	std::vector<cgv::utils::token> tokens;
-	unsigned num_cols = CSVImpl::read_next_nonempty_line(&line, &tokens, separators, contents, &csv.columns);
+	unsigned num_cols = CSVImpl::read_next_nonempty_line(&line, &tokens, separators, contents, &tello.columns);
 	if (num_cols < 7)
 		return false;
 	// - check if all the fields we want are there
-	CSVImpl::remove_enclosing_quotes(csv.columns);
-	num_cols = csv.remove_trailing_meta_fields();
-	if (!csv.locate_known_fields())
+	CSVImpl::remove_enclosing_quotes(tello.columns);
+	num_cols = tello.remove_trailing_meta_fields();
+	if (!tello.locate_known_fields())
 		return false;
 	// - check if the first data line contains a readable timestamp and is of the same length as the header column
 	std::vector<std::string> fields;
 	if (CSVImpl::read_next_nonempty_line(&line, &tokens, separators, contents, &fields) < num_cols)
 		return false;
-	const real ts = CSVImpl::parse_field(fields[csv.time.id]);
+	const real ts = CSVImpl::parse_field(fields[tello.time.id]);
 	if (ts < std::numeric_limits<real>::infinity())
 		return true;
 
@@ -208,103 +236,133 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 	std::istream &contents, DatasetOrigin source, const std::string &path
 )
 {
-	/*size_t nr_objects = 0;
+	////
+	// Prelude
+
+	// init
+	DECLARE_CSV_IMPL_TYPE;
+	CSVImpl csv_impl;
+	TrelloCSV tello;
+
+	// read in columns
+	const std::string &separators = ",";
 	std::string line;
-	std::map<std::string, size_t> type_counts;
-	std::vector<obd_response_info> responses;
-	std::map<std::string, std::vector<gps_info>> gps_info_map;
-	std::map<std::string, std::vector<string_info>> string_series;
-	std::map<std::string, std::vector<float_info<flt_type>>> float_series;
-	std::map<std::string, std::vector<int_info>> int_series;
-	std::map<std::string, std::vector<bool_info>> bool_series;
-	do {
-		// retrieve line containing single json object
-		cgv::os::safe_getline(contents, line);
-		if (line.empty())
+	std::vector<cgv::utils::token> tokens;
+	unsigned num_cols = CSVImpl::read_next_nonempty_line(&line, &tokens, separators, contents, &tello.columns);
+	// - locate special fields we know about
+	CSVImpl::remove_enclosing_quotes(tello.columns);
+	num_cols = tello.remove_trailing_meta_fields();
+	tello.locate_known_fields();
+
+	// prepare attribute arrays
+	// - quick-lookup table
+	std::vector<traj_attribute<real>*> attrib_from_col;
+	attrib_from_col.reserve(num_cols);
+	// - dataset container object
+	traj_dataset<real> ret;
+	// - known attributes
+	auto P = traj_format_handler<real>::template add_attribute<vec3>(ret, TELLO_POSITION_ATTRIB_NAME);
+	auto V = traj_format_handler<real>::template add_attribute<vec3>(ret, TELLO_VELOCITY_ATTRIB_NAME);
+	auto T = traj_format_handler<real>::template add_attribute<real>(ret, TELLO_TIME_ATTRIB_NAME); // for now, commiting timestamps as their own attribute is the only way to have them selectable in the layers
+	auto &Ptraj = traj_format_handler<real>::trajectories(ret, P.attrib);
+	// - other attributes
+	for (unsigned i=0; i<num_cols; i++)
+	{
+		if (i==tello.time.id || tello.pos.is_part(i) || tello.vel.is_part(i)) {
+			attrib_from_col.emplace_back(nullptr);
+		}
+		else {
+			auto &attrib = traj_format_handler<real>::template add_attribute<real>(ret, tello.columns[i]).attrib;
+			attrib_from_col.emplace_back(&attrib);
+		}
+	}
+
+	////
+	// Load actual data
+
+	// parse the stream until EOF
+	real dist_accum = 0;
+	double first_timestamp = 0, prev_timestamp = 0.;
+	bool first = true;
+	while (!contents.eof())
+	{
+		// read current line of data
+		std::vector<std::string> fields;
+		CSVImpl::read_next_nonempty_line(&line, &tokens, separators, contents, &fields);
+		if (fields.size() < tello.time.id+1)
+			// this line cannot possibly contain readable data
 			continue;
-		// parse with nlohmann json
-		std::stringstream ss(line);
-		nlohmann::json j;
-		ss >> j;
-		// check for valid objects
-		if (!j.is_object() || !j.contains("type"))
+
+		// parse timestamp field
+		const real ts = CSVImpl::parse_field(fields[tello.time.id]);
+		if (!(ts < std::numeric_limits<real>::infinity()))
+			// this line doesn't have a valid timestamp, so we can't process any of its data
 			continue;
-		// extract data of known types
-		if (j["type"] == "OBD_RESPONSE") {
-			responses.push_back({
-				j["source"].get<std::string>(),
-				j["timestamp"].get<size_t>(),
-				cgv::utils::parse_hex_bytes(j["data"]["bytes"].get<std::string>())
-				});
-			if (j["data"].contains("mode")) {
-				for (auto i : j["data"].items()) {
-					if (i.key() == "mode")
-						continue;
-					if (i.key() == "pid")
-						continue;
-					if (i.key() == "bytes")
-						continue;
-					if (i.key() == "supported_pids")
-						continue;
-					if (i.key() == "mode")
-						continue;
-					int pid = -1;
-					if (j["data"].contains("pid"))
-						pid = j["data"]["pid"].get<int>();
-					if (i.value().is_string())
-						string_series[i.key()].push_back({ pid, responses.back().timestamp, i.value().get<std::string>() });
-					if (i.value().is_number_float())
-					{
-						std::string key = i.key();
-						// special handling for throttle / brake
-						if (cgv::utils::to_lower(key).compare("throttleposition")==0)
-							if (pid==69)
-								key = "brakePosition";
-						float_series[key].push_back({ pid, responses.back().timestamp, i.value().get<flt_type>() });
-					}
-					else if (i.value().is_number_integer())
-						int_series[i.key()].push_back({ pid, responses.back().timestamp, i.value().get<int>() });
-					else if (i.value().is_boolean())
-						bool_series[i.key()].push_back({ pid, responses.back().timestamp, i.value().get<bool>() });
-					else
-						if (type_counts.find(i.key()) == type_counts.end())
-							type_counts[i.key()] = 1;
-						else
-							++type_counts[i.key()];
+
+		// prepare temporary compound field databuffers for deferred decision on whether a full compound datapoint can be added from this line or not
+		auto databuf_pos = tello.pos.create_databuf<real>(), databuf_vel = tello.vel.create_databuf<real>();
+
+		// parse each field and if it contains a value, add it to the corresponding attribute array
+		for (unsigned i=0; i<(unsigned)fields.size(); i++)
+		{
+			if (i==tello.time.id)
+				/* DoNothing() */;
+			else if (tello.pos.is_part(i)) {
+				const real val = CSVImpl::parse_field(fields[i]);
+				if (val < std::numeric_limits<real>::infinity())
+					tello.pos.store_component(databuf_pos, i, val);
+			}
+			else if (tello.vel.is_part(i)) {
+				const real val = CSVImpl::parse_field(fields[i]);
+				if (val < std::numeric_limits<real>::infinity())
+					tello.vel.store_component(databuf_vel, i, val);
+			}
+			else
+			{
+				const real val = CSVImpl::parse_field(fields[i]);
+				if (val < std::numeric_limits<real>::infinity())
+				{
+					auto &attrib = *attrib_from_col[i];
+					auto &data = attrib.template get_data<real>();
+					data.timestamps.emplace_back(ts);
+					data.values.emplace_back(val);
 				}
 			}
 		}
-		else if (j["type"] == "GPS") {
-			gps_info_map[j["source"].get<std::string>()].push_back({
-				j["source"].get<std::string>(),
-				j["timestamp"].get<size_t>(),
-				j["data"]["longitude"].get<double>(),
-				j["data"]["latitude"].get<double>(),
-				j["data"]["altitude"].get<double>(),
-				j["data"]["gps_speed"].get<double>()
-			});
+
+		// commit compound fields if they could be read completely
+		if (tello.pos.validate_databuf(databuf_pos)) {
+			P.data.timestamps.emplace_back(ts);
+			P.data.values.emplace_back(databuf_pos);
 		}
-		// handle unknown types
-		else {
-			if (type_counts.find(j["type"]) == type_counts.end())
-				type_counts[j["type"]] = 1;
-			else
-				++type_counts[j["type"]];
-			++nr_objects;
+		if (tello.vel.validate_databuf(databuf_vel)) {
+			V.data.timestamps.emplace_back(ts);
+			V.data.values.emplace_back(databuf_vel);
 		}
-	} while (!contents.eof());
-	std::cout << "nr unknown parsed objects: " << nr_objects << std::endl;
-	for (auto tc : type_counts)
-		std::cout << "  " << tc.first << ": " << tc.second << std::endl;*/
+	}
+
+	// did we load anything usable?
+	if (P.data.values.empty())
+		// no position samples were loaded, dataset will be useless
+		return traj_dataset<real>();
+
 
 	////
-	// transform loaded data into traj_mgr dataset
+	// Finalize
 
-	// perpare dataset container object
-	traj_dataset<flt_type> ret;
+	// invent radii
+	const unsigned num_segs = (unsigned)(P.data.values.size()-1);
+	traj_format_handler<flt_type>::set_avg_segment_length(ret, dist_accum / real(num_segs));
+	auto R = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, TELLO_RADIUS_ATTRIB_NAME);
+	R.data.values = std::vector<flt_type>(P.data.num(), ret.avg_segment_length()*real(0.125));
+	R.data.timestamps = P.data.timestamps;
+	traj_format_handler<flt_type>::trajectories(ret, R.attrib) = Ptraj; // invented radius "samples" are in sync with positions, so just copy traj info
+
+	// setup visual mapping
 	static const visual_attribute_mapping<real> vamap({
-		{VisualAttrib::POSITION, {TRELLO_POSITION_ATTRIB_NAME}}, {VisualAttrib::RADIUS, {TRELLO_RADIUS_ATTRIB_NAME}}
-	});/*
+		{VisualAttrib::POSITION, {TELLO_POSITION_ATTRIB_NAME}}, {VisualAttrib::RADIUS, {TELLO_RADIUS_ATTRIB_NAME}}
+	});
+	ret.set_mapping(std::move(vamap));/*
 
 	// for single precision float compatibility, we make everything relative to the first sample of the first trajectory position-wise...
 #if defined(OBD_USE_ECEF_COORDINATES) && OBD_USE_ECEF_COORDINATES!=0
