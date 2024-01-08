@@ -1242,6 +1242,50 @@ flt_type* traj_dataset<flt_type>::timestamps (void)
 }
 
 template <class flt_type>
+void traj_dataset<flt_type>::remove_attribute (const std::string &name)
+{
+	// shortcuts for saving indirections
+	auto &impl = *pimpl;
+	const auto &attrib_it = impl.attribs.find(name);
+
+	if (attrib_it != impl.attribs.end())
+	{
+		// clean up trajectory information
+		const auto it = impl.trajs.find(attrib_it->second.id());
+		if (it != impl.trajs.end())
+			impl.trajs.erase(it);
+
+		// delete attribute data
+		impl.attribs.erase(attrib_it);
+		return;
+	}
+}
+
+template <class flt_type>
+void traj_dataset<flt_type>::remove_attribute (const traj_attribute<real> &attrib)
+{
+	// shortcut for saving an indirection
+	auto &impl = *pimpl;
+
+	// XXX: ToDo: This is O(n) slow. Implement means of random-accessing attributes via ID
+	//      Perhaps the attribute map should key by id, and name->id should be an additional auxilliary map.
+	for (auto attrib_it=impl.attribs.cbegin(); attrib_it!=impl.attribs.cend(); attrib_it++)
+	{
+		if (&attrib_it->second == &attrib) // by comparing pointers we avoid unintended possible deletion when passing in foreign attributes (since IDs are not globally unique)
+		{
+			// clean up trajectory information
+			const auto it = impl.trajs.find(attrib_it->second.id());
+			if (it != impl.trajs.end())
+				impl.trajs.erase(it);
+
+			// delete attribute data
+			impl.attribs.erase(attrib_it);
+			return;
+		}
+	}
+}
+
+template <class flt_type>
 attribute_map<flt_type>& traj_dataset<flt_type>::attributes(void)
 {
 	return pimpl->attribs;

@@ -318,20 +318,23 @@ class csv_handler : public traj_format_handler<flt_type>
 
 public:
 
+	/// handler parent class
+	typedef traj_format_handler<flt_type> super;
+
 	/// real number type
-	typedef typename traj_format_handler<flt_type>::real real;
+	typedef typename super::real real;
 
 	/// 2D vector type
-	typedef typename traj_format_handler<flt_type>::Vec2 Vec2;
+	typedef typename super::Vec2 Vec2;
 
 	/// 3D vector type
-	typedef typename traj_format_handler<flt_type>::Vec3 Vec3;
+	typedef typename super::Vec3 Vec3;
 
 	/// 4D vector type
-	typedef typename traj_format_handler<flt_type>::Vec4 Vec4;
+	typedef typename super::Vec4 Vec4;
 
 	/// rgb color type
-	typedef typename traj_format_handler<flt_type>::Color Color;
+	typedef typename super::Color Color;
 
 	/// implementation forward
 	struct Impl;
