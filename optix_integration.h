@@ -177,7 +177,7 @@
 		if (result != OPTIX_SUCCESS)                                             \
 		{                                                                        \
 			std::cerr << "Optix call '" << #call << "' failed ("                 \
-			          << __FILE__ << ":" << __LINE__ << ")"                      \
+			          << __FILE__ << ":" << __LINE__ << ") with code "<<result   \
 			          << std::endl << std::endl;                                 \
 			return false;                                                        \
 		}                                                                        \
