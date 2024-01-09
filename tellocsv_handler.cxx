@@ -147,7 +147,7 @@ namespace {
 	{
 		TelloColumn &x, &y, &z;
 		TelloVel()
-			: TelloCompound(TelloCompound::create("MVO:velX[meters/Sec]", "MVO:velY[meters/Sec]", "MVO:velZ[meters/Sec]")),
+			: TelloCompound(TelloCompound::create("IMU_ATTI(0):velE", "IMU_ATTI(0):velN", "IMU_ATTI(0):velD")),
 			  x(cols[0]), y(cols[1]), z(cols[2])
 		{}
 
