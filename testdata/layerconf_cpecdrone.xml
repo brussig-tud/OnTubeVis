@@ -3,25 +3,13 @@
     <Layers>
         <Layer name="Time" active="true" glyph="color" sampling="original">
             <Property name="interpolate" value="1.000000"/>
-            <Property name="color" attrib_name="time" color_map_name="grayC" in_range="5 275"/>
+            <Property name="color" attrib_name="time" color_map_name="glasgow" in_range="-28.971 58.281"/>
         </Layer>
-        <Layer name="Battery" active="true" glyph="line_plot" sampling="original">
-            <Property name="outline" value="0.100000"/>
-            <Property name="interpolate" value="1.000000"/>
-            <Property name="color_0" color="0.154286 0.27195 1"/>
-            <Property name="value_0" attrib_name="BatteryInfo:BatCurrent:D" in_range="-11436 -991" out_range="0 0.75"/>
-            <Property name="color_1" color="1 0.812174 0.228571"/>
-            <Property name="value_1" attrib_name="BatteryInfo:BatVoltage:D" in_range="10880 12269" out_range="0 0.75"/>
-            <Property name="color_2" color="0 0 0"/>
-            <Property name="value_2" in_range="0 1" out_range="0 1"/>
-            <Property name="color_3" color="0 0 0"/>
-            <Property name="value_3" in_range="0 1" out_range="0 1"/>
-        </Layer>
-        <Layer name="Airspeed" active="true" glyph="triangle_isosceles" sampling="equidist" sampling_step="1.000000">
-            <Property name="outline" value="0.070000"/>
-            <Property name="color" attrib_name="GPS:velN" color_map_name="lajolla" in_range="-3.9 2.2"/>
-            <Property name="base_width" in_range="22475 726275" out_range="0 1.5"/>
-            <Property name="height" attrib_name="GPS:velN" in_range="-3.9 4.64" out_range="0.125 6"/>
+        <Layer name="Position/V/a" active="true" glyph="triangle_isosceles" sampling="uniform" sampling_step="0.200000">
+            <Property name="outline" value="0.031250"/>
+            <Property name="color" attrib_name="IMU_ATTI(0):accelComposite:C" color_map_name="lajolla" in_range="0.512826 1.58169"/>
+            <Property name="base_width" attrib_name="IMU_ATTI(0):velComposite:C" in_range="0.018 5.027" out_range="1.75 0.125"/>
+            <Property name="height" attrib_name="IMU_ATTI(0):accelComposite:C" in_range="0.512826 1.58169" out_range="0.125 3"/>
             <Property name="orientation" in_range="0 1" out_range="0 360"/>
         </Layer>
     </Layers>
