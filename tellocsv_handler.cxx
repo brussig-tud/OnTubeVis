@@ -35,7 +35,7 @@
 #define TELLO_RADIUS_ATTRIB_NAME "radius"
 
 // identifyier to use for radius data
-#define TELLO_VELOCITY_ATTRIB_NAME "altitude"
+#define TELLO_VELOCITY_ATTRIB_NAME "velocity"
 
 // identifyier to use for timestamp attribute
 #define TELLO_TIME_ATTRIB_NAME "time"
@@ -178,7 +178,7 @@ struct TrelloCSV
 	TelloPos pos;
 
 	// well-known columns for velocity
-	//TelloVel vel;
+	TelloVel vel;
 
 	unsigned remove_trailing_meta_fields (void)
 	{
@@ -211,13 +211,13 @@ struct TrelloCSV
 				if (it.first)
 					it.second.id = i;
 			}
-			/* velocity *//* {
+			/* velocity */ {
 				const auto it = vel.find(columns[i]);
 				if (it.first)
 					it.second.id = i;
-			}*/
+			}
 		}
-		bool success = time.id >= 0 && pos.check_found()/* && vel.check_found()*/;
+		bool success = time.id >= 0 && pos.check_found() && vel.check_found();
 		return success;
 	}
 };
@@ -289,10 +289,10 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 	traj_dataset<real> ret;
 	// - known attributes
 	auto P = traj_format_handler<real>::template add_attribute<vec3>(ret, TELLO_POSITION_ATTRIB_NAME);
-	//auto V = traj_format_handler<real>::template add_attribute<vec3>(ret, TELLO_VELOCITY_ATTRIB_NAME);
+	auto V = traj_format_handler<real>::template add_attribute<vec3>(ret, TELLO_VELOCITY_ATTRIB_NAME);
 	auto T = traj_format_handler<real>::template add_attribute<real>(ret, TELLO_TIME_ATTRIB_NAME); // for now, commiting timestamps as their own attribute is the only way to have them selectable in the layers
 	auto &Ptraj = traj_format_handler<real>::trajectories(ret, P.attrib);
-	//auto &Vtraj = traj_format_handler<real>::trajectories(ret, V.attrib);
+	auto &Vtraj = traj_format_handler<real>::trajectories(ret, V.attrib);
 	auto &Ttraj = traj_format_handler<real>::trajectories(ret, T.attrib);
 	// - other attributes
 	for (unsigned i=0; i<num_cols; i++)
@@ -333,7 +333,7 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 		T.data.timestamps.emplace_back(T.data.values.emplace_back(ts));
 
 		// prepare temporary compound field databuffers for deferred decision on whether a full compound datapoint can be added from this line or not
-		auto databuf_pos = tello.pos.create_databuf<real>()/*, databuf_vel = tello.vel.create_databuf<real>()*/;
+		auto databuf_pos = tello.pos.create_databuf<real>(), databuf_vel = tello.vel.create_databuf<real>();
 
 		// parse each field and if it contains a value, add it to the corresponding attribute array
 		for (unsigned i=0; i<(unsigned)fields.size(); i++)
@@ -344,12 +344,12 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 				const real val = CSVImpl::parse_field(fields[i]);
 				if (val < std::numeric_limits<real>::infinity())
 					tello.pos.store_component(databuf_pos, i, val);
-			}/*
+			}
 			else if (tello.vel.is_part(i)) {
 				const real val = CSVImpl::parse_field(fields[i]);
 				if (val < std::numeric_limits<real>::infinity())
 					tello.vel.store_component(databuf_vel, i, val);
-			}*/
+			}
 			else
 			{
 				const real val = CSVImpl::parse_field(fields[i]);
@@ -374,10 +374,8 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 			vec3 diff;
 			if (!is_first) {
 				diff = unproj_pos - P.data.values.back();
-				if (ts - P.data.timestamps.back() < real(1))
+				if (ts - P.data.timestamps.back() < real(.5))
 					goto _skip_pos_sample;
-				/*if (diff.sqr_length() < real(1))
-					goto _skip_pos_sample;*/
 			}
 			P.data.timestamps.emplace_back(ts);
 			P.data.values.emplace_back(unproj_pos);
@@ -385,10 +383,10 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 		_skip_pos_sample:
 			/* end_of_block */;
 		}
-		/*if (tello.vel.validate_databuf(databuf_vel)) {
+		if (tello.vel.validate_databuf(databuf_vel)) {
 			V.data.timestamps.emplace_back(ts);
 			V.data.values.emplace_back(databuf_vel);
-		}*/
+		}
 	}
 
 	// did we load anything usable?
@@ -402,7 +400,7 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 
 	// Build trajectory information (we only ever have one trajectory so it's easy and can be done wholesale here)
 	Ptraj.emplace_back(range{0, P.attrib.num()});
-	//Vtraj.emplace_back(range{0, V.attrib.num()});
+	Vtraj.emplace_back(range{0, V.attrib.num()});
 	Ttraj.emplace_back(range{0, T.attrib.num()});
 
 	// Remove empty attributes
