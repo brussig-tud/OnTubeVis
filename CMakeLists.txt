@@ -89,6 +89,7 @@ set(SOURCES
 	arclen_helper.cxx
 	attrib_handle_manager.cxx
 	bezdat_handler.cxx
+	color_legend_manager.cxx
 	color_map_manager.cxx
 	color_map_viewer.cxx
 	csv_handler.cxx
@@ -126,6 +127,7 @@ set(HEADERS
 	arclen_helper.h
 	attrib_handle_manager.h
 	bezdat_handler.h
+	color_legend_manager.h
 	color_map_manager.h
 	color_map_viewer.h
 	csv_handler.h
