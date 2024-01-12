@@ -107,9 +107,7 @@ protected:
 	void move_glyph_attribute_mapping(const size_t index, int offset);
 
 public:
-	glyph_layer_manager() {
-		base_ptr = nullptr;
-	}
+	glyph_layer_manager(cgv::base::base_ptr base_ptr) : base_ptr(base_ptr) {}
 
 	~glyph_layer_manager() {}
 

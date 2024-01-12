@@ -227,7 +227,7 @@ ActionType glyph_layer_manager::action_type() {
 }
 
 void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
-	base_ptr = bp;
+	assert("Internal logic error: the base_ptr seems to have changed!" && base_ptr == bp);
 
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		glyph_attribute_mapping& gam = glyph_attribute_mappings[i];

@@ -80,7 +80,7 @@ void on_tube_vis::on_register()
 }
 
 
-on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis")
+on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(*this)
 {
 	// adjust geometry and grid style defaults
 	render.style.material.set_brdf_type(
@@ -701,7 +701,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 
 		// print out attribute statistics
 		const auto& ds = traj_mgr.dataset(0);
-		std::cerr << "Avg. segment length: " << ds.avg_segment_length() << "Data attributes:" << std::endl;
+		std::cerr << "Avg. segment length: "<<ds.avg_segment_length() << std::endl
+		          << "Data attributes:" << std::endl;
 		for(const auto& a : ds.attributes())
 			std::cerr << " - [" << a.first << "] - " << a.second.get_timestamps().size() << " samples" << std::endl;
 		std::cerr << std::endl;
@@ -836,6 +837,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		if(changes) {
 			layer_config_has_unsaved_changes = true;
 			on_set(&layer_config_has_unsaved_changes);
+			update_color_legends = true;
 		}
 	}
 
@@ -987,11 +989,12 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 	if(m.is(render.style.line_primitive))
 	{
 		// perform smart toggle bookkeeping
-		if (!ui_state.tr_toggle.check_toggled())
+		if (!ui_state.tr_toggle.check_toggled()) {
 			if (render.style.is_tube())
 				ui_state.tr_toggle.last_tube_primitive = render.style.line_primitive;
 			else
 				ui_state.tr_toggle.last_ribbon_primitive = render.style.line_primitive;
+		}
 		reset_taa = true;
 	}
 
@@ -1124,7 +1127,7 @@ void on_tube_vis::update_glyph_layer_managers() {
 			attrib_ranges.push_back(range);
 		}
 
-		auto &new_layer_config = render.visualizations.emplace_back();
+		auto &new_layer_config = render.visualizations.emplace_back(this);
 		// set new information of available attributes and ranges
 		new_layer_config.variables->set_attribute_names(attrib_names);
 		new_layer_config.variables->set_attribute_ranges(attrib_ranges);
@@ -1255,7 +1258,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	// prepare render-time dataset state
 	for (const auto &ds : traj_mgr.datasets()) {
-		auto &vis = render.visualizations.emplace_back();
+		auto &vis = render.visualizations.emplace_back(this);
 		vis.config = vis.manager.get_configuration();
 	}
 
@@ -1742,6 +1745,14 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	// TODO: remove once all relevant view interactor provided by the framework properly fix the up-vector
 	/*if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
 		view_ptr->set_view_up_dir(0, 1, 0);*/
+
+	// update color legends if necessary
+	if (update_color_legends) {
+		color_legend_mgr.compose(
+			ctx, traj_mgr.dataset(0), color_map_mgr, render.visualizations.front().manager.ref_glyph_attribute_mappings()
+		);
+		update_color_legends = false;
+	}
 
 	// keep the framebuffer up to date with the viewport size
 	fbc.ensure(ctx);

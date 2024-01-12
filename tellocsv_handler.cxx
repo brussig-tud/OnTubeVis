@@ -370,15 +370,15 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 			if (is_first)
 				refpos = {databuf_pos[0], databuf_pos[1]};
 			const auto mercator = wgs84::toCartesian(refpos, latlong{databuf_pos[0], databuf_pos[1]});
-			const vec3 unproj_pos((real)mercator[0], databuf_pos[2], (real)mercator[1]);
+			const vec3 proj_pos((real)mercator[0], databuf_pos[2], (real)mercator[1]);
 			vec3 diff;
 			if (!is_first) {
-				diff = unproj_pos - P.data.values.back();
+				diff = proj_pos - P.data.values.back();
 				if (ts - P.data.timestamps.back() < real(.5))
 					goto _skip_pos_sample;
 			}
 			P.data.timestamps.emplace_back(ts);
-			P.data.values.emplace_back(unproj_pos);
+			P.data.values.emplace_back(proj_pos);
 			dist_accum += is_first ? real(0) : diff.length();
 		_skip_pos_sample:
 			/* end_of_block */;
