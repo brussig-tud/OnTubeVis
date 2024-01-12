@@ -43,6 +43,7 @@
 #include "visualization_variables_info.h"
 #include "glyph_layer_manager.h"
 #include "color_map_manager.h"
+#include "color_legend_manager.h"
 #include "layer_config_io.h"
 #include "textured_spline_tube_renderer.h"
 #include "color_map_viewer.h"
@@ -339,7 +340,7 @@ protected:
 		glyph_layer_manager manager;
 		std::shared_ptr<visualization_variables_info> variables;
 
-		on_tube_visualization() {
+		on_tube_visualization(cgv::base::base_ptr base_ptr) : manager(base_ptr) {
 			variables = std::make_shared<visualization_variables_info>();
 		}
 	};
@@ -387,6 +388,10 @@ protected:
 
 	/// color map manager
 	color_map_manager color_map_mgr;
+
+	/// color map legend manager
+	color_legend_manager color_legend_mgr;
+	bool update_color_legends = false; // flag indicating whether the color legends need updating during init_frame
 
 	/// benchmark state fields
 	struct {

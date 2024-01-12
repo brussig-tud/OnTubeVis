@@ -24,7 +24,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 821917c2daffbb3aebf5c2a7894fc47def80f43b
+		GIT_TAG 67598e0d2702d5ea52fbca7e9403a4eb6ff86e20
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -89,6 +89,7 @@ set(SOURCES
 	arclen_helper.cxx
 	attrib_handle_manager.cxx
 	bezdat_handler.cxx
+	color_legend_manager.cxx
 	color_map_manager.cxx
 	color_map_viewer.cxx
 	csv_handler.cxx
@@ -126,6 +127,7 @@ set(HEADERS
 	arclen_helper.h
 	attrib_handle_manager.h
 	bezdat_handler.h
+	color_legend_manager.h
 	color_map_manager.h
 	color_map_viewer.h
 	csv_handler.h
