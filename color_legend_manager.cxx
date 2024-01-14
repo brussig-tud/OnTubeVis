@@ -34,23 +34,25 @@ void color_legend_manager::compose (
 	for (const auto &layer : layers)
 	{
 		// identify whether the layer uses a color map
-		const auto &[cmi, ai] = [&layer]() {
+		const auto &[id, cmi, ai] = [&layer]() {
 			const auto cmi_list = layer.get_color_map_indices();
 			const auto ai_list = layer.get_attrib_indices();
 			for (unsigned i=0; i< cmi_list.size(); i++) {
 				if (cmi_list[i] > -1 && ai_list[i] > -1)
-					return std::make_pair(cmi_list[i], ai_list[i]);
+					return std::make_tuple((int)i, cmi_list[i], ai_list[i]);
 			}
-			return std::make_pair(-1, -1);
+			return std::make_tuple(-1, -1, -1);
 		}();
 		if (cmi > -1)
 		{
+			// set up a legend for the found color mapping
 			const auto &colormaps = color_map_mgr.ref_color_maps();
 			const auto &cm = colormaps[cmi];
 			auto &new_legend = legends[num_active];
 			new_legend->set_color_map(ctx, cm.cm);
 			new_legend->set_title(attrib_names[ai]);
-			new_legend->set_range(attrib_ranges[ai]);
+			{ const auto &ranges = layer.ref_attrib_mapping_values()[id];
+			  new_legend->set_range({ranges.x(), ranges.y()}); }
 			new_legend->set_overlay_margin({-3, voffset});
 			new_legend->set_visibility(true);
 			voffset += new_legend->get_overlay_size().y()-3;
