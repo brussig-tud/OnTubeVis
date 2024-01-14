@@ -48,10 +48,6 @@ const std::vector<int> glyph_attribute_mapping::get_color_map_indices() const {
 	return indices;
 }
 
-const std::vector<cgv::render::render_types::vec4>& glyph_attribute_mapping::ref_attrib_mapping_values() const {
-	return attrib_mapping_values;
-}
-
 ActionType glyph_attribute_mapping::action_type() {
 	ActionType temp = last_action_type;
 	last_action_type = AT_NONE;

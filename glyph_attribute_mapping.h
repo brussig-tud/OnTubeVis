@@ -121,13 +121,7 @@ public:
 
 	const std::vector<int> get_color_map_indices() const;
 
-	const std::vector<vec4>& ref_attrib_mapping_values() const;
-
-	const std::vector<vec4> &
-	ref_attrib_values() const
-	{
-		return attrib_mapping_values;
-	}
+	const std::vector<vec4> &ref_attrib_mapping_values() const { return attrib_mapping_values; }
 
 	const std::vector<rgb>& ref_attrib_colors() const { return attrib_colors; }
 

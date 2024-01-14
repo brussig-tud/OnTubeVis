@@ -86,7 +86,7 @@ private:
 		const auto attribute_indices = gam.get_attrib_indices();
 		const auto color_indices = gam.get_color_map_indices();
 
-		const auto& mapping_ranges = gam.ref_attrib_values();
+		const auto &mapping_ranges = gam.ref_attrib_mapping_values();
 		const auto& colors = gam.ref_attrib_colors();
 
 		const auto& attribute_names = visualization_variables->ref_attribute_names();

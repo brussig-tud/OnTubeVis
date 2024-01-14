@@ -27,10 +27,8 @@ void color_legend_manager::compose (
 	if (layers.empty())
 		return;
 
-	const auto attrib_names = dataset.get_attribute_names();
-	const auto &attrib_ranges = layers.front().get_visualization_variables()->ref_attribute_ranges();
-
 	int voffset = -3;
+	const auto attrib_names = dataset.get_attribute_names();
 	for (const auto &layer : layers)
 	{
 		// identify whether the layer uses a color map
