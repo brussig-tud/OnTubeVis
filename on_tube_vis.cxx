@@ -80,7 +80,7 @@ void on_tube_vis::on_register()
 }
 
 
-on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(*this)
+on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(this)
 {
 	// adjust geometry and grid style defaults
 	render.style.material.set_brdf_type(

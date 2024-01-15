@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <cgv/render/render_types.h>
 
 enum GlyphType {
@@ -561,7 +562,7 @@ struct glyph_type_registry {
 
 	static std::vector<std::string> display_names() {
 		static const std::vector<std::string> names = {
-			"Color",
+			"Surface Color",
 			"Circle",
 			"Rectangle",
 			"Wedge",

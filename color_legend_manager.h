@@ -16,7 +16,11 @@
 #include "color_map_manager.h"
 
 
-class color_legend_manager /*: public cgv::base::base, public cgv::render::render_types*/
+/// a manager automatically creating and maintaining color legend overlays for each mapped color scale in the given
+/// on-tube visualization layers.
+/// @todo special handling for temporal heatmaps since they can have up to for different sub-ranges each requiring
+///       their own legend.
+class color_legend_manager
 {
 public:
 
@@ -44,10 +48,14 @@ protected:
 	/// the number of active legends
 	unsigned num_active;
 
+
 public:
 
 	/// construct a new color map manager
 	color_legend_manager(cgv::app::application_plugin_base &owner);
+
+	/// construct a new color map manager, taking the owning applicatino plugin as a pointer
+	inline color_legend_manager(cgv::app::application_plugin_base *owner) : color_legend_manager(*owner) {}
 
 	// the destructor
 	~color_legend_manager() {}
