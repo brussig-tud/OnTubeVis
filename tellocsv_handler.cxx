@@ -48,7 +48,7 @@
 // Module-private globals
 
 namespace {
-	// A single named trello column
+	// A single named Tello column
 	struct TelloColumn
 	{
 		const std::string name;
@@ -56,7 +56,7 @@ namespace {
 		TelloColumn(const char *name) : name(name) {}
 	};
 
-	// A compound-value sourced from multiple Trello columns
+	// A compound-value sourced from multiple Tello columns
 	template <unsigned N>
 	struct TelloCompound
 	{
@@ -166,7 +166,7 @@ namespace {
 ////
 // Class implementation - tellocsv_handler
 
-struct TrelloCSV
+struct TelloCSV
 {
 	// list of all columns in the table
 	std::vector<std::string> columns;
@@ -223,13 +223,20 @@ struct TrelloCSV
 };
 
 template <class flt_type>
+const std::vector<std::string>& tellocsv_handler<flt_type>::handled_extensions(void) const
+{
+	static const std::vector<std::string> exts = {"csv"};
+	return exts;
+}
+
+template <class flt_type>
 bool tellocsv_handler<flt_type>::can_handle (std::istream &contents) const
 {
 	// init
 	const stream_pos_guard g(contents);
 	DECLARE_CSV_IMPL_TYPE;
 	CSVImpl csv_impl;
-	TrelloCSV tello;
+	TelloCSV tello;
 
 	// check for tell-tale stream contents
 	std::string line;
@@ -267,7 +274,7 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 	// init
 	DECLARE_CSV_IMPL_TYPE;
 	CSVImpl csv_impl;
-	TrelloCSV tello;
+	TelloCSV tello;
 
 	// read in columns
 	const std::string &separators = ",";
@@ -433,13 +440,13 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 // Explicit template instantiations
 
 // Only float and double variants are intended
-template struct tellocsv_handler<float>;
-template struct tellocsv_handler<double>;
+template class tellocsv_handler<float>;
+template class tellocsv_handler<double>;
 
 
 ////
 // Object registration
 
 // Register both float and double handlers
-cgv::base::object_registration<tellocsv_handler<float> >  flt_trello_reg("Trello flight log handler (float)");
-cgv::base::object_registration<tellocsv_handler<double> > dbl_trello_reg("Trello flight log handler (double)");
+cgv::base::object_registration<tellocsv_handler<float> >  flt_tello_reg("Tello flight log handler (float)");
+cgv::base::object_registration<tellocsv_handler<double> > dbl_tello_reg("Tello flight log handler (double)");
