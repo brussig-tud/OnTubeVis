@@ -40,14 +40,14 @@ void color_legend_manager::compose (
 	for (const auto &layer : layers)
 	{
 		// identify whether the layer uses a color map
-		const auto &[id, cmi, ai] = [&layer]() {
+		const auto &[id, cmi, ai] = [&layer]() -> std::tuple<int, int, int> {
 			const auto cmi_list = layer.get_color_map_indices();
 			const auto ai_list = layer.get_attrib_indices();
 			for (unsigned i=0; i< cmi_list.size(); i++) {
 				if (cmi_list[i] > -1 && ai_list[i] > -1)
-					return std::make_tuple((int)i, cmi_list[i], ai_list[i]);
+					return {i, cmi_list[i], ai_list[i]};
 			}
-			return std::make_tuple(-1, -1, -1);
+			return {-1, -1, -1};
 		}();
 		if (cmi > -1)
 		{
@@ -56,7 +56,7 @@ void color_legend_manager::compose (
 			stitle << ltype_names[layer.get_shape_ptr()->type()];
 			/*if (!layer.get_name().empty())
 				stitle << '('<<layer.get_name()<<')';*/
-			stitle << " - "<<attrib_names[ai];
+			stitle << " ("<<attrib_names[ai]<<')';
 
 			// set up a legend for the found color mapping
 			const auto &colormaps = color_map_mgr.ref_color_maps();
