@@ -984,35 +984,37 @@ protected:
 	/// write-access the timestamps at each position (for use by trajectory format handlers)
 	flt_type* timestamps (void);
 
-	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
+	/// helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access
 	template <class T>
-	attrib_info<T> add_attribute (const std::string &name)
-	{
+	attrib_info<T> add_attribute (const std::string &name) {
 		return attributes().emplace(name, std::vector<T>()).first->second;
 	}
 
-	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
+	/// helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access
 	template <class T, typename ...Args>
-	attrib_info<T> add_attribute (const std::string &name, Args&& ...args)
-	{
+	attrib_info<T> add_attribute (const std::string &name, Args&& ...args) {
 		return attributes().emplace(name, std::forward<Args>(args)...).first->second;
 	}
 
-	/// Helper for derived classes to create a copy of some existing attribute in this dataset under the specified name,
+	/// helper for derived classes to create a copy of some existing attribute in this dataset under the specified name,
 	/// returning a reference to the interface of the newly inserted attribute
-	traj_attribute<real>& add_attribute (const std::string& name, const traj_attribute<real> &attrib)
-	{
+	traj_attribute<real>& add_attribute (const std::string& name, const traj_attribute<real> &attrib) {
 		return attributes().emplace(name, attrib).first->second;
 	}
 
-	/// Helper for derived classes to move in an existing attribute to this dataset under the specified name, returning a
+	/// helper for derived classes to move in an existing attribute to this dataset under the specified name, returning a
 	/// reference to the interface of the newly inserted attribute
-	traj_attribute<real>& add_attribute (const std::string& name, traj_attribute<real> &&attrib)
-	{
+	traj_attribute<real>& add_attribute (const std::string& name, traj_attribute<real> &&attrib) {
 		return attributes().emplace(name, std::move(attrib)).first->second;
 	}
+
+	/// helper for derived classes to remove the given attribute (specified by name) from the dataset.
+	void remove_attribute (const std::string &name);
+
+	/// helper for derived classes to remove the given attribute (specified by attribute interface) from the dataset.
+	void remove_attribute (const traj_attribute<real> &attrib);
 
 	/// write-access the map containing all generic attributes (for use by trajectory format handlers)
 	attribute_map<flt_type>& attributes (void);
@@ -1114,7 +1116,7 @@ public:
 
 	/// creates a copy of this dataset in the underlying real number type.
 	/// ATTENTION: not completely implemented yet! Does not convert transformations in the visual attribute mapping, which is non-trivial
-	/// because of the way it epmloys function objects.
+	/// because of the way it employs function objects.
 	template <class real_type>
 	traj_dataset<real_type> convert (void) const
 	{
@@ -1199,7 +1201,7 @@ protected:
 	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access
 	template <class T>
-	static typename traj_dataset<real>::template attrib_info<T> add_attribute(traj_dataset<real> &dataset, const std::string &name)
+	inline static typename traj_dataset<real>::template attrib_info<T> add_attribute(traj_dataset<real> &dataset, const std::string &name)
 	{
 		return dataset.template add_attribute<T>(name);
 	}
@@ -1207,11 +1209,21 @@ protected:
 	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access
 	template <class T, typename ... Args>
-	static typename traj_dataset<real>::template attrib_info<T> add_attribute (
+	inline static typename traj_dataset<real>::template attrib_info<T> add_attribute (
 		traj_dataset<real> &dataset, const std::string &name, Args&& ... args
 	)
 	{
 		return dataset.template add_attribute<T>(name, std::forward<Args>(args)...);
+	}
+
+	/// helper for derived classes to remove the given attribute (specified by name) from the dataset.
+	inline static void remove_attribute (traj_dataset<real> &dataset, const std::string &name) {
+		dataset.remove_attribute(name);
+	}
+
+	/// helper for derived classes to remove the given attribute (specified by attribute interface) from the dataset.
+	inline static void remove_attribute (traj_dataset<real> &dataset, const traj_attribute<real> &attrib) {
+		dataset.remove_attribute(attrib);
 	}
 
 

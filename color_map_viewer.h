@@ -15,7 +15,7 @@ protected:
 		int total_height;
 
 		// dependent members
-		cgv::g2d::rect<int> color_map_rect;
+		cgv::g2d::trect<int> color_map_rect;
 
 		void update(const ivec2& parent_size) {
 			color_map_rect.position = ivec2(padding);
@@ -34,7 +34,7 @@ protected:
 	cgv::g2d::text2d_style text_style;
 	cgv::g2d::msdf_text_geometry texts;
 	
-	void init_styles(cgv::render::context& ctx);
+	void init_styles();
 	void update_texts();
 
 	void create_gui_impl();

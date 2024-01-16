@@ -59,8 +59,8 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 			const std::vector<int> attrib_indices = gam.get_attrib_indices();
 			const std::vector<int> color_map_indices = gam.get_color_map_indices();
-			const std::vector<vec4>& attrib_values = gam.ref_attrib_values();
-			const std::vector<rgb>& attrib_colors = gam.ref_attrib_colors();
+			const std::vector<vec4> &attrib_values = gam.ref_attrib_mapping_values();
+			const std::vector<rgb> &attrib_colors = gam.ref_attrib_colors();
 
 			for(size_t j = 0; j < attrib_indices.size(); ++j) {
 				int idx = attrib_indices[j];
@@ -227,7 +227,7 @@ ActionType glyph_layer_manager::action_type() {
 }
 
 void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
-	base_ptr = bp;
+	assert("Internal logic error: the base_ptr seems to have changed!" && base_ptr == bp);
 
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		glyph_attribute_mapping& gam = glyph_attribute_mappings[i];

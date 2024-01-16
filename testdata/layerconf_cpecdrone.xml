@@ -1,0 +1,16 @@
+<GlyphConfiguration>
+    <ColorMaps/>
+    <Layers>
+        <Layer name="Time" active="true" glyph="color" sampling="original">
+            <Property name="interpolate" value="1.000000"/>
+            <Property name="color" attrib_name="time" color_map_name="broc" in_range="-29.084 97.654"/>
+        </Layer>
+        <Layer name="Position/V/a" active="true" glyph="triangle_isosceles" sampling="uniform" sampling_step="0.200000">
+            <Property name="outline" value="0.031250"/>
+            <Property name="color" attrib_name="IMU_ATTI(0):accelComposite:C" color_map_name="lajolla" in_range="0.606 1.55087"/>
+            <Property name="base_width" attrib_name="IMU_ATTI(0):velComposite:C" in_range="0.018 5.027" out_range="1.75 0.125"/>
+            <Property name="height" attrib_name="IMU_ATTI(0):accelComposite:C" in_range="0.512826 1.58169" out_range="0.125 3"/>
+            <Property name="orientation" in_range="0 1" out_range="0 360"/>
+        </Layer>
+    </Layers>
+</GlyphConfiguration>

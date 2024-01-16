@@ -71,7 +71,7 @@ std::vector<char> compile_cu2ptx (
 #endif
 
 	// set up CUDA runtime compiler include directories
-	const std::vector<std::string> include_args = {
+	const static std::vector<std::string> include_args = {
 		"-I" CUDA_RUNTIME_COMPILER__INC_DIR_CUDA, "-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX,
 		"-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK, "-I" CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK_CUDA, "-I"+mydir
 	};
