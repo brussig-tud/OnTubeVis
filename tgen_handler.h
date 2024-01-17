@@ -39,6 +39,9 @@ private:
 
 public:
 
+	/// reports the name "TGEN"
+	const std::string& format_name (void) const;
+
 	/// test if the given data stream appears to be a .tgen file
 	virtual bool can_handle (std::istream &contents) const;
 

@@ -130,15 +130,6 @@ namespace {
 			  x(cols[0]), y(cols[1]), z(cols[2])
 		{}
 
-		// override the defaul validation until it's decided what to do about missing z-values
-		/*template <class flt_type>
-		bool validate_databuf (std::array<flt_type, 3> &databuf) {
-			const bool valid = databuf[0] < std::numeric_limits<flt_type>::infinity() && databuf[1] < std::numeric_limits<flt_type>::infinity();
-			if (valid && !(databuf[2] < std::numeric_limits<flt_type>::infinity()))
-				databuf[2] = 0;
-			return valid;
-		}*/
-
 		inline static bool latlong (void) { return true; }
 	};
 
@@ -223,10 +214,10 @@ struct TelloCSV
 };
 
 template <class flt_type>
-const std::vector<std::string>& tellocsv_handler<flt_type>::handled_extensions(void) const
+const std::string& tellocsv_handler<flt_type>::format_name (void) const
 {
-	static const std::vector<std::string> exts = {"csv"};
-	return exts;
+	static const std::string fmt_name = "Tello/CSV";
+	return fmt_name;
 }
 
 template <class flt_type>
@@ -266,8 +257,7 @@ bool tellocsv_handler<flt_type>::can_handle (std::istream &contents) const
 template <class flt_type>
 traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 	std::istream &contents, DatasetOrigin source, const std::string &path
-)
-{
+){
 	////
 	// Prelude
 

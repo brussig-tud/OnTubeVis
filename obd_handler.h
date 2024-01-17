@@ -32,6 +32,9 @@ struct obd_handler : public traj_format_handler<flt_type>
 	/// rgb color type
 	typedef typename traj_format_handler<flt_type>::Color color;
 
+	/// reports the name "OBD"
+	const std::string& format_name (void) const;
+
 	/// reports the known OBD file extensions the handler will claim regardless of content.
 	const std::vector<std::string>& handled_extensions (void) const;
 

@@ -110,6 +110,7 @@ csv_descriptor::~csv_descriptor()
 
 csv_descriptor& csv_descriptor::operator= (const csv_descriptor &other)
 {
+	pimpl->name = other.pimpl->name;
 	pimpl->props = other.pimpl->props;
 	pimpl->attribs = other.pimpl->attribs;
 	pimpl->separators = other.pimpl->separators;
@@ -149,7 +150,8 @@ csv_descriptor::csv_properties csv_descriptor::infer_properties (const std::vect
 	csv_properties ret;
 	ret.header = false;
 	ret.multi_traj = false;
-	unsigned num_cols = 0; signed max_col_id = 0;
+	signed num_cols = 0, max_col_id = 0;
+	bool all_cols_have_ids_defined = true; // TODO: used for internal logic sanity check, remove once validated
 	for (unsigned i=0; i<attributes.size(); i++)
 	{
 		const auto &attrib = attributes[i];
@@ -166,11 +168,16 @@ csv_descriptor::csv_properties csv_descriptor::infer_properties (const std::vect
 		for (const auto &col : attrib.columns)
 		{
 			max_col_id = std::max(col.number, max_col_id);
-			if (col.number < 0)
+			if (col.number < 0) {
 				ret.header = true;
+				all_cols_have_ids_defined = false;
+			}
 		}
 	}
-	ret.max_col_id = std::max(num_cols-1, (unsigned)max_col_id);
+	ret.max_col_id = ret.header ?
+		  (unsigned)std::max(num_cols-1, max_col_id)
+		: (unsigned)max_col_id;
+	assert(ret.header == !all_cols_have_ids_defined && "INTERNAL CONTROL LOGIC ERROR");
 	return ret;
 }
 
@@ -194,6 +201,7 @@ csv_handler<flt_type>::csv_handler(
 	auto &impl = *pimpl;
 
 	// commit name and descriptor
+	impl.fmt_name = "CSV - "+csv_desc.name();
 	impl.csv_desc = csv_desc;
 	impl.vmap_hints = vmap_hints;
 	impl.common_init();
@@ -209,6 +217,7 @@ csv_handler<flt_type>::csv_handler(
 	auto &impl = *pimpl;
 
 	// commit name and descriptor
+	impl.fmt_name = "CSV - "+csv_desc.name();
 	impl.csv_desc = std::move(csv_desc);
 	impl.vmap_hints = vmap_hints;
 	impl.common_init();
@@ -219,6 +228,11 @@ csv_handler<flt_type>::~csv_handler()
 {
 	if (pimpl)
 		delete pimpl;
+}
+
+template <class flt_type>
+const std::string& csv_handler<flt_type>::format_name (void) const {
+	return pimpl->fmt_name;
 }
 
 template <class flt_type>
@@ -718,8 +732,16 @@ csv_imldevice_reg(
 static const csv_descriptor csv_paraview_streamline_desc("Paraview Streamline", ",", {
 	{ "timestamp", {"IntegrationTime", false, 4}, CSV::TIMESTAMP },
 	{ "position",  {{"Points:0", false, 13}, {"Points:1", false, 14}, {"Points:2", false, 15}}, CSV::POS },
-	{ "velocity",  {{"U:0", false, 0}, {"U:1", false, 1}, {"U:2", false, 2}} }}
-);
+	{ "normal", {{"Normals:0", false, 10}, {"Normals:1", false, 11}, {"Normals:2", false, 12}} },
+	{ "Normals:0", {"Normals:0", false, 10} }, // make individual
+	{ "Normals:1", {"Normals:1", false, 11} }, // components accessible
+	{ "Normals:2", {"Normals:2", false, 12} }, // also
+	{ "velocity",  {{"U:0", false, 0}, {"U:1", false, 1}, {"U:2", false, 2}} },
+	{ "vorticity", {{"Vorticity:0", false, 5}, {"Vorticity:1", false, 6}, {"Vorticity:2", false, 7}} },
+	{ "Vorticity:0", {"Vorticity:0", false, 5} }, // make individual
+	{ "Vorticity:1", {"Vorticity:1", false, 6} }, // components accessible
+	{ "Vorticity:2", {"Vorticity:2", false, 7} }  // also
+});
 //static const csv_descriptor csv_paraview_streamline_desc("Paraview Streamline", ",", {
 //	{ "timestamp", {"\"IntegrationTime\"", false, 4}, CSV::TIMESTAMP },
 //	{ "position",  {{"\"Points:0\"", false, 13}, {"\"Points:1\"", false, 14}, {"\"Points:2\"", false, 15}}, CSV::POS },
@@ -740,10 +762,10 @@ cgv::base::object_registration_2<
 			)
 		}},
 		{VisualAttrib::RADIUS, {
-			// scale up radius accordingly and increase it a bit more to get thicker tubes with more visible area
+			// scale up radius accordingly but not as much to reduce overlapping tubes
 			"radius", attrib_transform<float>::real_to_real(
 				[](float &out, const float &in) {
-					out = 112.5f*in;
+					out = 75.f*in;
 				}
 			)
 		 }}}

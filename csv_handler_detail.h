@@ -39,6 +39,7 @@ struct csv_handler<flt_type>::Impl
 	};
 
 	// fields
+	std::string fmt_name;
 	csv_descriptor csv_desc;
 	bool desc_valid=false, has_data=false;
 	real avg_dist = 0;

@@ -2,6 +2,7 @@
 #include "glyph_shapes.h"
 #include "color_legend_manager.h"
 
+
 color_legend_manager::color_legend_manager(cgv::app::application_plugin_base &owner) : owner(owner) {
 	std::stringstream str;
 	for (unsigned i=0; i<legends.size(); i++) {
@@ -30,10 +31,10 @@ void color_legend_manager::compose (
 ){
 	// throw out old configuration
 	clear();
-	if (layers.empty())
-		return;
 
 	// collect in-use color maps
+	if (layers.empty())
+		return;
 	int voffset = -3;
 	const auto attrib_names = dataset.get_attribute_names(),
 	           ltype_names = glyph_type_registry::display_names();
@@ -43,10 +44,9 @@ void color_legend_manager::compose (
 		const auto &[id, cmi, ai] = [&layer]() -> std::tuple<int, int, int> {
 			const auto cmi_list = layer.get_color_map_indices();
 			const auto ai_list = layer.get_attrib_indices();
-			for (unsigned i=0; i< cmi_list.size(); i++) {
+			for (unsigned i=0; i<cmi_list.size(); i++)
 				if (cmi_list[i] > -1 && ai_list[i] > -1)
 					return {i, cmi_list[i], ai_list[i]};
-			}
 			return {-1, -1, -1};
 		}();
 		if (cmi > -1)
@@ -55,7 +55,7 @@ void color_legend_manager::compose (
 			std::stringstream stitle;
 			stitle << ltype_names[layer.get_shape_ptr()->type()];
 			/*if (!layer.get_name().empty())
-				stitle << '('<<layer.get_name()<<')';*/
+				stitle << " ("<<layer.get_name()<<')';*/
 			stitle << " ("<<attrib_names[ai]<<')';
 
 			// set up a legend for the found color mapping
@@ -81,11 +81,8 @@ void color_legend_manager::compose (
 			} else {
 				new_legend->set_color_map(ctx, cmc.cm);
 			}
-			
 			/* setup ranges */ {
 				new_legend->set_range({ranges.x(), ranges.y()});
-
-				// XXX: find a more elegant/general/maintainable way
 				const float diff = ranges.y() - ranges.x();
 				if (diff > 5)
 					new_legend->set_label_precision(1);

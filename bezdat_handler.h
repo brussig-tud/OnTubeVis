@@ -33,6 +33,9 @@ struct bezdat_handler : public traj_format_handler<flt_type>
 	/// rgb color type
 	typedef typename traj_format_handler<flt_type>::Color Color;
 
+	/// reports the name "BezDat"
+	const std::string& format_name (void) const;
+
 	/// reports a list with just "bezdat" in it - the handler will always claim files with this extension
 	const std::vector<std::string>& handled_extensions (void) const;
 

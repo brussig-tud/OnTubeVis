@@ -1235,9 +1235,12 @@ public:
 	/// virtual base destructor - causes vtable creation
 	virtual ~traj_format_handler() {};
 
+	/// reports a name for the format the handler is handling
+	virtual const std::string& format_name (void) const = 0;
+
 	/// reports the file extensions the handler recognizes (lower case letters only). If the list is non-empty but does not contain
 	/// the extension of the file being read, \ref can_handle is assumed to report 'false' without calling it
-	const std::vector<std::string>& handled_extensions (void) const;
+	virtual const std::vector<std::string>& handled_extensions (void) const;
 
 	/// Test if the given data stream can be handled by this handler. At the minimum, the handler must be able to extract sample
 	/// positions from the data stream when reporting true.
