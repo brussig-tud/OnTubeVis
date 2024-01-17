@@ -3,7 +3,7 @@ This visualization tool enables rendering of line data sets using high-quality s
 
 > ### Disclaimer
 > 
-> The application was tested on systems equipped with relatively modern discrete graphics hardware (Nvidia GTX 680 and RTX 2080/Ti). The application was not tested on AMD graphic cards. Running the application on notebooks using only integrated graphics may not work as intended.
+> The application was tested on systems equipped with relatively modern discrete graphics hardware (Nvidia GTX 680 and RTX 2080/Ti). The application was not tested on AMD graphics cards. Running the application on notebooks using only integrated graphics may not work as intended.
 
 ## Build Instructions
 
