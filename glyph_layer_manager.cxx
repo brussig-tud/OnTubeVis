@@ -101,7 +101,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					switch(type) {
 					case GAT_SIGNED_UNIT: remap_func = "clamp_remap11"; break;
 					case GAT_UNIT:
-					case GAT_COLOR: remap_func = "clamp_remap01"; break;
+					//case GAT_COLOR: remap_func = "clamp_remap01"; break;
 					default: break;
 					}
 					parameter_str = remap_func + "(glyph." + attrib_variable_name + ", " + uniform_name + ")";

@@ -129,7 +129,7 @@ private:
 			}
 			if(attribute.type != GAT_UNIT &&
 			   attribute.type != GAT_SIGNED_UNIT &&
-			   attribute.type != GAT_COLOR &&
+			   //attribute.type != GAT_COLOR &&
 			   attribute.type != GAT_OUTLINE
 			   ) {
 				cgv::xml::PushAttribute(printer, "out_range", cgv::render::vec2(mr.z(), mr.w()));
@@ -271,7 +271,7 @@ private:
 				gam.set_attrib_out_range(shape_attrib_idx, cgv::render::vec2(0.0f, value));
 		}
 
-		cgv::render::vec2 in_range(0.0f);
+		cgv::render::vec2 in_range(0.0f, 1.0f);
 		if(cgv::xml::QueryVecAttribute(elem, "in_range", in_range) == tinyxml2::XML_SUCCESS) {
 			gam.set_attrib_in_range(shape_attrib_idx, in_range);
 			input_ranges.push_back({ shape_attrib_idx, in_range });
@@ -281,10 +281,10 @@ private:
 
 		if(attrib.type != GAT_UNIT &&
 		   attrib.type != GAT_SIGNED_UNIT &&
-		   attrib.type != GAT_COLOR &&
+		   //attrib.type != GAT_COLOR &&
 		   attrib.type != GAT_OUTLINE
 		   ) {
-			cgv::render::vec2 out_range(0.0f);
+			cgv::render::vec2 out_range(0.0f, 1.0f);
 			if(cgv::xml::QueryVecAttribute(elem, "out_range", out_range) == tinyxml2::XML_SUCCESS)
 				gam.set_attrib_out_range(shape_attrib_idx, out_range);
 		}

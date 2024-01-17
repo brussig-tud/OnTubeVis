@@ -60,13 +60,31 @@ void color_legend_manager::compose (
 
 			// set up a legend for the found color mapping
 			const auto &colormaps = color_map_mgr.ref_color_maps();
-			const auto &cm = colormaps[cmi];
+			const auto &cmc = colormaps[cmi];
 			auto &new_legend = legends[num_active];
-			new_legend->set_color_map(ctx, cm.cm);
 			new_legend->set_title(stitle.str());
+
+			// set the color map
+			const auto& ranges = layer.ref_attrib_mapping_values()[id];
+			// for color-mapped attributes an "invalid" output range of 1 to 0 indicates reversed color mapping
+			if(ranges.z() > ranges.w()) {
+				// copy the color map to take over settings
+				cgv::render::color_map cm = cmc.cm;
+				cm.clear();
+				// now re-add the mirrored control points
+				for(const auto& p : cmc.cm.ref_color_points())
+					cm.add_color_point(1.0f - p.first, p.second);
+				for(const auto& p : cmc.cm.ref_opacity_points())
+					cm.add_opacity_point(1.0f - p.first, p.second);
+
+				new_legend->set_color_map(ctx, cm);
+			} else {
+				new_legend->set_color_map(ctx, cmc.cm);
+			}
+			
 			/* setup ranges */ {
-				const auto &ranges = layer.ref_attrib_mapping_values()[id];
 				new_legend->set_range({ranges.x(), ranges.y()});
+
 				// XXX: find a more elegant/general/maintainable way
 				const float diff = ranges.y() - ranges.x();
 				if (diff > 5)
