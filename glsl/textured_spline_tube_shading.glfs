@@ -951,7 +951,7 @@ vec4 splat_color##I(in int gid, in vec2 p, in int color_map_idx, in int float_ba
 		val = clamp(val, 0.0, 1.0); \
 	} \
 	non_outline_factor = 1; \
-	return vec4(color_map_idx > -1 ? map_to_color(val, color_map_idx) : vec3(0.0), 1.0); \
+	return vec4(color_map_idx > -1 ? map_to_color(mix(range.z, range.w, val), color_map_idx) : vec3(0.0), 1.0); \
 }
 
 	//return vec4(val < 0.0 ? vec3(-val, 0.0,  0.0) : vec3(0.0, val, 0.0), 1.0); \
