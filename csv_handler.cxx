@@ -406,15 +406,16 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	/// XXX: Hack to get absolute values of vorticity vector components for Paraview-exported Streamline datasets
 	///      Note: has more custom hacks inside main parser loop to take absolute value
 
-	static const csv_descriptor::attribute abs_vorticity[] = {
+	static const csv_descriptor::attribute abs_attribs[] = {
 		{"|Vorticity.x|", {"Vorticity:0", false, 5}},
 		{"|Vorticity.y|", {"Vorticity:1", false, 6}},
-		{"|Vorticity.z|", {"Vorticity:2", false, 7}}
+		{"|Vorticity.z|", {"Vorticity:2", false, 7}},
+		{"|p|", {"p", false, 3}}
 	};
 	bool is_paraview_streamline = false;
 	if (impl.csv_desc.name().compare("Paraview Streamline") == 0)
 	{
-		for (const auto &vattr : abs_vorticity)
+		for (const auto &vattr : abs_attribs)
 		{
 			declared_attribs.emplace_back(vattr);
 			auto &attrib = declared_attribs.back();
@@ -501,7 +502,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 					///      Note: also has a preparatory custom hack in the initialization phase
 
 					if (is_paraview_streamline && [&attrib] {
-						for (const auto &vattr : abs_vorticity)
+						for (const auto &vattr : abs_attribs)
 							if (&attrib.desc == &vattr) // <-- this works because attrib just references the underlying csv_desc
 								return true;
 						return false;
@@ -780,15 +781,16 @@ csv_imldevice_reg(
 static const csv_descriptor csv_paraview_streamline_desc("Paraview Streamline", ",", {
 	{ "Time", {"IntegrationTime", false, 4}, CSV::TIMESTAMP },
 	{ "Position",  {{"Points:0", false, 13}, {"Points:1", false, 14}, {"Points:2", false, 15}}, CSV::POS },
-	{ "Normal", {{"Normals:0", false, 10}, {"Normals:1", false, 11}, {"Normals:2", false, 12}} },
-	{ "Normal.x", {"Normals:0", false, 10} }, // make individual
-	{ "Normal.y", {"Normals:1", false, 11} }, // components accessible
-	{ "Normal.z", {"Normals:2", false, 12} }, // also
 	{ "Velocity",  {{"U:0", false, 0}, {"U:1", false, 1}, {"U:2", false, 2}} },
+	{ "p", {"p", false, 3} },
 	{ "Vorticity", {{"Vorticity:0", false, 5}, {"Vorticity:1", false, 6}, {"Vorticity:2", false, 7}} },
 	{ "Vorticity.x", {"Vorticity:0", false, 5} }, // make individual
 	{ "Vorticity.y", {"Vorticity:1", false, 6} }, // components accessible
-	{ "Vorticity.z", {"Vorticity:2", false, 7} }  // also
+	{ "Vorticity.z", {"Vorticity:2", false, 7} }, // also
+	{ "Normal", {{"Normals:0", false, 10}, {"Normals:1", false, 11}, {"Normals:2", false, 12}} },
+	{ "Normal.x", {"Normals:0", false, 10} }, // make individual
+	{ "Normal.y", {"Normals:1", false, 11} }, // components accessible
+	{ "Normal.z", {"Normals:2", false, 12} }  // also
 });
 //static const csv_descriptor csv_paraview_streamline_desc("Paraview Streamline", ",", {
 //	{ "timestamp", {"\"IntegrationTime\"", false, 4}, CSV::TIMESTAMP },
