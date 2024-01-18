@@ -47,6 +47,7 @@
 #include "layer_config_io.h"
 #include "textured_spline_tube_renderer.h"
 #include "color_map_viewer.h"
+#include "mapping_legend.h"
 #ifdef RTX_SUPPORT
 #include "optix_integration.h"
 #include "optixtracer_textured_spline_tube.h"
@@ -199,6 +200,7 @@ protected:
 	cgv::app::color_map_editor_ptr tf_editor_ptr;
 	cgv::app::navigator_ptr navigator_ptr;
 	cgv::data::ref_ptr<color_map_viewer> cm_viewer_ptr;
+	cgv::data::ref_ptr<mapping_legend> mapping_legend_ptr;
 	cgv::app::performance_monitor_ptr perfmon_ptr;
 	bool show_navigator = false;
 	bool show_color_map_viewer = false;

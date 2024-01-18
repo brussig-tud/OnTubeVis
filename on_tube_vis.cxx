@@ -138,6 +138,8 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	cm_editor_ptr->gui_options.create_default_tree_node = false;
 	cm_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_color_map_change, this));
 
+	mapping_legend_ptr = register_overlay<mapping_legend>("Mapping Legend");
+
 	tf_editor_ptr = register_overlay<cgv::app::color_map_editor>("Transfer Function");
 	tf_editor_ptr->set_visibility(false);
 	tf_editor_ptr->set_opacity_support(true);
@@ -1751,6 +1753,12 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		color_legend_mgr.compose(
 			ctx, traj_mgr.dataset(0), color_map_mgr, render.visualizations.front().manager.ref_glyph_attribute_mappings()
 		);
+
+		// TODO: update the mapping legend and rename the flag
+		if(mapping_legend_ptr) {
+			//mapping_legend_ptr->
+		}
+
 		update_color_legends = false;
 	}
 
@@ -2088,7 +2096,7 @@ void on_tube_vis::create_gui(void)
 	add_decorator("", "separator");
 
 	// Rendering settings
-	if(begin_tree_node("Rendering", render_gui_dummy, false, "level=1")) {
+	if(begin_tree_node("Rendering", render_gui_dummy, false)) {
 		align("\a");
 
 #ifdef RTX_SUPPORT
@@ -2151,6 +2159,9 @@ void on_tube_vis::create_gui(void)
 	add_member_control(this, "Scales", show_color_map_viewer, "toggle", "tooltip='Toggle visibility of the color scale preview.';w=65", "%x+=2");
 	add_member_control(this, "Navigator", show_navigator, "toggle", "tooltip='Toggle visibility of the navigator cube.';w=66", "%x+=2");
 	add_member_control(this, "Perfmon", show_performance_monitor, "toggle", "tooltip='Toggle visibility of the performance monitor.';w=65");
+
+	// TODO: remove later
+	inline_object_gui(mapping_legend_ptr);
 
 	add_decorator("", "separator");
 
