@@ -29,16 +29,16 @@
 
 
 // identifyier to use for position data
-#define TELLO_POSITION_ATTRIB_NAME "position"
+#define TELLO_POSITION_ATTRIB_NAME "_position"
 
 // identifyier to use for radius data
-#define TELLO_RADIUS_ATTRIB_NAME "radius"
+#define TELLO_RADIUS_ATTRIB_NAME "_radius"
 
-// identifyier to use for radius data
-#define TELLO_VELOCITY_ATTRIB_NAME "velocity"
+// identifyier to use for velocity data
+#define TELLO_VELOCITY_ATTRIB_NAME "_velocity"
 
 // identifyier to use for timestamp attribute
-#define TELLO_TIME_ATTRIB_NAME "time"
+#define TELLO_TIME_ATTRIB_NAME "Flight Time (s)"
 
 // Declare the proper csv_handler implementation type
 #define DECLARE_CSV_IMPL_TYPE typedef typename csv_handler<real>::Impl CSVImpl
@@ -125,8 +125,8 @@ namespace {
 	{
 		TelloColumn &x, &y, &z;
 		TelloPos()
-			: //TelloCompound(TelloCompound::create("MVO:posX[meters]", "MVO:posY[meters]", "MVO:posZ[meters]")),
-			  TelloCompound(TelloCompound::create("GPS:Long", "GPS:Lat", "usonic:usonic_h")),
+			: //TelloCompound(TelloCompound::create("GPS:Long", "GPS:Lat", "usonic:usonic_h")),
+			  TelloCompound(TelloCompound::create("GPS.Lat", "GPS.Long", "Ultrasound.height (m)")),
 			  x(cols[0]), y(cols[1]), z(cols[2])
 		{}
 
@@ -138,7 +138,7 @@ namespace {
 	{
 		TelloColumn &x, &y, &z;
 		TelloVel()
-			: TelloCompound(TelloCompound::create("IMU_ATTI(0):velE", "IMU_ATTI(0):velN", "IMU_ATTI(0):velD")),
+			: TelloCompound(TelloCompound::create("IMU1.velN (m/s)", "IMU1.velE (m/s)", "IMU1.velD (m/s)")),
 			  x(cols[0]), y(cols[1]), z(cols[2])
 		{}
 
@@ -310,7 +310,7 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 
 	// parse the stream until EOF
 	real dist_accum = 0;
-	double first_timestamp = 0, prev_timestamp = 0.;
+	double first_timestamp = 0, prev_timestamp = 0;
 	typedef std::array<double, 2> latlong;
 	latlong refpos;
 	while (!contents.eof())
@@ -411,7 +411,7 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 	const unsigned num_segs = (unsigned)(P.data.values.size()-1);
 	traj_format_handler<flt_type>::set_avg_segment_length(ret, dist_accum/real(num_segs));
 	auto R = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, TELLO_RADIUS_ATTRIB_NAME);
-	R.data.values = std::vector<flt_type>(P.data.num(), ret.avg_segment_length()*real(0.125));
+	R.data.values = std::vector<flt_type>(P.data.num(), ret.avg_segment_length()*real(.25));
 	R.data.timestamps = P.data.timestamps;
 	traj_format_handler<flt_type>::trajectories(ret, R.attrib) = Ptraj; // invented radius "samples" are in sync with positions, so just copy traj info
 
