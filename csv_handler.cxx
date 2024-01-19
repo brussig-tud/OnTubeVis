@@ -435,7 +435,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	bool nothing_loaded = true;
 	real dist_accum = 0;
 	unsigned running_traj_id = 0;
-	double first_timestamp = 0, prev_timestamp = 0.;
+	double first_timestamp = 0, prev_timestamp = 0;
 	bool first = true;
 	while (!contents.eof())
 	{
@@ -634,7 +634,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	traj_format_handler<flt_type>::set_avg_segment_length(ret, real(dist_accum / double(num_segs)));
 
 	// invent radii now that all stats are known
-	R.data.values = std::vector<real>(num_samples, ret.avg_segment_length()*real(0.25));
+	R.data.values = std::vector<real>(num_samples, ret.avg_segment_length()*real(.25));
 	R.data.timestamps = P.data.timestamps;
 	traj_format_handler<flt_type>::trajectories(ret, R.attrib) = traj_format_handler<flt_type>::trajectories(ret, P.attrib);
 
