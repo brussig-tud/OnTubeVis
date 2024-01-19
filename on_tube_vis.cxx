@@ -651,20 +651,24 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 
 	// internal state flags
 	// - configurable datapath
-	if(m.is(datapath_helper.file_name)) {
+	if(m.is(datapath_helper.file_name))
+	{
 		const auto& file_name = datapath_helper.file_name;
-		if(!file_name.empty()) {
+		if(!file_name.empty())
+		{
 			from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
-			traj_mgr.clear();
-			cgv::utils::stopwatch s(true);
-			std::cout << "Reading data set from " << file_name << " ..." << std::endl;
+			if (traj_mgr.can_load(file_name))
+			{
+				traj_mgr.clear();
+				cgv::utils::stopwatch s(true);
+				std::cout << "Reading data set from " << file_name << " ..." << std::endl;
 
-			if(traj_mgr.load(file_name) != -1) {
-				std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
-				dataset.files.clear();
-				dataset.files.emplace(file_name);
-
-				data_set_changed = true;
+				if(traj_mgr.load(file_name) != -1) {
+					std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+					dataset.files.clear();
+					dataset.files.emplace(file_name);
+					data_set_changed = true;
+				}
 			}
 		}
 	}
@@ -1742,7 +1746,7 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 
 void on_tube_vis::init_frame (cgv::render::context &ctx)
 {
-	// TODO: remove once all relevant view interactor provided by the framework properly fix the up-vector
+	// TODO: remove once all relevant view interactors provided by the framework properly fix the up-vector
 	/*if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
 		view_ptr->set_view_up_dir(0, 1, 0);*/
 
