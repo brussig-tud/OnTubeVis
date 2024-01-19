@@ -1,56 +1,27 @@
 <GlyphConfiguration>
-  <ColorMaps>
-    <ColorMap name="acton" custom="0" />
-    <ColorMap name="bamako" custom="0" />
-    <ColorMap name="batlowK" custom="0" />
-    <ColorMap name="batlowW" custom="0" />
-    <ColorMap name="batlow" custom="0" />
-    <ColorMap name="bilbao" custom="0" />
-    <ColorMap name="buda" custom="0" />
-    <ColorMap name="davos" custom="0" />
-    <ColorMap name="devon" custom="0" />
-    <ColorMap name="grayC" custom="0" />
-    <ColorMap name="hawaii" custom="0" />
-    <ColorMap name="imola" custom="0" />
-    <ColorMap name="lajolla" custom="0" />
-    <ColorMap name="lapaz" custom="0" />
-    <ColorMap name="nuuk" custom="0" />
-    <ColorMap name="oslo" custom="0" />
-    <ColorMap name="tokyo" custom="0" />
-    <ColorMap name="turku" custom="0" />
-    <ColorMap name="bam" custom="0" />
-    <ColorMap name="vanimo" custom="0" />
-    <ColorMap name="cork" custom="0" />
-    <ColorMap name="tofino" custom="0" />
-    <ColorMap name="broc" custom="0" />
-    <ColorMap name="lisbon" custom="0" />
-    <ColorMap name="vik" custom="0" />
-    <ColorMap name="berlin" custom="0" />
-    <ColorMap name="roma" custom="0" />
-    <ColorMap name="RAINBOW" custom="0" />
-  </ColorMaps>
-  <Layers>
-    <Layer glyph="color" >
-      <Property name="interpolate" value="1.000000" />
-      <Property name="color" attrib_name="velocity" color_map_name="bilbao" in_range="0.000000, 3.459400" />
-    </Layer>
-    <Layer glyph="line_plot" >
-      <Property name="outline" value="0.000000" />
-      <Property name="interpolate" value="1.000000" />
-      <Property name="color_0" color="0.333333, 0.333333, 0.333333" />
-      <Property name="value_0" attrib_name="p" in_range="-1600.000000, 2600.000000" out_range="0.000000, 0.540000" />
-      <Property name="color_1" color="0.000000, 0.000000, 0.000000" />
-      <Property name="value_1" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="color_2" color="0.000000, 0.000000, 0.000000" />
-      <Property name="value_2" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-      <Property name="color_3" color="0.000000, 0.000000, 0.000000" />
-      <Property name="value_3" in_range="0.000000, 1.000000" out_range="0.000000, 1.000000" />
-    </Layer>
-    <Layer glyph="sign_blob" >
-      <Property name="outline" value="0.020000" />
-      <Property name="size" value="1.000000" out_range="0.000000, 1.000000" />
-      <Property name="color" attrib_name="AngularVelocity" color_map_name="vik" in_range="-50.000000, 50.000000" />
-      <Property name="value" attrib_name="AngularVelocity" in_range="-50.000000, 50.000000" />
-    </Layer>
-  </Layers>
+    <ColorMaps/>
+    <Layers>
+        <Layer name="Velocity (color)" active="true" glyph="color" sampling="original">
+            <Property name="interpolate" value="1.000000"/>
+            <Property name="color" attrib_name="Velocity" color_map_name="bilbao" in_range="8.3414e-20 3.459" out_range="0 1"/>
+        </Layer>
+        <Layer name="Pressure (lineplot)" active="true" glyph="line_plot" sampling="original">
+            <Property name="outline" value="0.000000"/>
+            <Property name="interpolate" value="1.000000"/>
+            <Property name="color_0" color="0.333333 0.333333 0.333333" out_range="0 1"/>
+            <Property name="value_0" attrib_name="|p|" in_range="0 10000" out_range="0 0.5"/>
+            <Property name="color_1" color="0 0 0" out_range="0 1"/>
+            <Property name="value_1" in_range="0 1" out_range="0 1"/>
+            <Property name="color_2" color="0 0 0" out_range="0 1"/>
+            <Property name="value_2" in_range="0 1" out_range="0 1"/>
+            <Property name="color_3" color="0 0 0" out_range="0 1"/>
+            <Property name="value_3" in_range="0 1" out_range="0 1"/>
+        </Layer>
+        <Layer name="Angular Vel. (sign)" active="true" glyph="sign_blob" sampling="original">
+            <Property name="outline" value="0.020000"/>
+            <Property name="size" value="1.000000" out_range="0 1"/>
+            <Property name="color" attrib_name="AngularVelocity" color_map_name="vik" in_range="-50 50" out_range="0 1"/>
+            <Property name="value" attrib_name="AngularVelocity" in_range="-50 50"/>
+        </Layer>
+    </Layers>
 </GlyphConfiguration>
