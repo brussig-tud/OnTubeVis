@@ -56,7 +56,7 @@ void color_legend_manager::compose (
 			stitle << ltype_names[layer.get_shape_ptr()->type()];
 			/*if (!layer.get_name().empty())
 				stitle << " ("<<layer.get_name()<<')';*/
-			stitle << " ("<<attrib_names[ai]<<')';
+			stitle << " -- "<<attrib_names[ai];
 
 			// set up a legend for the found color mapping
 			const auto &colormaps = color_map_mgr.ref_color_maps();
