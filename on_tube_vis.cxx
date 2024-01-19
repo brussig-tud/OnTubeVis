@@ -133,6 +133,8 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
 
 	// register overlay widgets
+	mapping_legend_ptr = register_overlay<mapping_legend>("Mapping Legend");
+
 	cm_editor_ptr = register_overlay<cgv::app::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
 	cm_editor_ptr->gui_options.create_default_tree_node = false;
@@ -841,7 +843,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		if(changes) {
 			layer_config_has_unsaved_changes = true;
 			on_set(&layer_config_has_unsaved_changes);
-			update_color_legends = true;
+			update_legends = true;
 		}
 	}
 
@@ -958,14 +960,19 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 	}
 
 	// widget controls
-	if(m.is(show_navigator)) {
-		if(navigator_ptr)
-			navigator_ptr->set_visibility(show_navigator);
+	if(m.is(show_mapping_legend)) {
+		if(mapping_legend_ptr)
+			mapping_legend_ptr->set_visibility(show_mapping_legend);
 	}
-
+	
 	if(m.is(show_color_map_viewer)) {
 		if(cm_viewer_ptr)
 			cm_viewer_ptr->set_visibility(show_color_map_viewer);
+	}
+
+	if(m.is(show_navigator)) {
+		if(navigator_ptr)
+			navigator_ptr->set_visibility(show_navigator);
 	}
 
 	if(m.is(show_performance_monitor)) {
@@ -1750,12 +1757,16 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	/*if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
 		view_ptr->set_view_up_dir(0, 1, 0);*/
 
-	// update color legends if necessary
-	if (update_color_legends) {
+	// update color and mapping legends if necessary
+	if (update_legends) {
 		color_legend_mgr.compose(
 			ctx, traj_mgr.dataset(0), color_map_mgr, render.visualizations.front().manager.ref_glyph_attribute_mappings()
 		);
-		update_color_legends = false;
+
+		if(mapping_legend_ptr)
+			mapping_legend_ptr->update(traj_mgr.dataset(0), render.visualizations.front().manager);
+
+		update_legends = false;
 	}
 
 	// keep the framebuffer up to date with the viewport size
@@ -2092,7 +2103,7 @@ void on_tube_vis::create_gui(void)
 	add_decorator("", "separator");
 
 	// Rendering settings
-	if(begin_tree_node("Rendering", render_gui_dummy, false, "level=1")) {
+	if(begin_tree_node("Rendering", render_gui_dummy, false)) {
 		align("\a");
 
 #ifdef RTX_SUPPORT
@@ -2152,9 +2163,10 @@ void on_tube_vis::create_gui(void)
 	add_decorator("", "separator");
 	
 	// Overlay widgets
-	add_member_control(this, "Scales", show_color_map_viewer, "toggle", "tooltip='Toggle visibility of the color scale preview.';w=65", "%x+=2");
-	add_member_control(this, "Navigator", show_navigator, "toggle", "tooltip='Toggle visibility of the navigator cube.';w=66", "%x+=2");
-	add_member_control(this, "Perfmon", show_performance_monitor, "toggle", "tooltip='Toggle visibility of the performance monitor.';w=65");
+	add_member_control(this, "Layer Legend", show_mapping_legend, "toggle", "tooltip='Toggle visibility of the layer mapping legend.';w=98", "%x+=4");
+	add_member_control(this, "Color Scales", show_color_map_viewer, "toggle", "tooltip='Toggle visibility of the color scale preview.';w=98", "\n%y-=5");
+	add_member_control(this, "Navigator", show_navigator, "toggle", "tooltip='Toggle visibility of the navigator cube.';w=98", "%x+=4");
+	add_member_control(this, "Performance", show_performance_monitor, "toggle", "tooltip='Toggle visibility of the performance monitor.';w=98");
 
 	add_decorator("", "separator");
 
