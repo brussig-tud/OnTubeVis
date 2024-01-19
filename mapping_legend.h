@@ -5,34 +5,41 @@
 #include <cgv_g2d/canvas.h>
 #include <cgv_g2d/shape2d_styles.h>
 
+#include "glyph_layer_manager.h"
+#include "traj_loader.h"
+
 class mapping_legend : public cgv::app::canvas_overlay {
 protected:
-	struct layout_attributes {
-		int padding;
-		int total_height;
+	struct layer_info {
+		struct line_info {
+			std::string text;
+			std::string range;
+			bool has_color = false;
+			rgb color = rgb(0.0f);
 
-		// dependent members
-		cgv::g2d::trect<int> color_map_rect;
+			bool empty() const { return text.empty() && !has_color; }
+		};
 
-		void update(const ivec2& parent_size) {
-			color_map_rect.position = ivec2(padding);
-			color_map_rect.size = parent_size - 2 * padding;
-		}
-	} layout;
+		std::string title;
+		std::vector<line_info> lines;
 
-	
+		size_t size() const { return lines.size(); }
+	};
+
+	std::vector<layer_info> layers;
+
 	// geometry
 	cgv::g2d::msdf_text_geometry text;
-	bool texts_out_of_date = false;
+	std::vector<float> dividers;
+	std::vector<std::pair<vec2, rgb>> color_boxes;
 
 	// appearance
-	cgv::g2d::shape2d_style container_style;// , border_style, color_map_style;
+	cgv::g2d::shape2d_style container_style, border_style, color_box_style;
 	cgv::g2d::text2d_style text_style;
 	
-	void update_texts();
+	void create_geometry();
 
 	void init_styles() override;
-	void create_gui_impl() override;
 
 public:
 	mapping_legend();
@@ -46,5 +53,5 @@ public:
 	void init_frame(cgv::render::context& ctx) override;
 	void draw_content(cgv::render::context& ctx) override;
 	
-	// TODO: set attrib mapping info
+	void update(const traj_dataset<float>& dataset, const glyph_layer_manager& glyph_manager);
 };
