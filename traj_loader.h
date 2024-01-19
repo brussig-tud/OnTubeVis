@@ -578,7 +578,7 @@ public:
 
 /// a map of attribute names to their data
 template <class flt_type>
-using attribute_map = std::unordered_map<std::string, traj_attribute<flt_type> >;
+using attribute_map = std::map<std::string, traj_attribute<flt_type> >;
 
 
 /// represents any sort of transformation that can be applied to attribute data
