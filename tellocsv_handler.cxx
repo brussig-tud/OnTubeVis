@@ -126,7 +126,7 @@ namespace {
 		TelloColumn &x, &y, &z;
 		TelloPos()
 			: //TelloCompound(TelloCompound::create("MVO:posX[meters]", "MVO:posY[meters]", "MVO:posZ[meters]")),
-			  TelloCompound(TelloCompound::create("GPS:Long", "GPS:Lat", "GPS:heightMSL")),
+			  TelloCompound(TelloCompound::create("GPS:Long", "GPS:Lat", "usonic:usonic_h")),
 			  x(cols[0]), y(cols[1]), z(cols[2])
 		{}
 
