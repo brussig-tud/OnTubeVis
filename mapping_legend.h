@@ -43,7 +43,7 @@ protected:
 
 public:
 	mapping_legend();
-	std::string get_type_name() const { return "mapping_legend"; }
+	std::string get_type_name() const override { return "mapping_legend"; }
 
 	bool init(cgv::render::context& ctx) override;
 	void clear(cgv::render::context& ctx) override;
