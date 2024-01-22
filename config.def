@@ -28,6 +28,7 @@ type(on_tube_vis):show_bounding_box=false
 type(on_tube_vis):show_wireframe_box=true
 // - Grid mode: GM_NONE - no grid, GM_COLOR - color only, GM_NORMAL - normal mapping only, GM_COLOR_AND_NORMAL - color and normal mapping (default)
 type(on_tube_vis):grid_mode=GM_COLOR_AND_NORMAL
+// - Debugging
 type(on_tube_vis):show_hidden_glyphs=false
 // - Voxelization device
 type(on_tube_vis):voxelize_gpu=false
