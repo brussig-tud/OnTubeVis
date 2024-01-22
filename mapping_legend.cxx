@@ -59,7 +59,7 @@ void mapping_legend::draw_content(cgv::render::context& ctx) {
 	content_canvas.draw_shape(ctx, ivec2(0), container_size);
 	
 	content_canvas.set_style(ctx, border_style);
-	for(int position : dividers)
+	for(auto &position : dividers)
 		content_canvas.draw_shape(ctx, vec2(12.0f, position), vec2(static_cast<float>(container_size.x() - 24), 1.0f));
 
 	content_canvas.set_style(ctx, color_box_style);
