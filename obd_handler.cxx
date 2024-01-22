@@ -29,19 +29,19 @@
 #define OBD_MERCATOR_SCALEDOWN_FACTOR 64
 
 // identifyier to use for position data
-#define OBD_POSITION_ATTRIB_NAME "position"
+#define OBD_POSITION_ATTRIB_NAME "_position"
 
 // identifyier to use for radius data
-#define OBD_ALTITUDE_ATTRIB_NAME "altitude"
+#define OBD_ALTITUDE_ATTRIB_NAME "GPS.altitude"
 
 // identifyier to use for radius data
-#define OBD_GPSSPEED_ATTRIB_NAME "gps_speed"
+#define OBD_GPSSPEED_ATTRIB_NAME "GPS.speed"
 
 // identifyier to use for radius data
-#define OBD_RADIUS_ATTRIB_NAME "radius"
+#define OBD_RADIUS_ATTRIB_NAME "_radius"
 
 // identifyier to use for timestamp attribute
-#define OBD_TIME_ATTRIB_NAME "time"
+#define OBD_TIME_ATTRIB_NAME "Time"
 
 // whether to use ECEF coordinates instead of Mercator cartesian + altitude
 #define OBD_USE_ECEF_COORDINATES 0
