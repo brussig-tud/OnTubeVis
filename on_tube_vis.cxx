@@ -148,7 +148,7 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	navigator_ptr = register_overlay<cgv::app::navigator>("Navigator");
 	navigator_ptr->set_visibility(false);
 	navigator_ptr->gui_options.show_layout_options = false;
-	navigator_ptr->set_overlay_alignment(cgv::app::overlay::AO_START, cgv::app::overlay::AO_END);
+	navigator_ptr->set_overlay_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_START);
 	navigator_ptr->set_size(100);
 	
 	cm_viewer_ptr = register_overlay<color_map_viewer>("Color Scale Viewer");

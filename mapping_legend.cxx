@@ -157,7 +157,7 @@ void mapping_legend::update(const traj_dataset<float>& dataset, const glyph_laye
 			} else { // generic glyph
 				if(attribute_index > -1) {
 					// attribute is mapped
-					line.text = visual_attribute_name + " from " + attribute_names[attribute_index];
+					line.text = visual_attribute_name + " <-- " + attribute_names[attribute_index];
 					line.range = range_to_string(range);
 
 					//if(color_index > -1)
