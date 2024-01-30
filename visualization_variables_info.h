@@ -1,14 +1,12 @@
 #pragma once
 
-#include <cgv/render/render_types.h>
 #include <cgv/utils/scan.h>
-
 
 
 class visualization_variables_info {
 private:
 	std::vector<std::string> attribute_names;
-	std::vector<cgv::render::vec2> attribute_ranges;
+	std::vector<cgv::vec2> attribute_ranges;
 	std::vector<std::string> color_map_names;
 
 	std::string attribute_names_list = "";
@@ -22,7 +20,7 @@ public:
 		attribute_names_list = cgv::utils::join(attribute_names, ",");
 	}
 
-	void set_attribute_ranges(const std::vector<cgv::render::vec2>& ranges) {
+	void set_attribute_ranges(const std::vector<cgv::vec2>& ranges) {
 
 		attribute_ranges = ranges;
 	}
@@ -38,7 +36,7 @@ public:
 		return attribute_names;
 	}
 
-	const std::vector<cgv::render::vec2>& ref_attribute_ranges() const {
+	const std::vector<cgv::vec2>& ref_attribute_ranges() const {
 
 		return attribute_ranges;
 	}

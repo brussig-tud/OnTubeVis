@@ -2,7 +2,6 @@
 
 #include <vector>
 
-#include <cgv/render/render_types.h>
 #include <cgv/render/context.h>
 #include <cgv/render/shader_library.h>
 #include <cgv/render/vertex_buffer.h>
@@ -15,7 +14,13 @@
 #include "traj_loader.h"
 #include "hermite_spline_tube.h"
 
-class voxelizer : public cgv::render::render_types {
+class voxelizer {
+public:
+	using vec3 = cgv::vec3;
+	using vec4 = cgv::vec4;
+	using ivec3 = cgv::ivec3;
+	using box3 = cgv::box3;
+
 protected:
 	cgv::render::shader_program voxelize_prog;
 	

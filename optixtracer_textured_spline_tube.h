@@ -9,7 +9,7 @@
 #include <vector>
 
 // CGV framework
-#include <cgv/render/render_types.h>
+//#include <cgv/render/render_types.h>
 
 // local includes
 #include "optix_integration.h"
@@ -60,8 +60,12 @@ struct optix_launch_params
 // base class with common functionality for all texture spline tube tracers
 class optixtracer_textured_spline_tube
 {
-
 public:
+	/// 3D vector type
+	using vec3 = cgv::vec3;
+
+	/// 4D vector type
+	using vec4 = cgv::vec4;
 
 	/// default constructor
 	optixtracer_textured_spline_tube() {};
@@ -110,9 +114,8 @@ protected:
 };
 
 // an optixtracer that uses the sphere-based Hermite spline tube primitive intersector by Russig et al.
-class optixtracer_textured_spline_tube_russig : public optixtracer_textured_spline_tube, public cgv::render::render_types
+class optixtracer_textured_spline_tube_russig : public optixtracer_textured_spline_tube
 {
-
 public:
 
 	/// main superclass type
@@ -154,9 +157,8 @@ private:
 };
 
 // an optixtracer that uses the disc-based quadratic spline tube primitive defined for the Phantom-Ray-Hair-Intersector by Reshetov et al.
-class optixtracer_textured_spline_tube_phantom : public optixtracer_textured_spline_tube, public cgv::render::render_types
+class optixtracer_textured_spline_tube_phantom : public optixtracer_textured_spline_tube
 {
-
 public:
 
 	/// main superclass type
@@ -198,9 +200,8 @@ private:
 };
 
 // an optixtracer that uses the built-in disc-based quadratic spline tube primitive defined for the Phantom-Ray-Hair-Intersector by Reshetov et al.
-class optixtracer_textured_spline_tube_builtin : public optixtracer_textured_spline_tube, public cgv::render::render_types
+class optixtracer_textured_spline_tube_builtin : public optixtracer_textured_spline_tube
 {
-
 public:
 
 	/// main superclass type
@@ -242,9 +243,8 @@ private:
 };
 
 // an optixtracer that uses the built-in disc-based cubic spline tube primitive defined for the Phantom-Ray-Hair-Intersector by Reshetov et al.
-class optixtracer_textured_spline_tube_builtincubic : public optixtracer_textured_spline_tube, public cgv::render::render_types
+class optixtracer_textured_spline_tube_builtincubic : public optixtracer_textured_spline_tube
 {
-
 public:
 
 	/// main superclass type

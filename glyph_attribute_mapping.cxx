@@ -13,6 +13,7 @@ glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& 
 	attrib_source_indices(other.attrib_source_indices),
 	color_source_indices(other.color_source_indices),
 	attrib_mapping_values(other.attrib_mapping_values),
+	reverse_colors(other.reverse_colors),
 	attrib_colors(other.attrib_colors),
 	visualization_variables(other.visualization_variables) {
 	if(other.shape_ptr)
@@ -122,9 +123,22 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 		}
 	}
 
-	for(size_t i = 0; i < color_source_indices.size(); ++i)
+	for(size_t i = 0; i < color_source_indices.size(); ++i) {
 		if(member_ptr == &color_source_indices[i])
 			last_action_type = AT_CONFIGURATION_CHANGE;
+	}
+
+	for(size_t i = 0; i < reverse_colors.size(); ++i) {
+		if(member_ptr == &reverse_colors[i].value) {
+			if(reverse_colors[i].value) {
+				attrib_mapping_values[i].z() = 1.0f;
+				attrib_mapping_values[i].w() = 0.0f;
+			} else {
+				attrib_mapping_values[i].z() = 0.0f;
+				attrib_mapping_values[i].w() = 1.0f;
+			}
+		}
+	}
 	
 	base_ptr->on_set(this);
 }
@@ -144,6 +158,7 @@ void glyph_attribute_mapping::create_glyph_shape() {
 	attrib_source_indices.clear();
 	color_source_indices.clear();
 	attrib_mapping_values.clear();
+	reverse_colors.clear();
 	attrib_colors.clear();
 
 	size_t attrib_count = shape_ptr->supported_attributes().size();
@@ -180,6 +195,7 @@ void glyph_attribute_mapping::create_glyph_shape() {
 		attrib_mapping_values.push_back(ranges);
 	}
 
+	reverse_colors.resize(attrib_count, Bool{ 0 });
 	attrib_colors.resize(attrib_count, rgb(0.0f));
 }
 
@@ -266,8 +282,10 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 		add_local_member_control(p, bp, "Source Attribute", attrib_source_indices[i], "dropdown", "enums='" + attrib_name_enums + "'");
 		
 		if(attrib.type == GAT_COLOR) {
-			if(selected_attrib_src_idx > -1)
-				add_local_member_control(p, bp, "Color Map", color_source_indices[i], "dropdown", "enums='" + color_map_name_enums + "'");
+			if(selected_attrib_src_idx > -1) {
+				add_local_member_control(p, bp, "Color Map", color_source_indices[i], "dropdown", "enums='" + color_map_name_enums + "';w=126", " ");
+				add_local_member_control(p, bp, "Reverse", reverse_colors[i].value, "check", "w=62");
+			}
 		}
 	}
 
@@ -286,6 +304,7 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 		
 		add_local_member_control(p, bp, "In Min", attrib_mapping_values[i][0], "value_slider", in_options_str);
 		add_local_member_control(p, bp, "In Max", attrib_mapping_values[i][1], "value_slider", in_options_str);
+		
 		if(attrib.type != GAT_COLOR && attrib.type != GAT_UNIT && attrib.type != GAT_SIGNED_UNIT) {
 			add_local_member_control(p, bp, "Out Min", attrib_mapping_values[i][2], "value_slider", out_options_str);
 			add_local_member_control(p, bp, "Out Max", attrib_mapping_values[i][3], "value_slider", out_options_str);

@@ -5,7 +5,6 @@
 #include <cgv/base/base.h>
 #include <cgv/gui/provider.h>
 #include <cgv/render/context.h>
-#include <cgv/render/render_types.h>
 #include <cgv/render/texture.h>
 #include <cgv/render/color_map.h>
 
@@ -14,8 +13,10 @@
 
 
 
-class color_map_manager : public cgv::base::base, public cgv::render::render_types {
+class color_map_manager : public cgv::base::base {
 public:
+	using rgb = cgv::rgb;
+
 	/// container to store color map with name and additional info
 	struct color_map_container {
 		/// the name of this color map

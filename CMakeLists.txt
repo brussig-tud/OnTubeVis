@@ -24,7 +24,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG ba6e1f57c458fc5aac118a16389d2099fc62451a
+		GIT_TAG 79acbd25958bde571cbf337394fa5c618e9f81b1
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -95,6 +95,7 @@ set(SOURCES
 	csv_handler.cxx
 	glyph_attribute_mapping.cxx
 	glyph_layer_manager.cxx
+	mapping_legend.cxx
 	obd_handler.cxx
 	on_tube_vis.cxx
 	regulargrid.cxx
@@ -141,6 +142,7 @@ set(HEADERS
 	gui_util.h
 	hermite_spline_tube.h
 	layer_config_io.h
+	mapping_legend.h
 	obd_handler.h
 	on_tube_vis.h
 	quadratic_bezier_tube.h

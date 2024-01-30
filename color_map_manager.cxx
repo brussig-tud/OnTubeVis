@@ -1,5 +1,6 @@
 #include "color_map_manager.h"
 
+
 void color_map_manager::clear() {
 	color_maps.clear();
 }

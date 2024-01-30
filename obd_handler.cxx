@@ -29,23 +29,30 @@
 #define OBD_MERCATOR_SCALEDOWN_FACTOR 64
 
 // identifyier to use for position data
-#define OBD_POSITION_ATTRIB_NAME "position"
+#define OBD_POSITION_ATTRIB_NAME "_position"
 
 // identifyier to use for radius data
-#define OBD_ALTITUDE_ATTRIB_NAME "altitude"
+#define OBD_ALTITUDE_ATTRIB_NAME "GPS.altitude"
 
 // identifyier to use for radius data
-#define OBD_GPSSPEED_ATTRIB_NAME "gps_speed"
+#define OBD_GPSSPEED_ATTRIB_NAME "GPS.speed"
 
 // identifyier to use for radius data
-#define OBD_RADIUS_ATTRIB_NAME "radius"
+#define OBD_RADIUS_ATTRIB_NAME "_radius"
 
 // identifyier to use for timestamp attribute
-#define OBD_TIME_ATTRIB_NAME "time"
+#define OBD_TIME_ATTRIB_NAME "Time"
 
 // whether to use ECEF coordinates instead of Mercator cartesian + altitude
 #define OBD_USE_ECEF_COORDINATES 0
 
+
+template <class flt_type>
+const std::string& obd_handler<flt_type>::format_name (void) const
+{
+	static const std::string fmt_name = "OBD";
+	return fmt_name;
+}
 
 template <class flt_type>
 const std::vector<std::string>& obd_handler<flt_type>::handled_extensions (void) const
@@ -122,8 +129,7 @@ struct bool_info
 template <class flt_type>
 traj_dataset<flt_type> obd_handler<flt_type>::read(
 	std::istream &contents, DatasetOrigin source, const std::string &path
-)
-{
+){
 	size_t nr_objects = 0;
 	std::string line;
 	std::map<std::string, size_t> type_counts;

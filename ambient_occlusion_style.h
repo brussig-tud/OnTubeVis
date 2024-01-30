@@ -2,13 +2,16 @@
 
 #include <vector>
 
-#include <cgv/render/render_types.h>
-
 #include "voxel_grid.h"
 
 
+struct ambient_occlusion_style
+{
+	using vec2 = cgv::vec2;
+	using vec3 = cgv::vec3;
+	using ivec3 = cgv::ivec3;
+	using box3 = cgv::box3;
 
-struct ambient_occlusion_style : cgv::render::render_types {
 	bool enable = false;
 	float sample_offset = 0.02f;
 	float sample_distance = 0.5f;
@@ -27,7 +30,8 @@ struct ambient_occlusion_style : cgv::render::render_types {
 		generate_sample_directions();
 	}
 
-	void derive_voxel_grid_parameters(const voxel_grid& vg) {
+	void derive_voxel_grid_parameters(const voxel_grid& vg)
+	{
 		const box3& volume_bbox = vg.bounds;
 		const ivec3& volume_resolution = vg.resolution;
 
@@ -39,7 +43,8 @@ struct ambient_occlusion_style : cgv::render::render_types {
 		texel_size = 1.0f / volume_resolution[max_extent_axis];
 	}
 
-	void generate_sample_directions() {
+	void generate_sample_directions()
+	{
 		sample_directions.resize(3, vec3(0.0f, 1.0f, 0.0f));
 
 		float alpha2 = cgv::math::deg2rad(cone_angle / 2.0f);
@@ -67,7 +72,8 @@ namespace gui {
 /// define a gui creator for the ambient occlusion style struct
 struct ambient_occlusion_style_gui_creator : public gui_creator {
 	/// attempt to create a gui and return whether this was successful
-	bool create(provider* p, const std::string& label, void* value_ptr, const std::string& value_type, const std::string& gui_type, const std::string& options, bool*) {
+	bool create(provider* p, const std::string& label, void* value_ptr, const std::string& value_type, const std::string& gui_type, const std::string& options, bool*)
+	{
 		if(value_type != cgv::type::info::type_name<ambient_occlusion_style>::get_name())
 			return false;
 

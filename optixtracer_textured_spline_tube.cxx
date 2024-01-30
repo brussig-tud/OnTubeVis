@@ -11,7 +11,6 @@
 #include <libs/cgv_gl/gl/gl.h>
 
 // CGV framework
-#include <cgv/render/render_types.h>
 #include <cgv/render/texture.h>
 
 // local includes
@@ -54,26 +53,22 @@ namespace {
 		return b2 + (b2-b1);
 	}
 
-	inline float get_cr0 (const float p0, const float m0, const float p1)
-	{
+	inline float get_cr0 (const float p0, const float m0, const float p1) {
 		const float b1 = p0 + _1o3<float>*m0;
 		return p1 + 6.f*(p0 - b1);
 	}
 	template <class T>
-	inline T get_cr0 (const T &p0, const T &m0, const T &p1)
-	{
+	inline T get_cr0 (const T &p0, const T &m0, const T &p1) {
 		const T b1 = p0 + _1o3<typename T::value_type>*m0;
 		return p1 + 6.f*(p0 - b1);
 	}
 
-	inline float get_cr3 (const float p0, const float p1, const float m1)
-	{
+	inline float get_cr3 (const float p0, const float p1, const float m1) {
 		const float b2 = p1 - _1o3<float>*m1;
 		return p0 + 6.f*(p1 - b2);
 	}
 	template <class T>
-	inline T get_cr3 (const T &p0, const T &p1, const T &m1)
-	{
+	inline T get_cr3 (const T &p0, const T &p1, const T &m1) {
 		const T b2 = p1 - _1o3<typename T::value_type> * m1;
 		return p0 + 6.f*(p1 - b2);
 	}
@@ -81,8 +76,7 @@ namespace {
 	inline void split_quadseg (
 		float *b0, float *b1, float *b2, float *g0, float *g1, float *g2,
 		const float p0, const float m0, const float p1, const float m1
-	)
-	{
+	){
 		*b0 = p0;
 		*b1 = p0 + 0.2667f*m0;
 		*g1 = p1 - 0.2667f*m1;
@@ -93,8 +87,7 @@ namespace {
 	inline void split_quadseg (
 		T *b0, T *b1, T *b2, T *g0, T *g1, T *g2,
 		const T &p0, const T &m0, const T &p1, const T &m1
-	)
-	{
+	){
 		*b0 = p0;
 		*b1 = p0 + 0.2667f*m0;
 		*g1 = p1 - 0.2667f*m1;
@@ -105,8 +98,7 @@ namespace {
 	template <unsigned dims>
 	Vec<dims, float> get_curve_minimum (
 		const QuadraticCurve<float, dims> &bezier, const LinearRoots3<float> &extrema
-	)
-	{
+	){
 		const Vec<dims, float> bstart = evalBezier(bezier, .0f),
 		                       bend   = evalBezier(bezier, 1.f);
 		Vec<dims, float> pmin;
@@ -123,8 +115,7 @@ namespace {
 	template <unsigned dims>
 	Vec<dims, float> get_curve_maximum (
 		const QuadraticCurve<float, dims> &bezier, const LinearRoots3<float> &extrema
-	)
-	{
+	){
 		const Vec<dims, float> bstart = evalBezier(bezier, .0f),
 		                       bend   = evalBezier(bezier, 1.f);
 		Vec<dims, float> pmax;
@@ -139,14 +130,13 @@ namespace {
 	}
 
 	OptixAabb get_quadr_bezier_tube_aabb (
-		const cgv::render::render_types::vec3 &b0,
-		const cgv::render::render_types::vec3 &b1,
-		const cgv::render::render_types::vec3 &b2,
+		const cgv::vec3 &b0,
+		const cgv::vec3 &b1,
+		const cgv::vec3 &b2,
 		const float r0, const float r1, const float r2
-	)
-	{
+	){
 		// convenience shorthand
-		using vec3 = cgv::render::render_types::vec3;
+		using vec3 = cgv::vec3;
 
 		// represent all curves as control matrices for more wieldy notation from here on
 		const QuadraticCurve3<float> b{b0, b1, b2};

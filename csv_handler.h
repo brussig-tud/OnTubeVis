@@ -374,6 +374,9 @@ public:
 	/// the destructor
 	virtual ~csv_handler();
 
+	/// reports the name "CSV - {desc}", where {desc} is the name of the csv descriptor schema
+	const std::string& format_name (void) const;
+
 	/// reports the file extensions the handler will claim. Currently always empty (ToDo: make customizable via \ref csv_descriptor )
 	const std::vector<std::string>& handled_extensions (void) const;
 

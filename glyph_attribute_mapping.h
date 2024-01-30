@@ -11,6 +11,7 @@
 #include <cgv/data/ref_ptr.h>
 #include <cgv/gui/control.h>
 #include <cgv/gui/provider.h>
+#include <cgv/media/color.h>
 
 #include "gui_util.h"
 #include "glyph_shapes.h"
@@ -24,7 +25,12 @@ enum AttributeSamplingStrategy {
 	ASS_AT_SAMPLES,
 };
 
-class glyph_attribute_mapping : public cgv::render::render_types {
+class glyph_attribute_mapping {
+public:
+	using vec2 = cgv::vec2;
+	using vec4 = cgv::vec4;
+	using rgb = cgv::rgb;
+
 protected:
 	ActionType last_action_type = AT_NONE;
 
@@ -41,6 +47,11 @@ protected:
 	std::vector<cgv::type::DummyEnum> attrib_source_indices;
 	std::vector<cgv::type::DummyEnum> color_source_indices;
 	std::vector<vec4> attrib_mapping_values;
+	// Wrap bool to prevent specialization of std::vector.
+	struct Bool {
+		bool value;
+	};
+	std::vector<Bool> reverse_colors;
 	std::vector<rgb> attrib_colors;
 	
 	void on_set(void* member_ptr, cgv::base::base* base_ptr);
@@ -87,6 +98,7 @@ public:
 		swap(first.attrib_source_indices, second.attrib_source_indices);
 		swap(first.color_source_indices, second.color_source_indices);
 		swap(first.attrib_mapping_values, second.attrib_mapping_values);
+		swap(first.reverse_colors, second.reverse_colors);
 		swap(first.attrib_colors, second.attrib_colors);
 		swap(first.visualization_variables, second.visualization_variables);
 
@@ -141,10 +153,6 @@ public:
 		}
 	}
 
-	//const std::vector<std::string>& ref_attribute_names() const { return visualization_variables->ref_attribute_names(); }
-	//
-	//const std::vector<std::string>& ref_color_map_names() const { return visualization_variables->ref_color_map_names(); }
-
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
 
 	void set_attrib_source_index(size_t attrib_idx, int source_idx) {
@@ -168,6 +176,8 @@ public:
 		if(idx < attrib_mapping_values.size()) {
 			attrib_mapping_values[idx].z() = range.x();
 			attrib_mapping_values[idx].w() = range.y();
+			
+			reverse_colors[idx].value = range.x() > range.y();
 		}
 	}
 

@@ -8,6 +8,11 @@
 #include <cgv_g2d/shape2d_styles.h>
 
 class color_map_viewer : public cgv::app::canvas_overlay {
+public:
+	using ivec2 = cgv::ivec2;
+	using rgb = cgv::rgb;
+	using rgba = cgv::rgba;
+
 protected:
 	struct layout_attributes {
 		int padding;

@@ -172,6 +172,13 @@ const visual_attribute_mapping<flt_type> tgen_handler<flt_type>::Impl::attrmap({
 });
 
 template <class flt_type>
+const std::string& tgen_handler<flt_type>::format_name (void) const
+{
+	static const std::string fmt_name = "TGEN";
+	return fmt_name;
+}
+
+template <class flt_type>
 bool tgen_handler<flt_type>::can_handle (std::istream &contents) const
 {
 	std::string str;
@@ -208,8 +215,7 @@ bool tgen_handler<flt_type>::can_handle (std::istream &contents) const
 template <class flt_type>
 traj_dataset<flt_type> tgen_handler<flt_type>::read (
 	std::istream &contents, DatasetOrigin source, const std::string &path
-)
-{
+){
 	// statics
 	const static std::string whitespaces(" \t"), quotations("'\"");
 

@@ -1,7 +1,6 @@
 #pragma once
 
 // CGV framework core
-#include <cgv/render/render_types.h>
 #include <cgv/utils/file.h>
 #include <cgv/utils/scan.h>
 
@@ -18,7 +17,11 @@
 #include "glyph_layer_manager.h"
 #include "color_map_manager.h"
 
+
 class layer_configuration_io {
+public:
+	using vec2 = cgv::vec2;
+
 private:
 	static int index_of(const std::vector<std::string>& v, const std::string& elem) {
 
@@ -92,11 +95,11 @@ private:
 		const auto& attribute_names = visualization_variables->ref_attribute_names();
 		const auto& color_map_names = visualization_variables->ref_color_map_names();
 
-		auto vec2_to_str = [](const cgv::render::vec2& v) {
+		auto vec2_to_str = [](const cgv::vec2& v) {
 			return std::to_string(v.x()) + ", " + std::to_string(v.y());
 		};
 
-		auto rgb_to_str = [](const cgv::render::rgb& v) {
+		auto rgb_to_str = [](const cgv::rgb& v) {
 			return std::to_string(v.R()) + ", " + std::to_string(v.G()) + ", " + std::to_string(v.B());
 		};
 
@@ -120,19 +123,19 @@ private:
 					cgv::xml::PushAttribute(printer, "color", colors[i]);
 			}
 
-			cgv::render::vec4 mr = mapping_ranges[i];
+			cgv::vec4 mr = mapping_ranges[i];
 			if(attribute.modifiers & GAM_GLOBAL) {
 				if(attribute.type != GAT_COLOR)
 					cgv::xml::PushAttribute(printer, "value", std::to_string(mr.w()));
 			} else {
-				cgv::xml::PushAttribute(printer, "in_range", cgv::render::vec2(mr.x(), mr.y()));
+				cgv::xml::PushAttribute(printer, "in_range", cgv::vec2(mr.x(), mr.y()));
 			}
 			if(attribute.type != GAT_UNIT &&
 			   attribute.type != GAT_SIGNED_UNIT &&
-			   attribute.type != GAT_COLOR &&
+			   //attribute.type != GAT_COLOR &&
 			   attribute.type != GAT_OUTLINE
 			   ) {
-				cgv::xml::PushAttribute(printer, "out_range", cgv::render::vec2(mr.z(), mr.w()));
+				cgv::xml::PushAttribute(printer, "out_range", cgv::vec2(mr.z(), mr.w()));
 			}
 
 			printer.CloseElement();
@@ -168,7 +171,7 @@ private:
 		glyph_attribute_mapping gam;
 		const glyph_shape* shape_ptr = nullptr;
 		std::vector<std::string> shape_attribute_names;
-		std::vector<std::pair<int, cgv::render::vec2>> input_ranges;
+		std::vector<std::pair<int, cgv::vec2>> input_ranges;
 
 		extract_layer_attributes(elem, gam, shape_ptr, shape_attribute_names);
 
@@ -235,7 +238,7 @@ private:
 									   glyph_attribute_mapping& gam,
 									   const glyph_shape* shape_ptr,
 									   std::vector<std::string>& shape_attribute_names,
-									   std::vector<std::pair<int, cgv::render::vec2>>& input_ranges) {
+									   std::vector<std::pair<int, cgv::vec2>>& input_ranges) {
 
 		std::string name = "";
 		if(cgv::xml::QueryStringAttribute(elem, "name", name) != tinyxml2::XML_SUCCESS)
@@ -268,10 +271,10 @@ private:
 		if(attrib.modifiers & GAM_GLOBAL) {
 			float value = 1.0f;
 			if(elem.QueryFloatAttribute("value", &value) == tinyxml2::XML_SUCCESS)
-				gam.set_attrib_out_range(shape_attrib_idx, cgv::render::vec2(0.0f, value));
+				gam.set_attrib_out_range(shape_attrib_idx, cgv::vec2(0.0f, value));
 		}
 
-		cgv::render::vec2 in_range(0.0f);
+		cgv::vec2 in_range(0.0f, 1.0f);
 		if(cgv::xml::QueryVecAttribute(elem, "in_range", in_range) == tinyxml2::XML_SUCCESS) {
 			gam.set_attrib_in_range(shape_attrib_idx, in_range);
 			input_ranges.push_back({ shape_attrib_idx, in_range });
@@ -281,10 +284,10 @@ private:
 
 		if(attrib.type != GAT_UNIT &&
 		   attrib.type != GAT_SIGNED_UNIT &&
-		   attrib.type != GAT_COLOR &&
+		   //attrib.type != GAT_COLOR &&
 		   attrib.type != GAT_OUTLINE
 		   ) {
-			cgv::render::vec2 out_range(0.0f);
+			cgv::vec2 out_range(0.0f, 1.0f);
 			if(cgv::xml::QueryVecAttribute(elem, "out_range", out_range) == tinyxml2::XML_SUCCESS)
 				gam.set_attrib_out_range(shape_attrib_idx, out_range);
 		}
@@ -300,7 +303,7 @@ private:
 
 			if(color_map_idx < 0) {
 				// no color map selected
-				cgv::render::rgb color(0.0f);
+				cgv::rgb color(0.0f);
 				if(cgv::xml::QueryRGBAttribute(elem, "color", color) == tinyxml2::XML_SUCCESS)
 					gam.set_attrib_color(shape_attrib_idx, color);
 			} else {

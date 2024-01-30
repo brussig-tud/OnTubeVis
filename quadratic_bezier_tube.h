@@ -1,9 +1,17 @@
 #pragma once
 
-#include <cgv/render/render_types.h>
 #include <cgv/math/functions.h>
 
-class quadratic_bezier_tube : public cgv::render::render_types {
+
+class quadratic_bezier_tube
+{
+public:
+	using vec2 = cgv::vec2;
+	using vec3 = cgv::vec3;
+	using vec4 = cgv::vec4;
+	using mat4 = cgv::mat4;
+	using box3 = cgv::box3;
+
 private:
 	vec3 project_to_plane(vec3 vec, vec3 n) const {
 		return vec - n * dot(vec, n) / dot(n, n);

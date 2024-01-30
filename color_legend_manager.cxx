@@ -2,13 +2,14 @@
 #include "glyph_shapes.h"
 #include "color_legend_manager.h"
 
+
 color_legend_manager::color_legend_manager(cgv::app::application_plugin_base &owner) : owner(owner) {
 	std::stringstream str;
 	for (unsigned i=0; i<legends.size(); i++) {
 		str.flush();
 		str << "Legend_layer" << i;
 		legends[i] = owner.register_overlay<cgv::app::color_map_legend>(str.str());
-		legends[i]->set_overlay_size(legends[i]->get_overlay_size()+cgv::render::ivec2(16, 0));
+		legends[i]->set_overlay_size(legends[i]->get_overlay_size()+cgv::ivec2(16, 0));
 		legends[i]->set_num_ticks(5);
 		legends[i]->set_label_auto_precision(false);
 		legends[i]->set_label_prune_trailing_zeros(true);
@@ -30,10 +31,10 @@ void color_legend_manager::compose (
 ){
 	// throw out old configuration
 	clear();
-	if (layers.empty())
-		return;
 
 	// collect in-use color maps
+	if (layers.empty())
+		return;
 	int voffset = -3;
 	const auto attrib_names = dataset.get_attribute_names(),
 	           ltype_names = glyph_type_registry::display_names();
@@ -43,10 +44,9 @@ void color_legend_manager::compose (
 		const auto &[id, cmi, ai] = [&layer]() -> std::tuple<int, int, int> {
 			const auto cmi_list = layer.get_color_map_indices();
 			const auto ai_list = layer.get_attrib_indices();
-			for (unsigned i=0; i< cmi_list.size(); i++) {
+			for (unsigned i=0; i<cmi_list.size(); i++)
 				if (cmi_list[i] > -1 && ai_list[i] > -1)
 					return {i, cmi_list[i], ai_list[i]};
-			}
 			return {-1, -1, -1};
 		}();
 		if (cmi > -1)
@@ -55,19 +55,34 @@ void color_legend_manager::compose (
 			std::stringstream stitle;
 			stitle << ltype_names[layer.get_shape_ptr()->type()];
 			/*if (!layer.get_name().empty())
-				stitle << '('<<layer.get_name()<<')';*/
-			stitle << " ("<<attrib_names[ai]<<')';
+				stitle << " ("<<layer.get_name()<<')';*/
+			stitle << " -- "<<attrib_names[ai];
 
 			// set up a legend for the found color mapping
 			const auto &colormaps = color_map_mgr.ref_color_maps();
-			const auto &cm = colormaps[cmi];
+			const auto &cmc = colormaps[cmi];
 			auto &new_legend = legends[num_active];
-			new_legend->set_color_map(ctx, cm.cm);
 			new_legend->set_title(stitle.str());
+
+			// set the color map
+			const auto& ranges = layer.ref_attrib_mapping_values()[id];
+			// for color-mapped attributes an "invalid" output range of 1 to 0 indicates reversed color mapping
+			if(ranges.z() > ranges.w()) {
+				// copy the color map to take over settings
+				cgv::render::color_map cm = cmc.cm;
+				cm.clear();
+				// now re-add the mirrored control points
+				for(const auto& p : cmc.cm.ref_color_points())
+					cm.add_color_point(1.0f - p.first, p.second);
+				for(const auto& p : cmc.cm.ref_opacity_points())
+					cm.add_opacity_point(1.0f - p.first, p.second);
+
+				new_legend->set_color_map(ctx, cm);
+			} else {
+				new_legend->set_color_map(ctx, cmc.cm);
+			}
 			/* setup ranges */ {
-				const auto &ranges = layer.ref_attrib_mapping_values()[id];
 				new_legend->set_range({ranges.x(), ranges.y()});
-				// XXX: find a more elegant/general/maintainable way
 				const float diff = ranges.y() - ranges.x();
 				if (diff > 5)
 					new_legend->set_label_precision(1);

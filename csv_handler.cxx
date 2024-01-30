@@ -110,6 +110,7 @@ csv_descriptor::~csv_descriptor()
 
 csv_descriptor& csv_descriptor::operator= (const csv_descriptor &other)
 {
+	pimpl->name = other.pimpl->name;
 	pimpl->props = other.pimpl->props;
 	pimpl->attribs = other.pimpl->attribs;
 	pimpl->separators = other.pimpl->separators;
@@ -149,7 +150,8 @@ csv_descriptor::csv_properties csv_descriptor::infer_properties (const std::vect
 	csv_properties ret;
 	ret.header = false;
 	ret.multi_traj = false;
-	unsigned num_cols = 0; signed max_col_id = 0;
+	signed num_cols = 0, max_col_id = 0;
+	bool all_cols_have_ids_defined = true; // TODO: used for internal logic sanity check, remove once validated
 	for (unsigned i=0; i<attributes.size(); i++)
 	{
 		const auto &attrib = attributes[i];
@@ -166,11 +168,16 @@ csv_descriptor::csv_properties csv_descriptor::infer_properties (const std::vect
 		for (const auto &col : attrib.columns)
 		{
 			max_col_id = std::max(col.number, max_col_id);
-			if (col.number < 0)
+			if (col.number < 0) {
 				ret.header = true;
+				all_cols_have_ids_defined = false;
+			}
 		}
 	}
-	ret.max_col_id = std::max(num_cols-1, (unsigned)max_col_id);
+	ret.max_col_id = ret.header ?
+		  (unsigned)std::max(num_cols-1, max_col_id)
+		: (unsigned)max_col_id;
+	assert(ret.header == !all_cols_have_ids_defined && "INTERNAL CONTROL LOGIC ERROR");
 	return ret;
 }
 
@@ -194,6 +201,7 @@ csv_handler<flt_type>::csv_handler(
 	auto &impl = *pimpl;
 
 	// commit name and descriptor
+	impl.fmt_name = "CSV - "+csv_desc.name();
 	impl.csv_desc = csv_desc;
 	impl.vmap_hints = vmap_hints;
 	impl.common_init();
@@ -209,6 +217,7 @@ csv_handler<flt_type>::csv_handler(
 	auto &impl = *pimpl;
 
 	// commit name and descriptor
+	impl.fmt_name = "CSV - "+csv_desc.name();
 	impl.csv_desc = std::move(csv_desc);
 	impl.vmap_hints = vmap_hints;
 	impl.common_init();
@@ -219,6 +228,11 @@ csv_handler<flt_type>::~csv_handler()
 {
 	if (pimpl)
 		delete pimpl;
+}
+
+template <class flt_type>
+const std::string& csv_handler<flt_type>::format_name (void) const {
+	return pimpl->fmt_name;
 }
 
 template <class flt_type>
@@ -388,11 +402,40 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	if (timestamp_id > -1)
 		timestamp_format = Impl::guess_timestamp_format(fields[declared_attribs[timestamp_id].field_ids.front()]);
 
+	///////////
+	/// XXX: Hack to get absolute values of vorticity vector components for Paraview-exported Streamline datasets
+	///      Note: has more custom hacks inside main parser loop to take absolute value
+
+	static const csv_descriptor::attribute abs_attribs[] = {
+		{"|Vorticity.x|", {"Vorticity:0", false, 5}},
+		{"|Vorticity.y|", {"Vorticity:1", false, 6}},
+		{"|Vorticity.z|", {"Vorticity:2", false, 7}},
+		{"|p|", {"p", false, 3}}
+	};
+	bool is_paraview_streamline = false;
+	if (impl.csv_desc.name().compare("Paraview Streamline") == 0)
+	{
+		for (const auto &vattr : abs_attribs)
+		{
+			declared_attribs.emplace_back(vattr);
+			auto &attrib = declared_attribs.back();
+			for (const auto &col : vattr.columns)
+			{
+				attrib.field_ids.emplace_back(col.number);
+				undeclared_cols.erase(col.number);
+			}
+		}
+		is_paraview_streamline = true;
+	}
+
+	/// \END hack
+	///////////
+
 	// parse the stream until EOF
 	bool nothing_loaded = true;
 	real dist_accum = 0;
 	unsigned running_traj_id = 0;
-	double first_timestamp = 0, prev_timestamp = 0.;
+	double first_timestamp = 0, prev_timestamp = 0;
 	bool first = true;
 	while (!contents.eof())
 	{
@@ -453,6 +496,26 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 				case 1:
 				{
 					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 1);
+
+					///////////
+					/// XXX: Hack to get absolute values of vorticity vector components for Paraview-exported Streamline datasets
+					///      Note: also has a preparatory custom hack in the initialization phase
+
+					if (is_paraview_streamline && [&attrib] {
+						for (const auto &vattr : abs_attribs)
+							if (&attrib.desc == &vattr) // <-- this works because attrib just references the underlying csv_desc
+								return true;
+						return false;
+					}()) {
+						a.template get_data<real>().append(
+							std::abs(Impl::parse_field(fields[attrib.field_ids.front()])), (real)t_mod
+						);
+					}
+					else
+
+					/// \END hack
+					///////////
+
 					a.template get_data<real>().append(
 						Impl::parse_field(fields[attrib.field_ids.front()]), (real)t_mod
 					);
@@ -553,7 +616,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		traj_format_handler<flt_type>::attributes(ret).emplace(attr.name, std::move(attr.ds_attrib));
 	}
 	// prepare invented radii
-	auto R = traj_format_handler<flt_type>::template add_attribute<real>(ret, "radius");
+	auto R = traj_format_handler<flt_type>::template add_attribute<real>(ret, "_radius");
 
 	// set visual mapping
 	visual_attribute_mapping<real> vamap(impl.vmap_hints);
@@ -571,7 +634,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	traj_format_handler<flt_type>::set_avg_segment_length(ret, real(dist_accum / double(num_segs)));
 
 	// invent radii now that all stats are known
-	R.data.values = std::vector<real>(num_samples, ret.avg_segment_length()*real(0.25));
+	R.data.values = std::vector<real>(num_samples, ret.avg_segment_length()*real(.25));
 	R.data.timestamps = P.data.timestamps;
 	traj_format_handler<flt_type>::trajectories(ret, R.attrib) = traj_format_handler<flt_type>::trajectories(ret, P.attrib);
 
@@ -716,10 +779,19 @@ csv_imldevice_reg(
 
 // Register handler for streamline .csv files exported from paraview
 static const csv_descriptor csv_paraview_streamline_desc("Paraview Streamline", ",", {
-	{ "timestamp", {"IntegrationTime", false, 4}, CSV::TIMESTAMP },
-	{ "position",  {{"Points:0", false, 13}, {"Points:1", false, 14}, {"Points:2", false, 15}}, CSV::POS },
-	{ "velocity",  {{"U:0", false, 0}, {"U:1", false, 1}, {"U:2", false, 2}} }}
-);
+	{ "Time", {"IntegrationTime", false, 4}, CSV::TIMESTAMP },
+	{ "Position",  {{"Points:0", false, 13}, {"Points:1", false, 14}, {"Points:2", false, 15}}, CSV::POS },
+	{ "Velocity",  {{"U:0", false, 0}, {"U:1", false, 1}, {"U:2", false, 2}} },
+	{ "p", {"p", false, 3} },
+	{ "Vorticity", {{"Vorticity:0", false, 5}, {"Vorticity:1", false, 6}, {"Vorticity:2", false, 7}} },
+	{ "Vorticity.x", {"Vorticity:0", false, 5} }, // make individual
+	{ "Vorticity.y", {"Vorticity:1", false, 6} }, // components accessible
+	{ "Vorticity.z", {"Vorticity:2", false, 7} }, // also
+	{ "Normal", {{"Normals:0", false, 10}, {"Normals:1", false, 11}, {"Normals:2", false, 12}} },
+	{ "Normal.x", {"Normals:0", false, 10} }, // make individual
+	{ "Normal.y", {"Normals:1", false, 11} }, // components accessible
+	{ "Normal.z", {"Normals:2", false, 12} }  // also
+});
 //static const csv_descriptor csv_paraview_streamline_desc("Paraview Streamline", ",", {
 //	{ "timestamp", {"\"IntegrationTime\"", false, 4}, CSV::TIMESTAMP },
 //	{ "position",  {{"\"Points:0\"", false, 13}, {"\"Points:1\"", false, 14}, {"\"Points:2\"", false, 15}}, CSV::POS },
@@ -733,17 +805,17 @@ cgv::base::object_registration_2<
 	visual_attribute_mapping<float>({
 		{VisualAttrib::POSITION, {
 			// scale up dataset to make intersectors more numerically stable
-			"position", attrib_transform<float>::vec3_to_vec3(
+			"Position", attrib_transform<float>::vec3_to_vec3(
 				[](csv_handler<float>::Vec3& out, const csv_handler<float>::Vec3& in) {
 					out = 100.f*in;
 				}
 			)
 		}},
 		{VisualAttrib::RADIUS, {
-			// scale up radius accordingly and increase it a bit more to get thicker tubes with more visible area
-			"radius", attrib_transform<float>::real_to_real(
+			// scale up radius accordingly but not as much to reduce overlapping tubes
+			"_radius", attrib_transform<float>::real_to_real(
 				[](float &out, const float &in) {
-					out = 112.5f*in;
+					out = 75.f*in;
 				}
 			)
 		 }}}

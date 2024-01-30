@@ -29,16 +29,22 @@
 
 
 // identifyier to use for position data
-#define TELLO_POSITION_ATTRIB_NAME "position"
+#define TELLO_POSITION_ATTRIB_NAME "_position"
 
 // identifyier to use for radius data
-#define TELLO_RADIUS_ATTRIB_NAME "radius"
+#define TELLO_RADIUS_ATTRIB_NAME "_radius"
 
-// identifyier to use for radius data
-#define TELLO_VELOCITY_ATTRIB_NAME "velocity"
+// identifyier to use for GPS velocity data
+#define TELLO_GPSVELOCITY_ATTRIB_NAME "GPS.velComposite (m/s)"
+
+// identifyier to use for GPS velocity data
+/*#define TELLO_IMU1VELOCITY_ATTRIB_NAME "IMU1.velComposite (m/s)"
+
+// identifyier to use for GPS velocity data
+#define TELLO_IMU2VELOCITY_ATTRIB_NAME "IMU2.velComposite (m/s)"*/
 
 // identifyier to use for timestamp attribute
-#define TELLO_TIME_ATTRIB_NAME "time"
+#define TELLO_TIME_ATTRIB_NAME "Flight Time (s)"
 
 // Declare the proper csv_handler implementation type
 #define DECLARE_CSV_IMPL_TYPE typedef typename csv_handler<real>::Impl CSVImpl
@@ -125,29 +131,18 @@ namespace {
 	{
 		TelloColumn &x, &y, &z;
 		TelloPos()
-			: //TelloCompound(TelloCompound::create("MVO:posX[meters]", "MVO:posY[meters]", "MVO:posZ[meters]")),
-			  TelloCompound(TelloCompound::create("GPS:Long", "GPS:Lat", "GPS:heightMSL")),
+			: //TelloCompound(TelloCompound::create("GPS:Long", "GPS:Lat", "usonic:usonic_h")),
+			  TelloCompound(TelloCompound::create("GPS.Lat", "GPS.Long", "Ultrasound.height (m)")),
 			  x(cols[0]), y(cols[1]), z(cols[2])
 		{}
-
-		// override the defaul validation until it's decided what to do about missing z-values
-		/*template <class flt_type>
-		bool validate_databuf (std::array<flt_type, 3> &databuf) {
-			const bool valid = databuf[0] < std::numeric_limits<flt_type>::infinity() && databuf[1] < std::numeric_limits<flt_type>::infinity();
-			if (valid && !(databuf[2] < std::numeric_limits<flt_type>::infinity()))
-				databuf[2] = 0;
-			return valid;
-		}*/
-
-		inline static bool latlong (void) { return true; }
 	};
 
 	// Fields known to contain the 3D velocity vector
-	struct TelloVel : public TelloCompound<3>
+	struct TelloVec : public TelloCompound<3>
 	{
 		TelloColumn &x, &y, &z;
-		TelloVel()
-			: TelloCompound(TelloCompound::create("IMU_ATTI(0):velE", "IMU_ATTI(0):velN", "IMU_ATTI(0):velD")),
+		TelloVec(const char *col_x, const char *col_y, const char *col_z)
+			: TelloCompound(TelloCompound::create(col_x, col_y, col_z)),
 			  x(cols[0]), y(cols[1]), z(cols[2])
 		{}
 
@@ -178,7 +173,9 @@ struct TelloCSV
 	TelloPos pos;
 
 	// well-known columns for velocity
-	TelloVel vel;
+	TelloVec velGPS  = TelloVec("GPS.velN (m/s)",  "GPS.velE (m/s)",  "GPS.velD (m/s)")/*,
+	         velIMU1 = TelloVec("IMU1.velN (m/s)", "IMU1.velE (m/s)", "IMU1.velD (m/s)"),
+	         velIMU2 = TelloVec("IMU2.velN (m/s)", "IMU2.velE (m/s)", "IMU2.velD (m/s)")*/;
 
 	unsigned remove_trailing_meta_fields (void)
 	{
@@ -211,22 +208,32 @@ struct TelloCSV
 				if (it.first)
 					it.second.id = i;
 			}
-			/* velocity */ {
-				const auto it = vel.find(columns[i]);
+			/* velocity/GPS */ {
+				const auto it = velGPS.find(columns[i]);
 				if (it.first)
 					it.second.id = i;
 			}
+			/* velocity/IMU1 *//* {
+				const auto it = velIMU1.find(columns[i]);
+				if (it.first)
+					it.second.id = i;
+			}
+			*//* velocity/IMU2 *//* {
+				const auto it = velIMU2.find(columns[i]);
+				if (it.first)
+					it.second.id = i;
+			}*/
 		}
-		bool success = time.id >= 0 && pos.check_found() && vel.check_found();
+		bool success = time.id >= 0 && pos.check_found() && velGPS.check_found()/* && velIMU1.check_found() && velIMU2.check_found()*/;
 		return success;
 	}
 };
 
 template <class flt_type>
-const std::vector<std::string>& tellocsv_handler<flt_type>::handled_extensions(void) const
+const std::string& tellocsv_handler<flt_type>::format_name (void) const
 {
-	static const std::vector<std::string> exts = {"csv"};
-	return exts;
+	static const std::string fmt_name = "Tello/CSV";
+	return fmt_name;
 }
 
 template <class flt_type>
@@ -266,8 +273,7 @@ bool tellocsv_handler<flt_type>::can_handle (std::istream &contents) const
 template <class flt_type>
 traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 	std::istream &contents, DatasetOrigin source, const std::string &path
-)
-{
+){
 	////
 	// Prelude
 
@@ -296,7 +302,7 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 	traj_dataset<real> ret;
 	// - known attributes
 	auto P = traj_format_handler<real>::template add_attribute<vec3>(ret, TELLO_POSITION_ATTRIB_NAME);
-	auto V = traj_format_handler<real>::template add_attribute<vec3>(ret, TELLO_VELOCITY_ATTRIB_NAME);
+	auto V = traj_format_handler<real>::template add_attribute<vec3>(ret, TELLO_GPSVELOCITY_ATTRIB_NAME);
 	auto T = traj_format_handler<real>::template add_attribute<real>(ret, TELLO_TIME_ATTRIB_NAME); // for now, commiting timestamps as their own attribute is the only way to have them selectable in the layers
 	auto &Ptraj = traj_format_handler<real>::trajectories(ret, P.attrib);
 	auto &Vtraj = traj_format_handler<real>::trajectories(ret, V.attrib);
@@ -304,7 +310,7 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 	// - other attributes
 	for (unsigned i=0; i<num_cols; i++)
 	{
-		if (i==tello.time.id || tello.pos.is_part(i)/* || tello.vel.is_part(i)*/) {
+		if (i==tello.time.id) {
 			attrib_from_col.emplace_back(nullptr);
 			atraj_from_col.emplace_back(nullptr);
 		}
@@ -320,7 +326,7 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 
 	// parse the stream until EOF
 	real dist_accum = 0;
-	double first_timestamp = 0, prev_timestamp = 0.;
+	double first_timestamp = 0, prev_timestamp = 0;
 	typedef std::array<double, 2> latlong;
 	latlong refpos;
 	while (!contents.eof())
@@ -340,29 +346,32 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 		T.data.timestamps.emplace_back(T.data.values.emplace_back(ts));
 
 		// prepare temporary compound field databuffers for deferred decision on whether a full compound datapoint can be added from this line or not
-		auto databuf_pos = tello.pos.create_databuf<real>(), databuf_vel = tello.vel.create_databuf<real>();
+		auto databuf_pos = tello.pos.create_databuf<real>(), databuf_velGPS = tello.velGPS.create_databuf<real>()/*,
+		     databuf_velIMU1 = tello.velIMU1.create_databuf<real>(), databuf_velIMU2 = tello.velIMU2.create_databuf<real>()*/;
 
 		// parse each field and if it contains a value, add it to the corresponding attribute array
 		for (unsigned i=0; i<(unsigned)fields.size(); i++)
 		{
 			if (i==tello.time.id)
-				/* DoNothing() */;
-			else if (tello.pos.is_part(i)) {
-				const real val = CSVImpl::parse_field(fields[i]);
-				if (val < std::numeric_limits<real>::infinity())
-					tello.pos.store_component(databuf_pos, i, val);
-			}
-			else if (tello.vel.is_part(i)) {
-				const real val = CSVImpl::parse_field(fields[i]);
-				if (val < std::numeric_limits<real>::infinity())
-					tello.vel.store_component(databuf_vel, i, val);
-			}
-			else
+				continue; // timestamp was already parsed above
+
+			const real val = CSVImpl::parse_field(fields[i]);
+			if (val < std::numeric_limits<real>::infinity())
 			{
-				const real val = CSVImpl::parse_field(fields[i]);
-				if (val < std::numeric_limits<real>::infinity())
+				bool store_generic = true;
+				if (tello.pos.is_part(i)) {
+					tello.pos.store_component(databuf_pos, i, val);
+					store_generic = false;
+				}
+				else if (tello.velGPS.is_part(i))
+					tello.velGPS.store_component(databuf_velGPS, i, val);
+				/*else if (tello.velIMU1.is_part(i))
+					tello.velIMU1.store_component(databuf_velIMU1, i, val);
+				else if (tello.velIMU2.is_part(i))
+					tello.velIMU2.store_component(databuf_velIMU2, i, val);*/
+				if (store_generic)
 				{
-					auto &data = attrib_from_col[i]->template get_data<real>();
+					auto& data = attrib_from_col[i]->template get_data<real>();
 					data.timestamps.emplace_back(ts);
 					data.values.emplace_back(val);
 					atraj_from_col[i]->n++;
@@ -390,10 +399,18 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 		_skip_pos_sample:
 			/* end_of_block */;
 		}
-		if (tello.vel.validate_databuf(databuf_vel)) {
+		if (tello.velGPS.validate_databuf(databuf_velGPS)) {
 			V.data.timestamps.emplace_back(ts);
-			V.data.values.emplace_back(databuf_vel);
+			V.data.values.emplace_back(databuf_velGPS);
 		}
+		/*if (tello.velIMU1.validate_databuf(databuf_velIMU1)) {
+			Vimu1.data.timestamps.emplace_back(ts);
+			Vimu1.data.values.emplace_back(databuf_velIMU1);
+		}
+		if (tello.velIMU2.validate_databuf(databuf_velIMU2)) {
+			Vimu2.data.timestamps.emplace_back(ts);
+			Vimu2.data.values.emplace_back(databuf_velIMU2);
+		}*/
 	}
 
 	// did we load anything usable?
@@ -421,7 +438,7 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 	const unsigned num_segs = (unsigned)(P.data.values.size()-1);
 	traj_format_handler<flt_type>::set_avg_segment_length(ret, dist_accum/real(num_segs));
 	auto R = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, TELLO_RADIUS_ATTRIB_NAME);
-	R.data.values = std::vector<flt_type>(P.data.num(), ret.avg_segment_length()*real(0.125));
+	R.data.values = std::vector<flt_type>(P.data.num(), ret.avg_segment_length()*real(.25));
 	R.data.timestamps = P.data.timestamps;
 	traj_format_handler<flt_type>::trajectories(ret, R.attrib) = Ptraj; // invented radius "samples" are in sync with positions, so just copy traj info
 

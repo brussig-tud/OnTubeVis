@@ -6,6 +6,7 @@
 #include <cgv/math/ftransform.h>
 #include <cgv_gl/gl/gl.h>
 
+
 color_map_viewer::color_map_viewer() {
 
 	set_name("Color Map Viewer");
