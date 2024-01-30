@@ -1,12 +1,15 @@
 #pragma once
 
-#include <cgv/render/render_types.h>
 #include <cgv/math/functions.h>
 
 #include "quadratic_bezier_tube.h"
 
-class hermite_spline_tube : public cgv::render::render_types {
+
+class hermite_spline_tube {
 public:
+	using vec3 = cgv::vec3;
+	using box3 = cgv::box3;
+
 	struct node {
 		vec3 pos;
 		float rad;

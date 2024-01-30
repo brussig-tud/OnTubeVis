@@ -78,13 +78,25 @@ using namespace cgv::render;
 ////
 // Plugin definition
 
-/// baseline visualization plugin for arbitrary trajectory data as tubes using the framework tube renderers and
-/// trajectory loading facilities
+/// baseline visualization plugin for arbitrary trajectory data as tubes using the framework tube renderers and trajectory loading facilities
 class on_tube_vis :
 	public cgv::base::argument_handler, // derive from argument handler to be able to process custom arguments
 	public cgv::app::application_plugin	// derive from application plugin, which is a node, drawable, gui provider and event handler and can handle overlays
 {
 public:
+	using vec2 = cgv::vec2;
+	using vec3 = cgv::vec3;
+	using vec4 = cgv::vec4;
+	using ivec2 = cgv::ivec2;
+	using ivec3 = cgv::ivec3;
+	using uvec2 = cgv::uvec2;
+	using vecn = cgv::vecn;
+	using mat4 = cgv::mat4;
+	using box3 = cgv::box3;
+	using rgb = cgv::rgb;
+	using rgba = cgv::rgba;
+
+
 	/// data layout for per-node attributes within the attribute render SSBO
 	struct node_attribs {
 		vec4 pos_rad;

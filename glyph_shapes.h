@@ -1,7 +1,10 @@
 #pragma once
 
 #include <map>
-#include <cgv/render/render_types.h>
+#include <cgv/math/fvec.h>
+#include <cgv/math/fmat.h>
+#include <cgv/math/functions.h>
+
 
 enum GlyphType {
 	GT_UNDEFINED = -1,
@@ -55,8 +58,11 @@ struct glyph_attribute {
 	glyph_attribute(std::string name, GlyphAttributeType type, GlyphAttributeModifier modifiers, GuiHint gui_hint) : name(name), type(type), modifiers(modifiers), gui_hint(gui_hint) {}
 };
 
-class glyph_shape : public cgv::render::render_types {
+class glyph_shape {
 public:
+	using mat2 = cgv::mat2;
+	using vec2 = cgv::vec2;
+
 	typedef std::vector<glyph_attribute> attribute_list;
 
 	virtual ~glyph_shape() {}

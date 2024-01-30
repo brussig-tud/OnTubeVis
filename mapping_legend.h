@@ -8,7 +8,14 @@
 #include "glyph_layer_manager.h"
 #include "traj_loader.h"
 
+
 class mapping_legend : public cgv::app::canvas_overlay {
+public:
+	using vec2 = cgv::vec2;
+	using vec3 = cgv::vec3;
+	using ivec2 = cgv::ivec2;
+	using rgb = cgv::rgb;
+
 protected:
 	struct layer_info {
 		struct line_info {

@@ -1,7 +1,7 @@
 #pragma once
 
 // CGV framework core
-#include <cgv/render/render_types.h>
+//#include <cgv/render/render_types.h>
 
 // local includes
 #include "arclen_helper.h"
@@ -10,7 +10,12 @@
 
 
 
-class glyph_compiler : public cgv::render::render_types {
+class glyph_compiler {
+public:
+	using vec4 = cgv::vec4;
+	using uvec2 = cgv::uvec2;
+	using mat4 = cgv::mat4;
+
 protected:
 	// helper struct for range entries with start index i0 and count n
 	struct irange { int i0, n; };

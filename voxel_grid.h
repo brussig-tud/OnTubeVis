@@ -1,12 +1,15 @@
 #pragma once
 
 #include <vector>
+#include <cgv/math/fvec.h>
+#include <cgv/media/axis_aligned_box.h>
 
-#include <cgv/render/render_types.h>
 
+struct voxel_grid {
+	using vec3 = cgv::vec3;
+	using ivec3 = cgv::ivec3;
+	using box3 = cgv::box3;
 
-
-struct voxel_grid : public cgv::render::render_types {
 	float voxel_size;
 	float voxel_half_diag;
 	ivec3 resolution;

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <cgv/base/base.h>
+#include <cgv/media/color.h>
 #include <cgv/gui/provider.h>
 
 #include "gui_util.h"
@@ -16,8 +17,12 @@
 
 
 
-class glyph_layer_manager : public cgv::base::base, public cgv::render::render_types {
+class glyph_layer_manager : public cgv::base::base
+{
 public:
+	using vec4 = cgv::vec4;
+	using rgb = cgv::rgb;
+
 	typedef std::pair<bool, float> parameter_pair;
 	typedef std::vector<parameter_pair> parameter_list;
 
@@ -59,7 +64,8 @@ public:
 		std::vector<layer_configuration> layer_configs;
 		std::string uniforms_definition = "";
 
-		void clear() {
+		void clear()
+		{
 			layer_configs.clear();
 			constant_float_parameters.clear();
 			constant_color_parameters.clear();
@@ -68,7 +74,8 @@ public:
 			uniforms_definition = "";
 		}
 
-		void create_uniforms_definition(bool verbose = false) {
+		void create_uniforms_definition(bool verbose = false)
+		{
 			std::string uniforms_str = "";
 
 			if(constant_float_parameters.size() > 0)

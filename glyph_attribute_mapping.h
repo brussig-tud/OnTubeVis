@@ -11,6 +11,7 @@
 #include <cgv/data/ref_ptr.h>
 #include <cgv/gui/control.h>
 #include <cgv/gui/provider.h>
+#include <cgv/media/color.h>
 
 #include "gui_util.h"
 #include "glyph_shapes.h"
@@ -24,7 +25,12 @@ enum AttributeSamplingStrategy {
 	ASS_AT_SAMPLES,
 };
 
-class glyph_attribute_mapping : public cgv::render::render_types {
+class glyph_attribute_mapping {
+public:
+	using vec2 = cgv::vec2;
+	using vec4 = cgv::vec4;
+	using rgb = cgv::rgb;
+
 protected:
 	ActionType last_action_type = AT_NONE;
 

@@ -9,7 +9,7 @@ color_legend_manager::color_legend_manager(cgv::app::application_plugin_base &ow
 		str.flush();
 		str << "Legend_layer" << i;
 		legends[i] = owner.register_overlay<cgv::app::color_map_legend>(str.str());
-		legends[i]->set_overlay_size(legends[i]->get_overlay_size()+cgv::render::ivec2(16, 0));
+		legends[i]->set_overlay_size(legends[i]->get_overlay_size()+cgv::ivec2(16, 0));
 		legends[i]->set_num_ticks(5);
 		legends[i]->set_label_auto_precision(false);
 		legends[i]->set_label_prune_trailing_zeros(true);

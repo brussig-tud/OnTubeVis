@@ -57,7 +57,7 @@ parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 	typedef flt_type real;
 	typedef typename traj_manager<flt_type>::render_data::Vec3 vec3;
 	typedef typename traj_manager<flt_type>::render_data::Vec4 vec4;
-	std::vector<cgv::render::render_types::mat4> t_to_s, s_to_t;
+	std::vector<cgv::mat4> t_to_s, s_to_t;
 
 	// obtain render attributes and dataset topology
 	const auto &rd = mgr.get_render_data();
@@ -99,7 +99,8 @@ parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 				const auto alen_approx = b.arc_length_bezier_approximation(4);
 				const auto inv_approx = b.parameterization_bezier_approximation(alen_approx);
 				// - convert to trajectory-global arclength at segment
-				for (unsigned j=0; j<4; j++) {
+				for (unsigned j=0; j<4; j++)
+				{
 					// - important values
 					const real length_j = alen_approx.lengths[j+1] - alen_approx.lengths[j],
 					           length_jsum = length_sum + alen_approx.lengths[j],
@@ -159,7 +160,7 @@ parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 	return {std::move(t_to_s), std::move(s_to_t)};
 }
 
-cgv::render::vertex_buffer upload_renderdata (cgv::render::context& ctx, const std::vector<cgv::render::render_types::mat4> &approximations)
+cgv::render::vertex_buffer upload_renderdata (cgv::render::context& ctx, const std::vector<cgv::mat4> &approximations)
 {
 	// init new buffer object
 	cgv::render::vertex_buffer new_sbo(cgv::render::VBT_STORAGE, cgv::render::VBU_STATIC_READ);
@@ -170,7 +171,7 @@ cgv::render::vertex_buffer upload_renderdata (cgv::render::context& ctx, const s
 	return std::move(new_sbo);
 }
 
-float eval (const cgv::render::render_types::mat4 &approx, float t)
+float eval (const cgv::mat4 &approx, float t)
 {
 	// determine sub-segment
 	const float t4 = t+t+t+t;

@@ -6,9 +6,6 @@
 #include <random>
 #include <numeric>
 
-// CGV framework core
-#include <cgv/render/render_types.h>
-
 // Local includes
 #include <traj_loader.h>
 
