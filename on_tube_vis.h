@@ -490,13 +490,8 @@ protected:
 			bool was_toggled = false;
 			/// convencience function for check-and-resetting the toggle flag
 			bool check_toggled (void) { const bool toggled=was_toggled; was_toggled=false; return toggled; }
-			/// reference to the GUI control attached to the toggle
-			cgv::data::ref_ptr<cgv::gui::control<bool>> control;
-
-
-			/// reference to the GUI control attached to the toggle
+			/// reference to the GUI button attached to the toggle
 			cgv::gui::button_ptr button;
-
 		} tr_toggle;
 	} ui_state;
 

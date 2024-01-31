@@ -529,8 +529,7 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				handled = true;
 				break;
 			case cgv::gui::Keys::KEY_Num_Enter:
-				{ const bool new_state = render.style.is_tube();
-				  ui_state.tr_toggle.control->check_and_set_value(new_state); }
+				toggle_tube_ribbon();
 				handled = true;
 				break;
 			case cgv::gui::Keys::KEY_Space:
