@@ -30,6 +30,8 @@ type(on_tube_vis):show_wireframe_box=true
 type(on_tube_vis):grid_mode=GM_COLOR_AND_NORMAL
 // - Debugging
 type(on_tube_vis):show_hidden_glyphs=false
+// - Use ambient occlusion
+type(on_tube_vis):ambient_occlusion=true
 // - Voxelization device
 type(on_tube_vis):voxelize_gpu=false
 

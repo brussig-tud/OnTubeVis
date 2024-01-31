@@ -85,7 +85,7 @@ namespace cgv { // @<
 				/// minimum subcurve length at which to force-stop subdividing, in multiples of machine epsilon
 				float subdiv_abort_thr;
 				/// defines the maximum depth of the subcurve stack - when the stack reaches this threshold, subcurves are intersected
-				/// as-is even if they don't yet fulfull the linearity threshold
+				/// as-is even if they don't yet fulfill the linearity threshold
 				unsigned max_intersection_stack_size;
 				/// whether to calculate exact tight-fitting ribbon bounding boxes or use a tube-based approximation
 				bool exact_ribbon_bboxes;
@@ -205,6 +205,14 @@ namespace cgv { // @<
 		};
 		extern cgv::reflect::extern_reflection_traits<textured_spline_tube_render_style, textured_spline_tube_render_style_reflect> get_reflection_traits(const textured_spline_tube_render_style&);
 	}
+}
+
+namespace cgv {
+namespace reflect {
+
+enum_reflection_traits<cgv::render::textured_spline_tube_render_style::LinePrimitive> get_reflection_traits(const cgv::render::textured_spline_tube_render_style::LinePrimitive&);
+
+}
 }
 
 #include <cgv/config/lib_end.h>

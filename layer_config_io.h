@@ -80,6 +80,14 @@ private:
 		}
 	}
 
+	static void write_setting(tinyxml2::XMLPrinter& printer, const std::pair<std::string, std::string>& setting) {
+
+		printer.OpenElement("Setting");
+		cgv::xml::PushAttribute(printer, "name", setting.first);
+		cgv::xml::PushAttribute(printer, "value", setting.second);
+		printer.CloseElement();
+	}
+
 	static void write_layer_properties(
 		tinyxml2::XMLPrinter& printer,
 		std::shared_ptr<const visualization_variables_info> visualization_variables,
@@ -311,7 +319,15 @@ private:
 				gam.set_color_source_index(shape_attrib_idx, color_map_idx);
 			}
 		}
-	};
+	}
+
+	static void extract_setting(const tinyxml2::XMLElement& elem, std::map<std::string, std::string>& settings) {
+
+		std::string name, value;
+		if(cgv::xml::QueryStringAttribute(elem, "name", name) == tinyxml2::XML_SUCCESS &&
+		   cgv::xml::QueryStringAttribute(elem, "value", value) == tinyxml2::XML_SUCCESS)
+			settings[name] = value;
+	}
 
 public:
 	layer_configuration_io() = delete;
@@ -321,7 +337,8 @@ public:
 		const std::string& file_name,
 		std::shared_ptr<const visualization_variables_info> visualization_variables,
 		const glyph_layer_manager& glyph_layer_mgr,
-		const color_map_manager& color_map_mgr) {
+		const color_map_manager& color_map_mgr,
+		const std::map<std::string, std::string>& settings) {
 
 		tinyxml2::XMLPrinter printer;
 		printer.OpenElement("GlyphConfiguration");
@@ -337,6 +354,13 @@ public:
 
 		printer.CloseElement();
 
+		printer.OpenElement("Settings");
+
+		for(const auto& setting : settings)
+			write_setting(printer, setting);
+
+		printer.CloseElement();
+
 		printer.CloseElement();
 
 		std::string xml = printer.CStr();
@@ -347,7 +371,8 @@ public:
 		const std::string& file_name,
 		std::shared_ptr<visualization_variables_info> visualization_variables,
 		glyph_layer_manager& glyph_layer_mgr,
-		color_map_manager& color_map_mgr) {
+		color_map_manager& color_map_mgr,
+		std::map<std::string, std::string>& settings) {
 
 		glyph_layer_mgr.clear();
 
@@ -377,6 +402,20 @@ public:
 			while(layer_elem) {
 				extract_layer(*layer_elem, glyph_layer_mgr, visualization_variables->ref_attribute_names(), color_map_names);
 				layer_elem = layer_elem->NextSiblingElement();
+			}
+		}
+
+		findElementByName.SetQueryName("Settings");
+		doc.Accept(&findElementByName);
+
+		settings.clear();
+
+		if(auto settings_elem = findElementByName.Result()) {
+			auto setting_elem = settings_elem->FirstChildElement();
+
+			while(setting_elem) {
+				extract_setting(*setting_elem, settings);
+				setting_elem = setting_elem->NextSiblingElement();
 			}
 		}
 
