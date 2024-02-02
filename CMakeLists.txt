@@ -21,10 +21,12 @@ if (DEFINED ENV{CGV_DIR})
 	message("> ${CGV_DIR}")
 	add_subdirectory(${CGV_DIR} ./framework)
 else()
+	message("Including the CGV Framework source from https://github.com/sgumhold/cgv.git")
+	message("This could take a while when run the first time...")
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 79acbd25958bde571cbf337394fa5c618e9f81b1
+		GIT_TAG af48b5e12284f419139aabeaa0428666f1761ab0
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -34,6 +36,8 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 # - dependencies needed for hardware raytracing
 if (ENABLE_OPTIX_SUPPORT)
+	# Suppress the FindCUDA warning (will need permanent solution at some point)
+	cmake_policy(SET CMP0146 OLD)
 	find_package(CUDA)
 	find_package(CUDAToolkit)
 	find_package(OptiX)
