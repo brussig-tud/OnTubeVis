@@ -6,12 +6,10 @@
 mapping_legend::mapping_legend() {
 
 	set_name("Mapping Legend");
+	blend_overlay = true;
 	block_events = false;
 
-	set_overlay_alignment(AO_START, AO_START);
-	set_overlay_stretch(SO_NONE);
-	set_overlay_margin(ivec2(-3));
-	set_overlay_size(ivec2(316, 0));
+	set_size(ivec2(316, 0));
 
 	content_canvas.set_origin_setting(cgv::g2d::Origin::kTopLeft);
 }
@@ -36,10 +34,6 @@ void mapping_legend::clear(cgv::render::context& ctx) {
 	text.destruct(ctx);
 }
 
-void mapping_legend::handle_member_change(const cgv::utils::pointer_test& m) {
-
-}
-
 void mapping_legend::init_frame(cgv::render::context& ctx)
 {
 	if(ensure_layout(ctx))
@@ -49,18 +43,11 @@ void mapping_legend::init_frame(cgv::render::context& ctx)
 void mapping_legend::draw_content(cgv::render::context& ctx) {
 
 	begin_content(ctx);
-	enable_blending();
 	
-	ivec2 container_size = get_overlay_size();
-	
-	// draw container
 	content_canvas.enable_shader(ctx, "rectangle");
-	content_canvas.set_style(ctx, container_style);
-	content_canvas.draw_shape(ctx, ivec2(0), container_size);
-	
 	content_canvas.set_style(ctx, border_style);
 	for(auto &position : dividers)
-		content_canvas.draw_shape(ctx, vec2(12.0f, position), vec2(static_cast<float>(container_size.x() - 24), 1.0f));
+		content_canvas.draw_shape(ctx, vec2(12.0f, position), vec2(static_cast<float>(get_rectangle().w() - 24), 1.0f));
 
 	content_canvas.set_style(ctx, color_box_style);
 	for(const auto& [position, color] : color_boxes)
@@ -70,7 +57,6 @@ void mapping_legend::draw_content(cgv::render::context& ctx) {
 
 	cgv::g2d::ref_msdf_gl_canvas_font_renderer(ctx).render(ctx, content_canvas, text, text_style);
 
-	disable_blending();
 	end_content(ctx);
 }
 
@@ -192,7 +178,7 @@ void mapping_legend::create_geometry() {
 
 	const float padding = 12.0f;
 	vec2 position(padding);
-	ivec2 overlay_size = get_overlay_size();
+	ivec2 overlay_size = get_rectangle().size;
 
 	size_t layer_idx = 1;
 	for(const auto& layer : layers) {
@@ -232,34 +218,27 @@ void mapping_legend::create_geometry() {
 		height = 0.0f;
 
 	overlay_size.y() = static_cast<int>(height + 0.5f);
-	set_overlay_size(overlay_size);
+	set_size(overlay_size);
 
 	post_damage();
 }
 
 void mapping_legend::init_styles() {
 
-	auto& ti = cgv::gui::theme_info::instance();
+	auto& theme = cgv::gui::theme_info::instance();
 
-	// configure style for the container rectangle
-	container_style.fill_color = ti.group();
-	container_style.border_color = ti.background();
-	container_style.border_width = 3.0f;
-	container_style.feather_width = 0.0f;
-	
 	// configure style for the border rectangles
-	border_style = container_style;
-	border_style.fill_color = ti.border();
+	border_style.fill_color = theme.border();
 	border_style.border_width = 0.0f;
+	border_style.feather_width = 0.0f;
 
-	color_box_style = container_style;
 	color_box_style.use_fill_color = false;
 	color_box_style.border_width = 1.0f;
-	color_box_style.border_color = ti.border();
+	color_box_style.border_color = theme.border();
 	color_box_style.use_blending = true;
 	color_box_style.feather_width = 1.0f;
 
 	// configure text style
-	text_style = cgv::g2d::text2d_style::preset_default(ti.text());
+	text_style = cgv::g2d::text2d_style::preset_default(theme.text());
 	text_style.font_size = 12.0f;
 }

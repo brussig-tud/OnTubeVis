@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cgv_app/canvas_overlay.h>
+#include <cgv_app/themed_canvas_overlay.h>
 #include <cgv_g2d/msdf_gl_canvas_font_renderer.h>
 #include <cgv_g2d/canvas.h>
 #include <cgv_g2d/shape2d_styles.h>
@@ -9,7 +9,7 @@
 #include "traj_loader.h"
 
 
-class mapping_legend : public cgv::app::canvas_overlay {
+class mapping_legend : public cgv::app::themed_canvas_overlay {
 public:
 	using vec2 = cgv::vec2;
 	using vec3 = cgv::vec3;
@@ -41,7 +41,7 @@ protected:
 	std::vector<std::pair<vec2, rgb>> color_boxes;
 
 	// appearance
-	cgv::g2d::shape2d_style container_style, border_style, color_box_style;
+	cgv::g2d::shape2d_style border_style, color_box_style;
 	cgv::g2d::text2d_style text_style;
 	
 	void create_geometry();
@@ -54,8 +54,6 @@ public:
 
 	bool init(cgv::render::context& ctx) override;
 	void clear(cgv::render::context& ctx) override;
-
-	void handle_member_change(const cgv::utils::pointer_test& m) override;
 
 	void init_frame(cgv::render::context& ctx) override;
 	void draw_content(cgv::render::context& ctx) override;

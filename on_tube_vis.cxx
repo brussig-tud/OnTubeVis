@@ -148,10 +148,11 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	navigator_ptr = register_overlay<cgv::app::navigator>("Navigator");
 	navigator_ptr->set_visibility(false);
 	navigator_ptr->gui_options.show_layout_options = false;
-	navigator_ptr->set_overlay_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_START);
+	navigator_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_START);
 	navigator_ptr->set_size(100);
 	
 	cm_viewer_ptr = register_overlay<color_map_viewer>("Color Scale Viewer");
+	cm_viewer_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_END);
 	cm_viewer_ptr->set_visibility(false);
 
 	perfmon_ptr = register_overlay<cgv::app::performance_monitor>("Performance Monitor");
@@ -2198,6 +2199,8 @@ void on_tube_vis::create_gui(void)
 	// Debug settings contractable section
 	if(begin_tree_node("(Debug)", benchmark, false)) {
 		align("\a");
+
+		inline_object_gui(navigator_ptr);
 
 		add_section_heading("Tools", 3);
 		add_member_control(

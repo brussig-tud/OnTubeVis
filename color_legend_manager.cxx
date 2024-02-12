@@ -9,7 +9,7 @@ color_legend_manager::color_legend_manager(cgv::app::application_plugin_base &ow
 		str.flush();
 		str << "Legend_layer" << i;
 		legends[i] = owner.register_overlay<cgv::app::color_map_legend>(str.str());
-		legends[i]->set_overlay_size(legends[i]->get_overlay_size()+cgv::ivec2(16, 0));
+		legends[i]->set_size(legends[i]->get_rectangle().size + cgv::ivec2(16, 0));
 		legends[i]->set_num_ticks(5);
 		legends[i]->set_label_auto_precision(false);
 		legends[i]->set_label_prune_trailing_zeros(true);
@@ -99,9 +99,9 @@ void color_legend_manager::compose (
 				else
 					new_legend->set_label_precision(7);
 			}
-			new_legend->set_overlay_margin({-3, voffset});
+			new_legend->set_margin({-3, voffset});
 			new_legend->set_visibility(true);
-			voffset += new_legend->get_overlay_size().y()-3;
+			voffset += new_legend->get_rectangle().h()-3;
 			num_active++;
 		}
 	}
