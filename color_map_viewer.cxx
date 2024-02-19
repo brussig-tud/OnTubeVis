@@ -11,14 +11,13 @@ color_map_viewer::color_map_viewer() {
 
 	set_name("Color Map Viewer");
 
-	layout.padding = 13; // 10px plus 3px border
+	blend_overlay = true;
+
+	layout.padding = padding();
 	layout.band_height = 18;
 	layout.total_height = 80;
 
-	set_overlay_alignment(AO_END, AO_END);
-	set_overlay_stretch(SO_NONE);
-	set_overlay_margin(ivec2(-3));
-	set_overlay_size(ivec2(200u, layout.total_height));
+	set_size(ivec2(200u, layout.total_height));
 	
 	register_shader("rectangle", cgv::g2d::shaders::rectangle);
 	register_shader("color_maps", "color_maps.glpr");
@@ -47,7 +46,7 @@ bool color_map_viewer::handle_event(cgv::gui::event& e) {
 void color_map_viewer::on_set(void* member_ptr) {
 
 	if(member_ptr == &layout.total_height || member_ptr == &layout.band_height) {
-		ivec2 size = get_overlay_size();
+		ivec2 size = get_rectangle().size;
 
 		if(tex) {
 			int h = static_cast<int>(tex->get_height());
@@ -55,7 +54,7 @@ void color_map_viewer::on_set(void* member_ptr) {
 		}
 
 		size.y() = layout.total_height;
-		set_overlay_size(size);
+		set_size(size);
 	}
 
 	update_member(member_ptr);
@@ -75,8 +74,7 @@ bool color_map_viewer::init(cgv::render::context& ctx) {
 void color_map_viewer::init_frame(cgv::render::context& ctx) 
 {
 	if(ensure_layout(ctx)) {
-		ivec2 container_size = get_overlay_size();
-		layout.update(container_size);
+		layout.update(get_rectangle().size);
 
 		update_texts();
 	}
@@ -91,18 +89,15 @@ void color_map_viewer::draw_content(cgv::render::context& ctx) {
 		return;
 
 	begin_content(ctx);
-	enable_blending();
-	
-	ivec2 container_size = get_overlay_size();
-	
-	// draw container
-	auto& rect_prog = content_canvas.enable_shader(ctx, "rectangle");
-	container_style.apply(ctx, rect_prog);
-	content_canvas.draw_shape(ctx, ivec2(0), container_size);
+	//enable_blending();
 	
 	// draw inner border
-	border_style.apply(ctx, rect_prog);
-	content_canvas.draw_shape(ctx, ivec2(layout.padding - 1), container_size - 2*layout.padding + 2);
+	auto rectangle = get_content_rectangle();
+	rectangle.scale(1);
+
+	content_canvas.enable_shader(ctx, "rectangle");
+	content_canvas.set_style(ctx, border_style);
+	content_canvas.draw_shape(ctx, rectangle);
 	content_canvas.disable_current_shader(ctx);
 	
 	// draw color scale texture
@@ -116,7 +111,7 @@ void color_map_viewer::draw_content(cgv::render::context& ctx) {
 	// draw color scale names
 	cgv::g2d::ref_msdf_gl_canvas_font_renderer(ctx).render(ctx, content_canvas, texts, text_style);
 
-	disable_blending();
+	//disable_blending();
 	end_content(ctx);
 }
 
@@ -140,22 +135,12 @@ void color_map_viewer::set_color_map_texture(cgv::render::texture* tex) {
 }
 
 void color_map_viewer::init_styles() {
-	// get theme colors
-	auto& ti = cgv::gui::theme_info::instance();
-	rgba background_color = rgba(ti.background(), 1.0f);
-	rgba group_color = rgba(ti.group(), 1.0f);
-	rgba border_color = rgba(ti.border(), 1.0f);
+	const auto& theme = cgv::gui::theme_info::instance();
 
-	// configure style for the container rectangle
-	container_style.fill_color = group_color;
-	container_style.border_color = background_color;
-	container_style.border_width = 3.0f;
-	container_style.feather_width = 0.0f;
-	
 	// configure style for the border rectangles
-	border_style = container_style;
-	border_style.fill_color = border_color;
+	border_style.fill_color = theme.border();
 	border_style.border_width = 0.0f;
+	border_style.feather_width = 0.0f;
 	
 	// configure style for the color scale rectangle
 	color_map_style = border_style;

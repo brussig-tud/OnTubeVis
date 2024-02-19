@@ -329,17 +329,26 @@ protected:
 
 	void toggle_tube_ribbon()
 	{
-		if (render.style.is_tube()) {
+		if(render.style.is_tube())
 			render.style.line_primitive = ui_state.tr_toggle.last_ribbon_primitive;
-			ui_state.tr_toggle.control->set("label", "Current: ribbons (toggle)");
-		}
-		else {
+		else
 			render.style.line_primitive = ui_state.tr_toggle.last_tube_primitive;
-			ui_state.tr_toggle.control->set("label", "Current: tubes (toggle)");
-		}
-		ui_state.tr_toggle.control->update();
+
 		ui_state.tr_toggle.was_toggled = true;
 		on_set(&render.style.line_primitive);
+	}
+
+	std::string get_tube_ribbon_toggle_label()
+	{
+		std::string label = "Current: ";
+		label += render.style.is_tube() ? "tubes" : "ribbons";
+		label += " (toggle)";
+		return label;
+	}
+
+	void update_tube_ribbon_toggle()
+	{
+		ui_state.tr_toggle.button->set("label", get_tube_ribbon_toggle_label());
 	}
 
 	bool show_bbox = false;
@@ -473,16 +482,16 @@ protected:
 	struct {
 		/// "smart" tube/ribbon toggle
 		struct {
-			/// stores the most recent "explicitely" selected rasterization tube primitive type
+			/// stores the most recent "explicitly" selected rasterization tube primitive type
 			textured_spline_tube_render_style::LinePrimitive last_tube_primitive = textured_spline_tube_render_style::LP_TUBE_RUSSIG;
-			/// stores the most recent "explicitely" selected ribbon tube primitive type
+			/// stores the most recent "explicitly" selected ribbon tube primitive type
 			textured_spline_tube_render_style::LinePrimitive last_ribbon_primitive = textured_spline_tube_render_style::LP_RIBBON_RAYCASTED;
 			/// flags that the last change to the selected line primitive was from this toggle
 			bool was_toggled = false;
 			/// convencience function for check-and-resetting the toggle flag
 			bool check_toggled (void) { const bool toggled=was_toggled; was_toggled=false; return toggled; }
-			/// reference to the GUI control attached to the toggle
-			cgv::data::ref_ptr<cgv::gui::control<bool>> control;
+			/// reference to the GUI button attached to the toggle
+			cgv::gui::button_ptr button;
 		} tr_toggle;
 	} ui_state;
 

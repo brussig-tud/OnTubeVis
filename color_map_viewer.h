@@ -2,12 +2,12 @@
 
 #include <cgv/render/color_map.h>
 #include <cgv/render/texture.h>
-#include <cgv_app/canvas_overlay.h>
+#include <cgv_app/themed_canvas_overlay.h>
 #include <cgv_g2d/msdf_gl_canvas_font_renderer.h>
 #include <cgv_g2d/canvas.h>
 #include <cgv_g2d/shape2d_styles.h>
 
-class color_map_viewer : public cgv::app::canvas_overlay {
+class color_map_viewer : public cgv::app::themed_canvas_overlay {
 public:
 	using ivec2 = cgv::ivec2;
 	using rgb = cgv::rgb;
@@ -32,7 +32,7 @@ protected:
 	
 	std::vector<std::string> names;
 
-	cgv::g2d::shape2d_style container_style, border_style, color_map_style;
+	cgv::g2d::shape2d_style border_style, color_map_style;
 	cgv::render::texture* tex;
 
 	// text appearance

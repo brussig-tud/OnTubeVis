@@ -182,6 +182,7 @@ namespace cgv {
 		{
 			return
 				rh.reflect_base(*static_cast<surface_render_style*>(this)) &&
+				rh.reflect_member("line_primitive", line_primitive) &&
 				rh.reflect_member("radius", radius) &&
 				rh.reflect_member("radius_scale", radius_scale) &&
 				rh.reflect_member("rcribbon_linearity_thr", rcribbon.linearity_thr) &&
@@ -198,6 +199,16 @@ namespace cgv {
 			return cgv::reflect::extern_reflection_traits<textured_spline_tube_render_style, textured_spline_tube_render_style_reflect>();
 		}
 	}
+}
+
+namespace cgv {
+namespace reflect {
+
+enum_reflection_traits<cgv::render::textured_spline_tube_render_style::LinePrimitive> get_reflection_traits(const cgv::render::textured_spline_tube_render_style::LinePrimitive&) {
+	return enum_reflection_traits<cgv::render::textured_spline_tube_render_style::LinePrimitive>("LP_TUBE_RUSSIG,LP_TUBE_PHANTOM,LP_RIBBON_RAYCASTED,LP_RIBBON_GEOMETRY");
+}
+
+}
 }
 
 #include <cgv/gui/provider.h>

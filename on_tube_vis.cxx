@@ -148,10 +148,11 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	navigator_ptr = register_overlay<cgv::app::navigator>("Navigator");
 	navigator_ptr->set_visibility(false);
 	navigator_ptr->gui_options.show_layout_options = false;
-	navigator_ptr->set_overlay_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_START);
+	navigator_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_START);
 	navigator_ptr->set_size(100);
 	
 	cm_viewer_ptr = register_overlay<color_map_viewer>("Color Scale Viewer");
+	cm_viewer_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_END);
 	cm_viewer_ptr->set_visibility(false);
 
 	perfmon_ptr = register_overlay<cgv::app::performance_monitor>("Performance Monitor");
@@ -175,7 +176,7 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	// fill help message info
 	help.add_line("OnTubeVis Help");
 	help.add_line("");
-	help.add_line("Load Datasets and Configurations");
+	help.add_line("Load Datasets and Configurations:");
 	help.add_line("Open a dataset file or folder containing datasets through the \"Data Path\" input. Open a configuration through the \"Configuration\" input. Alternatively, Drag & Drop supported data files or configurations onto the window.");
 
 	help.add_line("");
@@ -332,6 +333,7 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("grid_normal_settings", grid_normal_settings) &&
 		rh.reflect_member("grid_normal_inwards", grid_normal_inwards) &&
 		rh.reflect_member("grid_normal_variant", grid_normal_variant) &&
+		rh.reflect_member("ambient_occlusion", ao_style.enable) &&
 		rh.reflect_member("voxelize_gpu", voxelize_gpu) &&
 #ifdef RTX_SUPPORT
 		rh.reflect_member("use_optix", optix.enabled) &&
@@ -528,8 +530,7 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				handled = true;
 				break;
 			case cgv::gui::Keys::KEY_Num_Enter:
-				{ const bool new_state = render.style.is_tube();
-				  ui_state.tr_toggle.control->check_and_set_value(new_state); }
+				toggle_tube_ribbon();
 				handled = true;
 				break;
 			case cgv::gui::Keys::KEY_Space:
@@ -1006,6 +1007,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 			else
 				ui_state.tr_toggle.last_ribbon_primitive = render.style.line_primitive;
 		}
+
+		update_tube_ribbon_toggle();
 		reset_taa = true;
 	}
 
@@ -1096,14 +1099,23 @@ bool on_tube_vis::save_layer_configuration(const std::string& file_name) {
 
 	const auto& visualization = render.visualizations.front();
 
-	return layer_configuration_io::write_layer_configuration(file_name, visualization.variables, visualization.manager, color_map_mgr);
+	// collect settings
+	std::map<std::string, std::string> settings;
+
+	auto line_primitive_reflection = cgv::reflect::get_reflection_traits(render.style.line_primitive);
+	settings["line_primitve"] = line_primitive_reflection.get_enum_name(static_cast<int>(render.style.line_primitive));
+	settings["ambient_occlusion"] = ao_style.enable ? "true" : "false";
+
+	return layer_configuration_io::write_layer_configuration(file_name, visualization.variables, visualization.manager, color_map_mgr, settings);
 }
 
 bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 
 	auto& visualization = render.visualizations.front();
 
-	if(layer_configuration_io::read_layer_configuration(file_name, visualization.variables, visualization.manager, color_map_mgr)) {
+	std::map<std::string, std::string> settings;
+
+	if(layer_configuration_io::read_layer_configuration(file_name, visualization.variables, visualization.manager, color_map_mgr, settings)) {
 		// update the dependent members
 		color_map_mgr.update_texture(*get_context());
 		if(cm_viewer_ptr) {
@@ -1112,6 +1124,18 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 		}
 
 		visualization.manager.notify_configuration_change();
+
+		auto apply_setting = [this, &settings](const std::string& name, const std::string& target) {
+			auto it = settings.find(name);
+			if(it != settings.end())
+				set_void(target, "string", &it->second);
+		};
+
+		apply_setting("line_primitve", "render_style.line_primitive");
+		apply_setting("ambient_occlusion", "ambient_occlusion");
+
+		update_tube_ribbon_toggle();
+		
 		return true;
 	}
 
@@ -2020,11 +2044,13 @@ void on_tube_vis::create_gui(void)
 	add_member_control(this, "Box", show_bbox, "toggle", "w=83", "%x+=2");
 	add_member_control(this, "Wireframe", show_wireframe_bbox, "toggle", "w=83");
 	/* Quick tube/ribbon toggle */ {
-		static bool dummy = render.style.is_ribbon();
-		ui_state.tr_toggle.control = add_control("Current: tubes (toggle)", dummy, "toggle", "");
-		if (ui_state.tr_toggle.control)
+		std::string label = "Current: ";
+		label += render.style.is_tube() ? "tubes" : "ribbons";
+		label += " (toggle)";
+		ui_state.tr_toggle.button = add_button(get_tube_ribbon_toggle_label());
+		if(ui_state.tr_toggle.button)
 			connect_copy(
-				ui_state.tr_toggle.control->value_change,
+				ui_state.tr_toggle.button->click,
 				cgv::signal::rebind(this, &on_tube_vis::toggle_tube_ribbon)
 			);
 	}
@@ -2173,6 +2199,8 @@ void on_tube_vis::create_gui(void)
 	// Debug settings contractable section
 	if(begin_tree_node("(Debug)", benchmark, false)) {
 		align("\a");
+
+		inline_object_gui(navigator_ptr);
 
 		add_section_heading("Tools", 3);
 		add_member_control(
