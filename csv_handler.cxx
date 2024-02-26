@@ -725,7 +725,7 @@ cgv::base::object_registration_2<
 		 }},
 		{VisualAttrib::RADIUS, {
 			// we scale up the dataset to get more sensible numbers (mitigates floating point rounding errors etc.)
-			"radius", attrib_transform<float>::real_to_real(
+			"_radius", attrib_transform<float>::real_to_real(
 				[](float &out, const float &in) {
 					out = 128 * in;
 				}
@@ -759,7 +759,7 @@ csv_imldevice_reg(
 		 }},
 		{VisualAttrib::RADIUS, {
 			// we scale up the dataset to get more sensible numbers (mitigates floating point rounding errors etc.)
-			"radius", attrib_transform<float>::real_to_real(
+			"_radius", attrib_transform<float>::real_to_real(
 				[](float &out, const float &in) {
 					out = 128 * in;
 				}
@@ -845,7 +845,7 @@ cgv::base::object_registration_2<
 	visual_attribute_mapping<float>({
 		{VisualAttrib::RADIUS, {
 			// increase radius a bit to get thicker tubes with more visible area
-			"radius", attrib_transform<float>::real_to_real(
+			"_radius", attrib_transform<float>::real_to_real(
 				[](float &out, const float &in) {
 					out = 4.0f*in;
 				}
@@ -885,7 +885,7 @@ cgv::base::object_registration_2<
 		 }},
 		{VisualAttrib::RADIUS, {
 			// increase radius a bit to get thicker tubes with more visible area
-			"radius", attrib_transform<float>::real_to_real(
+			"_radius", attrib_transform<float>::real_to_real(
 				[](float &out, const float &in) {
 					out = in;
 				}
@@ -909,7 +909,7 @@ cgv::base::object_registration_2<
 	visual_attribute_mapping<float>({
 		{VisualAttrib::RADIUS, {
 			// increase radius a bit to get thicker tubes with more visible area
-			"radius", attrib_transform<float>::real_to_real(
+			"_radius", attrib_transform<float>::real_to_real(
 				[](float &out, const float &in) {
 					out = in;
 				}
