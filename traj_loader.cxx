@@ -35,7 +35,7 @@ namespace type_str {
 };
 
 // unique attribute id generation
-unsigned get_unique_id(void)
+unsigned get_unique_id (void)
 {
 	static std::atomic<unsigned> id(0);
 	return id++;
