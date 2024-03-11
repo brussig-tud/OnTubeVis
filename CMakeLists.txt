@@ -26,7 +26,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG a6d31d0d3203adb274c4844beca4c1428496be34
+		GIT_TAG da4aa6aa6213a374d9d495a839a89b749042e512
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -104,6 +104,7 @@ set(SOURCES
 	on_tube_vis.cxx
 	regulargrid.cxx
 	sepia_handler.cxx
+	tasc_handler.cxx
 	textured_spline_tube_renderer.cxx
 	tgen_handler.cxx
 	traj_loader.cxx
@@ -152,6 +153,7 @@ set(HEADERS
 	quadratic_bezier_tube.h
 	regulargrid.h
 	sepia_handler.h
+	tasc_handler.h
 	textured_spline_tube_renderer.h
 	tgen_handler.h
 	traj_loader.h
