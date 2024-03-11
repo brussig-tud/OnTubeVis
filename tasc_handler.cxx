@@ -205,11 +205,17 @@ traj_dataset<flt_type> tasc_handler<flt_type>::read(
 	if (num_segs < 1)
 		return traj_dataset<flt_type>(); // discard everything done up to now and just return an invalid dataset
 
-	// Invent radii
+	// Use participant height as radius
 	auto R = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, TASC_RADIUS_ATTRIB_NAME);
-	R.data.values = std::vector<flt_type>(P.data.num(), ret.avg_segment_length()*real(0.125));
 	R.data.timestamps = P.data.timestamps;
-	traj_format_handler<flt_type>::trajectories(ret, R.attrib) = Ptrajs; // invented radius "samples" are again in sync with positions, so just copy traj info
+	R.data.values.resize(P.attrib.num());
+	for (unsigned t=0; t<Ptrajs.size(); t++) {
+		const auto &traj = Ptrajs[t];
+		const flt_type radius = participant_infos[t]["height"];
+		for (unsigned i=traj.i0; i<traj.i0+traj.n; i++)
+			R.data.values[i] = radius;
+	}
+	traj_format_handler<flt_type>::trajectories(ret, R.attrib) = Ptrajs; // radius "samples" are again in sync with positions, so just copy traj info
 
 	// The default visual attribute mapping for TASC data
 	static const visual_attribute_mapping<real> vamap({

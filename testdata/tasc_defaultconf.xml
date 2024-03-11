@@ -1,0 +1,20 @@
+<GlyphConfiguration>
+    <ColorMaps/>
+    <Layers>
+        <Layer name="Time" active="true" glyph="color" sampling="original">
+            <Property name="interpolate" value="1.000000"/>
+            <Property name="color" attrib_name="Time" color_map_name="devon" in_range="0 9.57" out_range="1 0"/>
+        </Layer>
+        <Layer name="Travel Params" active="true" glyph="triangle_isosceles" sampling="uniform" sampling_step="1.125000">
+            <Property name="outline" value="0.110000"/>
+            <Property name="color" attrib_name="Speed" color_map_name="glasgow" in_range="0 8" out_range="1 0"/>
+            <Property name="base_width" attrib_name="Speed" in_range="0 8" out_range="1.5 0.5"/>
+            <Property name="height" attrib_name="Speed" in_range="1 8" out_range="0 5"/>
+            <Property name="orientation" in_range="0 1" out_range="0 360"/>
+        </Layer>
+    </Layers>
+    <Settings>
+        <Setting name="ambient_occlusion" value="false"/>
+        <Setting name="line_primitve" value="LP_TUBE_RUSSIG"/>
+    </Settings>
+</GlyphConfiguration>
