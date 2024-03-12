@@ -32,6 +32,9 @@ struct tasc_handler : public traj_format_handler<flt_type>
 	/// rgb color type
 	typedef typename traj_format_handler<flt_type>::Color color;
 
+	/// implementation forward
+	struct Impl;
+
 	/// reports the name "OBD"
 	const std::string& format_name (void) const;
 
