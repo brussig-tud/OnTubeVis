@@ -165,13 +165,15 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 
 	// setup datapath input control
 	datapath_helper = cgv::gui::file_helper(this, "Open Trajectory Data", cgv::gui::file_helper::Mode::kOpen);
-	datapath_helper.add_multi_filter("All Trajectory Files", {"bezdat", "csv", "sepia", "ppcdf", "ipcdf", "tgen"});
+	datapath_helper.add_multi_filter("All Trajectory Files", {"bezdat", "csv", "sepia", "ppcdf", "ipcdf", "tgen", "json", "tasc"});
 	datapath_helper.add_filter("Bezier Splines", "bezdat");
 	datapath_helper.add_filter("CSV", "csv");
 	datapath_helper.add_filter("Sepia Trajectories", "sepia");
 	datapath_helper.add_filter("On-Board Diagnostics", "ppcdf");
 	datapath_helper.add_filter("On-Board Diagnostics Extended", "ipcdf");
 	datapath_helper.add_filter("Trajectory Generator Config", "tgen");
+	datapath_helper.add_filter("TASC accident trajectories", "json");
+	datapath_helper.add_filter("TASC simulation ensemble", "tasc");
 
 	// fill help message info
 	help.add_line("OnTubeVis Help");
