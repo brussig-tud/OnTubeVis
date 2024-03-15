@@ -5,9 +5,11 @@
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <fstream>
 #include <algorithm>
 #include <utility>
 #include <limits>
+#include <filesystem>
 
 // CGV framework core
 #include <cgv/base/register.h>
@@ -63,12 +65,31 @@ struct tasc_handler<flt_type>::Impl
 	template <class T>
 	using attrib_info = typename traj_dataset<flt_type>::template attrib_info<T>;
 
-	static unsigned read_simulation_run (
-		unsigned simulation_run_val, attrib_info<vec3> &P, attrib_info<flt_type> &S, attrib_info<flt_type> &T,
-		attrib_info<flt_type> &R, attrib_info<flt_type> &participant_id, attrib_info<flt_type> *run_id_optional,
-		std::vector<range> &Ptrajs, std::vector<range> &participant_id_trajs, flt_type &new_segs_avg_length,
-		std::istream &contents
-	)
+	enum class Mode {
+		Single, Spaghetti, Stack
+	} mode = Mode::Single;
+
+	unsigned simulation_run_number = 0;
+	flt_type h_offset = 0;
+	attrib_info<vec3> P;
+	attrib_info<flt_type> S, T, R, partID;
+	traj_attribute<flt_type> runID;
+	std::vector<range> &Ptrajs, &PIDtrajs;
+
+	Impl(traj_dataset<flt_type> &ds)
+		// init synchronous attributes
+		: P(add_attribute<vec3>(ds, TASC_POSITION_ATTRIB_NAME)),
+		  S(add_attribute<flt_type>(ds, TASC_SPEED_ATTRIB_NAME)),
+		  T(add_attribute<flt_type>(ds, TASC_TIME_ATTRIB_NAME)),
+		  R(add_attribute<flt_type>(ds, TASC_RADIUS_ATTRIB_NAME)),
+		  Ptrajs(trajectories(ds, P.attrib)),
+		// init "meta" attributes
+		  partID(add_attribute<flt_type>(ds, TASC_PARTICIPANT_ID_ATTRIB_NAME)),
+		  runID(1),
+		  PIDtrajs(trajectories(ds, partID.attrib))
+	{}
+
+	unsigned read_simulation_run(flt_type &new_segs_avg_length, std::istream &contents)
 	{
 		// Parse the JSON stream
 		nlohmann::json j;
@@ -106,12 +127,12 @@ struct tasc_handler<flt_type>::Impl
 						const flt_type radius = info["height"];
 						if (_T.is_array() && _X.is_array() && _Y.is_array() && _S.is_array())
 						{
-							range new_traj{P.attrib.num(), 0}, new_meta{participant_id.attrib.num(), 2};
+							range new_traj{P.attrib.num(), 0}, new_meta{partID.attrib.num(), 2};
 							// read trajectory
 							for (unsigned i=0; i<_T.size() && i<_X.size() && i<_Y.size() && i<_S.size(); i++)
 							{
 								flt_type ts = _T[i];
-								vec3 new_pos(_X[i], 0, _Y[i]);
+								vec3 new_pos(_X[i], h_offset, _Y[i]);
 								// decide whether to commit these samples
 								if (i > 0) {
 									const vec3 pdiff = new_pos - P.data.values.back();
@@ -140,16 +161,17 @@ struct tasc_handler<flt_type>::Impl
 									P.data.timestamps[new_traj.i0],
 									P.data.timestamps[new_traj.i0 + new_traj.n-1]
 								};
-								participant_id_trajs.emplace_back(new_meta);
-								participant_id.data.timestamps.emplace_back(ts[0]);
-								participant_id.data.values.emplace_back(p["id"]);
-								participant_id.data.timestamps.emplace_back(ts[1]);
-								participant_id.data.values.emplace_back(participant_id.data.values.back());
-								if (run_id_optional) {
-									run_id_optional->data.timestamps.emplace_back(ts[0]);
-									run_id_optional->data.values.emplace_back(simulation_run_val);
-									run_id_optional->data.timestamps.emplace_back(ts[1]);
-									run_id_optional->data.values.emplace_back(simulation_run_val);
+								PIDtrajs.emplace_back(new_meta);
+								partID.data.timestamps.emplace_back(ts[0]);
+								partID.data.values.emplace_back(p["id"]);
+								partID.data.timestamps.emplace_back(ts[1]);
+								partID.data.values.emplace_back(partID.data.values.back());
+								if (mode != Mode::Single) {
+									auto &rID_data = runID.template get_data<flt_type>();
+									rID_data.timestamps.emplace_back(ts[0]);
+									rID_data.values.emplace_back(simulation_run_number);
+									rID_data.timestamps.emplace_back(ts[1]);
+									rID_data.values.emplace_back(simulation_run_number);
 								}
 								participant_infos.emplace_back(std::move(info));
 							}
@@ -219,52 +241,79 @@ bool tasc_handler<flt_type>::can_handle (std::istream &contents) const
 }
 
 template <class flt_type>
-traj_dataset<flt_type> tasc_handler<flt_type>::read(
+traj_dataset<flt_type> tasc_handler<flt_type>::read (
 	std::istream &contents, DatasetOrigin source, const std::string &path
 ){
 	// Check file type
-	std::vector<std::string> columns;
+	std::vector<std::string> fields;
 	std::vector<cgv::utils::token> tokens;
 	std::string line;
-	const std::string ws = " \t";
+	const std::string ws = " \t\r";
 	const bool ensemble = [&]() -> bool {
 		const stream_pos_guard g(contents);
-		return    csv_handler<flt_type>::Impl::read_next_nonempty_line(&line, &tokens, ws, contents, &columns) == 2
-		       && columns[0].compare("TASC-OTV") == 0 && csv_handler<flt_type>::Impl::parse_field(columns[1]) > 0;
+		return    csv_handler<flt_type>::Impl::read_next_nonempty_line(&line, &tokens, ws, contents, &fields) > 1
+		       && fields[0].compare("TASC-OTV") == 0 && csv_handler<flt_type>::Impl::parse_field(fields[1]) > 0;
 	}();
 
 	// prepare dataset container object and attribute storage
 	traj_dataset<flt_type> ret;
-	// - synchronous attributes
-	auto P = traj_format_handler<flt_type>::template add_attribute<vec3>(ret, TASC_POSITION_ATTRIB_NAME);
-	auto S = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, TASC_SPEED_ATTRIB_NAME);
-	auto T = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, TASC_TIME_ATTRIB_NAME);
-	auto R = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, TASC_RADIUS_ATTRIB_NAME);
-	auto &Ptrajs = traj_format_handler<flt_type>::trajectories(ret, P.attrib);
-	// - "meta" attributes
-	auto participant_id = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, TASC_PARTICIPANT_ID_ATTRIB_NAME);
-	auto &PIDtrajs = traj_format_handler<flt_type>::trajectories(ret, participant_id.attrib);
+
+	// instantiate implementation
+	Impl impl(ret);
 
 	unsigned num_segs = 0;
 	if (ensemble)
 	{
 		////
 		// We're loading a simulation ensemble
-
-		// add simulation run "meta" attribute
-		auto simulation_run = traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, TASC_SIMULATION_RUN_ATTRIB_NAME);
+		const std::filesystem::path orig = path,
+		                            orig_path = orig.parent_path();
+		impl.mode = Impl::Mode::Spaghetti;
+		std::filesystem::path dir;
 
 		// parse file and log parameters
 		while (!contents.eof())
 		{
-			const unsigned num_tokens = csv_handler<flt_type>::Impl::read_next_nonempty_line(&line, &tokens, ws, contents, &columns);
+			const unsigned num_tokens = csv_handler<flt_type>::Impl::read_next_nonempty_line(&line, &tokens, ws, contents, &fields);
 			if (Impl::line_is_comment(line))
 				continue;
+
+			if (num_tokens > 1)
+			{
+				if (fields[0] == "mode" && fields[1] == "stacked")
+					impl.mode = Impl::Mode::Stack;
+				else if (fields[0] == "dir")
+					dir = fields[1];
+			}
 		}
 
-		// copy participant id trajectory info to the added simulation run trajectory info as they share the same "meta" trajectory
-		// structure
-		traj_format_handler<flt_type>::trajectories(ret, simulation_run.attrib) = PIDtrajs;
+		// post-process ensemble path
+		const std::filesystem::path ensemble_dir =
+			dir.is_relative() ?	std::filesystem::absolute(orig_path/dir) : dir;
+
+		// load individual simulation runs
+		double avg_seg_len = 0;
+		for (auto const &f : std::filesystem::directory_iterator{ensemble_dir})
+		{
+			if (   cgv::utils::to_lower(f.path().extension()) == ".json"
+			    && std::filesystem::is_regular_file(f.path()))
+			{
+				std::ifstream runfile_contents(f.path());
+				flt_type avg_newsegs_len;
+				num_segs = impl.read_simulation_run(avg_newsegs_len, runfile_contents);
+				traj_format_handler<flt_type>::set_avg_segment_length(ret, avg_newsegs_len);
+				avg_seg_len += avg_newsegs_len;
+				impl.simulation_run_number++;
+				if (impl.mode == Impl::Mode::Stack)
+					impl.h_offset += 5;
+			}
+		}
+		// move simulation run "meta" attribute into the dataset
+		traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, TASC_SIMULATION_RUN_ATTRIB_NAME, std::move(impl.runID));
+		traj_format_handler<flt_type>::trajectories(ret, impl.runID) = impl.PIDtrajs;
+
+		// commit segment length stats
+		traj_format_handler<flt_type>::set_avg_segment_length(ret, flt_type(avg_seg_len/impl.simulation_run_number));
 	}
 	else
 	{
@@ -272,14 +321,14 @@ traj_dataset<flt_type> tasc_handler<flt_type>::read(
 		// We're loading an individual simulation run
 
 		flt_type avg_seg_len;
-		num_segs = Impl::read_simulation_run(0, P, S, T, R, participant_id, nullptr, Ptrajs, PIDtrajs, avg_seg_len, contents);
+		num_segs = impl.read_simulation_run(avg_seg_len, contents);
 		traj_format_handler<flt_type>::set_avg_segment_length(ret, avg_seg_len);
 	}
 
 	// copy trajectory info to the other synchronous attributes
-	traj_format_handler<flt_type>::trajectories(ret, S.attrib) = Ptrajs;
-	traj_format_handler<flt_type>::trajectories(ret, T.attrib) = Ptrajs;
-	traj_format_handler<flt_type>::trajectories(ret, R.attrib) = Ptrajs;
+	traj_format_handler<flt_type>::trajectories(ret, impl.S.attrib) = impl.Ptrajs;
+	traj_format_handler<flt_type>::trajectories(ret, impl.T.attrib) = impl.Ptrajs;
+	traj_format_handler<flt_type>::trajectories(ret, impl.R.attrib) = impl.Ptrajs;
 
 	// Final check if we loaded something useful
 	if (!num_segs)
