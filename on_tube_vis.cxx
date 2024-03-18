@@ -157,7 +157,7 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 
 	perfmon_ptr = register_overlay<cgv::app::performance_monitor>("Performance Monitor");
 	perfmon_ptr->set_visibility(false);
-	perfmon_ptr->set_show_background(false);
+	//perfmon_ptr->set_show_background(false);
 	perfmon_ptr->enable_monitoring_only_when_visible(true);
 	
 	layer_config_file_helper = cgv::gui::file_helper(this, "Open/Save Layer Configuration", cgv::gui::file_helper::Mode::kOpenAndSave);

@@ -11,7 +11,7 @@ color_map_viewer::color_map_viewer() {
 
 	set_name("Color Map Viewer");
 
-	blend_overlay = true;
+	//blend_overlay = true;
 
 	layout.padding = padding();
 	layout.band_height = 18;
