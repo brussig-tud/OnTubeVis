@@ -13,7 +13,7 @@
 #include "traj_loader.h"
 
 
-/// provides read capabilites for OBD (On-board diagnostics) logs.
+/// provides read capabilites for the TASC accident dataset.
 template <class flt_type>
 class tasc_handler : public traj_format_handler<flt_type>
 {
@@ -38,13 +38,13 @@ public:
 	/// implementation forward
 	struct Impl;
 
-	/// reports the name "OBD"
+	/// reports the name "TASC JSON"
 	const std::string& format_name (void) const;
 
-	/// reports the known OBD file extensions the handler will claim regardless of content.
+	/// reports the known TASC file extensions the handler will claim regardless of content.
 	const std::vector<std::string>& handled_extensions (void) const;
 
-	/// test if the given data stream appears to be a supported OBD file
+	/// test if the given data stream appears to be a supported TASC data file
 	virtual bool can_handle (std::istream &contents) const;
 
 	/// parse the given stream containing the file contents and report whether any data was loaded
