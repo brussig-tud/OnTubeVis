@@ -12,6 +12,11 @@
             <Property name="height" attrib_name="Speed" in_range="1 8" out_range="0 5"/>
             <Property name="orientation" in_range="0 1" out_range="0 360"/>
         </Layer>
+        <Layer name="Participant ID" active="true" glyph="circle" sampling="uniform" sampling_step="1.125000">
+            <Property name="outline" value="0.170000"/>
+            <Property name="color" attrib_name="ParticipantID" color_map_name="batlowW" in_range="1 2" out_range="1 0"/>
+            <Property name="radius" in_range="0 1" out_range="0 0.25"/>
+        </Layer>
     </Layers>
     <Settings>
         <Setting name="ambient_occlusion" value="false"/>

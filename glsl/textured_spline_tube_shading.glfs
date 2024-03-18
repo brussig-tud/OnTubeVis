@@ -573,7 +573,7 @@ float sd_triangle_isosceles(in vec2 p, in float bw, in float h) {
 	// in the default configuration the origin is at the tip of the two equal-length sides
 
 	// flip so default orientation is along trajectory direction
-	h = -h;
+	h = -max(h, 0.000001);
 
 	// move orign to base side of triangle
 	// p += h;

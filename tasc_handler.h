@@ -15,8 +15,11 @@
 
 /// provides read capabilites for OBD (On-board diagnostics) logs.
 template <class flt_type>
-struct tasc_handler : public traj_format_handler<flt_type>
+class tasc_handler : public traj_format_handler<flt_type>
 {
+
+public:
+
 	/// real number type
 	typedef typename traj_format_handler<flt_type>::real real;
 
@@ -32,6 +35,9 @@ struct tasc_handler : public traj_format_handler<flt_type>
 	/// rgb color type
 	typedef typename traj_format_handler<flt_type>::Color color;
 
+	/// implementation forward
+	struct Impl;
+
 	/// reports the name "OBD"
 	const std::string& format_name (void) const;
 
@@ -43,4 +49,18 @@ struct tasc_handler : public traj_format_handler<flt_type>
 
 	/// parse the given stream containing the file contents and report whether any data was loaded
 	virtual traj_dataset<flt_type> read (std::istream &contents, DatasetOrigin source, const std::string &path);
+
+
+protected:
+
+	// proxy for the internal implementation class to be able to add attributes to the result dataset object
+	template <class T>
+	inline static typename traj_dataset<flt_type>::template attrib_info<T> add_attribute(traj_dataset<real> &ds, const std::string &name) {
+		return traj_format_handler<real>::template add_attribute<T>(ds, name);
+	}
+
+	// proxy for the internal implementation class to be able to manipulate trajectory info in the result dataset object
+	inline static std::vector<range>& trajectories (traj_dataset<real> &ds, const traj_attribute<real> &attrib) {
+		return traj_format_handler<real>::trajectories(ds, attrib);
+	}
 };

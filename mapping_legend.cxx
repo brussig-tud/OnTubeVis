@@ -6,7 +6,7 @@
 mapping_legend::mapping_legend() {
 
 	set_name("Mapping Legend");
-	blend_overlay = true;
+	//blend_overlay = true;
 	block_events = false;
 
 	set_size(ivec2(316, 0));
