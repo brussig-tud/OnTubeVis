@@ -139,11 +139,13 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	cm_editor_ptr->set_visibility(false);
 	cm_editor_ptr->gui_options.create_default_tree_node = false;
 	cm_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_color_map_change, this));
+	cm_editor_ptr->set_stretch(cgv::app::overlay::SO_HORIZONTAL);
 
 	tf_editor_ptr = register_overlay<cgv::app::color_map_editor>("Transfer Function");
 	tf_editor_ptr->set_visibility(false);
 	tf_editor_ptr->set_opacity_support(true);
 	tf_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_transfer_function_change, this));
+	tf_editor_ptr->set_stretch(cgv::app::overlay::SO_HORIZONTAL);
 
 	navigator_ptr = register_overlay<cgv::app::navigator>("Navigator");
 	navigator_ptr->set_visibility(false);
@@ -159,6 +161,7 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	perfmon_ptr->set_visibility(false);
 	//perfmon_ptr->set_show_background(false);
 	perfmon_ptr->enable_monitoring_only_when_visible(true);
+	perfmon_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_END);
 	
 	layer_config_file_helper = cgv::gui::file_helper(this, "Open/Save Layer Configuration", cgv::gui::file_helper::Mode::kOpenAndSave);
 	layer_config_file_helper.add_filter("Layer Configuration XML", "xml");
