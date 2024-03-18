@@ -26,7 +26,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 9b3449aa938db3ec3f12617c029cd00ecebfe4f6
+		GIT_TAG ba94fdf3ff376a5ae3a32019c3cc17ae56160a9a
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()

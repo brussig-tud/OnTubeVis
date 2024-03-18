@@ -232,6 +232,7 @@ void mapping_legend::init_styles() {
 	border_style.border_width = 0.0f;
 	border_style.feather_width = 0.0f;
 
+	// configure style for the color boxes
 	color_box_style.use_fill_color = false;
 	color_box_style.border_width = 1.0f;
 	color_box_style.border_color = theme.border();
@@ -239,6 +240,5 @@ void mapping_legend::init_styles() {
 	color_box_style.feather_width = 1.0f;
 
 	// configure text style
-	text_style = cgv::g2d::text2d_style::preset_default(theme.text());
 	text_style.font_size = 12.0f;
 }
