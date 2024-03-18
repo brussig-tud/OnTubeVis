@@ -69,6 +69,7 @@ struct tasc_handler<flt_type>::Impl
 		Single, Spaghetti, Stack
 	} mode = Mode::Single;
 
+	std::vector<nlohmann::json> participant_infos;
 	unsigned simulation_run_number = 0;
 	flt_type h_offset = 0;
 	attrib_info<vec3> P;
@@ -101,8 +102,6 @@ struct tasc_handler<flt_type>::Impl
 		}
 
 		// Extract trajectory data for every participant
-		// - prepare participant info storage
-		std::vector<nlohmann::json> participant_infos;
 		// - values
 		unsigned num_segs = 0;
 		if (j.is_object())
@@ -169,9 +168,9 @@ struct tasc_handler<flt_type>::Impl
 								if (mode != Mode::Single) {
 									auto &rID_data = runID.template get_data<flt_type>();
 									rID_data.timestamps.emplace_back(ts[0]);
-									rID_data.values.emplace_back(simulation_run_number);
+									rID_data.values.emplace_back((flt_type)simulation_run_number);
 									rID_data.timestamps.emplace_back(ts[1]);
-									rID_data.values.emplace_back(simulation_run_number);
+									rID_data.values.emplace_back((flt_type)simulation_run_number);
 								}
 								participant_infos.emplace_back(std::move(info));
 							}
@@ -295,8 +294,7 @@ traj_dataset<flt_type> tasc_handler<flt_type>::read (
 		double avg_seg_len = 0;
 		for (auto const &f : std::filesystem::directory_iterator{ensemble_dir})
 		{
-			if (   cgv::utils::to_lower(f.path().extension()) == ".json"
-			    && std::filesystem::is_regular_file(f.path()))
+			if (cgv::utils::to_lower(f.path().extension().string()) == ".json" && std::filesystem::is_regular_file(f.path()))
 			{
 				std::ifstream runfile_contents(f.path());
 				flt_type avg_newsegs_len;
@@ -352,8 +350,8 @@ traj_dataset<flt_type> tasc_handler<flt_type>::read (
 // Explicit template instantiations
 
 // Only float and double variants are intended
-template struct tasc_handler<float>;
-template struct tasc_handler<double>;
+template class tasc_handler<float>;
+template class tasc_handler<double>;
 
 
 ////
