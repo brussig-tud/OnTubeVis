@@ -11,9 +11,8 @@ color_legend_manager::color_legend_manager(cgv::app::application_plugin_base &ow
 		legends[i] = owner.register_overlay<cgv::app::color_map_legend>(str.str());
 		legends[i]->set_size(legends[i]->get_rectangle().size + cgv::ivec2(16, 0));
 		legends[i]->set_num_ticks(5);
-		legends[i]->set_label_auto_precision(false);
-		legends[i]->set_label_prune_trailing_zeros(true);
 		legends[i]->set_visibility(false);
+		legends[i]->set_alignment(cgv::app::overlay::AO_START, cgv::app::overlay::AO_END);
 		std::cout.flush();
 	}
 	std::cout.flush();
@@ -35,7 +34,7 @@ void color_legend_manager::compose (
 	// collect in-use color maps
 	if (layers.empty())
 		return;
-	int voffset = -3;
+	int voffset = -1;
 	const auto attrib_names = dataset.get_attribute_names(),
 	           ltype_names = glyph_type_registry::display_names();
 	for (const auto &layer : layers)
@@ -54,8 +53,6 @@ void color_legend_manager::compose (
 			// find out the layer name and glyph/plot type to include in the legend title
 			std::stringstream stitle;
 			stitle << ltype_names[layer.get_shape_ptr()->type()];
-			/*if (!layer.get_name().empty())
-				stitle << " ("<<layer.get_name()<<')';*/
 			stitle << " -- "<<attrib_names[ai];
 
 			// set up a legend for the found color mapping
@@ -81,27 +78,10 @@ void color_legend_manager::compose (
 			} else {
 				new_legend->set_color_map(ctx, cmc.cm);
 			}
-			/* setup ranges */ {
-				new_legend->set_range({ranges.x(), ranges.y()});
-				const float diff = ranges.y() - ranges.x();
-				if (diff > 5)
-					new_legend->set_label_precision(1);
-				else if (diff > 1)
-					new_legend->set_label_precision(2);
-				else if (diff > .5f)
-					new_legend->set_label_precision(3);
-				else if (diff > .25f)
-					new_legend->set_label_precision(4);
-				else if (diff > .125f)
-					new_legend->set_label_precision(5);
-				else if (diff > .0625f)
-					new_legend->set_label_precision(6);
-				else
-					new_legend->set_label_precision(7);
-			}
-			new_legend->set_margin({-3, voffset});
+			new_legend->set_range({ranges.x(), ranges.y()});
+			new_legend->set_margin({-1, voffset});
 			new_legend->set_visibility(true);
-			voffset += new_legend->get_rectangle().h()-3;
+			voffset += new_legend->get_rectangle().h()-1;
 			num_active++;
 		}
 	}

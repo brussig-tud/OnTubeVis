@@ -6,7 +6,6 @@
 mapping_legend::mapping_legend() {
 
 	set_name("Mapping Legend");
-	//blend_overlay = true;
 	block_events = false;
 
 	set_size(ivec2(316, 0));
@@ -240,5 +239,6 @@ void mapping_legend::init_styles() {
 	color_box_style.feather_width = 1.0f;
 
 	// configure text style
+	text_style.fill_color = theme.text();
 	text_style.font_size = 12.0f;
 }
