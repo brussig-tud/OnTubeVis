@@ -92,6 +92,7 @@ set(SOURCES
 	# main app
 	arclen_helper.cxx
 	attrib_handle_manager.cxx
+	bcc_handler.cxx
 	bezdat_handler.cxx
 	color_legend_manager.cxx
 	color_map_manager.cxx
@@ -132,6 +133,7 @@ set(HEADERS
 	ambient_occlusion_style.h
 	arclen_helper.h
 	attrib_handle_manager.h
+	bcc_handler.h
 	bezdat_handler.h
 	color_legend_manager.h
 	color_map_manager.h
