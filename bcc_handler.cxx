@@ -147,7 +147,7 @@ traj_dataset<flt_type> bcc_handler<flt_type>::read (
 	// Convert to trajectory dataset
 
 	// base attributes
-	auto P = add_attribute<Vec3>(ret, BCC_POSITION_ATTRIB_NAME);
+	auto P = add_attribute<vec3>(ret, BCC_POSITION_ATTRIB_NAME);
 	auto T = add_attribute<real>(ret, BCC_CURVE_PARAM_ATTRIB_NAME);
 	auto I = add_attribute<real>(ret, BCC_CURVE_ID_ATTRIB_NAME);
 	auto R = add_attribute<real>(ret, BCC_RADIUS_ATTRIB_NAME);
@@ -214,7 +214,7 @@ traj_dataset<flt_type> bcc_handler<flt_type>::read (
 		return traj_dataset<flt_type>(); // discard everything done up to now and just return an invalid dataset
 
 	// invent radii
-	set_avg_segment_length(ret, real(seg_len_accum/=double(num_segs)));
+	super::set_avg_segment_length(ret, real(seg_len_accum/=double(num_segs)));
 	for (const auto &_ : P.data.values)
 		R.data.values.emplace_back(ret.avg_segment_length()*real(.75));
 	R.data.timestamps = P.data.timestamps;
