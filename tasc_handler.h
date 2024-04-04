@@ -17,23 +17,25 @@
 template <class flt_type>
 class tasc_handler : public traj_format_handler<flt_type>
 {
-
 public:
 
+	// trajectory handler interface
+	typedef traj_format_handler<flt_type> super;
+
 	/// real number type
-	typedef typename traj_format_handler<flt_type>::real real;
+	typedef typename super::real real;
 
 	/// 2D vector type
-	typedef typename traj_format_handler<flt_type>::Vec2 vec2;
+	typedef typename super::Vec2 vec2;
 
 	/// 3D vector type
-	typedef typename traj_format_handler<flt_type>::Vec3 vec3;
+	typedef typename super::Vec3 vec3;
 
 	/// 4D vector type
-	typedef typename traj_format_handler<flt_type>::Vec4 vec4;
+	typedef typename super::Vec4 vec4;
 
 	/// rgb color type
-	typedef typename traj_format_handler<flt_type>::Color color;
+	typedef typename super::Color color;
 
 	/// implementation forward
 	struct Impl;
@@ -56,11 +58,11 @@ protected:
 	// proxy for the internal implementation class to be able to add attributes to the result dataset object
 	template <class T>
 	inline static typename traj_dataset<flt_type>::template attrib_info<T> add_attribute(traj_dataset<real> &ds, const std::string &name) {
-		return traj_format_handler<real>::template add_attribute<T>(ds, name);
+		return super::template add_attribute<T>(ds, name);
 	}
 
 	// proxy for the internal implementation class to be able to manipulate trajectory info in the result dataset object
 	inline static std::vector<range>& trajectories (traj_dataset<real> &ds, const traj_attribute<real> &attrib) {
-		return traj_format_handler<real>::trajectories(ds, attrib);
+		return super::trajectories(ds, attrib);
 	}
 };

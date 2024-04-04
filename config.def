@@ -33,7 +33,7 @@ type(on_tube_vis):show_hidden_glyphs=false
 // - Use ambient occlusion
 type(on_tube_vis):ambient_occlusion=true
 // - Voxelization device
-type(on_tube_vis):voxelize_gpu=false
+//type(on_tube_vis):voxelize_gpu=true
 
 // Framework settings
 name(Stereo Interactor):clip_relative_to_extent=false
