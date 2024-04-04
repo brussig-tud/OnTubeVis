@@ -1263,6 +1263,16 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 bool on_tube_vis::init (cgv::render::context &ctx)
 {
+	// ideal settings for .bcc yarn models:
+	/*ao_style.enable = true;
+	ao_style.sample_offset = .4f;
+	ao_style.sample_distance = .125f;
+	ao_style.strength_scale = 40;
+	ao_style.cone_angle = 50;
+	voxelize_gpu = true;
+	voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(512u);
+	grid_mode = GridMode::GM_NORMAL;*/
+
 	// generate demo dataset
 	// - demo AO settings
 	ao_style_bak = ao_style;

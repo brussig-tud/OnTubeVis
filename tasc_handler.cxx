@@ -299,7 +299,7 @@ traj_dataset<flt_type> tasc_handler<flt_type>::read (
 				std::ifstream runfile_contents(f.path());
 				flt_type avg_newsegs_len;
 				num_segs = impl.read_simulation_run(avg_newsegs_len, runfile_contents);
-				traj_format_handler<flt_type>::set_avg_segment_length(ret, avg_newsegs_len);
+				super::set_avg_segment_length(ret, avg_newsegs_len);
 				avg_seg_len += avg_newsegs_len;
 				impl.simulation_run_number++;
 				if (impl.mode == Impl::Mode::Stack)
@@ -307,11 +307,11 @@ traj_dataset<flt_type> tasc_handler<flt_type>::read (
 			}
 		}
 		// move simulation run "meta" attribute into the dataset
-		traj_format_handler<flt_type>::template add_attribute<flt_type>(ret, TASC_SIMULATION_RUN_ATTRIB_NAME, std::move(impl.runID));
-		traj_format_handler<flt_type>::trajectories(ret, impl.runID) = impl.PIDtrajs;
+		super::template add_attribute<flt_type>(ret, TASC_SIMULATION_RUN_ATTRIB_NAME, std::move(impl.runID));
+		super::trajectories(ret, impl.runID) = impl.PIDtrajs;
 
 		// commit segment length stats
-		traj_format_handler<flt_type>::set_avg_segment_length(ret, flt_type(avg_seg_len/impl.simulation_run_number));
+		super::set_avg_segment_length(ret, flt_type(avg_seg_len/impl.simulation_run_number));
 	}
 	else
 	{
@@ -320,13 +320,13 @@ traj_dataset<flt_type> tasc_handler<flt_type>::read (
 
 		flt_type avg_seg_len;
 		num_segs = impl.read_simulation_run(avg_seg_len, contents);
-		traj_format_handler<flt_type>::set_avg_segment_length(ret, avg_seg_len);
+		super::set_avg_segment_length(ret, avg_seg_len);
 	}
 
 	// copy trajectory info to the other synchronous attributes
-	traj_format_handler<flt_type>::trajectories(ret, impl.S.attrib) = impl.Ptrajs;
-	traj_format_handler<flt_type>::trajectories(ret, impl.T.attrib) = impl.Ptrajs;
-	traj_format_handler<flt_type>::trajectories(ret, impl.R.attrib) = impl.Ptrajs;
+	super::trajectories(ret, impl.S.attrib) = impl.Ptrajs;
+	super::trajectories(ret, impl.T.attrib) = impl.Ptrajs;
+	super::trajectories(ret, impl.R.attrib) = impl.Ptrajs;
 
 	// Final check if we loaded something useful
 	if (!num_segs)
@@ -339,7 +339,7 @@ traj_dataset<flt_type> tasc_handler<flt_type>::read (
 	ret.set_mapping(vamap);
 
 	// Set dataset name (we just use the filename for now)
-	traj_format_handler<flt_type>::name(ret) = cgv::utils::file::drop_extension(cgv::utils::file::get_file_name(path));
+	super::name(ret) = cgv::utils::file::drop_extension(cgv::utils::file::get_file_name(path));
 
 	// done!
 	return std::move(ret);

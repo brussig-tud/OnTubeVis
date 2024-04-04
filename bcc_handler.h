@@ -13,9 +13,9 @@
 #include "traj_loader.h"
 
 
-/// provides read capabilites for the TASC accident dataset.
+/// provides read capabilites for Cem Yuksel's Binary Curve Collection file format.
 template <class flt_type>
-class tasc_handler : public traj_format_handler<flt_type>
+class bcc_handler : public traj_format_handler<flt_type>
 {
 public:
 
@@ -40,13 +40,13 @@ public:
 	/// implementation forward
 	struct Impl;
 
-	/// reports the name "TASC JSON"
+	/// reports the name "Binary Curve Collection"
 	const std::string& format_name (void) const;
 
-	/// reports the known TASC file extensions the handler will claim regardless of content.
+	/// reports the single extension "bcc" which the handler will claim regardless of content.
 	const std::vector<std::string>& handled_extensions (void) const;
 
-	/// test if the given data stream appears to be a supported TASC data file
+	/// test if the given data stream appears to be a supported BCC file
 	virtual bool can_handle (std::istream &contents) const;
 
 	/// parse the given stream containing the file contents and report whether any data was loaded
