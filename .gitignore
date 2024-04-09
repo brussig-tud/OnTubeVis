@@ -42,3 +42,6 @@ config.cfg
 .vs
 .vscode
 .idea
+
+# Clangd cache
+/.cache/
