@@ -98,6 +98,7 @@ set(SOURCES
 	color_map_manager.cxx
 	color_map_viewer.cxx
 	csv_handler.cxx
+	gl_util.cxx
 	glyph_attribute_mapping.cxx
 	glyph_layer_manager.cxx
 	mapping_legend.cxx
@@ -142,6 +143,7 @@ set(HEADERS
 	csv_handler_detail.h
 	curveutils.h
 	demo.h
+	gl_util.h
 	glyph_attribute_mapping.h
 	glyph_compiler.h
 	glyph_layer_manager.h
@@ -154,6 +156,8 @@ set(HEADERS
 	on_tube_vis.h
 	quadratic_bezier_tube.h
 	regulargrid.h
+	ring_buffer.h
+	ring_buffer.inl
 	sepia_handler.h
 	tasc_handler.h
 	textured_spline_tube_renderer.h

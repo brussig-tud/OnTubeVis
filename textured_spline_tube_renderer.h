@@ -53,7 +53,7 @@ namespace cgv { // @<
 			enum LinePrimitive
 			{
 				LP_TUBE_RUSSIG = 0,                         // use intersector for swept-sphere spline tubes by Russig et al.
-				LP_TUBE_PHANTOM = 1,                        // use swept-disc Phantom Ray Hair intersector by Reshetov and Lübke
+				LP_TUBE_PHANTOM = 1,                        // use swept-disc Phantom Ray Hair intersector by Reshetov and Lï¿½bke
 				LP_RIBBON_RAYCASTED = 2,                    // use raycasted view-aligned ribbon
 				LP_RIBBON_GEOMETRY = 3                      // use geometry-shader based triangle-strip tessellated view-aligned ribbon (ignores bounding geometry style options)
 			} line_primitive;
@@ -195,8 +195,16 @@ namespace cgv { // @<
 			///
 			bool disable(context& ctx);
 			///
-			void draw(context& ctx, size_t sunt, size_t count,
-				bool use_strips = false, bool use_adjacency = false, uint32_t strip_resunt_index = -1);
+			void draw(context& ctx, size_t start, size_t count,
+				bool use_strips = false, bool use_adjacency = false, uint32_t strip_restart_index = -1);
+			/// Draw multiple subspans of an index buffer with a single draw call.
+			[[nodiscard]] bool multirender_indexed(
+				context& ctx,
+				const attribute_array_manager &aam,
+				const void *const *span_starts,
+				const GLsizei *span_lens, 
+				GLsizei num_spans
+			);
 		};
 
 		struct textured_spline_tube_render_style_reflect : public textured_spline_tube_render_style

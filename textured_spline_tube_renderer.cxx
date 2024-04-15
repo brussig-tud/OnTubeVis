@@ -1,6 +1,11 @@
+// C++ STL
 #include <limits>
+
+// CGV framework
 #include <cgv_gl/gl/gl.h>
 #include <cgv_gl/gl/gl_tools.h>
+
+// implemented header
 #include "textured_spline_tube_renderer.h"
 
 namespace cgv {
@@ -176,6 +181,29 @@ namespace cgv {
 			glDisable(GL_CULL_FACE);
 			draw_impl(ctx, PT_POINTS, start, count, use_strips, use_adjacency, strip_restart_index);
 			glEnable(GL_CULL_FACE);
+		}
+
+		[[nodiscard]] bool textured_spline_tube_renderer::multirender_indexed(
+			context& ctx,
+			const attribute_array_manager &aam,
+			const void *const *span_starts,
+			const GLsizei *span_lens,
+			GLsizei num_spans
+		) {
+			// Copied from `renderer::render`,
+			if (!validate_and_enable(ctx))
+				return false;
+
+			// Copied from `draw`.
+			glDisable(GL_CULL_FACE);
+
+			// The index type is hard-coded since it cannot easily be accessed.
+			glMultiDrawElements(GL_POINTS, span_lens, GL_UNSIGNED_INT, span_starts, num_spans);
+			
+			// Copied from `draw`.
+			glEnable(GL_CULL_FACE);
+			// Copied from `renderer::render`,
+			return disable(ctx);
 		}
 
 		bool textured_spline_tube_render_style_reflect::self_reflect(cgv::reflect::reflection_handler& rh)

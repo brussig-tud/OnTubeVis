@@ -32,6 +32,7 @@
 // Local includes
 #include "arclen_helper.h"
 #include "glyph_compiler.h"
+#include "ring_buffer.inl"
 #ifdef RTX_SUPPORT
 #include "cuda/optix_interface.h"
 
@@ -2430,6 +2431,26 @@ void on_tube_vis::update_attribute_bindings(void) {
 		update_member(&debug.render_percentage);
 		update_member(&debug.render_count);
 
+		// Allocate ring buffers.
+		if (!(
+			render.node_buffer.create(num_nodes)
+			&& render.segment_buffer.create(segment_count)
+		)) {
+			throw std::runtime_error("Error creating ring buffers");
+		}
+
+		// Fill ring buffers.
+		render.node_buffer.push_back(render_attribs.data(), render_attribs.size());
+		render.segment_buffer.push_back(reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count);
+		
+		// Make ring buffers visible to GPU.
+		if (!(
+			render.node_buffer.flush()
+			&& render.segment_buffer.flush()
+		)) {
+			throw std::runtime_error("Error flushing ring buffers");
+		}
+
 		// Generate the density volume (uses GPU buffer data so we need to do this after upload)
 		create_density_volume(ctx, voxel_grid_resolution);
 	}
@@ -2686,15 +2707,43 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			count = static_cast<int>(debug.render_count);
 		}
 
-		render.render_sbo.bind(ctx, VBT_STORAGE, 0);
+		// render.render_sbo.bind(ctx, VBT_STORAGE, 0);
+
+		// Bind buffers.
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, render.node_buffer.handle());
 		render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
+		tstr.set_node_id_array(ctx, render.segment_buffer.data(), render.segment_buffer.alloc_len(), sizeof(uvec2));
+
 		//if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
 			// for now we always bind the node indices buffer to enable smooth intra-segment t filtering
 			node_idx_buffer_ptr->bind(ctx, VBT_STORAGE, 2);
-			tstr.render(ctx, 0, count);
+			// tstr.render(ctx, 0, count);
 		/*}
 		else
 			tstr.render(ctx, 0, count);*/
+
+		// Draw:
+		// If the segment buffer is sequential in memory.
+		if (render.segment_buffer.front() < render.segment_buffer.gpu_back()) {
+			GLsizei count = render.segment_buffer.gpu_back() - render.segment_buffer.front();
+			tstr.render(
+				ctx,
+				render.segment_buffer.front(),
+				render.segment_buffer.gpu_back() - render.segment_buffer.front()
+			);
+		}
+		// If the segment buffer wraps around,
+		else {
+			const std::array<void*, 2> span_starts {
+				reinterpret_cast<void*>(render.segment_buffer.front() * sizeof(GLuint)),
+				0
+			};
+			const std::array<GLsizei, 2> span_lens {
+				static_cast<GLsizei>(render.segment_buffer.alloc_len() - render.segment_buffer.front()),
+				static_cast<GLsizei>(render.segment_buffer.gpu_back())
+			};
+			auto _ = tstr.multirender_indexed(ctx, render.aam, span_starts.data(), span_lens.data(), 2);
+		}
 
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 

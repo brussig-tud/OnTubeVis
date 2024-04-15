@@ -48,6 +48,7 @@
 #include "textured_spline_tube_renderer.h"
 #include "color_map_viewer.h"
 #include "mapping_legend.h"
+#include "ring_buffer.h"
 #ifdef RTX_SUPPORT
 #include "optix_integration.h"
 #include "optixtracer_textured_spline_tube.h"
@@ -383,6 +384,9 @@ protected:
 		/// segment-wise arclength approximations (set of 4 cubic bezier curves returning global
 		/// trajectory arclength at the segment, packed into the columns of a 4x4 matrix)
 		arclen::parametrization arclen_data;
+
+		ring_buffer<node_attribs> node_buffer;
+		ring_buffer<uvec2> segment_buffer;
 
 		/// GPU-side storage buffer mirroring the \ref #arclen_data .
 		vertex_buffer arclen_sbo;
