@@ -1792,6 +1792,21 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 // ###############################
 #endif
 
+void on_tube_vis::ringbuf_trajectory::append_node(const node_attribs &node, render_state &render)
+{
+	// Add the node to the GPU buffer, storing the index at which it is placed.
+	auto new_node_idx = render.node_buffer.back();
+	render.node_buffer.push_back(node);
+
+	// Connect the node with a new segment, unless it is the first node in this trajectory.
+	if (last_node_idx != no_index) {
+		render.segment_buffer.push_back({last_node_idx, new_node_idx});
+	}
+
+	// The new node is now the end of the trajectory.
+	last_node_idx = new_node_idx;
+}
+
 void on_tube_vis::init_frame (cgv::render::context &ctx)
 {
 	// TODO: remove once all relevant view interactors provided by the framework properly fix the up-vector
@@ -1845,6 +1860,35 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		playback.timer.add_time();
 		render.style.max_t = render.style.max_t + float((playback.time_active-prev)*playback.speed);
 		update_member(&render.style.max_t);
+
+		// Extend trajectories with new data.
+		for (auto &[trajectory, idx_range] : render.trajectories) {
+			for (auto &i = idx_range[0]; i != idx_range[1]; ++i) { // Mutating reference is intentional.
+				// Only add data up to the current playback time.
+				if (render.data->timestamps[i] > render.style.max_t) {
+					break;
+				}
+
+				// Append the node.
+				// A new segment is implicitely created.
+				auto col = render.data->colors[i];
+				trajectory.append_node(
+					{
+						{render.data->positions[i], render.data->radii[i]},
+						{col.R(), col.G(), col.B(), 1},
+						render.data->tangents[i],
+						{render.data->timestamps[i], 0, 0, 0}
+					},
+					render
+				);
+			}
+		}
+
+		// Make changes visible to the GPU.
+		// The return value is assigned to silence "unused" warnings; error messages are printed regardless.
+		auto _ = render.node_buffer.flush()
+		&& render.segment_buffer.flush();
+
 		if (render.style.max_t >= playback.tend)
 		{
 			if (playback.repeat)
@@ -2439,16 +2483,13 @@ void on_tube_vis::update_attribute_bindings(void) {
 			throw std::runtime_error("Error creating ring buffers");
 		}
 
-		// Fill ring buffers.
-		render.node_buffer.push_back(render_attribs.data(), render_attribs.size());
-		render.segment_buffer.push_back(reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count);
-		
-		// Make ring buffers visible to GPU.
-		if (!(
-			render.node_buffer.flush()
-			&& render.segment_buffer.flush()
-		)) {
-			throw std::runtime_error("Error flushing ring buffers");
+		// Create trajectories to fill ring buffers.
+		for (const auto &dataset : traj_mgr.datasets()) {
+			const auto &pos_attrib = dataset.positions().attrib;
+			
+			for (const auto &trajectory : dataset.trajectories(pos_attrib)) {
+				render.trajectories.push_back({{}, {trajectory.i0, trajectory.i0 + trajectory.n}});
+			}
 		}
 
 		// Generate the density volume (uses GPU buffer data so we need to do this after upload)

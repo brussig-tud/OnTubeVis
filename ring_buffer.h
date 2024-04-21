@@ -70,6 +70,11 @@ public:
 		return self.front;
 	}
 
+	[[nodiscard]] constexpr index_type back () const noexcept
+	{
+		return self.back;
+	}
+
 	[[nodiscard]] constexpr index_type gpu_back () const noexcept
 	{
 		return self.gpu_back;
@@ -88,6 +93,8 @@ public:
 	/// Any previous data is discarded.
 	[[nodiscard]] bool create (size_type capacity) noexcept;
 
+	/// Changes might not be visible to the GPU until `sync` is called.
+	void push_back (const elem_type &elem);
 	/// Changes might not be visible to the GPU until `sync` is called.
 	void push_back (const elem_type *elems, size_type num_elems);
 

@@ -370,8 +370,24 @@ protected:
 		}
 	};
 
+	struct render_state;
+
+	/// Manages ring buffer content for a single trajectory.
+	class ringbuf_trajectory {
+	private:
+		/// Constant to indicate the lack of a buffer entry.
+		static constexpr ring_buffer_base::index_type no_index = -1;
+
+		/// The absolute index of the last entry in the node buffer belonging to this trajectory.
+		ring_buffer_base::index_type last_node_idx = no_index;
+
+	public:
+		/// Extend the trajectory by one node at the end.
+		void append_node(const node_attribs &node, render_state &render);
+	};
+
 	/// rendering state fields
-	struct {
+	struct render_state {
 		/// render style for the textured spline tubes
 		textured_spline_tube_render_style style;
 		
@@ -405,6 +421,10 @@ protected:
 
 		/// the gpu sorter used to reorder the indices according to their corresponding segment visibility order
 		cgv::gpgpu::visibility_sort sorter;
+
+		/// Managers for trajectory data stored in ring buffers, along with the index range each trajectory will be
+		/// generated from.
+		std::vector<std::pair<ringbuf_trajectory, uvec2>> trajectories;
 	} render;
 	int render_gui_dummy = 0;
 
@@ -463,7 +483,8 @@ protected:
 		bool show_hidden_glyphs = false;
 
 		/// whether to sort the segments, which is used to boost performance together with conservative depth testing
-		bool sort = true;
+		/// TODO: Sorting currently does not work with ring buffers.
+		bool sort = false;
 		/// whether to only sort after significant view changes instead of every redraw
 		bool lazy_sort = true;
 		/// whether to foirce the initial draw order of segments as defined in the data set (overrides sort setting)

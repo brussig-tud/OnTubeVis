@@ -80,6 +80,21 @@ template <class Elem, class Sfinae>
 }
 
 template <class Elem, class Sfinae>
+void ring_buffer<Elem, Sfinae>::push_back (const elem_type &elem)
+{
+	// If the buffer is full, raise an exception.
+	auto new_back = index_after(self.back);
+
+	if (new_back == self.gpu_front) {
+		throw std::runtime_error("ring_buffer::push_back would exceed capacity");
+	}
+
+	// Otherwise store the element and advance the back index.
+	self.data[self.back] = elem;
+	self.back            = new_back;
+}
+
+template <class Elem, class Sfinae>
 void ring_buffer<Elem, Sfinae>::push_back (const elem_type *elems, size_type num_elems)
 {
 	auto new_back = self.back + num_elems;
@@ -139,6 +154,11 @@ bool ring_buffer<Elem, Sfinae>::try_pop_front () noexcept
 template <class Elem, class Sfinae>
 [[nodiscard]] bool ring_buffer<Elem, Sfinae>::flush () noexcept
 {
+	// Nothing to do if the GPU is already up to date.
+	if (self.gpu_back == self.back) {
+		return true;
+	}
+
 	glBindBuffer(GL_COPY_READ_BUFFER, self.handle);
 
 	auto end = self.back;
