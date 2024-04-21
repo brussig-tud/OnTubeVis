@@ -1807,6 +1807,65 @@ void on_tube_vis::ringbuf_trajectory::append_node(const node_attribs &node, rend
 	last_node_idx = new_node_idx;
 }
 
+void on_tube_vis::render_state::extend_trajectories()
+{
+	for (auto &[trajectory, idx_range] : trajectories) {
+		for (auto &i = idx_range[0]; i != idx_range[1]; ++i) { // Mutating reference is intentional.
+			// Only add data up to the current playback time.
+			if (data->timestamps[i] > style.max_t) {
+				break;
+			}
+
+			// Append the node.
+			// A new segment is implicitely created.
+			auto col = data->colors[i];
+			trajectory.append_node(
+				{
+					{data->positions[i], data->radii[i]},
+					{col.R(), col.G(), col.B(), 1},
+					data->tangents[i],
+					{data->timestamps[i], 0, 0, 0}
+				},
+				*this
+			);
+		}
+	}
+}
+
+void on_tube_vis::render_state::trim_trajectories(float cutoff_time)
+{
+	// Constant used to mark unlinked nodes for deletion.
+	constexpr auto unlinked_node = std::numeric_limits<float>::infinity();
+
+	// Remove all segments from the front of the buffer whose first node is older than the cutoff.
+	// If segments were created out of order, some with older nodes could be kept, but that is acceptable since the
+	// shaders check the timestamp again and one of the next calls to this function should eventually remove those
+	// segments as well.
+	while (auto *segment = segment_buffer.try_first()) {
+		// Only the first node has to be checked, since by construction it is always the older one.
+		auto &node = *(node_buffer.data() + segment->x());
+
+		if (node.t[0] > cutoff_time) {
+			break;
+		}
+
+		// Remove the segment and mark the node for deletion.
+		segment_buffer.pop_front();
+		node.t[0] = unlinked_node;
+	}
+
+	// Remove all nodes no longer used by a segment from the front of the buffer.
+	// Depending on order, some unused nodes could be kept for now, but again this is fine; they should be removed by
+	// one of the next trimmings.
+	while (auto *node = node_buffer.try_first()) {
+		if (node->t[0] != unlinked_node) {
+			break;
+		}
+
+		node_buffer.pop_front();
+	}
+}
+
 void on_tube_vis::init_frame (cgv::render::context &ctx)
 {
 	// TODO: remove once all relevant view interactors provided by the framework properly fix the up-vector
@@ -1861,28 +1920,10 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		render.style.max_t = render.style.max_t + float((playback.time_active-prev)*playback.speed);
 		update_member(&render.style.max_t);
 
-		// Extend trajectories with new data.
-		for (auto &[trajectory, idx_range] : render.trajectories) {
-			for (auto &i = idx_range[0]; i != idx_range[1]; ++i) { // Mutating reference is intentional.
-				// Only add data up to the current playback time.
-				if (render.data->timestamps[i] > render.style.max_t) {
-					break;
-				}
-
-				// Append the node.
-				// A new segment is implicitely created.
-				auto col = render.data->colors[i];
-				trajectory.append_node(
-					{
-						{render.data->positions[i], render.data->radii[i]},
-						{col.R(), col.G(), col.B(), 1},
-						render.data->tangents[i],
-						{render.data->timestamps[i], 0, 0, 0}
-					},
-					render
-				);
-			}
-		}
+		// Remove old data from the trajectories, then add new data.
+		// TODO: Make the visible time window controllable through the GUI.
+		render.trim_trajectories(render.style.max_t - 5);
+		render.extend_trajectories();
 
 		// Make changes visible to the GPU.
 		// The return value is assigned to silence "unused" warnings; error messages are printed regardless.

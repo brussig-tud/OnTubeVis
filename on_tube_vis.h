@@ -425,6 +425,12 @@ protected:
 		/// Managers for trajectory data stored in ring buffers, along with the index range each trajectory will be
 		/// generated from.
 		std::vector<std::pair<ringbuf_trajectory, uvec2>> trajectories;
+
+		/// Append all data points up to the current timestamp to their respective trajectory.
+		void extend_trajectories();
+
+		/// Remove all data points up to the given timestamp from their respective trajectory.
+		void trim_trajectories(float cutoff_time);
 	} render;
 	int render_gui_dummy = 0;
 

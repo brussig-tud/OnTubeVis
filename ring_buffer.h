@@ -80,6 +80,17 @@ public:
 		return self.gpu_back;
 	}
 
+	[[nodiscard]] constexpr bool is_empty () const noexcept
+	{
+		return self.front == self.back;
+	}
+
+	/// Return a pointer to the first entry of the buffer or `nullptr` if it is empty.
+	[[nodiscard]] constexpr elem_type *try_first () const noexcept
+	{
+		return self.front == self.back ? nullptr : self.data + self.front;
+	}
+
 	/// Set the index onward from which elements may be used by the GPU.
 	/// Elements before this index (and after `gpu_back`) are not in use by the GPU and may be overwritten.
 	/// The caller is responsible for ensuring that all commands using these elements have actually completed.
@@ -98,7 +109,9 @@ public:
 	/// Changes might not be visible to the GPU until `sync` is called.
 	void push_back (const elem_type *elems, size_type num_elems);
 
-	bool try_pop_front () noexcept;
+	/// Remove the first element of the buffer.
+	/// Undefined behaviour if the buffer is empty.
+	void pop_front () noexcept;
 
 	/// Make changes visible to the GPU.
 	[[nodiscard]] bool flush () noexcept;

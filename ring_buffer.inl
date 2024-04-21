@@ -132,12 +132,10 @@ void ring_buffer<Elem, Sfinae>::push_back (const elem_type *elems, size_type num
 }
 
 template <class Elem, class Sfinae>
-bool ring_buffer<Elem, Sfinae>::try_pop_front () noexcept
+void ring_buffer<Elem, Sfinae>::pop_front () noexcept
 {
-	// Cannot pop from an empty buffer.
-	if (self.front == self.back) {
-		return false;
-	}
+	// Sanity check.
+	assert(self.front != self.back);
 
 	auto new_front = index_after(self.front);
 
@@ -147,7 +145,6 @@ bool ring_buffer<Elem, Sfinae>::try_pop_front () noexcept
 	}
 
 	self.front = new_front;
-	return true;
 }
 
 
