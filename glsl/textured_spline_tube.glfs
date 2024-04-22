@@ -126,7 +126,7 @@ in flat mat4 SM_fs; // spline matrix
 layout (depth_greater) out float gl_FragDepth;
 #endif
 
-layout (location = 0) out vec4 frag_albedo;
+layout (location = 0) out uvec4 frag_albedo;
 layout (location = 1) out vec3 frag_position;
 layout (location = 2) out vec3 frag_normal;
 layout (location = 3) out vec3 frag_tangent;
@@ -971,7 +971,12 @@ void main()
 		float v = acos(dot(b, hit.normal)) * M_INV_PI;
 
 		//frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(col)), spline_t, v, intBitsToFloat(segment_id_fs));
-		frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(col)), alen(spline_t), v, intBitsToFloat(segment_id_fs));
+		frag_albedo = uvec4(
+			packUnorm4x8(col),
+			floatBitsToUint(alen(spline_t)),
+			floatBitsToUint(v),
+			uint(segment_id_fs) // "guaranteed to preserve the bit pattern"
+		);
 		frag_position = vec3(hit_pos_eye);
 		frag_normal = hit.normal;
 		frag_tangent = tangent;

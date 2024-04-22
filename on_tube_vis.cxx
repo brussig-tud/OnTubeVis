@@ -128,7 +128,7 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 
 	// add framebuffer attachments needed for deferred rendering
 	fbc.add_attachment("depth", "uint32[D]");
-	fbc.add_attachment("albedo", "flt32[R,G,B,A]");
+	fbc.add_attachment("albedo", "uint32[R,G,B,A]");
 	fbc.add_attachment("position", "flt32[R,G,B]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
