@@ -426,11 +426,14 @@ protected:
 		/// generated from.
 		std::vector<std::pair<ringbuf_trajectory, uvec2>> trajectories;
 
+		/// Fence placed directly after the last draw command.
+		GLsync draw_fence;
+
 		/// Append all data points up to the current timestamp to their respective trajectory.
-		void extend_trajectories();
+		void extend_trajectories ();
 
 		/// Remove all data points up to the given timestamp from their respective trajectory.
-		void trim_trajectories(float cutoff_time);
+		void trim_trajectories (float cutoff_time);
 	} render;
 	int render_gui_dummy = 0;
 

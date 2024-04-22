@@ -1469,6 +1469,8 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	// ###############################
 #endif
 
+	// Create an initial fence object to avoid the need for a null check in `draw_trajectories`.
+	render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 	// done
 	return success;
@@ -1792,7 +1794,7 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 // ###############################
 #endif
 
-void on_tube_vis::ringbuf_trajectory::append_node(const node_attribs &node, render_state &render)
+void on_tube_vis::ringbuf_trajectory::append_node (const node_attribs &node, render_state &render)
 {
 	// Add the node to the GPU buffer, storing the index at which it is placed.
 	auto new_node_idx = render.node_buffer.back();
@@ -1807,7 +1809,7 @@ void on_tube_vis::ringbuf_trajectory::append_node(const node_attribs &node, rend
 	last_node_idx = new_node_idx;
 }
 
-void on_tube_vis::render_state::extend_trajectories()
+void on_tube_vis::render_state::extend_trajectories ()
 {
 	for (auto &[trajectory, idx_range] : trajectories) {
 		for (auto &i = idx_range[0]; i != idx_range[1]; ++i) { // Mutating reference is intentional.
@@ -1832,7 +1834,7 @@ void on_tube_vis::render_state::extend_trajectories()
 	}
 }
 
-void on_tube_vis::render_state::trim_trajectories(float cutoff_time)
+void on_tube_vis::render_state::trim_trajectories (float cutoff_time)
 {
 	// Constant used to mark unlinked nodes for deletion.
 	constexpr auto unlinked_node = std::numeric_limits<float>::infinity();
@@ -1851,6 +1853,8 @@ void on_tube_vis::render_state::trim_trajectories(float cutoff_time)
 
 		// Remove the segment and mark the node for deletion.
 		segment_buffer.pop_front();
+		// NOTE: This could mean writing to storage currently read by a draw call, which is UB.
+		// Chances and severity of actual problems, however, are low, so this simple approach is used for now.
 		node.t[0] = unlinked_node;
 	}
 
@@ -2517,9 +2521,10 @@ void on_tube_vis::update_attribute_bindings(void) {
 		update_member(&debug.render_count);
 
 		// Allocate ring buffers.
+		// Currently uses the minimum capacity possible for demo data to test if wrap-around works.
 		if (!(
-			render.node_buffer.create(num_nodes)
-			&& render.segment_buffer.create(segment_count)
+			render.node_buffer.create(18) // (time_window + 1) * num_trajectories
+			&& render.segment_buffer.create(15) // time_window * num_trajectories
 		)) {
 			throw std::runtime_error("Error creating ring buffers");
 		}
@@ -2826,6 +2831,27 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			};
 			auto _ = tstr.multirender_indexed(ctx, render.aam, span_starts.data(), span_lens.data(), 2);
 		}
+
+		// Wait for the previous draw call to complete.
+		auto wait_result = glClientWaitSync(render.draw_fence, 0, -1);
+		glDeleteSync(render.draw_fence);
+
+#ifdef _DEBUG
+		if (wait_result == GL_CONDITION_SATISFIED) {
+			std::clog << "Had to wait on previous draw call.\n";
+		}
+#endif
+
+ 		// Update the ring buffers' guard indices to match the new draw call.
+		render.node_buffer.set_gpu_front(render.node_buffer.front());
+		render.segment_buffer.set_gpu_front(render.segment_buffer.front());
+
+		// Create a fence object to check when the new draw call has completed and the memory it was reading can be
+		// safely manipulated again.
+		render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+		
+		// Flush the command buffer.
+		glFlush();
 
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
