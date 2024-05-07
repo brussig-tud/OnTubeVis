@@ -37,6 +37,7 @@
 
 # CGV framework stuff
 config.cfg
+.run/
 
 # IDE folders
 .vs
@@ -44,4 +45,4 @@ config.cfg
 .idea
 
 # Clangd cache
-/.cache/
+.cache/
