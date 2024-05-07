@@ -49,7 +49,7 @@
 #include "color_map_viewer.h"
 #include "mapping_legend.h"
 #include "render_types.h"
-#include "ring_buffer.h"
+#include "gpumem.h"
 #ifdef RTX_SUPPORT
 #include "optix_integration.h"
 #include "optixtracer_textured_spline_tube.h"
@@ -368,10 +368,10 @@ protected:
 	class ringbuf_trajectory {
 	private:
 		/// Constant to indicate the lack of a buffer entry.
-		static constexpr ring_buffer_base::index_type no_index = -1;
+		static constexpr gpumem::index_type no_index = -1;
 
 		/// The absolute index of the last entry in the node buffer belonging to this trajectory.
-		ring_buffer_base::index_type last_node_idx = no_index;
+		gpumem::index_type last_node_idx = no_index;
 
 		float arc_length = 0;
 
@@ -396,14 +396,14 @@ protected:
 		arclen::parametrization arclen_data;
 
 		/// GPU ring buffer containing trajectory nodes.
-		ring_buffer<node_attribs> node_buffer;
+		gpumem::ring_buffer<node_attribs> node_buffer;
 
 		/// GPU ring buffer containing segments defined as pairs of absolute indices into #node_buffer.
-		ring_buffer<uvec2> segment_buffer;
+		gpumem::ring_buffer<uvec2> segment_buffer;
 
-		/// GPU ring buffer containing segment-wise arclength parametrization.
+		/// GPU buffer containing segment-wise arclength parametrization.
 		/// Entries correspond to #segment_buffer.
-		ring_buffer<mat4> t_to_s;
+		gpumem::array<mat4> t_to_s;
 
 		/// GPU-side storage buffer mirroring the \ref #arclen_data .
 		vertex_buffer arclen_sbo;

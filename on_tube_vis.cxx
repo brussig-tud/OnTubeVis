@@ -32,7 +32,7 @@
 // Local includes
 #include "arclen_helper.h"
 #include "glyph_compiler.h"
-#include "ring_buffer.inl"
+#include "gpumem.inl"
 #ifdef RTX_SUPPORT
 #include "cuda/optix_interface.h"
 
@@ -1806,13 +1806,12 @@ void on_tube_vis::ringbuf_trajectory::append_node (const node_attribs &node, ren
 		render.segment_buffer.push_back({last_node_idx, new_node_idx});
 
 		// Store the segment's arclength parametrization at the corresponding index.
-		render.t_to_s.push_back({});
 		mat4 s_to_t;
 		arclen::parametrize_segment(
-			*(render.node_buffer.data() + last_node_idx),
+			render.node_buffer.alloc()[last_node_idx],
 			node,
 			arc_length,
-			*(render.t_to_s.data() + new_seg_idx),
+			render.t_to_s[new_seg_idx],
 			s_to_t
 		);
 	}
@@ -1857,7 +1856,7 @@ void on_tube_vis::render_state::trim_trajectories (float cutoff_time)
 	// segments as well.
 	while (auto *segment = segment_buffer.try_first()) {
 		// Only the first node has to be checked, since by construction it is always the older one.
-		auto &node = *(node_buffer.data() + segment->x());
+		auto &node = node_buffer.alloc()[segment->x()];
 
 		if (node.t[0] > cutoff_time) {
 			break;
@@ -1865,7 +1864,6 @@ void on_tube_vis::render_state::trim_trajectories (float cutoff_time)
 
 		// Remove the segment and all associated information.
 		segment_buffer.pop_front();
-		t_to_s.pop_front();
 
 		// Mark the start node for deletion.
 		// NOTE: This could mean writing to storage currently read by a draw call, which is UB.
@@ -1945,11 +1943,12 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		render.extend_trajectories();
 
 		// Make changes visible to the GPU.
-		// The return value is assigned to silence "unused" warnings; error messages are printed regardless.
 		{
+		// The return value is assigned to silence "unused" warnings; error messages are printed regardless.
 		[[maybe_unused]] auto _ = render.node_buffer.flush()
-		&& render.segment_buffer.flush()
-		&& render.t_to_s.flush();
+		// The entries of `t_to_s` correspond to `segments`, so the same range has to be flushed.
+		&& render.t_to_s.flush_wrapping(render.segment_buffer.gpu_back(), render.segment_buffer.back())
+		&& render.segment_buffer.flush();
 		}
 
 		if (render.style.max_t >= playback.tend)
@@ -2817,12 +2816,12 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		// Bind buffers.
 		glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 2, std::array{
-			render.node_buffer.handle(),
+			render.node_buffer.alloc().handle(),
 			render.t_to_s.handle()
 		}.data());
 		// glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, render.node_buffer.handle());
 		// render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
-		tstr.set_node_id_array(ctx, render.segment_buffer.data(), render.segment_buffer.alloc_len(), sizeof(uvec2));
+		tstr.set_node_id_array(ctx, render.segment_buffer.alloc().data(), render.segment_buffer.alloc().length(), sizeof(uvec2));
 
 		//if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
 			// for now we always bind the node indices buffer to enable smooth intra-segment t filtering
@@ -2849,7 +2848,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 				0
 			};
 			const std::array<GLsizei, 2> span_lens {
-				static_cast<GLsizei>(render.segment_buffer.alloc_len() - render.segment_buffer.front()),
+				static_cast<GLsizei>(render.segment_buffer.alloc().length() - render.segment_buffer.front()),
 				static_cast<GLsizei>(render.segment_buffer.gpu_back())
 			};
 			auto _ = tstr.multirender_indexed(ctx, render.aam, span_starts.data(), span_lens.data(), 2);
@@ -2868,7 +2867,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
  		// Update the ring buffers' guard indices to match the new draw call.
 		render.node_buffer.set_gpu_front(render.node_buffer.front());
 		render.segment_buffer.set_gpu_front(render.segment_buffer.front());
-		render.t_to_s.set_gpu_front(render.t_to_s.front());
 
 		// Create a fence object to check when the new draw call has completed and the memory it was reading can be
 		// safely manipulated again.
