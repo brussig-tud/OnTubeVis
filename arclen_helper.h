@@ -8,6 +8,7 @@
 #include <cgv/render/vertex_buffer.h>
 
 // Local includes
+#include "render_types.h"
 #include "traj_loader.h"
 
 
@@ -15,6 +16,23 @@
 /// via the trajectory manager
 namespace arclen
 {
+	/// Compute the arclength approximation for a single Hermite spline segment.
+	template <class flt_type> void parametrize_segment (
+		// Start and end node of the segment.
+		const node_attribs &n0,
+		const node_attribs &n1,
+		// Total arclength of the trajectory that the segment belongs to.
+		/*inout*/ flt_type &traj_length,
+		/// A cubic Bézier spline that provides an approximate t→s mapping for this trajectory segment.
+		/// Each column stores the coefficients for one Bézier curve.
+		/*out*/ cgv::mat4 &t_to_s,
+		/// A cubic Bézier spline that provides an approximate s→t mapping for this trajectory segment.
+		/// Each column stores the coefficients for one Bézier curve.
+		/// ATTENTION: for reasons of efficiency, the mapping is local to each segment - an arc length 0
+		/// will be mapped to t=0 and and the full segment arc length will be mapped to t=1
+		/*out*/ cgv::mat4 &s_to_t
+	);
+
 	/// encapsulates t→s and s→t maps of an arclength parametrization of a Hermite spline, represented by
 	/// 4-segment cubic Bezier splines (stored in a 4x4 matrix) for each Hermite spline segment and mapping
 	/// direction. The data is ordered in accordance with the index pairs in the render data of the trajectory

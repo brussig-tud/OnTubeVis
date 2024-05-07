@@ -1802,7 +1802,19 @@ void on_tube_vis::ringbuf_trajectory::append_node (const node_attribs &node, ren
 
 	// Connect the node with a new segment, unless it is the first node in this trajectory.
 	if (last_node_idx != no_index) {
+		auto new_seg_idx = render.segment_buffer.back();
 		render.segment_buffer.push_back({last_node_idx, new_node_idx});
+
+		// Store the segment's arclength parametrization at the corresponding index.
+		render.t_to_s.push_back({});
+		mat4 s_to_t;
+		arclen::parametrize_segment(
+			*(render.node_buffer.data() + last_node_idx),
+			node,
+			arc_length,
+			*(render.t_to_s.data() + new_seg_idx),
+			s_to_t
+		);
 	}
 
 	// The new node is now the end of the trajectory.
@@ -1851,8 +1863,11 @@ void on_tube_vis::render_state::trim_trajectories (float cutoff_time)
 			break;
 		}
 
-		// Remove the segment and mark the node for deletion.
+		// Remove the segment and all associated information.
 		segment_buffer.pop_front();
+		t_to_s.pop_front();
+
+		// Mark the start node for deletion.
 		// NOTE: This could mean writing to storage currently read by a draw call, which is UB.
 		// Chances and severity of actual problems, however, are low, so this simple approach is used for now.
 		node.t[0] = unlinked_node;
@@ -1931,8 +1946,11 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 
 		// Make changes visible to the GPU.
 		// The return value is assigned to silence "unused" warnings; error messages are printed regardless.
-		auto _ = render.node_buffer.flush()
-		&& render.segment_buffer.flush();
+		{
+		[[maybe_unused]] auto _ = render.node_buffer.flush()
+		&& render.segment_buffer.flush()
+		&& render.t_to_s.flush();
+		}
 
 		if (render.style.max_t >= playback.tend)
 		{
@@ -2525,6 +2543,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 		if (!(
 			render.node_buffer.create(18) // (time_window + 1) * num_trajectories
 			&& render.segment_buffer.create(15) // time_window * num_trajectories
+			&& render.t_to_s.create(15) // time_window * num_trajectories
 		)) {
 			throw std::runtime_error("Error creating ring buffers");
 		}
@@ -2759,7 +2778,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		const vertex_buffer* segment_idx_buffer_ptr = tstr.get_index_buffer_ptr(render.aam);
 
 		if(!render.render_sbo.is_created() ||
-			!render.arclen_sbo.is_created() ||
+			// !render.arclen_sbo.is_created() ||
 			segment_idx_buffer_ptr == nullptr ||
 			node_idx_buffer_ptr == nullptr)
 			return;
@@ -2797,8 +2816,12 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// render.render_sbo.bind(ctx, VBT_STORAGE, 0);
 
 		// Bind buffers.
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, render.node_buffer.handle());
-		render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
+		glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 2, std::array{
+			render.node_buffer.handle(),
+			render.t_to_s.handle()
+		}.data());
+		// glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, render.node_buffer.handle());
+		// render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
 		tstr.set_node_id_array(ctx, render.segment_buffer.data(), render.segment_buffer.alloc_len(), sizeof(uvec2));
 
 		//if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
@@ -2845,6 +2868,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
  		// Update the ring buffers' guard indices to match the new draw call.
 		render.node_buffer.set_gpu_front(render.node_buffer.front());
 		render.segment_buffer.set_gpu_front(render.segment_buffer.front());
+		render.t_to_s.set_gpu_front(render.t_to_s.front());
 
 		// Create a fence object to check when the new draw call has completed and the memory it was reading can be
 		// safely manipulated again.

@@ -48,6 +48,7 @@
 #include "textured_spline_tube_renderer.h"
 #include "color_map_viewer.h"
 #include "mapping_legend.h"
+#include "render_types.h"
 #include "ring_buffer.h"
 #ifdef RTX_SUPPORT
 #include "optix_integration.h"
@@ -96,15 +97,6 @@ public:
 	using box3 = cgv::box3;
 	using rgb = cgv::rgb;
 	using rgba = cgv::rgba;
-
-
-	/// data layout for per-node attributes within the attribute render SSBO
-	struct node_attribs {
-		vec4 pos_rad;
-		vec4 color;
-		vec4 tangent;
-		vec4 t; // only uses .x component to store t, yzw are reserved for future use
-	};
 
 	cgv::type::DummyEnum voxel_grid_resolution;
 
@@ -381,6 +373,8 @@ protected:
 		/// The absolute index of the last entry in the node buffer belonging to this trajectory.
 		ring_buffer_base::index_type last_node_idx = no_index;
 
+		float arc_length = 0;
+
 	public:
 		/// Extend the trajectory by one node at the end.
 		void append_node(const node_attribs &node, render_state &render);
@@ -401,8 +395,15 @@ protected:
 		/// trajectory arclength at the segment, packed into the columns of a 4x4 matrix)
 		arclen::parametrization arclen_data;
 
+		/// GPU ring buffer containing trajectory nodes.
 		ring_buffer<node_attribs> node_buffer;
+
+		/// GPU ring buffer containing segments defined as pairs of absolute indices into #node_buffer.
 		ring_buffer<uvec2> segment_buffer;
+
+		/// GPU ring buffer containing segment-wise arclength parametrization.
+		/// Entries correspond to #segment_buffer.
+		ring_buffer<mat4> t_to_s;
 
 		/// GPU-side storage buffer mirroring the \ref #arclen_data .
 		vertex_buffer arclen_sbo;
