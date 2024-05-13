@@ -148,6 +148,8 @@ set(HEADERS
 	glyph_compiler.h
 	glyph_layer_manager.h
 	glyph_shapes.h
+	gpumem.h
+	gpumem.inl
 	gui_util.h
 	hermite_spline_tube.h
 	layer_config_io.h
@@ -156,8 +158,7 @@ set(HEADERS
 	on_tube_vis.h
 	quadratic_bezier_tube.h
 	regulargrid.h
-	ring_buffer.h
-	ring_buffer.inl
+	render_types.h
 	sepia_handler.h
 	tasc_handler.h
 	textured_spline_tube_renderer.h
