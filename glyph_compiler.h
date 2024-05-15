@@ -7,6 +7,7 @@
 #include "arclen_helper.h"
 #include "traj_loader.h"
 #include "glyph_layer_manager.h"
+#include "render_types.h"
 
 
 
@@ -17,9 +18,6 @@ public:
 	using mat4 = cgv::mat4;
 
 protected:
-	// helper struct for range entries with start index i0 and count n
-	struct irange { int i0, n; };
-
 	// helper struct for glyph attributes
 	struct glyph_attributes {
 		size_t count = 0;
@@ -68,7 +66,7 @@ protected:
 		std::vector<const std::vector<range>*> attribs_trajs;
 		size_t attrib_count;
 
-		std::vector<irange> ranges;
+		std::vector<glyph_range> ranges;
 		glyph_attributes attribs;
 
 		layer_compile_info(const glyph_shape* shape_ptr) : current_shape(shape_ptr) {}
@@ -858,7 +856,7 @@ protected:
 		size_t layer_count = layers_config.layer_configs.size();
 
 		layer_filled.resize(layer_count, false);
-		layer_ranges.resize(layer_count, std::vector<irange>());
+		layer_ranges.resize(layer_count, std::vector<glyph_range>());
 		layer_attribs.resize(layer_count, glyph_attributes());
 
 		// build seperate range and attribs buffers for each glyph layer
@@ -884,7 +882,7 @@ public:
 	glyph_compiler() {}
 	
 	std::vector<bool> layer_filled;
-	std::vector<std::vector<irange>> layer_ranges;
+	std::vector<std::vector<glyph_range>> layer_ranges;
 	std::vector<glyph_attributes> layer_attribs;
 
 	bool include_hidden_glyphs;
