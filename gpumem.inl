@@ -74,8 +74,9 @@ template <class Elem, class Sfinae>
 }
 
 template <class Elem, class Sfinae>
-[[nodiscard]] bool array<Elem, Sfinae>::flush_wrapping (index_type begin, index_type end) noexcept
-{
+[[nodiscard]] bool array<Elem, Sfinae>::flush_wrapping (ro_range<index_type> range) noexcept {
+	auto &[begin, end] = range;
+
 	// Nothing to do for an empty range.
 	if (begin == end) {
 		return true;
@@ -121,9 +122,11 @@ void ring_buffer<Elem, Sfinae>::push_back (const elem_type &elem)
 }
 
 template <class Elem, class Sfinae>
-void ring_buffer<Elem, Sfinae>::push_back (const elem_type *elems, size_type num_elems)
+template <class Iter>
+void ring_buffer<Elem, Sfinae>::push_back (ro_range<Iter> elems)
 {
-	auto new_back = self.back + num_elems;
+	auto &[begin, end] = elems;
+	auto new_back      = self.back + (end - begin);
 
 	// If the used part of the buffer is sequential in memory, the unused part wraps around.
 	if (self.gpu_front <= self.back) {
@@ -133,27 +136,26 @@ void ring_buffer<Elem, Sfinae>::push_back (const elem_type *elems, size_type num
 		}
 
 		// Otherwise the back part of the allocation is filled in a first copy...
-		auto back_vacancy_len = self.alloc.length() - self.back;
-		std::copy(&self.alloc[self.back], elems, back_vacancy_len);
+		auto split_point = std::min(begin + (self.alloc.length() - self.back), end);
+		std::copy(begin, split_point, &self.alloc[self.back]);
 
 		// ...and the rest is copied to the front.
-		elems     += back_vacancy_len;
-		num_elems -= back_vacancy_len;
+		begin      = split_point;
 		self.back  = 0;
 		new_back  -= self.alloc.length();
 	}
 
 	// At this point, the unused part of the allocation is sequential in memory.
 
-	// If there is not enough room to store the new values without overwriting data still used by GPU commands, raise an
+	// If there is not enough room push_backto store the new values without overwriting data still used by GPU commands, raise an
 	// exception.
-	if (new_back >= self.gpu_front) {
+	if (new_back >= self.gpu_front != self.back >= self.gpu_front) {
 		throw std::runtime_error("gpumem::ring_buffer::push_back would exceed capacity");
 	}
 
 	// Otherwise copy the new elements and update the back index.
 	copy:
-	std::copy(&self.alloc[self.back], elems, num_elems);
+	std::copy(begin, end, &self.alloc[self.back]);
 	self.back = new_back;
 }
 
@@ -176,7 +178,7 @@ void ring_buffer<Elem, Sfinae>::pop_front () noexcept
 template <class Elem, class Sfinae>
 [[nodiscard]] bool ring_buffer<Elem, Sfinae>::flush () noexcept
 {
-	auto result = self.alloc.flush_wrapping(self.gpu_back, self.back);
+	auto result = self.alloc.flush_wrapping(new_elems());
 
 	// The GPU is now caught up to the CPU.
 	self.gpu_back = self.back;

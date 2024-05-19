@@ -48,8 +48,9 @@
 #include "textured_spline_tube_renderer.h"
 #include "color_map_viewer.h"
 #include "mapping_legend.h"
-#include "render_types.h"
 #include "gpumem.h"
+#include "render_types.h"
+#include "util.h"
 #ifdef RTX_SUPPORT
 #include "optix_integration.h"
 #include "optixtracer_textured_spline_tube.h"
@@ -368,15 +369,15 @@ protected:
 	class trajectory {
 	private:
 		/// The absolute index of the last entry in the node buffer belonging to this trajectory.
-		gpumem::index_type last_node_idx;
+		gpumem::index_type _last_node_idx;
 		/// The arc length of the entire trajectory.
-		float arc_length = 0;
+		float _arc_length = 0;
 
 		/// Extend the trajectory by on node.
 		/// Unlike `append_segment`, this function can also be used with an empty trajectory.
 		void append_node (const node_attribs &node, render_state &render) {
 			// Add the node to the GPU buffer, storing the index at which it is placed.
-			last_node_idx = render.node_buffer.back();
+			_last_node_idx = render.node_buffer.back();
 			render.node_buffer.push_back(node);
 		}
 
@@ -387,6 +388,11 @@ protected:
 			append_node(start_node, render);
 		}
 
+		/// Return the total arc length of this trajectory.
+		[[nodiscard]] constexpr float arc_length() const noexcept {
+			return _arc_length;
+		}
+
 		/// Extend the trajectory by one node at the end, creating a new segment.
 		void append_segment (
 			const node_attribs &node,
@@ -395,27 +401,35 @@ protected:
 		);
 	};
 
-	/// Host-side data for one glyoh layer.
-	struct glyph_source {
-		std::vector<glyph_range> ranges;
-	};
-
-	/// GPU data required to render a glyph layer.
-	struct glyph_vis {
-		gpumem::array<glyph_range> ranges;
-	};
-
 	/// Wrapper around a rendered trajectory that can be used to simulate streaming by gradually
 	/// adding data from a buffer.
 	struct trajectory_streamer {
 		/// The rendered trajectory.
 		trajectory render_data;
 		/// The range of nodes belonging to this trajectory.
-		uvec2 node_idcs;
+		ro_range<unsigned> node_idcs;
 		/// The index of the next segment belonging to this trajectory.
 		/// There is always one less segment than nodes, so there is no need to store the maximum
 		/// index.
 		unsigned segment_idx;
+	};
+
+	/// Host-side data for one glyph layer.
+	struct glyph_source_data {
+		glyph_source_data() = default;
+
+		glyph_source_data(const glyph_source_data &) = delete;
+		glyph_source_data(glyph_source_data &&) noexcept = default;
+
+		glyph_source_data &operator= (const glyph_source_data &) = delete;
+		glyph_source_data &operator= (glyph_source_data &&) noexcept = default;
+
+		std::vector<glyph_range> ranges;
+	};
+
+	/// GPU data required to render a glyph layer.
+	struct glyph_vis_data {
+		gpumem::array<glyph_range> ranges;
 	};
 
 	/// rendering state fields
@@ -427,7 +441,7 @@ protected:
 		const traj_manager<float>::render_data *data;
 
 		/// Host-side glyph data.
-		std::array<glyph_source, 4> glyph_source;
+		std::array<glyph_source_data, 4> glyph_source;
 
 		/// the on-tube visualization layers for each loaded dataset
 		std::vector<on_tube_visualization> visualizations;
@@ -447,7 +461,7 @@ protected:
 		gpumem::array<mat4> t_to_s;
 
 		/// GPU-side glyph data.
-		std::array<glyph_vis, 4> glyph_vis;
+		std::array<glyph_vis_data, 4> glyph_vis;
 
 		/// GPU-side storage buffer mirroring the \ref #arclen_data .
 		vertex_buffer arclen_sbo;
@@ -483,6 +497,25 @@ protected:
 
 		/// Remove all data points up to the given timestamp from their respective trajectory.
 		void trim_trajectories (float cutoff_time);
+
+		struct glyph_layer {
+			std::size_t idx;
+			glyph_source_data &source;
+			glyph_vis_data &vis;
+		};
+
+		/// Execute a callback for every active glyph layer.
+		template <class Callback, class = std::enable_if_t<
+			std::is_invocable_v<Callback, glyph_layer>>
+		>
+		void foreach_active_glyph_layer (Callback callback)
+		{
+			for (std::size_t i = 0; i < 4; ++i) {
+				if ((active_glyph_layers >> i) & 1) {
+					callback(glyph_layer{i, glyph_source[i], glyph_vis[i]});
+				}
+			}
+		}
 	} render;
 	int render_gui_dummy = 0;
 

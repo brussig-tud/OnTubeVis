@@ -1203,10 +1203,8 @@ void on_tube_vis::glyphs_out_of_date(bool state)
 
 bool on_tube_vis::compile_glyph_attribs (void)
 {
-	// Reset glyph-related render state.
+	// Mark all layers as inactive in render state.
 	render.active_glyph_layers = 0;
-	render.glyph_source        = {};
-	render.glyph_vis           = {};
 
 	bool success = false;
 	for (unsigned ds_idx=0; ds_idx<traj_mgr.num_datasets(); ds_idx++)
@@ -1230,7 +1228,11 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			const auto &ctx = *get_context();
 
 			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
-				if(gc.layer_filled[layer_idx]) {
+				if (! gc.layer_filled[layer_idx]) {
+					// Reset render state.
+					render.glyph_source[layer_idx] = {};
+					render.glyph_vis[layer_idx]    = {};
+				} else {
 					// Mark layer as active in render state.
 					render.active_glyph_layers |= 1 << layer_idx;
 
@@ -1238,7 +1240,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					const auto& attribs = gc.layer_attribs[layer_idx];
 
 					// Store host-side glyph data as part of the render state.
-					render.glyph_source.at(layer_idx).ranges = ranges;
+					render.glyph_source.at(layer_idx) = {ranges};
 
 					// Allocate GPU buffers for glyph-related data.
 					if (! render.glyph_vis.at(layer_idx).ranges.create(render.segment_buffer.alloc().length())) {
@@ -1819,31 +1821,25 @@ void on_tube_vis::trajectory::append_segment (
 	// Create a new segment between the last node and the new one.
 	// Store the segment's absolute index within the GPU buffer.
 	auto new_seg_idx = render.segment_buffer.back();
-	render.segment_buffer.push_back({last_node_idx, render.node_buffer.back()});
+	render.segment_buffer.push_back({_last_node_idx, render.node_buffer.back()});
 
 	// Store the segment's arclength parametrization at the corresponding index.
 	mat4 s_to_t;
 	arclen::parametrize_segment(
-		render.node_buffer.alloc()[last_node_idx],
+		render.node_buffer.alloc()[_last_node_idx],
 		node,
-		arc_length,
+		_arc_length,
 		render.t_to_s[new_seg_idx],
 		s_to_t
 	);
 
 	// Store the glyph range corresponding to the segment for all active glyph layers.
-	auto active_layers = render.active_glyph_layers;
-
-	for (size_t i = 0; i < 4; ++i) {
-		if (active_layers & 1) {
-			render.glyph_vis[i].ranges[new_seg_idx] = glyphs[i];
-		}
-
-		active_layers >>= 1;
-	}
+	render.foreach_active_glyph_layer([&](auto layer) {
+		layer.vis.ranges[new_seg_idx] = glyphs[layer.idx];
+	});
 
 	// Add the node to the GPU buffer.
-	// This must be done last, since it modifies `last_node_idx`.
+	// This must be done last, since it modifies `_last_node_idx`.
 	append_node(node, render);
 }
 
@@ -1851,7 +1847,7 @@ void on_tube_vis::render_state::extend_trajectories ()
 {
 	// Extend all trajectories based on the animation time, emulating streaming.
 	for (auto &[trajectory, node_idcs, segment_idx] : trajectories) {
-		for (auto &i = node_idcs[0]; i < node_idcs[1]; ++i, ++segment_idx) { // Mutating reference is intentional.
+		for (auto &i = node_idcs.begin; i < node_idcs.end; ++i, ++segment_idx) { // Mutating reference is intentional.
 			// Only add data up to the current playback time.
 			if (data->timestamps[i] > style.max_t) {
 				break;
@@ -1859,16 +1855,14 @@ void on_tube_vis::render_state::extend_trajectories ()
 
 			// Get glyph ranges for all active layers.
 			std::array<glyph_range, 4> glyph_ranges;
-			auto active_layers = active_glyph_layers;
+			// "Captured structured bindings are a C++20 extension"
+			auto segment_idx2 = segment_idx;
 
-			for (int layer_idx = 0; layer_idx < 4; ++layer_idx, active_layers >>= 1) {
-				if (active_layers & 1) {
-					glyph_ranges[layer_idx] = glyph_source[layer_idx].ranges[segment_idx];
-				}
-			}
+			foreach_active_glyph_layer([&](auto layer) {
+				glyph_ranges[layer.idx] = layer.source.ranges[segment_idx2];
+			});
 
-			// Append the node.
-			// A new segment is implicitely created.
+			// Append a node, creating a new segment.
 			auto col = data->colors[i];
 			trajectory.append_segment(
 				{
@@ -1982,13 +1976,15 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		render.extend_trajectories();
 
 		// Make changes visible to the GPU.
-		{
-		// The return value is assigned to silence "unused" warnings; error messages are printed regardless.
-		[[maybe_unused]] auto _ = render.node_buffer.flush()
-		// The entries of `t_to_s` correspond to `segments`, so the same range has to be flushed.
-		&& render.t_to_s.flush_wrapping(render.segment_buffer.gpu_back(), render.segment_buffer.back())
-		&& render.segment_buffer.flush();
-		}
+		render.foreach_active_glyph_layer([&](auto layer) {
+			std::ignore = layer.vis.ranges.flush_wrapping(render.segment_buffer.new_elems());
+		});
+
+		std::ignore = render.node_buffer.flush();
+		std::ignore = render.t_to_s.flush_wrapping(render.segment_buffer.new_elems());
+		// Must be flushed last since it changes `segment_buffer.changed_range()`, which other calls
+		// use.
+		std::ignore = render.segment_buffer.flush();
 
 		if (render.style.max_t >= playback.tend)
 		{
@@ -2608,14 +2604,16 @@ void on_tube_vis::update_attribute_bindings(void) {
 				// Calculate the range of nodes as [start, end),
 				auto node_range = uvec2{trajectory.i0, trajectory.i0 + trajectory.n};
 
+				// Each trajectory has one less segment than nodes, so subtracting the number of
+				// preceding trajectories from the index of the first node yields the index of
+				// the first segment.
+				auto first_segment = trajectory.i0 - static_cast<unsigned>(render.trajectories.size());
+
 				// Construct the trajectory.
 				render.trajectories.push_back({
 					{start_node, render},
-					uvec2{trajectory.i0 + 1, trajectory.i0 + trajectory.n},
-					// Each trajectory has one less segment than nodes, so subtracting the number of
-					// preceding trajectories from the index of the first node yields the index of
-					// the first segment.
-					trajectory.i0 - static_cast<unsigned>(render.trajectories.size())
+					{trajectory.i0 + 1, trajectory.i0 + trajectory.n},
+					first_segment
 				});
 			}
 		}
@@ -2915,7 +2913,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 				static_cast<GLsizei>(render.segment_buffer.alloc().length() - render.segment_buffer.front()),
 				static_cast<GLsizei>(render.segment_buffer.gpu_back())
 			};
-			auto _ = tstr.multirender_indexed(ctx, render.aam, span_starts.data(), span_lens.data(), 2);
+			std::ignore = tstr.multirender_indexed(ctx, render.aam, span_starts.data(), span_lens.data(), 2);
 		}
 
 		// Wait for the previous draw call to complete.

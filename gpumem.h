@@ -6,6 +6,9 @@
 // CGV framework
 #include <cgv_gl/gl/gl.h>
 
+// local includes
+#include "util.h"
+
 
 /// Containers using persistently mapped memory that can be accessed by both CPU and GPU.
 namespace gpumem {
@@ -75,9 +78,9 @@ public:
 	/// Any previous buffer is destroyed.
 	[[nodiscard]] bool create (size_type length) noexcept;
 
-	/// Make the elements in the given range visible to the GPU.
+	/// Make the elements in the range [begin, end) visible to the GPU.
 	/// No bounds checking.
-	[[nodiscard]] bool flush_wrapping (index_type begin, index_type end) noexcept;
+	[[nodiscard]] bool flush_wrapping (ro_range<index_type> range) noexcept;
 };
 
 
@@ -137,6 +140,12 @@ public:
 		return self.front == self.back ? nullptr : &self.alloc[self.front];
 	}
 
+	/// Return the range of elements that have been added on the CPU, but not yet flushed to the GPU.
+	/// Uses absolute indices, meaning that `end` may be less than `begin` in case of a wrap-around.
+	[[nodiscard]] constexpr ro_range<index_type> new_elems () noexcept {
+		return {self.gpu_back, self.back};
+	}
+
 
 	/// Set the index onward from which elements may be used by the GPU.
 	/// Elements before this index (and after `gpu_back`) are not in use by the GPU and may be overwritten.
@@ -157,7 +166,8 @@ public:
 	/// Changes might not be visible to the GPU until `sync` is called.
 	void push_back (const elem_type &elem);
 	/// Changes might not be visible to the GPU until `sync` is called.
-	void push_back (const elem_type *elems, size_type num_elems);
+	template <class Iter>
+	void push_back (ro_range<Iter> elems);
 
 	/// Remove the first element of the buffer.
 	/// Undefined behaviour if the buffer is empty.
