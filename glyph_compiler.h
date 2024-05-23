@@ -18,39 +18,6 @@ public:
 	using mat4 = cgv::mat4;
 
 protected:
-	// helper struct for glyph attributes
-	struct glyph_attributes {
-		size_t count = 0;
-		std::vector<float> data;
-
-		bool empty() const { return size() == 0; }
-
-		size_t size() const { return data.size(); }
-
-		size_t glyph_count() const {
-			return size() / (2 + count);
-		}
-
-		void add(const float& x) {
-			data.push_back(x);
-		}
-
-		float& operator [](int idx) {
-			return data[idx];
-		}
-
-		float operator [](int idx) const {
-			return data[idx];
-		}
-
-		float last_glyph_s() const {
-			if(size() > 0)
-				return data[size() - 1 - 1 - count];
-			else
-				return 0.0f;
-		}
-	};
-
 	// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
 	float clamp_remap(float v, const vec4& r) {
 		v = cgv::math::clamp(v, r.x(), r.y());

@@ -12,10 +12,51 @@ struct node_attribs {
 	cgv::vec4 t; // only uses .x component to store t, yzw are reserved for future use
 };
 
+
 // helper struct for range entries with start index i0 and count n
 // Moved from `glyph_compiler`.
 struct glyph_range {
 	using index_type = int;
 
 	index_type i0, n;
+
+	[[nodiscard]] constexpr index_type end () const noexcept
+	{
+		return i0 + n;
+	}
+};
+
+
+// helper struct for glyph attributes
+// Moved from `glyph_compiler`.
+struct glyph_attributes {
+	size_t count = 0;
+	std::vector<float> data;
+
+	bool empty() const { return size() == 0; }
+
+	size_t size() const { return data.size(); }
+
+	size_t glyph_count() const {
+		return size() / (2 + count);
+	}
+
+	void add(const float& x) {
+		data.push_back(x);
+	}
+
+	float& operator [](int idx) {
+		return data[idx];
+	}
+
+	float operator [](int idx) const {
+		return data[idx];
+	}
+
+	float last_glyph_s() const {
+		if(size() > 0)
+			return data[size() - 1 - 1 - count];
+		else
+			return 0.0f;
+	}
 };

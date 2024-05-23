@@ -368,6 +368,8 @@ protected:
 	/// Manages the render data for a single trajectory.
 	class trajectory {
 	private:
+		/// Host-side staging buffers of glyphs that will lie on the next segment.
+		std::array<std::vector<float>, 4> _glyph_staging;
 		/// The absolute index of the last entry in the node buffer belonging to this trajectory.
 		gpumem::index_type _last_node_idx;
 		/// The arc length of the entire trajectory.
@@ -394,11 +396,14 @@ protected:
 		}
 
 		/// Extend the trajectory by one node at the end, creating a new segment.
-		void append_segment (
-			const node_attribs &node,
-			const std::array<glyph_range, 4> &glyphs,
-			render_state &render
-		);
+		void append_segment (const node_attribs &node, render_state &render);
+
+		/// Add glyphs past the end of the trajectory that will appear on future segments.
+		template <class Iter>
+		void append_glyphs (uint8_t layer, ro_range<Iter> data)
+		{
+			std::copy(data.begin, data.end, std::back_inserter(_glyph_staging[layer]));
+		}
 	};
 
 	/// Wrapper around a rendered trajectory that can be used to simulate streaming by gradually
@@ -425,11 +430,13 @@ protected:
 		glyph_source_data &operator= (glyph_source_data &&) noexcept = default;
 
 		std::vector<glyph_range> ranges;
+		glyph_attributes attribs;
 	};
 
 	/// GPU data required to render a glyph layer.
 	struct glyph_vis_data {
 		gpumem::array<glyph_range> ranges;
+		gpumem::ring_buffer<float> attribs;
 	};
 
 	/// rendering state fields
@@ -499,20 +506,20 @@ protected:
 		void trim_trajectories (float cutoff_time);
 
 		struct glyph_layer {
-			std::size_t idx;
 			glyph_source_data &source;
 			glyph_vis_data &vis;
+			uint8_t idx;
 		};
 
 		/// Execute a callback for every active glyph layer.
 		template <class Callback, class = std::enable_if_t<
-			std::is_invocable_v<Callback, glyph_layer>>
+			std::is_invocable_v<Callback, const glyph_layer&>>
 		>
 		void foreach_active_glyph_layer (Callback callback)
 		{
-			for (std::size_t i = 0; i < 4; ++i) {
+			for (uint8_t i = 0; i < 4; ++i) {
 				if ((active_glyph_layers >> i) & 1) {
-					callback(glyph_layer{i, glyph_source[i], glyph_vis[i]});
+					callback(glyph_layer{glyph_source[i], glyph_vis[i], i});
 				}
 			}
 		}
