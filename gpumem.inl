@@ -135,23 +135,31 @@ void ring_buffer<Elem, Sfinae>::push_back (ro_range<Iter> elems)
 			goto copy;
 		}
 
-		// Otherwise the back part of the allocation is filled in a first copy...
-		auto split_point = std::min(begin + (self.alloc.length() - self.back), end);
+		// Otherwise the back pointer wraps around.
+		new_back -= self.alloc.length();
+
+		// If there is not enough room to store the new values without overwriting data still used
+		// by GPU commands, raise an exception.
+		if (new_back >= self.gpu_front) {
+			throw std::runtime_error("gpumem::ring_buffer::push_back would exceed capacity");
+		}
+
+		// Fill the back part of the allocation in a first copy...
+		auto split_point = begin + (self.alloc.length() - self.back);
 		std::copy(begin, split_point, &self.alloc[self.back]);
 
-		// ...and the rest is copied to the front.
-		begin      = split_point;
-		self.back  = 0;
-		new_back  -= self.alloc.length();
+		// ...and the remaining data is added at the front.
+		begin     = split_point;
+		self.back = 0;
+	} else {
+		// If there is not enough room to store the new values without overwriting data still used by GPU commands, raise an
+		// exception.
+		if (new_back >= self.gpu_front) {
+			throw std::runtime_error("gpumem::ring_buffer::push_back would exceed capacity");
+		}
 	}
 
 	// At this point, the unused part of the allocation is sequential in memory.
-
-	// If there is not enough room push_backto store the new values without overwriting data still used by GPU commands, raise an
-	// exception.
-	if (new_back >= self.gpu_front != self.back >= self.gpu_front) {
-		throw std::runtime_error("gpumem::ring_buffer::push_back would exceed capacity");
-	}
 
 	// Otherwise copy the new elements and update the back index.
 	copy:
