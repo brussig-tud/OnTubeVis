@@ -1245,7 +1245,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					// Allocate GPU buffers for glyph-related data.
 					if (!(
 						render.glyph_vis.at(layer_idx).ranges.create(render.segment_buffer.alloc().length())
-						&& render.glyph_vis.at(layer_idx).attribs.create(attribs.size())
+						&& render.alloc_glyph_attrib_buffer(layer_idx, attribs.size() / 2)
 					)) {
 						throw std::runtime_error("Failed to create ring buffer for glpyh layer");
 					}
@@ -1847,7 +1847,7 @@ void on_tube_vis::trajectory::append_segment (const node_attribs &node, render_s
 		// Set the range of glyphs for the newly created segment.
 		layer.vis.ranges[new_seg_idx] = {
 			static_cast<glyph_range::index_type>(range_begin),
-			static_cast<glyph_range::index_type>(layer.vis.attribs.back() / glyph_size - range_begin)
+			static_cast<glyph_range::index_type>(staging.size() / glyph_size)
 		};
 
 		// Now that all glyphs have been uploaded, reset the staging buffer for the next segment.
@@ -1882,7 +1882,7 @@ void on_tube_vis::render_state::extend_trajectories ()
 				const auto end   {layer.source.ranges[streamer.segment_idx].end() * size};
 
 				streamer.render_data.append_glyphs(layer.idx, ro_range{data + begin, data + end});
-			});			
+			});
 
 			// Append a node, creating a new segment.
 			auto col = data->colors[i];
@@ -1894,15 +1894,16 @@ void on_tube_vis::render_state::extend_trajectories ()
 					{data->timestamps[i], 0, 0, 0}
 				},
 				*this
-			);	
+			);
 		}
 	}
 }
 
 void on_tube_vis::render_state::trim_trajectories (float cutoff_time)
 {
-	// Constant used to mark unlinked nodes for deletion.
-	constexpr auto unlinked_node = std::numeric_limits<float>::infinity();
+	// Constants marking elements whose segment has been deleted for removal.
+	constexpr auto unlinked_node  {std::numeric_limits<float>::infinity()};
+	constexpr auto unlinked_glyph {std::numeric_limits<float>::infinity()};
 
 	// Remove all segments from the front of the buffer whose first node is older than the cutoff.
 	// If segments were created out of order, some with older nodes could be kept, but that is acceptable since the
@@ -1916,13 +1917,39 @@ void on_tube_vis::render_state::trim_trajectories (float cutoff_time)
 			break;
 		}
 
-		// Remove the segment and all associated information.
-		segment_buffer.pop_front();
-
 		// Mark the start node for deletion.
 		// NOTE: This could mean writing to storage currently read by a draw call, which is UB.
 		// Chances and severity of actual problems, however, are low, so this simple approach is used for now.
 		node.t[0] = unlinked_node;
+
+		// Mark glyphs on the segment for deletion.
+		// The same point about UB applies.
+		foreach_active_glyph_layer([this](const glyph_layer &layer) {
+			const auto glyph_size   {layer.source.attribs.count + 2};
+			const auto alloc_length {layer.vis.attribs.alloc().length()};
+			const auto range        {layer.vis.ranges[segment_buffer.front()]};
+
+			auto begin {range.i0    * (layer.source.attribs.count + 2)};
+			auto end   {range.end() * (layer.source.attribs.count + 2)};
+
+			// In case the glyph range wraps around, handle the first half separately.
+			if (end >= alloc_length) {
+				for (; begin < alloc_length; begin += glyph_size) {
+					layer.vis.attribs.alloc()[begin] = unlinked_glyph;
+				}
+
+				begin  = 0;
+				end   -= alloc_length;
+			}
+
+			for (; begin < end; begin += glyph_size) {
+				layer.vis.attribs.alloc()[begin] = unlinked_glyph;
+			}
+		});
+
+		// Remove the segment.
+		segment_buffer.pop_front();
+
 	}
 
 	// Remove all nodes no longer used by a segment from the front of the buffer.
@@ -1935,6 +1962,20 @@ void on_tube_vis::render_state::trim_trajectories (float cutoff_time)
 
 		node_buffer.pop_front();
 	}
+
+	// Remove glyphs on deleted segments.
+	foreach_active_glyph_layer([this](const glyph_layer &layer) {
+		while (auto *arclen {layer.vis.attribs.try_first()}) {
+			if (*arclen != unlinked_glyph) {
+				break;
+			}
+
+			// TODO: Implement a pop function that removes multiple elements at once.
+			for (auto i {layer.source.attribs.count + 2}; i > 0; --i) {
+				layer.vis.attribs.pop_front();
+			}
+		}
+	});
 }
 
 void on_tube_vis::init_frame (cgv::render::context &ctx)
@@ -2947,6 +2988,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
  		// Update the ring buffers' guard indices to match the new draw call.
 		render.node_buffer.set_gpu_front(render.node_buffer.front());
 		render.segment_buffer.set_gpu_front(render.segment_buffer.front());
+
+		render.foreach_active_glyph_layer([](const auto &layer) {
+			layer.vis.attribs.set_gpu_front(layer.vis.attribs.front());
+		});
 
 		// Create a fence object to check when the new draw call has completed and the memory it was reading can be
 		// safely manipulated again.

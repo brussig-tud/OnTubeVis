@@ -122,6 +122,10 @@ layout (std430, binding=B1) readonly buffer ranges_buffer##I { \
 	irange ranges##I[]; \
 }; \
 
+/// Account for wrap-around of a glyph buffer.
+#define WRAP_INDEX(I, idx) \
+	(idx < glyphs##I.length() ? idx : idx - glyphs##I.length())
+
 struct closest_glyphs_info {
 	int prev, next, id;
 	float dp, dn, d;
@@ -134,13 +138,13 @@ bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info cl
 		irange rng = segment; \
 		while (rng.n > 1) { \
 			const int mid_n = rng.n/2, mid = rng.i0+mid_n; \
-			if (glyphs[mid].s > s) rng.n = mid_n; \
+			if (glyphs[WRAP_INDEX(I, mid)].s > s) rng.n = mid_n; \
 			else { rng.i0 = rng.i0 + mid_n; rng.n  = rng.n  - mid_n; } \
 		} \
-		closest.prev = rng.i0; \
-		closest.next = rng.i0 < segment.i0+segment.n-1 ? rng.i0+1 : rng.i0; \
-		closest.dp = s-glyphs[rng.i0].s; \
-		closest.dn = glyphs[closest.next].s-s; \
+		closest.prev = WRAP_INDEX(I, rng.i0); \
+		closest.next = rng.i0 < segment.i0+segment.n-1 ? WRAP_INDEX(I, rng.i0+1) : WRAP_INDEX(I, rng.i0); \
+		closest.dp = s - glyphs[closest.prev].s; \
+		closest.dn = glyphs[closest.next].s - s; \
 		const bool n_lt_p = closest.dn < closest.dp; \
 		closest.id = n_lt_p ? closest.next : closest.prev; \
 		closest.d  = n_lt_p ? closest.dn : closest.dp; \

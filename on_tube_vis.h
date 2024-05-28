@@ -436,6 +436,12 @@ protected:
 	/// GPU data required to render a glyph layer.
 	struct glyph_vis_data {
 		gpumem::array<glyph_range> ranges;
+		/// Conceptually, the element type of this buffer is `std::array<float, n>` for some layer-specific n that can
+		/// only be known at runtime.
+		/// For the program to work correctly, the length of this buffer's allocation has to be a multiple of n; its
+		/// capacity then has to be one less.
+		/// Therefore, the buffer should only be allocated through `render_state::alloc_glyph_attrib_buffer`, which
+		/// enforces this constraint by rounding up the buffer size to the next multiple of n.
 		gpumem::ring_buffer<float> attribs;
 	};
 
@@ -522,6 +528,21 @@ protected:
 					callback(glyph_layer{glyph_source[i], glyph_vis[i], i});
 				}
 			}
+		}
+
+		/// Allocate a glyph attribute buffer with a valid length.
+		[[nodiscard]] bool alloc_glyph_attrib_buffer (uint8_t layer, std::size_t capacity)
+		{
+			const auto glyph_size {glyph_source[layer].attribs.count + 2};
+			const auto remainder  {(capacity + 1) % glyph_size};
+
+			// Round up allocation length to the next multiple of the glyph size, capacity is one
+			// less.
+			if (remainder != 0) {
+				capacity += glyph_size - remainder;
+			}
+
+			return glyph_vis[layer].attribs.create(capacity);
 		}
 	} render;
 	int render_gui_dummy = 0;
