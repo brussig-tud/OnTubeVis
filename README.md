@@ -2,7 +2,6 @@
 This visualization tool enables rendering of line data sets using high-quality spline tube geometry with surface texture mapping of attributes. It was created for the paper "On-Tube Attribute Visualization for Multivariate Trajectory Data" (https://doi.org/10.1109/TVCG.2022.3209400).
 
 > ### Disclaimer
-> 
 > The application was tested on systems equipped with relatively modern discrete graphics hardware (Nvidia GTX 680 and RTX 2080/Ti). The application was not tested on AMD graphics cards. Running the application on notebooks using only integrated graphics may not work as intended.
 
 ![OnTubeVis](OnTubeVis.jpg)
@@ -79,5 +78,3 @@ To add a color map, open the "Color Scales" GUI group. Enter a name that is not 
 Z-fighting might produce pixel artifacts at segment boundaries when using the rasterization render path. These stem from the limitations of the iterative root solver used for the intersection routine, as the amount of iterations directly determines the precision of the computed intersection and therefore also the computed depth values. To mitigate this somewhat, the spherical segment caps are hidden starting from a certain view distance which can be set with the `Cap Clip Distance` (in scene units) located in the `Tube Style` GUI node.
 
 The effect is further influenced by the overall scene extents and near and far clipping plane. For data sets with a large scene extents it might be necessary to increase the `Cap Clip Distance` to high values like 100 or 1000. The clipping planes can be configured in the `Stereo Interactor` GUI tab by changing `z Near` and `z Far`.
-
-
