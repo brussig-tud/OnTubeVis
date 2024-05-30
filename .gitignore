@@ -42,3 +42,4 @@ config.cfg
 .vs
 .vscode
 .idea
+.run
