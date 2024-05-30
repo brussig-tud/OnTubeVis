@@ -1,5 +1,5 @@
 # OnTubeVis
-This visualization tool enables rendering of line data sets using high-quality spline tube geometry with surface texture mapping of attributes. It was created for the paper "On-Tube Attribute Visualization for Multivariate Trajectory Data" (https://doi.org/10.1109/TVCG.2022.3209400).
+This visualization tool enables rendering of line data sets using high-quality spline tube geometry with surface texture mapping of attributes. It was created for the paper *"On-Tube Attribute Visualization for Multivariate Trajectory Data"* (https://doi.org/10.1109/TVCG.2022.3209400).
 
 > ### Disclaimer
 > The application was tested on systems equipped with relatively modern discrete graphics hardware (Nvidia GTX 680 and RTX 2080/Ti). The application was not tested on AMD graphics cards. Running the application on notebooks using only integrated graphics may not work as intended.
@@ -18,7 +18,7 @@ Once this is set up, a Visual Studio solution for building the OnTubeVis plugin,
 
 It is possible to build the OnTubeVis prototype on Linux or Windows using CMake, for which no dependencies other than the native GUI development packages of the target platform and OpenGL (plus optionally, CUDA/OptiX) need to be present. The CGV Framework will be fetched automatically if not present on the system and be integrated into the build.
 
-To compile the prototype into a working state, build either the "OnTubeVis" or "OnTubeVis_exe" targets. The latter will create a single executable that has all dependencies (except CUDA/OptiX if enabled) linked in statically and is ideal for re-distribution, while the former builds OnTubeVis as a dynamic plugin for the viewer application of the CGV Framework (and can be invoked using the launch script that will be generated in the root of your build folder).
+To compile the prototype into a working state, build either the `OnTubeVis` or `OnTubeVis_exe` targets. The latter will create a single executable that has all dependencies (except CUDA/OptiX if enabled) linked in statically and is ideal for re-distribution, while the former builds OnTubeVis as a dynamic plugin for the viewer application of the CGV Framework (and can be invoked using the launch script that will be generated in the root of your build folder).
 
 > **NOTE**: Due to GCC bug [#85282](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85282) OnTubeVis can currently not be built using GCC! For building on *nix systems, using Clang is recommended.
 
