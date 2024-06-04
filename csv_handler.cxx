@@ -779,7 +779,7 @@ csv_imldevice_reg(
 
 // Register handler for streamline .csv files exported from paraview
 static const csv_descriptor csv_paraview_streamline_desc("Paraview Streamline", ",", {
-	{ "Time", {"IntegrationTime", false, 4}, CSV::TIMESTAMP },
+	{ "t", {"IntegrationTime", false, 4}, CSV::TIMESTAMP },
 	{ "Position",  {{"Points:0", false, 13}, {"Points:1", false, 14}, {"Points:2", false, 15}}, CSV::POS },
 	{ "Velocity",  {{"U:0", false, 0}, {"U:1", false, 1}, {"U:2", false, 2}} },
 	{ "p", {"p", false, 3} },
