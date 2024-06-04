@@ -41,6 +41,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Setup Ninja
+      uses: seanmiddleditch/gha-setup-ninja@master
+
     - name: Update packages
       if: matrix.os == 'ubuntu-latest'
       run: sudo apt update
