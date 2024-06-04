@@ -28,7 +28,7 @@ The only required dependency is the CGV Framework, which in turn only requires b
 
 On Ubuntu (and likely most other Debian-based Linux distros), the required native packages are
 ```
-libglx-dev libglew-dev libxi-dev
+libglx-dev libglew-dev libxi-dev libxinerama-dev
 ```
 
 ## Short Usage Instructions
