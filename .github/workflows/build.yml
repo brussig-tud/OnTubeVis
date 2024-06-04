@@ -41,6 +41,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Update packages
+      if: matrix.os == 'ubuntu-latest'
+      run: sudo apt update
+
+    - name: Install packages
+      if: matrix.os == 'ubuntu-latest'
+      run: sudo apt install --fix-missing libglx-dev libglew-dev libxi-dev
+
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
       id: strings
