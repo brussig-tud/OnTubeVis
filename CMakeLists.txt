@@ -26,7 +26,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 4d5f39ea628fab33206d909a57d014abb7d4e4a5
+		GIT_TAG b67ae6e0c6296a58168a20ee9cb431ecdcbc8885
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -210,7 +210,8 @@ endif()
 
 # create the OnTubeVis plugin within the CGV Framework build infrastructure
 cgv_add_target(OnTubeVis
-	TYPE plugin
+	TYPE plugin SERVICE
+
 	SOURCES         ${SOURCES}
 	HEADERS         ${HEADERS}
 	SHADER_SOURCES  ${SHADERS}
