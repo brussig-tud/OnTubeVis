@@ -897,9 +897,10 @@ cgv::base::object_registration_2<
 
 // Register handler for SimpleDebugTrace .csv files
 static const csv_descriptor csv_dbg_trace_desc("SimpleDebugTrace", ",", {
-	{ "time", {"dbg_time", true, 0}, CSV::TIMESTAMP },
-	{ "position",  {{"dbg_x", true, 1}, {"dbg_y", true, 2}, {"dbg_z", true, 3}}, CSV::POS },
-	{ "dbg_attrib1", {"dbg_attrib1", true, 4}} }
+	{ "time", {"time", true, 0}, CSV::TIMESTAMP },
+	{ "pos",  {{"pos_x", true, 1}, {"pos_y", true, 2}, {"pos_z", true, 3}}, CSV::POS },
+    { "vel",  {{"vel_x", true, 4}, {"vel_y", true, 5}, {"vel_z", true, 6}} },
+	{ "attrib0", {"attrib0", true, 7}} }
 );
 
 cgv::base::object_registration_2<
@@ -914,7 +915,14 @@ cgv::base::object_registration_2<
 					out = in;
 				}
 			)
-		 }}}
-	),
+		}},
+		{VisualAttrib::TANGENT, {
+			"vel", attrib_transform<float>::vec3_to_vec4(
+ 				[](csv_handler<float>::Vec4 &out, const csv_handler<float>::Vec3 &in) {
+					out = csv_handler<float>::Vec4(in, 0.f);
+				}
+			)
+		}}
+    }),
 	"csv handler (float) - " + csv_dbg_trace_desc.name()
 );
