@@ -545,6 +545,13 @@ attrib_transform<flt_type>::attrib_transform(const vec4_to_vec4 &transform_func)
 }
 
 template <class flt_type>
+attrib_transform<flt_type>::attrib_transform(const vec3_to_vec4 &transform_func)
+        : tgt_type(AttribType::VEC4), src_type(AttribType::VEC3)
+{
+    t_ptr = new vec3_to_vec4(transform_func);
+}
+
+template <class flt_type>
 attrib_transform<flt_type>::attrib_transform(const vec3_to_vec3 &transform_func)
 	: tgt_type(AttribType::VEC3), src_type(AttribType::VEC3)
 {
