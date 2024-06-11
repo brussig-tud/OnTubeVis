@@ -3,9 +3,9 @@ name: Build on Windows and Linux
 
 on:
   push:
-    branches: [ "develop" ]
+    branches: [ "develop", "develop_ghworkflows" ]
   pull_request:
-    branches: [ "develop" ]
+    branches: [ "develop", "develop_ghworkflows" ]
 
 jobs:
   build:
