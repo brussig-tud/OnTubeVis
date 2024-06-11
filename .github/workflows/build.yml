@@ -1,5 +1,4 @@
-# This workflow tries to build the OnTubeVis CMake project on Windows and (Ubuntu) Linux. At this point, only the plugin build of OnTubeVis is tested,
-# pending investigation of strange build errors that appear only in the context of GH workflows (and which cannot be reproduced on normal desktops).
+# This workflow tries to build the OnTubeVis CMake project on Windows and (Ubuntu) Linux.
 name: Build on Windows and Linux
 
 on:
@@ -79,4 +78,4 @@ jobs:
 
     - name: Build
       # Build your program with the given configuration. Note that --config is only needed for multi-config generators (e.g. Visual Studio generator), but we include it anyway.
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }} --target OnTubeVis
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }} --target OnTubeVis_exe
