@@ -78,4 +78,11 @@ jobs:
 
     - name: Build
       # Build your program with the given configuration. Note that --config is only needed for multi-config generators (e.g. Visual Studio generator), but we include it anyway.
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }} --target OnTubeVis_svc
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }} --target OnTubeVis_exe
+
+    - name: Upload Linux build folder for workflow debugging
+      if: ${{ (success() || failure()) && matrix.os == 'ubuntu-latest' }}
+      uses: actions/upload-artifact@v2
+      with:
+        name: cgv-build
+        path: ${{ steps.strings.outputs.build-output-dir }}
