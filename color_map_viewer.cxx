@@ -27,7 +27,7 @@ color_map_viewer::color_map_viewer() {
 
 void color_map_viewer::clear(cgv::render::context& ctx) {
 
-	cgv::g2d::ref_msdf_gl_canvas_font_renderer(ctx, -1);
+	cgv::g2d::ref_msdf_gl_font_renderer_2d(ctx, -1);
 	canvas_overlay::clear(ctx);
 	
 	texts.destruct(ctx);
@@ -63,7 +63,7 @@ void color_map_viewer::on_set(void* member_ptr) {
 
 bool color_map_viewer::init(cgv::render::context& ctx) {
 	
-	cgv::g2d::ref_msdf_gl_canvas_font_renderer(ctx, 1);
+	cgv::g2d::ref_msdf_gl_font_renderer_2d(ctx, 1);
 
 	bool success = canvas_overlay::init(ctx);
 	success &= texts.init(ctx);
@@ -109,7 +109,8 @@ void color_map_viewer::draw_content(cgv::render::context& ctx) {
 	content_canvas.disable_current_shader(ctx);
 	
 	// draw color scale names
-	cgv::g2d::ref_msdf_gl_canvas_font_renderer(ctx).render(ctx, content_canvas, texts, text_style);
+	texts.set_text_array(ctx, names);
+	cgv::g2d::ref_msdf_gl_font_renderer_2d(ctx).render(ctx, content_canvas, texts, text_style);
 
 	//disable_blending();
 	end_content(ctx);
@@ -167,9 +168,11 @@ void color_map_viewer::update_texts() {
 	int i = 0;
 	for(const auto& name : names) {
 		ivec2 p = base;
-		p.y() += (static_cast<int>(names.size()) - i - 1) * step - 1;
-		texts.add_text(name, p, cgv::render::TA_BOTTOM);
+		p.y() += (static_cast<int>(names.size())-i - 1)*step - 1;
+		texts.positions.emplace_back(cgv::vec3(p.x(), p.y(), .0f));
+		texts.alignments.emplace_back(cgv::render::TA_BOTTOM);
 		++i;
 	}
+	texts.alignment = cgv::render::TA_BOTTOM;
 	texts_out_of_date = false;
 }
