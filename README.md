@@ -2,7 +2,7 @@
 This visualization tool enables rendering of line data sets using high-quality spline tube geometry with surface texture mapping of attributes. It was created for the paper *"On-Tube Attribute Visualization for Multivariate Trajectory Data"* (https://doi.org/10.1109/TVCG.2022.3209400).
 
 > ### Disclaimer
-> The application was tested on systems equipped with relatively modern discrete graphics hardware (Nvidia GTX 680 and RTX 2080/Ti). The application was not tested on AMD graphics cards. Running the application on notebooks using only integrated graphics may not work as intended.
+> The application was tested on systems equipped with relatively modern discrete graphics hardware (Nvidia Geforce GTX 1060 and later). The application was not tested on AMD graphics cards. Running the application on notebooks using only integrated graphics may not work as intended.
 
 ![OnTubeVis](OnTubeVis.jpg)
 
