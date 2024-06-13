@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cgv_app/themed_canvas_overlay.h>
-#include <cgv_g2d/msdf_gl_canvas_font_renderer.h>
+#include <cgv_g2d/msdf_gl_font_renderer.h>
 #include <cgv_g2d/canvas.h>
 #include <cgv_g2d/shape2d_styles.h>
 
@@ -34,6 +34,9 @@ protected:
 	};
 
 	std::vector<layer_info> layers;
+
+	// data
+	std::vector<std::string> labels;
 
 	// geometry
 	cgv::g2d::msdf_text_geometry text;

@@ -3,7 +3,7 @@
 #include <cgv/render/color_map.h>
 #include <cgv/render/texture.h>
 #include <cgv_app/themed_canvas_overlay.h>
-#include <cgv_g2d/msdf_gl_canvas_font_renderer.h>
+#include <cgv_g2d/msdf_gl_font_renderer.h>
 #include <cgv_g2d/canvas.h>
 #include <cgv_g2d/shape2d_styles.h>
 
@@ -38,6 +38,9 @@ protected:
 	// text appearance
 	cgv::g2d::text2d_style text_style;
 	cgv::g2d::msdf_text_geometry texts;
+	std::vector<std::string> text_labels;
+	std::vector<float> text_positions;
+	std::vector<cgv::render::TextAlignment> text_alignments;
 	
 	void init_styles();
 	void update_texts();
