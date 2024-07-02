@@ -9,8 +9,19 @@ struct ro_range {
 	T begin {};
 	T end   {};
 
-	std::size_t length () const {
+	[[nodiscard]] constexpr bool is_empty () const noexcept
+	{
+		return begin == end;
+	}
+
+	[[nodiscard]] constexpr std::size_t length () const noexcept
+	{
 		return end - begin;
+	}
+
+	[[nodiscard]] constexpr bool contains (const T &elem) const noexcept
+	{
+		return elem >= begin && elem < end;
 	}
 };
 

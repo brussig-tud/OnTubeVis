@@ -123,8 +123,9 @@ layout (std430, binding=B1) readonly buffer ranges_buffer##I { \
 }; \
 
 /// Account for wrap-around of a glyph buffer.
-#define WRAP_INDEX(I, idx) \
-	(idx < glyphs##I.length() ? idx : idx - glyphs##I.length())
+// #define WRAP_INDEX(I, idx) \
+	// (idx < glyphs##I.length() ? idx : idx - glyphs##I.length())
+#define WRAP_INDEX(I, idx) idx
 
 struct closest_glyphs_info {
 	int prev, next, id;
