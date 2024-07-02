@@ -1380,10 +1380,6 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	// - load sequential and diverging color maps from the resource directory
 	load_color_maps_from_directory("res/color_maps/sequential");
 	load_color_maps_from_directory("res/color_maps/diverging");
-	
-	// - load sequential rainbow and turbo color maps
-	load_color_maps("res/color_maps/rainbow.xml");
-	load_color_maps("res/color_maps/turbo.xml");
 
 	color_map_mgr.update_texture(ctx);
 	if(cm_viewer_ptr) {
