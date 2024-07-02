@@ -65,7 +65,7 @@ if (env["CUDA_PATH"]) {
 		];
 	}
 }
-addSharedDefines=["TUBES_EXPORTS"];
+addSharedDefines=["ONTUBEVIS_EXPORTS"];
 addShaderPaths=[INPUT_DIR];
 cppLanguageStandard="stdcpp17";
 useOpenMP=1;
