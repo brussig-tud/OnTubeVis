@@ -43,6 +43,7 @@ config.cfg
 .vs
 .vscode
 .idea
+.run
 
 # Clangd cache
 .cache/

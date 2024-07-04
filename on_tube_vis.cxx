@@ -166,6 +166,7 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 
 	layer_config_file_helper = cgv::gui::file_helper(this, "Open/Save Layer Configuration", cgv::gui::file_helper::Mode::kOpenAndSave);
 	layer_config_file_helper.add_filter("Layer Configuration XML", "xml");
+	layer_config_file_helper.add_filter_for_all_files();
 
 	// setup datapath input control
 	datapath_helper = cgv::gui::file_helper(this, "Open Trajectory Data", cgv::gui::file_helper::Mode::kOpen);
@@ -179,6 +180,7 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	datapath_helper.add_filter("TASC accident trajectories", "json");
 	datapath_helper.add_filter("TASC simulation ensemble", "tasc");
 	datapath_helper.add_filter("Binary Curve Collection", "bcc");
+	datapath_helper.add_filter_for_all_files();
 
 	// fill help message info
 	help.add_line("OnTubeVis Help");
@@ -617,8 +619,7 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 			if(dnd.filenames.size() == 1) {
 				std::string extension = cgv::utils::file::get_extension(dnd.filenames[0]);
 				if(cgv::utils::to_upper(extension) == "XML") {
-					layer_config_file_helper.file_name = dnd.filenames[0];
-					layer_config_file_helper.update();
+					layer_config_file_helper.set_file_name(dnd.filenames[0]);
 					on_set(&layer_config_file_helper.file_name);
 					try_load_dataset = false;
 				}
@@ -686,7 +687,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 	else if(m.is(dataset)) {
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		// clear current dataset
-		datapath_helper.file_name.clear();
+		datapath_helper.set_file_name("");
 		traj_mgr.clear();
 
 		// load new data
@@ -697,7 +698,6 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 			loaded_something = traj_mgr.load(file) != -1 || loaded_something;
 			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 		}
-		update_member(&datapath_helper.file_name);
 
 		// update render state
 		if(loaded_something)
@@ -750,9 +750,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
 		// reset glyph layer configuration file
-		layer_config_file_helper.file_name = "";
+		layer_config_file_helper.set_file_name("");
 		layer_config_has_unsaved_changes = false;
-		layer_config_file_helper.update();
 		on_set(&layer_config_has_unsaved_changes);
 #ifdef RTX_SUPPORT
 		// ###############################
@@ -901,7 +900,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 	if(m.is(layer_config_file_helper.file_name)) {
 		std::string& file_name = layer_config_file_helper.file_name;
 
-		if(layer_config_file_helper.save()) {
+		if(layer_config_file_helper.is_save_action()) {
 			layer_config_file_helper.ensure_extension("xml");
 
 			if(layer_config_file_helper.compare_extension("xml")) {
@@ -1401,13 +1400,9 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 		}
 	};
 
-	// - load sequential and diverging color maps from the resource directory
+	// load sequential and diverging color maps from the resource directory
 	load_color_maps_from_directory("res/color_maps/sequential");
 	load_color_maps_from_directory("res/color_maps/diverging");
-
-	// - load sequential rainbow and turbo color maps
-	load_color_maps("res/color_maps/rainbow.xml");
-	load_color_maps("res/color_maps/turbo.xml");
 
 	color_map_mgr.update_texture(ctx);
 	if(cm_viewer_ptr) {

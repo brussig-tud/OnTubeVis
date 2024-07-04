@@ -26,7 +26,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 6334805fdcab01a73d3e6ea78e2d10f4e814889d
+		GIT_TAG d969188e3786757a6bd17467216d40dbcb8fa3e2
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -215,7 +215,8 @@ endif()
 
 # create the OnTubeVis plugin within the CGV Framework build infrastructure
 cgv_add_target(OnTubeVis
-	TYPE plugin
+	TYPE plugin SERVICE
+
 	SOURCES         ${SOURCES}
 	HEADERS         ${HEADERS}
 	SHADER_SOURCES  ${SHADERS}
@@ -232,7 +233,7 @@ cgv_add_target(OnTubeVis
 	ADDITIONAL_CMDLINE_ARGS
 		"config:\"${CMAKE_CURRENT_LIST_DIR}/config.def\""
 
-	OVERRIDE_SHARED_EXPORT_DEFINE TUBES_EXPORTS
+	OVERRIDE_SHARED_EXPORT_DEFINE ONTUBEVIS_EXPORTS
 
 	ADDITIONAL_PRIVATE_DEFINES ${NVRTC_INCLUDE_DEFS}
 )

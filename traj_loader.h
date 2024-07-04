@@ -641,6 +641,10 @@ public:
 	// construct with the given functor that transforms a \c Vec4 to a \c Vec4 .
 	attrib_transform(const vec4_to_vec4 &transform_func);
 
+    typedef std::function<void(Vec4&,const Vec3&)> vec3_to_vec4;
+    // construct with the given functor that transforms a \c Vec3 to a \c Vec4 .
+    attrib_transform(const vec3_to_vec4 &transform_func);
+
 	typedef std::function<void(Vec3&,const Vec3&)> vec3_to_vec3;
 	/// construct with the given functor that transforms a \c Vec3 to a \c Vec3 .
 	attrib_transform(const vec3_to_vec3 &transform_func);
