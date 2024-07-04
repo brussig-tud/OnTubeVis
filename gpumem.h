@@ -110,7 +110,8 @@ public:
 		return reinterpret_as<std::byte>();
 	}
 
-	/// Create a subspan of this object whose begin is aligned to the given number of bytes.
+	/// Create a subspan of this object whose begin is aligned to the given number of bytes, which
+	/// must be a power of two.
 	/// If the requested alignment does not fit into the spanned memory, a null span is returned.
 	[[nodiscard]] span aligned_to (size_type alignment) const;
 
@@ -142,6 +143,7 @@ public:
 	/// Create a Buffer Object with persistently mapped storage and return a subspan of its memory
 	/// that is aligned to the given number of bytes and contains at least `length` entries of type
 	/// `Elem`.
+	/// `alignment` must be a power of two.
 	template <class Elem = std::byte>
 	[[nodiscard]] span<Elem> alloc (size_type length, size_type alignment = alignof(Elem));
 
@@ -180,7 +182,7 @@ public:
 	~array() noexcept;
 
 	/// Replace the backing buffer with newly allocated memory spanning `length` uninitialized
-	/// elements and aligned to the requested number of bytes.
+	/// elements and aligned to the requested number of bytes, which must be a power of two.
 	/// Previously owned memory is deallocated without the contained elements being destroyed.
 	[[nodiscard]] bool create (size_type length, size_type alignment = alignof(Elem));
 };
@@ -214,7 +216,7 @@ public:
 	}
 
 	/// In a persistently mapped Buffer Object, allocate memory that contains at least `length`
-	/// objects of type `Elem` and is aligned to `alignment` bytes.
+	/// objects of type `Elem` and is aligned to `alignment` bytes, which must be a power of two
 	template <class Elem = std::byte>
 	[[nodiscard]] span<Elem> alloc (size_type length, size_type alignment = alignof(Elem))
 	{
@@ -278,7 +280,7 @@ public:
 	}
 
 	/// In a free block, create an allocation that holds at least `length` objects of type `Elem`
-	/// and is aligned to `alignment` bytes.
+	/// and is aligned to `alignment` bytes, which must be a power of two.
 	/// Always uses exactly one block, even if less memory is requested.
 	/// Fails if the requested allocation does not fit into a block or all blocks are occupied.
 	template <class Elem = std::byte>
@@ -319,7 +321,8 @@ public:
 	using memory_pool_alloc::alloc;
 	using memory_pool_alloc::dealloc;
 
-	/// Allocate new backing memory and subdivide it into blocks.
+	/// Allocate new backing memory and subdivide it into blocks of at least `block_length` bytes
+	/// aligned to `block_alignment` bytes, which must be a power of two.
 	/// See also `memory_pool_alloc::create`.
 	[[nodiscard]] bool create (
 		size_type num_blocks,

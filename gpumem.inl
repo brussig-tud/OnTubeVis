@@ -271,6 +271,11 @@ memory_pool<Alloc>::~memory_pool() noexcept
 template <class Alloc>
 bool memory_pool<Alloc>::create (size_type num_blocks, size_type block_length, size_type alignment)
 {
+	// For all blocks to be aligned, the block size must be a multiple of the alignment.
+	// The formula for rounding to the next multiple of a power of two is adopted from the GLIBCXX
+	// implementation of `std::align`.
+	block_length = (block_length - 1 + alignment) & -alignment;
+
 	const auto memory {
 			this->allocator().template alloc(num_blocks * block_length, alignment)};
 	return memory.data() ? memory_pool_alloc::create(num_blocks, block_length, memory) : false;
