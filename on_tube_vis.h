@@ -363,23 +363,34 @@ protected:
 		}
 	};
 
+	/// The maximum number of concurrent glyph layers supported by the implementation.
+	/// NOTE: This value is hard-coded in many places.
+	static constexpr uint max_glyph_layers {4};
+
 	struct render_state;
 
 	/// Manages the render data for a single trajectory.
 	class trajectory {
+	public:
+		/// Type used to uniquely identify trajectory instances.
+		using id_type = uint;
+
 	private:
 		/// Rendering data shared between trajectories.
 		render_state &_render;
 		/// Compiled glyphs shown on the trajectory.
-		std::array<gpumem::ring_buffer<float, gpumem::memory_pool_ptr>, 4> _glyph_attribs;
+		std::array<gpumem::ring_buffer<float, gpumem::memory_pool_ptr>, max_glyph_layers>
+				_glyph_attribs;
 		/// Indices of the first glyph in each layer to be included on the next segment.
-		std::array<gpumem::index_type, 4> _first_glyphs_on_seg {0, 0, 0, 0};
+		std::array<gpumem::index_type, max_glyph_layers> _first_glyphs_on_seg;
 		/// The absolute index of the last entry in the node buffer belonging to this trajectory.
 		gpumem::index_type _last_node_idx;
+		/// Uniquely identifies this trajectory.
+		const id_type _id;
 		/// The arc length of the entire trajectory.
 		float _arc_length = 0;
 		/// The number of 32 bit float values used to define one glyph instance on each layer.
-		std::array<uint8_t, 4> _glyph_sizes;
+		std::array<uint8_t, max_glyph_layers> _glyph_sizes;
 
 		/// Extend the trajectory by one node.
 		/// Unlike `append_segment`, this function can also be used with an empty trajectory.
@@ -390,8 +401,8 @@ protected:
 		}
 
 	public:
-		/// Create a new trajectory with the given start node.
-		trajectory(const node_attribs &start_node, render_state &render);
+		/// Create a new trajectory starting at the given node.
+		trajectory(id_type id, const node_attribs &start_node, render_state &render);
 
 		/// Return the total arc length of this trajectory.
 		[[nodiscard]] constexpr float arc_length () const noexcept
@@ -478,7 +489,7 @@ protected:
 		const traj_manager<float>::render_data *data;
 
 		/// Host-side glyph data.
-		std::array<glyph_source_data, 4> glyph_source;
+		std::array<glyph_source_data, max_glyph_layers> glyph_source;
 
 		/// the on-tube visualization layers for each loaded dataset
 		std::vector<on_tube_visualization> visualizations;
@@ -493,12 +504,16 @@ protected:
 		/// GPU ring buffer containing segments defined as pairs of absolute indices into #node_buffer.
 		gpumem::ring_buffer<uvec2> segment_buffer;
 
+		/// GPU buffer storing which trajectory each segment belongs to.
+		/// Entries correspond to #segment_buffer.
+		gpumem::array<uint> seg_to_traj;
+
 		/// GPU buffer containing segment-wise arclength parametrization.
 		/// Entries correspond to #segment_buffer.
 		gpumem::array<mat4> t_to_s;
 
 		/// GPU-side glyph data.
-		std::array<glyph_vis_data, 4> glyph_vis;
+		std::array<glyph_vis_data, max_glyph_layers> glyph_vis;
 
 		/// GPU-side storage buffer mirroring the \ref #arclen_data .
 		vertex_buffer arclen_sbo;

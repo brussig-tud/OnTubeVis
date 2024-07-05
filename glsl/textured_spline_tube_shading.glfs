@@ -13,6 +13,7 @@
 #define CONSTANT_FLOAT_UNIFORM_COUNT 0
 #define CONSTANT_COLOR_UNIFORM_COUNT 0
 #define MAPPING_PARAMETER_UNIFORM_COUNT 0
+#define MAX_GLYPH_LAYERS 4
 #define L0_VISIBLE 1
 #define L0_MAPPED_ATTRIB_COUNT 0
 #define L0_GLYPH_DEFINITION
@@ -101,6 +102,10 @@ uniform vec4 glyph_m_param[MAPPING_PARAMETER_UNIFORM_COUNT];
 in vec2 texcoord_fs;
 
 out vec4 frag_color;
+
+layout (binding = MAX_GLYPH_LAYERS) readonly buffer seg_to_traj_buffer {
+	uint seg_to_traj[];
+};
 
 struct irange {
 	int i0, n;
@@ -211,7 +216,7 @@ float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
 		float sample_distance = ambient_occlusion.sample_offset + 0.001;
 		vec3 normalized_pos = (pos - ambient_occlusion.tex_offset) * ambient_occlusion.tex_scaling;
 		float lod_texel_size = 0.0f;
-			
+
 		float illumination = 1.0;
 
 		do {
@@ -374,7 +379,7 @@ vec3 grid_normal(in vec2 p, in float n) {
 	vec2 xy = sin(2.0*M_PI*t);
 	vec2 z = 0.5*cos(2.0*M_PI*t) + 0.5;
 #endif
-	
+
 	vec3 normal = vec3(0.0, 0.0, max(z.x, z.y));
 	if(i.x > i.y) normal.x = -xy.x;
 	else normal.y = xy.y;
@@ -402,7 +407,7 @@ float compute_grid_factor(vec2 uv) {
 vec3 compute_grid_normal(vec2 uv) {
 	//if(uv.s <= -length_scale || uv.s >= length_scale)// || uv.t <= -1.0 || uv.t >= 1.0)
 	//	return vec3(0.0, 0.0, 1.0);
-	
+
 	vec3 normal = vec3(0.0, 0.0, 1.0);
 	vec3 normal0 = mix(normal, grid_normal(grids[0].scaling*uv, grids[0].thickness), grids[0].blend_factor);
 	vec3 normal1 = mix(normal, grid_normal(grids[1].scaling*uv, grids[1].thickness), grids[1].blend_factor);
@@ -616,7 +621,7 @@ float sd_drop(vec2 p, float r1, float r2, float h) {
 float sd_rounded_cross(in vec2 p, in float r) {
     p = abs(p);
     return
-		(p.x < r && p.y < r) ? 
+		(p.x < r && p.y < r) ?
 		r - sqrt(dot2(p - vec2(r))) :     // circular arc
 		sqrt(min(dot2(p - vec2(0.0,r)),   // top corner
                  dot2(p - vec2(r,0.0)))); // right corner
@@ -1315,7 +1320,7 @@ float digit(vec2 uv, uint num) {
    	seg += segment(uv.yx + vec2(+0.0, +0.0), num!=0 && num!=1 && num!=7          );
 	seg += segment(uv.xy + vec2(-0.5, +0.5), num==0 || num==2 || num==6 || num==8);
 	seg += segment(uv.xy + vec2(+0.5, +0.5), num!=2                              );
-    seg += segment(uv.yx + vec2(+1.0, +0.0), num!=1 && num!=4 && num!=7          );	
+    seg += segment(uv.yx + vec2(+1.0, +0.0), num!=1 && num!=4 && num!=7          );
 	return seg;
 }
 
@@ -1327,7 +1332,7 @@ float digit(vec2 uv, uint num) {
 */
 
 vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color, in float outline, out float non_outline_factor) {
-	
+
 	// debug only
 	// show otherwise not drawn glyphs
 	float alpha_fac = 1.0;
@@ -1397,7 +1402,18 @@ vec3 hash31(float p)
 {
    vec3 p3 = fract(vec3(p) * vec3(.1031, .1030, .0973));
    p3 += dot(p3, p3.yzx+33.33);
-   return fract((p3.xxy+p3.yzz)*p3.zyx); 
+   return fract((p3.xxy+p3.yzz)*p3.zyx);
+}
+
+
+/// Uniformly map the range [0, 1] to hue for debugging.
+vec3 rainbow(float t)
+{
+	return vec3(
+		 3 * abs(t - 1/2.) - 1/2.,
+		-3 * abs(t - 1/3.) +  1,
+		-3 * abs(t - 2/3.) +  1
+	);
 }
 
 
@@ -1417,7 +1433,7 @@ void main()
 	float frag_depth = 1;
 	for (uint subp=0; subp<num_subpixels; subp++) {
 
-	
+
 	const vec2 fb_uv = vec2(
 		/*(holographic_raycast ? pxl*subpxl_width : */pxl*pxl_width + subp*subpxl_width + intra_fbtexel_offset,
 		texcoord_fs.y
@@ -1443,7 +1459,7 @@ void main()
 		// The texture coordinate v (around the tube) lies in [0,1] at the front side (camera facing side) of the tube,
 		// with 0 at the top and 1 at the bottom of the visible part of the tube (if the bitangent is pointing up in screen space).
 		// The back side of the tube is parameterized in the same way, but we are only interested in the front side anyway.
-		
+
 		// Move the origin (0,0) to the center of the front side and scale the v coordinate to [-1,1]
 		uv.t = 2.0 * uv.t - 1.0;
 
@@ -1537,7 +1553,7 @@ void main()
 		// enable to highlight segments with a glyph count greater than given value
 		//if(ranges0[segment_id].n > 2)
 		//color = vec3(1.0, 0.0, 0.0);
-		
+
 #if DEBUG_SEGMENTS == 1
 		// highlight individual segments
 		if((segment_id&1) > 0) color *= 0.5;
@@ -1572,6 +1588,7 @@ void main()
 		//subp_color = vec4(vec3(depth), 1.0); // tangent
 		//subp_color = vec4(0.1*texcoord.x, texcoord.y, 0.0, 1.0); // texcoords
 		//subp_color = vec4(hash31(segment_id), 1.0); // segment_id
+		// subp_color = vec4(rainbow(seg_to_traj[segment_id] * 11 % 90 / 90.), 1.0); // trajectory id
 	}
 
 	subp_color.rgb = pow(subp_color.rgb, 1.0/gamma3);
@@ -1588,7 +1605,7 @@ void main()
 	}
 	// END - holography loop
 	/////////////////////////////////////////////
-	
+
 	// write the frag depth to enable the framework view to work properly
 	gl_FragDepth = frag_depth;
 }

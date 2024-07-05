@@ -1242,10 +1242,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					render.glyph_source.at(layer_idx) = {ranges, attribs};
 
 					// Allocate GPU buffers for glyph-related data.
-					if (!render.create_glyph_layer(
-						layer_idx,
-						attribs.size() / render.glyph_source[layer_idx].attribs.count + 2
-					)) {
+					if (!render.create_glyph_layer(layer_idx, attribs.glyph_count())) {
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
 					}
 
@@ -1811,15 +1808,20 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 // ###############################
 #endif
 
-on_tube_vis::trajectory::trajectory(const node_attribs &start_node, render_state &render)
+on_tube_vis::trajectory::trajectory(
+	id_type            id,
+	const node_attribs &start_node,
+	render_state       &render
+)
 	// All glyph layers are initially empty, but will allocate memory from their respecive pool.
-	: _glyph_attribs {{
+	: _render {render}
+	, _glyph_attribs {{
 		{gpumem::memory_pool_ptr{render.glyph_vis[0].attribs}},
 		{gpumem::memory_pool_ptr{render.glyph_vis[1].attribs}},
 		{gpumem::memory_pool_ptr{render.glyph_vis[2].attribs}},
 		{gpumem::memory_pool_ptr{render.glyph_vis[3].attribs}},
 	}}
-	, _render {render}
+	, _id {id}
 {
 	append_node(start_node);
 }
@@ -1849,6 +1851,9 @@ void on_tube_vis::trajectory::append_segment (const node_attribs &node)
 	// Create a new segment between the last node and the new one.
 	auto new_seg_idx = _render.segment_buffer.back();
 	_render.segment_buffer.push_back({_last_node_idx, _render.node_buffer.back()});
+
+	// Mark the segment as belonging to the trajectory.
+	_render.seg_to_traj[new_seg_idx] = _id;
 
 	// Store the segment's arclength parametrization at the corresponding index.
 	mat4 s_to_t;
@@ -2069,6 +2074,7 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		});
 
 		std::ignore = render.node_buffer.flush();
+		std::ignore = render.seg_to_traj.flush_wrapping(render.segment_buffer.added_idcs());
 		std::ignore = render.t_to_s.flush_wrapping(render.segment_buffer.added_idcs());
 		// Must be flushed last since it changes `segment_buffer.changed_range()`, which other calls
 		// use.
@@ -2665,6 +2671,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 		if (!(
 			render.node_buffer.create(18) // (time_window + 1) * num_trajectories
 			&& render.segment_buffer.create(15) // time_window * num_trajectories
+			&& render.seg_to_traj.create(15) // time_window * num_trajectories
 			&& render.t_to_s.create(15) // time_window * num_trajectories
 		)) {
 			throw std::runtime_error("Error creating ring buffers");
@@ -2695,7 +2702,11 @@ void on_tube_vis::update_attribute_bindings(void) {
 
 				// Construct the trajectory.
 				render.trajectories.push_back({
-					{start_node, render},
+					{
+						static_cast<trajectory::id_type>(render.trajectories.size()),
+						start_node,
+						render}
+					,
 					{trajectory.i0 + 1, trajectory.i0 + trajectory.n},
 					first_segment
 				});
@@ -3137,6 +3148,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 1, aindex_handle);
 			}
 		}
+
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, max_glyph_layers, render.seg_to_traj.handle());
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
