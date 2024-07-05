@@ -286,7 +286,7 @@ uniform float subdiv_abort_thr = 512;
 #endif
 
 // arclen approximations SBO
-layout (std430, binding=1) readonly buffer arclen_buffer { 
+layout (std430, binding=1) readonly buffer arclen_buffer {
 	mat4 b[]; // 4 cubic beziers packed into colums of mat4
 };
 
@@ -306,7 +306,7 @@ flat in int segment_id_fs;
 	layout (depth_greater) out float gl_FragDepth;
 #endif
 
-layout (location=0) out vec4 frag_albedo;
+layout (location=0) out uvec4 frag_albedo;
 layout (location=1) out vec3 frag_position;
 layout (location=2) out vec3 frag_normal;
 layout (location=3) out vec3 frag_tangent;
@@ -370,7 +370,7 @@ float alen (float t)
 	}
 
 	// Calcs intersection with an axis-aligned box in the same coordinate system.
-	float box_isect (const ray_t ray, const AABox3 box) 
+	float box_isect (const ray_t ray, const AABox3 box)
 	{
 		// Offset ray origin so coordinate system is centered around the box
 		vec3 ro = ray.orig - aabox3_center(box);
@@ -402,7 +402,7 @@ float alen (float t)
 		//  | u      |        |    ↑
 		//  *--------O--------*    | c(t)
 		//  |        |        |    |
-		//  |        | v      |    | 
+		//  |        | v      |    |
 		// q00 ------*------ q10
 		//
 		// Idea: <to-be-put-in-prose>
@@ -875,13 +875,18 @@ void main()
 
 		// Output shading results
 		//finish_fragment(color, depth);
-		frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(color)), alen(t_seg), v, intBitsToFloat(segment_id_fs));
+		frag_albedo = uvec4(
+			packUnorm4x8(color),
+			floatBitsToUint(alen(t_seg)),
+			floatBitsToUint(v),
+			segment_id_fs
+		);
 		frag_position = vec3(pos_eye);
 		frag_normal = normal;
 		frag_tangent = tangent;
 	}
 	else {
-		frag_albedo = vec4(uintBitsToFloat(0xFF0000FF), 0.0, 0.0, intBitsToFloat(0));
+		frag_albedo = uvec4(0xFF0000FF, floatBitsToUint(0.0), floatBitsToUint(0.0), 0);
 		frag_position = vec3(0.0, 0.0, 1.0);
 		frag_normal = vec3(0.0, 0.0, 1.0);
 		frag_tangent = vec3(1.0, 0.0, 0.0);

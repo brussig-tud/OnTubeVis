@@ -97,7 +97,7 @@ layout(std430, binding = 0) readonly buffer data_buffer {
 };
 
 // arclen approximations SBO
-layout (std430, binding = 1) readonly buffer arclen_buffer { 
+layout (std430, binding = 1) readonly buffer arclen_buffer {
   mat4 b[]; // 4 cubic beziers packed into colums of mat4
 };
 
@@ -154,7 +154,7 @@ float alen (float t)
 }
 
 // Produces an orthogonal vector to v. Doesn�t require the input
-// to be normalized and doesn�t normalise the output. 
+// to be normalized and doesn�t normalise the output.
 // source: http://lolengine.net/blog/2013/09/21/picking-orthogonal-vector-combing-coconuts
 vec3 GetOrthoVec(vec3 v)
 {
@@ -202,7 +202,7 @@ vec2 SolveQuadratic(float a, float b, float c) {
 }
 
 void Pow2(in float c[3], out float o_c[5]) {
-	o_c[0] = c[0] * c[0]; 
+	o_c[0] = c[0] * c[0];
 	o_c[1] =  2.0 * c[0] * c[1];
 	o_c[2] = c[1] * c[1] +  2.0 * c[0] * c[2];
 	o_c[3] =  2.0 * c[2] * c[1];
@@ -246,14 +246,14 @@ vec3 EvalCSpline(vec3 p1, vec3 t1, vec3 p2, vec3 t2, float l)
 {
 	vec3 h1 = p1 + t1 / 3.0;
 	vec3 h2 = p2 - t2 / 3.0;
-	
+
 	vec3 a1 = mix(p1, h1, l);
 	vec3 a2 = mix(h1, h2, l);
 	vec3 a3 = mix(h2, p2, l);
-	
+
 	vec3 b1 = mix(a1, a2, l);
 	vec3 b2 = mix(a2, a3, l);
-	
+
 	return mix(b1, b2, l);
 }
 
@@ -381,8 +381,8 @@ void SplinePointsToPolyCoeffs(float p0, float h, float p1, out float o_c[3])
 vec3 qSplineEval(float l, float curveX[N0], float curveY[N0], float curveZ[N0])
 {
 	return vec3(
-		EvalPolyD0(l, curveX), 
-		EvalPolyD0(l, curveY), 
+		EvalPolyD0(l, curveX),
+		EvalPolyD0(l, curveY),
 		EvalPolyD0(l, curveZ)
 	);
 }
@@ -390,17 +390,17 @@ vec3 qSplineEval(float l, float curveX[N0], float curveY[N0], float curveZ[N0])
 vec3 qSplineTangent(float l, float curveX[N0], float curveY[N0], float curveZ[N0])
 {
 	return vec3(
-		EvalPolyD1(l, curveX), 
-		EvalPolyD1(l, curveY), 
+		EvalPolyD1(l, curveX),
+		EvalPolyD1(l, curveY),
 		EvalPolyD1(l, curveZ)
 	);
 }
 
 float qSplineIDistEval(float t, float curveX[N0], float polyB_C[N1])
-{		
+{
 	float term  = EvalPolyD0(t, curveX);
 	float discr = EvalPolyD0(t, polyB_C);
-		
+
 	if(discr < 0.0) return POS_INF;
 	else return term - sqrt(discr);
 }
@@ -409,8 +409,8 @@ float qSplineIDistEval(float t, float curveX[N0], float polyB_C[N1])
 #define qSplineIDist_Paras curveX, polyB_C
 
 float qSplineD1Eval(float t, float curveX[N0], float polyB_C[N1])
-{	 		
-	float f1D1 = EvalPolyD1(t, curveX);	
+{
+	float f1D1 = EvalPolyD1(t, curveX);
 	float f2D0 = EvalPolyD0(t, polyB_C);
 	float f2D1 = EvalPolyD1(t, polyB_C);
 
@@ -421,16 +421,16 @@ float qSplineD1Eval(float t, float curveX[N0], float polyB_C[N1])
 #define qSplineD1_Paras curveX, polyB_C
 
 float qSplineD2Eval(float t, float curveX[N0], float polyB_C[N1])
-{		
+{
 	float f1D1 = EvalPolyD1(t, curveX);
 	float f1D2 = EvalPolyD2(t, curveX);
-		
+
 	float f2D0 = EvalPolyD0(t, polyB_C);
 	float f2D1 = EvalPolyD1(t, polyB_C);
 	float f2D2 = EvalPolyD2(t, polyB_C);
-	
+
 	f2D0 = max(0.0, f2D0);
-	
+
 	return (Pow2(f2D1) / f2D0 * 0.25 - f2D2 * 0.5) * inversesqrt(f2D0) + f1D2;
 }
 
@@ -569,7 +569,7 @@ Hit EvalSplineISect(
 	hit.l = 0.0;
 	hit.t = POS_INF;
 	hit.normal = vec3(0.0);
-	
+
 	const mat3 RCC =
 		#ifdef PRIMITIVE_RUSSIG
 			calc_rcc_x(dir);
@@ -582,10 +582,10 @@ Hit EvalSplineISect(
 	float curveY[N0]; SplinePointsToPolyCoeffs(s_rcc.y, h_rcc.y, t_rcc.y, curveY);
 	float curveZ[N0]; SplinePointsToPolyCoeffs(s_rcc.z, h_rcc.z, t_rcc.z, curveZ);
 	float rcurve[N0]; SplinePointsToPolyCoeffs(rs, rh, rt, rcurve);
-	
+
 #ifdef PRIMITIVE_RUSSIG
 	float polyB_C[N1];
-		
+
 	Pow2(rcurve, polyB_C);
 
 	{ float c[N1];
@@ -594,17 +594,17 @@ Hit EvalSplineISect(
 	{ float c[N1];
 	  Pow2(curveZ, c);
 	  Sub(polyB_C, c, polyB_C); }
-	
+
 	float l1 = 0.0;
 	float l2 = 0.0;
-	
+
 	vec4 roots = vec4(-1.0);
-	
+
 	float x2[4];
 	int m2[4];
-	
+
 	vec2 r = SolveQuadratic(polyB_C[4] * 12.0, polyB_C[3] * 6.0, polyB_C[2] * 2.0);
-	
+
 	x2[0] = 0.0;
 	x2[1] = r.x;
 	x2[2] = r.y;
@@ -621,86 +621,86 @@ Hit EvalSplineISect(
 
 	float x4[6];
 	int m4[6];
-	
-	{		
+
+	{
 		FindRootsD0(polyB_C, x3, m3, x4, m4);
 
 		int rootType = 0;
 		int rn = 0;
-		
+
 		if(EvalPolyD0(0.0, polyB_C) >= 0.0) {
 								  roots.x =  0; rn = 1; rootType = 15;
 		}
-		
+
 		if(m4[1] == 1) {
 			if(rn == 0) 		{ roots.x = x4[1]; rn = 1; rootType = 15;						}
-			else				{ roots.y = x4[1]; rn = 2; rootType = 10; 						}	
+			else				{ roots.y = x4[1]; rn = 2; rootType = 10; 						}
 		} else if(rootType == 15) {
 			rootType = 0;
 		}
-		
+
 		if(m4[2] == 1) {
 			if     (rn == 0) 	{ roots.x = x4[2]; rn = 1; rootType = 15;						}
-			else if(rn == 1)	{ roots.y = x4[2]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
-			else 				{ roots.z = x4[2]; rn = 3; rootType = 20; 						}	
+			else if(rn == 1)	{ roots.y = x4[2]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}
+			else 				{ roots.z = x4[2]; rn = 3; rootType = 20; 						}
 		} else if(rootType == 15) {
 			rootType = 0;
 		}
-		
+
 		if(m4[3] == 1) {
 			if     (rn == 0) 	{ roots.x = x4[3]; rn = 1; rootType = 15;						}
-			else if(rn == 1)	{ roots.y = x4[3]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
-			else if(rn == 2)	{ roots.z = x4[3]; rn = 3; rootType = 20; 						}	
-			else 				{ roots.w = x4[3]; rn = 4; rootType = 20; 						}	
+			else if(rn == 1)	{ roots.y = x4[3]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}
+			else if(rn == 2)	{ roots.z = x4[3]; rn = 3; rootType = 20; 						}
+			else 				{ roots.w = x4[3]; rn = 4; rootType = 20; 						}
 		} else if(rootType == 15) {
 			rootType = 0;
 		}
-		
+
 		if(m4[4] == 1) {
 			if     (rn == 0) 	{ roots.x = x4[4]; rn = 1; rootType = 15;						}
-			else if(rn == 1)	{ roots.y = x4[4]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
-			else if(rn == 2)	{ roots.z = x4[4]; rn = 3; rootType = 20; 						}	
-			else 				{ roots.w = x4[4]; rn = 4; rootType = 20; 						}	
+			else if(rn == 1)	{ roots.y = x4[4]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}
+			else if(rn == 2)	{ roots.z = x4[4]; rn = 3; rootType = 20; 						}
+			else 				{ roots.w = x4[4]; rn = 4; rootType = 20; 						}
 		} else if(rootType == 15) {
 			rootType = 0;
 		}
-		
+
 		if(EvalPolyD0(x2[3], polyB_C) > 0.0) {
 			if     (rn == 1)	{ roots.y =   1.0; rn = 1; rootType = rootType == 0 ? 30 : 10;	}
-			else				{ roots.w =   1.0; rn = 2; rootType = 20; 						}	
+			else				{ roots.w =   1.0; rn = 2; rootType = 20; 						}
 		}
-		
+
 		if(rootType == 10 || rootType == 15) rootType = 30;
 
 		//region finalize
 		if(rootType > 0) {
 			if(rootType == 30) {
 				float rootD3 = binRootFinder_Eval(roots.x, roots.y, qSplineD3);
-				
+
 				vec2 rootsD2;
 				rootsD2.x = binRootFinder_Eval(rootD3, roots.x, qSplineD2);
 				rootsD2.y = binRootFinder_Eval(rootD3, roots.y, qSplineD2);
-				
+
 				l1 = binRootFinder_Eval(roots.x, rootsD2.x, qSplineD1);
 				l2 = binRootFinder_Eval(rootsD2.y, roots.y, qSplineD1);
 			} else {
 				l1 = binRootFinder_Eval(roots.x, roots.y, qSplineD1);
-				
+
 				if(rootType == 20)
 					l2 = binRootFinder_Eval(roots.z, roots.w, qSplineD1);
 				else
 					l2 = l1;
 			}
-			
+
 			float t1 = qSplineIDistEval(l1, curveX, polyB_C);
 			float t2 = qSplineIDistEval(l2, curveX, polyB_C);
-			
+
 			float r1 = EvalPolyD0(l1, rcurve);
 			float r2 = EvalPolyD0(l2, rcurve);
-			
+
 			bool hit1 = t1 > 0.0 && r1 > 0.0;
 			bool hit2 = t2 > 0.0 && r2 > 0.0;
-			
+
 			if(hit1) {
 				if(t1 < t2 || !hit2) {
 					hit.t = t1;
@@ -803,14 +803,14 @@ vec3 eval_quadratic_bezier_tangent(QTube qtube, float t)
 	Bk[0] = qtube.s.pos;
 	Bk[1] = qtube.h.pos;
 	Bk[2] = qtube.e.pos;
-	
+
 	mat3 Mb; // quadratic bezier matrix
 	Mb[0] = vec3( 1,  0,  0);
 	Mb[1] = vec3(-2,  2,  0);
 	Mb[2] = vec3( 1, -2,  1);
 
 	mat3 M = Bk * Mb;
-	
+
 	// quadratic bezier (1, t, t^2)
 	// 1st derivative (0, 1, 2t)
 	return M * vec3(0.0, 1, 2.0*t);
@@ -894,7 +894,7 @@ void main()
 	discard;
 	return;
 #elif MODE == 1
-	frag_albedo = vec4(uintBitsToFloat(0xFF0000FF), 0.0, 0.0, intBitsToFloat(0));
+	frag_albedo = uvec4(0xFF0000FF, floatBitsToUint(0.0), floatBitsToUint(0.0), 0);
 	frag_position = vec3(0.0, 0.0, 1.0);
 	frag_normal = vec3(0.0, 0.0, 1.0);
 	frag_tangent = vec3(1.0, 0.0, 0.0);
@@ -903,8 +903,8 @@ void main()
 
 #if USE_VIEW_SPACE_POSITION == 0
 	// transform fragment coordinates from window coordinates to clip coordinates
-    vec4 coord = gl_FragCoord 
-        * vec4(2.0 / viewport.z, 2.0 / viewport.w, 2.0, 0.0) 
+    vec4 coord = gl_FragCoord
+        * vec4(2.0 / viewport.z, 2.0 / viewport.w, 2.0, 0.0)
         + vec4(-1.0, -1.0, -1.0, 1.0);
 
     // transform fragment coordinates from clip coordinates to eye coordinates
@@ -932,7 +932,7 @@ void main()
 
 	if(hit.t == POS_INF || (hit.cap && hit.t > cap_clip_distance)) {
 #if MODE == 2
-		frag_albedo = vec4(uintBitsToFloat(0xFF0000FF), 0.0, 0.0, intBitsToFloat(0));
+		frag_albedo = uvec4(0xFF0000FF, floatBitsToUint(0.0), floatBitsToUint(0.0), 0);
 		frag_position = vec3(0.0, 0.0, 1.0);
 		frag_normal = vec3(0.0, 0.0, 1.0);
 		frag_tangent = vec3(1.0, 0.0, 0.0);

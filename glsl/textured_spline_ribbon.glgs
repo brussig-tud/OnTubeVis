@@ -65,7 +65,7 @@ uniform vec3 view_dir;
 uniform vec4 viewport;
 uniform float max_t;
 
-const vec3 eye_pos = (get_inverse_modelview_matrix()*vec4(0, 0, 0, 1)).xyz;
+vec3 eye_pos = (get_inverse_modelview_matrix()*vec4(0, 0, 0, 1)).xyz;
 
 in flat uvec2 node_ids_gs[];
 in flat int segment_id_gs[];
@@ -129,8 +129,8 @@ float EvalPolyD0(float x, float c[3]) {
 
 vec3 qSplineEval(float l, float curveX[N0], float curveY[N0], float curveZ[N0]) {
 	return vec3(
-		EvalPolyD0(l, curveX), 
-		EvalPolyD0(l, curveY), 
+		EvalPolyD0(l, curveX),
+		EvalPolyD0(l, curveY),
 		EvalPolyD0(l, curveZ)
 	);
 }
@@ -141,7 +141,7 @@ vec3 eval_cubic_hermite_tangent(float t) {
 }
 
 void emit_ribbon_segment(int segment_idx, QTube qTube, float start_t, float end_t) {
-	
+
 	const mat4 MV = get_modelview_matrix();
 
 	#if !(ATTRIB_MODE & 1)
@@ -162,7 +162,7 @@ void emit_ribbon_segment(int segment_idx, QTube qTube, float start_t, float end_
 	float curveX[N0]; SplinePointsToPolyCoeffs(s.x, h.x, t.x, curveX);
 	float curveY[N0]; SplinePointsToPolyCoeffs(s.y, h.y, t.y, curveY);
 	float curveZ[N0]; SplinePointsToPolyCoeffs(s.z, h.z, t.z, curveZ);
-	
+
 	float radius = qTube.s.rad;
 
 	mat4 MVP = get_modelview_projection_matrix();
@@ -177,19 +177,19 @@ void emit_ribbon_segment(int segment_idx, QTube qTube, float start_t, float end_
 		// the quadratic spline runlength parameter in [0,1]
 		float qspline_l = float(i)/float(NUM_SUBDIVISIONS-1);
 		qspline_l *= end_l;
-		
+
 		// transform to cubic spline parameter
 		float spline_t = 0.5 * qspline_l + l_offset_fs;
 
 		// tangent is given in object space (always use cubic tangents)
 		vec3 tangent = eval_cubic_hermite_tangent(spline_t);
-		
+
 		// compute the position on the quadratic spline at the current runlength parameter
 		vec3 spline_pos = qSplineEval(qspline_l, curveX, curveY, curveZ);
 
 		// calculate a bitangent which is orthogonal to the tangent and the vector from the eye position to the spline position
 		vec3 b = normalize(cross(tangent, spline_pos - cyclopic_eye));
-		
+
 		// compute the normal from the tangent and bitangent and transform to eye space
 		vec3 normal = cross(tangent, b);
 		normal = normalize(NM * normal);
@@ -198,7 +198,7 @@ void emit_ribbon_segment(int segment_idx, QTube qTube, float start_t, float end_
 		// get vertex positios by extruding the spline outwards along the direction of the (view-aligned) bitangent
 		vec3 c0 = spline_pos + b * radius;
 		vec3 c1 = spline_pos - b * radius;
-		
+
 		position_fs = (MV * vec4(c0, 1.0)).xyz;
 		texcoords_fs = vec2(spline_t, 0.0);
 		gl_Position = MVP * vec4(c0, 1.0); EmitVertex();
@@ -214,24 +214,24 @@ void emit_ribbon_segment(int segment_idx, QTube qTube, float start_t, float end_
 void main()
 {
 	Tube tube;
-	
+
 	node_data_type n0 = nodes[node_ids_gs[0].x];
-	
+
 	tube.s.pos = n0.pos_rad.xyz;
 	tube.s.rad = n0.pos_rad.w * radius_scale;
 	tube.s.pos_tan = n0.tangent.xyz;
 	tube.s.rad_tan = n0.tangent.w;
 
 	node_data_type n1 = nodes[node_ids_gs[0].y];
-	
+
 	tube.e.pos = n1.pos_rad.xyz;
 	tube.e.rad = n1.pos_rad.w * radius_scale;
 	tube.e.pos_tan = n1.tangent.xyz;
 	tube.e.rad_tan = n1.tangent.w;
-	
+
 	QTube qTube0, qTube1;
 	SplitTube(tube, qTube0, qTube1);
-	
+
 	segment_id_fs = segment_id_gs[0];
 
 	mat4 Bk; // matrix of control points and tangents
@@ -253,7 +253,7 @@ void main()
 #endif
 
 	float split_t = 0.5 * (n0.t.x + n1.t.x);
-	
+
 	// TODO: use one ribbon for both segments?
 	if (n0.t.x < max_t)
 	{

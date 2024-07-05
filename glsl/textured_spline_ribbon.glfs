@@ -82,7 +82,7 @@ layout(std430, binding = 0) readonly buffer data_buffer {
 };
 
 // arclen approximations SBO
-layout (std430, binding = 1) readonly buffer arclen_buffer { 
+layout (std430, binding = 1) readonly buffer arclen_buffer {
   mat4 b[]; // 4 cubic beziers packed into colums of mat4
 };
 
@@ -105,7 +105,7 @@ in flat float l_offset_fs;
 in flat int segment_id_fs;
 in flat mat4 SM_fs; // spline matrix
 
-layout (location = 0) out vec4 frag_albedo;
+layout (location = 0) out uvec4 frag_albedo;
 layout (location = 1) out vec3 frag_position;
 layout (location = 2) out vec3 frag_normal;
 layout (location = 3) out vec3 frag_tangent;
@@ -184,14 +184,14 @@ vec3 eval_quadratic_bezier_tangent(QTube qtube, float t)
 	Bk[0] = qtube.s.pos;
 	Bk[1] = qtube.h.pos;
 	Bk[2] = qtube.e.pos;
-	
+
 	mat3 Mb; // quadratic bezier matrix
 	Mb[0] = vec3( 1,  0,  0);
 	Mb[1] = vec3(-2,  2,  0);
 	Mb[2] = vec3( 1, -2,  1);
 
 	mat3 M = Bk * Mb;
-	
+
 	// quadratic bezier (1, t, t^2)
 	// 1st derivative (0, 1, 2t)
 	return M * vec3(0.0, 1, 2.0*t);
@@ -273,7 +273,7 @@ void main()
 	discard;
 	return;
 #elif MODE == 1
-	frag_albedo = vec4(uintBitsToFloat(0xFF0000FF), 0.0, 0.0, intBitsToFloat(0));
+	frag_albedo = uvec4(0xFF0000FF, floatBitsToUint(0.0), floatBitsToUint(0.0), 0);
 	frag_position = vec3(0.0, 0.0, 1.0);
 	frag_normal = vec3(0.0, 0.0, 1.0);
 	frag_tangent = vec3(1.0, 0.0, 0.0);
@@ -293,10 +293,15 @@ void main()
 	vec3 tangent = eval_cubic_hermite_tangent(spline_t);
 	// transform the tangent from object space to eye space
 	tangent = normalize(get_normal_matrix() * tangent);
-	
+
 	float v = texcoords_fs.y;
 
-	frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(col)), alen(spline_t), v, intBitsToFloat(segment_id_fs));
+	frag_albedo = uvec4(
+		packUnorm4x8(col),
+		floatBitsToUint(alen(spline_t)),
+		floatBitsToUint(v),
+		segment_id_fs
+	);
 	frag_position = vec3(hit_pos_eye);
 	frag_normal = normal_fs;
 	frag_tangent = tangent;
