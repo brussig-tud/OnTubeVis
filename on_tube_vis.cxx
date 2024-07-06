@@ -3149,7 +3149,11 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			}
 		}
 
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, max_glyph_layers, render.seg_to_traj.handle());
+		glBindBufferBase(
+			GL_SHADER_STORAGE_BUFFER,
+			max_glyph_layers * 2,
+			render.seg_to_traj.handle()
+		);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 

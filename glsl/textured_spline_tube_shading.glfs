@@ -1,4 +1,4 @@
-#version 430
+#version 440
 #define M_PI 3.14159265359
 
 #define DEBUG_SEGMENTS 0
@@ -103,7 +103,7 @@ in vec2 texcoord_fs;
 
 out vec4 frag_color;
 
-layout (binding = MAX_GLYPH_LAYERS) readonly buffer seg_to_traj_buffer {
+layout (binding = MAX_GLYPH_LAYERS * 2) readonly buffer seg_to_traj_buffer {
 	uint seg_to_traj[];
 };
 
@@ -1588,7 +1588,7 @@ void main()
 		//subp_color = vec4(vec3(depth), 1.0); // tangent
 		//subp_color = vec4(0.1*texcoord.x, texcoord.y, 0.0, 1.0); // texcoords
 		//subp_color = vec4(hash31(segment_id), 1.0); // segment_id
-		// subp_color = vec4(rainbow(seg_to_traj[segment_id] * 11 % 90 / 90.), 1.0); // trajectory id
+		//subp_color = vec4(rainbow(seg_to_traj[segment_id] * 11 % 90 / 90.), 1.0); // trajectory id
 	}
 
 	subp_color.rgb = pow(subp_color.rgb, 1.0/gamma3);
