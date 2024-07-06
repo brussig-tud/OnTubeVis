@@ -2989,7 +2989,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			tstr.render(ctx, 0, count);*/
 
 		// Draw:
-		// If the segment buffer is sequential in memory.
+		// If the segment buffer is contiguous in memory.
 		if (render.segment_buffer.front() < render.segment_buffer.gpu_back()) {
 			GLsizei count = render.segment_buffer.gpu_back() - render.segment_buffer.front();
 			tstr.render(
@@ -3010,31 +3010,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			};
 			std::ignore = tstr.multirender_indexed(ctx, render.aam, span_starts.data(), span_lens.data(), 2);
 		}
-
-		// Wait for the previous draw call to complete.
-		auto wait_result = glClientWaitSync(render.draw_fence, 0, -1);
-		glDeleteSync(render.draw_fence);
-
-#ifdef _DEBUG
-		if (wait_result == GL_CONDITION_SATISFIED) {
-			std::clog << "Had to wait on previous draw call.\n";
-		}
-#endif
-
- 		// Update the ring buffers' guard indices to match the new draw call.
-		render.node_buffer.set_gpu_front(render.node_buffer.front());
-		render.segment_buffer.set_gpu_front(render.segment_buffer.front());
-
-		for (auto &trajectory : render.trajectories) {
-			trajectory.render_data.frame_completed();
-		}
-
-		// Create a fence object to check when the new draw call has completed and the memory it was reading can be
-		// safely manipulated again.
-		render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-
-		// Flush the command buffer.
-		glFlush();
 
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
@@ -3156,6 +3131,31 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+		// Wait for the previous draw call to complete.
+		auto wait_result = glClientWaitSync(render.draw_fence, 0, -1);
+		glDeleteSync(render.draw_fence);
+
+#ifdef _DEBUG
+		if (wait_result == GL_CONDITION_SATISFIED) {
+			std::clog << "Had to wait on previous draw call.\n";
+		}
+#endif
+
+ 		// Update the ring buffers' guard indices to match the new draw call.
+		render.node_buffer.set_gpu_front(render.node_buffer.front());
+		render.segment_buffer.set_gpu_front(render.segment_buffer.front());
+
+		for (auto &trajectory : render.trajectories) {
+			trajectory.render_data.frame_completed();
+		}
+
+		// Create a fence object to check when the new draw call has completed and the memory it was reading can be
+		// safely manipulated again.
+		render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+
+		// Flush the command buffer.
+		glFlush();
 
 		for(size_t i = 0; i < 4; ++i) {
 			if(active_sbos[i]) {
