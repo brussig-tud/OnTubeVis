@@ -1274,6 +1274,9 @@ bool on_tube_vis::compile_glyph_attribs (void)
 	}
 
 	if(success) {
+		// Flush attribute allocation buffer.
+		std::ignore = render.traj_glyph_mem.flush();
+
 		taa.reset();
 		post_redraw();
 	}
@@ -1826,24 +1829,24 @@ on_tube_vis::trajectory::trajectory(
 	append_node(start_node);
 }
 
-bool on_tube_vis::trajectory::create_glyph_layer (
+gpumem::span<const float> on_tube_vis::trajectory::create_glyph_layer (
 	uint8_t           layer,
 	uint8_t           glyph_size,
 	gpumem::size_type capacity
 ) {
 	_glyph_sizes[layer] = glyph_size;
 
-	// The ring buffer requires backing memory for one additional element, however, its length in
-	// floats must be a multiple of `glyph_size` to prevent glyphs from being split by wrap-around.
+	// The ring buffer requires backing memory for one additional element, but its length in floats
+	// must be a multiple of `glyph_size` to prevent glyphs from being split by wrap-around.
 	// Therefore, request memmory for one additional glyph, minus the single float automatically
 	// added by `ring_buffer`.
 	if (! _glyph_attribs[layer].create((capacity + 1) * glyph_size - 1))  {
-		return false;
+		return {};
 	}
 
 	// Store the beginning of the first range.
 	_first_glyphs_on_seg[layer] = _glyph_attribs[layer].back();
-	return true;
+	return _glyph_attribs[layer].as_span().as_const();
 }
 
 void on_tube_vis::trajectory::append_segment (const node_attribs &node)
@@ -1868,17 +1871,10 @@ void on_tube_vis::trajectory::append_segment (const node_attribs &node)
 	_render.foreach_active_glyph_layer([&](const render_state::glyph_layer &layer) {
 		const auto &attribs {_glyph_attribs[layer.idx]};
 
-		// Calculate the offset of this trajectory's glyph attribute container within the global
-		// attibute buffer shared by all trajectories.
-		const auto offset {
-			attribs.as_span().data()
-			- reinterpret_cast<float*>(attribs.as_span().buffer().data())
-		};
-
 		// Set the range of glyphs for the newly created segment.
 		layer.vis.ranges[new_seg_idx] = {
 			static_cast<glyph_range::index_type>(
-				(_first_glyphs_on_seg[layer.idx] + offset)
+				_first_glyphs_on_seg[layer.idx]
 				/ _glyph_sizes[layer.idx]
 			),
 			static_cast<glyph_range::index_type>(
@@ -1998,7 +1994,22 @@ bool on_tube_vis::render_state::create_glyph_layer (uint8_t layer, gpumem::size_
 
 	// Initialize each trajectory's glyph attribute buffer.
 	for (auto &trajectory : trajectories) {
-		ok &= trajectory.render_data.create_glyph_layer(layer, glyph_size, capacity);
+		auto &traj     {trajectory.render_data};
+		const auto mem {traj.create_glyph_layer(layer, glyph_size, capacity)};
+
+		if (! mem.data()) {
+			return false;
+		}
+
+		// Store the allocated memory range as offsets into the GPU buffer for shader access.
+		const auto offset {static_cast<glyph_range::index_type>(
+			mem.data() - reinterpret_cast<float*>(glyph_vis[layer].attribs.as_span().data())
+		)};
+
+		traj_glyph_mem[traj.id() * max_glyph_layers + layer] = {
+			offset / traj.glyph_sizes()[layer],
+			static_cast<glyph_range::index_type>(mem.length()) / traj.glyph_sizes()[layer]
+		};
 	}
 
 	// Allocate memory for each segment's glyph range.
@@ -2666,15 +2677,25 @@ void on_tube_vis::update_attribute_bindings(void) {
 		update_member(&debug.render_percentage);
 		update_member(&debug.render_count);
 
+		// Get the total number of trajectories across all datasets.
+		gpumem::size_type num_trajectories {0};
+
+		for (const auto &dataset : traj_mgr.datasets()) {
+			num_trajectories += dataset.trajectories(dataset.positions().attrib).size();
+		}
+
 		// Allocate ring buffers.
 		// Currently uses the minimum capacity possible for demo data to test if wrap-around works.
+		constexpr gpumem::size_type time_window {5};
+
 		if (!(
-			render.node_buffer.create(18) // (time_window + 1) * num_trajectories
-			&& render.segment_buffer.create(15) // time_window * num_trajectories
-			&& render.seg_to_traj.create(15) // time_window * num_trajectories
-			&& render.t_to_s.create(15) // time_window * num_trajectories
+			render.node_buffer.create((time_window + 1) * num_trajectories)
+			&& render.segment_buffer.create(time_window * num_trajectories)
+			&& render.seg_to_traj.create(time_window * num_trajectories)
+			&& render.t_to_s.create(time_window * num_trajectories)
+			&& render.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
 		)) {
-			throw std::runtime_error("Error creating ring buffers");
+			throw std::runtime_error("Error creating GPU buffers.");
 		}
 
 		// Create trajectories to fill ring buffers.
@@ -3128,6 +3149,12 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			GL_SHADER_STORAGE_BUFFER,
 			max_glyph_layers * 2,
 			render.seg_to_traj.handle()
+		);
+
+		glBindBufferBase(
+			GL_SHADER_STORAGE_BUFFER,
+			max_glyph_layers * 2 + 1,
+			render.traj_glyph_mem.handle()
 		);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);

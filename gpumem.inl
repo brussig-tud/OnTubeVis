@@ -15,20 +15,6 @@
 namespace gpumem {
 
 template <class Elem>
-span<std::byte> span<Elem>::buffer () const
-{
-	glBindBuffer(GL_COPY_READ_BUFFER, _handle);
-
-	void *data       {nullptr};
-	size_type length {0};
-
-	glGetBufferPointerv(GL_COPY_READ_BUFFER, GL_BUFFER_MAP_POINTER, &data);
-	glGetBufferParameteri64v(GL_COPY_READ_BUFFER, GL_BUFFER_MAP_LENGTH, &length);
-
-	return {reinterpret_cast<std::byte*>(data), length, _handle};
-}
-
-template <class Elem>
 template <class T>
 span<T> span<Elem>::reinterpret_as () const noexcept
 {
@@ -67,6 +53,37 @@ auto span<Elem>::aligned_to(size_type alignment) const -> span
 }
 
 template <class Elem>
+span<std::byte> span<Elem>::buffer () const
+{
+	glBindBuffer(GL_COPY_READ_BUFFER, _handle);
+
+	void *data       {nullptr};
+	size_type length {0};
+
+	glGetBufferPointerv(GL_COPY_READ_BUFFER, GL_BUFFER_MAP_POINTER, &data);
+	glGetBufferParameteri64v(GL_COPY_READ_BUFFER, GL_BUFFER_MAP_LENGTH, &length);
+
+	return {reinterpret_cast<std::byte*>(data), length, _handle};
+}
+
+template <class Elem>
+bool span<Elem>::flush () const noexcept
+{
+	// Nothing to do for an empty buffer.
+	if (_length == 0) {
+		return true;
+	}
+	// Flush.
+	glFlushMappedBufferRange(
+		GL_COPY_READ_BUFFER,
+		bytes().data() - buffer().data(),
+		bytes().length()
+	);
+
+	return check_gl_errors("gpumem::span::flush");
+}
+
+template <class Elem>
 bool span<Elem>::flush_wrapping (ro_range<index_type> range) const noexcept
 {
 	// Nothing to do for an empty range.
@@ -74,26 +91,19 @@ bool span<Elem>::flush_wrapping (ro_range<index_type> range) const noexcept
 		return true;
 	}
 
-	// Bind the Buffer Object and obtain its base address to calculate the span's offset within the
-	// buffer.
-	glBindBuffer(GL_COPY_READ_BUFFER, _handle);
-
-	void *buffer_data {nullptr};
-	glGetBufferPointerv(GL_COPY_READ_BUFFER, GL_BUFFER_MAP_POINTER, &buffer_data);
-	index_type base_offset {bytes().data() - reinterpret_cast<std::byte*>(buffer_data)};
-
-	auto [begin, end] = range;
+	index_type offset {bytes().data() - buffer().data()};
+	auto [begin, end] {range};
 
 	// Flush the wrap-around, if there is any, then truncate the range to the end of the span.
 	if (end < begin) {
-		glFlushMappedBufferRange(GL_COPY_READ_BUFFER, base_offset, end * memsize<elem_type>);
+		glFlushMappedBufferRange(GL_COPY_READ_BUFFER, offset, end * memsize<elem_type>);
 		end = _length;
 	}
 
 	// Flush the contiguous range.
 	glFlushMappedBufferRange(
 		GL_COPY_READ_BUFFER,
-		base_offset + begin,
+		offset + begin,
 		(end - begin) * memsize<elem_type>
 	);
 

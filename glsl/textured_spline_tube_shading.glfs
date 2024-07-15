@@ -13,7 +13,6 @@
 #define CONSTANT_FLOAT_UNIFORM_COUNT 0
 #define CONSTANT_COLOR_UNIFORM_COUNT 0
 #define MAPPING_PARAMETER_UNIFORM_COUNT 0
-#define MAX_GLYPH_LAYERS 4
 #define L0_VISIBLE 1
 #define L0_MAPPED_ATTRIB_COUNT 0
 #define L0_GLYPH_DEFINITION
@@ -26,6 +25,8 @@
 #define L3_VISIBLE 1
 #define L3_MAPPED_ATTRIB_COUNT 0
 #define L3_GLYPH_DEFINITION
+
+const uint max_glyph_layers = 4;
 
 //***** begin interface of view.glsl ***********************************
 mat4 get_modelview_matrix();
@@ -103,12 +104,17 @@ in vec2 texcoord_fs;
 
 out vec4 frag_color;
 
-layout (binding = MAX_GLYPH_LAYERS * 2) readonly buffer seg_to_traj_buffer {
-	uint seg_to_traj[];
-};
-
 struct irange {
 	int i0, n;
+};
+
+/// Buffer storing which trajectory each segment belongs to.
+layout (binding = max_glyph_layers * 2) readonly buffer seg_to_traj_buffer {
+	uint seg_to_traj[];
+};
+/// See `get_traj_glyph_mem`.
+layout (binding = max_glyph_layers * 2 + 1) readonly buffer traj_glyph_mem_buffer {
+	irange traj_glyph_mem[];
 };
 
 // attribute and range buffers for each glyph layer
@@ -127,10 +133,19 @@ layout (std430, binding=B1) readonly buffer ranges_buffer##I { \
 	irange ranges##I[]; \
 }; \
 
-/// Account for wrap-around of a glyph buffer.
-// #define WRAP_INDEX(I, idx) \
-	// (idx < glyphs##I.length() ? idx : idx - glyphs##I.length())
-#define WRAP_INDEX(I, idx) idx
+/// Look up what range of a layer's attribute buffer that has been allocated for `trajectory`.
+irange get_traj_glyph_mem (in uint trajectory, in uint layer)
+{
+	return traj_glyph_mem[trajectory * max_glyph_layers + layer];
+}
+
+/// Calculate the absolute index into a layer's attribute buffer from a relative, potentially
+/// wrapping index into a trajectory's sub-buffer.
+int abs_index (in int glyph_idx, in int segment_id, in uint layer)
+{
+	irange traj_mem = get_traj_glyph_mem(seg_to_traj[segment_id], layer);
+	return glyph_idx + traj_mem.i0 - (glyph_idx >= traj_mem.n ? traj_mem.n : 0);
+}
 
 struct closest_glyphs_info {
 	int prev, next, id;
@@ -144,11 +159,11 @@ bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info cl
 		irange rng = segment; \
 		while (rng.n > 1) { \
 			const int mid_n = rng.n/2, mid = rng.i0+mid_n; \
-			if (glyphs[WRAP_INDEX(I, mid)].s > s) rng.n = mid_n; \
+			if (glyphs[abs_index(mid, segid, I)].s > s) rng.n = mid_n; \
 			else { rng.i0 = rng.i0 + mid_n; rng.n  = rng.n  - mid_n; } \
 		} \
-		closest.prev = WRAP_INDEX(I, rng.i0); \
-		closest.next = rng.i0 < segment.i0+segment.n-1 ? WRAP_INDEX(I, rng.i0+1) : WRAP_INDEX(I, rng.i0); \
+		closest.prev = abs_index(rng.i0, segid, I); \
+		closest.next = rng.i0 < segment.i0+segment.n-1 ? abs_index(rng.i0+1, segid, I) : abs_index(rng.i0, segid, I); \
 		closest.dp = s - glyphs[closest.prev].s; \
 		closest.dn = glyphs[closest.next].s - s; \
 		const bool n_lt_p = closest.dn < closest.dp; \
@@ -1589,6 +1604,7 @@ void main()
 		//subp_color = vec4(0.1*texcoord.x, texcoord.y, 0.0, 1.0); // texcoords
 		//subp_color = vec4(hash31(segment_id), 1.0); // segment_id
 		//subp_color = vec4(rainbow(seg_to_traj[segment_id] * 11 % 90 / 90.), 1.0); // trajectory id
+		// subp_color = vec4(rainbow(float(traj_glyph_mem[seg_to_traj[segment_id] * max_glyph_layers].x) / glyphs0.length()), 1.0); // trajectory id
 	}
 
 	subp_color.rgb = pow(subp_color.rgb, 1.0/gamma3);

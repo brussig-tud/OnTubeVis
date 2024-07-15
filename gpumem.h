@@ -96,6 +96,12 @@ public:
 		return {_data, _data + length()};
 	}
 
+	/// Create a read-only span over the same memory.
+	[[nodiscard]] span<const elem_type> as_const () const noexcept
+	{
+		return {_data, _length, _handle};
+	}
+
 	/// Create a span over the same memory accessed though `reinterpret_cast`.
 	/// The new span is truncated to the last `T` it can fully contain.
 	/// In particular, this means that the result may have a length of zero and that round trip
@@ -123,6 +129,9 @@ public:
 	{
 		return _data[idx];
 	}
+
+	/// Ensure that the spanned memory is up-to-date for the GPU.
+	[[nodiscard]] bool flush () const noexcept;
 
 	/// Ensure that all elements in the given range are up-to-date for the GPU.
 	/// The range may wrap around from the end of the buffer to the start, but may not overlap

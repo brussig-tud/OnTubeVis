@@ -404,14 +404,28 @@ protected:
 		/// Create a new trajectory starting at the given node.
 		trajectory(id_type id, const node_attribs &start_node, render_state &render);
 
+		/// Return this trajectory's ID.
+		[[nodiscard]] constexpr id_type id () const noexcept
+		{
+			return _id;
+		}
+
 		/// Return the total arc length of this trajectory.
 		[[nodiscard]] constexpr float arc_length () const noexcept
 		{
 			return _arc_length;
 		}
 
+		/// Return the number of floats used to define each glyph per layer.
+		[[nodiscard]] constexpr const std::array<uint8_t, max_glyph_layers> &glyph_sizes ()
+			const noexcept
+		{
+			return _glyph_sizes;
+		}
+
 		/// Initialize a glyph layer to hold up to `capacity` glyphs of `glyph_size` floats each.
-		[[nodiscard]] bool create_glyph_layer (
+		/// Return a read-only view of the allocated memory.
+		[[nodiscard]] gpumem::span<const float> create_glyph_layer (
 			uint8_t           layer,
 			uint8_t           glyph_size,
 			gpumem::size_type capacity
@@ -468,7 +482,8 @@ protected:
 
 	/// GPU data required to render a glyph layer.
 	struct glyph_vis_data {
-		/// The range of glyphs on each segment.
+		/// The range of glyphs on each segment, relative to the base index of the trajectory's
+		/// allocation.
 		gpumem::array<glyph_range> ranges {};
 		/// The actual glyph instances.
 		/// Conceptually, the element type of this buffer is `std::array<float, n>` for some layer-dependent n that can
@@ -514,6 +529,12 @@ protected:
 
 		/// GPU-side glyph data.
 		std::array<glyph_vis_data, max_glyph_layers> glyph_vis;
+
+		/// GPU buffer storing which index range of `glyph_vis[_]::attribs` is used for each
+		/// trajectory's glyph attribute buffer.
+		/// The entry for trajectory id _t_ and layer _l_ is stored at index
+		/// _t * max_glyph_layers + l_.
+		gpumem::array<glyph_range> traj_glyph_mem;
 
 		/// GPU-side storage buffer mirroring the \ref #arclen_data .
 		vertex_buffer arclen_sbo;
