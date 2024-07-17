@@ -293,6 +293,29 @@ bool memory_pool<Alloc>::create (size_type num_blocks, size_type block_length, s
 
 
 template <class Elem, class Alloc>
+constexpr index_type ring_buffer<Elem, Alloc>::index_after (
+	index_type idx,
+	index_type offset
+) const noexcept {
+	assert(offset <= _memory.length());
+	idx += offset;
+	return idx >= _memory.length() ? idx - _memory.length() : idx;
+}
+
+template <class Elem, class Alloc>
+constexpr ro_range<index_type> ring_buffer<Elem, Alloc>::flush_range () noexcept {
+	ro_range range {_idcs.gpu_back, _idcs.back};
+
+	// If the front of the buffer has passed GPU back, we only need to flush from the front index.
+	// In case of wrap-around, the inclusion test has to be negated.
+	if ((range.begin <= range.end) ^ range.contains(_idcs.front)) {
+		range.begin = _idcs.front;
+	}
+
+	return range;
+}
+
+template <class Elem, class Alloc>
 void ring_buffer<Elem, Alloc>::push_back (const elem_type &elem)
 {
 	auto new_back = index_after(_idcs.back);
@@ -352,26 +375,16 @@ void ring_buffer<Elem, Alloc>::push_back (ro_range<Iter> elems)
 }
 
 template <class Elem, class Alloc>
-void ring_buffer<Elem, Alloc>::pop_front () noexcept
+void ring_buffer<Elem, Alloc>::pop_front (size_type num_elems) noexcept
 {
-	// Sanity check.
-	assert(_idcs.front != _idcs.back);
-
-	auto new_front = index_after(_idcs.front);
-
-	// Ensure that `gpu_back` remains in the used range of the allocation so that no unused memory
-	// is flushed.
-	if (_idcs.front == _idcs.gpu_back) {
-		_idcs.gpu_back = new_front;
-	}
-
-	_idcs.front = new_front;
+	assert(num_elems <= length());
+	_idcs.front = index_after(_idcs.front, num_elems);
 }
 
 template <class Elem, class Alloc>
 [[nodiscard]] bool ring_buffer<Elem, Alloc>::flush () noexcept
 {
-	auto result = _memory.flush_wrapping(added_idcs());
+	auto result = _memory.flush_wrapping(flush_range());
 
 	// The GPU is now caught up to the CPU.
 	_idcs.gpu_back = _idcs.back;

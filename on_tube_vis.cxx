@@ -1242,7 +1242,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					render.glyph_source.at(layer_idx) = {ranges, attribs};
 
 					// Allocate GPU buffers for glyph-related data.
-					if (!render.create_glyph_layer(layer_idx, attribs.glyph_count())) {
+					if (!render.create_glyph_layer(layer_idx, attribs.glyph_count() / render.trajectories.size() / 2)) {
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
 					}
 
@@ -1945,7 +1945,6 @@ void on_tube_vis::render_state::trim_trajectories (float cutoff_time)
 {
 	// Constants marking elements whose segment has been deleted for removal.
 	constexpr auto unlinked_node  {std::numeric_limits<float>::infinity()};
-	constexpr auto unlinked_glyph {std::numeric_limits<float>::infinity()};
 
 	// Remove all segments from the front of the buffer whose first node is older than the cutoff.
 	// If segments were created out of order, some with older nodes could be kept, but that is acceptable since the
@@ -1963,6 +1962,15 @@ void on_tube_vis::render_state::trim_trajectories (float cutoff_time)
 		// NOTE: This could mean writing to storage currently read by a draw call, which is UB.
 		// Chances and severity of actual problems, however, are low, so this simple approach is used for now.
 		node.t[0] = unlinked_node;
+
+		// Free memory used by glyphs on the deleted segment.
+		const auto seg_idx {segment - segment_buffer.as_span().data()};
+		const auto traj_id {seg_to_traj[seg_idx]};
+		auto       &traj   {trajectories[traj_id].render_data};
+
+		foreach_active_glyph_layer([&](const glyph_layer &layer) {
+			traj.forget_glyphs(layer.idx, layer.vis.ranges[seg_idx].n);
+		});
 
 		// Remove the segment.
 		segment_buffer.pop_front();
@@ -2080,15 +2088,16 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 			std::ignore = trajectory.render_data.flush_glyph_attribs();
 		}
 
+		// Must be called before flushing the segment buffer.
+		auto new_segments = render.segment_buffer.flush_range();
+
 		render.foreach_active_glyph_layer([&](auto layer) {
-			std::ignore = layer.vis.ranges.flush_wrapping(render.segment_buffer.added_idcs());
+			std::ignore = layer.vis.ranges.flush_wrapping(new_segments);
 		});
 
 		std::ignore = render.node_buffer.flush();
-		std::ignore = render.seg_to_traj.flush_wrapping(render.segment_buffer.added_idcs());
-		std::ignore = render.t_to_s.flush_wrapping(render.segment_buffer.added_idcs());
-		// Must be flushed last since it changes `segment_buffer.changed_range()`, which other calls
-		// use.
+		std::ignore = render.seg_to_traj.flush_wrapping(new_segments);
+		std::ignore = render.t_to_s.flush_wrapping(new_segments);
 		std::ignore = render.segment_buffer.flush();
 
 		if (render.style.max_t >= playback.tend)

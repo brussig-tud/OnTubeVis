@@ -441,6 +441,12 @@ protected:
 			_glyph_attribs[layer].push_back(data);
 		}
 
+		/// Make the memory occupied by the oldest _n_ glyphs available for reuse.
+		void forget_glyphs (uint8_t layer, gpumem::size_type num_glpyhs)
+		{
+			_glyph_attribs[layer].pop_front(num_glpyhs * _glyph_sizes[layer]);
+		}
+
 		/// Synchronize newly added glyphs with the GPU.
 		[[nodiscard]] bool flush_glyph_attribs ();
 

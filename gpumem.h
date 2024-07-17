@@ -375,11 +375,12 @@ private:
 	/// The backing memory in which elements are placed.
 	array<Elem, Alloc> _memory;
 
-	/// Return the next index modulo allocation length.
-	[[nodiscard]] constexpr index_type index_after (index_type idx) const noexcept
-	{
-		return ++idx == _memory.length() ? 0 : idx;
-	}
+	/// Advance an index, accounting for wrap-around.
+	/// `idx` must be valid and `0 <= offset <= _memory.length()`.
+	[[nodiscard]] constexpr index_type index_after (
+		index_type idx,
+		index_type offset = 1
+	) const noexcept;
 
 public:
 	/// Construct a null instance with no backing buffer, but an allocator that can be used to
@@ -406,16 +407,6 @@ public:
 		return _idcs.gpu_back;
 	}
 
-	/// Calculate the number of elements between two indices, account for wrap-around.
-	[[nodiscard]] constexpr index_type distance (index_type from, index_type to) const noexcept
-	{
-		if (from <= to) {
-			return to - from;
-		} else {
-			return _memory.length() - to + from;
-		}
-	}
-
 	/// Return a view of the backing memory.
 	[[nodiscard]] constexpr const span<Elem> &as_span() const noexcept {
 		return _memory.as_span();
@@ -427,18 +418,29 @@ public:
 		return _idcs.front == _idcs.back;
 	}
 
+	/// Calculate the number of elements between two indices, accounting for wrap-around.
+	[[nodiscard]] constexpr index_type distance (index_type from, index_type to) const noexcept
+	{
+		return from <= to
+			? to - from
+			: _memory.length() - from + to;
+	}
+
+	/// The number of elements in the buffer.
+	[[nodiscard]] constexpr size_type length () const noexcept
+	{
+		return distance(_idcs.front, _idcs.back);
+	}
+
 	/// Return a pointer to the first entry of the buffer, or `nullptr` if it is empty.
 	[[nodiscard]] constexpr elem_type *try_first () noexcept
 	{
 		return _idcs.front == _idcs.back ? nullptr : &_memory[_idcs.front];
 	}
 
-	/// Return the range of elements that have been added on the CPU, but not yet flushed to the
-	/// GPU.
-	/// Uses absolute indices, meaning that `end` may be less than `begin` in case of a wrap-around.
-	[[nodiscard]] constexpr ro_range<index_type> added_idcs () noexcept {
-		return {_idcs.gpu_back, _idcs.back};
-	}
+	/// The range of elements that have to be flushed so that all elements of the buffer are
+	/// up-to-date on the GPU.
+	[[nodiscard]] constexpr ro_range<index_type> flush_range () noexcept;
 
 
 	/// Set the index onward from which elements may be used by the GPU.
@@ -469,8 +471,8 @@ public:
 	template <class Iter>
 	void push_back (ro_range<Iter> elems);
 
-	/// Remove the first element of the buffer.
-	void pop_front () noexcept;
+	/// Remove elements from the front of the buffer.
+	void pop_front (size_type num_elems = 1) noexcept;
 
 	/// Make newly added elements visible to the GPU.
 	[[nodiscard]] bool flush () noexcept;
