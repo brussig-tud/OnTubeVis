@@ -1941,27 +1941,39 @@ void on_tube_vis::render_state::extend_trajectories ()
 	}
 }
 
-void on_tube_vis::render_state::trim_trajectories (float cutoff_time)
+void on_tube_vis::render_state::trim_trajectories ()
 {
 	// Constants marking elements whose segment has been deleted for removal.
 	constexpr auto unlinked_node  {std::numeric_limits<float>::infinity()};
 
-	// Remove all segments from the front of the buffer whose first node is older than the cutoff.
-	// If segments were created out of order, some with older nodes could be kept, but that is acceptable since the
-	// shaders check the timestamp again and one of the next calls to this function should eventually remove those
-	// segments as well.
-	while (auto *segment = segment_buffer.try_first()) {
-		// Only the first node has to be checked, since by construction it is always the older one.
+	// Remove segments and their first nodes until the configured amount of node slots is vacant
+	// again.
+	auto vacant_nodes {node_buffer.capacity() - node_buffer.length()};
+
+	while (vacant_nodes < num_reserve_nodes) {
+		// Draw calls are over a contiguous (except for wrap-around) range of segments, so segments
+		// need to be deleted in order.
+		auto *segment = segment_buffer.try_first();
+
+		// By construction, a segment's first node is always the older one.
 		auto &node = node_buffer.as_span()[segment->x()];
 
-		if (node.t[0] > cutoff_time) {
-			break;
-		}
-
-		// Mark the start node for deletion.
+		// Mark the node for deletion.
 		// NOTE: This could mean writing to storage currently read by a draw call, which is UB.
 		// Chances and severity of actual problems, however, are low, so this simple approach is used for now.
 		node.t[0] = unlinked_node;
+
+		// Remove all nodes no longer used by a segment from the front of the buffer.
+		// Depending on order, some unused nodes could be kept for now, but this is fine; they will
+		// be removed by one of the next trimmings.
+		while (auto *node = node_buffer.try_first()) {
+			if (node->t[0] != unlinked_node) {
+				break;
+			}
+
+			node_buffer.pop_front();
+			++vacant_nodes;
+		}
 
 		// Free memory used by glyphs on the deleted segment.
 		const auto seg_idx {segment - segment_buffer.as_span().data()};
@@ -1975,17 +1987,28 @@ void on_tube_vis::render_state::trim_trajectories (float cutoff_time)
 		// Remove the segment.
 		segment_buffer.pop_front();
 	}
+}
 
-	// Remove all nodes no longer used by a segment from the front of the buffer.
-	// Depending on order, some unused nodes could be kept for now, but again this is fine; they should be removed by
-	// one of the next trimmings.
-	while (auto *node = node_buffer.try_first()) {
-		if (node->t[0] != unlinked_node) {
-			break;
-		}
+bool on_tube_vis::render_state::create_geom_buffers (
+	gpumem::size_type max_nodes,
+	gpumem::size_type reserve_nodes
+) {
+	// Store desired margin.
+	num_reserve_nodes = reserve_nodes;
 
-		node_buffer.pop_front();
+	// Allocate memory for rendered and reserved nodes.
+	auto capacity {max_nodes + reserve_nodes};
+
+	if (! node_buffer.create(capacity)) {
+		return false;
 	}
+
+	// Each trajectory has one fewer segments than nodes.
+	--capacity;
+
+	return segment_buffer.create(capacity)
+		&& seg_to_traj.create(capacity)
+		&& t_to_s.create(capacity);
 }
 
 bool on_tube_vis::render_state::create_glyph_layer (uint8_t layer, gpumem::size_type capacity)
@@ -2078,10 +2101,11 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		render.style.max_t = render.style.max_t + float((playback.time_active-prev)*playback.speed);
 		update_member(&render.style.max_t);
 
-		// Remove old data from the trajectories, then add new data.
-		// TODO: Make the visible time window controllable through the GUI.
-		render.trim_trajectories(render.style.max_t - 5);
+		// Add new data and delete old ones.
+		// Switching the order would not increase capacity, since the memory `trim_trajectories`
+		// reclaims cannot be reused until the last draw call has finished.
 		render.extend_trajectories();
+		render.trim_trajectories();
 
 		// Make changes visible to the GPU.
 		for (auto &trajectory : render.trajectories) {
@@ -2695,13 +2719,8 @@ void on_tube_vis::update_attribute_bindings(void) {
 
 		// Allocate ring buffers.
 		// Currently uses the minimum capacity possible for demo data to test if wrap-around works.
-		constexpr gpumem::size_type time_window {5};
-
 		if (!(
-			render.node_buffer.create((time_window + 1) * num_trajectories)
-			&& render.segment_buffer.create(time_window * num_trajectories)
-			&& render.seg_to_traj.create(time_window * num_trajectories)
-			&& render.t_to_s.create(time_window * num_trajectories)
+			render.create_geom_buffers(num_trajectories * 4, num_trajectories)
 			&& render.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
 		)) {
 			throw std::runtime_error("Error creating GPU buffers.");

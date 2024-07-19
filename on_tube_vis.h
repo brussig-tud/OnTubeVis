@@ -567,6 +567,11 @@ protected:
 		/// Fence placed directly after the last draw command.
 		GLsync draw_fence;
 
+		/// The minimum number of node slots that will be vacant after each call to
+		/// `trim_trajectories`, and thus the maximum number of nodes that can be added each frame
+		/// without waiting for draw calls.
+		gpumem::size_type num_reserve_nodes;
+
 		/// Bitmask encoding which glyph layers are active.
 		/// Only the lower nibble is used.
 		uint8_t active_glyph_layers = 0;
@@ -574,8 +579,8 @@ protected:
 		/// Append all data points up to the current timestamp to their respective trajectory.
 		void extend_trajectories ();
 
-		/// Remove all data points up to the given timestamp from their respective trajectory.
-		void trim_trajectories (float cutoff_time);
+		/// Remove old data until at least `num_reserve_nodes` new nodes can be added.
+		void trim_trajectories ();
 
 		struct glyph_layer {
 			glyph_source_data &source;
@@ -595,6 +600,13 @@ protected:
 				}
 			}
 		}
+
+		/// Allocate memory for rendering up to `max_nodes` trajectory nodes, while adding up to
+		/// `reserve_nodes` new ones each frame.
+		[[nodiscard]] bool create_geom_buffers (
+			gpumem::size_type max_nodes,
+			gpumem::size_type reserve_nodes
+		);
 
 		/// Initialize the glyph attribute containers for the given layer to hold `capacity` glyphs
 		/// per trajectory.

@@ -426,6 +426,12 @@ public:
 			: _memory.length() - from + to;
 	}
 
+	/// The maximum number of elements the buffer can hold with its current allocation.
+	[[nodiscard]] constexpr size_type capacity () const noexcept
+	{
+		return _memory.length() - 1;
+	}
+
 	/// The number of elements in the buffer.
 	[[nodiscard]] constexpr size_type length () const noexcept
 	{
