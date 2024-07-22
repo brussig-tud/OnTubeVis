@@ -1242,7 +1242,13 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					render.glyph_source.at(layer_idx) = {ranges, attribs};
 
 					// Allocate GPU buffers for glyph-related data.
-					if (!render.create_glyph_layer(layer_idx, attribs.glyph_count() / render.trajectories.size() / 2)) {
+					if (!render.create_glyph_layer(
+						layer_idx,
+						render.glyph_source[layer_idx].attribs.count + 2,
+						render.trajectories.size(),
+						50,
+						15
+					)) {
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
 					}
 
@@ -1892,6 +1898,18 @@ void on_tube_vis::trajectory::append_segment (const node_attribs &node)
 	append_node(node);
 }
 
+void on_tube_vis::trajectory::trim_glyphs ()
+{
+	_render.foreach_active_glyph_layer([&](const render_state::glyph_layer &layer) {
+		auto &glyphs        {_glyph_attribs[layer.idx]};
+		auto vacant_attribs {glyphs.capacity() - glyphs.length()};
+
+		if (vacant_attribs < _render.reserve_glyph_attribs) {
+			glyphs.pop_front(_render.reserve_glyph_attribs - vacant_attribs);
+		}
+	});
+}
+
 bool on_tube_vis::trajectory::flush_glyph_attribs ()
 {
 	auto ok {true};
@@ -1944,13 +1962,13 @@ void on_tube_vis::render_state::extend_trajectories ()
 void on_tube_vis::render_state::trim_trajectories ()
 {
 	// Constants marking elements whose segment has been deleted for removal.
-	constexpr auto unlinked_node  {std::numeric_limits<float>::infinity()};
+	constexpr auto unlinked_node {std::numeric_limits<float>::infinity()};
 
 	// Remove segments and their first nodes until the configured amount of node slots is vacant
 	// again.
 	auto vacant_nodes {node_buffer.capacity() - node_buffer.length()};
 
-	while (vacant_nodes < num_reserve_nodes) {
+	while (vacant_nodes < reserve_nodes) {
 		// Draw calls are over a contiguous (except for wrap-around) range of segments, so segments
 		// need to be deleted in order.
 		auto *segment = segment_buffer.try_first();
@@ -1975,17 +1993,13 @@ void on_tube_vis::render_state::trim_trajectories ()
 			++vacant_nodes;
 		}
 
-		// Free memory used by glyphs on the deleted segment.
-		const auto seg_idx {segment - segment_buffer.as_span().data()};
-		const auto traj_id {seg_to_traj[seg_idx]};
-		auto       &traj   {trajectories[traj_id].render_data};
-
-		foreach_active_glyph_layer([&](const glyph_layer &layer) {
-			traj.forget_glyphs(layer.idx, layer.vis.ranges[seg_idx].n);
-		});
-
 		// Remove the segment.
 		segment_buffer.pop_front();
+	}
+
+	// Recycle glyph attributes.
+	for (auto &traj : trajectories) {
+		traj.render_data.trim_glyphs();
 	}
 }
 
@@ -1994,7 +2008,7 @@ bool on_tube_vis::render_state::create_geom_buffers (
 	gpumem::size_type reserve_nodes
 ) {
 	// Store desired margin.
-	num_reserve_nodes = reserve_nodes;
+	this->reserve_nodes = reserve_nodes;
 
 	// Allocate memory for rendered and reserved nodes.
 	auto capacity {max_nodes + reserve_nodes};
@@ -2011,14 +2025,21 @@ bool on_tube_vis::render_state::create_geom_buffers (
 		&& t_to_s.create(capacity);
 }
 
-bool on_tube_vis::render_state::create_glyph_layer (uint8_t layer, gpumem::size_type capacity)
-{
-	const auto glyph_size {glyph_source[layer].attribs.count + 2};
+bool on_tube_vis::render_state::create_glyph_layer (
+	uint8_t layer,
+	uint8_t glyph_size,
+	gpumem::size_type num_trajectories,
+	gpumem::size_type glyphs_per_trajectory,
+	gpumem::size_type reserve_glyphs
+) {
+	reserve_glyph_attribs = reserve_glyphs * glyph_size;
+
+	const auto capacity {glyphs_per_trajectory + reserve_glyphs};
 
 	// Allocate the memory pool for glyph attributes that is shared between trajectories.
 	// The ring buffer implementation requires room for one additional glyph per trajectory.
 	auto ok {glyph_vis[layer].attribs.create(
-		trajectories.size(),
+		num_trajectories,
 		(capacity + 1) * glyph_size * gpumem::memsize<float>,
 		alignof(float)
 	)};

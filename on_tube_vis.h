@@ -441,11 +441,9 @@ protected:
 			_glyph_attribs[layer].push_back(data);
 		}
 
-		/// Make the memory occupied by the oldest _n_ glyphs available for reuse.
-		void forget_glyphs (uint8_t layer, gpumem::size_type num_glpyhs)
-		{
-			_glyph_attribs[layer].pop_front(num_glpyhs * _glyph_sizes[layer]);
-		}
+		/// Allow the oldest glyphs to be overwritten, so that at least `_render.reserve_glyphs`
+		/// new glyphs can be added.
+		void trim_glyphs ();
 
 		/// Synchronize newly added glyphs with the GPU.
 		[[nodiscard]] bool flush_glyph_attribs ();
@@ -570,7 +568,11 @@ protected:
 		/// The minimum number of node slots that will be vacant after each call to
 		/// `trim_trajectories`, and thus the maximum number of nodes that can be added each frame
 		/// without waiting for draw calls.
-		gpumem::size_type num_reserve_nodes;
+		gpumem::size_type reserve_nodes {0};
+		/// The minimum number of glyph slots per layer and trajectory that will be vacant after
+		/// each call to `trim_trajectories`, and thus the maximum number of glyphs that can be
+		/// added each frame without waiting for draw calls.
+		gpumem::size_type reserve_glyph_attribs {0};
 
 		/// Bitmask encoding which glyph layers are active.
 		/// Only the lower nibble is used.
@@ -579,7 +581,8 @@ protected:
 		/// Append all data points up to the current timestamp to their respective trajectory.
 		void extend_trajectories ();
 
-		/// Remove old data until at least `num_reserve_nodes` new nodes can be added.
+		/// Allow old data to be overwritten, such that at least `reserve_nodes` new nodes and
+		/// `reserve_glyphs` new glyphs per layer and trajectory can be added.
 		void trim_trajectories ();
 
 		struct glyph_layer {
@@ -608,9 +611,17 @@ protected:
 			gpumem::size_type reserve_nodes
 		);
 
-		/// Initialize the glyph attribute containers for the given layer to hold `capacity` glyphs
-		/// per trajectory.
-		[[nodiscard]] bool create_glyph_layer (uint8_t layer, gpumem::size_type capacity);
+		/// Initialize a layer's glyph attribute containers with sufficient memory to hold the
+		/// requested number of glyphs.
+		/// Each trajectory will maintain unused memory such that up to `reserve_glyphs` glyphs can
+		/// be added each frame without waiting for the previous draw call.
+		[[nodiscard]] bool create_glyph_layer (
+			uint8_t           layer,
+			uint8_t           glyph_size,
+			gpumem::size_type num_trajectories,
+			gpumem::size_type glyphs_per_trajectory,
+			gpumem::size_type reserve_glyphs
+		);
 	} render;
 	int render_gui_dummy = 0;
 
