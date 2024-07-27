@@ -1859,7 +1859,10 @@ void on_tube_vis::trajectory::append_segment (const node_attribs &node)
 {
 	// Create a new segment between the last node and the new one.
 	auto new_seg_idx = _render.segment_buffer.back();
-	_render.segment_buffer.push_back({_last_node_idx, _render.node_buffer.back()});
+	_render.segment_buffer.push_back({
+		static_cast<unsigned>(_last_node_idx),
+		static_cast<unsigned>(_render.node_buffer.back())
+	});
 
 	// Mark the segment as belonging to the trajectory.
 	_render.seg_to_traj[new_seg_idx] = _id;
