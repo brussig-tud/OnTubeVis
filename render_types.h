@@ -15,7 +15,7 @@ struct node_attribs {
 
 // helper struct for range entries with start index i0 and count n
 // Moved from `glyph_compiler`.
-struct glyph_range {
+struct irange {
 	using index_type = int;
 
 	index_type i0, n;
@@ -24,6 +24,14 @@ struct glyph_range {
 	{
 		return i0 + n;
 	}
+};
+
+/// Uniquely identifies trajectory instances.
+using trajectory_id = uint;
+
+/// A range of glyphs within a trajectory's sub-buffer.
+struct glyph_range : irange {
+	trajectory_id trajectory;
 };
 
 

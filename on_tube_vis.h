@@ -371,10 +371,6 @@ protected:
 
 	/// Manages the render data for a single trajectory.
 	class trajectory {
-	public:
-		/// Type used to uniquely identify trajectory instances.
-		using id_type = uint;
-
 	private:
 		/// Rendering data shared between trajectories.
 		render_state &_render;
@@ -386,7 +382,7 @@ protected:
 		/// The absolute index of the last entry in the node buffer belonging to this trajectory.
 		gpumem::index_type _last_node_idx;
 		/// Uniquely identifies this trajectory.
-		const id_type _id;
+		const trajectory_id _id;
 		/// The arc length of the entire trajectory.
 		float _arc_length = 0;
 		/// The number of 32 bit float values used to define one glyph instance on each layer.
@@ -402,10 +398,10 @@ protected:
 
 	public:
 		/// Create a new trajectory starting at the given node.
-		trajectory(id_type id, const node_attribs &start_node, render_state &render);
+		trajectory(trajectory_id id, const node_attribs &start_node, render_state &render);
 
 		/// Return this trajectory's ID.
-		[[nodiscard]] constexpr id_type id () const noexcept
+		[[nodiscard]] constexpr trajectory_id id () const noexcept
 		{
 			return _id;
 		}
@@ -480,7 +476,7 @@ protected:
 		glyph_source_data &operator= (const glyph_source_data &) = delete;
 		glyph_source_data &operator= (glyph_source_data &&) noexcept = default;
 
-		std::vector<glyph_range> ranges;
+		std::vector<irange> ranges;
 		glyph_attributes attribs;
 	};
 
@@ -523,10 +519,6 @@ protected:
 		/// GPU ring buffer containing segments defined as pairs of absolute indices into #node_buffer.
 		gpumem::ring_buffer<uvec2> segment_buffer;
 
-		/// GPU buffer storing which trajectory each segment belongs to.
-		/// Entries correspond to #segment_buffer.
-		gpumem::array<uint> seg_to_traj;
-
 		/// GPU buffer containing segment-wise arclength parametrization.
 		/// Entries correspond to #segment_buffer.
 		gpumem::array<mat4> t_to_s;
@@ -538,7 +530,7 @@ protected:
 		/// trajectory's glyph attribute buffer.
 		/// The entry for trajectory id _t_ and layer _l_ is stored at index
 		/// _t * max_glyph_layers + l_.
-		gpumem::array<glyph_range> traj_glyph_mem;
+		gpumem::array<irange> traj_glyph_mem;
 
 		/// GPU-side storage buffer mirroring the \ref #arclen_data .
 		vertex_buffer arclen_sbo;

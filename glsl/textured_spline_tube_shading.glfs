@@ -108,12 +108,18 @@ struct irange {
 	int i0, n;
 };
 
-/// Buffer storing which trajectory each segment belongs to.
-layout (binding = max_glyph_layers * 2) readonly buffer seg_to_traj_buffer {
-	uint seg_to_traj[];
+/// Type used to uniquely identify a trajectory instance.
+/// Defined as a macro since GLSL does not support alias types.
+#define TRAJECTORY_ID_T uint
+
+/// A range relative to a trajectory's sub-buffer.
+struct relative_range {
+	irange range;
+	TRAJECTORY_ID_T trajectory;
 };
+
 /// See `get_traj_glyph_mem`.
-layout (binding = max_glyph_layers * 2 + 1) readonly buffer traj_glyph_mem_buffer {
+layout (binding = max_glyph_layers * 2) readonly buffer traj_glyph_mem_buffer {
 	irange traj_glyph_mem[];
 };
 
@@ -130,20 +136,20 @@ layout (std430, binding=B0) readonly buffer attribs_buffer##I { \
 	glyph_desc##I glyphs##I[]; \
 }; \
 layout (std430, binding=B1) readonly buffer ranges_buffer##I { \
-	irange ranges##I[]; \
+	relative_range ranges##I[]; \
 }; \
 
 /// Look up what range of a layer's attribute buffer that has been allocated for `trajectory`.
-irange get_traj_glyph_mem (in uint trajectory, in uint layer)
+irange get_traj_glyph_mem (in TRAJECTORY_ID_T trajectory, in uint layer)
 {
 	return traj_glyph_mem[trajectory * max_glyph_layers + layer];
 }
 
 /// Calculate the absolute index into a layer's attribute buffer from a relative, potentially
 /// wrapping index into a trajectory's sub-buffer.
-int abs_index (in int glyph_idx, in int segment_id, in uint layer)
+int abs_index (in int glyph_idx, in TRAJECTORY_ID_T trajectory, in uint layer)
 {
-	irange traj_mem = get_traj_glyph_mem(seg_to_traj[segment_id], layer);
+	irange traj_mem = get_traj_glyph_mem(trajectory, layer);
 	return glyph_idx + traj_mem.i0 - (glyph_idx >= traj_mem.n ? traj_mem.n : 0);
 }
 
@@ -154,16 +160,17 @@ struct closest_glyphs_info {
 
 #define DEF_CLOSEST_SAMPLES(I, ranges, glyphs) \
 bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info closest) { \
-	const irange segment = ranges[segid]; \
+	const irange segment = ranges[segid].range; \
+	const TRAJECTORY_ID_T traj   = ranges[segid].trajectory; \
 	if (segment.n > 0) { \
 		irange rng = segment; \
 		while (rng.n > 1) { \
 			const int mid_n = rng.n/2, mid = rng.i0+mid_n; \
-			if (glyphs[abs_index(mid, segid, I)].s > s) rng.n = mid_n; \
+			if (glyphs[abs_index(mid, traj, I)].s > s) rng.n = mid_n; \
 			else { rng.i0 = rng.i0 + mid_n; rng.n  = rng.n  - mid_n; } \
 		} \
-		closest.prev = abs_index(rng.i0, segid, I); \
-		closest.next = rng.i0 < segment.i0+segment.n-1 ? abs_index(rng.i0+1, segid, I) : abs_index(rng.i0, segid, I); \
+		closest.prev = abs_index(rng.i0, traj, I); \
+		closest.next = rng.i0 < segment.i0+segment.n-1 ? abs_index(rng.i0+1, traj, I) : abs_index(rng.i0, traj, I); \
 		closest.dp = s - glyphs[closest.prev].s; \
 		closest.dn = glyphs[closest.next].s - s; \
 		const bool n_lt_p = closest.dn < closest.dp; \
@@ -1603,8 +1610,6 @@ void main()
 		//subp_color = vec4(vec3(depth), 1.0); // tangent
 		//subp_color = vec4(0.1*texcoord.x, texcoord.y, 0.0, 1.0); // texcoords
 		//subp_color = vec4(hash31(segment_id), 1.0); // segment_id
-		//subp_color = vec4(rainbow(seg_to_traj[segment_id] * 11 % 90 / 90.), 1.0); // trajectory id
-		// subp_color = vec4(rainbow(float(traj_glyph_mem[seg_to_traj[segment_id] * max_glyph_layers].x) / glyphs0.length()), 1.0); // trajectory id
 	}
 
 	subp_color.rgb = pow(subp_color.rgb, 1.0/gamma3);

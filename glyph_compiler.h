@@ -33,7 +33,7 @@ protected:
 		std::vector<const std::vector<range>*> attribs_trajs;
 		size_t attrib_count;
 
-		std::vector<glyph_range> ranges;
+		std::vector<irange> ranges;
 		glyph_attributes attribs;
 
 		layer_compile_info(const glyph_shape* shape_ptr) : current_shape(shape_ptr) {}
@@ -823,7 +823,7 @@ protected:
 		size_t layer_count = layers_config.layer_configs.size();
 
 		layer_filled.resize(layer_count, false);
-		layer_ranges.resize(layer_count, std::vector<glyph_range>());
+		layer_ranges.resize(layer_count, std::vector<irange>());
 		layer_attribs.resize(layer_count, glyph_attributes());
 
 		// build seperate range and attribs buffers for each glyph layer
@@ -847,14 +847,14 @@ protected:
 
 public:
 	glyph_compiler() {}
-	
+
 	std::vector<bool> layer_filled;
-	std::vector<std::vector<glyph_range>> layer_ranges;
+	std::vector<std::vector<irange>> layer_ranges;
 	std::vector<glyph_attributes> layer_attribs;
 
 	bool include_hidden_glyphs;
 	float length_scale;
-	
+
 	bool compile_glyph_attributes(const traj_dataset<float> &data_set, const arclen::parametrization &parametrization, const glyph_layer_manager::configuration &layers_config) {
 		bool success = false;
 		layer_filled.clear();

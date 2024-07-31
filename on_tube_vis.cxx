@@ -1818,7 +1818,7 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 #endif
 
 on_tube_vis::trajectory::trajectory(
-	id_type            id,
+	trajectory_id      id,
 	const node_attribs &start_node,
 	render_state       &render
 )
@@ -1864,9 +1864,6 @@ void on_tube_vis::trajectory::append_segment (const node_attribs &node)
 		static_cast<unsigned>(_render.node_buffer.back())
 	});
 
-	// Mark the segment as belonging to the trajectory.
-	_render.seg_to_traj[new_seg_idx] = _id;
-
 	// Store the segment's arclength parametrization at the corresponding index.
 	mat4 s_to_t;
 	arclen::parametrize_segment(
@@ -1882,14 +1879,15 @@ void on_tube_vis::trajectory::append_segment (const node_attribs &node)
 
 		// Set the range of glyphs for the newly created segment.
 		layer.vis.ranges[new_seg_idx] = {
-			static_cast<glyph_range::index_type>(
+			static_cast<irange::index_type>(
 				_first_glyphs_on_seg[layer.idx]
 				/ _glyph_sizes[layer.idx]
 			),
-			static_cast<glyph_range::index_type>(
+			static_cast<irange::index_type>(
 				attribs.distance(_first_glyphs_on_seg[layer.idx], attribs.back())
 				/ _glyph_sizes[layer.idx]
-			)
+			),
+			_id
 		};
 
 		// The next segment will continue where this one ends.
@@ -2024,7 +2022,6 @@ bool on_tube_vis::render_state::create_geom_buffers (
 	--capacity;
 
 	return segment_buffer.create(capacity)
-		&& seg_to_traj.create(capacity)
 		&& t_to_s.create(capacity);
 }
 
@@ -2057,13 +2054,13 @@ bool on_tube_vis::render_state::create_glyph_layer (
 		}
 
 		// Store the allocated memory range as offsets into the GPU buffer for shader access.
-		const auto offset {static_cast<glyph_range::index_type>(
+		const auto offset {static_cast<irange::index_type>(
 			mem.data() - reinterpret_cast<float*>(glyph_vis[layer].attribs.as_span().data())
 		)};
 
 		traj_glyph_mem[traj.id() * max_glyph_layers + layer] = {
 			offset / traj.glyph_sizes()[layer],
-			static_cast<glyph_range::index_type>(mem.length()) / traj.glyph_sizes()[layer]
+			static_cast<irange::index_type>(mem.length()) / traj.glyph_sizes()[layer]
 		};
 	}
 
@@ -2144,7 +2141,6 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		});
 
 		std::ignore = render.node_buffer.flush();
-		std::ignore = render.seg_to_traj.flush_wrapping(new_segments);
 		std::ignore = render.t_to_s.flush_wrapping(new_segments);
 		std::ignore = render.segment_buffer.flush();
 
@@ -2776,7 +2772,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 				// Construct the trajectory.
 				render.trajectories.push_back({
 					{
-						static_cast<trajectory::id_type>(render.trajectories.size()),
+						static_cast<trajectory_id>(render.trajectories.size()),
 						start_node,
 						render}
 					,
@@ -3200,12 +3196,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		glBindBufferBase(
 			GL_SHADER_STORAGE_BUFFER,
 			max_glyph_layers * 2,
-			render.seg_to_traj.handle()
-		);
-
-		glBindBufferBase(
-			GL_SHADER_STORAGE_BUFFER,
-			max_glyph_layers * 2 + 1,
 			render.traj_glyph_mem.handle()
 		);
 
