@@ -26,11 +26,25 @@ struct irange {
 	}
 };
 
+/// Newtype wrapper storing a number of glyphs.
+/// Used to avoid confusion between number of glyphs and number of glyph attributes.
+struct glyph_count_type {
+	using base_type = int;
+
+	base_type value;
+
+	[[nodiscard]] constexpr explicit glyph_count_type(base_type value) noexcept
+		: value {value}
+	{}
+};
+
+
 /// Uniquely identifies trajectory instances.
 using trajectory_id = uint;
 
 /// A range of glyphs within a trajectory's sub-buffer.
-struct glyph_range : irange {
+struct glyph_range {
+	glyph_count_type i0, n;
 	trajectory_id trajectory;
 };
 
@@ -48,8 +62,8 @@ struct glyph_attributes {
 
 	size_t size() const { return data.size(); }
 
-	size_t glyph_count() const {
-		return size() / (2 + count);
+	glyph_count_type glyph_count() const {
+		return static_cast<glyph_count_type>(size() / (2 + count));
 	}
 
 	void add(const float& x) {

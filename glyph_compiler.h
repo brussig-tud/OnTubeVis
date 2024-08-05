@@ -67,7 +67,7 @@ protected:
 			const auto &tube_traj = tube_trajs[trj];
 			//const auto *alen = render.arclen_data.data();
 			const unsigned num_segments = tube_traj.n - 1;
-			const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count();
+			const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count().value;
 
 			// make sure there is exactly one 'range' entry per segment
 			ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
@@ -131,11 +131,11 @@ protected:
 						// using half size of previous glyph
 						if(prev_glyph_size < 0.0f) {
 							// "glyphs" with a negative size value are possibly infinite in size and always overlap onto the next segment
-							ranges[global_seg].i0 = (int)attribs.glyph_count() - 1;
+							ranges[global_seg].i0 = (int)attribs.glyph_count().value - 1;
 							ranges[global_seg].n = 1;
 						} else {
 							if(alen[global_seg][0] < attribs.last_glyph_s() + 0.5f*prev_glyph_size) {
-								ranges[global_seg].i0 = (int)attribs.glyph_count() - 1;
+								ranges[global_seg].i0 = (int)attribs.glyph_count().value - 1;
 								ranges[global_seg].n = 1;
 							}
 						}
@@ -193,14 +193,14 @@ protected:
 						std::max(new_glyph_size, prev_glyph_size) :
 						new_glyph_size;
 
-					bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= last_commited_s + min_dist;
+					bool include_glyph = attribs.glyph_count().value == attribs_traj_offset || s >= last_commited_s + min_dist;
 					include_glyph |= min_dist < 0.0f;
 
 					if(include_glyph || include_hidden_glyphs) {
 						auto &cur_range = ranges[global_seg];
 						if(cur_range.n < 1) {
 							// first free attribute that falls into this segment
-							cur_range.i0 = (unsigned)attribs.glyph_count();
+							cur_range.i0 = (unsigned)attribs.glyph_count().value;
 							cur_range.n = 1;
 
 							// handle overlap to previous segment (this only works for a single previous segment)
@@ -310,7 +310,7 @@ protected:
 		for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
 			const auto &tube_traj = tube_trajs[trj];
 			const unsigned num_segments = tube_traj.n - 1;
-			const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count();
+			const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count().value;
 
 			// make sure there is exactly one 'range' entry per segment
 			ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
@@ -393,11 +393,11 @@ protected:
 						// using half size of previous glyph
 						if(prev_glyph_size < 0.0f) {
 							// "glyphs" with a negative size value are possibly infinite in size and always overlap onto the next segment
-							ranges[global_seg].i0 = (int)attribs.glyph_count() - 1;
+							ranges[global_seg].i0 = (int)attribs.glyph_count().value - 1;
 							ranges[global_seg].n = 1;
 						} else {
 							if(alen[global_seg][0] < attribs.last_glyph_s() + 0.5f*prev_glyph_size) {
-								ranges[global_seg].i0 = (int)attribs.glyph_count() - 1;
+								ranges[global_seg].i0 = (int)attribs.glyph_count().value - 1;
 								ranges[global_seg].n = 1;
 							}
 						}
@@ -449,14 +449,14 @@ protected:
 						std::max(new_glyph_size, prev_glyph_size) :
 						new_glyph_size;
 
-					bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= last_commited_s + min_dist;
+					bool include_glyph = attribs.glyph_count().value == attribs_traj_offset || s >= last_commited_s + min_dist;
 					include_glyph |= min_dist < 0.0f;
 
 					if(include_glyph || include_hidden_glyphs) {
 						auto &cur_range = ranges[global_seg];
 						if(cur_range.n < 1) {
 							// first free attribute that falls into this segment
-							cur_range.i0 = (unsigned)attribs.glyph_count();
+							cur_range.i0 = (unsigned)attribs.glyph_count().value;
 							cur_range.n = 1;
 
 							// handle overlap to the previous segments
@@ -543,7 +543,7 @@ protected:
 		for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
 			const auto &tube_traj = tube_trajs[trj];
 			const unsigned num_segments = tube_traj.n - 1;
-			const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count();
+			const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count().value;
 
 			// make sure there is exactly one 'range' entry per segment
 			ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
@@ -626,11 +626,11 @@ protected:
 						// using half size of previous glyph
 						if(prev_glyph_size < 0.0f) {
 							// "glyphs" with a negative size value are possibly infinite in size and always overlap onto the next segment
-							ranges[global_seg].i0 = (int)attribs.glyph_count() - 1;
+							ranges[global_seg].i0 = (int)attribs.glyph_count().value - 1;
 							ranges[global_seg].n = 1;
 						} else {
 							if(param.t_to_s[global_seg][0] < attribs.last_glyph_s() + 0.5f*prev_glyph_size) {
-								ranges[global_seg].i0 = (int)attribs.glyph_count() - 1;
+								ranges[global_seg].i0 = (int)attribs.glyph_count().value - 1;
 								ranges[global_seg].n = 1;
 							}
 						}
@@ -682,14 +682,14 @@ protected:
 						std::max(new_glyph_size, prev_glyph_size) :
 						new_glyph_size;
 
-					bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= last_commited_s + min_dist;
+					bool include_glyph = attribs.glyph_count().value == attribs_traj_offset || s >= last_commited_s + min_dist;
 					include_glyph |= min_dist < 0.0f;
 
 					if(include_glyph || include_hidden_glyphs) {
 						auto &cur_range = ranges[global_seg];
 						if(cur_range.n < 1) {
 							// first free attribute that falls into this segment
-							cur_range.i0 = (unsigned)attribs.glyph_count();
+							cur_range.i0 = (unsigned)attribs.glyph_count().value;
 							cur_range.n = 1;
 
 							// handle overlap to the previous segments

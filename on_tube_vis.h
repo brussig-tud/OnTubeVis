@@ -384,7 +384,7 @@ protected:
 		std::array<gpumem::ring_buffer<float, gpumem::memory_pool_ptr>, max_glyph_layers>
 				_glyph_attribs;
 		/// Indices of the first glyph in each layer to be included on the next segment.
-		std::array<gpumem::index_type, max_glyph_layers> _first_glyphs_on_seg;
+		std::array<gpumem::index_type, max_glyph_layers> _first_attribs_on_seg;
 		/// The absolute index of the last entry in the node buffer belonging to this trajectory.
 		gpumem::index_type _last_node_idx;
 		/// Uniquely identifies this trajectory.
@@ -422,6 +422,20 @@ protected:
 			return _glyph_sizes;
 		}
 
+		[[nodiscard]] constexpr glyph_count_type attrib_to_glyph_count (
+			layer_index_type                  layer,
+			glyph_count_type::base_type num_attribs
+		) const noexcept {
+			return glyph_count_type{num_attribs / _glyph_sizes[layer]};
+		}
+
+		[[nodiscard]] constexpr glyph_count_type::base_type glyph_to_attrib_count (
+			layer_index_type layer,
+			glyph_count_type num_glyphs
+		) const noexcept {
+			return num_glyphs.value * _glyph_sizes[layer];
+		}
+
 	protected:
 		/// Create a new trajectory starting at the given node.
 		trajectory(trajectory_id id, const node_attribs &start_node, render_state &render);
@@ -448,9 +462,9 @@ protected:
 		/// reused once all draw calls using them are complete.
 		/// Users are responsible for ensuring that the dropped glyphs are not referenced by any
 		/// glyph ranges.
-		void drop_glyphs (layer_index_type layer, gpumem::size_type num_glyphs)
+		void drop_glyphs (layer_index_type layer, glyph_count_type num_glyphs)
 		{
-			_glyph_attribs[layer].pop_front(num_glyphs * _glyph_sizes[layer]);
+			_glyph_attribs[layer].pop_front(glyph_to_attrib_count(layer, num_glyphs));
 		}
 
 		/// Allow the oldest glyphs to be overwritten, so that at least `_render.reserve_glyphs`

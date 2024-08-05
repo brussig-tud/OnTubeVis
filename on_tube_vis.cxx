@@ -1851,7 +1851,7 @@ gpumem::span<const float> on_tube_vis::trajectory::create_glyph_layer (
 	}
 
 	// Store the beginning of the first range.
-	_first_glyphs_on_seg[layer] = _glyph_attribs[layer].back();
+	_first_attribs_on_seg[layer] = _glyph_attribs[layer].back();
 	return _glyph_attribs[layer].as_span().as_const();
 }
 
@@ -1879,19 +1879,14 @@ void on_tube_vis::trajectory::append_segment (const node_attribs &node)
 
 		// Set the range of glyphs for the newly created segment.
 		layer.vis.ranges[new_seg_idx] = {
-			static_cast<irange::index_type>(
-				_first_glyphs_on_seg[layer.idx]
-				/ _glyph_sizes[layer.idx]
-			),
-			static_cast<irange::index_type>(
-				attribs.distance(_first_glyphs_on_seg[layer.idx], attribs.back())
-				/ _glyph_sizes[layer.idx]
-			),
+			attrib_to_glyph_count(layer.idx, _first_attribs_on_seg[layer.idx]),
+			attrib_to_glyph_count(layer.idx, attribs.distance(
+				_first_attribs_on_seg[layer.idx], attribs.back())),
 			_id
 		};
 
 		// The next segment will continue where this one ends.
-		_first_glyphs_on_seg[layer.idx] = attribs.back();
+		_first_attribs_on_seg[layer.idx] = attribs.back();
 	});
 
 	// Add the node to the GPU buffer.
@@ -1912,24 +1907,25 @@ void on_tube_vis::trajectory::trim_glyphs ()
 			const auto attribs_to_delete {_render.reserve_glyph_attribs - free_capacity};
 			glyphs.pop_front(attribs_to_delete);
 
-			auto glyphs_to_delete {attribs_to_delete / _glyph_sizes[layer.idx]};
-			auto segment          {
-				layer.vis.ranges.wrapping_iterator(_render.segment_buffer.front())};
+			auto glyphs_to_delete {static_cast<glyph_count_type>(
+				attribs_to_delete / _glyph_sizes[layer.idx]
+			)};
+			auto segment {layer.vis.ranges.wrapping_iterator(_render.segment_buffer.front())};
 
 			while (true) {
 				// Find a segment belonging to this trajectory.
 				if (segment->trajectory == _id) {
 					// If the segment contains fewer glyphs than are to be deleted, remove all
 					// glyphs from the segment and search for the next one.
-					if (segment->n < glyphs_to_delete) {
-						glyphs_to_delete -= segment->n ;
-						segment->n        = 0;
+					if (segment->n.value < glyphs_to_delete.value) {
+						glyphs_to_delete.value -= segment->n.value;
+						segment->n              = glyph_count_type{0};
 					}
 					// Otherwise remove only as many glyphs as required from the front of the
 					// segment and exit the loop.
 					else {
-						segment->i0 += glyphs_to_delete;
-						segment->n  -= glyphs_to_delete;
+						segment->i0.value += glyphs_to_delete.value;
+						segment->n.value  -= glyphs_to_delete.value;
 						break;
 					}
 				}
