@@ -35,10 +35,13 @@ struct glyph_range : irange {
 };
 
 
+/// Type holding the number of 32-bit float attributes used to represent one glyph.
+using glyph_size_type = uint8_t;
+
 // helper struct for glyph attributes
 // Moved from `glyph_compiler`.
 struct glyph_attributes {
-	size_t count = 0;
+	glyph_size_type count = 0;
 	std::vector<float> data;
 
 	bool empty() const { return size() == 0; }

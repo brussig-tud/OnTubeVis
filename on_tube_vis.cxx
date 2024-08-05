@@ -1836,8 +1836,8 @@ on_tube_vis::trajectory::trajectory(
 }
 
 gpumem::span<const float> on_tube_vis::trajectory::create_glyph_layer (
-	uint8_t           layer,
-	uint8_t           glyph_size,
+	layer_index_type  layer,
+	glyph_size_type   glyph_size,
 	gpumem::size_type capacity
 ) {
 	_glyph_sizes[layer] = glyph_size;
@@ -2056,8 +2056,8 @@ bool on_tube_vis::render_state::create_geom_buffers (
 }
 
 bool on_tube_vis::render_state::create_glyph_layer (
-	uint8_t layer,
-	uint8_t glyph_size,
+	layer_index_type  layer,
+	glyph_size_type   glyph_size,
 	gpumem::size_type num_trajectories,
 	gpumem::size_type glyphs_per_trajectory,
 	gpumem::size_type reserve_glyphs

@@ -1,6 +1,7 @@
 #pragma once
 
 // C++ STL
+#include <bitset>
 #include <vector>
 #include <set>
 
@@ -363,9 +364,12 @@ protected:
 		}
 	};
 
+	/// Type used to identify glyph layers.
+	using layer_index_type = uint8_t;
+
 	/// The maximum number of concurrent glyph layers supported by the implementation.
 	/// NOTE: This value is hard-coded in many places.
-	static constexpr uint max_glyph_layers {4};
+	static constexpr layer_index_type max_glyph_layers {4};
 
 	struct render_state;
 
@@ -387,8 +391,8 @@ protected:
 		const trajectory_id _id;
 		/// The arc length of the entire trajectory.
 		float _arc_length = 0;
-		/// The number of 32 bit float values used to define one glyph instance on each layer.
-		std::array<uint8_t, max_glyph_layers> _glyph_sizes;
+		/// The number of 32-bit float values used to define one glyph instance on each layer.
+		std::array<glyph_size_type, max_glyph_layers> _glyph_sizes;
 
 		/// Extend the trajectory by one node.
 		/// Unlike `append_segment`, this function can also be used with an empty trajectory.
@@ -411,8 +415,8 @@ protected:
 			return _arc_length;
 		}
 
-		/// Return the number of floats used to define each glyph per layer.
-		[[nodiscard]] constexpr const std::array<uint8_t, max_glyph_layers> &glyph_sizes ()
+		/// Return the number of 32-bit floats used to define each glyph per layer.
+		[[nodiscard]] constexpr const std::array<glyph_size_type, max_glyph_layers> &glyph_sizes ()
 			const noexcept
 		{
 			return _glyph_sizes;
@@ -425,8 +429,8 @@ protected:
 		/// Initialize a glyph layer to hold up to `capacity` glyphs of `glyph_size` floats each.
 		/// Return a read-only view of the allocated memory.
 		[[nodiscard]] gpumem::span<const float> create_glyph_layer (
-			uint8_t           layer,
-			uint8_t           glyph_size,
+			layer_index_type  layer,
+			glyph_size_type   glyph_size,
 			gpumem::size_type capacity
 		);
 
@@ -435,7 +439,7 @@ protected:
 
 		/// Add glyphs past the end of the trajectory that will appear on future segments.
 		template <class Iter>
-		void append_glyphs (uint8_t layer, ro_range<Iter> data)
+		void append_glyphs (layer_index_type layer, ro_range<Iter> data)
 		{
 			_glyph_attribs[layer].push_back(data);
 		}
@@ -444,7 +448,7 @@ protected:
 		/// reused once all draw calls using them are complete.
 		/// Users are responsible for ensuring that the dropped glyphs are not referenced by any
 		/// glyph ranges.
-		void drop_glyphs (uint8_t layer, gpumem::size_type num_glyphs)
+		void drop_glyphs (layer_index_type layer, gpumem::size_type num_glyphs)
 		{
 			_glyph_attribs[layer].pop_front(num_glyphs * _glyph_sizes[layer]);
 		}
@@ -581,7 +585,7 @@ protected:
 
 		/// Bitmask encoding which glyph layers are active.
 		/// Only the lower nibble is used.
-		uint8_t active_glyph_layers = 0;
+		std::bitset<max_glyph_layers> active_glyph_layers = 0;
 
 		/// Append all data points up to the current timestamp to their respective trajectory.
 		void extend_trajectories ();
@@ -592,8 +596,8 @@ protected:
 
 		struct glyph_layer {
 			glyph_source_data &source;
-			glyph_vis_data &vis;
-			uint8_t idx;
+			glyph_vis_data    &vis;
+			layer_index_type  idx;
 		};
 
 		/// Execute a callback for every active glyph layer.
@@ -602,8 +606,8 @@ protected:
 		>
 		void foreach_active_glyph_layer (Callback callback)
 		{
-			for (uint8_t i = 0; i < 4; ++i) {
-				if ((active_glyph_layers >> i) & 1) {
+			for (layer_index_type i = 0; i < max_glyph_layers; ++i) {
+				if (active_glyph_layers[i]) {
 					callback(glyph_layer{glyph_source[i], glyph_vis[i], i});
 				}
 			}
@@ -621,8 +625,8 @@ protected:
 		/// Each trajectory will maintain unused memory such that up to `reserve_glyphs` glyphs can
 		/// be added each frame without waiting for the previous draw call.
 		[[nodiscard]] bool create_glyph_layer (
-			uint8_t           layer,
-			uint8_t           glyph_size,
+			layer_index_type  layer,
+			glyph_size_type   glyph_size,
 			gpumem::size_type num_trajectories,
 			gpumem::size_type glyphs_per_trajectory,
 			gpumem::size_type reserve_glyphs
