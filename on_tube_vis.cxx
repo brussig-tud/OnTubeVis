@@ -1246,7 +1246,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 						layer_idx,
 						render.glyph_source[layer_idx].attribs.count + 2,
 						render.trajectories.size(),
-						50,
+						3,
 						15
 					)) {
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
@@ -1902,11 +1902,40 @@ void on_tube_vis::trajectory::append_segment (const node_attribs &node)
 void on_tube_vis::trajectory::trim_glyphs ()
 {
 	_render.foreach_active_glyph_layer([&](const render_state::glyph_layer &layer) {
-		auto &glyphs        {_glyph_attribs[layer.idx]};
-		auto vacant_attribs {glyphs.capacity() - glyphs.length()};
+		auto &glyphs {_glyph_attribs[layer.idx]};
 
-		if (vacant_attribs < _render.reserve_glyph_attribs) {
-			glyphs.pop_front(_render.reserve_glyph_attribs - vacant_attribs);
+		auto free_capacity {glyphs.as_span().length() - _glyph_sizes[layer.idx] - glyphs.length()};
+
+		// If the glyph buffer's remaining capacity is lower than configured, delete as many glyphs
+		// as necessary and update glyph ranges to no longer reference them.
+		if (free_capacity < _render.reserve_glyph_attribs) {
+			const auto attribs_to_delete {_render.reserve_glyph_attribs - free_capacity};
+			glyphs.pop_front(attribs_to_delete);
+
+			auto glyphs_to_delete {attribs_to_delete / _glyph_sizes[layer.idx]};
+			auto segment          {
+				layer.vis.ranges.wrapping_iterator(_render.segment_buffer.front())};
+
+			while (true) {
+				// Find a segment belonging to this trajectory.
+				if (segment->trajectory == _id) {
+					// If the segment contains fewer glyphs than are to be deleted, remove all
+					// glyphs from the segment and search for the next one.
+					if (segment->n < glyphs_to_delete) {
+						glyphs_to_delete -= segment->n ;
+						segment->n        = 0;
+					}
+					// Otherwise remove only as many glyphs as required from the front of the
+					// segment and exit the loop.
+					else {
+						segment->i0 += glyphs_to_delete;
+						segment->n  -= glyphs_to_delete;
+						break;
+					}
+				}
+
+				++segment;
+			}
 		}
 	});
 }
@@ -1994,13 +2023,14 @@ void on_tube_vis::render_state::trim_trajectories ()
 			++vacant_nodes;
 		}
 
+		// Allow the glyphs on the removed segment to be overwritten.
+		foreach_active_glyph_layer([&](const glyph_layer &layer) {
+			const auto range = layer.vis.ranges[segment_buffer.front()];
+			trajectories[range.trajectory].render_data.drop_glyphs(layer.idx, range.n);
+		});
+
 		// Remove the segment.
 		segment_buffer.pop_front();
-	}
-
-	// Recycle glyph attributes.
-	for (auto &traj : trajectories) {
-		traj.render_data.trim_glyphs();
 	}
 }
 
@@ -3210,6 +3240,11 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			std::clog << "Had to wait on previous draw call.\n";
 		}
 #endif
+
+		// Ensure that there is enough memory for new glyphs.
+		for (auto &traj : render.trajectories) {
+			traj.render_data.trim_glyphs();
+		}
 
  		// Update the ring buffers' guard indices to match the new draw call.
 		render.node_buffer.set_gpu_front(render.node_buffer.front());

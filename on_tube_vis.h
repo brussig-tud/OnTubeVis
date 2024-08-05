@@ -371,6 +371,8 @@ protected:
 
 	/// Manages the render data for a single trajectory.
 	class trajectory {
+		friend class on_tube_vis;
+
 	private:
 		/// Rendering data shared between trajectories.
 		render_state &_render;
@@ -397,9 +399,6 @@ protected:
 		}
 
 	public:
-		/// Create a new trajectory starting at the given node.
-		trajectory(trajectory_id id, const node_attribs &start_node, render_state &render);
-
 		/// Return this trajectory's ID.
 		[[nodiscard]] constexpr trajectory_id id () const noexcept
 		{
@@ -419,6 +418,10 @@ protected:
 			return _glyph_sizes;
 		}
 
+	protected:
+		/// Create a new trajectory starting at the given node.
+		trajectory(trajectory_id id, const node_attribs &start_node, render_state &render);
+
 		/// Initialize a glyph layer to hold up to `capacity` glyphs of `glyph_size` floats each.
 		/// Return a read-only view of the allocated memory.
 		[[nodiscard]] gpumem::span<const float> create_glyph_layer (
@@ -437,8 +440,18 @@ protected:
 			_glyph_attribs[layer].push_back(data);
 		}
 
+		/// Forget about the latest `num_glyphs` glyphs, allowing the memory they occupy to be
+		/// reused once all draw calls using them are complete.
+		/// Users are responsible for ensuring that the dropped glyphs are not referenced by any
+		/// glyph ranges.
+		void drop_glyphs (uint8_t layer, gpumem::size_type num_glyphs)
+		{
+			_glyph_attribs[layer].pop_front(num_glyphs * _glyph_sizes[layer]);
+		}
+
 		/// Allow the oldest glyphs to be overwritten, so that at least `_render.reserve_glyphs`
 		/// new glyphs can be added.
+		/// Must not be called during deferred shading.
 		void trim_glyphs ();
 
 		/// Synchronize newly added glyphs with the GPU.

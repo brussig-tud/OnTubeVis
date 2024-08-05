@@ -38,6 +38,38 @@ public:
 	/// Type of the contained objects.
 	using elem_type = Elem;
 
+	/// An iterator over a span that wraps back to the start when it reaches the end.
+	class wrapping_iterator_type {
+		friend class span;
+
+	protected:
+		/// The span being iterated over.
+		const span &_span;
+		/// The iterator's current position.
+		elem_type *_elem {nullptr};
+
+		constexpr wrapping_iterator_type(const span &span, elem_type *elem) noexcept
+			: _span {span}
+			, _elem {elem}
+		{}
+
+	public:
+		/// Return a pointer to the element at the iterator's current position.
+		[[nodiscard]] constexpr elem_type *operator-> () const noexcept
+		{
+			return _elem;
+		}
+
+		/// Return the element at the iterator's current position.
+		[[nodiscard]] constexpr elem_type &operator* () const noexcept
+		{
+			return *_elem;
+		}
+
+		/// Advance the iterator by one element.
+		constexpr wrapping_iterator_type &operator++ () noexcept;
+	};
+
 private:
 	/// Address of the first element.
 	elem_type *_data {nullptr};
@@ -129,6 +161,11 @@ public:
 	{
 		return _data[idx];
 	}
+
+	/// Create an iterator at the given index that will wrap from the end of the span to its start.
+	/// Precondition: `offset < length()`.
+	[[nodiscard]] constexpr wrapping_iterator_type wrapping_iterator (index_type offset = 0)
+		const noexcept;
 
 	/// Ensure that the spanned memory is up-to-date for the GPU.
 	[[nodiscard]] bool flush () const noexcept;

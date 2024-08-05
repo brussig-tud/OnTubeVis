@@ -160,8 +160,8 @@ struct closest_glyphs_info {
 
 #define DEF_CLOSEST_SAMPLES(I, ranges, glyphs) \
 bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info closest) { \
-	const irange segment = ranges[segid].range; \
-	const TRAJECTORY_ID_T traj   = ranges[segid].trajectory; \
+	const irange          segment = ranges[segid].range; \
+	const TRAJECTORY_ID_T traj    = ranges[segid].trajectory; \
 	if (segment.n > 0) { \
 		irange rng = segment; \
 		while (rng.n > 1) { \
@@ -1507,6 +1507,11 @@ void main()
 
 				float non_outline_factor = 1;
 				L0_GLYPH_DEFINITION
+
+				// NOTE: Changing the specular factor only for segments with glyphs causes a
+				// visible difference between segments when there is not enough memory to store
+				// the glyphs for the entire trajectory.
+				// Maybe consider using a consistent shininess?
 				specular_factor = non_outline_factor*0.25;
 			}
 		}

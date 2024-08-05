@@ -15,6 +15,20 @@
 namespace gpumem {
 
 template <class Elem>
+constexpr auto span<Elem>::wrapping_iterator_type::operator++ () noexcept -> wrapping_iterator_type&
+{
+	++_elem;
+
+	// Wrap-around.
+	if (_elem == _span.data() + _span.length()) {
+		_elem = _span.data();
+	}
+
+	return *this;
+}
+
+
+template <class Elem>
 template <class T>
 span<T> span<Elem>::reinterpret_as () const noexcept
 {
@@ -64,6 +78,14 @@ span<std::byte> span<Elem>::buffer () const
 	glGetBufferParameteri64v(GL_COPY_READ_BUFFER, GL_BUFFER_MAP_LENGTH, &length);
 
 	return {reinterpret_cast<std::byte*>(data), length, _handle};
+}
+
+template <class Elem>
+constexpr auto span<Elem>::wrapping_iterator (index_type offset) const noexcept
+	-> wrapping_iterator_type
+{
+	assert(offset < _length);
+	return {*this, _data + offset};
 }
 
 template <class Elem>
