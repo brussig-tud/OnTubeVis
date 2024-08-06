@@ -443,9 +443,9 @@ protected:
 		/// Initialize a glyph layer to hold up to `capacity` glyphs of `glyph_size` floats each.
 		/// Return a read-only view of the allocated memory.
 		[[nodiscard]] gpumem::span<const float> create_glyph_layer (
-			layer_index_type  layer,
-			glyph_size_type   glyph_size,
-			gpumem::size_type capacity
+			layer_index_type layer,
+			glyph_size_type  glyph_size,
+			glyph_count_type capacity
 		);
 
 		/// Extend the trajectory by one node at the end, creating a new segment.
@@ -642,8 +642,8 @@ protected:
 			layer_index_type  layer,
 			glyph_size_type   glyph_size,
 			gpumem::size_type num_trajectories,
-			gpumem::size_type glyphs_per_trajectory,
-			gpumem::size_type reserve_glyphs
+			glyph_count_type  glyphs_per_trajectory,
+			glyph_count_type  reserve_glyphs
 		);
 	} render;
 	int render_gui_dummy = 0;

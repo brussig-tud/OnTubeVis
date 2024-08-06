@@ -1246,8 +1246,8 @@ bool on_tube_vis::compile_glyph_attribs (void)
 						layer_idx,
 						render.glyph_source[layer_idx].attribs.count + 2,
 						render.trajectories.size(),
-						3,
-						15
+						glyph_count_type{3},
+						glyph_count_type{15}
 					)) {
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
 					}
@@ -1836,9 +1836,9 @@ on_tube_vis::trajectory::trajectory(
 }
 
 gpumem::span<const float> on_tube_vis::trajectory::create_glyph_layer (
-	layer_index_type  layer,
-	glyph_size_type   glyph_size,
-	gpumem::size_type capacity
+	layer_index_type layer,
+	glyph_size_type  glyph_size,
+	glyph_count_type capacity
 ) {
 	_glyph_sizes[layer] = glyph_size;
 
@@ -1846,7 +1846,9 @@ gpumem::span<const float> on_tube_vis::trajectory::create_glyph_layer (
 	// must be a multiple of `glyph_size` to prevent glyphs from being split by wrap-around.
 	// Therefore, request memmory for one additional glyph, minus the single float automatically
 	// added by `ring_buffer`.
-	if (! _glyph_attribs[layer].create((capacity + 1) * glyph_size - 1))  {
+	++capacity.value;
+
+	if (! _glyph_attribs[layer].create(glyph_to_attrib_count(layer, capacity) - 1))  {
 		return {};
 	}
 
@@ -2055,18 +2057,18 @@ bool on_tube_vis::render_state::create_glyph_layer (
 	layer_index_type  layer,
 	glyph_size_type   glyph_size,
 	gpumem::size_type num_trajectories,
-	gpumem::size_type glyphs_per_trajectory,
-	gpumem::size_type reserve_glyphs
+	glyph_count_type  glyphs_per_trajectory,
+	glyph_count_type  reserve_glyphs
 ) {
-	reserve_glyph_attribs = reserve_glyphs * glyph_size;
+	reserve_glyph_attribs = reserve_glyphs.value * glyph_size;
 
-	const auto capacity {glyphs_per_trajectory + reserve_glyphs};
+	const glyph_count_type capacity {glyphs_per_trajectory.value + reserve_glyphs.value};
 
 	// Allocate the memory pool for glyph attributes that is shared between trajectories.
 	// The ring buffer implementation requires room for one additional glyph per trajectory.
 	auto ok {glyph_vis[layer].attribs.create(
 		num_trajectories,
-		(capacity + 1) * glyph_size * gpumem::memsize<float>,
+		(capacity.value + 1) * glyph_size * gpumem::memsize<float>,
 		alignof(float)
 	)};
 
