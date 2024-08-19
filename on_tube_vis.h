@@ -371,6 +371,10 @@ protected:
 	/// NOTE: This value is hard-coded in many places.
 	static constexpr layer_index_type max_glyph_layers {4};
 
+	/// Stores generic data specific to each glyph layer.
+	template <class Elem>
+	using per_layer = std::array<Elem, max_glyph_layers>;
+
 	struct render_state;
 
 	/// Manages the render data for a single trajectory.
@@ -378,29 +382,23 @@ protected:
 		friend class on_tube_vis;
 
 	private:
+		/// Index value indicating the lack of a node.
+		static constexpr gpumem::index_type nil_node {-1};
+
 		/// Rendering data shared between trajectories.
 		render_state &_render;
 		/// Compiled glyphs shown on the trajectory.
-		std::array<gpumem::ring_buffer<float, gpumem::memory_pool_ptr>, max_glyph_layers>
-				_glyph_attribs;
+		per_layer<gpumem::ring_buffer<float, gpumem::memory_pool_ptr>> _glyph_attribs;
 		/// Indices of the first glyph in each layer to be included on the next segment.
-		std::array<gpumem::index_type, max_glyph_layers> _first_attribs_on_seg;
+		per_layer<gpumem::index_type> _first_attribs_on_seg;
 		/// The absolute index of the last entry in the node buffer belonging to this trajectory.
-		gpumem::index_type _last_node_idx;
+		gpumem::index_type _last_node_idx {nil_node};
 		/// Uniquely identifies this trajectory.
 		const trajectory_id _id;
 		/// The arc length of the entire trajectory.
-		float _arc_length = 0;
+		float _arc_length {0};
 		/// The number of 32-bit float values used to define one glyph instance on each layer.
-		std::array<glyph_size_type, max_glyph_layers> _glyph_sizes;
-
-		/// Extend the trajectory by one node.
-		/// Unlike `append_segment`, this function can also be used with an empty trajectory.
-		void append_node (const node_attribs &node) {
-			// Add the node to the GPU buffer, storing the index at which it is placed.
-			_last_node_idx = _render.node_buffer.back();
-			_render.node_buffer.push_back(node);
-		}
+		per_layer<glyph_size_type> _glyph_sizes;
 
 	public:
 		/// Return this trajectory's ID.
@@ -416,29 +414,28 @@ protected:
 		}
 
 		/// Return the number of 32-bit floats used to define each glyph per layer.
-		[[nodiscard]] constexpr const std::array<glyph_size_type, max_glyph_layers> &glyph_sizes ()
-			const noexcept
+		[[nodiscard]] constexpr const per_layer<glyph_size_type> &glyph_sizes () const noexcept
 		{
 			return _glyph_sizes;
 		}
 
+		/// Calculate the number of glyphs defined by a given number of attributes on a given layer,
+		/// rounding down.
 		[[nodiscard]] constexpr glyph_count_type attrib_to_glyph_count (
-			layer_index_type                  layer,
+			layer_index_type            layer,
 			glyph_count_type::base_type num_attribs
 		) const noexcept {
 			return glyph_count_type{num_attribs / _glyph_sizes[layer]};
 		}
 
+		/// Calculate the number of attributes required to define a given number of glyphs on a
+		/// given layer.
 		[[nodiscard]] constexpr glyph_count_type::base_type glyph_to_attrib_count (
 			layer_index_type layer,
 			glyph_count_type num_glyphs
 		) const noexcept {
 			return num_glyphs.value * _glyph_sizes[layer];
 		}
-
-	protected:
-		/// Create a new trajectory starting at the given node.
-		trajectory(trajectory_id id, const node_attribs &start_node, render_state &render);
 
 		/// Initialize a glyph layer to hold up to `capacity` glyphs of `glyph_size` floats each.
 		/// Return a read-only view of the allocated memory.
@@ -448,15 +445,21 @@ protected:
 			glyph_count_type capacity
 		);
 
-		/// Extend the trajectory by one node at the end, creating a new segment.
-		void append_segment (const node_attribs &node);
+		/// Extend the trajectory by one node at the end, potentially creating a new segment.
+		/// Implements `otv__stream_spline_node`.
+		void append_node (const node_attribs &node);
 
 		/// Add glyphs past the end of the trajectory that will appear on future segments.
+		/// Implements `otv__stream_glyph`.
 		template <class Iter>
 		void append_glyphs (layer_index_type layer, ro_range<Iter> data)
 		{
 			_glyph_attribs[layer].push_back(data);
 		}
+
+	protected:
+		/// Create a new trajectory.
+		trajectory(trajectory_id id, render_state &render);
 
 		/// Forget about the latest `num_glyphs` glyphs, allowing the memory they occupy to be
 		/// reused once all draw calls using them are complete.
@@ -478,41 +481,14 @@ protected:
 		/// Update GPU sync guard indices once rendering has finished.
 		void frame_completed ()
 		{
-			_render.foreach_active_glyph_layer([&](const render_state::glyph_layer & layer) {
-				_glyph_attribs[layer.idx].set_gpu_front(_glyph_attribs[layer.idx].front());
+			_render.foreach_active_glyph_layer([&](const auto layer_idx, const glyph_layer &layer) {
+				_glyph_attribs[layer_idx].set_gpu_front(_glyph_attribs[layer_idx].front());
 			});
 		}
 	};
 
-	/// Wrapper around a rendered trajectory that can be used to simulate streaming by gradually
-	/// adding data from a buffer.
-	struct trajectory_streamer {
-		/// The rendered trajectory.
-		trajectory render_data;
-		/// The range of nodes belonging to this trajectory.
-		ro_range<unsigned> node_idcs;
-		/// The index of the next segment belonging to this trajectory.
-		/// There is always one less segment than nodes, so there is no need to store the maximum
-		/// index.
-		unsigned segment_idx;
-	};
-
-	/// Host-side data for one glyph layer.
-	struct glyph_source_data {
-		glyph_source_data() = default;
-
-		glyph_source_data(const glyph_source_data &) = delete;
-		glyph_source_data(glyph_source_data &&) noexcept = default;
-
-		glyph_source_data &operator= (const glyph_source_data &) = delete;
-		glyph_source_data &operator= (glyph_source_data &&) noexcept = default;
-
-		std::vector<irange> ranges;
-		glyph_attributes attribs;
-	};
-
 	/// GPU data required to render a glyph layer.
-	struct glyph_vis_data {
+	struct glyph_layer {
 		/// The range of glyphs on each segment, relative to the base index of the trajectory's
 		/// allocation.
 		gpumem::array<glyph_range> ranges {};
@@ -521,8 +497,6 @@ protected:
 		/// only be known at runtime.
 		/// For the program to work correctly, the length of this buffer's allocation has to be a multiple of n; its
 		/// capacity then has to be one less.
-		/// Therefore, the buffer should only be allocated through `render_state::alloc_glyph_attrib_buffer`, which
-		/// enforces this constraint.
 		gpumem::memory_pool<> attribs {};
 	};
 
@@ -531,49 +505,28 @@ protected:
 		/// render style for the textured spline tubes
 		textured_spline_tube_render_style style;
 
-		/// render data generated by the trajectory manager
-		const traj_manager<float>::render_data *data;
-
-		/// Host-side glyph data.
-		std::array<glyph_source_data, max_glyph_layers> glyph_source;
-
 		/// the on-tube visualization layers for each loaded dataset
 		std::vector<on_tube_visualization> visualizations;
-
-		/// segment-wise arclength approximations (set of 4 cubic bezier curves returning global
-		/// trajectory arclength at the segment, packed into the columns of a 4x4 matrix)
-		arclen::parametrization arclen_data;
 
 		/// GPU ring buffer containing trajectory nodes.
 		gpumem::ring_buffer<node_attribs> node_buffer;
 
-		/// GPU ring buffer containing segments defined as pairs of absolute indices into #node_buffer.
+		/// GPU ring buffer containing trajectory segments defined as pairs of absolute indices into
+		/// #node_buffer.
 		gpumem::ring_buffer<uvec2> segment_buffer;
 
 		/// GPU buffer containing segment-wise arclength parametrization.
 		/// Entries correspond to #segment_buffer.
 		gpumem::array<mat4> t_to_s;
 
-		/// GPU-side glyph data.
-		std::array<glyph_vis_data, max_glyph_layers> glyph_vis;
+		/// GPU buffers specific to each glyph layer.
+		per_layer<glyph_layer> glyphs;
 
-		/// GPU buffer storing which index range of `glyph_vis[_]::attribs` is used for each
+		/// GPU buffer storing which index range of `glyphs[_].attribs` is used for each
 		/// trajectory's glyph attribute buffer.
 		/// The entry for trajectory id _t_ and layer _l_ is stored at index
 		/// _t * max_glyph_layers + l_.
 		gpumem::array<irange> traj_glyph_mem;
-
-		/// GPU-side storage buffer mirroring the \ref #arclen_data .
-		vertex_buffer arclen_sbo;
-
-		/// GPU-side render attribute buffer.
-		vertex_buffer render_sbo;
-
-		/// GPU-side storage buffers storing independently sampled attribute data.
-		std::vector<vertex_buffer> attribs_sbos;
-
-		/// GPU-side storage buffers indexing the independently sampled attributes per tube segment.
-		std::vector<vertex_buffer> aindex_sbos;
 
 		/// shared attribute array manager used by both renderers
 		attribute_array_manager aam;
@@ -581,11 +534,10 @@ protected:
 		/// the gpu sorter used to reorder the indices according to their corresponding segment visibility order
 		cgv::gpgpu::visibility_sort sorter;
 
-		/// Managers for trajectory data stored in ring buffers, along with the index range each trajectory will be
-		/// generated from.
-		std::vector<trajectory_streamer> trajectories;
+		/// Render data and state specific to each trajectory.
+		std::vector<trajectory> trajectories;
 
-		/// Fence placed directly after the last draw command.
+		/// Fence placed directly after the last draw command for synchronization with the GPU.
 		GLsync draw_fence;
 
 		/// The minimum number of node slots that will be vacant after each call to
@@ -597,32 +549,36 @@ protected:
 		/// added each frame without waiting for draw calls.
 		gpumem::size_type reserve_glyph_attribs {0};
 
-		/// Bitmask encoding which glyph layers are active.
-		/// Only the lower nibble is used.
+		/// Stores which glyph layers are updated and rendered.
 		std::bitset<max_glyph_layers> active_glyph_layers = 0;
 
-		/// Append all data points up to the current timestamp to their respective trajectory.
-		void extend_trajectories ();
+
+		/// Create, register and return an empty trajectory.
+		[[nodiscard]] trajectory &add_trajectory()
+		{
+			trajectories.push_back({static_cast<trajectory_id>(trajectories.size()), *this});
+			return trajectories.back();
+		}
+
+		/// Return the trajectory with a given ID, or `nullptr` if the ID is not in use.
+		[[nodiscard]] trajectory *try_get_trajectory(trajectory_id id)
+		{
+			return id < trajectories.size() ? &trajectories[id] : nullptr;
+		}
 
 		/// Allow old data to be overwritten, such that at least `reserve_nodes` new nodes and
 		/// `reserve_glyphs` new glyphs per layer and trajectory can be added.
 		void trim_trajectories ();
 
-		struct glyph_layer {
-			glyph_source_data &source;
-			glyph_vis_data    &vis;
-			layer_index_type  idx;
-		};
-
 		/// Execute a callback for every active glyph layer.
 		template <class Callback, class = std::enable_if_t<
-			std::is_invocable_v<Callback, const glyph_layer&>>
+			std::is_invocable_v<Callback, layer_index_type, const glyph_layer&>>
 		>
 		void foreach_active_glyph_layer (Callback callback)
 		{
-			for (layer_index_type i = 0; i < max_glyph_layers; ++i) {
-				if (active_glyph_layers[i]) {
-					callback(glyph_layer{glyph_source[i], glyph_vis[i], i});
+			for (layer_index_type idx = 0; idx < max_glyph_layers; ++idx) {
+				if (active_glyph_layers[idx]) {
+					callback(idx, glyphs[idx]);
 				}
 			}
 		}
@@ -646,6 +602,63 @@ protected:
 			glyph_count_type  reserve_glyphs
 		);
 	} render;
+
+	/// Wrapper around a rendered trajectory that can be used to simulate streaming by gradually
+	/// adding data from a buffer.
+	/// NOTE: This type is only used for testing and not required to implement the OnTubeVis API.
+	struct client_trajectory {
+		/// The range of nodes in the client's buffer belonging to this trajectory.
+		ro_range<unsigned> node_idcs;
+		/// The index of the next segment in the client's buffer belonging to this trajectory.
+		/// There is always one fewer segment than nodes, so there is no need to store the maximum
+		/// index.
+		unsigned segment_idx;
+		/// The ID under which this is managed by the render state.
+		trajectory_id id;
+	};
+
+	/// Host-side data for one glyph layer.
+	/// NOTE: This type is only used for testing and not required to implement the OnTubeVis API.
+	struct client_glyph_layer {
+		client_glyph_layer() = default;
+
+		client_glyph_layer(const client_glyph_layer &) = delete;
+		client_glyph_layer(client_glyph_layer &&) noexcept = default;
+
+		client_glyph_layer &operator= (const client_glyph_layer &) = delete;
+		client_glyph_layer &operator= (client_glyph_layer &&) noexcept = default;
+
+		/// The ranges of glyphs located on each segment.
+		std::vector<index_range<glyph_count_type>> ranges;
+		/// The attributes defining each glyph.
+		glyph_attributes attribs;
+	};
+
+	/// Stores trajectory data that is known ahead of time in host memory, then gradually feeds it
+	/// to the renderer to simulate streaming.
+	/// NOTE: This type is only used for testing and not required to implement the OnTubeVis API.
+	struct client {
+		/// The render "server" used by the client.
+		render_state &render;
+
+		/// render data generated by the trajectory manager
+		const traj_manager<float>::render_data *data;
+
+		/// Glyph data.
+		per_layer<client_glyph_layer> glyphs;
+
+		/// segment-wise arclength approximations (set of 4 cubic bezier curves returning global
+		/// trajectory arclength at the segment, packed into the columns of a 4x4 matrix)
+		arclen::parametrization arclen_data;
+
+		/// Data specific to each trajectory.
+		std::vector<client_trajectory> trajectories;
+
+
+		/// Append all data points up to the current timestamp to their respective trajectory.
+		void extend_trajectories ();
+	} client {render};
+
 	int render_gui_dummy = 0;
 
 	/// trajectory manager

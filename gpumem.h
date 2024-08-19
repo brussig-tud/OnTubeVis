@@ -1,6 +1,7 @@
 #pragma once
 
 // C++ STL
+#include <cassert>
 #include <type_traits>
 #include <vector>
 
@@ -249,7 +250,7 @@ private:
 	alloc_type *_allocator {nullptr};
 
 public:
-	[[nodiscard]] alloc_ptr() noexcept = delete;
+	[[nodiscard]] alloc_ptr() noexcept = default;
 	/// Construct a new pointer to the given allocator.
 	[[nodiscard]] explicit alloc_ptr(alloc_type &allocator)
 		: _allocator {&allocator}
@@ -258,6 +259,7 @@ public:
 	/// Return the `alloc_ptr` subobject of `*this`.
 	[[nodiscard]] alloc_ptr &allocator () noexcept
 	{
+		assert(_allocator);
 		return *this;
 	}
 
@@ -266,6 +268,7 @@ public:
 	template <class Elem = std::byte>
 	[[nodiscard]] span<Elem> alloc (size_type length, size_type alignment = alignof(Elem))
 	{
+		assert(_allocator);
 		return _allocator->template alloc<Elem>(length, alignment);
 	}
 
@@ -275,6 +278,7 @@ public:
 	template <class Elem>
 	void dealloc (span<Elem> alloc) noexcept
 	{
+		assert(_allocator);
 		return _allocator->dealloc(alloc);
 	}
 };

@@ -13,10 +13,10 @@ struct node_attribs {
 };
 
 
-// helper struct for range entries with start index i0 and count n
-// Moved from `glyph_compiler`.
-struct irange {
-	using index_type = int;
+/// An integer range consisting of a start value and a length.
+template <class Index>
+struct index_range {
+	using index_type = Index;
 
 	index_type i0, n;
 
@@ -25,6 +25,11 @@ struct irange {
 		return i0 + n;
 	}
 };
+
+// helper struct for range entries with start index i0 and count n
+// Moved from `glyph_compiler`.
+using irange = index_range<int>;
+
 
 /// Newtype wrapper storing a number of glyphs.
 /// Used to avoid confusion between number of glyphs and number of glyph attributes.
@@ -37,6 +42,12 @@ struct glyph_count_type {
 		: value {value}
 	{}
 };
+
+[[nodiscard]] constexpr glyph_count_type operator+ (glyph_count_type lhs, glyph_count_type rhs)
+	noexcept
+{
+	return glyph_count_type{lhs.value + rhs.value};
+}
 
 
 /// Uniquely identifies trajectory instances.

@@ -705,7 +705,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 	}
 
 	if(data_set_changed) {
-		render.data = &(traj_mgr.get_render_data());
+		client.data = &(traj_mgr.get_render_data());
+
 		if(from_demo) {
 			ao_style = ao_style_bak;	// reset from handcrafted AO settings
 			update_member(&ao_style);
@@ -1221,16 +1222,16 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 			const auto &dataset = traj_mgr.dataset(0);
 
-			success = gc.compile_glyph_attributes(dataset, render.arclen_data, ds_config.config);
+			success = gc.compile_glyph_attributes(dataset, client.arclen_data, ds_config.config);
 
 			// get context
 			const auto &ctx = *get_context();
 
 			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
 				if (! gc.layer_filled[layer_idx]) {
-					// Reset render state.
-					render.glyph_source[layer_idx] = {};
-					render.glyph_vis[layer_idx]    = {};
+					// Clear layer for client and renderer.
+					client.glyphs[layer_idx] = {};
+					render.glyphs[layer_idx] = {};
 				} else {
 					// Mark layer as active in render state.
 					render.active_glyph_layers |= 1 << layer_idx;
@@ -1238,14 +1239,20 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					const auto& ranges = gc.layer_ranges[layer_idx];
 					const auto& attribs = gc.layer_attribs[layer_idx];
 
-					// Store host-side glyph data as part of the render state.
-					render.glyph_source.at(layer_idx) = {ranges, attribs};
+					// Copy glyph data into the simulated client.
+					client.glyphs.at(layer_idx) = {
+						{
+							reinterpret_cast<const index_range<glyph_count_type>*>(&*ranges.cbegin()),
+							reinterpret_cast<const index_range<glyph_count_type>*>(&*ranges.cend())
+						},
+						attribs
+					};
 
 					// Allocate GPU buffers for glyph-related data.
-					if (!render.create_glyph_layer(
+					if (! render.create_glyph_layer(
 						layer_idx,
-						render.glyph_source[layer_idx].attribs.count + 2,
-						render.trajectories.size(),
+						client.glyphs[layer_idx].attribs.count + 2,
+						client.trajectories.size(),
 						glyph_count_type{3},
 						glyph_count_type{15}
 					)) {
@@ -1254,23 +1261,9 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 					// - sanity check
 					{
-						const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size()) / 2;
+						const float num_ranges = (float)ranges.size(), num_segs = float(client.data->indices.size()) / 2;
 						assert(num_ranges == num_segs);
 					}
-
-					// - upload
-					vertex_buffer& attribs_sbo = render.attribs_sbos[layer_idx];
-					vertex_buffer& aindex_sbo = render.aindex_sbos[layer_idx];
-
-					// ...attrib nodes
-					attribs_sbo.destruct(ctx);
-					if(!attribs_sbo.create(ctx, attribs.data))
-						std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
-
-					// ...index ranges
-					aindex_sbo.destruct(ctx);
-					if(!aindex_sbo.create(ctx, ranges))
-						std::cerr << "!!! unable to create glyph index ranges Storage Buffer Object !!!" << std::endl << std::endl;
 				}
 			}
 
@@ -1818,21 +1811,19 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 #endif
 
 on_tube_vis::trajectory::trajectory(
-	trajectory_id      id,
-	const node_attribs &start_node,
-	render_state       &render
+	trajectory_id id,
+	render_state  &render
 )
-	// All glyph layers are initially empty, but will allocate memory from their respecive pool.
 	: _render {render}
-	, _glyph_attribs {{
-		{gpumem::memory_pool_ptr{render.glyph_vis[0].attribs}},
-		{gpumem::memory_pool_ptr{render.glyph_vis[1].attribs}},
-		{gpumem::memory_pool_ptr{render.glyph_vis[2].attribs}},
-		{gpumem::memory_pool_ptr{render.glyph_vis[3].attribs}},
-	}}
-	, _id {id}
+	, _id     {id}
 {
-	append_node(start_node);
+	// All glyph layers are initially inactive with no attribute memory.
+	// If a layer is activated later on (`create_glyph_layer`), an attribute buffer is allocated
+	// from that layer's pool.
+	for (layer_index_type layer {0}; layer < max_glyph_layers; ++layer) {
+		_glyph_attribs[layer]        = gpumem::memory_pool_ptr{_render.glyphs[layer].attribs};
+		_first_attribs_on_seg[layer] = 0;
+	}
 }
 
 gpumem::span<const float> on_tube_vis::trajectory::create_glyph_layer (
@@ -1857,64 +1848,74 @@ gpumem::span<const float> on_tube_vis::trajectory::create_glyph_layer (
 	return _glyph_attribs[layer].as_span().as_const();
 }
 
-void on_tube_vis::trajectory::append_segment (const node_attribs &node)
+void on_tube_vis::trajectory::append_node (const node_attribs &node)
 {
-	// Create a new segment between the last node and the new one.
+	const auto prev_node_idx {_last_node_idx};
+	// Add the node to the GPU buffer, storing the index at which it is placed.
+	_last_node_idx = _render.node_buffer.back();
+	_render.node_buffer.push_back(node);
+
+	// If this node is the first one on the trajectory, there is nothing more to do.
+	if (prev_node_idx == nil_node) {
+		return;
+	}
+
+	// Otherwise, create a new segment between the previous node and the new one.
 	auto new_seg_idx = _render.segment_buffer.back();
 	_render.segment_buffer.push_back({
-		static_cast<unsigned>(_last_node_idx),
-		static_cast<unsigned>(_render.node_buffer.back())
+		static_cast<unsigned>(prev_node_idx),
+		static_cast<unsigned>(_last_node_idx)
 	});
 
 	// Store the segment's arclength parametrization at the corresponding index.
 	mat4 s_to_t;
 	arclen::parametrize_segment(
-		_render.node_buffer.as_span()[_last_node_idx],
+		_render.node_buffer.as_span()[prev_node_idx],
 		node,
 		_arc_length,
 		_render.t_to_s[new_seg_idx],
 		s_to_t
 	);
 
-	_render.foreach_active_glyph_layer([&](const render_state::glyph_layer &layer) {
-		const auto &attribs {_glyph_attribs[layer.idx]};
+	_render.foreach_active_glyph_layer([&](const auto layer_idx, const glyph_layer &layer) {
+		const auto &attribs {_glyph_attribs[layer_idx]};
 
 		// Set the range of glyphs for the newly created segment.
-		layer.vis.ranges[new_seg_idx] = {
-			attrib_to_glyph_count(layer.idx, _first_attribs_on_seg[layer.idx]),
-			attrib_to_glyph_count(layer.idx, attribs.distance(
-				_first_attribs_on_seg[layer.idx], attribs.back())),
+		layer.ranges[new_seg_idx] = {
+			attrib_to_glyph_count(layer_idx, _first_attribs_on_seg[layer_idx]),
+			attrib_to_glyph_count(layer_idx, attribs.distance(
+				_first_attribs_on_seg[layer_idx], attribs.back())),
 			_id
 		};
 
 		// The next segment will continue where this one ends.
-		_first_attribs_on_seg[layer.idx] = attribs.back();
+		_first_attribs_on_seg[layer_idx] = attribs.back();
 	});
-
-	// Add the node to the GPU buffer.
-	// This must be done last, since it modifies `_last_node_idx`.
-	append_node(node);
 }
 
 void on_tube_vis::trajectory::trim_glyphs ()
 {
-	_render.foreach_active_glyph_layer([&](const render_state::glyph_layer &layer) {
-		auto &glyphs {_glyph_attribs[layer.idx]};
+	_render.foreach_active_glyph_layer([&](const auto layer_idx, const glyph_layer &layer) {
+		auto       &attribs      {_glyph_attribs[layer_idx]};
+		const auto capacity      {attribs.as_span().length() - _glyph_sizes[layer_idx]};
+		const auto free_capacity {capacity - attribs.length()};
 
-		auto free_capacity {glyphs.as_span().length() - _glyph_sizes[layer.idx] - glyphs.length()};
+		auto reserve_attribs = std::min(_render.reserve_glyph_attribs, capacity);
 
 		// If the glyph buffer's remaining capacity is lower than configured, delete as many glyphs
 		// as necessary and update glyph ranges to no longer reference them.
-		if (free_capacity < _render.reserve_glyph_attribs) {
-			const auto attribs_to_delete {_render.reserve_glyph_attribs - free_capacity};
-			glyphs.pop_front(attribs_to_delete);
+		if (free_capacity < reserve_attribs) {
+			const auto attribs_to_delete {reserve_attribs - free_capacity};
+			attribs.pop_front(attribs_to_delete);
 
-			auto glyphs_to_delete {static_cast<glyph_count_type>(
-				attribs_to_delete / _glyph_sizes[layer.idx]
-			)};
-			auto segment {layer.vis.ranges.wrapping_iterator(_render.segment_buffer.front())};
+			auto glyphs_to_delete {attrib_to_glyph_count(layer_idx, attribs_to_delete)};
+			auto segment          {layer.ranges.wrapping_iterator(_render.segment_buffer.front())};
 
-			while (true) {
+			for (
+				auto segment {layer.ranges.wrapping_iterator(_render.segment_buffer.front())};
+				&*segment != &layer.ranges[_render.segment_buffer.back()];
+				++segment
+			) {
 				// Find a segment belonging to this trajectory.
 				if (segment->trajectory == _id) {
 					// If the segment contains fewer glyphs than are to be deleted, remove all
@@ -1931,8 +1932,6 @@ void on_tube_vis::trajectory::trim_glyphs ()
 						break;
 					}
 				}
-
-				++segment;
 			}
 		}
 	});
@@ -1942,50 +1941,13 @@ bool on_tube_vis::trajectory::flush_glyph_attribs ()
 {
 	auto ok {true};
 
-	_render.foreach_active_glyph_layer([&](const render_state::glyph_layer &layer) {
-		ok &= _glyph_attribs[layer.idx].flush();
+	_render.foreach_active_glyph_layer([&](const auto layer_idx, const glyph_layer &layer) {
+		ok &= _glyph_attribs[layer_idx].flush();
 	});
 
 	return ok;
 }
 
-
-void on_tube_vis::render_state::extend_trajectories ()
-{
-	// Extend all trajectories based on the animation time, emulating streaming.
-	for (auto &streamer : trajectories) {
-		auto &[trajectory, node_idcs, segment_idx] = streamer;
-
-		// Add new nodes, and thereby new segments.
-		for (auto &i = node_idcs.begin; i < node_idcs.end; ++i, ++segment_idx) { // Mutating reference is intentional.
-			// Only add data up to the current playback time.
-			if (data->timestamps[i] > style.max_t) {
-				break;
-			}
-
-			// Add all glyphs on the new segment.
-			// While here they are added in batch just before the next node, the interface would also allow them to be
-			// added earlier and separately.
-			foreach_active_glyph_layer([&](glyph_layer layer) {
-				const auto data  {layer.source.attribs.data.begin()};
-				const auto size  {layer.source.attribs.count + 2};
-				const auto begin {layer.source.ranges[streamer.segment_idx].i0 * size};
-				const auto end   {layer.source.ranges[streamer.segment_idx].end() * size};
-
-				streamer.render_data.append_glyphs(layer.idx, ro_range{data + begin, data + end});
-			});
-
-			// Append a node, creating a new segment.
-			auto col = data->colors[i];
-			trajectory.append_segment({
-				{data->positions[i], data->radii[i]},
-				{col.R(), col.G(), col.B(), 1},
-				data->tangents[i],
-				{data->timestamps[i], 0, 0, 0}
-			});
-		}
-	}
-}
 
 void on_tube_vis::render_state::trim_trajectories ()
 {
@@ -2022,9 +1984,9 @@ void on_tube_vis::render_state::trim_trajectories ()
 		}
 
 		// Allow the glyphs on the removed segment to be overwritten.
-		foreach_active_glyph_layer([&](const glyph_layer &layer) {
-			const auto range = layer.vis.ranges[segment_buffer.front()];
-			trajectories[range.trajectory].render_data.drop_glyphs(layer.idx, range.n);
+		foreach_active_glyph_layer([&](const auto layer_idx, const glyph_layer &layer) {
+			const auto range = layer.ranges[segment_buffer.front()];
+			trajectories[range.trajectory].drop_glyphs(layer_idx, range.n);
 		});
 
 		// Remove the segment.
@@ -2066,7 +2028,7 @@ bool on_tube_vis::render_state::create_glyph_layer (
 
 	// Allocate the memory pool for glyph attributes that is shared between trajectories.
 	// The ring buffer implementation requires room for one additional glyph per trajectory.
-	auto ok {glyph_vis[layer].attribs.create(
+	auto ok {glyphs[layer].attribs.create(
 		num_trajectories,
 		(capacity.value + 1) * glyph_size * gpumem::memsize<float>,
 		alignof(float)
@@ -2074,16 +2036,16 @@ bool on_tube_vis::render_state::create_glyph_layer (
 
 	// Initialize each trajectory's glyph attribute buffer.
 	for (auto &trajectory : trajectories) {
-		auto &traj     {trajectory.render_data};
+		auto &traj     {trajectory};
 		const auto mem {traj.create_glyph_layer(layer, glyph_size, capacity)};
 
 		if (! mem.data()) {
 			return false;
 		}
 
-		// Store the allocated memory range as offsets into the GPU buffer for shader access.
+		// Store the allocated memory range as offsets into the GPU buffer for access in the shader.
 		const auto offset {static_cast<irange::index_type>(
-			mem.data() - reinterpret_cast<float*>(glyph_vis[layer].attribs.as_span().data())
+			mem.data() - reinterpret_cast<float*>(glyphs[layer].attribs.as_span().data())
 		)};
 
 		traj_glyph_mem[traj.id() * max_glyph_layers + layer] = {
@@ -2093,8 +2055,53 @@ bool on_tube_vis::render_state::create_glyph_layer (
 	}
 
 	// Allocate memory for each segment's glyph range.
-	return glyph_vis[layer].ranges.create(segment_buffer.as_span().length());
+	return glyphs[layer].ranges.create(segment_buffer.as_span().length());
 }
+
+
+void on_tube_vis::client::extend_trajectories ()
+{
+	// Extend all trajectories based on the animation time, emulating streaming.
+	for (auto &traj : trajectories) {
+		// Add new nodes, and thereby new segments.
+		for (
+			auto &node_idx = traj.node_idcs.begin;
+			node_idx < traj.node_idcs.end;
+			++node_idx, ++traj.segment_idx
+		) {
+			// Only add data up to the current playback time.
+			if (data->timestamps[node_idx] > render.style.max_t) {
+				break;
+			}
+
+			auto &render_traj {*render.try_get_trajectory(traj.id)};
+
+			// Append a node, potentially creating a new segment.
+			auto col = data->colors[node_idx];
+			render_traj.append_node({
+				{data->positions[node_idx], data->radii[node_idx]},
+				{col.R(), col.G(), col.B(), 1},
+				data->tangents[node_idx],
+				{data->timestamps[node_idx], 0, 0, 0}
+			});
+
+			// Add all glyphs on the next segment.
+			// While here they are added in batch just before the next node, the interface would also allow them to be
+			// added earlier and separately.
+			render.foreach_active_glyph_layer([&](const auto layer_idx, const glyph_layer &layer) {
+				const auto data  {glyphs[layer_idx].attribs.data.begin()};
+				const auto begin {glyphs[layer_idx].ranges[traj.segment_idx].i0};
+				const auto end   {glyphs[layer_idx].ranges[traj.segment_idx].end()};
+
+				render_traj.append_glyphs(layer_idx, ro_range{
+					data + render_traj.glyph_to_attrib_count(layer_idx, begin),
+					data + render_traj.glyph_to_attrib_count(layer_idx, end)
+				});
+			});
+		}
+	}
+}
+
 
 void on_tube_vis::init_frame (cgv::render::context &ctx)
 {
@@ -2153,19 +2160,19 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		// Add new data and delete old ones.
 		// Switching the order would not increase capacity, since the memory `trim_trajectories`
 		// reclaims cannot be reused until the last draw call has finished.
-		render.extend_trajectories();
+		client.extend_trajectories();
 		render.trim_trajectories();
 
 		// Make changes visible to the GPU.
 		for (auto &trajectory : render.trajectories) {
-			std::ignore = trajectory.render_data.flush_glyph_attribs();
+			std::ignore = trajectory.flush_glyph_attribs();
 		}
 
 		// Must be called before flushing the segment buffer.
 		auto new_segments = render.segment_buffer.flush_range();
 
-		render.foreach_active_glyph_layer([&](auto layer) {
-			std::ignore = layer.vis.ranges.flush_wrapping(new_segments);
+		render.foreach_active_glyph_layer([&](const auto layer_idx, const glyph_layer &layer) {
+			std::ignore = layer.ranges.flush_wrapping(new_segments);
 		});
 
 		std::ignore = render.node_buffer.flush();
@@ -2250,7 +2257,7 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 	{
 		taa.begin(ctx);
 
-		int debug_idx_count = static_cast<int>(render.data->indices.size());
+		int debug_idx_count = static_cast<int>(client.data->indices.size());
 		if(debug.limit_render_count)
 			debug_idx_count = static_cast<int>(2 * debug.render_count);
 
@@ -2401,7 +2408,7 @@ void on_tube_vis::create_gui(void)
 
 	if(begin_tree_node("Playback", playback, false)) {
 		align("\a");
-		const auto& [tmin, tmax] = render.data->t_minmax;
+		const auto& [tmin, tmax] = client.data->t_minmax;
 		const std::string tmin_str = std::to_string(tmin), tmax_str = std::to_string(tmax),
 			step_str = std::to_string((tmax - tmin) / 10000.f);
 
@@ -2425,7 +2432,7 @@ void on_tube_vis::create_gui(void)
 		add_member_control(this, "Follow Trajectory", playback.follow, "check", "tooltip='(Home) If enabled the view follows the trajectory.'");
 		add_member_control(
 			this, "Trajectory ID", playback.follow_traj, "value_slider",
-			"min=0;max=" + std::to_string(render.data->datasets[0].trajs.size() - 1) + ";step=1;ticks=true"
+			"min=0;max=" + std::to_string(client.data->datasets[0].trajs.size() - 1) + ";step=1;ticks=true"
 		);
 		align("\b");
 		end_tree_node(playback);
@@ -2636,15 +2643,15 @@ void on_tube_vis::set_view(void)
 void on_tube_vis::update_grid_ratios(void) {
 	auto& ctx = *get_context();
 
-	if (!render.data->datasets.empty())
-	{
+	if (! client.data->datasets.empty()) {
 		uint64_t num = 0;
 		double sum = 0;
-		for (const auto &ds : render.data->datasets)
-		{
+
+		for (const auto &ds : client.data->datasets) {
 			num += ds.irange.n;
 			sum += ds.irange.n * double(ds.irange.med_radius);
 		}
+
 		double mean_rad = sum / double(num);
 		// adjust by the current radius scale
 		mean_rad *= render.style.radius_scale;
@@ -2677,62 +2684,26 @@ void on_tube_vis::update_attribute_bindings(void) {
 		// update min/max timestamps
 		auto &[tmin, tmax] = render.style.data_t_minmax;
 		float pct = (render.style.max_t-tmin) / (tmax-tmin);
-		render.style.data_t_minmax = render.data->t_minmax;
+		render.style.data_t_minmax = client.data->t_minmax;
 		render.style.max_t = cgv::math::clamp(tmin + pct*(tmax-tmin), tmin, tmax);
 		playback.tstart = tmin;
 		playback.tend = tmax;
 		playback.follow_traj = std::min(
-			playback.follow_traj, (unsigned)render.data->datasets[0].trajs.size()-1
+			playback.follow_traj, (unsigned)client.data->datasets[0].trajs.size()-1
 		);
-
-		// Clear range and attribute buffers for glyph layers
-		for(size_t i = 0; i < render.aindex_sbos.size(); ++i)
-			render.aindex_sbos[i].destruct(ctx);
-		for(size_t i = 0; i < render.attribs_sbos.size(); ++i)
-			render.attribs_sbos[i].destruct(ctx);
-
-		render.aindex_sbos.clear();
-		render.aindex_sbos.resize(4);
-		render.attribs_sbos.clear();
-		render.attribs_sbos.resize(4);
 
 		// Recompute arclength parametrization
 		cgv::utils::stopwatch s(true);
 		std::cout << "Computing arclength parametrization... ";
 
-		render.arclen_sbo.destruct(ctx);
-		render.arclen_data = arclen::compute_parametrization(traj_mgr);
-		render.arclen_sbo = arclen::upload_renderdata(ctx, render.arclen_data.t_to_s);
+		client.arclen_data = arclen::compute_parametrization(traj_mgr);
 
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
 		s.restart();
 		std::cout << "Uploading vertex attributes... ";
 
-		// Upload render attributes
-		render.render_sbo.destruct(ctx);
-		// - compile data
-		const size_t num_nodes = render.data->positions.size();
-		std::vector<node_attribs> render_attribs; render_attribs.reserve(num_nodes);
-		for (size_t i=0; i<num_nodes; i++)
-		{
-			// convenience shortcut
-			const auto &col = render.data->colors[i];
-			// interleave and commit
-			render_attribs.emplace_back(node_attribs{
-				/* .pos_rad */  vec4(render.data->positions[i], render.data->radii[i]),
-				/* .color */    vec4(col.R(), col.G(), col.B(), 1),
-				/* .tangent */  render.data->tangents[i],  // <- does already contain radius deriv. in w-component
-				/* .t */        vec4(render.data->timestamps[i], 0, 0, 0)
-			});
-		}
-		// - upload
-		cgv::render::vertex_buffer new_sbo(cgv::render::VBT_STORAGE, cgv::render::VBU_STATIC_READ);
-		if (!new_sbo.create(ctx, render_attribs))
-			std::cerr << "!!! unable to create render attribute Storage Buffer Object !!!" << std::endl << std::endl;
-		render.render_sbo = std::move(new_sbo);
-
-		unsigned node_indices_count = (unsigned)render.data->indices.size();
+		unsigned node_indices_count = (unsigned)client.data->indices.size();
 		unsigned segment_count = node_indices_count / 2;
 
 		std::vector<unsigned> segment_indices(segment_count);
@@ -2743,11 +2714,11 @@ void on_tube_vis::update_attribute_bindings(void) {
 		// Upload render attributes to legacy buffers
 		auto &tstr = ref_textured_spline_tube_renderer(ctx);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
-		tstr.set_node_id_array(ctx, reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count, sizeof(uvec2));
+		tstr.set_node_id_array(ctx, reinterpret_cast<const uvec2*>(client.data->indices.data()), segment_count, sizeof(uvec2));
 		tstr.set_indices(ctx, segment_indices);
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
-		if(!render.sorter.init(ctx, render.data->indices.size() / 2))
+		if(!render.sorter.init(ctx, client.data->indices.size() / 2))
 			std::cout << "Could not initialize gpu sorter" << std::endl;
 
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
@@ -2758,7 +2729,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 		update_member(&debug.render_percentage);
 		update_member(&debug.render_count);
 
-		// Get the total number of trajectories across all datasets.
+		// Calculate the total number of trajectories across all datasets.
 		gpumem::size_type num_trajectories {0};
 
 		for (const auto &dataset : traj_mgr.datasets()) {
@@ -2766,7 +2737,6 @@ void on_tube_vis::update_attribute_bindings(void) {
 		}
 
 		// Allocate ring buffers.
-		// Currently uses the minimum capacity possible for demo data to test if wrap-around works.
 		if (!(
 			render.create_geom_buffers(num_trajectories * 4, num_trajectories)
 			&& render.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
@@ -2784,28 +2754,17 @@ void on_tube_vis::update_attribute_bindings(void) {
 				// Index of the first nodes.
 				auto i0 = trajectory.i0;
 
-				// Create the initial node.
-				auto col        = render.data->colors[i0];
-				auto start_node = node_attribs{
-					{render.data->positions[i0], render.data->radii[i0]},
-					{col.R(), col.G(), col.B(), 1},
-					render.data->tangents[i0],
-					{render.data->timestamps[i0], 0, 0, 0}
-				};
 				// Each trajectory has one fewer segment than nodes, so subtracting the number of
 				// preceding trajectories from the index of the first node yields the index of
 				// the first segment.
-				auto first_segment = trajectory.i0 - static_cast<unsigned>(render.trajectories.size());
+				auto first_segment =
+					trajectory.i0 - static_cast<unsigned>(render.trajectories.size());
 
 				// Construct the trajectory.
-				render.trajectories.push_back({
-					{
-						static_cast<trajectory_id>(render.trajectories.size()),
-						start_node,
-						render}
-					,
-					{trajectory.i0 + 1, trajectory.i0 + trajectory.n},
-					first_segment
+				client.trajectories.push_back({
+					{trajectory.i0, trajectory.i0 + trajectory.n},
+					first_segment,
+					render.add_trajectory().id()
 				});
 			}
 		}
@@ -2837,20 +2796,20 @@ void on_tube_vis::update_debug_attribute_bindings() {
 			nodes.early_transfer(ctx, ref_sphere_renderer(ctx));
 			segments.early_transfer(ctx, ref_cone_renderer(ctx));
 		} else {
-			const size_t num_nodes = render.data->positions.size();
+			const size_t num_nodes = client.data->positions.size();
 			for(size_t i = 0; i < num_nodes; i++) {
 				// convenience shortcut
-				const auto &col = render.data->colors[i];
+				const auto &col = client.data->colors[i];
 
-				nodes.add(render.data->positions[i], col, render.data->radii[i]);
-				segments.add_position(render.data->positions[i]);
-				segments.add_radius(radius_scale * render.data->radii[i]);
+				nodes.add(client.data->positions[i], col, client.data->radii[i]);
+				segments.add_position(client.data->positions[i]);
+				segments.add_radius(radius_scale * client.data->radii[i]);
 				segments.add_color(col);
 			}
 			// also use index buffer for nodes even though this means we render most nodes twice
 			// this is necessary for correct usage of the render count limit
-			nodes.indices = render.data->indices;
-			segments.indices = render.data->indices;
+			nodes.indices = client.data->indices;
+			segments.indices = client.data->indices;
 		}
 	}
 }
@@ -2864,11 +2823,11 @@ void on_tube_vis::calculate_bounding_box(void) {
 
 	if(traj_mgr.has_data()) {
 		// ensure render data
-		render.data = &(traj_mgr.get_render_data());
-		auto& positions = render.data->positions;
-		auto& tangents = render.data->tangents;
-		auto& radii = render.data->radii;
-		auto& indices = render.data->indices;
+		client.data = &(traj_mgr.get_render_data());
+		auto& positions = client.data->positions;
+		auto& tangents = client.data->tangents;
+		auto& radii = client.data->radii;
+		auto& indices = client.data->indices;
 
 		for(unsigned i = 0; i < indices.size(); i += 2) {
 			unsigned idx_a = indices[i + 0];
@@ -2924,10 +2883,10 @@ void on_tube_vis::create_density_volume(context& ctx, unsigned resolution) {
 		// prepare index buffer pointer
 		auto &tstr = ref_textured_spline_tube_renderer(ctx);
 		const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
-		if(node_idx_buffer_ptr && render.render_sbo.is_created())
-			density_volume.compute_density_volume_gpu(ctx, render.data, render.style.radius_scale, *node_idx_buffer_ptr, render.render_sbo, density_tex);
+		// if(node_idx_buffer_ptr)
+		// 	density_volume.compute_density_volume_gpu(ctx, client.data, render.style.radius_scale, *node_idx_buffer_ptr, client.render_sbo, density_tex);
 	} else {
-		density_volume.compute_density_volume(render.data, render.style.radius_scale);
+		density_volume.compute_density_volume(client.data, render.style.radius_scale);
 
 		std::vector<float>& density_data = density_volume.ref_voxel_grid().data;
 
@@ -3030,9 +2989,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// prepare index buffer pointer
 		const vertex_buffer* segment_idx_buffer_ptr = tstr.get_index_buffer_ptr(render.aam);
 
-		if(!render.render_sbo.is_created() ||
-			// !render.arclen_sbo.is_created() ||
-			segment_idx_buffer_ptr == nullptr ||
+		if(segment_idx_buffer_ptr == nullptr ||
 			node_idx_buffer_ptr == nullptr)
 			return;
 
@@ -3047,13 +3004,13 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		}
 
 		// sort the segment indices
-		if(debug.sort && do_sort && !debug.force_initial_order) {
-			// measure sort time
-			//render.sorter.begin_time_query();
-			render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, cyclopic_eye, view_dir, node_idx_buffer_ptr);
-			//benchmark.sort_time_total += render.sorter.end_time_query();
-			++benchmark.num_sorts;
-		}
+		// if(debug.sort && do_sort && !debug.force_initial_order) {
+		// 	// measure sort time
+		// 	//render.sorter.begin_time_query();
+		// 	render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, cyclopic_eye, view_dir, node_idx_buffer_ptr);
+		// 	//benchmark.sort_time_total += render.sorter.end_time_query();
+		// 	++benchmark.num_sorts;
+		// }
 
 		tstr.set_cyclopic_eye(cyclopic_eye);
 		tstr.set_view_dir(view_dir);
@@ -3061,7 +3018,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		tstr.set_render_style(render.style);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 
-		int count = static_cast<int>(render.data->indices.size() / 2);
+		int count = static_cast<int>(client.data->indices.size() / 2);
 		if(debug.limit_render_count) {
 			count = static_cast<int>(debug.render_count);
 		}
@@ -3212,10 +3169,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		bool active_sbos[4] = { false, false, false, false };
 		for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
 			if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
-				// const int attribs_handle = render.attribs_sbos[i].handle ? (const int&)render.attribs_sbos[i].handle - 1 : 0;
-				// const int aindex_handle = render.aindex_sbos[i].handle ? (const int&)render.aindex_sbos[i].handle - 1 : 0;
-				const auto attribs_handle {render.glyph_vis[i].attribs.as_span().handle()};
-				const auto aindex_handle  {render.glyph_vis[i].ranges.handle()};
+				const auto attribs_handle {render.glyphs[i].attribs.as_span().handle()};
+				const auto aindex_handle  {render.glyphs[i].ranges.handle()};
 				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 0, attribs_handle);
 				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 1, aindex_handle);
 			}
@@ -3241,7 +3196,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		// Ensure that there is enough memory for new glyphs.
 		for (auto &traj : render.trajectories) {
-			traj.render_data.trim_glyphs();
+			traj.trim_glyphs();
 		}
 
  		// Update the ring buffers' guard indices to match the new draw call.
@@ -3249,7 +3204,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		render.segment_buffer.set_gpu_front(render.segment_buffer.front());
 
 		for (auto &trajectory : render.trajectories) {
-			trajectory.render_data.frame_completed();
+			trajectory.frame_completed();
 		}
 
 		// Create a fence object to check when the new draw call has completed and the memory it was reading can be
