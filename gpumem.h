@@ -259,7 +259,6 @@ public:
 	/// Return the `alloc_ptr` subobject of `*this`.
 	[[nodiscard]] alloc_ptr &allocator () noexcept
 	{
-		assert(_allocator);
 		return *this;
 	}
 
