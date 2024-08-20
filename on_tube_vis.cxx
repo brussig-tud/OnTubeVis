@@ -3,6 +3,7 @@
 #include "on_tube_vis.h"
 
 // C++ STL
+#include <cassert>
 #include <filesystem>
 
 // CGV framework core
@@ -1253,7 +1254,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 						layer_idx,
 						client.glyphs[layer_idx].attribs.count + 2,
 						client.trajectories.size(),
-						glyph_count_type{3},
+						glyph_count_type{30},
 						glyph_count_type{15}
 					)) {
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
@@ -1848,7 +1849,7 @@ gpumem::span<const float> on_tube_vis::trajectory::create_glyph_layer (
 	return _glyph_attribs[layer].as_span().as_const();
 }
 
-void on_tube_vis::trajectory::append_node (const node_attribs &node)
+void on_tube_vis::trajectory::append_node (const node_attribs &node, const mat4 *t_to_s)
 {
 	const auto prev_node_idx {_last_node_idx};
 	// Add the node to the GPU buffer, storing the index at which it is placed.
@@ -1857,6 +1858,10 @@ void on_tube_vis::trajectory::append_node (const node_attribs &node)
 
 	// If this node is the first one on the trajectory, there is nothing more to do.
 	if (prev_node_idx == nil_node) {
+		assert(t_to_s == nullptr &&
+			"Arclength parametrization given for the first node, even though it does not create a "
+			"segment."
+		);
 		return;
 	}
 
@@ -1868,14 +1873,7 @@ void on_tube_vis::trajectory::append_node (const node_attribs &node)
 	});
 
 	// Store the segment's arclength parametrization at the corresponding index.
-	mat4 s_to_t;
-	arclen::parametrize_segment(
-		_render.node_buffer.as_span()[prev_node_idx],
-		node,
-		_arc_length,
-		_render.t_to_s[new_seg_idx],
-		s_to_t
-	);
+	_render.t_to_s[new_seg_idx] = *t_to_s;
 
 	_render.foreach_active_glyph_layer([&](const auto layer_idx, const glyph_layer &layer) {
 		const auto &attribs {_glyph_attribs[layer_idx]};
@@ -2067,7 +2065,7 @@ void on_tube_vis::client::extend_trajectories ()
 		for (
 			auto &node_idx = traj.node_idcs.begin;
 			node_idx < traj.node_idcs.end;
-			++node_idx, ++traj.segment_idx
+			++node_idx
 		) {
 			// Only add data up to the current playback time.
 			if (data->timestamps[node_idx] > render.style.max_t) {
@@ -2076,18 +2074,28 @@ void on_tube_vis::client::extend_trajectories ()
 
 			auto &render_traj {*render.try_get_trajectory(traj.id)};
 
+			// The first node of each trajectory does not create a segment, so the index should not
+			// be advanced.
+			const mat4 *t_to_s {nullptr};
+
+			if (render_traj._last_node_idx != trajectory::nil_node) {
+				t_to_s = &arclen_data.t_to_s[traj.segment_idx];
+				++traj.segment_idx;
+			}
+
 			// Append a node, potentially creating a new segment.
 			auto col = data->colors[node_idx];
-			render_traj.append_node({
-				{data->positions[node_idx], data->radii[node_idx]},
-				{col.R(), col.G(), col.B(), 1},
-				data->tangents[node_idx],
-				{data->timestamps[node_idx], 0, 0, 0}
-			});
+			render_traj.append_node(
+				{
+					{data->positions[node_idx], data->radii[node_idx]},
+					{col.R(), col.G(), col.B(), 1},
+					data->tangents[node_idx],
+					{data->timestamps[node_idx], 0, 0, 0}
+				},
+				t_to_s
+			);
 
 			// Add all glyphs on the next segment.
-			// While here they are added in batch just before the next node, the interface would also allow them to be
-			// added earlier and separately.
 			render.foreach_active_glyph_layer([&](const auto layer_idx, const glyph_layer &layer) {
 				const auto data  {glyphs[layer_idx].attribs.data.begin()};
 				const auto begin {glyphs[layer_idx].ranges[traj.segment_idx].i0};

@@ -447,7 +447,7 @@ protected:
 
 		/// Extend the trajectory by one node at the end, potentially creating a new segment.
 		/// Implements `otv__stream_spline_node`.
-		void append_node (const node_attribs &node);
+		void append_node (const node_attribs &node, const mat4 *t_to_s);
 
 		/// Add glyphs past the end of the trajectory that will appear on future segments.
 		/// Implements `otv__stream_glyph`.
