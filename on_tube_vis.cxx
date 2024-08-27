@@ -1852,16 +1852,13 @@ gpumem::span<const float> on_tube_vis::trajectory::create_glyph_layer (
 void on_tube_vis::trajectory::append_node (const node_attribs &node, const mat4 *t_to_s)
 {
 	const auto prev_node_idx {_last_node_idx};
+
 	// Add the node to the GPU buffer, storing the index at which it is placed.
 	_last_node_idx = _render.node_buffer.back();
 	_render.node_buffer.push_back(node);
 
 	// If this node is the first one on the trajectory, there is nothing more to do.
 	if (prev_node_idx == nil_node) {
-		assert(t_to_s == nullptr &&
-			"Arclength parametrization given for the first node, even though it does not create a "
-			"segment."
-		);
 		return;
 	}
 
@@ -1947,27 +1944,109 @@ bool on_tube_vis::trajectory::flush_glyph_attribs ()
 }
 
 
+void on_tube_vis::render_state::append_nodes ()
+{
+	// During the previous frame, `trim_trajectories` should have freed the configured amount of
+	// capacity.
+	assert(node_buffer.free_capacity() >= reserve_nodes);
+
+	// Check whether the GPU buffer can now fit all nodes that could not be pushed on the previous
+	// frame.
+	auto capacity {node_buffer.free_capacity() - reserve_nodes};
+
+	if (capacity < _node_queue.length()) {
+		// If not, discard the oldest nodes that don't fit.
+		// Since `trim_trajectories` makes room for the entire backlog, this can only happen when
+		// appending more nodes at once than the buffer's maximum capacity, in which case the
+		// previous call to `trim_trajectories` has cleared the entire buffer.
+		// Because of this, nodes can be safely discarded without the risk of creating wrong
+		// segments by skipping nodes.
+		assert(_node_queue.length() > node_buffer.capacity() && node_buffer.is_empty());
+		_node_queue.pop(_node_queue.length() - capacity);
+	}
+
+	// Push nodes to the GPU buffer, creating segments where applicable.
+	for (const auto &node : _node_queue) {
+		try_get_trajectory(node.trajectory)->append_node(node.node, &node.t_to_s);
+	}
+
+	// All nodes in the backlog have been processed, remove them from the queue and swap buffers.
+	_node_queue.clear();
+
+	// Push as many new nodes as fit into the GPU buffer.
+	// The rest will be added next frame, after old nodes have been deleted to make room.
+	const auto end {_node_queue.begin() + std::min(
+		_node_queue.length(),
+		static_cast<std::size_t>(node_buffer.free_capacity())
+	)};
+
+	for (auto node {_node_queue.begin()}; node != end; ++node) {
+		try_get_trajectory(node->trajectory)->append_node(node->node, &node->t_to_s);
+		_node_queue.pop();
+	}
+}
+
 void on_tube_vis::render_state::trim_trajectories ()
 {
-	// Constants marking elements whose segment has been deleted for removal.
+	// Timestamp marking nodes whose segment has been deleted.
 	constexpr auto unlinked_node {std::numeric_limits<float>::infinity()};
 
-	// Remove segments and their first nodes until the configured amount of node slots is vacant
-	// again.
-	auto vacant_nodes {node_buffer.capacity() - node_buffer.length()};
+	// Delete nodes and their associated segments until there is sufficient capacity for all new
+	// nodes that could not be pushed this frame plus the configured number of nodes reserved for
+	// next frame.
+	auto       free_capacity   {node_buffer.free_capacity()};
+	const auto target_capacity {std::min(
+		reserve_nodes + static_cast<gpumem::size_type>(_node_queue.length()),
+		node_buffer.capacity()
+	)};
 
-	while (vacant_nodes < reserve_nodes) {
+	while (free_capacity < target_capacity) {
 		// Draw calls are over a contiguous (except for wrap-around) range of segments, so segments
-		// need to be deleted in order.
+		// must be deleted in order.
 		auto *segment = segment_buffer.try_first();
 
-		// By construction, a segment's first node is always the older one.
-		auto &node = node_buffer.as_span()[segment->x()];
+		if (segment) {
+			// By construction, a segment's first node is always the older one.
+			auto &node = node_buffer.as_span()[segment->x()];
 
-		// Mark the node for deletion.
-		// NOTE: This could mean writing to storage currently read by a draw call, which is UB.
-		// Chances and severity of actual problems, however, are low, so this simple approach is used for now.
-		node.t[0] = unlinked_node;
+			// Mark the node for deletion.
+			// NOTE: This could mean writing to storage currently read by a draw call, which is UB.
+			// Chances and severity of actual problems, however, are low, so this simple approach is
+			// used for now.
+			node.t[0] = unlinked_node;
+
+			// Allow the glyphs on the removed segment to be overwritten.
+			foreach_active_glyph_layer([&](const auto layer_idx, const glyph_layer &layer) {
+				const auto range = layer.ranges[segment_buffer.front()];
+				trajectories[range.trajectory].drop_glyphs(layer_idx, range.n);
+			});
+
+			// Remove the segment.
+			segment_buffer.pop_front();
+		} else {
+			// If there are no more segments, yet the target capacity has not been reached, that
+			// means there must be nodes which do not belong to a segment because they are the only
+			// ones in their respective trajectories.
+			// There must be at least one such node, or we would have already reached our target
+			// capacity.
+			auto &node = *node_buffer.try_first();
+			// The node cannot have started a segment, or it would have been deleted already.
+			assert(node.t[0] != unlinked_node);
+
+			// Instead, the node has to be newest one on some trajectory.
+			const auto traj {std::find_if(trajectories.begin(), trajectories.end(), [&](auto &t) {
+				return t._last_node_idx == node_buffer.front();
+			})};
+			assert(traj != trajectories.end());
+
+			// Mark the trajectory as empty, so appending a new node will not create a segment with
+			// the deleted one.
+			traj->_last_node_idx = traj->nil_node;
+
+			// Remove the node.
+			node_buffer.pop_front();
+			++free_capacity;
+		}
 
 		// Remove all nodes no longer used by a segment from the front of the buffer.
 		// Depending on order, some unused nodes could be kept for now, but this is fine; they will
@@ -1978,17 +2057,8 @@ void on_tube_vis::render_state::trim_trajectories ()
 			}
 
 			node_buffer.pop_front();
-			++vacant_nodes;
+			++free_capacity;
 		}
-
-		// Allow the glyphs on the removed segment to be overwritten.
-		foreach_active_glyph_layer([&](const auto layer_idx, const glyph_layer &layer) {
-			const auto range = layer.ranges[segment_buffer.front()];
-			trajectories[range.trajectory].drop_glyphs(layer_idx, range.n);
-		});
-
-		// Remove the segment.
-		segment_buffer.pop_front();
 	}
 }
 
@@ -2057,7 +2127,7 @@ bool on_tube_vis::render_state::create_glyph_layer (
 }
 
 
-void on_tube_vis::client::extend_trajectories ()
+void on_tube_vis::client::update ()
 {
 	// Extend all trajectories based on the animation time, emulating streaming.
 	for (auto &traj : trajectories) {
@@ -2085,7 +2155,8 @@ void on_tube_vis::client::extend_trajectories ()
 
 			// Append a node, potentially creating a new segment.
 			auto col = data->colors[node_idx];
-			render_traj.append_node(
+			render.enqueue_node(
+				traj.id,
 				{
 					{data->positions[node_idx], data->radii[node_idx]},
 					{col.R(), col.G(), col.B(), 1},
@@ -2165,10 +2236,12 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		render.style.max_t = render.style.max_t + float((playback.time_active-prev)*playback.speed);
 		update_member(&render.style.max_t);
 
+		client.update();
+
 		// Add new data and delete old ones.
 		// Switching the order would not increase capacity, since the memory `trim_trajectories`
 		// reclaims cannot be reused until the last draw call has finished.
-		client.extend_trajectories();
+		render.append_nodes();
 		render.trim_trajectories();
 
 		// Make changes visible to the GPU.
@@ -2746,7 +2819,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 
 		// Allocate ring buffers.
 		if (!(
-			render.create_geom_buffers(num_trajectories * 4, num_trajectories)
+			render.create_geom_buffers(2 * num_trajectories - 1, num_trajectories)
 			&& render.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
 		)) {
 			throw std::runtime_error("Error creating GPU buffers.");
@@ -3192,6 +3265,24 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
+		for(size_t i = 0; i < 4; ++i) {
+			if(active_sbos[i]) {
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 0, 0);
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 1, 0);
+			}
+		}
+
+		fbc.disable_attachment(ctx, "albedo");
+		fbc.disable_attachment(ctx, "position");
+		fbc.disable_attachment(ctx, "normal");
+		fbc.disable_attachment(ctx, "tangent");
+		tex_depth.disable(ctx);
+		if(ao_style.enable)
+			density_tex.disable(ctx);
+		color_map_mgr.ref_texture().disable(ctx);
+
+		prog.disable(ctx);
+
 		// Wait for the previous draw call to complete.
 		auto wait_result = glClientWaitSync(render.draw_fence, 0, -1);
 		glDeleteSync(render.draw_fence);
@@ -3221,24 +3312,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		// Flush the command buffer.
 		glFlush();
-
-		for(size_t i = 0; i < 4; ++i) {
-			if(active_sbos[i]) {
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 0, 0);
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 1, 0);
-			}
-		}
-
-		fbc.disable_attachment(ctx, "albedo");
-		fbc.disable_attachment(ctx, "position");
-		fbc.disable_attachment(ctx, "normal");
-		fbc.disable_attachment(ctx, "tangent");
-		tex_depth.disable(ctx);
-		if(ao_style.enable)
-			density_tex.disable(ctx);
-		color_map_mgr.ref_texture().disable(ctx);
-
-		prog.disable(ctx);
 
 		if(playback.active)
 			post_redraw();

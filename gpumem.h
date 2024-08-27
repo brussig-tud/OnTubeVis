@@ -478,6 +478,13 @@ public:
 		return distance(_idcs.front, _idcs.back);
 	}
 
+	/// Calculate the number of elements that can be added right now, i.e. the number of slots that
+	/// are unused for both CPU and GPU.
+	[[nodiscard]] constexpr size_type free_capacity () const noexcept
+	{
+		return capacity() - distance(_idcs.gpu_front, _idcs.back);
+	}
+
 	/// Return a pointer to the first entry of the buffer, or `nullptr` if it is empty.
 	[[nodiscard]] constexpr elem_type *try_first () noexcept
 	{

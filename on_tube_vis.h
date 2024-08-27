@@ -37,6 +37,7 @@
 // local includes
 #include "traj_loader.h"
 #include "arclen_helper.h"
+#include "dbuf_queue.h"
 #include "demo.h" // interactive testbed helper classes and data
 #include "attrib_handle_manager.h"
 #include "voxelizer.h"
@@ -395,8 +396,6 @@ protected:
 		gpumem::index_type _last_node_idx {nil_node};
 		/// Uniquely identifies this trajectory.
 		const trajectory_id _id;
-		/// The arc length of the entire trajectory.
-		float _arc_length {0};
 		/// The number of 32-bit float values used to define one glyph instance on each layer.
 		per_layer<glyph_size_type> _glyph_sizes;
 
@@ -405,12 +404,6 @@ protected:
 		[[nodiscard]] constexpr trajectory_id id () const noexcept
 		{
 			return _id;
-		}
-
-		/// Return the total arc length of this trajectory.
-		[[nodiscard]] constexpr float arc_length () const noexcept
-		{
-			return _arc_length;
 		}
 
 		/// Return the number of 32-bit floats used to define each glyph per layer.
@@ -437,6 +430,7 @@ protected:
 			return num_glyphs.value * _glyph_sizes[layer];
 		}
 
+	protected:
 		/// Initialize a glyph layer to hold up to `capacity` glyphs of `glyph_size` floats each.
 		/// Return a read-only view of the allocated memory.
 		[[nodiscard]] gpumem::span<const float> create_glyph_layer (
@@ -457,7 +451,6 @@ protected:
 			_glyph_attribs[layer].push_back(data);
 		}
 
-	protected:
 		/// Create a new trajectory.
 		trajectory(trajectory_id id, render_state &render);
 
@@ -502,6 +495,7 @@ protected:
 
 	/// rendering state fields
 	struct render_state {
+	public:
 		/// render style for the textured spline tubes
 		textured_spline_tube_render_style style;
 
@@ -566,6 +560,15 @@ protected:
 			return id < trajectories.size() ? &trajectories[id] : nullptr;
 		}
 
+		/// Implements `otv__stream_spline_node`.
+		void enqueue_node (trajectory_id trajectory, const node_attribs &node, const mat4 *t_to_s)
+		{
+			_node_queue.push_back({node, t_to_s ? *t_to_s : mat4{}, trajectory});
+		}
+
+		/// Fill the GPU buffer with nodes from the queue, creating segments where applicable.
+		void append_nodes ();
+
 		/// Allow old data to be overwritten, such that at least `reserve_nodes` new nodes and
 		/// `reserve_glyphs` new glyphs per layer and trajectory can be added.
 		void trim_trajectories ();
@@ -601,6 +604,21 @@ protected:
 			glyph_count_type  glyphs_per_trajectory,
 			glyph_count_type  reserve_glyphs
 		);
+
+	private:
+		/// All information required to append a node to a trajectory.
+		struct new_node {
+			/// Attributes of the node itself.
+			node_attribs node;
+			/// Arclength parametrization of the segment completed by the node.
+			/// May be arbitrary if the node is first in its trajectory.
+			mat4 t_to_s;
+			/// Identifies the trajectory to which the node will be added.
+			trajectory_id trajectory;
+		};
+
+		/// Newly added nodes, for which geometry data should be created.
+		dbuf_queue<new_node> _node_queue;
 	} render;
 
 	/// Wrapper around a rendered trajectory that can be used to simulate streaming by gradually
@@ -656,7 +674,7 @@ protected:
 
 
 		/// Append all data points up to the current timestamp to their respective trajectory.
-		void extend_trajectories ();
+		void update ();
 	} client {render};
 
 	int render_gui_dummy = 0;
