@@ -48,7 +48,7 @@ find_package(OpenMP)
 # handle optional dependencies
 set(OPTIONAL_DEPENDENCIES "")
 if (CUDA_FOUND AND CUDAToolkit_FOUND)
-	set(ONTUBEVIS_CUDA_RESPREP_HOST_COMPILER "" CACHE FILEPATH 
+	set(ONTUBEVIS_CUDA_RESPREP_HOST_COMPILER "" CACHE FILEPATH
 		"The host compiler executable to use together with NVCC when preparing CUDA device code resources"
 	)
 	if (OptiX_INCLUDE AND NOT OptiX_INCLUDE STREQUAL "OptiX_INCLUDE-NOTFOUND")
@@ -89,6 +89,13 @@ set(SOURCES
 	arclength/bezier.cpp
 	arclength/hermite.cpp
 
+	# GPU-accessible memory.
+	gpumem/memory_pool.cxx
+
+	# Trajectory rendering.
+	render/state.cxx
+	render/trajectory.cxx
+
 	# main app
 	arclen_helper.cxx
 	attrib_handle_manager.cxx
@@ -107,6 +114,7 @@ set(SOURCES
 	regulargrid.cxx
 	sepia_handler.cxx
 	tasc_handler.cxx
+	test_client.cxx
 	textured_spline_tube_renderer.cxx
 	tgen_handler.cxx
 	traj_loader.cxx
@@ -123,12 +131,30 @@ set(HEADERS
 	3rd/peridetic/peridetic.h
 	# - Wgs84mercator geoid utility header-only library
 	3rd/wgs84mercator/WGS84toCartesian.hpp
-	
+
 	# arclength helpers
 	arclength/bezier.h
 	arclength/hermite.h
 	arclength/PolynomialRegression.h
 	arclength/v3.h
+
+	# GPU-accessible memory.
+	gpumem/alloc.h
+	gpumem/alloc.inl
+	gpumem/array.h
+	gpumem/array.inl
+	gpumem/common.h
+	gpumem/memory_pool.h
+	gpumem/memory_pool.inl
+	gpumem/ring_buffer.h
+	gpumem/ring_buffer.inl
+	gpumem/span.h
+	gpumem/span.inl
+
+	# Trajectory rendering.
+	render/common.h
+	render/state.h
+	render/trajectory.h
 
 	# main app
 	ambient_occlusion_style.h
@@ -148,8 +174,6 @@ set(HEADERS
 	glyph_compiler.h
 	glyph_layer_manager.h
 	glyph_shapes.h
-	gpumem.h
-	gpumem.inl
 	gui_util.h
 	hermite_spline_tube.h
 	layer_config_io.h
@@ -158,13 +182,14 @@ set(HEADERS
 	on_tube_vis.h
 	quadratic_bezier_tube.h
 	regulargrid.h
-	render_types.h
 	sepia_handler.h
 	tasc_handler.h
+	test_client.h
 	textured_spline_tube_renderer.h
 	tgen_handler.h
 	traj_loader.h
 	tellocsv_handler.h
+	util.h
 	voxel_grid.h
 	voxelizer.h
 )
@@ -224,7 +249,7 @@ cgv_add_target(OnTubeVis
 	DEPENDENCIES
 		glew json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui cgv_render
 		cgv_os cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d cgv_app cgv_post cgv_gpgpu
-		${OPTIONAL_DEPENDENCIES} 
+		${OPTIONAL_DEPENDENCIES}
 
 	LINKTIME_PLUGIN_DEPENDENCIES cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
 

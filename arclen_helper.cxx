@@ -52,60 +52,6 @@ struct curve_segment
 namespace arclen {
 
 template <class flt_type>
-void parametrize_segment(
-	const node_attribs &n0,
-	const node_attribs &n1,
-	/*inout*/ flt_type &traj_length,
-	/*out*/ cgv::mat4 &t_to_s,
-	/*out*/ cgv::mat4 &s_to_t
-) {
-	using real = flt_type;
-	using vec3 = cgv::math::fvec<real, 3>;
-
-	// Implementation adapted from `compute_parametrization`.
-
-	// Convert segment geometry from Hermite to Bézier curve.
-	const Bezier<real> b = Hermite<real>(
-		vec3(n0.pos_rad),
-		vec3(n1.pos_rad),
-		vec3(n0.tangent),
-		vec3(n1.tangent)
-	).to_bezier();
-
-	// Compute an approximate arc length mapping local to this segment.
-	const auto alen_approx = b.arc_length_bezier_approximation(4);
-	const auto inv_approx = b.parameterization_bezier_approximation(alen_approx);
-
-	// Write the curve parameters for each segment in the mapping into the corresponding column of the output variables.
-	for (unsigned j=0; j<4; j++)
-	{
-		// Helper values.
-		const real length_j = alen_approx.lengths[j+1] - alen_approx.lengths[j],
-		           length_jsum = traj_length + alen_approx.lengths[j],
-		           dt_j = inv_approx.t[j+1] - inv_approx.t[j],
-		           inv_approx_tj = inv_approx.t[j];
-
-		// The local arc length is offset by the total length of the trajectory to obtain the global arc length.
-		t_to_s(0, j) = length_jsum;
-		t_to_s(1, j) = length_jsum + alen_approx.y1[j]*length_j;
-		t_to_s(2, j) = length_jsum + alen_approx.y2[j]*length_j;
-		t_to_s(3, j) = traj_length + alen_approx.lengths[j+1];
-
-		// The curve parameter remains local.
-		s_to_t(0, j) = inv_approx_tj;
-		s_to_t(1, j) = inv_approx_tj + inv_approx.y1[j]*dt_j;
-		s_to_t(2, j) = inv_approx_tj + inv_approx.y2[j]*dt_j;
-		s_to_t(3, j) = inv_approx.t[j+1];
-	}
-
-	// Ensure that the maximum local arc length maps to exactly 1.
-	s_to_t(3, 3) = 1;
-
-	// Update the global trajectory length.
-	traj_length += alen_approx.totalLength;
-}
-
-template <class flt_type>
 parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 {
 	typedef flt_type real;
@@ -128,7 +74,7 @@ parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 			const auto &traj = dataset.trajs[traj_idx];
 			const unsigned idx_offset = dataset.irange.i0 + traj.i0,
 			               idx_n = idx_offset + traj.n;
-			// compute individual segment global (w.r.t. current trajectory) arclength approximation 
+			// compute individual segment global (w.r.t. current trajectory) arclength approximation
 			real length_sum = 0;
 			for (unsigned i=idx_offset, k=0; i<idx_n; i+=2, k++)
 			{
@@ -239,9 +185,6 @@ float eval (const cgv::mat4 &approx, float t)
 // Explicit template instantiations
 
 // Only float and double variants are intended
-template void parametrize_segment<float>(const node_attribs&, const node_attribs&, float&, cgv::mat4&, cgv::mat4&);
-template void parametrize_segment<double>(const node_attribs&, const node_attribs&, double&, cgv::mat4&, cgv::mat4&);
-
 template parametrization compute_parametrization<float>(const traj_manager<float>&);
 template parametrization compute_parametrization<double>(const traj_manager<double>&);
 

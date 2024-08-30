@@ -20,6 +20,7 @@ struct index_range {
 
 	index_type i0, n;
 
+	/// Calculate the index one past the last element in the range.
 	[[nodiscard]] constexpr index_type end () const noexcept
 	{
 		return i0 + n;
@@ -50,14 +51,16 @@ struct glyph_count_type {
 }
 
 
-/// Uniquely identifies trajectory instances.
-using trajectory_id = uint;
+/// Type used to identify glyph layers.
+using layer_index_type = uint8_t;
 
-/// A range of glyphs within a trajectory's sub-buffer.
-struct glyph_range {
-	glyph_count_type i0, n;
-	trajectory_id trajectory;
-};
+/// The maximum number of concurrent glyph layers supported by the implementation.
+/// NOTE: This value is still hard-coded in several places, particulary in shaders.
+static constexpr layer_index_type max_glyph_layers {4};
+
+/// Stores generic data specific to each glyph layer.
+template <class Elem>
+using per_layer = std::array<Elem, max_glyph_layers>;
 
 
 /// Type holding the number of 32-bit float attributes used to represent one glyph.

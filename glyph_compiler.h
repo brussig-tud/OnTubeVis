@@ -7,7 +7,7 @@
 #include "arclen_helper.h"
 #include "traj_loader.h"
 #include "glyph_layer_manager.h"
-#include "render_types.h"
+#include "render/common.h"
 
 
 
