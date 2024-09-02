@@ -78,9 +78,10 @@ void render_state::trim_trajectories ()
 			node.t[0] = unlinked_node;
 
 			// Allow the glyphs on the removed segment to be overwritten.
-			foreach_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
-				const auto range = layer.ranges[segment_buffer.front()];
-				trajectories[range.trajectory].drop_glyphs(layer_idx, range.n);
+			for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
+				const auto traj_id = seg_to_traj[segment_buffer.front()];
+				const auto range   = layer.ranges[segment_buffer.front()];
+				trajectories[traj_id].drop_glyphs(layer_idx, range.n);
 			});
 
 			// Remove the segment.
@@ -142,6 +143,7 @@ bool render_state::create_geom_buffers (
 	--capacity;
 
 	return segment_buffer.create(capacity)
+		&& seg_to_traj.create(capacity)
 		&& t_to_s.create(capacity);
 }
 

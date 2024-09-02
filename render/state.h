@@ -28,19 +28,12 @@ struct on_tube_visualization {
 };
 
 struct render_state {
-private:
-	/// A range of glyphs within a trajectory's sub-buffer.
-	struct glyph_range {
-		glyph_count_type i0, n;
-		trajectory::id_type trajectory;
-	};
-
 public:
 	/// GPU data required to render a glyph layer.
 	struct glyph_layer {
 		/// The range of glyphs on each segment, relative to the base index of the trajectory's
 		/// allocation.
-		gpumem::array<glyph_range> ranges {};
+		gpumem::array<index_range<glyph_count_type>> ranges {};
 		/// The actual glyph instances.
 		/// Conceptually, the element type of this buffer is `std::array<float, n>` for some layer-dependent n that can
 		/// only be known at runtime.
@@ -62,6 +55,10 @@ public:
 	/// GPU ring buffer containing trajectory segments defined as pairs of absolute indices into
 	/// #node_buffer.
 	gpumem::ring_buffer<cgv::uvec2> segment_buffer;
+
+	/// GPU buffer storing which trajectory each segment belongs to.
+	/// Entries correspond to #segment_buffer.
+	gpumem::array<uint> seg_to_traj;
 
 	/// GPU buffer containing segment-wise arclength parametrization.
 	/// Entries correspond to #segment_buffer.
@@ -131,7 +128,7 @@ public:
 	template <class Callback, class = std::enable_if_t<
 		std::is_invocable_v<Callback, layer_index_type, const glyph_layer&>>
 	>
-	void foreach_active_glyph_layer (Callback callback)
+	void for_each_active_glyph_layer (Callback callback)
 	{
 		for (layer_index_type idx = 0; idx < max_glyph_layers; ++idx) {
 			if (active_glyph_layers[idx]) {

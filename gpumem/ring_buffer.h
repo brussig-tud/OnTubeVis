@@ -72,7 +72,7 @@ public:
 	}
 
 	/// Return a view of the backing memory.
-	[[nodiscard]] constexpr const span<Elem> &as_span() const noexcept {
+	[[nodiscard]] constexpr const span<Elem> &as_span () const noexcept {
 		return _memory.as_span();
 	}
 

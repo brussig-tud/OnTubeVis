@@ -46,7 +46,7 @@ void test_client::update ()
 			);
 
 			// Add all glyphs on the next segment.
-			render.foreach_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
+			render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
 				const auto data  {glyphs[layer_idx].attribs.data.begin()};
 				const auto begin {glyphs[layer_idx].ranges[traj.segment_idx].i0};
 				const auto end   {glyphs[layer_idx].ranges[traj.segment_idx].end()};

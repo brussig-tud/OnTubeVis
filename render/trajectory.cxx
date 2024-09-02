@@ -62,18 +62,22 @@ void trajectory::append_node (const node_attribs &node, const cgv::mat4 *t_to_s)
 		static_cast<unsigned>(_last_node_idx)
 	});
 
+	// Mark the segment as belonging to the trajectory.
+	_render.seg_to_traj[new_seg_idx] = _id;
+
 	// Store the segment's arclength parametrization at the corresponding index.
 	_render.t_to_s[new_seg_idx] = *t_to_s;
 
-	_render.foreach_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
+	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
 		const auto &attribs {_glyph_attribs[layer_idx]};
 
 		// Set the range of glyphs for the newly created segment.
 		layer.ranges[new_seg_idx] = {
 			attrib_to_glyph_count(layer_idx, _first_attribs_on_seg[layer_idx]),
 			attrib_to_glyph_count(layer_idx, attribs.distance(
-				_first_attribs_on_seg[layer_idx], attribs.back())),
-			_id
+				_first_attribs_on_seg[layer_idx],
+				attribs.back()
+			))
 		};
 
 		// The next segment will continue where this one ends.
@@ -83,7 +87,7 @@ void trajectory::append_node (const node_attribs &node, const cgv::mat4 *t_to_s)
 
 void trajectory::trim_glyphs ()
 {
-	_render.foreach_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
+	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
 		auto       &attribs      {_glyph_attribs[layer_idx]};
 		const auto capacity      {attribs.as_span().length() - _glyph_sizes[layer_idx]};
 		const auto free_capacity {capacity - attribs.length()};
@@ -97,26 +101,29 @@ void trajectory::trim_glyphs ()
 			attribs.pop_front(attribs_to_delete);
 
 			auto glyphs_to_delete {attrib_to_glyph_count(layer_idx, attribs_to_delete)};
-			auto segment          {layer.ranges.wrapping_iterator(_render.segment_buffer.front())};
 
 			for (
-				auto segment {layer.ranges.wrapping_iterator(_render.segment_buffer.front())};
-				&*segment != &layer.ranges[_render.segment_buffer.back()];
+				auto segment {_render.seg_to_traj.wrapping_iterator(
+					_render.segment_buffer.front()
+				)};
+				&*segment != &_render.seg_to_traj[_render.segment_buffer.back()];
 				++segment
 			) {
 				// Find a segment belonging to this trajectory.
-				if (segment->trajectory == _id) {
+				if (*segment == _id) {
+					auto &range = layer.ranges[segment.index()];
+
 					// If the segment contains fewer glyphs than are to be deleted, remove all
 					// glyphs from the segment and search for the next one.
-					if (segment->n.value < glyphs_to_delete.value) {
-						glyphs_to_delete.value -= segment->n.value;
-						segment->n              = glyph_count_type{0};
+					if (range.n.value < glyphs_to_delete.value) {
+						glyphs_to_delete.value -= range.n.value;
+						range.n                 = glyph_count_type{0};
 					}
 					// Otherwise remove only as many glyphs as required from the front of the
 					// segment and exit the loop.
 					else {
-						segment->i0.value += glyphs_to_delete.value;
-						segment->n.value  -= glyphs_to_delete.value;
+						range.i0.value += glyphs_to_delete.value;
+						range.n.value  -= glyphs_to_delete.value;
 						break;
 					}
 				}
@@ -129,7 +136,7 @@ bool trajectory::flush_glyph_attribs ()
 {
 	auto ok {true};
 
-	_render.foreach_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
+	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
 		ok &= _glyph_attribs[layer_idx].flush();
 	});
 
@@ -138,7 +145,7 @@ bool trajectory::flush_glyph_attribs ()
 
 void trajectory::frame_completed ()
 {
-	_render.foreach_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
+	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
 		_glyph_attribs[layer_idx].set_gpu_front(_glyph_attribs[layer_idx].front());
 	});
 }

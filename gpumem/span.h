@@ -44,6 +44,13 @@ public:
 			return *_elem;
 		}
 
+		/// Calculate the index of the element at the current position, i.e. the iterator's offset
+		/// from the begin of the span.
+		[[nodiscard]] constexpr index_type index () const noexcept
+		{
+			return _elem - _span._data;
+		}
+
 		/// Advance the iterator by one element.
 		constexpr wrapping_iterator_type &operator++ () noexcept;
 	};

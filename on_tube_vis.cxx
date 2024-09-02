@@ -1884,11 +1884,12 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		// Must be called before flushing the segment buffer.
 		auto new_segments = render.segment_buffer.flush_range();
 
-		render.foreach_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
+		render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
 			std::ignore = layer.ranges.flush_wrapping(new_segments);
 		});
 
 		std::ignore = render.node_buffer.flush();
+		std::ignore = render.seg_to_traj.flush_wrapping(new_segments);
 		std::ignore = render.t_to_s.flush_wrapping(new_segments);
 		std::ignore = render.segment_buffer.flush();
 
@@ -2889,10 +2890,15 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			}
 		}
 
-		glBindBufferBase(
+		std::array extra_buffers {
+			render.seg_to_traj.as_span().handle(),
+			render.traj_glyph_mem.handle()
+		};
+		glBindBuffersBase(
 			GL_SHADER_STORAGE_BUFFER,
 			max_glyph_layers * 2,
-			render.traj_glyph_mem.handle()
+			extra_buffers.size(),
+			extra_buffers.data()
 		);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -2903,6 +2909,14 @@ void on_tube_vis::draw_trajectories(context& ctx)
 				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 1, 0);
 			}
 		}
+
+		std::fill(extra_buffers.begin(), extra_buffers.end(), 0);
+		glBindBuffersBase(
+			GL_SHADER_STORAGE_BUFFER,
+			max_glyph_layers * 2,
+			extra_buffers.size(),
+			extra_buffers.data()
+		);
 
 		fbc.disable_attachment(ctx, "albedo");
 		fbc.disable_attachment(ctx, "position");

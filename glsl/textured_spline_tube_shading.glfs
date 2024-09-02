@@ -112,17 +112,6 @@ struct irange {
 /// Defined as a macro since GLSL does not support alias types.
 #define TRAJECTORY_ID_T uint
 
-/// A range relative to a trajectory's sub-buffer.
-struct relative_range {
-	irange range;
-	TRAJECTORY_ID_T trajectory;
-};
-
-/// See `get_traj_glyph_mem`.
-layout (binding = max_glyph_layers * 2) readonly buffer traj_glyph_mem_buffer {
-	irange traj_glyph_mem[];
-};
-
 // attribute and range buffers for each glyph layer
 // free attributes ssbos
 // free attributes per-segment index ranges
@@ -136,8 +125,18 @@ layout (std430, binding=B0) readonly buffer attribs_buffer##I { \
 	glyph_desc##I glyphs##I[]; \
 }; \
 layout (std430, binding=B1) readonly buffer ranges_buffer##I { \
-	relative_range ranges##I[]; \
+	irange ranges##I[]; \
 }; \
+
+/// Buffer storing which trajectory each segment belongs to.
+layout (binding = max_glyph_layers * 2) readonly buffer seg_to_traj_buffer {
+	TRAJECTORY_ID_T seg_to_traj[];
+};
+
+/// See `get_traj_glyph_mem`.
+layout (binding = max_glyph_layers * 2 + 1) readonly buffer traj_glyph_mem_buffer {
+	irange traj_glyph_mem[];
+};
 
 /// Look up what range of a layer's attribute buffer that has been allocated for `trajectory`.
 irange get_traj_glyph_mem (in TRAJECTORY_ID_T trajectory, in uint layer)
@@ -160,8 +159,8 @@ struct closest_glyphs_info {
 
 #define DEF_CLOSEST_SAMPLES(I, ranges, glyphs) \
 bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info closest) { \
-	const irange          segment = ranges[segid].range; \
-	const TRAJECTORY_ID_T traj    = ranges[segid].trajectory; \
+	const irange          segment = ranges[segid]; \
+	const TRAJECTORY_ID_T traj    = seg_to_traj[segid]; \
 	if (segment.n > 0) { \
 		irange rng = segment; \
 		while (rng.n > 1) { \
