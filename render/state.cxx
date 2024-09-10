@@ -33,7 +33,7 @@ void render_state::append_nodes ()
 	}
 
 	// All nodes in the backlog have been processed, remove them from the queue and swap buffers.
-	_node_queue.clear();
+	_node_queue.flush();
 
 	// Push as many new nodes as fit into the GPU buffer.
 	// The rest will be added next frame, after old nodes have been deleted to make room.
@@ -151,25 +151,21 @@ bool render_state::create_glyph_layer (
 	layer_index_type  layer,
 	glyph_size_type   glyph_size,
 	gpumem::size_type num_trajectories,
-	glyph_count_type  glyphs_per_trajectory,
-	glyph_count_type  reserve_glyphs
+	glyph_count_type  glyphs_per_trajectory
 ) {
-	reserve_glyph_attribs = reserve_glyphs.value * glyph_size;
-
-	const glyph_count_type capacity {glyphs_per_trajectory.value + reserve_glyphs.value};
 
 	// Allocate the memory pool for glyph attributes that is shared between trajectories.
 	// The ring buffer implementation requires room for one additional glyph per trajectory.
 	auto ok {glyphs[layer].attribs.create(
 		num_trajectories,
-		(capacity.value + 1) * glyph_size * gpumem::memsize<float>,
+		(glyphs_per_trajectory.value + 1) * glyph_size * gpumem::memsize<float>,
 		alignof(float)
 	)};
 
 	// Initialize each trajectory's glyph attribute buffer.
 	for (auto &trajectory : trajectories) {
 		auto &traj     {trajectory};
-		const auto mem {traj.create_glyph_layer(layer, glyph_size, capacity)};
+		const auto mem {traj.create_glyph_layer(layer, glyph_size, glyphs_per_trajectory)};
 
 		if (! mem.data()) {
 			return false;

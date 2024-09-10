@@ -89,10 +89,6 @@ public:
 	/// `trim_trajectories`, and thus the maximum number of nodes that can be added each frame
 	/// without waiting for draw calls.
 	gpumem::size_type reserve_nodes {0};
-	/// The minimum number of glyph slots per layer and trajectory that will be vacant after
-	/// each call to `trim_trajectories`, and thus the maximum number of glyphs that can be
-	/// added each frame without waiting for draw calls.
-	gpumem::size_type reserve_glyph_attribs {0};
 
 	/// Stores which glyph layers are updated and rendered.
 	std::bitset<max_glyph_layers> active_glyph_layers = 0;
@@ -120,8 +116,8 @@ public:
 	/// Fill the GPU buffer with nodes from the queue, creating segments where applicable.
 	void append_nodes ();
 
-	/// Allow old data to be overwritten, such that at least `reserve_nodes` new nodes and
-	/// `reserve_glyphs` new glyphs per layer and trajectory can be added.
+	/// Logically delete old nodes until the render buffer has capcity for at least `reserve_nodes`
+	/// new nodes as well as any nodes that could not be added this frame.
 	void trim_trajectories ();
 
 	/// Execute a callback for every active glyph layer.
@@ -146,14 +142,11 @@ public:
 
 	/// Initialize a layer's glyph attribute containers with sufficient memory to hold the
 	/// requested number of glyphs.
-	/// Each trajectory will maintain unused memory such that up to `reserve_glyphs` glyphs can
-	/// be added each frame without waiting for the previous draw call.
 	[[nodiscard]] bool create_glyph_layer (
 		layer_index_type  layer,
 		glyph_size_type   glyph_size,
 		gpumem::size_type num_trajectories,
-		glyph_count_type  glyphs_per_trajectory,
-		glyph_count_type  reserve_glyphs
+		glyph_count_type  glyphs_per_trajectory
 	);
 
 private:

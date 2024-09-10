@@ -42,13 +42,39 @@ struct glyph_count_type {
 	[[nodiscard]] constexpr explicit glyph_count_type(base_type value) noexcept
 		: value {value}
 	{}
-};
 
-[[nodiscard]] constexpr glyph_count_type operator+ (glyph_count_type lhs, glyph_count_type rhs)
-	noexcept
-{
-	return glyph_count_type{lhs.value + rhs.value};
-}
+// Implement operators by applying them to the raw value.
+#define OTV_GLYPH_COUNT_BINARY_OP(op, result_type) \
+	[[nodiscard]] friend constexpr result_type operator op ( \
+		glyph_count_type lhs, \
+		glyph_count_type rhs \
+	) noexcept { \
+		return result_type{lhs.value op rhs.value}; \
+	}
+
+OTV_GLYPH_COUNT_BINARY_OP(+, glyph_count_type);
+OTV_GLYPH_COUNT_BINARY_OP(-, glyph_count_type);
+OTV_GLYPH_COUNT_BINARY_OP(==, bool);
+OTV_GLYPH_COUNT_BINARY_OP(!=, bool);
+OTV_GLYPH_COUNT_BINARY_OP(<, bool);
+OTV_GLYPH_COUNT_BINARY_OP(<=, bool);
+OTV_GLYPH_COUNT_BINARY_OP(>, bool);
+OTV_GLYPH_COUNT_BINARY_OP(>=, bool);
+
+#undef OTV_GLYPH_COUNT_BIN_OP
+
+#define OTV_GLYPH_COUNT_ASSIGN_OP(op) \
+	glyph_count_type &operator op (glyph_count_type rhs) noexcept { \
+		value op rhs.value; \
+		return *this; \
+	}
+
+OTV_GLYPH_COUNT_ASSIGN_OP(+=);
+OTV_GLYPH_COUNT_ASSIGN_OP(-=);
+
+#undef OTV_GLYPH_COUNT_ASSIGN_OP
+
+};
 
 
 /// Type used to identify glyph layers.

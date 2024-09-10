@@ -14,32 +14,32 @@ trajectory::trajectory(id_type id, render_state &render)
 	// All glyph layers are initially inactive with no attribute memory.
 	// If a layer is activated later on (`create_glyph_layer`), an attribute buffer is allocated
 	// from that layer's pool.
-	for (layer_index_type layer {0}; layer < max_glyph_layers; ++layer) {
-		_glyph_attribs[layer]        = gpumem::memory_pool_ptr{_render.glyphs[layer].attribs};
-		_first_attribs_on_seg[layer] = 0;
+	for (layer_index_type i {0}; i < max_glyph_layers; ++i) {
+		_layers[i].glyph_attribs = gpumem::memory_pool_ptr{_render.glyphs[i].attribs};
 	}
 }
 
 gpumem::span<const float> trajectory::create_glyph_layer (
-	layer_index_type layer,
+	layer_index_type layer_idx,
 	glyph_size_type  glyph_size,
 	glyph_count_type capacity
 ) {
-	_glyph_sizes[layer] = glyph_size;
+	_glyph_sizes[layer_idx] = glyph_size;
 
 	// The ring buffer requires backing memory for one additional element, but its length in floats
 	// must be a multiple of `glyph_size` to prevent glyphs from being split by wrap-around.
 	// Therefore, request memmory for one additional glyph, minus the single float automatically
 	// added by `ring_buffer`.
-	++capacity.value;
+	capacity += glyph_count_type{1};
 
-	if (! _glyph_attribs[layer].create(glyph_to_attrib_count(layer, capacity) - 1))  {
+	auto &layer {_layers[layer_idx]};
+
+	// Try to allocate memory for the layer's glyph attributes.
+	if (! layer.glyph_attribs.create(glyph_to_attrib_count(layer_idx, capacity) - 1)) {
 		return {};
 	}
 
-	// Store the beginning of the first range.
-	_first_attribs_on_seg[layer] = _glyph_attribs[layer].back();
-	return _glyph_attribs[layer].as_span().as_const();
+	return layer.glyph_attribs.as_span().as_const();
 }
 
 void trajectory::append_node (const node_attribs &node, const cgv::mat4 *t_to_s)
@@ -51,7 +51,7 @@ void trajectory::append_node (const node_attribs &node, const cgv::mat4 *t_to_s)
 	_render.node_buffer.push_back(node);
 
 	// If this node is the first one on the trajectory, there is nothing more to do.
-	if (prev_node_idx == nil_node) {
+	if (prev_node_idx == nil) {
 		return;
 	}
 
@@ -68,68 +68,204 @@ void trajectory::append_node (const node_attribs &node, const cgv::mat4 *t_to_s)
 	// Store the segment's arclength parametrization at the corresponding index.
 	_render.t_to_s[new_seg_idx] = *t_to_s;
 
-	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
-		const auto &attribs {_glyph_attribs[layer_idx]};
+	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer) {
+		// Initialize the number of glyphs on the segment to zero.
+		shared_layer.ranges[new_seg_idx].n = glyph_count_type{0};
 
-		// Set the range of glyphs for the newly created segment.
-		layer.ranges[new_seg_idx] = {
-			attrib_to_glyph_count(layer_idx, _first_attribs_on_seg[layer_idx]),
-			attrib_to_glyph_count(layer_idx, attribs.distance(
-				_first_attribs_on_seg[layer_idx],
-				attribs.back()
-			))
-		};
+		// If this segment is the first one to be added after a glyph layer was created, that layer
+		// may now add glyphs starting at the new segment.
+		auto &layer {_layers[layer_idx]};
 
-		// The next segment will continue where this one ends.
-		_first_attribs_on_seg[layer_idx] = attribs.back();
+		if (layer.last_glyph_seg == nil) {
+			layer.last_glyph_seg = new_seg_idx;
+		}
+	});
+}
+
+void trajectory::append_glyphs ()
+{
+	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer) {
+		auto &layer {_layers[layer_idx]};
+
+		// If there are no new attributes, all that has to be done is to prepare the queue for the
+		// next frame.
+		if (layer.attrib_queue.length() == 0) {
+			layer.attrib_queue.flush();
+			return;
+		}
+
+		// If there is no segment yet, keep buffering glpyhs until a segment is created.
+		auto seg_idx {layer.last_glyph_seg};
+
+		if (seg_idx == nil) {
+			return;
+		}
+
+		// Check whether the GPU buffer can fit all glyphs in the read buffer.
+		auto const capacity {layer.glyph_attribs.free_capacity()};
+
+		if (capacity < layer.attrib_queue.length()) {
+			// If not, discard the oldest nodes that don't fit.
+			// Since `trim_glyphs` attempts to make room for all glyphs in the buffer, this can only
+			// happen if there are more glyphs at once than the entire buffer can hold.
+			assert(
+				layer.attrib_queue.length() > layer.glyph_attribs.capacity()
+				&& layer.glyph_attribs.is_empty()
+			);
+			layer.attrib_queue.pop(layer.attrib_queue.length() - capacity);
+		}
+
+		// Iterate over all segments, starting at the one holding the last glyph.
+		auto seg_to_traj {_render.seg_to_traj.as_span().wrapping_iterator(seg_idx)};
+
+		while (true) {
+			// Retreive the arclength range of the current segment.
+			const auto &t_to_s    {_render.t_to_s[seg_idx]};
+			const auto min_arclen {t_to_s[0]};
+			const auto max_arclen {t_to_s[15]};
+
+			// Skip glyphs that lie before the current segment.
+			auto first_glyph {layer.attrib_queue.begin()};
+
+			while (true) {
+				if (first_glyph == layer.attrib_queue.end()) {
+					// All glyphs are too old, nothing more to do.
+					layer.attrib_queue.flush();
+					return;
+				} else if (*first_glyph >= min_arclen) {
+					// Found a glyph on the segment.
+					break;
+				}
+
+				first_glyph += _glyph_sizes[layer_idx];
+			}
+
+			// Now that the first glyph on the segment is known, find the last one as well.
+			// Count the number of glyphs alongside.
+			ro_range         seg_attribs {first_glyph, first_glyph};
+			glyph_count_type num_glyphs  {0};
+
+			while (seg_attribs.end != layer.attrib_queue.end() && *seg_attribs.end <= max_arclen) {
+				seg_attribs.end += _glyph_sizes[layer_idx];
+				num_glyphs += glyph_count_type{1};
+			}
+
+			// Update the glyph range for the current segment.
+			auto &range {shared_layer.ranges[seg_idx]};
+
+			if (range.n == glyph_count_type{0}) {
+				range.i0 = attrib_to_glyph_count(layer_idx, layer.glyph_attribs.back());
+			}
+
+			range.n += num_glyphs;
+
+			// Move attributes from queue to render buffer.
+			layer.glyph_attribs.push_back(seg_attribs);
+			layer.attrib_queue.pop(seg_attribs.length());
+
+			// The new latest glyph is on the current segment.
+			layer.last_glyph_seg = seg_idx;
+
+			// If the queue is empty, we are done.
+			if (layer.attrib_queue.length() == 0){
+				layer.attrib_queue.flush();
+				break;
+			}
+
+			// Otherwise find the next segment belonging to this trajectory.
+			while (true) {
+				++seg_to_traj;
+
+				if (seg_to_traj.index() == _render.segment_buffer.back()) {
+					// All segments have been checked, the remaining glyphs will be placed on future
+					// segments.
+					return;
+				} else if (*seg_to_traj == _id) {
+					break;
+				}
+			}
+
+			seg_idx = seg_to_traj.index();
+		}
 	});
 }
 
 void trajectory::trim_glyphs ()
 {
-	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
-		auto       &attribs      {_glyph_attribs[layer_idx]};
-		const auto capacity      {attribs.as_span().length() - _glyph_sizes[layer_idx]};
-		const auto free_capacity {capacity - attribs.length()};
+	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer) {
+		auto &layer {_layers[layer_idx]};
 
-		auto reserve_attribs = std::min(_render.reserve_glyph_attribs, capacity);
+		// For wrap-around to work, the attribute buffer has capacity for one additional glyph minus
+		// one attribute, which is automatically added by the ring buffer implementation.
+		// This partial padding glyph is subtracted so that all calculations are done for complete
+		// glyphs.
+		auto free_capacity {
+			layer.glyph_attribs.free_capacity() - _glyph_sizes[layer_idx] + 1
+		};
+		const auto target_capacity {std::min(
+			static_cast<gpumem::size_type>(layer.attrib_queue.length()),
+			layer.glyph_attribs.capacity() - _glyph_sizes[layer_idx] + 1
+		)};
+		assert(free_capacity >= 0 && target_capacity >= 0);
 
-		// If the glyph buffer's remaining capacity is lower than configured, delete as many glyphs
-		// as necessary and update glyph ranges to no longer reference them.
-		if (free_capacity < reserve_attribs) {
-			const auto attribs_to_delete {reserve_attribs - free_capacity};
-			attribs.pop_front(attribs_to_delete);
+		// Nothing to do if the remaining capacity is already sufficient.
+		if (free_capacity >= target_capacity) {
+			return;
+		}
 
-			auto glyphs_to_delete {attrib_to_glyph_count(layer_idx, attribs_to_delete)};
+		// Logically delete the glyphs.
+		layer.glyph_attribs.pop_front(target_capacity - free_capacity);
 
-			for (
-				auto segment {_render.seg_to_traj.wrapping_iterator(
-					_render.segment_buffer.front()
-				)};
-				&*segment != &_render.seg_to_traj[_render.segment_buffer.back()];
-				++segment
-			) {
-				// Find a segment belonging to this trajectory.
-				if (*segment == _id) {
-					auto &range = layer.ranges[segment.index()];
+		// Calculate the index of the oldest remaining glyph.
+		const auto oldest_glyph_idx {attrib_to_glyph_count(layer_idx, layer.glyph_attribs.front())};
+		const auto buffer_size {
+			attrib_to_glyph_count(layer_idx, layer.glyph_attribs.as_span().length())
+		};
 
-					// If the segment contains fewer glyphs than are to be deleted, remove all
-					// glyphs from the segment and search for the next one.
-					if (range.n.value < glyphs_to_delete.value) {
-						glyphs_to_delete.value -= range.n.value;
-						range.n                 = glyph_count_type{0};
-					}
-					// Otherwise remove only as many glyphs as required from the front of the
-					// segment and exit the loop.
-					else {
-						range.i0.value += glyphs_to_delete.value;
-						range.n.value  -= glyphs_to_delete.value;
-						break;
-					}
-				}
+		// Remove the deleted glyphs from any segment ranges that reference them.
+		for (
+			auto segment {_render.seg_to_traj.wrapping_iterator(
+				_render.segment_buffer.front()
+			)};
+			&*segment != &_render.seg_to_traj[_render.segment_buffer.back()];
+			++segment
+		) {
+			// Only consider segments belonging to this trajectory.
+			if (*segment != _id) {
+				continue;
+			}
+
+			auto &range = shared_layer.ranges[segment.index()];
+
+			// Calculate the index of the oldest remaining glyph relative to the segment, accounting
+			// for wrap-around.
+			const auto offset {oldest_glyph_idx >= range.i0
+				? oldest_glyph_idx - range.i0
+				: oldest_glyph_idx + buffer_size - range.i0
+			};
+
+			if (offset < range.n) {
+				// If the current segment contains the oldest glyph, remove all preceding glyphs
+				// from its range.
+				range.i0 += offset;
+				range.n  -= offset;
+				break;
+			} else {
+				// If the oldest remaining glyph has not been found yet, the current segment must
+				// be earlier, so all of its glyphs have been deleted.
+				range.n = glyph_count_type{0};
 			}
 		}
 	});
+}
+
+void trajectory::mark_empty () noexcept
+{
+	_last_node_idx = nil;
+
+	for (auto &layer : _layers) {
+		layer.last_glyph_seg = nil;
+	}
 }
 
 bool trajectory::flush_glyph_attribs ()
@@ -137,7 +273,7 @@ bool trajectory::flush_glyph_attribs ()
 	auto ok {true};
 
 	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
-		ok &= _glyph_attribs[layer_idx].flush();
+		ok &= _layers[layer_idx].glyph_attribs.flush();
 	});
 
 	return ok;
@@ -146,7 +282,8 @@ bool trajectory::flush_glyph_attribs ()
 void trajectory::frame_completed ()
 {
 	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
-		_glyph_attribs[layer_idx].set_gpu_front(_glyph_attribs[layer_idx].front());
+		auto &attribs {_layers[layer_idx].glyph_attribs};
+		attribs.set_gpu_front(attribs.front());
 	});
 }
 

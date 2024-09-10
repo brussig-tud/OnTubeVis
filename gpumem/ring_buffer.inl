@@ -93,7 +93,7 @@ void ring_buffer<Elem, Alloc>::push_back (ro_range<Iter> elems)
 template <class Elem, class Alloc>
 void ring_buffer<Elem, Alloc>::pop_front (size_type num_elems) noexcept
 {
-	assert(num_elems <= length());
+	assert(num_elems >= 0 && num_elems <= length());
 	_idcs.front = index_after(_idcs.front, num_elems);
 }
 

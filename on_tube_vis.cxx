@@ -1256,8 +1256,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 						layer_idx,
 						client.glyphs[layer_idx].attribs.count + 2,
 						client.trajectories.size(),
-						glyph_count_type{30},
-						glyph_count_type{15}
+						glyph_count_type{30}
 					)) {
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
 					}
@@ -1870,28 +1869,29 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 
 		client.update();
 
-		// Add new data and delete old ones.
-		// Switching the order would not increase capacity, since the memory `trim_trajectories`
-		// reclaims cannot be reused until the last draw call has finished.
+		// Upload nodes and glyphs from their repective host queues to the corresponding render
+		// buffers, then remove old entries from those render buffers.
+		// Finally, new entries are flushed to the GPU.
+		// Removed data may still be in use by the previous frame's draw calls, so memory may not be
+		// reused until its draw fence has been reached.,
 		render.append_nodes();
 		render.trim_trajectories();
 
-		// Make changes visible to the GPU.
 		for (auto &trajectory : render.trajectories) {
+			trajectory.append_glyphs();
 			std::ignore = trajectory.flush_glyph_attribs();
 		}
 
-		// Must be called before flushing the segment buffer.
 		auto new_segments = render.segment_buffer.flush_range();
+
+		std::ignore = render.node_buffer.flush();
+		std::ignore = render.segment_buffer.flush();
+		std::ignore = render.seg_to_traj.flush_wrapping(new_segments);
+		std::ignore = render.t_to_s.flush_wrapping(new_segments);
 
 		render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
 			std::ignore = layer.ranges.flush_wrapping(new_segments);
 		});
-
-		std::ignore = render.node_buffer.flush();
-		std::ignore = render.seg_to_traj.flush_wrapping(new_segments);
-		std::ignore = render.t_to_s.flush_wrapping(new_segments);
-		std::ignore = render.segment_buffer.flush();
 
 		if (render.style.max_t >= playback.tend)
 		{
@@ -2452,7 +2452,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 
 		// Allocate ring buffers.
 		if (!(
-			render.create_geom_buffers(2 * num_trajectories - 1, num_trajectories)
+			render.create_geom_buffers(4 * num_trajectories, num_trajectories)
 			&& render.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
 		)) {
 			throw std::runtime_error("Error creating GPU buffers.");

@@ -51,7 +51,7 @@ void test_client::update ()
 				const auto begin {glyphs[layer_idx].ranges[traj.segment_idx].i0};
 				const auto end   {glyphs[layer_idx].ranges[traj.segment_idx].end()};
 
-				render_traj.append_glyphs(layer_idx, ro_range{
+				render_traj.enqueue_glyphs(layer_idx, ro_range{
 					data + render_traj.glyph_to_attrib_count(layer_idx, begin),
 					data + render_traj.glyph_to_attrib_count(layer_idx, end)
 				});

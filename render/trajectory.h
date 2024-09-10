@@ -3,6 +3,7 @@
 #include <cgv/math/fmat.h>
 
 #include "common.h"
+#include "dbuf_queue.h"
 #include "gpumem/memory_pool.h"
 #include "gpumem/ring_buffer.h"
 
@@ -40,7 +41,7 @@ public:
 
 	[[nodiscard]] constexpr bool is_empty () const noexcept
 	{
-		return _last_node_idx == nil_node;
+		return _last_node_idx == nil;
 	}
 
 	/// Calculate the number of glyphs defined by a given number of attributes on a given layer,
@@ -70,15 +71,26 @@ public:
 		glyph_count_type capacity
 	);
 
-	/// Extend the trajectory by one node at the end, potentially creating a new segment.
+	/// Extend the trajectory by one node at the end.
+	/// A new segment is created between the new node and the previous one, with the arc length
+	/// parametrization `t_to_s`.
+	/// If the trajectory is empty, no segment is created and `t_to_s` is ignored.
 	void append_node (const node_attribs &node, const cgv::mat4 *t_to_s);
 
-	/// Add glyphs past the end of the trajectory that will appear on future segments.
+	/// Copy glyph attributes to a host-side buffer, from whence they will be added to the render
+	/// buffer on the next frame.
 	template <class Iter>
-	void append_glyphs (layer_index_type layer, ro_range<Iter> data)
+	void enqueue_glyphs (layer_index_type layer, ro_range<Iter> glyphs)
 	{
-		_glyph_attribs[layer].push_back(data);
+		// Check that only complete glyphs are given.
+		assert(glyphs.length() % _glyph_sizes[layer] == 0);
+
+		// Copy attributes to host buffer.
+		_layers[layer].attrib_queue.push_back(glyphs);
 	}
+
+	/// Add glyph attibutes from the queue to the render buffer.
+	void append_glyphs ();
 
 	/// Forget about the latest `num_glyphs` glyphs, allowing the memory they occupy to be
 	/// reused once all draw calls using them are complete.
@@ -86,18 +98,18 @@ public:
 	/// glyph ranges.
 	void drop_glyphs (layer_index_type layer, glyph_count_type num_glyphs)
 	{
-		_glyph_attribs[layer].pop_front(glyph_to_attrib_count(layer, num_glyphs));
+		_layers[layer].glyph_attribs.pop_front(glyph_to_attrib_count(layer, num_glyphs));
 	}
 
-	/// Allow the oldest glyphs to be overwritten, so that at least `_render.reserve_glyphs`
-	/// new glyphs can be added.
-	/// Must not be called during deferred shading.
+	/// Logically delete old glyphs from the render buffer to make room for the new glyphs currently
+	/// in the glyphs attibute queue's read buffer.
+	/// WARNING: Must not be called during deferred shading.
 	void trim_glyphs ();
 
-	void mark_empty () noexcept
-	{
-		_last_node_idx = nil_node;
-	}
+	/// Must be called when and only when the last node on this trajectory is removed from the
+	/// render buffer to reset internal state.
+	/// Callers are responsible for ensuring that this precondition is met.
+	void mark_empty () noexcept;
 
 	/// Synchronize newly added glyphs with the GPU.
 	[[nodiscard]] bool flush_glyph_attribs ();
@@ -106,19 +118,27 @@ public:
 	void frame_completed ();
 
 private:
-	// friend class on_tube_vis;
+	struct layer_data {
+		/// Compiled glyphs shown on the trajectory.
+		gpumem::ring_buffer<float, gpumem::memory_pool_ptr> glyph_attribs;
+		/// Glyph attributes received from the client that have not been entered into the render
+		/// buffer yet.
+		dbuf_queue<float> attrib_queue;
+		/// Absolute index of the newest segment containing a glyph on this layer.
+		gpumem::index_type last_glyph_seg {nil};
+	};
 
-	/// Index value indicating the lack of a node.
-	static constexpr gpumem::index_type nil_node {-1};
 
+	/// Index value indicating the lack of an object.
+	static constexpr gpumem::index_type nil {-1};
+
+
+	/// Data specific to each glyph layer.
+	per_layer<layer_data> _layers;
 	/// Rendering data independent of any specific trajectories.
 	render_state &_render;
-	/// Compiled glyphs shown on the trajectory.
-	per_layer<gpumem::ring_buffer<float, gpumem::memory_pool_ptr>> _glyph_attribs;
-	/// Indices of the first glyph in each layer to be included on the next segment.
-	per_layer<gpumem::index_type> _first_attribs_on_seg;
 	/// The absolute index of the last entry in the node buffer belonging to this trajectory.
-	gpumem::index_type _last_node_idx {nil_node};
+	gpumem::index_type _last_node_idx {nil};
 	/// Uniquely identifies this trajectory.
 	id_type _id;
 	/// The number of 32-bit float values used to define one glyph instance on each layer.
