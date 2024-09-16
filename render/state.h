@@ -156,9 +156,7 @@ public:
 	/// debug info.
 	[[nodiscard]] float glyph_length(layer_index_type layer, const float *glyph_data) {
 		// Streaming visualization only supports one dataset.
-		return visualizations[0].manager
-				.get_configuration().layer_configs[layer]
-				.glyph_length(glyph_data)
+		return visualizations[0].config.layer_configs[layer].glyph_length(glyph_data)
 			/ style.length_scale;
 	}
 
