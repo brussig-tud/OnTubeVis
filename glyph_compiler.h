@@ -18,15 +18,6 @@ public:
 	using mat4 = cgv::mat4;
 
 protected:
-	// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
-	float clamp_remap(float v, const vec4& r) {
-		v = cgv::math::clamp(v, r.x(), r.y());
-		float t = 0.0f;
-		if(abs(r.x() - r.y()) > std::numeric_limits<float>::epsilon())
-			t = (v - r.x()) / (r.y() - r.x());
-		return cgv::math::lerp(r.z(), r.w(), t);
-	}
-
 	struct layer_compile_info {
 		const glyph_shape* current_shape;
 		std::vector<const traj_attribute<float>*> mapped_attribs;
@@ -171,24 +162,10 @@ protected:
 						attrib_values[i] = val;
 					}
 
-					// setup parameters of potential glyph
-					for(size_t i = 0; i < layer_config.glyph_mapping_parameters.size(); ++i) {
-						const auto& triple = layer_config.glyph_mapping_parameters[i];
-						if(triple.type == 0) {
-							// constant attribute
-							glyph_params[i] = (*triple.v)[3];
-						} else {
-							// mapped attribute
-							const vec4& ranges = *(triple.v);
-							// use windowing and remapping to get the value of the glyph parameter
-							glyph_params[i] = clamp_remap(attrib_values[triple.idx], ranges);
-						}
-					}
+					// Determine the potential glyph's extent along the trajectory.
+					const float new_glyph_size {
+							layer_config.glyph_length(attrib_values.data()) / length_scale};
 
-					float new_glyph_size = lci.current_shape->get_size(glyph_params);
-					new_glyph_size /= length_scale;
-
-					// infer potential glyph extents
 					const float min_dist = attribs.size() > 0 ?
 						std::max(new_glyph_size, prev_glyph_size) :
 						new_glyph_size;
@@ -427,24 +404,10 @@ protected:
 						attrib_values[i] = cgv::math::lerp(a0.val, a1.val, t);
 					}
 
-					// setup parameters of potential glyph
-					for(size_t i = 0; i < layer_config.glyph_mapping_parameters.size(); ++i) {
-						const auto& triple = layer_config.glyph_mapping_parameters[i];
-						if(triple.type == 0) {
-							// constant attribute
-							glyph_params[i] = (*triple.v)[3];
-						} else {
-							// mapped attribute
-							const vec4& ranges = *(triple.v);
-							// use windowing and remapping to get the value of the glyph parameter
-							glyph_params[i] = clamp_remap(attrib_values[triple.idx], ranges);
-						}
-					}
+					// Determine the potential glyph's extent along the trajectory.
+					const float new_glyph_size {
+							layer_config.glyph_length(attrib_values.data()) / length_scale};
 
-					float new_glyph_size = lci.current_shape->get_size(glyph_params);
-					new_glyph_size /= length_scale;
-
-					// infer potential glyph extents
 					const float min_dist = attribs.size() > 0 ?
 						std::max(new_glyph_size, prev_glyph_size) :
 						new_glyph_size;
@@ -660,24 +623,10 @@ protected:
 						attrib_values[i] = cgv::math::lerp(a0.val, a1.val, t);
 					}
 
-					// setup parameters of potential glyph
-					for(size_t i = 0; i < layer_config.glyph_mapping_parameters.size(); ++i) {
-						const auto& triple = layer_config.glyph_mapping_parameters[i];
-						if(triple.type == 0) {
-							// constant attribute
-							glyph_params[i] = (*triple.v)[3];
-						} else {
-							// mapped attribute
-							const vec4& ranges = *(triple.v);
-							// use windowing and remapping to get the value of the glyph parameter
-							glyph_params[i] = clamp_remap(attrib_values[triple.idx], ranges);
-						}
-					}
+					// Determine the potential glyph's extent along the trajectory.
+					const float new_glyph_size {
+							layer_config.glyph_length(attrib_values.data()) / length_scale};
 
-					float new_glyph_size = lci.current_shape->get_size(glyph_params);
-					new_glyph_size /= length_scale;
-
-					// infer potential glyph extents
 					const float min_dist = attribs.size() > 0 ?
 						std::max(new_glyph_size, prev_glyph_size) :
 						new_glyph_size;

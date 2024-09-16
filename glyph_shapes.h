@@ -80,7 +80,10 @@ public:
 		return n;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	/// Calculate the extent of a glyph along the trajectory it is on.
+	/// `param_values` must point to an array containing values for all visual variables that impact
+	/// the glyph's size, but no others (i.e. color values).
+	virtual float get_size(const float *param_values) const {
 		return 0.0f;
 	};
 
@@ -111,7 +114,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	virtual float get_size(const float *param_values) const {
 		// a negative size tells the glyph layout algorithm to never skip these glyphs
 		// and that they are potentially infinite in size (the glyph will stretch as long
 		// as a next one is placed)
@@ -147,7 +150,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	virtual float get_size(const float *param_values) const {
 		// size is two times the radius, a.k.a. the diameter of the circle
 		return 2.0f * param_values[1];
 	}
@@ -177,7 +180,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	virtual float get_size(const float *param_values) const {
 		// size is just the length/width, height is irrelevant
 		return param_values[1];
 	}
@@ -208,7 +211,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	virtual float get_size(const float *param_values) const {
 		// use just the radius as it gives a more uniform (or visually pleasing) spacing
 		// for complete correctness, aperture and orientation would need to be considered as well
 		return 2.0f * param_values[1];
@@ -241,7 +244,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	virtual float get_size(const float *param_values) const {
 		// use just the radius and thickness as it gives a more uniform (or visually pleasing) spacing
 		// for complete correctness, aperture and orientation would need to be considered as well
 		return 2.0f * (param_values[1] + param_values[2]);
@@ -288,17 +291,17 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	virtual float get_size(const float *param_values) const {
 		// TODO: bounding box does not work right now
 
 		// build rotation matrix like in the shader
 		const float quarter_turn = 1.57079632679f; // additional rotation of 90 degrees, so an angle of 0 degrees points the glyph into the direction of the segment
 		float angle = cgv::math::deg2rad(param_values[2]) + quarter_turn;
-		
+
 		float as = sin(angle);
 		float ac = cos(angle);
 		mat2 R = {ac, as, -as, ac};
-		
+
 		float half_base_width = 0.5f * param_values[0];
 		float half_height = 0.5f * param_values[1];
 
@@ -381,7 +384,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	virtual float get_size(const float *param_values) const {
 		// size is the total width of the glyph but depends on the current shape, which depends on the mapped value
 		float s = param_values[1];
 		float v = param_values[2];
@@ -432,7 +435,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	virtual float get_size(const float *param_values) const {
 		// size is two times the radius, a.k.a. the diameter
 		return 2.0f * param_values[0];
 	}
@@ -472,7 +475,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	virtual float get_size(const float *param_values) const {
 		// a negative size tells the glyph layout algorithm to never skip these glyphs
 		// and that they are potentially infinite in size (the glyph will stretch as long
 		// as a next one is placed)

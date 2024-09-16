@@ -2,6 +2,41 @@
 
 #include <cgv/utils/scan.h>
 
+
+namespace {
+
+// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
+// Moved from `glyph_compiler.h`.
+float clamp_remap(float v, const cgv::vec4& r) {
+	v = cgv::math::clamp(v, r.x(), r.y());
+	float t = 0.0f;
+	if(abs(r.x() - r.y()) > std::numeric_limits<float>::epsilon())
+		t = (v - r.x()) / (r.y() - r.x());
+	return cgv::math::lerp(r.z(), r.w(), t);
+}
+
+} // namespace
+
+
+float glyph_layer_manager::configuration::layer_configuration::glyph_length (
+	const float *glyph_data
+) const noexcept {
+	// Assemble attributes.
+	for (std::size_t i {0}; i < glyph_mapping_parameters.size(); ++i) {
+		const auto &mapping = glyph_mapping_parameters[i];
+
+		_size_attrib_values[i] = mapping.type == 0
+			// Attribute is constant for the entire layer.
+			? (*mapping.v)[3]
+			// Attribute varies per glyph.
+			: clamp_remap(glyph_data[mapping.idx], *mapping.v);
+	}
+
+	// Determine the length of the glyph.
+	return shape_ptr->get_size(_size_attrib_values.get());
+}
+
+
 void glyph_layer_manager::clear() {
 	glyph_attribute_mappings.clear();
 	config.clear();
@@ -52,7 +87,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 			std::string func_name_str = "sd_" + shape_ptr->name();
 			std::string glyph_coord_str = "glyphuv";
 			std::string glyph_outline_str = "0.0";
-			
+
 			// the parameters used in the signed distance and splat function calls
 			std::vector<std::string> float_parameter_strs;
 			std::vector<std::string> color_parameter_strs;
@@ -86,7 +121,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 						config.constant_color_parameters.push_back(std::make_pair(uniform_name, &attrib_colors[j]));
 					} else {
 						uniform_name = config.constant_float_parameter_name_prefix + "[" + std::to_string(config.constant_float_parameters.size()) + "]";
-						
+
 						layer_config.glyph_mapping_parameters.push_back({ 0, config.constant_float_parameters.size() - last_constant_float_parameters_size, &attrib_values[j] });
 						config.constant_float_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j][3]));
 					}
@@ -136,6 +171,10 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					float_parameter_strs.push_back(parameter_str);
 				}
 			}
+
+			// Allocate scratch buffer for `glyph_length()`.
+			layer_config._size_attrib_values =
+				std::make_unique<float[]>(layer_config.mapped_attributes.size());
 
 			const std::string layer_id = std::to_string(i);
 
@@ -240,7 +279,7 @@ void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p)
 
 		bool node_is_open = p.begin_tree_node_void(name, &gam, -1, false, "level=3;options='w=136';align=''");
 		p.add_member_control(this, gam.get_active() ? "@tickboxfull" : "@tickboxempty", gam.ref_active(), "toggle", "w=20", "%x+=2");
-			
+
 		connect_copy(
 			p.add_button("@8>", "w=20;h=20", "%x+=2")->click,
 			cgv::signal::rebind(this, &glyph_layer_manager::move_glyph_attribute_mapping, cgv::signal::_c(i), cgv::signal::_c(-1))
@@ -332,7 +371,7 @@ void glyph_layer_manager::create_glyph_attribute_mapping() {
 void glyph_layer_manager::remove_glyph_attribute_mapping(const size_t index) {
 	if(index < glyph_attribute_mappings.size()) {
 		glyph_attribute_mappings.erase(glyph_attribute_mappings.begin() + index);
-		
+
 		notify_configuration_change();
 	}
 }
@@ -340,13 +379,13 @@ void glyph_layer_manager::remove_glyph_attribute_mapping(const size_t index) {
 void glyph_layer_manager::move_glyph_attribute_mapping(const size_t index, int offset) {
 	if(index < glyph_attribute_mappings.size()) {
 		size_t other_index = index;
-		
+
 		// move up if not the first element or down if not the last element
 		if(offset < 0 && index > 0)
 			--other_index;
 		else if(offset > 0 && index < glyph_attribute_mappings.size() - 1)
 			++other_index;
-		
+
 		if(index != other_index) {
 			swap(glyph_attribute_mappings[index], glyph_attribute_mappings[other_index]);
 

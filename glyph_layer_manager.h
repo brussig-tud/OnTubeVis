@@ -43,8 +43,58 @@ public:
 			float sampling_step;
 			const glyph_shape* shape_ptr;
 			std::vector<int> mapped_attributes;
+			/// Information required to obtain the attribute values that determine the size of a
+			/// given glyph.
+			/// All other attributes are ignored, no parameters are stored for them.
 			std::vector<glyph_mapping_triple> glyph_mapping_parameters;
 			std::string glyph_definition = "";
+			/// Scratch buffer used by `glyph_length` to hold, for a given glyph, all attribute
+			/// values that impact its size.
+			/// Stored as a member to avoid frequent allocation and deallocation.
+			/// Entries correspond to `glyph_mapping_parameters`.
+			std::unique_ptr<float[]> _size_attrib_values;
+
+			[[nodiscard]] layer_configuration() = default;
+
+			// Explicit copy constructor required since `size_attrib_values` cannot be implicitly
+			// copied.
+			[[nodiscard]] layer_configuration(const layer_configuration &src)
+				: visible                  {src.visible}
+				, sampling_strategy        {src.sampling_strategy}
+				, sampling_step            {src.sampling_step}
+				, shape_ptr                {src.shape_ptr}
+				, mapped_attributes        {src.mapped_attributes}
+				, glyph_mapping_parameters {src.glyph_mapping_parameters}
+				, glyph_definition         {src.glyph_definition}
+				// This is a scratch buffer, we don't care about its value outside `glyph_length`.
+				, _size_attrib_values {
+						std::make_unique<float[]>(glyph_mapping_parameters.size())}
+			{}
+
+			// Explicit copy assignment required since `size_attrib_values` cannot be implicitly
+			// copied.
+			layer_configuration &operator= (const layer_configuration &src)
+			{
+				visible                  = src.visible;
+				sampling_strategy        = src.sampling_strategy;
+				sampling_step            = src.sampling_step;
+				shape_ptr                = src.shape_ptr;
+				mapped_attributes        = src.mapped_attributes;
+				glyph_mapping_parameters = src.glyph_mapping_parameters;
+				glyph_definition         = src.glyph_definition;
+				// This is a scratch buffer, we don't care about its value outside `glyph_length`.
+				_size_attrib_values =
+						std::make_unique<float[]>(glyph_mapping_parameters.size());
+				return *this;
+			}
+
+			/// Calculate the extent of a glyph instance along the trajectory.
+			/// `glyph_data` must point to an array of attributes as they are stored in the render
+			/// buffer, including attributes that do not affect the size of the glyph, but excluding
+			/// arc length and debug info.
+			/// NOTE: To get the correct length, the same scaling factor as used by the shader must
+			/// be applied, usually `textured_spline_tube_render_style::length_scale`.
+			[[nodiscard]] float glyph_length (const float *glyph_data) const noexcept;
 		};
 
 		struct shader_configuration {
@@ -115,6 +165,9 @@ protected:
 
 public:
 	glyph_layer_manager(cgv::base::base_ptr base_ptr) : base_ptr(base_ptr) {}
+
+	[[nodiscard]] glyph_layer_manager(glyph_layer_manager &&) noexcept = default;
+	glyph_layer_manager &operator= (glyph_layer_manager &&) noexcept = default;
 
 	~glyph_layer_manager() {}
 

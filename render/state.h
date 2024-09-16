@@ -149,6 +149,19 @@ public:
 		glyph_count_type  glyphs_per_trajectory
 	);
 
+	/// Calculate the extent of a glyph on the given layer along the trajectory, taking into account
+	/// the configured scale.
+	/// `glyph_data` must point to an array of attributes as they are stored in the render buffer,
+	/// including attributes that do not affect the size of the glyph, but excluding arc length and
+	/// debug info.
+	[[nodiscard]] float glyph_length(layer_index_type layer, const float *glyph_data) {
+		// Streaming visualization only supports one dataset.
+		return visualizations[0].manager
+				.get_configuration().layer_configs[layer]
+				.glyph_length(glyph_data)
+			/ style.length_scale;
+	}
+
 private:
 	/// All information required to append a node to a trajectory.
 	struct new_node {
