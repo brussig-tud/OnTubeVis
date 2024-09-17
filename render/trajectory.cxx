@@ -120,32 +120,52 @@ void trajectory::append_glyphs ()
 
 		while (true) {
 			// Retreive the arclength range of the current segment.
-			const auto &t_to_s    {_render.t_to_s[seg_idx]};
-			const auto min_arclen {t_to_s[0]};
-			const auto max_arclen {t_to_s[15]};
+			const auto &t_to_s   {_render.t_to_s[seg_idx]};
+			const auto seg_s_min {t_to_s[0]};
+			const auto seg_s_max {t_to_s[15]};
 
 			// Skip glyphs that lie before the current segment.
-			auto first_glyph {layer.attrib_queue.begin()};
+			ro_range seg_attribs {layer.attrib_queue.begin(), layer.attrib_queue.begin()};
 
 			while (true) {
-				if (first_glyph == layer.attrib_queue.end()) {
+				if (seg_attribs.begin == layer.attrib_queue.end()) {
 					// All glyphs are too old, nothing more to do.
 					layer.attrib_queue.flush();
 					return;
-				} else if (*first_glyph >= min_arclen) {
-					// Found a glyph on the segment.
+				}
+
+				// Calculate the glyph's front edge.
+				const auto glyph_s_max {
+					/* center */ *seg_attribs.begin
+					/* radius */ + 0.5f * _render.glyph_length(layer_idx, &*seg_attribs.begin + 2)
+				};
+
+				// Found a glyph potentially on the segment.
+				if (glyph_s_max >= seg_s_min) {
 					break;
 				}
 
-				first_glyph += _glyph_sizes[layer_idx];
+				seg_attribs.begin += _glyph_sizes[layer_idx];
 			}
 
-			// Now that the first glyph on the segment is known, find the last one as well.
-			// Count the number of glyphs alongside.
-			ro_range         seg_attribs {first_glyph, first_glyph};
-			glyph_count_type num_glyphs  {0};
+			// Now that the start of the glyph range is known, find its end.
+			// Count the number of glyphs along the way.
+			seg_attribs.end = seg_attribs.begin;
+			glyph_count_type num_glyphs {0};
 
-			while (seg_attribs.end != layer.attrib_queue.end() && *seg_attribs.end <= max_arclen) {
+			while (seg_attribs.end != layer.attrib_queue.end()) {
+				// Calculate the glyph's back edge.
+				const auto glyph_s_min {
+					/* center */ *seg_attribs.end
+					/* radius */ - 0.5f * _render.glyph_length(layer_idx, &*seg_attribs.end + 2)
+				};
+
+				// Found a glyph past the segment.
+				if (glyph_s_min > seg_s_max) {
+					break;
+				}
+
+				// Count the glyph.
 				seg_attribs.end += _glyph_sizes[layer_idx];
 				num_glyphs += glyph_count_type{1};
 			}
