@@ -10,7 +10,7 @@ mapping_legend::mapping_legend() {
 
 	set_size(ivec2(316, 0));
 
-	content_canvas.set_origin_setting(cgv::g2d::Origin::kTopLeft);
+	content_canvas.set_origin_setting(cgv::g2d::OriginSetting::kUpperLeft);
 }
 
 bool mapping_legend::init(cgv::render::context& ctx) {
