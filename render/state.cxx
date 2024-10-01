@@ -140,11 +140,11 @@ bool render_state::create_geom_buffers (
 	}
 
 	// Each trajectory has one fewer segments than nodes.
-	--capacity;
-
-	return segment_buffer.create(capacity)
-		&& seg_to_traj.create(capacity)
-		&& t_to_s.create(capacity);
+	return segment_buffer.create(capacity - 1)
+		// The length of these buffers must match the segment buffer's backing memory, not its
+		// capacity!
+		&& seg_to_traj.create(segment_buffer.as_span().length())
+		&& t_to_s.create(segment_buffer.as_span().length());
 }
 
 bool render_state::create_glyph_layer (
