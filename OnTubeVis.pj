@@ -46,7 +46,7 @@ if (env["CUDA_PATH"]) {
 		];
 		addRules=[
 			MAP.[
-				["extensions",["cu"]], ["folder","cuda"],
+				["extensions",["cu"]], ["folder","cuda_ptx"],
 				["rules", [
 					MAP.[
 						["keep_extension",0],
