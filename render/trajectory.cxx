@@ -10,14 +10,7 @@ namespace otv {
 trajectory::trajectory(id_type id, render_state &render)
 	: _render {render}
 	, _id     {id}
-{
-	// All glyph layers are initially inactive with no attribute memory.
-	// If a layer is activated later on (`create_glyph_layer`), an attribute buffer is allocated
-	// from that layer's pool.
-	for (layer_index_type i {0}; i < max_glyph_layers; ++i) {
-		_layers[i].glyph_attribs = gpumem::memory_pool_ptr{_render.glyphs[i].attribs};
-	}
-}
+{}
 
 gpumem::span<const float> trajectory::create_glyph_layer (
 	layer_index_type layer_idx,
@@ -33,6 +26,10 @@ gpumem::span<const float> trajectory::create_glyph_layer (
 	capacity += glyph_count_type{1};
 
 	auto &layer {_layers[layer_idx]};
+
+	// Select the glyph memory allocator.
+	layer.glyph_attribs = gpumem::ring_buffer<float, gpumem::memory_pool_ptr>{
+			gpumem::memory_pool_ptr{_render.glyphs[layer_idx].attribs}};
 
 	// Try to allocate memory for the layer's glyph attributes.
 	if (! layer.glyph_attribs.create(glyph_to_attrib_count(layer_idx, capacity) - 1)) {

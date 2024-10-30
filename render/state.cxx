@@ -153,6 +153,11 @@ bool render_state::create_glyph_layer (
 	gpumem::size_type num_trajectories,
 	glyph_count_type  glyphs_per_trajectory
 ) {
+	// Return the memory used by each trajectory for the layer's glyphs to the pool.
+	// Only after all memory has been returned can the pool be destroyed/recreated.
+	for (auto &traj : trajectories) {
+		traj.destroy_glyph_layer(layer);
+	}
 
 	// Allocate the memory pool for glyph attributes that is shared between trajectories.
 	// The ring buffer implementation requires room for one additional glyph per trajectory.

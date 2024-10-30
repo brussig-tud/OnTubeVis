@@ -32,12 +32,19 @@ public:
 	array &operator= (const array &src) = delete;
 	array &operator= (array &&src) noexcept;
 
-	~array() noexcept;
+	~array() noexcept
+	{
+		destroy();
+	}
 
 	/// Replace the backing buffer with newly allocated memory spanning `length` uninitialized
 	/// elements and aligned to the requested number of bytes, which must be a power of two.
 	/// Previously owned memory is deallocated without the contained elements being destroyed.
 	[[nodiscard]] bool create (size_type length, size_type alignment = alignof(Elem));
+
+	/// Free allocated memory.
+	/// Does not call the destructors of contained objects.
+	void destroy () noexcept;
 };
 
 } // namespace otv::gpumem

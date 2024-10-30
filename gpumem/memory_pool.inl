@@ -18,7 +18,7 @@ span<Elem> memory_pool_alloc::alloc (size_type length, size_type alignment)
 
 	// Align and check size.
 	const auto memory {
-			span(_free_blocks.back(), _block_length, _memory.handle()).aligned_to(alignment)};
+			span(_free_blocks.back(), _block_size, _memory.handle()).aligned_to(alignment)};
 
 	if (memory.length() < length) {
 		throw std::runtime_error("[gpumem::memory_pool_alloc::alloc] Requested allocation does not fit into block.");
@@ -36,8 +36,8 @@ void memory_pool_alloc::dealloc (span<Elem> memory) noexcept
 
 	// Calculate the offset of the containing block in case the allocation had to be offset to meet
 	// a certain alignment.
-	auto block_idx = (memory.bytes().data() - _memory.data()) / _block_length;
-	_free_blocks.push_back(_memory.data() + block_idx * _block_length);
+	auto block_idx = (memory.bytes().data() - _memory.data()) / _block_size;
+	_free_blocks.push_back(_memory.data() + block_idx * _block_size);
 }
 
 
@@ -55,9 +55,11 @@ auto memory_pool<Alloc>::operator= (memory_pool &&src) noexcept -> memory_pool&
 {
 	if (&src != this) {
 		// Free current memory.
-		this->~memory_pool();
+		destroy();
+		// Take from source.
 		this->allocator()                      = {std::move(src)};
 		static_cast<memory_pool_alloc&>(*this) = {std::move(src)};
+		// Mark source as empty.
 		src._memory                            = {};
 	}
 
@@ -65,17 +67,11 @@ auto memory_pool<Alloc>::operator= (memory_pool &&src) noexcept -> memory_pool&
 }
 
 template <class Alloc>
-memory_pool<Alloc>::~memory_pool() noexcept
-{
-	if (this->as_span().data()) {
-		this->allocator().dealloc(this->_memory);
-		this->_memory = {};
-	}
-}
-
-template <class Alloc>
 bool memory_pool<Alloc>::create (size_type num_blocks, size_type block_length, size_type alignment)
 {
+	// Free any previous allocation.
+	destroy();
+
 	// For all blocks to be aligned, the block size must be a multiple of the alignment.
 	// The formula for rounding to the next multiple of a power of two is adopted from the GLIBCXX
 	// implementation of `std::align`.
@@ -84,6 +80,18 @@ bool memory_pool<Alloc>::create (size_type num_blocks, size_type block_length, s
 	const auto memory {
 			this->allocator().template alloc(num_blocks * block_length, alignment)};
 	return memory.data() ? memory_pool_alloc::create(num_blocks, block_length, memory) : false;
+}
+
+template <class Alloc>
+void memory_pool<Alloc>::destroy() noexcept
+{
+	if (_memory.data()) {
+		// Ensure that all blocks have been freed.
+		assert(num_free_blocks() * block_size() == _memory.length());
+
+		this->allocator().dealloc(_memory);
+		_memory = {};
+	}
 }
 
 } // namespace otv::gpumem

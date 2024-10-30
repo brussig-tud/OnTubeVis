@@ -12,8 +12,8 @@ class memory_pool_alloc {
 private:
 	/// Start of each unallocated block.
 	std::vector<std::byte*> _free_blocks {};
-	/// Length of each block in bytes.
-	size_type _block_length {0};
+	/// Size of each block in bytes.
+	size_type _block_size {0};
 
 protected:
 	/// The entire backing memory managed by this allocator.
@@ -24,11 +24,11 @@ protected:
 	[[nodiscard]] memory_pool_alloc() = default;
 
 	/// Initialize this object with new backing memory.
-	/// All blocks will be free.
-	/// Any previous state is overwritten, attempting to free old allocations is an error.
+	/// All newly created blocks will be free.
+	/// Any previously existing blocks must be free as well to avoid dangling refences.
 	[[nodiscard]] bool create (
 		size_type       num_blocks,
-		size_type       block_length,
+		size_type       block_size,
 		span<std::byte> memory
 	);
 
@@ -39,16 +39,22 @@ public:
 		return *this;
 	}
 
-	/// The length of each block in bytes.
-	[[nodiscard]] constexpr size_type block_length () const noexcept
+	/// The size of each block in bytes.
+	[[nodiscard]] constexpr size_type block_size () const noexcept
 	{
-		return _block_length;
+		return _block_size;
 	}
 
 	/// The entire backing memory managed by this object.
 	[[nodiscard]] constexpr const span<std::byte> &as_span () const noexcept
 	{
 		return _memory.as_span();
+	}
+
+	/// The number of blocks not currently occupied.
+	[[nodiscard]] constexpr size_type num_free_blocks () const noexcept
+	{
+		return _free_blocks.size();
 	}
 
 	/// In a free block, create an allocation that holds at least `length` objects of type `Elem`
@@ -73,7 +79,6 @@ public:
 	/// Not to be confused with the block allocator itself, `memory_pool_alloc`.
 	using alloc_type = Alloc;
 
-public:
 	/// Construct a null instance with no backing buffer, but an allocator that can be used to
 	/// obtain backing memory in the future.
 	[[nodiscard]] explicit memory_pool(const alloc_type &allocator = {})
@@ -86,7 +91,10 @@ public:
 	memory_pool &operator= (const memory_pool &src) = delete;
 	memory_pool &operator= (memory_pool &&src) noexcept;
 
-	~memory_pool() noexcept;
+	~memory_pool() noexcept
+	{
+		destroy();
+	}
 
 	// Disambiguate between `memory_pool_alloc` and `alloc_type`.
 	using alloc_type::allocator;
@@ -101,6 +109,10 @@ public:
 		size_type block_length,
 		size_type block_alignment
 	);
+
+	/// Release backing memory.
+	/// All blocks must be free to prevent dangling references and double frees.
+	void destroy () noexcept;
 };
 
 /// Allocates memory from a pool shared with others.

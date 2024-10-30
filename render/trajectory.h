@@ -71,6 +71,12 @@ public:
 		glyph_count_type capacity
 	);
 
+	/// Release all resources associated with a glyph layer.
+	void destroy_glyph_layer(layer_index_type idx)
+	{
+		_layers[idx] = {};
+	}
+
 	/// Extend the trajectory by one node at the end.
 	/// A new segment is created between the new node and the previous one, with the arc length
 	/// parametrization `t_to_s`.
