@@ -39,17 +39,10 @@ private:
 	/// The backing memory in which elements are placed.
 	array<Elem, Alloc> _memory;
 
-	/// Advance an index, accounting for wrap-around.
-	/// `idx` must be valid and `0 <= offset <= _memory.length()`.
-	[[nodiscard]] constexpr index_type index_after (
-		index_type idx,
-		index_type offset = 1
-	) const noexcept;
-
 public:
 	/// Construct a null instance with no backing buffer, but an allocator that can be used to
 	/// obtain backing memory in the future.
-	[[nodiscard]] ring_buffer(const alloc_type &allocator = {})
+	[[nodiscard]] explicit ring_buffer(const alloc_type &allocator = {})
 		: _memory {allocator}
 	{}
 
@@ -90,6 +83,20 @@ public:
 			: _memory.length() - from + to;
 	}
 
+	/// Advance an absolute index, accounting for wrap-around.
+	/// Requires `0 <= idx < as_span().length()` and `0 <= offset <= as_span().length()`.
+	[[nodiscard]] constexpr index_type index_after (
+		index_type idx,
+		index_type offset = 1
+	) const noexcept;
+
+	/// Offset an absolute index in backwards direction, accounting for wrap-around.
+	/// Requires `0 <= idx < as_span().length()` and `0 <= offset <= as_span().length()`.
+	[[nodiscard]] constexpr index_type index_before (
+		index_type idx,
+		index_type offset = 1
+	) const noexcept;
+
 	/// The maximum number of elements the buffer can hold with its current allocation.
 	[[nodiscard]] constexpr size_type capacity () const noexcept
 	{
@@ -119,6 +126,9 @@ public:
 	/// up-to-date on the GPU.
 	[[nodiscard]] constexpr ro_range<index_type> flush_range () noexcept;
 
+	/// Set the index of the oldest element in the buffer, i.e. its beginning.
+	/// The new index must lie within the range currently used by the buffer.
+	constexpr void set_front (index_type new_front) noexcept;
 
 	/// Set the index onward from which elements may be used by the GPU.
 	/// Elements before this index (and after `gpu_back`) are not in use by the GPU and may be

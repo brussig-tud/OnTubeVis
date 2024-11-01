@@ -1237,7 +1237,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					render.glyphs[layer_idx] = {};
 				} else {
 					// Mark layer as active in render state.
-					render.active_glyph_layers |= 1 << layer_idx;
+					render.active_glyph_layers.set(layer_idx);
 
 					const auto& ranges = gc.layer_ranges[layer_idx];
 					const auto& attribs = gc.layer_attribs[layer_idx];
@@ -1860,38 +1860,15 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	// query the current viewport dimensions as this is needed for multiple draw methods
 	glGetIntegerv(GL_VIEWPORT, viewport);
 
+	// Upload new data from host queues to GPU buffers.
+	render.update();
+
 	if (playback.active)
 	{
 		const double prev = playback.time_active;
 		playback.timer.add_time();
 		render.style.max_t = render.style.max_t + float((playback.time_active-prev)*playback.speed);
 		update_member(&render.style.max_t);
-
-		client.update();
-
-		// Upload nodes and glyphs from their repective host queues to the corresponding render
-		// buffers, then remove old entries from those render buffers.
-		// Finally, new entries are flushed to the GPU.
-		// Removed data may still be in use by the previous frame's draw calls, so memory may not be
-		// reused until its draw fence has been reached.,
-		render.append_nodes();
-		render.trim_trajectories();
-
-		for (auto &trajectory : render.trajectories) {
-			trajectory.append_glyphs();
-			std::ignore = trajectory.flush_glyph_attribs();
-		}
-
-		auto new_segments = render.segment_buffer.flush_range();
-
-		std::ignore = render.node_buffer.flush();
-		std::ignore = render.segment_buffer.flush();
-		std::ignore = render.seg_to_traj.flush_wrapping(new_segments);
-		std::ignore = render.t_to_s.flush_wrapping(new_segments);
-
-		render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
-			std::ignore = layer.ranges.flush_wrapping(new_segments);
-		});
 
 		if (render.style.max_t >= playback.tend)
 		{
@@ -1918,6 +1895,9 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 				(render.style.max_t-t0) / (pos_data.timestamps[nid_next]-t0)
 			));
 		}
+
+		// Add new data to host queues according to playback time.
+		client.update();
 	}
 
 	if(benchmark.requested) {
@@ -2949,7 +2929,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		render.segment_buffer.set_gpu_front(render.segment_buffer.front());
 
 		for (auto &trajectory : render.trajectories) {
-			trajectory.frame_completed();
+			trajectory.on_frame_done();
 		}
 
 		// Create a fence object to check when the new draw call has completed and the memory it was reading can be

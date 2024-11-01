@@ -18,7 +18,7 @@ template <class Index>
 struct index_range {
 	using index_type = Index;
 
-	index_type i0, n;
+	index_type i0 {}, n {};
 
 	/// Calculate the index one past the last element in the range.
 	[[nodiscard]] constexpr index_type end () const noexcept
@@ -37,8 +37,9 @@ using irange = index_range<int>;
 struct glyph_count_type {
 	using base_type = int;
 
-	base_type value;
+	base_type value {0};
 
+	[[nodiscard]] constexpr glyph_count_type() noexcept = default;
 	[[nodiscard]] constexpr explicit glyph_count_type(base_type value) noexcept
 		: value {value}
 	{}

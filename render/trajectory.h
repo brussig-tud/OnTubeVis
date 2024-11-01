@@ -64,6 +64,7 @@ public:
 
 
 	/// Initialize a glyph layer to hold up to `capacity` glyphs of `glyph_size` floats each.
+	/// If the layer is in use already it must first be freed by `destroy_glyph_layer`.
 	/// Return a read-only view of the allocated memory.
 	[[nodiscard]] gpumem::span<const float> create_glyph_layer (
 		layer_index_type layer,
@@ -91,21 +92,22 @@ public:
 		// Check that only complete glyphs are given.
 		assert(glyphs.length() % _glyph_sizes[layer] == 0);
 
+		auto &queue {_layers[layer].attrib_queue};
+
+		// If the queue was empty before, schedule an update to upload the new data.
+		// If there are glyphs queued already, we have to wait for new geometry.
+		_needs_glyph_update |= (queue.length() == 0) << layer;
+
 		// Copy attributes to host buffer.
-		_layers[layer].attrib_queue.push_back(glyphs);
+		queue.push_back(glyphs);
 	}
 
-	/// Add glyph attibutes from the queue to the render buffer.
-	void append_glyphs ();
+	/// Add newly visible glyph attibutes from the host queue to the render buffer.
+	void update_glyphs ();
 
-	/// Forget about the latest `num_glyphs` glyphs, allowing the memory they occupy to be
-	/// reused once all draw calls using them are complete.
-	/// Users are responsible for ensuring that the dropped glyphs are not referenced by any
-	/// glyph ranges.
-	void drop_glyphs (layer_index_type layer, glyph_count_type num_glyphs)
-	{
-		_layers[layer].glyph_attribs.pop_front(glyph_to_attrib_count(layer, num_glyphs));
-	}
+	/// Must be called when the geometry of a segment belonging to this trajectory is deleted.
+	/// Frees all glyphs on the segment.
+	void on_delete_segment (gpumem::index_type seg_idx);
 
 	/// Logically delete old glyphs from the render buffer to make room for the new glyphs currently
 	/// in the glyphs attibute queue's read buffer.
@@ -115,23 +117,31 @@ public:
 	/// Must be called when and only when the last node on this trajectory is removed from the
 	/// render buffer to reset internal state.
 	/// Callers are responsible for ensuring that this precondition is met.
-	void mark_empty () noexcept;
+	void mark_empty () noexcept
+	{
+		_last_node_idx = nil;
+	}
 
 	/// Synchronize newly added glyphs with the GPU.
 	[[nodiscard]] bool flush_glyph_attribs ();
 
 	/// Update GPU sync guard indices once rendering has finished.
-	void frame_completed ();
+	void on_frame_done ();
 
 private:
 	struct layer_data {
 		/// Compiled glyphs shown on the trajectory.
-		gpumem::ring_buffer<float, gpumem::memory_pool_ptr> glyph_attribs;
+		gpumem::ring_buffer<float, gpumem::memory_pool_ptr> glyph_attribs {};
 		/// Glyph attributes received from the client that have not been entered into the render
 		/// buffer yet.
 		dbuf_queue<float> attrib_queue;
 		/// Absolute index of the newest segment containing a glyph on this layer.
 		gpumem::index_type last_glyph_seg {nil};
+		/// The initial range of glyphs on the segment that will next have glyphs added, including
+		/// potential overlap (i.e. glyphs on multiple segments).
+		index_range<glyph_count_type> next_segment_range {};
+		/// The size, not capacity, of this layer's glyph buffer.
+		glyph_count_type buffer_size;
 	};
 
 
@@ -145,10 +155,19 @@ private:
 	render_state &_render;
 	/// The absolute index of the last entry in the node buffer belonging to this trajectory.
 	gpumem::index_type _last_node_idx {nil};
+	/// Absolute index of the first, i.e. oldest, entry in the segment buffer belonging to this
+	/// trajectory.
+	gpumem::index_type _first_segment_idx {nil};
+	/// Absolute index of the last entry in the segment buffer belonging to this trajectory.
+	gpumem::index_type _last_segment_idx {nil};
 	/// Uniquely identifies this trajectory.
 	id_type _id;
 	/// The number of 32-bit float values used to define one glyph instance on each layer.
 	per_layer<glyph_size_type> _glyph_sizes;
+	/// Bits indicate whether a layer has new potentially visible glyphs that should be uploaded to
+	/// the GPU.
+	uint8_t _needs_glyph_update {0};
+	static_assert(std::numeric_limits<decltype(_needs_glyph_update)>::digits >= max_glyph_layers);
 };
 
 } // namespace otv

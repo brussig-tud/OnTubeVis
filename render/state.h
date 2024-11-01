@@ -113,12 +113,10 @@ public:
 		_node_queue.push_back({node, t_to_s ? *t_to_s : cgv::mat4{}, trajectory});
 	}
 
-	/// Fill the GPU buffer with nodes from the queue, creating segments where applicable.
-	void append_nodes ();
-
-	/// Logically delete old nodes until the render buffer has capcity for at least `reserve_nodes`
-	/// new nodes as well as any nodes that could not be added this frame.
-	void trim_trajectories ();
+	/// Upload new data from the host to the GPU and prune old geometry.
+	/// Should be called each frame.
+	/// May be executed during ongoing draw calls.
+	void update ();
 
 	/// Execute a callback for every active glyph layer.
 	template <class Callback, class = std::enable_if_t<
@@ -161,6 +159,8 @@ public:
 	}
 
 private:
+	friend class trajectory;
+
 	/// All information required to append a node to a trajectory.
 	struct new_node {
 		/// Attributes of the node itself.
@@ -174,6 +174,15 @@ private:
 
 	/// Newly added nodes, for which geometry data should be created.
 	dbuf_queue<new_node> _node_queue;
+	/// For each segments stores the index of its successor in the trajectory.
+	std::unique_ptr<gpumem::index_type[]> _next_segment;
+
+	/// Fill the GPU buffer with nodes from the queue, creating segments where applicable.
+	void append_nodes ();
+
+	/// Logically delete old nodes until the render buffer has capacity for at least `reserve_nodes`
+	/// new nodes as well as any nodes that could not be added this frame.
+	void trim_trajectories ();
 };
 
 } // namespace otv

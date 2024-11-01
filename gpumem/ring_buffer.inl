@@ -14,8 +14,17 @@ constexpr index_type ring_buffer<Elem, Alloc>::index_after (
 	index_type offset
 ) const noexcept {
 	assert(offset <= _memory.length());
-	idx += offset;
-	return idx >= _memory.length() ? idx - _memory.length() : idx;
+	const auto rem {_memory.length() - idx};
+	return offset >= rem ? offset - rem : idx + offset;
+}
+
+template <class Elem, class Alloc>
+constexpr index_type ring_buffer<Elem, Alloc>::index_before (
+	index_type idx,
+	index_type offset
+) const noexcept {
+	assert(offset <= _memory.length());
+	return offset > idx ? _memory.length() - offset + idx : idx - offset;
 }
 
 template <class Elem, class Alloc>
@@ -29,6 +38,21 @@ constexpr ro_range<index_type> ring_buffer<Elem, Alloc>::flush_range () noexcept
 	}
 
 	return range;
+}
+
+template <class Elem, class Alloc>
+constexpr void ring_buffer<Elem, Alloc>::set_front (index_type new_front) noexcept
+{
+	if (_idcs.front <= _idcs.back) {
+		assert(new_front >= _idcs.front && new_front <= _idcs.back);
+	} else {
+		assert(
+			new_front >= _idcs.front && new_front < _memory.length()
+			|| new_front >= 0 && new_front <= _idcs.back
+		);
+	}
+
+	_idcs.front = new_front;
 }
 
 template <class Elem, class Alloc>

@@ -6,6 +6,33 @@
 
 namespace otv {
 
+void render_state::update ()
+{
+	// Upload nodes from the host queue to the render buffer.
+	append_nodes();
+
+	// Logically delete old nodes from the render buffer.
+	// Since old data may still be in use by a draw call, it cannot be overwritten yet.
+	trim_trajectories();
+
+	auto new_segments = segment_buffer.flush_range();
+
+	std::ignore = node_buffer.flush();
+	std::ignore = segment_buffer.flush();
+	std::ignore = seg_to_traj.flush_wrapping(new_segments);
+	std::ignore = t_to_s.flush_wrapping(new_segments);
+
+	for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
+		std::ignore = layer.ranges.flush_wrapping(new_segments);
+	});
+
+	// Upload glyphs from the host queue to the render buffer.
+	for (auto &trajectory : trajectories) {
+		trajectory.update_glyphs();
+		std::ignore = trajectory.flush_glyph_attribs();
+	}
+}
+
 void render_state::append_nodes ()
 {
 	// During the previous frame, `trim_trajectories` should have freed the configured amount of
@@ -77,12 +104,9 @@ void render_state::trim_trajectories ()
 			// used for now.
 			node.t[0] = unlinked_node;
 
-			// Allow the glyphs on the removed segment to be overwritten.
-			for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
-				const auto traj_id = seg_to_traj[segment_buffer.front()];
-				const auto range   = layer.ranges[segment_buffer.front()];
-				trajectories[traj_id].drop_glyphs(layer_idx, range.n);
-			});
+			// Notify the trajectory to which the segment belonged.
+			trajectories[seg_to_traj[segment_buffer.front()]]
+					.on_delete_segment(segment_buffer.front());
 
 			// Remove the segment.
 			segment_buffer.pop_front();
@@ -140,11 +164,16 @@ bool render_state::create_geom_buffers (
 	}
 
 	// Each trajectory has one fewer segments than nodes.
-	return segment_buffer.create(capacity - 1)
+	const auto ok {segment_buffer.create(capacity - 1)
 		// The length of these buffers must match the segment buffer's backing memory, not its
 		// capacity!
 		&& seg_to_traj.create(segment_buffer.as_span().length())
-		&& t_to_s.create(segment_buffer.as_span().length());
+		&& t_to_s.create(segment_buffer.as_span().length())
+		};
+
+	// Allocate memory to store segment links.
+	_next_segment = std::make_unique<gpumem::index_type[]>(segment_buffer.as_span().length());
+	return ok;
 }
 
 bool render_state::create_glyph_layer (
@@ -161,11 +190,13 @@ bool render_state::create_glyph_layer (
 
 	// Allocate the memory pool for glyph attributes that is shared between trajectories.
 	// The ring buffer implementation requires room for one additional glyph per trajectory.
-	auto ok {glyphs[layer].attribs.create(
+	if (! glyphs[layer].attribs.create(
 		num_trajectories,
 		(glyphs_per_trajectory.value + 1) * glyph_size * gpumem::memsize<float>,
 		alignof(float)
-	)};
+	)) {
+		return false;
+	}
 
 	// Initialize each trajectory's glyph attribute buffer.
 	for (auto &trajectory : trajectories) {
