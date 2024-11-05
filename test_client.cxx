@@ -23,13 +23,12 @@ void test_client::update ()
 
 			auto &render_traj {*render.try_get_trajectory(traj.id)};
 
-			// The first node of each trajectory does not create a segment, so the index should not
-			// be advanced.
+			// The first node of each trajectory does not create a segment, so there is no arc
+			// length parametrization.
 			const cgv::mat4 *t_to_s {nullptr};
 
 			if (! render_traj.is_empty()) {
 				t_to_s = &arclen_data.t_to_s[traj.segment_idx];
-				++traj.segment_idx;
 			}
 
 			// Append a node, potentially creating a new segment.
@@ -45,17 +44,23 @@ void test_client::update ()
 				t_to_s
 			);
 
-			// Add all glyphs on the next segment.
+			if (t_to_s == nullptr) {
+				continue;
+			}
+
+			// If the node created a segment, enqueue its glyphs and advance the index.
 			render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
 				const auto data  {glyphs[layer_idx].attribs.data.begin()};
-				const auto begin {glyphs[layer_idx].ranges[traj.segment_idx].i0};
-				const auto end   {glyphs[layer_idx].ranges[traj.segment_idx].end()};
+				const auto begin {glyphs[layer_idx].ranges.at(traj.segment_idx).i0};
+				const auto end   {glyphs[layer_idx].ranges.at(traj.segment_idx).end()};
 
 				render_traj.enqueue_glyphs(layer_idx, ro_range{
 					data + render_traj.glyph_to_attrib_count(layer_idx, begin),
 					data + render_traj.glyph_to_attrib_count(layer_idx, end)
 				});
 			});
+
+			++traj.segment_idx;
 		}
 	}
 }

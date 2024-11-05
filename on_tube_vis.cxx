@@ -1263,7 +1263,8 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 					// - sanity check
 					{
-						const float num_ranges = (float)ranges.size(), num_segs = float(client.data->indices.size()) / 2;
+						const auto num_ranges {ranges.size()};
+						const auto num_segs   {client.data->indices.size() / 2};
 						assert(num_ranges == num_segs);
 					}
 				}
