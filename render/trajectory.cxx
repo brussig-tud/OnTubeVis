@@ -253,7 +253,12 @@ void trajectory::on_delete_segment (gpumem::index_type seg_idx)
 		}
 
 		// Discard all glyphs ending on the deleted segment, i.e. not overlapping onto the next one.
-		layer.glyph_attribs.set_front(glyph_to_attrib_count(layer_idx, next_seg.i0));
+		if (next_seg.n > glyph_count_type{0}) {
+			layer.glyph_attribs.set_front(glyph_to_attrib_count(layer_idx, next_seg.i0));
+		} else {
+			layer.glyph_attribs.pop_front(
+					glyph_to_attrib_count(layer_idx, shared_layer.ranges[seg_idx].n));
+		}
 	});
 }
 
@@ -291,19 +296,27 @@ void trajectory::trim_glyphs ()
 		}
 
 		// Logically delete the glyphs.
-		layer.glyph_attribs.pop_front(target_capacity - free_capacity);
+		const auto diff {target_capacity - free_capacity};
+		layer.glyph_attribs.pop_front(diff);
+
+		// If the trajectory has no segments, yet there are still glyphs, those glyphs must appear
+		// as overlap on the next segment.
+		if (_first_segment_idx == nil) {
+			const auto diff_glyphs {attrib_to_glyph_count(layer_idx, diff)};
+			layer.next_segment_range.i0 += diff_glyphs;
+			layer.next_segment_range.n  -= diff_glyphs;
+			return;
+		}
 
 		// Calculate the index of the oldest remaining glyph.
 		const auto oldest_glyph_idx {attrib_to_glyph_count(layer_idx, layer.glyph_attribs.front())};
 
 		// Remove the deleted glyphs from any segment ranges that reference them.
+		auto seg_idx            {_first_segment_idx};
 		bool found_oldest_glpyh {false};
 
-		for (
-			auto seg_idx {_first_segment_idx};
-			seg_idx != nil;
-			seg_idx = _render._next_segment[seg_idx]
-		) {
+		// seg_idx != nil for the first iteration.
+		do {
 			auto &range = shared_layer.ranges[seg_idx];
 
 			// Calculate the index of the oldest remaining glyph relative to the segment, accounting
@@ -332,6 +345,15 @@ void trajectory::trim_glyphs ()
 				// be earlier, so all of its glyphs have been deleted.
 				range.n = glyph_count_type{0};
 			}
+
+			// Move on to the next segment.
+			seg_idx = _render._next_segment[seg_idx];
+		} while (seg_idx != nil);
+
+		// This point is only reached if the last segment in the trajectory was affected, so overlap
+		// onto the next one could be affected as well.
+		if (layer.next_segment_range.n > shared_layer.ranges[_last_segment_idx].n) {
+			layer.next_segment_range = shared_layer.ranges[_last_segment_idx];
 		}
 	});
 }
