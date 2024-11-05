@@ -141,9 +141,10 @@ public:
 	/// Create a span over a the containing Buffer Object's entire mapping.
 	[[nodiscard]] span<std::byte> buffer () const;
 
-	/// Access an element without bounds checking.
+	/// Access an element.
 	[[nodiscard]] constexpr elem_type &operator[] (index_type idx) const noexcept
 	{
+		assert(idx >= 0 && idx < _length);
 		return _data[idx];
 	}
 

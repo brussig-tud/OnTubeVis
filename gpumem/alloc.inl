@@ -45,6 +45,7 @@ span<Elem> buffer_alloc::alloc (size_type length, size_type alignment)
 template <class Elem>
 void buffer_alloc::dealloc (span<Elem> memory) noexcept
 {
+	assert(memory.data());
 	const auto handle {memory.handle()};
 	glDeleteBuffers(1, &handle);
 	check_gl_errors("gpumem::buffer_alloc::dealloc");
