@@ -1256,7 +1256,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 						layer_idx,
 						client.glyphs[layer_idx].attribs.count + 2,
 						client.trajectories.size(),
-						glyph_count_type{30}
+						glyph_count_type{1000}
 					)) {
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
 					}
@@ -2432,7 +2432,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 
 		// Allocate ring buffers.
 		if (!(
-			render.create_geom_buffers(4 * num_trajectories, num_trajectories)
+			render.create_geom_buffers(100 * num_trajectories, num_trajectories)
 			&& render.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
 		)) {
 			throw std::runtime_error("Error creating GPU buffers.");
@@ -2913,12 +2913,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// Wait for the previous draw call to complete.
 		auto wait_result = glClientWaitSync(render.draw_fence, 0, -1);
 		glDeleteSync(render.draw_fence);
-
-#ifdef _DEBUG
-		if (wait_result == GL_CONDITION_SATISFIED) {
-			std::clog << "Had to wait on previous draw call.\n";
-		}
-#endif
 
 		// Ensure that there is enough memory for new glyphs.
 		for (auto &traj : render.trajectories) {

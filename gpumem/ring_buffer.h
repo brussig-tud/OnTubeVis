@@ -126,10 +126,6 @@ public:
 	/// up-to-date on the GPU.
 	[[nodiscard]] constexpr ro_range<index_type> flush_range () noexcept;
 
-	/// Set the index of the oldest element in the buffer, i.e. its beginning.
-	/// The new index must lie within the range currently used by the buffer.
-	constexpr void set_front (index_type new_front) noexcept;
-
 	/// Set the index onward from which elements may be used by the GPU.
 	/// Elements before this index (and after `gpu_back`) are not in use by the GPU and may be
 	/// overwritten.
@@ -160,6 +156,16 @@ public:
 
 	/// Remove elements from the front of the buffer.
 	void pop_front (size_type num_elems = 1) noexcept;
+
+	/// Set the index of the oldest element in the buffer, i.e. its beginning.
+	/// The new index must lie within the range currently used by the buffer.
+	constexpr void set_front (index_type new_front) noexcept;
+
+	/// Reset all indices so the buffer is empty.
+	constexpr void clear () noexcept
+	{
+		_idcs = {};
+	}
 
 	/// Make newly added elements visible to the GPU.
 	[[nodiscard]] bool flush () noexcept;

@@ -3,9 +3,9 @@ type(fltk_viewer_window):theme=dark
 
 // Data
 // - dataset to load
-//type(on_tube_vis):datapath=""
+type(on_tube_vis):datapath="./testdata/propeller_streamline.0.csv"
 // - initial glyph layer config
-type(on_tube_vis):layer_config_file="./testdata/layerconf_1layer_defaultprocedural.xml"
+type(on_tube_vis):layer_config_file="./testdata/layerconf_3layers_fisch_wehr_adj.xml"
 
 // Visualization and general settings
 // - How node attributes are made available to the spline tube shader when using the rasterization render path
@@ -17,7 +17,7 @@ type(on_tube_vis):layer_config_file="./testdata/layerconf_1layer_defaultprocedur
 // - What type of proxy geometry to use for rasterization
 //   0 ... oriented bounding boxes - may require using one of the attribute-less modes on older GPUs
 //   1 ... approximate billboard   - quadrilateral built from encapsulating the bounding box in a rounded cone and using the resulting analytic rounded cone billboard
-//   2 ... exact polygon           - flat polygon with 4 or 6 corners exactly covering the screen space silhouette of the oriented bounding box 
+//   2 ... exact polygon           - flat polygon with 4 or 6 corners exactly covering the screen space silhouette of the oriented bounding box
 //   3 ... box billboard           - a single quadrilateral covering the full bounding box
 //   4 ... aligned box billboard   - [DEFAULT] use the front side of a view-aligned bounding box (use any of the other modes if very long segments dissapear when viewed up close)
 //type(on_tube_vis):bounding_geometry=4

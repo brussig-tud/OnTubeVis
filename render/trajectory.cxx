@@ -51,12 +51,15 @@ void trajectory::append_node (const node_attribs &node, const cgv::mat4 *t_to_s)
 	_last_node_idx = _render.node_buffer.back();
 	_render.node_buffer.push_back(node);
 
+	_render._node_starts_segment[_last_node_idx] = false;
+
 	// If this node is the first one on the trajectory, there is nothing more to do.
 	if (prev_node_idx == nil) {
 		return;
 	}
 
 	// Otherwise, create a new segment between the previous node and the new one.
+	_render._node_starts_segment[prev_node_idx] = true;
 	const auto prev_seg_idx {_last_segment_idx};
 
 	// Add the segment to the GPU buffer, storing the index at which it is placed.
@@ -239,20 +242,23 @@ void trajectory::on_delete_segment (gpumem::index_type seg_idx)
 	_first_segment_idx = _render._next_segment[seg_idx];
 
 	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer) {
-		auto                          &layer   {_layers[layer_idx]};
-		index_range<glyph_count_type> next_seg;
+		auto &layer {_layers[layer_idx]};
 
 		// Reset indices when the last segment is deleted.
 		if (_first_segment_idx == nil) {
 			_last_segment_idx    = nil;
 			layer.last_glyph_seg = nil;
 
-			next_seg = layer.next_segment_range;
-		} else {
-			next_seg = shared_layer.ranges[_first_segment_idx];
+			// To simplify things, deleting the last segment also deletes the last node.
+			_last_node_idx = nil;
+			layer.glyph_attribs.clear();
+			layer.next_segment_range = {};
+			return;
 		}
 
 		// Discard all glyphs ending on the deleted segment, i.e. not overlapping onto the next one.
+		const auto next_seg {shared_layer.ranges[_first_segment_idx]};
+
 		if (next_seg.n > glyph_count_type{0}) {
 			layer.glyph_attribs.set_front(glyph_to_attrib_count(layer_idx, next_seg.i0));
 		} else {

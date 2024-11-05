@@ -172,6 +172,8 @@ private:
 		trajectory::id_type trajectory;
 	};
 
+	/// Indicates for each node whether or not it is used as the start of a segment.
+	std::vector<bool> _node_starts_segment;
 	/// Newly added nodes, for which geometry data should be created.
 	dbuf_queue<new_node> _node_queue;
 	/// For each segments stores the index of its successor in the trajectory.

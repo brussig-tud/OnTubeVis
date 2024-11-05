@@ -98,11 +98,8 @@ void render_state::trim_trajectories ()
 			// By construction, a segment's first node is always the older one.
 			auto &node = node_buffer.as_span()[segment->x()];
 
-			// Mark the node for deletion.
-			// NOTE: This could mean writing to storage currently read by a draw call, which is UB.
-			// Chances and severity of actual problems, however, are low, so this simple approach is
-			// used for now.
-			node.t[0] = unlinked_node;
+			// The node no longer starts a segment, so it may be deleted.
+			_node_starts_segment[segment->x()] = false;
 
 			// Notify the trajectory to which the segment belonged.
 			trajectories[seg_to_traj[segment_buffer.front()]]
@@ -110,36 +107,14 @@ void render_state::trim_trajectories ()
 
 			// Remove the segment.
 			segment_buffer.pop_front();
-		} else {
-			// If there are no more segments, yet the target capacity has not been reached, that
-			// means there must be nodes which do not belong to a segment because they are the only
-			// ones in their respective trajectories.
-			// There must be at least one such node, or we would have already reached our target
-			// capacity.
-			auto &node = *node_buffer.try_first();
-			// The node cannot have started a segment, or it would have been deleted already.
-			assert(node.t[0] != unlinked_node);
-
-			// Instead, the node has to be newest one on some trajectory.
-			const auto traj {std::find_if(trajectories.begin(), trajectories.end(), [&](auto &t) {
-				return t.last_node_idx() == node_buffer.front();
-			})};
-			assert(traj != trajectories.end());
-
-			// Mark the trajectory as empty, so appending a new node will not create a segment with
-			// the deleted one.
-			traj->mark_empty();
-
-			// Remove the node.
-			node_buffer.pop_front();
-			++free_capacity;
 		}
 
 		// Remove all nodes no longer used by a segment from the front of the buffer.
 		// Depending on order, some unused nodes could be kept for now, but this is fine; they will
 		// be removed by one of the next trimmings.
 		while (auto *node = node_buffer.try_first()) {
-			if (node->t[0] != unlinked_node) {
+			if (_node_starts_segment[node_buffer.front()]) {
+				assert(! segment_buffer.is_empty());
 				break;
 			}
 
@@ -162,6 +137,8 @@ bool render_state::create_geom_buffers (
 	if (! node_buffer.create(capacity)) {
 		return false;
 	}
+
+	_node_starts_segment = std::vector<bool>(node_buffer.as_span().length());
 
 	// Each trajectory has one fewer segments than nodes.
 	const auto ok {segment_buffer.create(capacity - 1)
