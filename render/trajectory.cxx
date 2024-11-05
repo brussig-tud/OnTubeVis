@@ -142,7 +142,8 @@ void trajectory::update_glyphs ()
 			// If there have not yet been any glyphs starting on the current segment, initialize its
 			// range.
 			if (seg_idx != layer.last_glyph_seg) {
-				range = layer.next_segment_range;
+				range                      = layer.next_segment_range;
+				layer.next_segment_range.n = glyph_count_type{0};
 			}
 
 			// Retreive the arclength range of the current segment.
@@ -161,10 +162,17 @@ void trajectory::update_glyphs ()
 					goto done;
 				}
 
+				const auto glyph_length {_render.glyph_length(layer_idx, &*seg_attribs.begin + 2)};
+
+				// Negative glyph length indicates potentially infinite extent.
+				if (glyph_length < 0) {
+					break;
+				}
+
 				// Calculate the glyph's front edge.
 				const auto glyph_s_max {
 					/* center */ *seg_attribs.begin
-					/* radius */ + 0.5f * _render.glyph_length(layer_idx, &*seg_attribs.begin + 2)
+					/* radius */ + 0.5f * glyph_length
 				};
 
 				// Found a glyph potentially on the segment.
@@ -180,11 +188,13 @@ void trajectory::update_glyphs ()
 			seg_attribs.end = seg_attribs.begin;
 
 			while (seg_attribs.end != layer.attrib_queue.end()) {
-				float glyph_center {*seg_attribs.end};
-				float glyph_radius {0.5f * _render.glyph_length(layer_idx, &*seg_attribs.end + 2)};
+				const float glyph_center {*seg_attribs.end};
+				const float glyph_radius {
+					0.5f * _render.glyph_length(layer_idx, &*seg_attribs.end + 2)
+				};
 
 				// If the glyph lies fully beyond the current segment, the segment is complete.
-				if (glyph_center - glyph_radius > seg_s_max) {
+				if (glyph_center - std::max(glyph_radius, 0.0f) > seg_s_max) {
 					break;
 				}
 
@@ -192,12 +202,10 @@ void trajectory::update_glyphs ()
 				range.n += glyph_count_type{1};
 
 				// If the glyph also overlaps the next segment, count it there as well.
-				// Otherwise the next range is cleared after its previous use for the current
-				// segment.
-				if (glyph_center + glyph_radius > seg_s_max) {
+				if (glyph_radius < 0) {
+					layer.next_segment_range.n = glyph_count_type{1};
+				} else if (glyph_center + glyph_radius > seg_s_max) {
 					layer.next_segment_range.n += glyph_count_type{1};
-				} else {
-					layer.next_segment_range.n = glyph_count_type{0};
 				}
 
 				// Next glyph.
