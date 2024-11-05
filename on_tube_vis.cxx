@@ -2439,6 +2439,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 		}
 
 		// Create trajectories to fill ring buffers.
+		client.trajectories.clear();
 		render.trajectories.clear();
 
 		for (const auto &dataset : traj_mgr.datasets()) {
