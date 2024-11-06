@@ -105,6 +105,14 @@ public:
 	/// Add newly visible glyph attibutes from the host queue to the render buffer.
 	void update_glyphs ();
 
+	/// Must be called when a node belonging to this trajectory is removed from the render buffer.
+	void on_delete_node (gpumem::index_type node_idx) noexcept
+	{
+		if (node_idx == _last_node_idx) {
+			_last_node_idx = nil;
+		}
+	}
+
 	/// Must be called when the geometry of a segment belonging to this trajectory is deleted.
 	/// Frees all glyphs on the segment.
 	void on_delete_segment (gpumem::index_type seg_idx);
@@ -113,14 +121,6 @@ public:
 	/// in the glyphs attibute queue's read buffer.
 	/// WARNING: Must not be called during deferred shading.
 	void trim_glyphs ();
-
-	/// Must be called when and only when the last node on this trajectory is removed from the
-	/// render buffer to reset internal state.
-	/// Callers are responsible for ensuring that this precondition is met.
-	void mark_empty () noexcept
-	{
-		_last_node_idx = nil;
-	}
 
 	/// Synchronize newly added glyphs with the GPU.
 	[[nodiscard]] bool flush_glyph_attribs ();

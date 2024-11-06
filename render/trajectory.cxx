@@ -51,6 +51,8 @@ void trajectory::append_node (const node_attribs &node, const cgv::mat4 *t_to_s)
 	_last_node_idx = _render.node_buffer.back();
 	_render.node_buffer.push_back(node);
 
+	// Store additional information on the node.
+	_render._node_to_traj[_last_node_idx]        = _id;
 	_render._node_starts_segment[_last_node_idx] = false;
 
 	// If this node is the first one on the trajectory, there is nothing more to do.
@@ -250,25 +252,21 @@ void trajectory::on_delete_segment (gpumem::index_type seg_idx)
 	_first_segment_idx = _render._next_segment[seg_idx];
 
 	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer) {
-		auto &layer {_layers[layer_idx]};
+		auto                          &layer     {_layers[layer_idx]};
+		index_range<glyph_count_type> next_range;
 
 		// Reset indices when the last segment is deleted.
 		if (_first_segment_idx == nil) {
 			_last_segment_idx    = nil;
 			layer.last_glyph_seg = nil;
-
-			// To simplify things, deleting the last segment also deletes the last node.
-			_last_node_idx = nil;
-			layer.glyph_attribs.clear();
-			layer.next_segment_range = {};
-			return;
+			next_range           = layer.next_segment_range;
+		} else {
+			next_range = shared_layer.ranges[_first_segment_idx];
 		}
 
 		// Discard all glyphs ending on the deleted segment, i.e. not overlapping onto the next one.
-		const auto next_seg {shared_layer.ranges[_first_segment_idx]};
-
-		if (next_seg.n > glyph_count_type{0}) {
-			layer.glyph_attribs.set_front(glyph_to_attrib_count(layer_idx, next_seg.i0));
+		if (next_range.n > glyph_count_type{0}) {
+			layer.glyph_attribs.set_front(glyph_to_attrib_count(layer_idx, next_range.i0));
 		} else {
 			layer.glyph_attribs.pop_front(
 					glyph_to_attrib_count(layer_idx, shared_layer.ranges[seg_idx].n));
@@ -363,6 +361,8 @@ void trajectory::trim_glyphs ()
 			// Move on to the next segment.
 			seg_idx = _render._next_segment[seg_idx];
 		} while (seg_idx != nil);
+
+		assert(found_oldest_glpyh);
 
 		// This point is only reached if the last segment in the trajectory was affected, so overlap
 		// onto the next one could be affected as well.

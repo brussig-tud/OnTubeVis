@@ -176,6 +176,8 @@ private:
 	std::vector<bool> _node_starts_segment;
 	/// Newly added nodes, for which geometry data should be created.
 	dbuf_queue<new_node> _node_queue;
+	/// Stores which trajectory each node belongs to.
+	std::unique_ptr<trajectory::id_type[]> _node_to_traj;
 	/// For each segments stores the index of its successor in the trajectory.
 	std::unique_ptr<gpumem::index_type[]> _next_segment;
 

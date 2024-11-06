@@ -118,6 +118,10 @@ void render_state::trim_trajectories ()
 				break;
 			}
 
+			// Notify the trajectory that the node is being deleted.
+			trajectories[_node_to_traj[node_buffer.front()]].on_delete_node(node_buffer.front());
+
+			// Delete the node.
 			node_buffer.pop_front();
 			++free_capacity;
 		}
@@ -148,7 +152,8 @@ bool render_state::create_geom_buffers (
 		&& t_to_s.create(segment_buffer.as_span().length())
 		};
 
-	// Allocate memory to store segment links.
+	// Allocate CPU buffers.
+	_node_to_traj = std::make_unique<trajectory::id_type[]>(node_buffer.as_span().length());
 	_next_segment = std::make_unique<gpumem::index_type[]>(segment_buffer.as_span().length());
 	return ok;
 }

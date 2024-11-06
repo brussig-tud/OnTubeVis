@@ -28,7 +28,7 @@ void test_client::update ()
 			const cgv::mat4 *t_to_s {nullptr};
 
 			if (! render_traj.is_empty()) {
-				t_to_s = &arclen_data.t_to_s[traj.segment_idx];
+				t_to_s = &arclen_data.t_to_s.at(traj.segment_idx);
 			}
 
 			// Append a node, potentially creating a new segment.

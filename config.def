@@ -3,7 +3,7 @@ type(fltk_viewer_window):theme=dark
 
 // Data
 // - dataset to load
-type(on_tube_vis):datapath="./testdata/propeller_streamline.0.csv"
+type(on_tube_vis):datapath="./testdata/fisch_wehr_streamline.0.csv"
 // - initial glyph layer config
 type(on_tube_vis):layer_config_file="./testdata/layerconf_3layers_fisch_wehr_adj.xml"
 
