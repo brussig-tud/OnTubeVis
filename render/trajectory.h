@@ -135,13 +135,15 @@ private:
 		/// Glyph attributes received from the client that have not been entered into the render
 		/// buffer yet.
 		dbuf_queue<float> attrib_queue;
-		/// Absolute index of the newest segment containing a glyph on this layer.
-		gpumem::index_type last_glyph_seg {nil};
+		/// Absolute index of the segment glyphs are currently being placed on.
+		gpumem::index_type current_segment {nil};
 		/// The initial range of glyphs on the segment that will next have glyphs added, including
 		/// potential overlap (i.e. glyphs on multiple segments).
 		index_range<glyph_count_type> next_segment_range {};
 		/// The size, not capacity, of this layer's glyph buffer.
 		glyph_count_type buffer_size;
+		/// Indicates whether `current_segment` has changed since the last call to `update_glyphs`.
+		bool segment_is_new;
 	};
 
 
