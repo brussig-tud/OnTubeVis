@@ -115,9 +115,9 @@ OTV_API OTV_TerminateResult otv__terminate (void)
 	std::clog << "otv__terminate: implementation returned '"<<result<<"' for request to terminate." << std::endl;
 	if (result) {
 		otv_thread.join();
-		return {.exit_code=otv_retval.get(), .terminated=true};
+		return {otv_retval.get(), true};
 	}
-	return {.terminated=false};
+	return {-1, false};
 }
 
 OTV_API const char* otv__get_module_filepath (void) {

@@ -21,7 +21,7 @@
 //
 
 // The actual CGV Framework entry point as it would be provided by the static cgv_viewer_lib.
-int api_main (int argc, char** argv)
+OTV_API int api_main (int argc, char** argv)
 {
 	// Report status
 	std::clog << "OnTubeVis headless service started." << std::endl;

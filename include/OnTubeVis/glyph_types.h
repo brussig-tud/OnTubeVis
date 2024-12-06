@@ -23,6 +23,19 @@
 
 //////
 //
+// Language config [OPEN]
+//
+
+// Make sure we don't get the bugged-out warning on MSCV (we don't have custom constructors, the warning is just wrong)
+#ifdef _MSC_VER
+	#pragma warning(push)
+	#pragma warning(disable : 4190)
+#endif
+
+
+
+//////
+//
 // Typedefs and structs
 //
 
@@ -1366,6 +1379,17 @@ typedef const char *const(*otv__string_from_InterpolationMode_funct)(const OTV_I
 #ifdef OTV_NO_PROTOTYPES
 /// @copydoc otv__string_from_InterpolationMode()
 extern otv__string_from_InterpolationMode_funct otv__string_from_InterpolationMode;
+#endif
+
+
+
+//////
+//
+// Language config [CLOSE]
+//
+
+#ifdef _MSC_VER
+	#pragma warning(pop)
 #endif
 
 

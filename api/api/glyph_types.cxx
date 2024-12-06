@@ -11,6 +11,19 @@
 
 //////
 //
+// Language config
+//
+
+// Make sure we don't get the bugged-out warning on MSCV (we don't have custom constructors, the warning is just wrong)
+#ifdef _MSC_VER
+	#pragma warning(push)
+	#pragma warning(disable : 4190)
+#endif
+
+
+
+//////
+//
 // Functions
 //
 
@@ -31,7 +44,7 @@ OTV_API OTV_GlyphInfo otv__construct_SurfaceColorInfo (
 
 OTV_API OTV_GlyphInfo otv__construct_empty_SurfaceColorInfo (void)
 {
-	OTV_GlyphInfo gi{.N = uint32_t((sizeof(OTV_SurfaceColorInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
+	OTV_GlyphInfo gi{uint32_t((sizeof(OTV_SurfaceColorInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
 	return gi;
 }
 
@@ -55,9 +68,9 @@ OTV_API OTV_GlyphData otv__construct_SurfaceColorData (const float s, const floa
 
 OTV_API OTV_GlyphData otv__construct_empty_SurfaceColorData (void)
 {
-	OTV_GlyphData gd{.N = uint32_t(
-		(sizeof(OTV_SurfaceColorData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float)
-	)};
+	OTV_GlyphData gd{
+		uint32_t((sizeof(OTV_SurfaceColorData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
+	};
 	return gd;
 }
 
@@ -89,7 +102,7 @@ OTV_API OTV_GlyphInfo otv__construct_LinePlotInfo (
 
 OTV_API OTV_GlyphInfo otv__construct_empty_LinePlotInfo (void)
 {
-	OTV_GlyphInfo gi{.N = uint32_t((sizeof(OTV_LinePlotInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
+	OTV_GlyphInfo gi{uint32_t((sizeof(OTV_LinePlotInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
 	return gi;
 }
 
@@ -114,9 +127,9 @@ OTV_API OTV_GlyphData otv__construct_LinePlotData (const float s, const uint32_t
 
 OTV_API OTV_GlyphData otv__construct_empty_LinePlotData (void)
 {
-	OTV_GlyphData gd{.N = uint32_t(
-		(sizeof(OTV_LinePlotData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float)
-	)};
+	OTV_GlyphData gd{
+		uint32_t((sizeof(OTV_LinePlotData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
+	};
 	return gd;
 }
 
@@ -150,7 +163,7 @@ OTV_API OTV_GlyphInfo otv__construct_RectangleInfo (
 
 OTV_API OTV_GlyphInfo otv__construct_empty_RectangleInfo (void)
 {
-	OTV_GlyphInfo gi{.N = uint32_t((sizeof(OTV_RectangleInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
+	OTV_GlyphInfo gi{uint32_t((sizeof(OTV_RectangleInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
 	return gi;
 }
 
@@ -177,9 +190,9 @@ OTV_API OTV_GlyphData otv__construct_RectangleData (
 
 OTV_API OTV_GlyphData otv__construct_empty_RectangleData (void)
 {
-	OTV_GlyphData gd{.N = uint32_t(
-		(sizeof(OTV_RectangleData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float)
-	)};
+	OTV_GlyphData gd{
+		uint32_t((sizeof(OTV_RectangleData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
+	};
 	return gd;
 }
 
@@ -195,7 +208,7 @@ OTV_API OTV_Vec2 otv__instantiate_Rectangle (
 	const float traj_radius, const OTV_RectangleInfo *info, const OTV_RectangleData *data
 ){
 	const float hw = .5f*traj_radius * (info->static_flags|RI_STATIC_WIDTH ? info->width : data->width);
-	return {.x=-hw, .y=hw};
+	return {-hw, hw};
 }
 
 
@@ -220,7 +233,7 @@ OTV_API OTV_GlyphInfo otv__construct_SignBlobInfo (
 
 OTV_API OTV_GlyphInfo otv__construct_empty_SignBlobInfo (void)
 {
-	OTV_GlyphInfo gi{.N = uint32_t((sizeof(OTV_SignBlobInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
+	OTV_GlyphInfo gi{uint32_t((sizeof(OTV_SignBlobInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
 	return gi;
 }
 
@@ -246,9 +259,9 @@ OTV_API OTV_GlyphData otv__construct_SignBlobData (
 
 OTV_API OTV_GlyphData otv__construct_empty_SignBlobData (void)
 {
-	OTV_GlyphData gd{.N = uint32_t(
-		(sizeof(OTV_SignBlobData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float)
-	)};
+	OTV_GlyphData gd{
+		uint32_t((sizeof(OTV_SignBlobData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
+	};
 	return gd;
 }
 
@@ -264,7 +277,7 @@ OTV_API OTV_Vec2 otv__instantiate_SignBlob (
 	const float traj_radius, const OTV_SignBlobInfo *info, const OTV_SignBlobData *
 ){
 	const float hw = traj_radius*info->radius;
-	return {.x=-hw, .y=hw};
+	return {-hw, hw};
 }
 
 

@@ -44,6 +44,8 @@ std::unordered_map<uint32_t, unsigned> on_tube_vis::traj_id_map;
 // start a new session
 struct new_session_command : public command
 {
+	new_session_command(const VisSetup &setup) : setup(setup) {}
+
 	VisSetup setup;
 
 	virtual const std::string& describe (void) final {
@@ -360,8 +362,7 @@ OTV_API bool otv__start_vis_session (OTV_VisSetupHandle vis_setup)
 	}
 
 	// Compile and submit command
-	auto ns_cmd = std::make_shared<new_session_command>();
-	ns_cmd->setup = vs;
+	auto ns_cmd = std::make_shared<new_session_command>(vs);
 	std::clog << "otv__start_vis_session: requesting to start visualization of '"<<vs.name<<"'." << std::endl;
 	command_stream::push(ns_cmd);
 

@@ -93,7 +93,7 @@ struct module_info
 
 				// The more robust linking model under Windows means we can get away with just taking a function pointer
 				// to our currently in-scope global "main" symbol
-				main = (main_funct)::main;
+				main = (main_funct)::api_main;
 
 				// Done!
 				return;
@@ -106,7 +106,7 @@ struct module_info
 		dl_iterate_phdr(module_iteration_callback, this);
 
 		// Retrieve the "main" function address from our module symbol table
-		main = (main_funct)dlsym(handle, "main");
+		main = (main_funct)dlsym(handle, "api_main");
 	#endif
 	}
 

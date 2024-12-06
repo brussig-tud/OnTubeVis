@@ -26,7 +26,7 @@
 
 // DLL bindings
 #if defined(_WIN32) || defined(WIN32)
-	#ifdef ONTUBEVIS_EXPORTS
+	#if defined(ONTUBEVIS_EXPORTS) || defined(ONTUBEVIS_FORCE_STATIC)
 		#define OTV_API OTV_EXTERN_C __declspec(dllexport)
 	#else
 		#define OTV_API OTV_EXTERN_C __declspec(dllimport)

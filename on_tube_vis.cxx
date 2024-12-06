@@ -1243,13 +1243,13 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					const auto& attribs = gc.layer_attribs[layer_idx];
 
 					// Copy glyph data into the simulated client.
-					client.glyphs.at(layer_idx) = {
-						{
-							reinterpret_cast<const index_range<glyph_count_type>*>(&*ranges.cbegin()),
-							reinterpret_cast<const index_range<glyph_count_type>*>(&*ranges.cend())
-						},
-						attribs
-					};
+					auto &gl = client.glyphs.at(layer_idx);
+					gl.ranges.reserve(ranges.size());
+					for (const auto& r : ranges)
+						gl.ranges.emplace_back(index_range<glyph_count_type>{
+							glyph_count_type(r.i0), glyph_count_type(r.n)
+						});
+					gl.attribs = attribs;
 
 					// Allocate GPU buffers for glyph-related data.
 					if (! render.create_glyph_layer(

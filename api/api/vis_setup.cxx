@@ -23,7 +23,7 @@
 //
 
 OTV_API OTV_VisSetupHandle otv__create_VisSetup (const char *const name) {
-	auto new_vs = new VisSetup{.name=name};
+	auto new_vs = new VisSetup(name);
 	std::clog << "otv__create_VisSetup: created setup "<<hex(new_vs)<<std::dec<<" named '"<<new_vs->name<<"'."
 	          << std::endl;
 	return (OTV_VisSetupHandle)new_vs;

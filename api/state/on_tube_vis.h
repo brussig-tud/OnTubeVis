@@ -97,6 +97,10 @@ struct trajectory_setup {
 
 struct VisSetup
 {
+	VisSetup(const std::string &name) : name(name) {}
+
+	VisSetup(const VisSetup &other) : name(other.name), layers(other.layers), trajs(other.trajs) {}
+
 	std::string name;
 	std::vector<OTV_LayerConfig> layers;
 	std::vector<trajectory_setup> trajs;
