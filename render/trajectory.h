@@ -15,7 +15,7 @@ struct render_state;
 /// Manages the render data for a single trajectory.
 class trajectory {
 public:
-	using id_type = uint;
+	using id_type = unsigned int;
 
 
 	/// Create a new trajectory.

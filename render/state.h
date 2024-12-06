@@ -58,7 +58,7 @@ public:
 
 	/// GPU buffer storing which trajectory each segment belongs to.
 	/// Entries correspond to #segment_buffer.
-	gpumem::array<uint> seg_to_traj;
+	gpumem::array<unsigned> seg_to_traj;
 
 	/// GPU buffer containing segment-wise arclength parametrization.
 	/// Entries correspond to #segment_buffer.

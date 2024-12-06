@@ -78,7 +78,8 @@ bool memory_pool<Alloc>::create (size_type num_blocks, size_type block_length, s
 	block_length = (block_length - 1 + alignment) & -alignment;
 
 	const auto memory {
-			this->allocator().template alloc(num_blocks * block_length, alignment)};
+		this->allocator().alloc(num_blocks * block_length, alignment)
+	};
 	return memory.data() ? memory_pool_alloc::create(num_blocks, block_length, memory) : false;
 }
 

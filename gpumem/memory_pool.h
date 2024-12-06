@@ -52,7 +52,7 @@ public:
 	}
 
 	/// The number of blocks not currently occupied.
-	[[nodiscard]] constexpr size_type num_free_blocks () const noexcept
+	[[nodiscard]] size_type num_free_blocks () const
 	{
 		return _free_blocks.size();
 	}
