@@ -26,7 +26,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 1f911bc426ee56e428c4aa4b3bc8b7f7849dd8e8
+		GIT_TAG a1f8b5e29f006d0f22310f30be4e3b0c5fee7615
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -96,6 +96,16 @@ set(SOURCES
 	render/state.cxx
 	render/trajectory.cxx
 
+	# API implementation
+	api/api/glyph_types.cxx
+	api/api/modmain.cxx
+	api/api/types.cxx
+	api/api/vis_setup.cxx
+	api/helper/module_handling.cxx
+	api/state/on_tube_vis.cxx
+	api/state/streaming.cxx
+	api/apimain.cxx
+
 	# main app
 	arclen_helper.cxx
 	attrib_handle_manager.cxx
@@ -155,6 +165,22 @@ set(HEADERS
 	render/common.h
 	render/state.h
 	render/trajectory.h
+
+	# API implementation
+	api/helper/glyphs.h
+	api/helper/module_handling.h
+	api/state/on_tube_vis.h
+	api/state/streaming.h
+	api/util/cppstream.h
+	api/util/uid.h
+	api/apimain.h
+
+	# Public API
+	include/OnTubeVis/config.h
+	include/OnTubeVis/glyph_types.h
+	include/OnTubeVis/OnTubeVis.h
+	include/OnTubeVis/types.h
+	include/OnTubeVis/vis_setup.h
 
 	# main app
 	ambient_occlusion_style.h
@@ -231,6 +257,12 @@ endif()
 # - resources (we'll likely get away with just globbing them)
 file(GLOB_RECURSE IMAGES RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.png" "*.bmp")
 
+# Make sure the public API is in the public-facing includes
+list(APPEND ADDITIONAL_INCLUDE_PATHS "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>$<INSTALL_INTERFACE:include>")
+
+# Make sure we have access to the private API internally
+set(PRIVATE_API_INCLUDE "${CMAKE_CURRENT_LIST_DIR}/api")
+
 # decide on the view interactor to use
 if (ENABLE_HOLOGRAPHY)
 	set(VIEW_INTERACTOR_PLUGIN crg_holo_view)
@@ -247,20 +279,21 @@ cgv_add_target(OnTubeVis
 	SHADER_SOURCES  ${SHADERS}
 	RESOURCES       ${IMAGES}
 	DEPENDENCIES
-		glew json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui cgv_render
-		cgv_os cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d cgv_app cgv_post cgv_gpgpu
-		${OPTIONAL_DEPENDENCIES}
+		glew json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui
+		cgv_render cgv_os cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d
+		cgv_app cgv_post cgv_gpgpu ${OPTIONAL_DEPENDENCIES}
 
-	LINKTIME_PLUGIN_DEPENDENCIES cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
+	LINKTIME_PLUGIN_DEPENDENCIES
+		cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
 
-	ADDITIONAL_INCLUDE_PATHS ${ADDITIONAL_INCLUDE_PATHS}
+	ADDITIONAL_INCLUDE_PATHS         ${ADDITIONAL_INCLUDE_PATHS}
+
+	ADDITIONAL_PRIVATE_INCLUDE_PATHS ${PRIVATE_API_INCLUDE}
+
+	ADDITIONAL_PRIVATE_DEFINES       ${NVRTC_INCLUDE_DEFS}
 
 	ADDITIONAL_CMDLINE_ARGS
 		"config:\"${CMAKE_CURRENT_LIST_DIR}/config.def\""
-
-	OVERRIDE_SHARED_EXPORT_DEFINE ONTUBEVIS_EXPORTS
-
-	ADDITIONAL_PRIVATE_DEFINES ${NVRTC_INCLUDE_DEFS}
 )
 
 if (ENABLE_OPTIX_SUPPORT)
