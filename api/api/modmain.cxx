@@ -40,9 +40,8 @@ struct terminate_command : public command
 	}
 
 	virtual bool handle (void) final {
-		notify_result(true);
 		otv_instance->quit();
-		return true;
+		return notify_result(true);;
 	}
 };
 
@@ -116,7 +115,6 @@ OTV_API bool otv__startup (const int argc, const char *const *argv)
 	std::promise<int> p;
 	otv_retval = p.get_future();
 	otv_thread = std::thread(otv_runner, std::move(p), std::move(args_adapted));
-	otv_thread_handle = (void*)otv_thread.native_handle();
 
 	// Report success if we managed to spawn the runner thread
 	return otv_thread.joinable();

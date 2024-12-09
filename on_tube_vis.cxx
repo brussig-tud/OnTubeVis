@@ -1125,11 +1125,6 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 
 void on_tube_vis::quit() {
 	cgv::gui::get_gui_driver()->quit(/*EXIT_SUCCESS*/0);
-	#ifdef _WIN32
-		TerminateThread((HANDLE)otv_thread_handle, 0);
-	#else
-		pthread_exit(0); //pthread_cancel((pthread_t)otv_thread_handle);
-	#endif
 	/*auto& gui_drv = *cgv::gui::get_gui_driver();
 	auto num_windows = gui_drv.get_nr_windows();
 	auto &viewer_wnd = *gui_drv.get_window(num_windows > 0 ? 0 : num_windows-1);

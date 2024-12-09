@@ -162,15 +162,14 @@ int main (int argc, char** argv)
 	// Shut down
 
 	// Request service to stop and quit
-	/*const OTV_TerminateResult status = otv__terminate();
+	const OTV_TerminateResult status = otv__terminate();
 	if (status.terminated) {
 		// OnTubeVis did shut down
 		printf("OnTubeVis service exited with code %i.\n", status.exit_code);
 		return status.exit_code;
-	}*/
+	}
 	// Something went wrong...
-	for (unsigned i=0; i<102400; i++)
-		fflush(stdout);
+	printf("OnTubeVis service did not honor shutdown request!\n");
 	printf("Performing unclean shutdown.\n");
-	return 0;
+	return -1;
 }
