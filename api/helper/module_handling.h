@@ -23,7 +23,7 @@
 //
 
 // The main function signature
-typedef int(*main_funct)(int, const char *const*);
+typedef int(*main_funct)(int, char**);
 
 
 

@@ -6,6 +6,14 @@
 #include <cassert>
 #include <filesystem>
 
+// OS access
+#ifdef _WIN32
+	#define NOMINMAX
+	#include <Windows.h>
+#else
+	#include <pthread.h>
+#endif
+
 // CGV framework core
 #include <cgv/defines/quote.h>
 #include <cgv/gui/dialog.h>
@@ -85,7 +93,10 @@ enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
 }
 
 // Streaming API global state
+#include <3rd/fltk/include/fltk/events.h>
+
 on_tube_vis *otv_instance = nullptr;
+void *otv_thread_handle = nullptr;
 std::mutex on_tube_vis::init_mtx;
 std::condition_variable on_tube_vis::init_cv;
 
@@ -1114,6 +1125,22 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 
 void on_tube_vis::quit() {
 	cgv::gui::get_gui_driver()->quit(/*EXIT_SUCCESS*/0);
+	#ifdef _WIN32
+		TerminateThread((HANDLE)otv_thread_handle, 0);
+	#else
+		pthread_exit(0); //pthread_cancel((pthread_t)otv_thread_handle);
+	#endif
+	/*auto& gui_drv = *cgv::gui::get_gui_driver();
+	auto num_windows = gui_drv.get_nr_windows();
+	auto &viewer_wnd = *gui_drv.get_window(num_windows > 0 ? 0 : num_windows-1);
+	//viewer_wnd.dispatch_event(cgv::gui::key_event(cgv::gui::KEY_Escape, cgv::gui::KeyAction::KA_PRESS));
+	fltk::Window *fltk_window = viewer_wnd.get_interface<fltk::Window>();
+	fltk::e_type = 8;
+	static const char _esc[2] = {27, 0};
+	fltk::e_text = _esc;
+	fltk_window->handle(/*FLTK magic value for KEY*//*8);
+	//gui_drv.quit(/*EXIT_SUCCESS*//*0);
+	//this->~on_tube_vis();*/
 }
 
 bool on_tube_vis::on_exit_request() {
@@ -1847,13 +1874,6 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	/*if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
 		view_ptr->set_view_up_dir(0, 1, 0);*/
 
-	// Process any pending streaming API commands
-	auto cmd = command_stream::poll();
-	if (cmd)
-		if (!cmd->handle())
-			std::cerr << "OnTubeVis: command "<<hex(cmd.get())<<" ("<<cmd->describe()<<") failed execution!"
-			          << std::endl;
-
 	// update color and mapping legends if necessary
 	if (update_legends) {
 		color_legend_mgr.compose(
@@ -2099,6 +2119,14 @@ void on_tube_vis::after_finish(context& ctx) {
 			std::cout << ss.str() << std::endl;
 		}
 	}
+
+	// Process any pending streaming API commands
+	static unsigned count = 0;
+	auto cmd = command_stream::poll();
+	if (cmd)
+		if (!cmd->handle())
+			std::cerr << "OnTubeVis: command " << hex(cmd.get()) << " (" << cmd->describe() << ") failed execution!"
+			          << std::endl;
 }
 
 void on_tube_vis::create_gui(void)

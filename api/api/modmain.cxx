@@ -18,7 +18,7 @@
 #include <state/on_tube_vis.h>
 #include <state/streaming.h>
 
-// Local include
+// Local includes
 #include <on_tube_vis.h>
 
 
@@ -40,8 +40,9 @@ struct terminate_command : public command
 	}
 
 	virtual bool handle (void) final {
+		notify_result(true);
 		otv_instance->quit();
-		return notify_result(true);
+		return true;
 	}
 };
 
@@ -66,7 +67,7 @@ namespace {
 //
 
 // The internal runner for the OnTubeVis main loop
-void otv_runner (std::promise<int> &&p, std::vector<const char*> &&args)
+void otv_runner (std::promise<int> &&p, std::vector<char*> &&args)
 {
 	// Report status
 	std::clog << "OnTubeVis headless service is starting." << std::endl;
@@ -106,15 +107,16 @@ OTV_API bool otv__startup (const int argc, const char *const *argv)
 		return false;
 
 	// Adapt command line arguments
-	std::vector<const char*> args_adapted; args_adapted.reserve(argc+1);
-	args_adapted.emplace_back(otv__get_module_filepath());
+	std::vector<char*> args_adapted; args_adapted.reserve(argc+1);
+	args_adapted.emplace_back(const_cast<char*>(otv__get_module_filepath()));
 	for (unsigned i=0; i<argc; i++)
-		args_adapted.emplace_back(argv[i]);
+		args_adapted.emplace_back(const_cast<char*>(argv[i]));
 
 	// Spawn the thread the CGV Framework main loop will run in
 	std::promise<int> p;
 	otv_retval = p.get_future();
 	otv_thread = std::thread(otv_runner, std::move(p), std::move(args_adapted));
+	otv_thread_handle = (void*)otv_thread.native_handle();
 
 	// Report success if we managed to spawn the runner thread
 	return otv_thread.joinable();

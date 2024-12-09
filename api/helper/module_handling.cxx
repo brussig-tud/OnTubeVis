@@ -14,7 +14,12 @@
 	#define NOMINMAX // we don't want the "min" and "max" macros
 	#include <windows.h>
 	#include <Psapi.h>
-	#include <apps/cgv_viewer/main.h> // The main entry point, exposed by the cgv_viewer_lib
+	#ifdef CGV_FORCE_STATIC
+		#include <apps/cgv_viewer/main.h> // The main entry point, exposed by the cgv_viewer_lib
+	#else
+		// Fake a main function to avoid compilation problems in non-service DLL builds
+		int main(int, char**) { return -1; }
+	#endif
 #else
 	#include <link.h>
 	#include <dlfcn.h>
@@ -22,11 +27,6 @@
 
 // Public interface
 #include <OnTubeVis/OnTubeVis.h>
-
-// Private interface
-#ifdef _WIN32
-	#include <apimain.h>
-#endif
 
 // Local includes
 #include "module_handling.h"

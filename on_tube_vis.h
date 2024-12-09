@@ -520,5 +520,9 @@ public:
 	void create_gui();
 };
 
+
 /// The OnTubeVis singleton instance implementing the streaming API
 extern on_tube_vis *otv_instance;
+
+/// The OnTubeVis service thread native handle (incredibly hacky, incredibly ugly, but can't be avoided. Ugh...)
+extern void *otv_thread_handle;
