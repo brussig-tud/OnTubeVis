@@ -3,6 +3,8 @@
 // C++ STL
 #include <vector>
 #include <set>
+#include <mutex>
+#include <condition_variable>
 
 // CGV framework core
 #include <cgv/base/node.h>
@@ -90,6 +92,10 @@ public:
 	using box3 = cgv::box3;
 	using rgb = cgv::rgb;
 	using rgba = cgv::rgba;
+
+	// Service control flow
+	static std::mutex init_mtx;
+	static std::condition_variable init_cv;
 
 	cgv::type::DummyEnum voxel_grid_resolution;
 
@@ -503,6 +509,7 @@ public:
 	void handle_color_map_change();
 	void handle_transfer_function_change();
 	void handle_member_change(const cgv::utils::pointer_test& m);
+	void quit();
 	bool on_exit_request();
 
 	bool init(context& ctx);
@@ -512,3 +519,6 @@ public:
 
 	void create_gui();
 };
+
+/// The OnTubeVis singleton instance implementing the streaming API
+extern on_tube_vis *otv_instance;

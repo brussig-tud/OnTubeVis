@@ -95,6 +95,6 @@ struct ambient_occlusion_style_gui_creator : public gui_creator {
 
 #include <cgv_gl/gl/lib_begin.h>
 
-cgv::gui::gui_creator_registration<ambient_occlusion_style_gui_creator> ambient_occlusion_s_gc_reg("ambient_occlusion_style_gui_creator");
+
 }
 }

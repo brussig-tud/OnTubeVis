@@ -104,9 +104,9 @@ set(SOURCES
 	api/helper/module_handling.cxx
 	api/state/on_tube_vis.cxx
 	api/state/streaming.cxx
-	api/apimain.cxx
 
 	# main app
+	ambient_occlusion_style.cxx
 	arclen_helper.cxx
 	attrib_handle_manager.cxx
 	bcc_handler.cxx
@@ -173,7 +173,6 @@ set(HEADERS
 	api/state/streaming.h
 	api/util/cppstream.h
 	api/util/uid.h
-	api/apimain.h
 
 	# Public API
 	include/OnTubeVis/config.h
@@ -258,7 +257,8 @@ endif()
 file(GLOB_RECURSE IMAGES RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.png" "*.bmp")
 
 # Make sure the public API is in the public-facing includes
-list(APPEND ADDITIONAL_INCLUDE_PATHS "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>$<INSTALL_INTERFACE:include>")
+set(ONTUBEVIS_API_INCLUDE "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>$<INSTALL_INTERFACE:include>")
+list(APPEND ADDITIONAL_INCLUDE_PATHS "${ONTUBEVIS_API_INCLUDE}")
 
 # Make sure we have access to the private API internally
 set(PRIVATE_API_INCLUDE "${CMAKE_CURRENT_LIST_DIR}/api")
@@ -353,6 +353,14 @@ target_compile_definitions(OnTubeVis_static PUBLIC ${FEATURE_DEFINES} "INPUT_DIR
 # make sure to register our additional include directories
 target_include_directories(OnTubeVis PUBLIC ${ADDITIONAL_INCLUDES})
 target_include_directories(OnTubeVis_static PUBLIC ${ADDITIONAL_INCLUDES})
+
+# Add the Streaming API test client
+# - create the interface target for no-link usage (dlopen etc.) of the API
+add_library(OnTubeVis_api INTERFACE)
+target_include_directories(OnTubeVis_api INTERFACE ${ONTUBEVIS_API_INCLUDE})
+set_target_properties(OnTubeVis_api PROPERTIES C_STANDARD 11)
+set_target_properties(OnTubeVis_api PROPERTIES C_STANDARD_REQUIRED TRUE)
+add_subdirectory("api_testclient")
 
 # Visual Studio fluff
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT OnTubeVis)

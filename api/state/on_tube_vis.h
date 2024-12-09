@@ -65,7 +65,7 @@ inline OTV_Vec4 operator + (const OTV_Vec4 &v, const float scalar) {
 // Typedefs & structs
 //
 
-struct irange {
+struct irange_api {
 	unsigned i0, n;
 };
 
@@ -77,7 +77,7 @@ struct alen_ref {
 };
 
 struct glyph_layer {
-	std::vector<irange> ranges;
+	std::vector<irange_api> ranges;
 	std::vector<OTV_GlyphData> glyphs;
 	alen_ref latest_refed, earliest_unrefed;
 	inline bool not_empty(void) const { return !glyphs.empty(); }
@@ -117,12 +117,12 @@ struct VisSetup
 	VisSetup& operator = (VisSetup &&) = default;
 };
 
-struct on_tube_vis
+struct on_tube_vis_api
 {
 	// Control flow
-	static std::mutex init_mtx;
+	/*static std::mutex init_mtx;
 	static bool init_pending;
-	static std::condition_variable init_cv;
+	static std::condition_variable init_cv;*/
 	static bool running;
 
 	// Dataset

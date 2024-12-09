@@ -20,7 +20,7 @@ public:
 	/// Type of the allocator used to manage the spanned memory.
 	using alloc_type = Alloc;
 
-	/// Construct a null instance with no backing bufferm but an allocator that can be used to
+	/// Construct a null instance with no backing buffer but an allocator that can be used to
 	/// obtain backing memory in the future.
 	[[nodiscard]] explicit array(const alloc_type &allocator = {})
 		: alloc_type{allocator}

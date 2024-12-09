@@ -14,6 +14,7 @@
 	#define NOMINMAX // we don't want the "min" and "max" macros
 	#include <windows.h>
 	#include <Psapi.h>
+	#include <apps/cgv_viewer/main.h> // The main entry point, exposed by the cgv_viewer_lib
 #else
 	#include <link.h>
 	#include <dlfcn.h>
@@ -93,7 +94,7 @@ struct module_info
 
 				// The more robust linking model under Windows means we can get away with just taking a function pointer
 				// to our currently in-scope global "main" symbol
-				main = (main_funct)::api_main;
+				main = ::main;
 
 				// Done!
 				return;
@@ -106,14 +107,13 @@ struct module_info
 		dl_iterate_phdr(module_iteration_callback, this);
 
 		// Retrieve the "main" function address from our module symbol table
-		main = (main_funct)dlsym(handle, "api_main");
+		main = (main_funct)dlsym(handle, "main");
 	#endif
 	}
 
 	// The destructor.
 #ifndef _WIN32
-	~module_info()
-	{
+	~module_info() {
 		// Drop the reference to our own library.
 		dlclose(handle);
 	}
@@ -128,8 +128,7 @@ struct module_info
 //
 
 // Anonymous namespace to prevent symbol collisions with other compilation units
-namespace
-{
+namespace {
 	// Runtime linker information about our shared object / DLL file
 	const module_info minfo;
 };
@@ -143,7 +142,7 @@ namespace
 
 #ifndef _WIN32
 	// Implementation of the callback for the enumeration of modules loaded by the OS.
-	int module_iteration_callback(struct dl_phdr_info* info, size_t size, void* data)
+	int module_iteration_callback (struct dl_phdr_info *info, size_t, void *data)
 	{
 		// Skip the root executable
 		if (strlen(info->dlpi_name) < 1)

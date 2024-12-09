@@ -30,6 +30,10 @@
 #include <3rd/xml/tinyxml2/tinyxml2.h>
 #include <3rd/xml/cgv_xml/query.h>
 
+// Streaming API
+#include "api/state/streaming.h"
+#include "api/util/cppstream.h"
+
 // Local includes
 #include "arclen_helper.h"
 #include "glyph_compiler.h"
@@ -67,6 +71,8 @@ void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* 
 *   is ignored.
 */
 #include <cgv/gui/application.h>
+#include <cgv/gui/gui_driver.h>
+#include <cgv/os/mutex.h>
 
 namespace cgv {
 namespace reflect {
@@ -77,6 +83,11 @@ enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
 
 }
 }
+
+// Streaming API global state
+on_tube_vis *otv_instance = nullptr;
+std::mutex on_tube_vis::init_mtx;
+std::condition_variable on_tube_vis::init_cv;
 
 void on_tube_vis::on_register()
 {
@@ -281,6 +292,12 @@ on_tube_vis::~on_tube_vis()
 	// ###  END:  OptiX integration
 	// ###############################
 #endif
+
+	/* Uninit streaming API */ {
+		std::lock_guard g(init_mtx);
+		otv_instance = nullptr;
+		init_cv.notify_all();
+	}
 }
 
 void on_tube_vis::handle_args (std::vector<std::string> &args)
@@ -1095,6 +1112,10 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		taa.reset_static_frame_count(); // Just make sure we keep multisampling
 }
 
+void on_tube_vis::quit() {
+	cgv::gui::get_gui_driver()->quit(/*EXIT_SUCCESS*/0);
+}
+
 bool on_tube_vis::on_exit_request() {
 	// TODO: does not seem to fire when window is maximized?
 #ifndef _DEBUG
@@ -1491,6 +1512,12 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	// Create an initial fence object to avoid the need for a null check in `draw_trajectories`.
 	render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
+	/* Notify streaming API that init is done */ {
+		std::lock_guard g(init_mtx);
+		otv_instance = this;
+		init_cv.notify_all();
+	}
+
 	// done
 	return success;
 }
@@ -1819,6 +1846,13 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	// TODO: remove once all relevant view interactors provided by the framework properly fix the up-vector
 	/*if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
 		view_ptr->set_view_up_dir(0, 1, 0);*/
+
+	// Process any pending streaming API commands
+	auto cmd = command_stream::poll();
+	if (cmd)
+		if (!cmd->handle())
+			std::cerr << "OnTubeVis: command "<<hex(cmd.get())<<" ("<<cmd->describe()<<") failed execution!"
+			          << std::endl;
 
 	// update color and mapping legends if necessary
 	if (update_legends) {

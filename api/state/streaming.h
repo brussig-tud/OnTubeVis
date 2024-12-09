@@ -19,7 +19,8 @@
 #include <condition_variable>
 
 // Local includes
-#include "on_tube_vis.h"
+#include <api/state/on_tube_vis.h>
+#include <api/state/../../on_tube_vis.h>
 
 
 
@@ -67,6 +68,7 @@ public:
 	static void push (const std::shared_ptr<command> &cmd) {
 		std::lock_guard g(mtx);
 		queue.push(cmd);
+		otv_instance->post_redraw();
 		cv.notify_all();
 	}
 	static std::shared_ptr<command> fetch (void)
@@ -74,6 +76,15 @@ public:
 		std::unique_lock l(mtx);
 		while (queue.empty())
 			cv.wait(l);
+		auto cmd = std::move(queue.front());
+		queue.pop();
+		return cmd;
+	}
+	static std::shared_ptr<command> poll (void)
+	{
+		std::unique_lock l(mtx);
+		if (queue.empty())
+			return nullptr;
 		auto cmd = std::move(queue.front());
 		queue.pop();
 		return cmd;
