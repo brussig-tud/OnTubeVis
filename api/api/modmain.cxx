@@ -142,6 +142,10 @@ OTV_API OTV_TerminateResult otv__terminate (void)
 	const bool result = te->fetch_result();
 	std::clog << "otv__terminate: implementation returned '"<<result<<"' for request to terminate." << std::endl;
 	if (result) {
+		std::unique_lock l(on_tube_vis::init_mtx);
+		while (otv_instance != nullptr)
+			on_tube_vis::init_cv.wait(l);
+		l.unlock();
 		otv_thread.join();
 		return {otv_retval.get(), true};
 	}

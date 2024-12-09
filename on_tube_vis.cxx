@@ -303,12 +303,6 @@ on_tube_vis::~on_tube_vis()
 	// ###  END:  OptiX integration
 	// ###############################
 #endif
-
-	/* Uninit streaming API */ {
-		std::lock_guard g(init_mtx);
-		otv_instance = nullptr;
-		init_cv.notify_all();
-	}
 }
 
 void on_tube_vis::handle_args (std::vector<std::string> &args)
@@ -355,6 +349,12 @@ void on_tube_vis::clear(cgv::render::context &ctx) {
 	density_volume.destruct(ctx);
 
 	taa.destruct(ctx);
+
+	/* Uninit streaming API */ {
+		std::lock_guard g(init_mtx);
+		otv_instance = nullptr;
+		init_cv.notify_all();
+	}
 }
 
 bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
