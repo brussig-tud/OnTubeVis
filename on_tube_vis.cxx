@@ -769,13 +769,20 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		// ###############################
 #endif
 		render.style.max_t = render.style.data_t_minmax.second; // <-- make sure we initially display the whole newly loaded dataset
-		update_attribute_bindings();
-		update_grid_ratios();
 
-		update_glyph_layer_managers();
+		/* setup OTV client */ {
+			const auto &ds = traj_mgr.dataset(0);
+			client.new_session();
+			client.begin_setup(ds.name());
+			update_attribute_bindings();
+			update_grid_ratios();
 
-		compile_glyph_attribs();
-		ah_mgr.set_dataset(traj_mgr.dataset(0));
+			update_glyph_layer_managers();
+
+			compile_glyph_attribs();
+			client.commit_session();
+			ah_mgr.set_dataset(ds);
+		}
 
 		context& ctx = *get_context();
 		tube_shading_defines = build_tube_shading_defines();
@@ -859,7 +866,9 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		auto& glyph_layers_config = render.visualizations.front().config;
 		const auto action = glyph_layer_mgr.action_type();
 		bool changes = false;
+		bool new_session;
 		if(action == AT_CONFIGURATION_CHANGE) {
+			new_session = client.new_session_if_not_in_setup();
 			glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 			context& ctx = *get_context();
@@ -871,10 +880,12 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 			changes = true;
 			do_full_gui_update = true;
 		} else if(action == AT_CONFIGURATION_VALUE_CHANGE) {
+			new_session = client.new_session_if_not_in_setup();
 			glyph_layers_config = glyph_layer_mgr.get_configuration();
 			glyphs_out_of_date(true);
 			changes = true;
 		} else if(action == AT_MAPPING_VALUE_CHANGE) {
+			new_session = client.new_session_if_not_in_setup();
 			glyphs_out_of_date(true);
 			changes = true;
 		}
@@ -883,6 +894,10 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 			layer_config_has_unsaved_changes = true;
 			on_set(&layer_config_has_unsaved_changes);
 			update_legends = true;
+			if (new_session) {
+				client.begin_setup(traj_mgr.dataset(0).name());
+				client.commit_session();
+			}
 		}
 	}
 
@@ -1420,6 +1435,8 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	ao_style.enable = true;
 
 	// init data-dependent render state
+	client.new_session();
+	client.begin_setup(traj_mgr.dataset(0).name());
 	update_attribute_bindings();
 	update_grid_ratios();
 
@@ -1457,6 +1474,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	update_glyph_layer_managers();
 	compile_glyph_attribs();
+	client.commit_session();
 	ah_mgr.set_dataset(traj_mgr.dataset(0));
 
 	volume_tf.init(ctx);
@@ -2425,7 +2443,8 @@ void on_tube_vis::update_grid_ratios(void) {
 	}
 }
 
-void on_tube_vis::update_attribute_bindings(void) {
+void on_tube_vis::update_attribute_bindings(void)
+{
 	auto &ctx = *get_context();
 
 	if (traj_mgr.has_data())
@@ -2497,8 +2516,8 @@ void on_tube_vis::update_attribute_bindings(void) {
 		}
 
 		// Create trajectories to fill ring buffers.
-		client.trajectories.clear();
 		render.trajectories.clear();
+		client.trajectories.clear();
 
 		for (const auto &dataset : traj_mgr.datasets()) {
 			const auto &pos_attrib = dataset.positions().attrib;

@@ -43,8 +43,8 @@
 #include "textured_spline_tube_renderer.h"
 #include "color_map_viewer.h"
 #include "mapping_legend.h"
-#include "test_client.h"
 #include "render/state.h"
+#include "otv_client.h"
 #ifdef RTX_SUPPORT
 #include "optix_integration.h"
 #include "optixtracer_textured_spline_tube.h"
@@ -352,7 +352,7 @@ protected:
 	vec3 last_sort_dir;
 
 	otv::render_state render;
-	otv::test_client  client {render};
+	otv::otv_client  client {render};
 
 	int render_gui_dummy = 0;
 

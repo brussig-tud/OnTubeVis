@@ -26,7 +26,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG fe1ada9d367e2f8d46220d16072ddbc43ba5b558
+		GIT_TAG 7eabb1d3457c5f649e4ceaec5013f1f1ee849f68
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -121,10 +121,10 @@ set(SOURCES
 	mapping_legend.cxx
 	obd_handler.cxx
 	on_tube_vis.cxx
+	otv_client.cxx
 	regulargrid.cxx
 	sepia_handler.cxx
 	tasc_handler.cxx
-	test_client.cxx
 	textured_spline_tube_renderer.cxx
 	tgen_handler.cxx
 	traj_loader.cxx
@@ -205,11 +205,11 @@ set(HEADERS
 	mapping_legend.h
 	obd_handler.h
 	on_tube_vis.h
+	otv_client.h
 	quadratic_bezier_tube.h
 	regulargrid.h
 	sepia_handler.h
 	tasc_handler.h
-	test_client.h
 	textured_spline_tube_renderer.h
 	tgen_handler.h
 	traj_loader.h

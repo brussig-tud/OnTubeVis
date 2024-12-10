@@ -69,7 +69,7 @@ namespace {
 void otv_runner (std::promise<int> &&p, std::vector<char*> &&args)
 {
 	// Report status
-	std::clog << "OnTubeVis headless service is starting." << std::endl;
+	std::clog << "OnTubeVis service is starting." << std::endl;
 
 	// Main event loop
 	/* - init and notify once it's done *//* {
