@@ -68,7 +68,8 @@ public:
 	static void push (const std::shared_ptr<command> &cmd) {
 		std::lock_guard g(mtx);
 		queue.push(cmd);
-		otv_instance->post_redraw();
+		if (otv_instance)
+			otv_instance->post_redraw();
 		cv.notify_all();
 	}
 	static std::shared_ptr<command> fetch (void)

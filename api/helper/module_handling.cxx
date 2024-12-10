@@ -115,7 +115,8 @@ struct module_info
 #ifndef _WIN32
 	~module_info() {
 		// Drop the reference to our own library.
-		dlclose(handle);
+		if (handle)
+			dlclose(handle);
 	}
 #endif
 };

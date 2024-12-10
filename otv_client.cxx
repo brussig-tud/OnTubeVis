@@ -37,13 +37,11 @@ void otv_client::commit_session (void)
 		traj.id = otv__add_trajectory(setup, data->datasets[0].trajs[i].med_radius);
 	}
 	std::thread init_runner([this, setup] {
-		if (!otv__start_vis_session(setup)) {
-			std::cerr << "Failed to start visualization session" << std::endl;
-		}
-		//assert(otv__start_vis_session(setup) && "FATAL ERROR - otv_client: Failed to initialize streaming session!");
+		assert(otv__start_vis_session(setup) && "FATAL ERROR - otv_client: Failed to initialize streaming session!");
 		this->session.signal_init_done();
 		otv__free_VisSetup(setup);
 	});
+	init_runner.detach(); // let session init continue in the background
 }
 
 void otv_client::update ()

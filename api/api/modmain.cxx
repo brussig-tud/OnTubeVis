@@ -96,7 +96,7 @@ void otv_runner (std::promise<int> &&p, std::vector<char*> &&args)
 	p.set_value(cgv_main((int)args.size(), args.data()));
 
 	// Shut down
-	std::clog << "OnTubeVis headless service is terminating." << std::endl;
+	std::clog << "OnTubeVis service is terminating." << std::endl;
 }
 
 OTV_API bool otv__startup (const int argc, const char *const *argv)

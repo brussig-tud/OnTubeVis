@@ -16,6 +16,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <atomic>
 #include <mutex>
 #include <condition_variable>
 
@@ -102,6 +103,7 @@ struct VisSetup
 	VisSetup(const VisSetup &other) : name(other.name), layers(other.layers), trajs(other.trajs) {}
 
 	std::string name;
+	std::atomic<uint32_t> counter{0};
 	std::vector<OTV_LayerConfig> layers;
 	std::vector<trajectory_setup> trajs;
 

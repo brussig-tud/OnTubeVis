@@ -172,7 +172,6 @@ set(HEADERS
 	api/state/on_tube_vis.h
 	api/state/streaming.h
 	api/util/cppstream.h
-	api/util/uid.h
 
 	# Public API
 	include/OnTubeVis/config.h
@@ -330,7 +329,6 @@ endif()
 
 # schedule high-level warning messages at the very end of the configuration process to make sure they will be easily
 # visible
-# - no OpenMP
 if (NOT OpenMP_CXX_FOUND)
 	cmake_language(
 		DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL message

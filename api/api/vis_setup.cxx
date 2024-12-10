@@ -11,7 +11,6 @@
 #include <OnTubeVis/OnTubeVis.h>
 
 // Private interface
-#include <util/uid.h>
 #include <util/cppstream.h>
 #include <state/on_tube_vis.h>
 
@@ -41,10 +40,11 @@ OTV_API uint32_t otv__add_trajectory (OTV_VisSetupHandle vis_setup, const float 
 
 	// Add it
 	const auto &traj = vs.trajs.emplace_back(
-		trajectory_setup{get_unique_id<uint32_t>(), radius}
+		trajectory_setup{vs.counter++, radius}
 	);
 	std::clog << "otv__add_trajectory: added trajectory #"<<traj.id << std::endl
 	          << " - setup for '"+vs.name+"' now has "<<vs.trajs.size()<<" trajectorie(s)." << std::endl;
+
 	return traj.id;
 }
 
