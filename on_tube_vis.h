@@ -487,7 +487,7 @@ protected:
 
 	void set_view(void);
 	void ensure_initial_dataset(context& ctx);
-	void update_dataset(context &ctx);
+	void update_dataset(context &ctx, bool cause_new_session=true);
 	bool update_visualizations(void);
 	void update_grid_ratios(void);
 	void update_attribute_bindings(void);

@@ -697,7 +697,7 @@ void on_tube_vis::handle_transfer_function_change() {
 		volume_tf.generate_texture(*get_context());
 }
 
-void on_tube_vis::update_dataset(context &ctx)
+void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 {
 	client.data = &(traj_mgr.get_render_data());
 	render.style.data_t_minmax = client.data->t_minmax;
@@ -728,15 +728,18 @@ void on_tube_vis::update_dataset(context &ctx)
 	render.style.max_t = render.style.data_t_minmax.second; // <-- make sure we initially display the whole newly loaded dataset
 
 	// setup OTV client
-	client.new_session();
-	client.begin_setup(ds.name());
+	if (cause_new_session) {
+		client.new_session();
+		client.begin_setup(ds.name());
+	}
 	update_attribute_bindings();
 	update_grid_ratios();
 
 	update_glyph_layer_managers();
 
 	compile_glyph_attribs();
-	client.commit_session();
+	if (cause_new_session)
+		client.commit_session();
 	ah_mgr.set_dataset(ds);
 
 	tube_shading_defines = build_tube_shading_defines();
@@ -1663,7 +1666,9 @@ void on_tube_vis::ensure_initial_dataset (context &ctx)
 				demo::compile_dataset(dataset.demo_trajs)
 			);
 		}
-		update_dataset(ctx);
+		client.new_session();
+		client.begin_setup(traj_mgr.dataset(0).name());
+		update_dataset(ctx, false);
 
 		// This was the final initialization step
 		data_init_pending = false;
@@ -1678,6 +1683,7 @@ void on_tube_vis::ensure_initial_dataset (context &ctx)
 			}
 			layer_cfg_init_pending.reset();
 		}
+		client.commit_session();
 
 		// If in service mode, this is the time to notify streaming API that init is done
 		if (run_as_service) {
@@ -2301,7 +2307,7 @@ void on_tube_vis::create_gui(void)
 	if (!run_as_service && !non_service_init_signaled) {
 		connect_copy(
 			add_button(
-				"Streaming API: Signal Init Done", "tooltip='When not in Service mode, can be used"
+				"Streaming API: signal init done", "tooltip='When not in Service mode, can be used"
 				" to unblock a visualization client waiting for the Streaming API to initialize.'", "\n"
 			)->click,
 			cgv::signal::rebind(this, &on_tube_vis::signal_non_service_init)
