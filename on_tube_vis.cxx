@@ -307,15 +307,24 @@ on_tube_vis::~on_tube_vis()
 
 void on_tube_vis::handle_args (std::vector<std::string> &args)
 {
-	// look out for potential dataset files/dirs
+	// look out for potential options and dataset files/dirs
 	std::vector<unsigned> arg_ids;
+	bool service_option_notfound = true;
 	for (unsigned i=0; i<(unsigned)args.size(); i++)
-		if (traj_mgr.can_load(args[i]))
+	{
+		if (args[i].rfind("option:", 0) == 0) {
+			if (service_option_notfound && args[i].substr(7) == "service") {
+				run_as_service = true;
+				service_option_notfound = false;
+			}
+		}
+		else if (traj_mgr.can_load(args[i]))
 		{
 			// this appears to be a dataset file we're supposed to load
 			dataset.files.emplace(args[i]);
 			arg_ids.emplace_back(i);
 		}
+	}
 
 	// process our arguments (if any)
 	if (!arg_ids.empty())
@@ -686,14 +695,131 @@ void on_tube_vis::handle_transfer_function_change() {
 		volume_tf.generate_texture(*get_context());
 }
 
-void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
+void on_tube_vis::update_dataset(context &ctx)
+{
+	client.data = &(traj_mgr.get_render_data());
+	render.style.data_t_minmax = client.data->t_minmax;
 
+	// print out attribute statistics
+	const auto &ds = traj_mgr.dataset(0);
+	std::cerr << "Avg. segment length: "<<ds.avg_segment_length() << std::endl
+	          << "Data attributes:" << std::endl;
+	for (const auto &a : ds.attributes())
+		std::cerr << " - [" << a.first << "] - " << a.second.get_timestamps().size() << " samples" << std::endl;
+	std::cerr << std::endl;
+	// TODO: For some datasets, e.g. fisch_wehr_streamline.0.csv, this results in a much too small value and
+	// caps are subsequently clipped at too short distances. The resulting cracks get smoothed out by the anti-
+	// aliasing and are thus only hardly noticeable.
+	SET_MEMBER(render.style.cap_clip_distance, ds.avg_segment_length() * 20.f);
+#ifdef RTX_SUPPORT
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	if(optix.initialized)
+		optix_unregister_resources();
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
+#endif
+	render.style.max_t = render.style.data_t_minmax.second; // <-- make sure we initially display the whole newly loaded dataset
+
+	// setup OTV client
+	client.new_session();
+	client.begin_setup(ds.name());
+	update_attribute_bindings();
+	update_grid_ratios();
+
+	update_glyph_layer_managers();
+
+	compile_glyph_attribs();
+	client.commit_session();
+	ah_mgr.set_dataset(ds);
+
+	tube_shading_defines = build_tube_shading_defines();
+	shaders.reload(ctx, "tube_shading", tube_shading_defines);
+
+	// reset glyph layer configuration file
+	layer_config_file_helper.set_file_name("");
+	layer_config_has_unsaved_changes = false;
+	on_set(&layer_config_has_unsaved_changes);
+#ifdef RTX_SUPPORT
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	if(optix.initialized) {
+		optix.tracer_russig.update_accelds(render.data);
+		optix.tracer_phantom.update_accelds(render.data);
+		optix.tracer_builtin.update_accelds(render.data);
+		optix.tracer_builtin_cubic.update_accelds(render.data);
+		optix_register_resources(ctx);
+	}
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
+#endif
+}
+
+bool on_tube_vis::update_visualizations() {
+
+	auto& glyph_layer_mgr = render.visualizations.front().manager;
+	auto& glyph_layers_config = render.visualizations.front().config;
+	const auto action = glyph_layer_mgr.action_type();
+	bool changes = false;
+	bool full_gui_update = false;
+	bool new_session;
+	if(action == AT_CONFIGURATION_CHANGE)
+	{
+		new_session = client.new_session_if_not_in_setup();
+		glyph_layers_config = glyph_layer_mgr.get_configuration();
+
+		context& ctx = *get_context();
+		tube_shading_defines = build_tube_shading_defines();
+		shaders.reload(ctx, "tube_shading", tube_shading_defines);
+
+		compile_glyph_attribs();
+
+		changes = true;
+		full_gui_update = true;
+	}
+	else if (action == AT_CONFIGURATION_VALUE_CHANGE) {
+		new_session = client.new_session_if_not_in_setup();
+		glyph_layers_config = glyph_layer_mgr.get_configuration();
+		glyphs_out_of_date(true);
+		changes = true;
+	}
+	else if (action == AT_MAPPING_VALUE_CHANGE) {
+		new_session = client.new_session_if_not_in_setup();
+		glyphs_out_of_date(true);
+		changes = true;
+	}
+
+	if(changes)
+	{
+		layer_config_has_unsaved_changes = true;
+		on_set(&layer_config_has_unsaved_changes);
+		update_legends = true;
+		if (new_session) {
+			client.begin_setup(traj_mgr.dataset(0).name());
+			client.commit_session();
+		}
+	}
+
+	return full_gui_update;
+}
+
+
+void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
+{
 	// control flags
 	bool do_full_gui_update = false, data_set_changed = false, from_demo = false, reset_taa = true;
 
 	// internal state flags
 	// - configurable datapath
-	if(m.is(datapath_helper.file_name))
+	if(!run_as_service && m.is(datapath_helper.file_name))
 	{
 		const auto& file_name = datapath_helper.file_name;
 		if(!file_name.empty())
@@ -715,7 +841,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		}
 	}
 	// - non-configurable dataset logic
-	else if(m.is(dataset)) {
+	else if(!run_as_service && m.is(dataset)) {
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		// clear current dataset
 		datapath_helper.set_file_name("");
@@ -736,7 +862,6 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 	}
 
 	if(data_set_changed) {
-		client.data = &(traj_mgr.get_render_data());
 
 		if(from_demo) {
 			ao_style = ao_style_bak;	// reset from handcrafted AO settings
@@ -745,75 +870,13 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		if(traj_mgr.dataset(0).name().compare("rtlola_droneflight") == 0)
 			dataset.is_rtlola = true;
 
-		// print out attribute statistics
-		const auto& ds = traj_mgr.dataset(0);
-		std::cerr << "Avg. segment length: "<<ds.avg_segment_length() << std::endl
-		          << "Data attributes:" << std::endl;
-		for(const auto& a : ds.attributes())
-			std::cerr << " - [" << a.first << "] - " << a.second.get_timestamps().size() << " samples" << std::endl;
-		std::cerr << std::endl;
-		// TODO: For some datasets, e.g. fisch_wehr_streamline.0.csv, this results in a much too small value and
-		// caps are subsequently clipped at too short distances. The resulting cracks get smoothed out by the anti-
-		// aliasing and are thus only hardly noticeable.
-		SET_MEMBER(render.style.cap_clip_distance, ds.avg_segment_length() * 20.f);
-#ifdef RTX_SUPPORT
-		// ###############################
-		// ### BEGIN: OptiX integration
-		// ###############################
-
-		if(optix.initialized)
-			optix_unregister_resources();
-
-		// ###############################
-		// ###  END:  OptiX integration
-		// ###############################
-#endif
-		render.style.max_t = render.style.data_t_minmax.second; // <-- make sure we initially display the whole newly loaded dataset
-
-		/* setup OTV client */ {
-			const auto &ds = traj_mgr.dataset(0);
-			client.new_session();
-			client.begin_setup(ds.name());
-			update_attribute_bindings();
-			update_grid_ratios();
-
-			update_glyph_layer_managers();
-
-			compile_glyph_attribs();
-			client.commit_session();
-			ah_mgr.set_dataset(ds);
-		}
-
-		context& ctx = *get_context();
-		tube_shading_defines = build_tube_shading_defines();
-		shaders.reload(ctx, "tube_shading", tube_shading_defines);
-
-		// reset glyph layer configuration file
-		layer_config_file_helper.set_file_name("");
-		layer_config_has_unsaved_changes = false;
-		on_set(&layer_config_has_unsaved_changes);
-#ifdef RTX_SUPPORT
-		// ###############################
-		// ### BEGIN: OptiX integration
-		// ###############################
-
-		if(optix.initialized) {
-			optix.tracer_russig.update_accelds(render.data);
-			optix.tracer_phantom.update_accelds(render.data);
-			optix.tracer_builtin.update_accelds(render.data);
-			optix.tracer_builtin_cubic.update_accelds(render.data);
-			optix_register_resources(ctx);
-		}
-
-		// ###############################
-		// ###  END:  OptiX integration
-		// ###############################
-#endif
+		if (!run_as_service && otv_instance)
+			update_dataset(*get_context());
 		do_full_gui_update = true;
 	}
 
 	// render settings
-	if(m.one_of(debug.highlight_segments,
+	if(!data_init_pending && m.one_of(debug.highlight_segments,
 				ao_style.enable,
 				grid_mode,
 				grid_normal_settings,
@@ -862,6 +925,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 
 	// visualization settings
 	if(m.is(render.visualizations.front().manager)) {
+		do_full_gui_update = update_visualizations();
+		/* ToDo: REMOVE ME
 		auto& glyph_layer_mgr = render.visualizations.front().manager;
 		auto& glyph_layers_config = render.visualizations.front().config;
 		const auto action = glyph_layer_mgr.action_type();
@@ -898,7 +963,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 				client.begin_setup(traj_mgr.dataset(0).name());
 				client.commit_session();
 			}
-		}
+		}*/
 	}
 
 	if(m.is(color_map_mgr)) {
@@ -976,11 +1041,13 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 			std::string extension = cgv::utils::file::get_extension(file_name);
 			// only try to read the filename if it ends with an xml extension
 			if(layer_config_file_helper.compare_extension("xml")) {
-				if(read_layer_configuration(file_name)) {
+				if (data_init_pending)
+					layer_cfg_init_pending.emplace(file_name);
+				else if(read_layer_configuration(file_name)) {
 					layer_config_has_unsaved_changes = false;
 					on_set(&layer_config_has_unsaved_changes);
 				} else {
-					std::cout << "Error: could not read glyph layer configuration from " << file_name << std::endl;
+					std::cout << "Error: could not read glyph layer configuration from '"<<file_name<<'\'' << std::endl;
 				}
 			}
 		}
@@ -1356,7 +1423,8 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(512u);
 	grid_mode = GridMode::GM_NORMAL;*/
 
-	// generate demo dataset
+	// ToDo: REMOVE ME
+	/*// generate demo dataset
 	// - demo AO settings
 	ao_style_bak = ao_style;
 	ao_style.strength_scale = 15.0f;
@@ -1374,12 +1442,13 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_nodes, seed+i));
 	traj_mgr.add_dataset(
 		demo::compile_dataset(dataset.demo_trajs)
-	);
+	);*/
+	/* ToDo: REMOVE ME
 	// - print out attribute statistics
 	std::cerr << "Data attributes:" << std::endl;
 	for (const auto& a : traj_mgr.dataset(0).attributes())
 		std::cerr << " - ["<<a.first<<"] - "<<a.second.get_timestamps().size()<<" samples" << std::endl;
-	std::cerr << std::endl;
+	std::cerr << std::endl;*/
 
 	// increase reference count of the renderers by one
 	auto &tstr = ref_textured_spline_tube_renderer(ctx, 1);
@@ -1389,14 +1458,15 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	// load all shaders in the library
 	success &= shaders.load_all(ctx);
 
+	/* ToDo: REMOVE ME
 	// prepare render-time dataset state
 	for (const auto &ds : traj_mgr.datasets()) {
 		auto &vis = render.visualizations.emplace_back(this);
 		vis.config = vis.manager.get_configuration();
-	}
+	}*/
 
-	tube_shading_defines = build_tube_shading_defines();
-	shaders.reload(ctx, "tube_shading", tube_shading_defines);
+	/*tube_shading_defines = build_tube_shading_defines();
+	shaders.reload(ctx, "tube_shading", tube_shading_defines);*/
 
 	// init shared attribute array manager
 	success &= render.aam.init(ctx);
@@ -1434,11 +1504,12 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	// enable ambient occlusion
 	ao_style.enable = true;
 
+	/* ToDo: REMOVE ME
 	// init data-dependent render state
 	client.new_session();
 	client.begin_setup(traj_mgr.dataset(0).name());
 	update_attribute_bindings();
-	update_grid_ratios();
+	update_grid_ratios();*/
 
 	// init color maps
 	// - manager
@@ -1472,10 +1543,11 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 		cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 	}
 
+	/* ToDo: REMOVE ME
 	update_glyph_layer_managers();
 	compile_glyph_attribs();
 	client.commit_session();
-	ah_mgr.set_dataset(traj_mgr.dataset(0));
+	ah_mgr.set_dataset(traj_mgr.dataset(0));*/
 
 	volume_tf.init(ctx);
 
@@ -1552,14 +1624,66 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	// Create an initial fence object to avoid the need for a null check in `draw_trajectories`.
 	render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
-	/* Notify streaming API that init is done */ {
+	// ToDo: REMOVE ME
+	/* Notify streaming API that init is done *//* {
 		std::lock_guard g(init_mtx);
 		otv_instance = this;
 		init_cv.notify_all();
-	}
+	}*/
 
 	// done
 	return success;
+}
+
+void on_tube_vis::ensure_initial_dataset (context &ctx)
+{
+	if (data_init_pending)
+	{
+		if (!run_as_service && !traj_mgr.has_data())
+		{
+			// generate demo dataset
+			// - demo AO settings
+			ao_style_bak = ao_style;
+			ao_style.strength_scale = 15.0f;
+			update_member(&ao_style);
+			// - demo geometry
+			constexpr unsigned seed = 11;
+		#ifdef _DEBUG
+			constexpr unsigned num_trajectories = 3;
+			constexpr unsigned num_nodes = 16;
+		#else
+			constexpr unsigned num_trajectories = 256; // 1
+			constexpr unsigned num_nodes = 256; // 32
+		#endif
+			for (unsigned i=0; i<num_trajectories; i++)
+				dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_nodes, seed+i));
+			traj_mgr.add_dataset(
+				demo::compile_dataset(dataset.demo_trajs)
+			);
+		}
+		update_dataset(ctx);
+
+		// This was the final initialization step
+		data_init_pending = false;
+
+		if (layer_cfg_init_pending.has_value()) {
+			const auto &file_name = layer_cfg_init_pending.value();
+			if (read_layer_configuration(file_name)) {
+				layer_config_has_unsaved_changes = false;
+				on_set(&layer_config_has_unsaved_changes);
+			} else {
+				std::cout << "Error: could not read glyph layer configuration from '"<<file_name<<'\'' << std::endl;
+			}
+			layer_cfg_init_pending.reset();
+		}
+
+		// If in service mode, this is the time to notify streaming API that init is done
+		if (run_as_service) {
+			std::lock_guard g(init_mtx);
+			otv_instance = this;
+			init_cv.notify_all();
+		}
+	}
 }
 
 #ifdef RTX_SUPPORT
@@ -1887,6 +2011,8 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	/*if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
 		view_ptr->set_view_up_dir(0, 1, 0);*/
 
+	ensure_initial_dataset(ctx);
+
 	// update color and mapping legends if necessary
 	if (update_legends) {
 		color_legend_mgr.compose(
@@ -1929,7 +2055,8 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	glGetIntegerv(GL_VIEWPORT, viewport);
 
 	// Upload new data from host queues to GPU buffers.
-	render.update();
+	if (traj_mgr.has_data() || session_active)
+		render.update();
 
 	if (playback.active)
 	{
@@ -2135,11 +2262,19 @@ void on_tube_vis::after_finish(context& ctx) {
 
 	// Process any pending streaming API commands
 	static unsigned count = 0;
-	auto cmd = command_stream::poll();
-	if (cmd)
+	std::shared_ptr<command> cmd;
+	while (cmd = command_stream::poll())
 		if (!cmd->handle())
 			std::cerr << "OnTubeVis: command " << hex(cmd.get()) << " (" << cmd->describe() << ") failed execution!"
 			          << std::endl;
+}
+
+void on_tube_vis::signal_non_service_init() {
+	std::lock_guard g(init_mtx);
+	otv_instance = this;
+	init_cv.notify_all();
+	non_service_init_signaled = true;
+	post_recreate_gui(); // make sure the button disappears
 }
 
 void on_tube_vis::create_gui(void)
@@ -2161,6 +2296,16 @@ void on_tube_vis::create_gui(void)
 
 	datapath_helper.create_gui("Data Path");
 
+	if (!run_as_service && !non_service_init_signaled) {
+		connect_copy(
+			add_button(
+				"Streaming API: Signal Init Done", "tooltip='When not in Service mode, can be used"
+				" to unblock a visualization client waiting for the Streaming API to initialize.'", "\n"
+			)->click,
+			cgv::signal::rebind(this, &on_tube_vis::signal_non_service_init)
+		);
+	}
+
 	add_member_control(this, "Bounds", bbox_rd.style.surface_color, "", "w=20", " ");
 	add_member_control(this, "Box", show_bbox, "toggle", "w=83", "%x+=2");
 	add_member_control(this, "Wireframe", show_wireframe_bbox, "toggle", "w=83");
@@ -2176,35 +2321,41 @@ void on_tube_vis::create_gui(void)
 			);
 	}
 
-	if(begin_tree_node("Playback", playback, false)) {
-		align("\a");
-		const auto& [tmin, tmax] = client.data->t_minmax;
-		const std::string tmin_str = std::to_string(tmin), tmax_str = std::to_string(tmax),
-			step_str = std::to_string((tmax - tmin) / 10000.f);
+	if (begin_tree_node("Playback", playback, false))
+	{
+		if (traj_mgr.has_data())
+		{
+			align("\a");
+			const auto& [tmin, tmax] = client.data->t_minmax;
+			const std::string tmin_str = std::to_string(tmin), tmax_str = std::to_string(tmax),
+				step_str = std::to_string((tmax - tmin) / 10000.f);
 
-		connect_copy(
-			add_button("@|<", "tooltip='(Backspace) Resets playback time to start.';w=50", " ")->click,
-			cgv::signal::rebind(this, &on_tube_vis::playback_rewind)
-		);
-		add_member_control(
-			this, "@play", playback.active, "toggle",
-			"tooltip='(Space) Controls whether to animate the dataset(s) within the set timeframe.';w=76", " "
-		);
-		connect_copy(
-			add_button("@>|", "tooltip='(End) Cancels playback and displays the full data.';w=50")->click,
-			cgv::signal::rebind(this, &on_tube_vis::playback_reset_ds)
-		);
+			connect_copy(
+				add_button("@|<", "tooltip='(Backspace) Resets playback time to start.';w=50", " ")->click,
+				cgv::signal::rebind(this, &on_tube_vis::playback_rewind)
+			);
+			add_member_control(
+				this, "@play", playback.active, "toggle",
+				"tooltip='(Space) Controls whether to animate the dataset(s) within the set timeframe.';w=76", " "
+			);
+			connect_copy(
+				add_button("@>|", "tooltip='(End) Cancels playback and displays the full data.';w=50")->click,
+				cgv::signal::rebind(this, &on_tube_vis::playback_reset_ds)
+			);
 
-		add_member_control(this, "Playback Speed", playback.speed, "value_slider", "min=0.01;max=1000;step=0.01;ticks=true;log=true");
-		add_member_control(this, "Timeframe Start", playback.tstart, "value_slider", "min=" + tmin_str + ";max=" + tmax_str + ";step=" + step_str + ";ticks=false");
-		add_member_control(this, "Timeframe End", playback.tend, "value_slider", "min=" + tmin_str + ";max=" + tmax_str + ";step=" + step_str + ";ticks=false");
-		add_member_control(this, "Repeat", playback.repeat, "check");
-		add_member_control(this, "Follow Trajectory", playback.follow, "check", "tooltip='(Home) If enabled the view follows the trajectory.'");
-		add_member_control(
-			this, "Trajectory ID", playback.follow_traj, "value_slider",
-			"min=0;max=" + std::to_string(client.data->datasets[0].trajs.size() - 1) + ";step=1;ticks=true"
-		);
-		align("\b");
+			add_member_control(this, "Playback Speed", playback.speed, "value_slider", "min=0.01;max=1000;step=0.01;ticks=true;log=true");
+			add_member_control(this, "Timeframe Start", playback.tstart, "value_slider", "min=" + tmin_str + ";max=" + tmax_str + ";step=" + step_str + ";ticks=false");
+			add_member_control(this, "Timeframe End", playback.tend, "value_slider", "min=" + tmin_str + ";max=" + tmax_str + ";step=" + step_str + ";ticks=false");
+			add_member_control(this, "Repeat", playback.repeat, "check");
+			add_member_control(this, "Follow Trajectory", playback.follow, "check", "tooltip='(Home) If enabled the view follows the trajectory.'");
+			add_member_control(
+				this, "Trajectory ID", playback.follow_traj, "value_slider",
+				"min=0;max=" + std::to_string(client.data->datasets[0].trajs.size() - 1) + ";step=1;ticks=true"
+			);
+			align("\b");
+		}
+		else
+			add_heading("No dataset loaded!");
 		end_tree_node(playback);
 	}
 
@@ -3047,19 +3198,22 @@ shader_define_map on_tube_vis::build_tube_shading_defines() {
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
 	// glyph layer defines
-	const auto &glyph_layers_config = render.visualizations.front().config;
-	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
+	/*if (render.visualizations.size() > 0)
+	{*/
+		const auto &glyph_layers_config = render.visualizations.front().config;
+		shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
 
-	shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
-	shader_code::set_define(defines, "CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
-	shader_code::set_define(defines, "MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
+		shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
+		shader_code::set_define(defines, "CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
+		shader_code::set_define(defines, "MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
 
-	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
-		const auto& lc = glyph_layers_config.layer_configs[i];
-		shader_code::set_define(defines, "L" + std::to_string(i) + "_VISIBLE", lc.visible, true);
-		shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
-		shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
-	}
+		for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
+			const auto& lc = glyph_layers_config.layer_configs[i];
+			shader_code::set_define(defines, "L" + std::to_string(i) + "_VISIBLE", lc.visible, true);
+			shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
+			shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
+		}
+	//}
 
 	return defines;
 }

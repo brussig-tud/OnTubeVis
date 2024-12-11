@@ -3,6 +3,7 @@
 // C++ STL
 #include <vector>
 #include <set>
+#include <optional>
 #include <mutex>
 #include <condition_variable>
 
@@ -96,6 +97,9 @@ public:
 	// Service control flow
 	static std::mutex init_mtx;
 	static std::condition_variable init_cv;
+	bool non_service_init_signaled = false;
+	void signal_non_service_init (void);
+	bool session_active = false;
 
 	cgv::type::DummyEnum voxel_grid_resolution;
 
@@ -199,6 +203,13 @@ protected:
 	// ###  END:  OptiX integration
 	// ###############################
 #endif
+
+	// don't load any dataset, disable most GUIs
+	bool run_as_service = false;
+
+	// for deferring populating the initial dataset and on-tube layers to display until the first frame is rendered
+	bool data_init_pending = true;
+	std::optional<std::string> layer_cfg_init_pending;
 
 	cgv::app::color_map_editor_ptr cm_editor_ptr;
 	cgv::app::color_map_editor_ptr tf_editor_ptr;
@@ -475,6 +486,9 @@ protected:
 	void timer_event(double, double);
 
 	void set_view(void);
+	void ensure_initial_dataset(context& ctx);
+	void update_dataset(context &ctx);
+	bool update_visualizations(void);
 	void update_grid_ratios(void);
 	void update_attribute_bindings(void);
 	void update_debug_attribute_bindings(void);
