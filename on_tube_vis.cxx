@@ -926,7 +926,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 	}
 
 	// visualization settings
-	if(m.is(render.visualizations.front().manager)) {
+	if(!data_init_pending && m.is(render.visualizations.front().manager)) {
 		do_full_gui_update = update_visualizations();
 		/* ToDo: REMOVE ME
 		auto& glyph_layer_mgr = render.visualizations.front().manager;
@@ -1062,7 +1062,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 			ctrl->set("text_color", layer_config_has_unsaved_changes ? cgv::gui::theme_info::instance().warning_hex() : "");
 	}
 
-	if(m.is(debug.show_hidden_glyphs))
+	if(!data_init_pending && m.is(debug.show_hidden_glyphs))
 		compile_glyph_attribs();
 
 	// playback controls
