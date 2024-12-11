@@ -309,20 +309,21 @@ void on_tube_vis::handle_args (std::vector<std::string> &args)
 {
 	// look out for potential options and dataset files/dirs
 	std::vector<unsigned> arg_ids;
-	bool service_option_notfound = true;
+	bool dataset_found = false, service_option_notfound = true;
 	for (unsigned i=0; i<(unsigned)args.size(); i++)
 	{
 		if (args[i].rfind("option:", 0) == 0) {
 			if (service_option_notfound && args[i].substr(7) == "service") {
 				run_as_service = true;
 				service_option_notfound = false;
+				arg_ids.emplace_back(i);
 			}
 		}
-		else if (traj_mgr.can_load(args[i]))
-		{
+		else if (traj_mgr.can_load(args[i])) {
 			// this appears to be a dataset file we're supposed to load
 			dataset.files.emplace(args[i]);
 			arg_ids.emplace_back(i);
+			dataset_found = true;
 		}
 	}
 
@@ -333,7 +334,8 @@ void on_tube_vis::handle_args (std::vector<std::string> &args)
 		for (signed i=(signed)arg_ids.size()-1; i>=0; i--)
 			args.erase(args.begin() + arg_ids[i]);
 		// announce change in dataset_fn
-		on_set(&dataset);
+		if (dataset_found)
+			on_set(&dataset);
 	}
 }
 

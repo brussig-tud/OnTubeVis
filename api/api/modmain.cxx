@@ -71,31 +71,13 @@ void otv_runner (std::promise<int> &&p, std::vector<char*> &&args)
 	// Report status
 	std::clog << "OnTubeVis service is starting." << std::endl;
 
-	// Main event loop
-	/* - init and notify once it's done *//* {
-		std::lock_guard g(on_tube_vis::init_mtx);
-		on_tube_vis::init_pending = false;
-		on_tube_vis::running = true; // normally we would check initialization success before setting this
-		on_tube_vis::init_cv.notify_all();
-	}
-	// - enter the main loop
-	while (on_tube_vis::running)
-	{
-		// Process a command (and block waiting if there is none)
-		auto cmd = command_stream::fetch();
-		if (!cmd->handle())
-			std::cerr << "OnTubeVis: command "<<hex(cmd.get())<<" ("<<cmd->describe()<<") failed execution!"
-					  << std::endl;
-
-		// Make sure we don't hog a CPU core
-		std::this_thread::yield();
-	}*/
-
 	// Outsmart the compiler and/or linker and make sure _our_ main function is called
 	const auto cgv_main = get_on_tube_vis_main();
+
+	// Hand off control flow
 	p.set_value(cgv_main((int)args.size(), args.data()));
 
-	// Shut down
+	// Service has exited
 	std::clog << "OnTubeVis service is terminating." << std::endl;
 }
 
@@ -105,11 +87,24 @@ OTV_API bool otv__startup (const int argc, const char *const *argv)
 	if (otv_thread.joinable())
 		return false;
 
+	// Log startup
+	std::clog << "Starting OnTubeVis service..." << std::endl;
+
 	// Adapt command line arguments
 	std::vector<char*> args_adapted; args_adapted.reserve(argc+1);
 	args_adapted.emplace_back(const_cast<char*>(otv__get_module_filepath()));
-	for (unsigned i=0; i<argc; i++)
+	args_adapted.emplace_back(const_cast<char*>("option:service"));
+	std::clog << "- number of forwarded arguments: "<<argc << std::endl;
+	for (unsigned i=0; i<argc; i++) {
+		std::clog << "  "<<i+1<<": "<<argv[i] << std::endl;
 		args_adapted.emplace_back(const_cast<char*>(argv[i]));
+	}
+
+	// Inform about effective command line
+	std::clog << "- effective OnTubeVis command line arguments:" << std::endl;
+	for (int i=0; i<args_adapted.size(); i++)
+		std::clog << "  "<<i<<": "<<args_adapted[i] << std::endl;
+	std::clog << std::endl;
 
 	// Spawn the thread the CGV Framework main loop will run in
 	std::promise<int> p;
@@ -156,5 +151,4 @@ OTV_API const char* otv__get_module_filepath (void) {
 	return on_tube_vis_module_filepath().c_str();
 }
 
-OTV_API void otv__unique_module_tag (void)
-{}
+OTV_API void otv__unique_module_tag (void) {}

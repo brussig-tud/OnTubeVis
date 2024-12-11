@@ -37,13 +37,6 @@
 // The program entry point.
 int main (int argc, char** argv)
 {
-	// Output debug info
-	printf("Starting OnTubeVis service...\n");
-	printf("- number of forwarded arguments: %i\n", argc-1);
-	for (int i=1; i<argc; i++)
-		printf("  %i: %s\n", i, argv[i]);
-	printf("\n");
-
 	// Forward control to the service
 	// - init the OnTubeVis implementation
 	otv__startup(argc-1, (const char *const*)argv+1);
