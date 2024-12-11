@@ -293,8 +293,7 @@ on_tube_vis::~on_tube_vis()
 	optix_cleanup();
 
 	// shutdown optix
-	if (optix.context)
-	{
+	if (optix.context) {
 		OPTIX_CHECK(optixDeviceContextDestroy(optix.context));
 		optix.context = nullptr;
 	}
@@ -1666,14 +1665,16 @@ void on_tube_vis::ensure_initial_dataset (context &ctx)
 				demo::compile_dataset(dataset.demo_trajs)
 			);
 		}
-		client.new_session();
-		client.begin_setup(traj_mgr.dataset(0).name());
-		update_dataset(ctx, false);
+		if (traj_mgr.has_data()) {
+			client.new_session();
+			client.begin_setup(traj_mgr.dataset(0).name());
+			update_dataset(ctx, false);
+		}
 
 		// This was the final initialization step
 		data_init_pending = false;
 
-		if (layer_cfg_init_pending.has_value()) {
+		if (traj_mgr.has_data() && layer_cfg_init_pending.has_value()) {
 			const auto &file_name = layer_cfg_init_pending.value();
 			if (read_layer_configuration(file_name)) {
 				layer_config_has_unsaved_changes = false;
@@ -1683,7 +1684,8 @@ void on_tube_vis::ensure_initial_dataset (context &ctx)
 			}
 			layer_cfg_init_pending.reset();
 		}
-		client.commit_session();
+		if (traj_mgr.has_data())
+			client.commit_session();
 
 		// If in service mode, this is the time to notify streaming API that init is done
 		if (run_as_service) {
