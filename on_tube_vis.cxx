@@ -845,7 +845,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 		}
 	}
 	// - non-configurable dataset logic
-	else if(!run_as_service && m.is(dataset)) {
+	else if(!run_as_service && m.is(dataset))
+	{
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		// clear current dataset
 		datapath_helper.set_file_name("");
@@ -865,8 +866,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 			data_set_changed = true;
 	}
 
-	if(data_set_changed) {
-
+	if(data_set_changed)
+	{
 		if(from_demo) {
 			ao_style = ao_style_bak;	// reset from handcrafted AO settings
 			update_member(&ao_style);
@@ -876,6 +877,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 
 		if (!run_as_service && otv_instance)
 			update_dataset(*get_context());
+
 		do_full_gui_update = true;
 	}
 

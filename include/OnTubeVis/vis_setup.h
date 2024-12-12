@@ -22,7 +22,7 @@
 // Typedefs and structs
 //
 
-/// @brief A struct storing the configuration for a single on-tube visualiation layer.
+/// @brief A struct storing the configuration for a single on-tube visualization layer.
 typedef struct OTV_LayerConfig
 {
 	/// @brief The glyph/plot type to be used on this layer.

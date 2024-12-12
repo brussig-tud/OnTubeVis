@@ -11,6 +11,97 @@
 
 namespace otv {
 
+OTV_ColorMap colormap_name_to_api_enum (const std::string &name)
+{
+	const std::string name_lower = cgv::utils::to_lower(name);
+
+	// Sequential color maps
+	if (name_lower == "acton")
+		return OTV_ColorMap::Acton;
+	if (name_lower == "bamako")
+		return OTV_ColorMap::Bamako;
+	if (name_lower == "batlow")
+		return OTV_ColorMap::Batlow;
+	if (name_lower == "batlowk")
+		return OTV_ColorMap::BatlowK;
+	if (name_lower == "batloww")
+		return OTV_ColorMap::BatlowW;
+	if (name_lower == "bilbao")
+		return OTV_ColorMap::Bilbao;
+	if (name_lower == "buda")
+		return OTV_ColorMap::Buda;
+	if (name_lower == "davos")
+		return OTV_ColorMap::Davos;
+	if (name_lower == "devon")
+		return OTV_ColorMap::Devon;
+	if (name_lower == "glasgow")
+		return OTV_ColorMap::Glasgow;
+	if (name_lower == "grayc")
+		return OTV_ColorMap::GrayC;
+	if (name_lower == "hawaii")
+		return OTV_ColorMap::Hawaii;
+	if (name_lower == "imola")
+		return OTV_ColorMap::Imola;
+	if (name_lower == "lajolla")
+		return OTV_ColorMap::Lajolla;
+	if (name_lower == "lapaz")
+		return OTV_ColorMap::Lapaz;
+	if (name_lower == "lipari")
+		return OTV_ColorMap::Lipari;
+	if (name_lower == "navia")
+		return OTV_ColorMap::Navia;
+	if (name_lower == "nuuk")
+		return OTV_ColorMap::Nuuk;
+	if (name_lower == "oslo")
+		return OTV_ColorMap::Oslo;
+	if (name_lower == "rainbow")
+		return OTV_ColorMap::Rainbow;
+	if (name_lower == "tokyo")
+		return OTV_ColorMap::Tokyo;
+	if (name_lower == "turbo")
+		return OTV_ColorMap::Turbo;
+	if (name_lower == "turku")
+		return OTV_ColorMap::Turku;
+
+	// Diverging color maps
+	if (name_lower == "bam")
+		return OTV_ColorMap::Bam;
+	if (name_lower == "berlin")
+		return OTV_ColorMap::Berlin;
+	if (name_lower == "broc")
+		return OTV_ColorMap::Broc;
+	if (name_lower == "cork")
+		return OTV_ColorMap::Cork;
+	if (name_lower == "lisbon")
+		return OTV_ColorMap::Lisbon;
+	if (name_lower == "managua")
+		return OTV_ColorMap::Managua;
+	if (name_lower == "roma")
+		return OTV_ColorMap::Roma;
+	if (name_lower == "tofino")
+		return OTV_ColorMap::Tofino;
+	if (name_lower == "vanimo")
+		return OTV_ColorMap::Vanimo;
+	if (name_lower == "vik")
+		return OTV_ColorMap::Vik;
+
+	// Unknown/unsupported
+	cgv::gui::get_gui_driver()->message(
+		"Config refers to unknown or unsupported color map: "+name+"\nOnTubeVis will now most likely crash."
+	);
+	assert(false && "INTERNAL LOGIC ERROR: Unknown color map name!");
+	return OTV_ColorMap::UndefinedColormap;
+}
+
+OTV_InterpolationMode interpolation_attribval_to_api_enum (const float value)
+{
+	if (value < 1/3.f)
+		return OTV_InterpolationMode::Nearest;
+	if (value < 2/3.f)
+		return OTV_InterpolationMode::Linear;
+	return OTV_InterpolationMode::Cubic;
+}
+
 void otv_client::new_session (void) {
 	session.reset();
 }
@@ -39,13 +130,28 @@ void otv_client::commit_session (void)
 	}
 
 	// Add layers to setup
+	const auto &colormaps = render.visualizations.front().variables->ref_color_map_names();
 	const auto &vis = render.visualizations.front();
 	for (unsigned i=0; i<vis.config.layer_configs.size(); i++)
 	{
-		const auto &layer = vis.config.layer_configs[i];
-		switch (layer.shape_ptr->type())
+		const auto &lcfg = vis.config.layer_configs[i];
+		const auto &lmappings = vis.manager.ref_glyph_attribute_mappings()[i];
+		switch (lcfg.shape_ptr->type())
 		{
 			case GT_COLOR: {
+				constexpr unsigned vattrib_idx__color=1, metaattrib_idx__interpolate=0;
+				auto colormap = colormap_name_to_api_enum(
+					colormaps[lmappings.get_color_map_indices()[vattrib_idx__color]]
+				);
+				auto interpolate= interpolation_attribval_to_api_enum(
+					lmappings.ref_attrib_mapping_values()[metaattrib_idx__interpolate].w()
+				);
+				OTV_LayerConfig cfg {
+					OTV_GlyphType::SurfaceColor,
+					-1, // unused
+					otv__construct_SurfaceColorInfo(colormap, interpolate)
+				};
+				otv__add_layer(setup, &cfg);
 				break;
 			}
 			case GT_LINE_PLOT: {
@@ -67,7 +173,8 @@ void otv_client::commit_session (void)
 			case GT_STAR:
 			case GT_TEMPORAL_HEAT_MAP:
 				cgv::gui::get_gui_driver()->message(
-					"Config containes unimplemented glyph type: "+layer.shape_ptr->name()+"\nOnTubeVis will now crash."
+					"Config contains unimplemented glyph type: "+lcfg.shape_ptr->name()+"\n"
+					"OnTubeVis will now most likely crash."
 				);
 				assert(false && "INTERNAL LOGIC ERROR: Unimplemented glyph type in layer configuration!");
 
