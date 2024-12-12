@@ -142,8 +142,8 @@ parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 					           (float)seg.param.s_to_t[3].points[2].y, (float)seg.param.s_to_t[3].points[3].y
 				};
 				// - in-place construct matrices in list
-				std::copy_n(tmp,    16, (float*)t_to_s[i/2]);
-				std::copy_n(tmp+16, 16, (float*)s_to_t[i/2]);
+				std::copy_n(tmp,    16, t_to_s[i/2].data());
+				std::copy_n(tmp+16, 16, s_to_t[i/2].data());
 				// - testing
 				/*{ const auto &cur_t2s = t_to_s[i/2], &cur_s2t = s_to_t[i/2];
 				  // t, approximated s, t from s-parametrization, error
