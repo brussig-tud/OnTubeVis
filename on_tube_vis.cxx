@@ -735,8 +735,8 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 	update_grid_ratios();
 
 	update_glyph_layer_managers();
-
 	compile_glyph_attribs();
+
 	if (cause_new_session)
 		client.commit_session();
 	ah_mgr.set_dataset(ds);

@@ -5,6 +5,7 @@
 
 // Public streaming API
 #include <thread>
+#include <cgv/gui/gui_driver.h>
 #include <OnTubeVis/OnTubeVis.h>
 
 
@@ -36,6 +37,46 @@ void otv_client::commit_session (void)
 		auto &traj = trajectories[i];
 		traj.id = otv__add_trajectory(setup, data->datasets[0].trajs[i].med_radius);
 	}
+
+	// Add layers to setup
+	const auto &vis = render.visualizations.front();
+	for (unsigned i=0; i<vis.config.layer_configs.size(); i++)
+	{
+		const auto &layer = vis.config.layer_configs[i];
+		switch (layer.shape_ptr->type())
+		{
+			case GT_COLOR: {
+				break;
+			}
+			case GT_LINE_PLOT: {
+				break;
+			}
+			case GT_RECTANGLE: {
+				break;
+			}
+			case GT_SIGN_BLOB: {
+				break;
+			}
+
+			case GT_TRIANGLE:
+			case GT_CIRCLE:
+			case GT_WEDGE:
+			case GT_ARC_FLAT:
+			case GT_ARC_ROUNDED:
+			case GT_DROP:
+			case GT_STAR:
+			case GT_TEMPORAL_HEAT_MAP:
+				cgv::gui::get_gui_driver()->message(
+					"Config containes unimplemented glyph type: "+layer.shape_ptr->name()+"\nOnTubeVis will now crash."
+				);
+				assert(false && "INTERNAL LOGIC ERROR: Unimplemented glyph type in layer configuration!");
+
+			default:
+				assert(false && "INTERNAL LOGIC ERROR: Unknown glyph type in layer configuration!");
+		}
+	}
+
+	// Request starting the session
 	std::thread init_runner([this, setup] {
 		assert(otv__start_vis_session(setup) && "FATAL ERROR - otv_client: Failed to initialize streaming session!");
 		this->session.signal_init_done();
@@ -106,5 +147,6 @@ void otv_client::update ()
 		}
 	}
 }
+
 
 } // namespace otv

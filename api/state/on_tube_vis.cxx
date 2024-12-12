@@ -279,7 +279,8 @@ struct stream_glyph_command : public command
 					dist = gext.x - s_min;
 				if (dist < 0)
 					std::clog << " ! WARNING: provided glyph instance will overlap with preceding glyph:" << std::endl
-							  << "            "<<fmt_glyph_instance(layer_conf, glayer.glyphs.back())<<", dist="<<dist << std::endl;
+					          << "            "<<fmt_glyph_instance(layer_conf, glayer.glyphs.back())
+					          << ", dist="<<dist << std::endl;
 			}
 			// - commit
 			glayer.glyphs.emplace_back(glyph);
