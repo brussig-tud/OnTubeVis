@@ -33,6 +33,9 @@
 // CGV framework post processing algorithms
 #include <cgv_post/temporal_anti_aliasing.h>
 
+// OnTubeVis private streaming API
+#include "api/state/on_tube_vis.h"
+
 // local includes
 #include "traj_loader.h"
 #include "demo.h" // interactive testbed helper classes and data
@@ -94,12 +97,15 @@ public:
 	using rgb = cgv::rgb;
 	using rgba = cgv::rgba;
 
-	// Service control flow
+	// service control flow
 	static std::mutex init_mtx;
 	static std::condition_variable init_cv;
 	bool non_service_init_signaled = false;
 	void signal_non_service_init (void);
 	bool session_active = false;
+
+	// API command endpoints
+	bool start_new_session (const VisSetup &vis_setup);
 
 	cgv::type::DummyEnum voxel_grid_resolution;
 

@@ -683,6 +683,13 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 	return false;
 }
 
+bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
+{
+	// done_NEW_SES
+	return true;
+}
+
+
 void on_tube_vis::handle_color_map_change() {
 	if(cm_editor_ptr) {
 		color_map_mgr.update_texture(*get_context());
@@ -854,7 +861,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 
 		// load new data
 		bool loaded_something = false;
-		for(const auto& file : dataset.files) {
+		for(const auto &file : dataset.files) {
 			cgv::utils::stopwatch s(true);
 			std::cout << "Reading data set from " << file << " ..." << std::endl;
 			loaded_something = traj_mgr.load(file) != -1 || loaded_something;
@@ -1213,17 +1220,6 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 
 void on_tube_vis::quit() {
 	cgv::gui::get_gui_driver()->quit(/*EXIT_SUCCESS*/0);
-	/*auto& gui_drv = *cgv::gui::get_gui_driver();
-	auto num_windows = gui_drv.get_nr_windows();
-	auto &viewer_wnd = *gui_drv.get_window(num_windows > 0 ? 0 : num_windows-1);
-	//viewer_wnd.dispatch_event(cgv::gui::key_event(cgv::gui::KEY_Escape, cgv::gui::KeyAction::KA_PRESS));
-	fltk::Window *fltk_window = viewer_wnd.get_interface<fltk::Window>();
-	fltk::e_type = 8;
-	static const char _esc[2] = {27, 0};
-	fltk::e_text = _esc;
-	fltk_window->handle(/*FLTK magic value for KEY*//*8);
-	//gui_drv.quit(/*EXIT_SUCCESS*//*0);
-	//this->~on_tube_vis();*/
 }
 
 bool on_tube_vis::on_exit_request() {
@@ -2275,7 +2271,7 @@ void on_tube_vis::after_finish(context& ctx) {
 	// Process any pending streaming API commands
 	static unsigned count = 0;
 	std::shared_ptr<command> cmd;
-	while (cmd = command_stream::poll())
+	while ((cmd = command_stream::poll()))
 		if (!cmd->handle())
 			std::cerr << "OnTubeVis: command " << hex(cmd.get()) << " (" << cmd->describe() << ") failed execution!"
 			          << std::endl;

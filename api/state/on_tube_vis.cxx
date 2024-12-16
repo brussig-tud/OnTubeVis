@@ -71,7 +71,9 @@ struct new_session_command : public command
 		on_tube_vis_api::layers = std::move(setup.layers);
 		on_tube_vis_api::trajectories = std::move(trajectories);
 		on_tube_vis_api::traj_id_map = std::move(traj_id_map);
-		return notify_result(true);
+
+		const bool result = otv_instance->start_new_session(setup);
+		return notify_result(result);
 	}
 };
 

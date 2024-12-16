@@ -115,8 +115,16 @@ struct VisSetup
 			layers.emplace_back(l);
 		trajs = other.trajs;
 		return *this;
-	};
-	VisSetup& operator = (VisSetup &&) = default;
+	}
+
+	VisSetup& operator = (VisSetup &&other)
+	{
+		name = std::move(other.name);
+		counter.store(other.counter.load());
+		layers = std::move(other.layers);
+		trajs = std::move(other.trajs);
+		return *this;
+	}
 };
 
 struct on_tube_vis_api

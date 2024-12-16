@@ -1,3 +1,5 @@
+#include <optional>
+
 #include "otv_client.h"
 
 #include "gpumem/ring_buffer.inl"
@@ -138,14 +140,19 @@ void otv_client::commit_session (void)
 		const auto &lmappings = vis.manager.ref_glyph_attribute_mappings()[i];
 		switch (lcfg.shape_ptr->type())
 		{
-			case GT_COLOR: {
-				constexpr unsigned vattrib_idx__color=1, metaattrib_idx__interpolate=0;
-				auto colormap = colormap_name_to_api_enum(
-					colormaps[lmappings.get_color_map_indices()[vattrib_idx__color]]
-				);
-				auto interpolate= interpolation_attribval_to_api_enum(
+			case GT_COLOR:
+			{
+				// obtain 'interpolate' meta attribute
+				constexpr unsigned metaattrib_idx__interpolate=0;
+				const auto interpolate= interpolation_attribval_to_api_enum(
 					lmappings.ref_attrib_mapping_values()[metaattrib_idx__interpolate].w()
 				);
+				// get colormap being used
+				constexpr unsigned vattrib_idx__color=1;
+				const auto colormap = colormap_name_to_api_enum(
+					colormaps[lmappings.get_color_map_indices()[vattrib_idx__color]]
+				);
+				// create the layer config
 				OTV_LayerConfig cfg {
 					OTV_GlyphType::SurfaceColor,
 					-1, // unused
@@ -154,13 +161,126 @@ void otv_client::commit_session (void)
 				otv__add_layer(setup, &cfg);
 				break;
 			}
-			case GT_LINE_PLOT: {
+			case GT_LINE_PLOT:
+			{
+				// obtain values of meta attributes
+				constexpr unsigned metaattrib_idx__outline=0, metaattrib_idx__interpolate=1;
+				const auto outline= lmappings.ref_attrib_mapping_values()[metaattrib_idx__outline].w();
+				const auto interpolate= interpolation_attribval_to_api_enum(
+					lmappings.ref_attrib_mapping_values()[metaattrib_idx__interpolate].w()
+				);
+				// build up information about sub plots
+				const auto &attrib_sources = lmappings.get_attrib_indices();
+				std::vector<OTV_Rgb> subplot_colors; subplot_colors.reserve(4);
+				for (unsigned i=0; i<attrib_sources.size(); i++) {
+					if (attrib_sources[i] > -1) {
+						const auto &color = lmappings.ref_attrib_colors()[i-1];
+						subplot_colors.emplace_back(otv__Rgb(color.R(), color.G(), color.B()));
+					}
+				}
+				// create the layer config
+				OTV_LayerConfig cfg {
+					OTV_GlyphType::LinePlot,
+					outline,
+					otv__construct_LinePlotInfo(
+						interpolate, subplot_colors.size(), subplot_colors.data()
+					)
+				};
+				otv__add_layer(setup, &cfg);
 				break;
 			}
-			case GT_RECTANGLE: {
+			case GT_RECTANGLE:
+			{
+				// obtain values of 'outline' meta attribute
+				constexpr unsigned metaattrib_idx__outline=0;
+				const auto outline= lmappings.ref_attrib_mapping_values()[metaattrib_idx__outline].w();
+				// get static color or colormap
+				constexpr unsigned vattrib_idx__color=1;
+				const int cidx = lmappings.get_attrib_indices()[vattrib_idx__color];
+				const std::optional<OTV_Rgb> color = [&]() -> std::optional<OTV_Rgb> {
+					if (cidx < 0) {
+						const auto &color = lmappings.ref_attrib_colors()[vattrib_idx__color];
+						return otv__Rgb(color.R(), color.G(), color.B());
+					}
+					return {};
+				}();
+				const std::optional<OTV_ColorMap> colormap = [&]() -> std::optional<OTV_ColorMap> {
+					if (cidx > -1)
+						return colormap_name_to_api_enum(colormaps[cidx]);
+					return {};
+				}();
+				// get static width/height if used
+				constexpr unsigned vattrib_idx__width=2, vattrib_idx__height=3;
+				const std::optional<float> width = [&]() -> std::optional<float> {
+					const auto idx = lmappings.get_attrib_indices()[vattrib_idx__width];
+					if (idx < 0)
+						return lmappings.ref_attrib_mapping_values()[vattrib_idx__width].w();
+					return {};
+				}();
+				const std::optional<float> height = [&]() -> std::optional<float> {
+					const auto idx = lmappings.get_attrib_indices()[vattrib_idx__height];
+					if (idx < 0)
+						return lmappings.ref_attrib_mapping_values()[vattrib_idx__height].w();
+					return {};
+				}();
+				// create the layer config
+				OTV_LayerConfig cfg {
+					OTV_GlyphType::Rect,
+					outline,
+					otv__construct_RectangleInfo(
+						color.value_or(OTV_Rgb{}), colormap.value_or(OTV_ColorMap{}),
+						width.value_or(0), height.value_or(0), (OTV_RectangleInfoStaticFlags)(
+							  (color.has_value()?RI_STATIC_COLOR:0) | (width.has_value()?RI_STATIC_WIDTH:0)
+							| (height.has_value()?RI_STATIC_HEIGHT:0)
+						)
+					)
+				};
+				otv__add_layer(setup, &cfg);
 				break;
 			}
-			case GT_SIGN_BLOB: {
+			case GT_SIGN_BLOB:
+			{
+				// obtain values of 'outline' meta attribute
+				constexpr unsigned metaattrib_idx__outline=0;
+				const auto outline= lmappings.ref_attrib_mapping_values()[metaattrib_idx__outline].w();
+				// obtain static 'size' visual attribute (this can never be mapped to a data attribute)
+				constexpr unsigned vattrib_idx__size=1;
+				const auto radius= lmappings.ref_attrib_mapping_values()[vattrib_idx__size].w();
+				// get static color or colormap
+				constexpr unsigned vattrib_idx__color=2;
+				const int cidx = lmappings.get_attrib_indices()[vattrib_idx__color];
+				const std::optional<OTV_Rgb> color = [&]() -> std::optional<OTV_Rgb> {
+					if (cidx < 0) {
+						const auto &color = lmappings.ref_attrib_colors()[vattrib_idx__color];
+						return otv__Rgb(color.R(), color.G(), color.B());
+					}
+					return {};
+				}();
+				const std::optional<OTV_ColorMap> colormap = [&]() -> std::optional<OTV_ColorMap> {
+					if (cidx > -1)
+						return colormap_name_to_api_enum(colormaps[cidx]);
+					return {};
+				}();
+				// get static 'value' visual attribute if used
+				constexpr unsigned vattrib_idx__value=3;
+				const std::optional<float> value = [&]() -> std::optional<float> {
+					const auto idx = lmappings.get_attrib_indices()[vattrib_idx__value];
+					if (idx < 0)
+						return lmappings.ref_attrib_mapping_values()[vattrib_idx__value].w();
+					return {};
+				}();
+				// create the layer config
+				OTV_LayerConfig cfg {
+					OTV_GlyphType::SignBlob,
+					outline,
+					otv__construct_SignBlobInfo(
+						color.value_or(OTV_Rgb{}), colormap.value_or(OTV_ColorMap{}), radius,
+						value.value_or(0), (OTV_SignBlobInfoStaticFlags)(
+							  (color.has_value()?SBI_STATIC_COLOR:0) | (value.has_value()?SBI_STATIC_VALUE:0)
+						)
+					)
+				};
+				otv__add_layer(setup, &cfg);
 				break;
 			}
 
