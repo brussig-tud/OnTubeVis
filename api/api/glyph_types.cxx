@@ -14,7 +14,7 @@
 // Language config
 //
 
-// Make sure we don't get the bugged-out warning on MSCV (we don't have custom constructors, the warning is just wrong)
+// Make sure we don't get the bugged-out warning on MSVC (we don't have custom constructors, the warning is just wrong)
 #ifdef _MSC_VER
 	#pragma warning(push)
 	#pragma warning(disable : 4190)
@@ -149,8 +149,7 @@ OTV_API OTV_GlyphData* otv__downcast_LinePlotData (const OTV_LinePlotData *line_
 OTV_API OTV_GlyphInfo otv__construct_RectangleInfo (
 	const OTV_Rgb rgb, const OTV_ColorMap color_map, const float width, const float height,
 	const OTV_RectangleInfoStaticFlags static_flags
-)
-{
+){
 	OTV_GlyphInfo gi = otv__construct_empty_RectangleInfo();
 	auto &ret = *(OTV_RectangleInfo*)&gi;
 	ret.rgb = rgb;
@@ -219,8 +218,7 @@ OTV_API OTV_Vec2 otv__instantiate_Rectangle (
 OTV_API OTV_GlyphInfo otv__construct_SignBlobInfo (
 	const OTV_Rgb rgb, const OTV_ColorMap color_map, const float radius, const float value,
 	const OTV_SignBlobInfoStaticFlags static_flags
-)
-{
+){
 	OTV_GlyphInfo gi = otv__construct_empty_SignBlobInfo();
 	auto &ret = *(OTV_SignBlobInfo*)&gi;
 	ret.rgb = rgb;

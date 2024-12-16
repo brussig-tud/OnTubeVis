@@ -50,7 +50,7 @@ protected:
 		std::vector<traj_attribute<float>::datapoint_mag> data_points(attrib_count);
 		std::vector<float> attrib_values(attrib_count);
 		std::vector<bool> has_sample(attrib_count);
-		std::vector<float> glyph_params(lci.current_shape->num_size_attribs());
+		//std::vector<float> glyph_params(lci.current_shape->num_size_attribs());
 
 		// - compile data
 		unsigned traj_offset = 0;
@@ -164,7 +164,8 @@ protected:
 
 					// Determine the potential glyph's extent along the trajectory.
 					const float new_glyph_size {
-							layer_config.glyph_length(attrib_values.data()) / length_scale};
+						layer_config.glyph_length(attrib_values.data()) / length_scale
+					};
 
 					const float min_dist = attribs.size() > 0 ?
 						std::max(new_glyph_size, prev_glyph_size) :
@@ -280,7 +281,7 @@ protected:
 		std::vector<unsigned> attrib_index_counts(attrib_count, 0);
 		// create storage for attribute and glyph parameter values
 		std::vector<float> attrib_values(attrib_count);
-		std::vector<float> glyph_params(lci.current_shape->num_size_attribs());
+		//std::vector<float> glyph_params(lci.current_shape->num_size_attribs());
 
 		// - compile data
 		unsigned traj_offset = 0;
@@ -499,7 +500,7 @@ protected:
 		std::vector<unsigned> attrib_index_counts(attrib_count, 0);
 		// create storage for attribute and glyph parameter values
 		std::vector<float> attrib_values(attrib_count);
-		std::vector<float> glyph_params(lci.current_shape->num_size_attribs());
+		//std::vector<float> glyph_params(lci.current_shape->num_size_attribs());
 
 		// - compile data
 		unsigned traj_offset = 0;
