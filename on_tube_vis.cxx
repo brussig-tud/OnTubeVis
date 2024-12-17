@@ -777,7 +777,7 @@ bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
 					{0.f, otv::interpolation_api_enum_to_attribval(gi.interpolation_mode)}
 				);
 				// - color
-				if (gi.static_flags && OTV_SurfaceColorInfoStaticFlags::SCI_STATIC_COLOR) {
+				if (gi.static_flags & OTV_SurfaceColorInfoStaticFlags::SCI_STATIC_COLOR) {
 					m.set_attrib_color(vattrib_idx__color, rgb(gi.rgb.r, gi.rgb.g, gi.rgb.b));
 				}
 				else {
