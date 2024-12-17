@@ -895,7 +895,7 @@ bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
 
 	// commit the streaming dummy dataset
 	traj_mgr.clear();
-	traj_mgr.add_dataset(stream_ds);
+	traj_mgr.add_dataset(std::move(stream_ds));
 	update_glyph_layer_managers();
 
 	// add layers
@@ -1002,7 +1002,7 @@ bool on_tube_vis::update_visualizations() {
 	bool new_session;
 	if(action == AT_CONFIGURATION_CHANGE)
 	{
-		new_session = client.new_session_if_not_in_setup();
+		new_session = !run_as_service && client.new_session_if_not_in_setup();
 		glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 		context& ctx = *get_context();
@@ -1015,13 +1015,13 @@ bool on_tube_vis::update_visualizations() {
 		full_gui_update = true;
 	}
 	else if (action == AT_CONFIGURATION_VALUE_CHANGE) {
-		new_session = client.new_session_if_not_in_setup();
+		new_session = !run_as_service && client.new_session_if_not_in_setup();
 		glyph_layers_config = glyph_layer_mgr.get_configuration();
 		glyphs_out_of_date(true);
 		changes = true;
 	}
 	else if (action == AT_MAPPING_VALUE_CHANGE) {
-		new_session = client.new_session_if_not_in_setup();
+		new_session = !run_as_service && client.new_session_if_not_in_setup();
 		glyphs_out_of_date(true);
 		changes = true;
 	}
@@ -2495,10 +2495,12 @@ void on_tube_vis::after_finish(context& ctx) {
 	// Process any pending streaming API commands
 	static unsigned count = 0;
 	std::shared_ptr<command> cmd;
-	while ((cmd = command_stream::poll()))
-		if (!cmd->handle())
+	while ((cmd = command_stream::poll())) {
+		const bool cmd_result = cmd->handle();
+		if (!cmd_result)
 			std::cerr << "OnTubeVis: command " << hex(cmd.get()) << " (" << cmd->describe() << ") failed execution!"
 			          << std::endl;
+	}
 }
 
 void on_tube_vis::signal_non_service_init() {
