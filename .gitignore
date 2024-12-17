@@ -2,6 +2,9 @@
 # CMake in-source build
 /build
 
+# In-source doc generation output
+/doc
+
 # Prerequisites
 *.d
 

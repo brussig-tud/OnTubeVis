@@ -28,7 +28,12 @@ typedef struct OTV_LayerConfig
 	/// @brief The glyph/plot type to be used on this layer.
 	OTV_GlyphType type;
 
-	/// @brief The thickness of the outline to be drawn around glyphs/plots on this layer.
+	/**
+	 * @brief
+	 *		The thickness of the outline to be drawn around glyphs/plots on this layer. Some glyph or plot types don't
+	 *		actually support outlines (or it would not make sense for them to support outlines); in this case the value
+	 *		assigned to this field will be ignored.
+	 */
 	float outline;
 
 	/// @brief Additional glyph/plot-specific static properties that apply for all samples visualized on this layer.

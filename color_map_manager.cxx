@@ -36,10 +36,10 @@ ActionType color_map_manager::action_type() {
 	return temp;
 }
 
-std::vector<std::string> color_map_manager::get_names() {
-	std::vector<std::string> names;
-	for(size_t i = 0; i < color_maps.size(); ++i)
-		names.push_back(color_maps[i].name);
+std::vector<std::string> color_map_manager::get_names() const {
+	std::vector<std::string> names; names.reserve(color_maps.size());
+	for (const auto &cm : color_maps)
+		names.emplace_back(cm.name);
 	return names;
 }
 

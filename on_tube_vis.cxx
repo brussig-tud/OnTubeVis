@@ -80,6 +80,7 @@ void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* 
 */
 #include <cgv/gui/application.h>
 #include <cgv/gui/gui_driver.h>
+#include <cgv/media/mesh/simple_mesh.h>
 #include <cgv/os/mutex.h>
 
 namespace cgv {
@@ -683,73 +684,206 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 	return false;
 }
 
+/// helper class for creating a traj_dataset
+struct stream_ds_helper : public traj_format_handler<float>
+{
+	static traj_dataset<float> create_streaming_dummy_dataset (const VisSetup &vis_setup)
+	{
+		// visual attribute source names for the dummy dataset
+		static const std::string ATTRIB_POSITION("pos_stream");
+		static const std::string ATTRIB_TANGENT("tan_stream");
+		static const std::string ATTRIB_RADIUS("rad_stream");
+		static const std::string ATTRIB_COLOR("color_stream");
+
+		// our static visual attribute mapping
+		static const visual_attribute_mapping<float> attrmap({
+			{VisualAttrib::POSITION, {ATTRIB_POSITION}}, {VisualAttrib::TANGENT, {ATTRIB_TANGENT}},
+			{VisualAttrib::RADIUS, {ATTRIB_RADIUS}}, {VisualAttrib::COLOR, {ATTRIB_COLOR}}
+		});
+
+		// prepare dataset
+		traj_dataset<float> ds(vis_setup.name+" (streaming)", "<streaming>");
+
+		// create geometry attributes
+		auto P = add_attribute<Vec3>(ds, ATTRIB_POSITION);
+		auto T = add_attribute<Vec4>(ds, ATTRIB_TANGENT);
+		auto R = add_attribute<real>(ds, ATTRIB_RADIUS);
+		auto C = add_attribute<Vec3>(ds, ATTRIB_COLOR);
+
+		// create geometry attribute trajectories
+		auto &ds_trajs = trajectories(ds, P.attrib);
+		ds_trajs.resize(vis_setup.trajs.size());
+		trajectories(ds, T.attrib) = ds_trajs;
+		trajectories(ds, R.attrib) = ds_trajs;
+		trajectories(ds, C.attrib) = ds_trajs;
+
+		// apply visual attribute mapping
+		ds.set_mapping(attrmap);
+
+		// done
+		return ds;
+	}
+
+	static unsigned add_streaming_dummy_attrib (traj_dataset<float> &dataset)
+	{
+		// create new attribute representing the stream
+		const auto id = (unsigned)attributes(dataset).size();
+		const std::string name = "stream"+std::to_string(id);
+		const auto new_stream = add_attribute<float>(dataset, name);
+
+		// create a dummy trajectory for the new attribute
+		const auto &P = positions(dataset);
+		const auto ds_traj = trajectories(dataset, P.attrib);
+		trajectories(dataset, new_stream.attrib) = ds_traj;
+		return id;
+	}
+};
+
+
 bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
 {
-	bool success = false;
-	for (unsigned ds_idx=0; ds_idx<traj_mgr.num_datasets(); ds_idx++)
+	// don't do anything if we're not operating as a streaming service
+	if (!run_as_service)
+		return true;
+
+	// prelude: prepare internal dataset representation
+	bool success = true;
+	std::clog << "OnTubeVis internals: preparing streaming dummy dataset" << std::endl<<std::endl;
+	traj_dataset<float> stream_ds = stream_ds_helper::create_streaming_dummy_dataset(vis_setup);
+
+	// build up glyph attribute mappings
+	std::vector<glyph_attribute_mapping> layer_gams;
+	layer_gams.reserve(vis_setup.layers.size());
+	for (const auto &layer_src : vis_setup.layers)
 	{
-		const auto &ds = traj_mgr.dataset(ds_idx);
-		auto &ds_config = render.visualizations[ds_idx];
-		/*if(ds_config.config.layer_configs.size() > 0)
+		switch (layer_src.type)
 		{
-			cgv::utils::stopwatch s(true);
-			std::cout << "Compiling glyph attributes for dataset "<<ds_idx<<" '"<<ds.name()<<"'... ";
+			case OTV_GlyphType::SurfaceColor:
+			{
+				// prelude
+				// - hardcoded meta/attribute indices
+				constexpr unsigned metaattrib_idx__interpolate=0, vattrib_idx__color=1;
+				// - upcasted access to static glyph parameters
+				const auto &gi = *otv__upcast_SurfaceColorInfo(&layer_src.static_params);
 
-			glyph_compiler gc;
-			gc.length_scale = render.style.length_scale;
-			gc.include_hidden_glyphs = debug.show_hidden_glyphs;
-
-			const auto &dataset = traj_mgr.dataset(0);
-
-			success = gc.compile_glyph_attributes(dataset, client.arclen_data, ds_config.config);
-
-			// get context
-			const auto &ctx = *get_context();
-
-			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
-				if (! gc.layer_filled[layer_idx]) {
-					// Clear layer for client and renderer.
-					client.glyphs[layer_idx] = {};
-					render.glyphs[layer_idx] = {};
-				} else {
-					// Mark layer as active in render state.
-					render.active_glyph_layers.set(layer_idx);
-
-					const auto& ranges = gc.layer_ranges[layer_idx];
-					const auto& attribs = gc.layer_attribs[layer_idx];
-
-					// Copy glyph data into the simulated client.
-					auto &gl = client.glyphs.at(layer_idx);
-					gl.ranges.reserve(ranges.size());
-					for (const auto& r : ranges)
-						gl.ranges.emplace_back(index_range<glyph_count_type>{
-							glyph_count_type(r.i0), glyph_count_type(r.n)
-						});
-					gl.attribs = attribs;
-
-					// Allocate GPU buffers for glyph-related data.
-					if (! render.create_glyph_layer(
-						layer_idx,
-						client.glyphs[layer_idx].attribs.count + 2,
-						client.trajectories.size(),
-						glyph_count_type{1000}
-					)) {
-						throw std::runtime_error("Failed to create glyph attribute buffers.");
-					}
-
-					// - sanity check
-					{
-						const auto num_ranges {ranges.size()};
-						const auto num_segs   {client.data->indices.size() / 2};
-						assert(num_ranges == num_segs);
-					}
+				// construct GAM
+				glyph_attribute_mapping m;
+				m.set_name("SurfaceColor");
+				// - type
+				m.set_glyph_type(GlyphType::GT_COLOR);
+				// - interpolation mode
+				m.set_attrib_out_range(
+					metaattrib_idx__interpolate,
+					{0.f, otv::interpolation_api_enum_to_attribval(gi.interpolation_mode)}
+				);
+				// - color
+				if (gi.static_flags && OTV_SurfaceColorInfoStaticFlags::SCI_STATIC_COLOR) {
+					m.set_attrib_color(vattrib_idx__color, rgb(gi.rgb.r, gi.rgb.g, gi.rgb.b));
 				}
+				else {
+					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
+					m.set_color_source_index(vattrib_idx__color, cmidx);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					m.set_attrib_source_index(vattrib_idx__color, streamid);
+				}
+				layer_gams.emplace_back(std::move(m));
+				break;
 			}
 
-			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
-			glyphs_out_of_date(false);
-		}*/
+			case OTV_GlyphType::LinePlot: {
+				glyph_attribute_mapping m;
+				m.set_glyph_type(GlyphType::GT_LINE_PLOT);
+				//layer_gams.emplace_back(std::move(m));
+				break;
+			}
+
+			case OTV_GlyphType::Rect: {
+				glyph_attribute_mapping m;
+				m.set_glyph_type(GlyphType::GT_RECTANGLE);
+				//layer_gams.emplace_back(std::move(m));
+				break;
+			}
+
+			case OTV_GlyphType::SignBlob: {
+				glyph_attribute_mapping m;
+				m.set_glyph_type(GlyphType::GT_SIGN_BLOB);
+				//layer_gams.emplace_back(std::move(m));
+				break;
+			}
+
+
+			case OTV_GlyphType::Circle:
+			case OTV_GlyphType::IsoscelesTriangle:
+				cgv::gui::get_gui_driver()->message(
+					std::string("Visualization setup contains unimplemented glyph type: ")
+						+ otv__string_from_GlyphType(layer_src.type)+"\n"
+					"OnTubeVis will now most likely crash."
+				);
+				assert(false && "INTERNAL LOGIC ERROR: Unimplemented glyph type in visualization setup!");
+
+			default:
+				assert(false && "INTERNAL LOGIC ERROR: Unknown glyph type in visualization setup!");
+		}
 	}
+	/*if(ds_config.config.layer_configs.size() > 0)
+	{
+		cgv::utils::stopwatch s(true);
+		std::cout << "Compiling glyph attributes for dataset "<<ds_idx<<" '"<<ds.name()<<"'... ";
+
+		glyph_compiler gc;
+		gc.length_scale = render.style.length_scale;
+		gc.include_hidden_glyphs = debug.show_hidden_glyphs;
+
+		const auto &dataset = traj_mgr.dataset(0);
+
+		success = gc.compile_glyph_attributes(dataset, client.arclen_data, ds_config.config);
+
+		// get context
+		const auto &ctx = *get_context();
+
+		for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
+			if (! gc.layer_filled[layer_idx]) {
+				// Clear layer for client and renderer.
+				client.glyphs[layer_idx] = {};
+				render.glyphs[layer_idx] = {};
+			} else {
+				// Mark layer as active in render state.
+				render.active_glyph_layers.set(layer_idx);
+
+				const auto& ranges = gc.layer_ranges[layer_idx];
+				const auto& attribs = gc.layer_attribs[layer_idx];
+
+				// Copy glyph data into the simulated client.
+				auto &gl = client.glyphs.at(layer_idx);
+				gl.ranges.reserve(ranges.size());
+				for (const auto& r : ranges)
+					gl.ranges.emplace_back(index_range<glyph_count_type>{
+						glyph_count_type(r.i0), glyph_count_type(r.n)
+					});
+				gl.attribs = attribs;
+
+				// Allocate GPU buffers for glyph-related data.
+				if (! render.create_glyph_layer(
+					layer_idx,
+					client.glyphs[layer_idx].attribs.count + 2,
+					client.trajectories.size(),
+					glyph_count_type{1000}
+				)) {
+					throw std::runtime_error("Failed to create glyph attribute buffers.");
+				}
+
+				// - sanity check
+				{
+					const auto num_ranges {ranges.size()};
+					const auto num_segs   {client.data->indices.size() / 2};
+					assert(num_ranges == num_segs);
+				}
+			}
+		}
+
+		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+		glyphs_out_of_date(false);
+	}*/
 
 	/*if(success) {
 		// Flush attribute allocation buffer.
@@ -759,8 +893,18 @@ bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
 		post_redraw();
 	}*/
 
+	// commit the streaming dummy dataset
+	traj_mgr.clear();
+	traj_mgr.add_dataset(stream_ds);
+	update_glyph_layer_managers();
+
+	// add layers
+	auto &vis = render.visualizations.front();
+	for (const auto &layer_gam : layer_gams)
+		vis.manager.add_glyph_attribute_mapping(std::move(layer_gam));
+
 	// done
-	success = true; return success;
+	return success;
 }
 
 
@@ -1369,8 +1513,10 @@ void on_tube_vis::update_glyph_layer_managers() {
 		// collect value ranges for available attributes
 		for(size_t i = 0; i < attrib_names.size(); ++i) {
 			const auto& attrib = traj_mgr.dataset(0).attribute(attrib_names[i]);
-			vec2 range(attrib.min(), attrib.max());
-			attrib_ranges.push_back(range);
+			if (attrib.num() > 0)
+				attrib_ranges.emplace_back(attrib.min(), attrib.max());
+			else
+				attrib_ranges.emplace_back(.0f, .0f);
 		}
 
 		auto &new_layer_config = render.visualizations.emplace_back(this);

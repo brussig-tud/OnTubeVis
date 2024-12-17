@@ -95,6 +95,102 @@ OTV_ColorMap colormap_name_to_api_enum (const std::string &name)
 	return OTV_ColorMap::UndefinedColormap;
 }
 
+unsigned colormap_name_to_internal_id (const color_map_manager &colormap_mgr, const std::string &colormap_name)
+{
+	const auto &colormaps = colormap_mgr.ref_color_maps();
+	const auto cm_lower = cgv::utils::to_lower(colormap_name);
+	for (unsigned i=0; i<colormaps.size(); i++)
+		if (cgv::utils::to_lower(colormaps[i].name) == cm_lower)
+			return i;
+	assert(false && "INTERNAL LOGIC ERROR: Unknown/corrupted color_map name!");
+	return -1;
+}
+
+unsigned colormap_api_enum_to_internal_id (const color_map_manager &colormap_mgr, const OTV_ColorMap &color_map)
+{
+	switch (color_map)
+	{
+		// Sequential color maps
+		case OTV_ColorMap::Acton:
+			return colormap_name_to_internal_id(colormap_mgr, "acton");
+		case OTV_ColorMap::Bamako:
+			return colormap_name_to_internal_id(colormap_mgr, "bamako");
+		case OTV_ColorMap::Batlow:
+			return colormap_name_to_internal_id(colormap_mgr, "batlow");
+		case OTV_ColorMap::BatlowK:
+			return colormap_name_to_internal_id(colormap_mgr, "batlowk");
+		case OTV_ColorMap::BatlowW:
+			return colormap_name_to_internal_id(colormap_mgr, "batloww");
+		case OTV_ColorMap::Bilbao:
+			return colormap_name_to_internal_id(colormap_mgr, "bilbao");
+		case OTV_ColorMap::Buda:
+			return colormap_name_to_internal_id(colormap_mgr, "buda");
+		case OTV_ColorMap::Davos:
+			return colormap_name_to_internal_id(colormap_mgr, "davos");
+		case OTV_ColorMap::Devon:
+			return colormap_name_to_internal_id(colormap_mgr, "devon");
+		case OTV_ColorMap::Glasgow:
+			return colormap_name_to_internal_id(colormap_mgr, "glasgow");
+		case OTV_ColorMap::GrayC:
+			return colormap_name_to_internal_id(colormap_mgr, "grac");
+		case OTV_ColorMap::Hawaii:
+			return colormap_name_to_internal_id(colormap_mgr, "hawaii");
+		case OTV_ColorMap::Imola:
+			return colormap_name_to_internal_id(colormap_mgr, "imola");
+		case OTV_ColorMap::Lajolla:
+			return colormap_name_to_internal_id(colormap_mgr, "lajolla");
+		case OTV_ColorMap::Lapaz:
+			return colormap_name_to_internal_id(colormap_mgr, "lapaz");
+		case OTV_ColorMap::Lipari:
+			return colormap_name_to_internal_id(colormap_mgr, "lipari");
+		case OTV_ColorMap::Nuuk:
+			return colormap_name_to_internal_id(colormap_mgr, "nuuk");
+		case OTV_ColorMap::Oslo:
+			return colormap_name_to_internal_id(colormap_mgr, "oslo");
+		case OTV_ColorMap::Rainbow:
+			return colormap_name_to_internal_id(colormap_mgr, "rainbow");
+		case OTV_ColorMap::Tokyo:
+			return colormap_name_to_internal_id(colormap_mgr, "tokyo");
+		case OTV_ColorMap::Turbo:
+			return colormap_name_to_internal_id(colormap_mgr, "turbo");
+		case OTV_ColorMap::Turku:
+			return colormap_name_to_internal_id(colormap_mgr, "turku");
+
+		// Diverging color maps
+		case OTV_ColorMap::Bam:
+			return colormap_name_to_internal_id(colormap_mgr, "bam");
+		case OTV_ColorMap::Berlin:
+			return colormap_name_to_internal_id(colormap_mgr, "berlin");
+		case OTV_ColorMap::Broc:
+			return colormap_name_to_internal_id(colormap_mgr, "broc");
+		case OTV_ColorMap::Cork:
+			return colormap_name_to_internal_id(colormap_mgr, "cork");
+		case OTV_ColorMap::Lisbon:
+			return colormap_name_to_internal_id(colormap_mgr, "lisbon");
+		case OTV_ColorMap::Managua:
+			return colormap_name_to_internal_id(colormap_mgr, "managua");
+		case OTV_ColorMap::Roma:
+			return colormap_name_to_internal_id(colormap_mgr, "roma");
+		case OTV_ColorMap::Tofino:
+			return colormap_name_to_internal_id(colormap_mgr, "tofino");
+		case OTV_ColorMap::Vanimo:
+			return colormap_name_to_internal_id(colormap_mgr, "vanimo");
+		case OTV_ColorMap::Vik:
+			return colormap_name_to_internal_id(colormap_mgr, "vik");
+
+		default:
+			/* see below */;
+	}
+
+	// Unknown/unsupported
+	cgv::gui::get_gui_driver()->message(
+		"Config refers to unknown (potentially corrupted) color map: "+std::to_string(color_map)
+		+"\nOnTubeVis will now most likely crash."
+	);
+	assert(false && "INTERNAL LOGIC ERROR: Unknown/corrupted color_map!");
+	return -1;
+}
+
 OTV_InterpolationMode interpolation_attribval_to_api_enum (const float value)
 {
 	if (value < 1/3.f)
@@ -102,6 +198,25 @@ OTV_InterpolationMode interpolation_attribval_to_api_enum (const float value)
 	if (value < 2/3.f)
 		return OTV_InterpolationMode::Linear;
 	return OTV_InterpolationMode::Cubic;
+}
+
+float interpolation_api_enum_to_attribval (const OTV_InterpolationMode interpolation_mode)
+{
+	switch (interpolation_mode) {
+		case OTV_InterpolationMode::Nearest: return 0;
+		case OTV_InterpolationMode::Linear: return .5f;
+		case OTV_InterpolationMode::Cubic: return 1;
+		default:
+			/* see below */;
+	}
+
+	// Unknown/unsupported
+	cgv::gui::get_gui_driver()->message(
+		"Config refers to unknown (potentially corrupted) interpolation mode: "+std::to_string(interpolation_mode)
+		+"\nOnTubeVis will now most likely crash."
+	);
+	assert(false && "INTERNAL LOGIC ERROR: Unknown/corrupted interpolation_mode!");
+	return -1;
 }
 
 void otv_client::new_session (void) {
@@ -149,14 +264,27 @@ void otv_client::commit_session (void)
 				);
 				// get colormap being used
 				constexpr unsigned vattrib_idx__color=1;
-				const auto colormap = colormap_name_to_api_enum(
-					colormaps[lmappings.get_color_map_indices()[vattrib_idx__color]]
-				);
+				const int cidx = lmappings.get_attrib_indices()[vattrib_idx__color];
+				const std::optional<OTV_Rgb> color = [&]() -> std::optional<OTV_Rgb> {
+					if (cidx < 0) {
+						const auto &color = lmappings.ref_attrib_colors()[vattrib_idx__color];
+						return otv__Rgb(color.R(), color.G(), color.B());
+					}
+					return {};
+				}();
+				const std::optional<OTV_ColorMap> colormap = [&]() -> std::optional<OTV_ColorMap> {
+					if (cidx > -1)
+						return colormap_name_to_api_enum(colormaps[cidx]);
+					return {};
+				}();
 				// create the layer config
 				OTV_LayerConfig cfg {
 					OTV_GlyphType::SurfaceColor,
 					-1, // unused
-					otv__construct_SurfaceColorInfo(colormap, interpolate)
+					otv__construct_SurfaceColorInfo(
+						color.value_or(OTV_Rgb{}), colormap.value_or(OTV_ColorMap{}), interpolate,
+						(OTV_SurfaceColorInfoStaticFlags)(color.has_value()?RI_STATIC_COLOR:0)
+					)
 				};
 				otv__add_layer(setup, &cfg);
 				break;

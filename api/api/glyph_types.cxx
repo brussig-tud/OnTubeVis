@@ -32,13 +32,16 @@
 
 // --- ...Info ----------------------------------------------------------
 OTV_API OTV_GlyphInfo otv__construct_SurfaceColorInfo (
-	const OTV_ColorMap color_map, const OTV_InterpolationMode interpolation_mode
+	OTV_Rgb rgb, const OTV_ColorMap color_map, const OTV_InterpolationMode interpolation_mode,
+	const OTV_SurfaceColorInfoStaticFlags static_flags
 )
 {
 	OTV_GlyphInfo gi = otv__construct_empty_SurfaceColorInfo();
 	auto &ret = *(OTV_SurfaceColorInfo*)&gi;
+	ret.rgb = rgb;
 	ret.color_map = color_map;
 	ret.interpolation_mode = interpolation_mode;
+	ret.static_flags = static_flags;
 	return gi;
 }
 

@@ -118,6 +118,16 @@ typedef enum OTV_InterpolationMode {
 } OTV_InterpolationMode;
 
 /// @brief Enumeration of static parameter flags for @c OTV_RectangleInfo structs.
+typedef enum OTV_SurfaceColorInfoStaticFlags {
+	// Since OnTubeVis API v0
+	SCI_STATIC_NONE = 0,
+	SCI_STATIC_COLOR = 1,
+
+	// Force enum to be 32 bits
+	SurfaceColorInfoStaticFlags_FORCE32 = 0x7fffffff
+} OTV_SurfaceColorInfoStaticFlags;
+
+/// @brief Enumeration of static parameter flags for @c OTV_RectangleInfo structs.
 typedef enum OTV_RectangleInfoStaticFlags {
 	// Since OnTubeVis API v0
 	RI_STATIC_NONE = 0,
@@ -201,11 +211,17 @@ typedef struct OTV_SurfaceColorInfo
 	/// @brief The number of 32bit static properties of a surface color layer. Must be 2 always.
 	const uint32_t N;
 
+	/// @brief The surface color in case a static color is assigned.
+	OTV_Rgb rgb;
+
 	/// @brief The selected color map to query colors from if no static color is used.
 	OTV_ColorMap color_map;
 
 	/// @brief The selected interpolation strategy for shading between samples
 	OTV_InterpolationMode interpolation_mode;
+
+	/// @brief Which of the dynamic properties should statically assume the values defined in this info struct.
+	OTV_SurfaceColorInfoStaticFlags static_flags;
 } OTV_SurfaceColorInfo;
 
 /**
@@ -431,8 +447,10 @@ typedef struct OTV_SignBlobData
 /**
  * @brief Constructs an instance of the @c OTV_SurfaceColorInfo struct that will be correctly up- and downcastable.
  *
+ * @param rgb The value for the field @c OTV_SurfaceColorInfo::rgb
  * @param color_map The value for the field @c OTV_SurfaceColorInfo::color_map
  * @param interpolation_mode The value for the field @c OTV_SurfaceColorInfo::interpolation_mode
+ * @param static_flags The value for the field @c OTV_SurfaceColorInfo::static_flags
  *
  * @return An instance of the @c OTV_SurfaceColorInfo struct, downcasted to the generic @c OTV_GlyphInfo.
  *
@@ -441,7 +459,8 @@ typedef struct OTV_SignBlobData
  * using @c otv__upcast_SurfaceColorInfo().
  */
 OTV_API OTV_GlyphInfo otv__construct_SurfaceColorInfo (
-	const OTV_ColorMap color_map, const OTV_InterpolationMode interpolation_mode
+	OTV_Rgb rgb, const OTV_ColorMap color_map, const OTV_InterpolationMode interpolation_mode,
+	const OTV_SurfaceColorInfoStaticFlags static_flags
 );
 #endif
 

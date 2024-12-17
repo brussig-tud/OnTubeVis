@@ -56,7 +56,7 @@ struct new_session_command : public command
 	virtual bool handle (void) final
 	{
 		// prepare new "dataset"
-		/*decltype(on_tube_vis_api::trajectories) trajectories;
+		decltype(on_tube_vis_api::trajectories) trajectories;
 		decltype(on_tube_vis_api::traj_id_map) traj_id_map;
 		for (const auto &traj_setup : setup.trajs) {
 			if (!traj_id_map.emplace(traj_setup.id, (unsigned)trajectories.size()).second)
@@ -73,6 +73,10 @@ struct new_session_command : public command
 		on_tube_vis_api::traj_id_map = std::move(traj_id_map);*/
 
 		const bool result = otv_instance->start_new_session(setup);
+		on_tube_vis_api::ds_name = std::move(setup.name);
+		on_tube_vis_api::layers = std::move(setup.layers);
+		on_tube_vis_api::trajectories = std::move(trajectories);
+		on_tube_vis_api::traj_id_map = std::move(traj_id_map);;
 		return notify_result(result);
 	}
 };

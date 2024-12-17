@@ -6,12 +6,23 @@
 #include <OnTubeVis/OnTubeVis.h>
 
 #include "arclen_helper.h"
+#include "color_map_manager.h"
 #include "traj_loader.h"
 #include "util.h"
 #include "render/trajectory.h"
 
+// Forward declaration, actually defined in messy OnTubeVis internals
+class visualization_variables_info;
+
 
 namespace otv {
+
+OTV_ColorMap colormap_name_to_api_enum (const std::string &name);
+unsigned colormap_name_to_internal_id (const color_map_manager &colormap_mgr, const std::string &colormap_name);
+unsigned colormap_api_enum_to_internal_id (const color_map_manager &colormap_mgr, const OTV_ColorMap &color_map);
+
+OTV_InterpolationMode interpolation_attribval_to_api_enum (const float value);
+float interpolation_api_enum_to_attribval (const OTV_InterpolationMode interpolation_mode);
 
 /// Stores trajectory data that is known ahead of time in host memory, then gradually feeds it
 /// to the renderer to simulate streaming.

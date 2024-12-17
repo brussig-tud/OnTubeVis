@@ -78,7 +78,7 @@ public:
 	/// reference to the texture
 	cgv::render::texture& ref_texture() { return tex; }
 	/// return a list of all color map names
-	std::vector<std::string> get_names();
+	std::vector<std::string> get_names() const;
 	/// add a color map from outside of this manager
 	void add_color_map(const std::string& name, const cgv::render::color_map& cm, bool custom);
 	/// remove a color map by its name

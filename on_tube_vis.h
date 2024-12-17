@@ -82,7 +82,7 @@ using namespace cgv::render;
 /// baseline visualization plugin for arbitrary trajectory data as tubes using the framework tube renderers and trajectory loading facilities
 class on_tube_vis :
 	public cgv::base::argument_handler, // derive from argument handler to be able to process custom arguments
-	public cgv::app::application_plugin	// derive from application plugin, which is a node, drawable, gui provider and event handler and can handle overlays
+	public cgv::app::application_plugin // derive from application plugin, which is a node, drawable, gui provider and event handler and can handle overlays
 {
 public:
 	using vec2 = cgv::vec2;

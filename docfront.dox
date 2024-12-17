@@ -1,43 +1,24 @@
 /**
- * @file
- * @brief
- *		A minimal C11 example of how to use the OnTubeVis API for setting up a visualization and streaming data to it.
- */
+\mainpage OnTubeVis Streaming API
 
+This is the documentation of the OnTubeVis streaming API as implemented in the reference OnTubeVis OpenGL/C++ desktop application.
 
-//////
-//
-// Includes
-//
+## Structure of the documentation
 
-// C standard library
-#include <stdio.h>
+The starting point for exploring the API is the @link include/OnTubeVis OnTubeVis include directory @endlink. The API
+functions can be found in each of the modules defined by the individual header files. For structures, the @a Classes
+page provides alphabetically ordered access to their respective documentation. In addition, the API functions most
+relevant for each structure are referenced in their <em>"See also"</em> sections.
 
-// Platform SDKs
-#if defined(OTVAPI_CLIENT_USE_DLOPEN) && OTVAPI_CLIENT_USE_DLOPEN!=0
-	#error Runtime loading of an OnTubeVis API implementation is not yet implemented in this example!
-	#ifdef _WIN32
-		#define NOMINMAX
-		#include <windows.h>
-	#else
-		#include <dlfcn.h>
-	#endif
-#endif
+Information on specific API elements (including the functions) can always be quickly looked up using the search function
+(via the search icon in the top menu bar).
 
-// OnTubeVis API
-#include <OnTubeVis/OnTubeVis.h>
+## Usage example
 
+For a minimal usage example of the API, see the @link main.c sample client @endlink included in the repository. Its main
+code is also reproduced here:
 
-
-//////
-//
-// Functions
-//
-
-/// @brief Encapsulates the OnTubeVis API shutdown logic.
-///
-/// This encapsulates the common cleanup logic needed for both successful program shutdown and termination in case of
-/// various errors.
+```
 int shutdown_otv (void)
 {
 	const OTV_TerminateResult status = otv__terminate();
@@ -52,7 +33,6 @@ int shutdown_otv (void)
 	return -1;
 }
 
-/// The test client program entry point.
 int main (int argc, char** argv)
 {
 	// Forward control to the service
@@ -174,3 +154,5 @@ int main (int argc, char** argv)
 	// Request service to stop and quit
 	return shutdown_otv();
 }
+```
+*/
