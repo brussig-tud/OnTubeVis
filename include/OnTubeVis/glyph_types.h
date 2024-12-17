@@ -117,7 +117,7 @@ typedef enum OTV_InterpolationMode {
 	InterpolationMode_FORCE32 = 0x7fffffff
 } OTV_InterpolationMode;
 
-/// @brief Enumeration of static parameter flags for @c OTV_RectangleInfo structs.
+/// @brief Enumeration of static parameter flags for @c OTV_SurfaceColorInfo structs.
 typedef enum OTV_SurfaceColorInfoStaticFlags {
 	// Since OnTubeVis API v0
 	SCI_STATIC_NONE = 0,
