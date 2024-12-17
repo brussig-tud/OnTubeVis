@@ -685,8 +685,82 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 
 bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
 {
-	// done_NEW_SES
-	return true;
+	bool success = false;
+	for (unsigned ds_idx=0; ds_idx<traj_mgr.num_datasets(); ds_idx++)
+	{
+		const auto &ds = traj_mgr.dataset(ds_idx);
+		auto &ds_config = render.visualizations[ds_idx];
+		/*if(ds_config.config.layer_configs.size() > 0)
+		{
+			cgv::utils::stopwatch s(true);
+			std::cout << "Compiling glyph attributes for dataset "<<ds_idx<<" '"<<ds.name()<<"'... ";
+
+			glyph_compiler gc;
+			gc.length_scale = render.style.length_scale;
+			gc.include_hidden_glyphs = debug.show_hidden_glyphs;
+
+			const auto &dataset = traj_mgr.dataset(0);
+
+			success = gc.compile_glyph_attributes(dataset, client.arclen_data, ds_config.config);
+
+			// get context
+			const auto &ctx = *get_context();
+
+			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
+				if (! gc.layer_filled[layer_idx]) {
+					// Clear layer for client and renderer.
+					client.glyphs[layer_idx] = {};
+					render.glyphs[layer_idx] = {};
+				} else {
+					// Mark layer as active in render state.
+					render.active_glyph_layers.set(layer_idx);
+
+					const auto& ranges = gc.layer_ranges[layer_idx];
+					const auto& attribs = gc.layer_attribs[layer_idx];
+
+					// Copy glyph data into the simulated client.
+					auto &gl = client.glyphs.at(layer_idx);
+					gl.ranges.reserve(ranges.size());
+					for (const auto& r : ranges)
+						gl.ranges.emplace_back(index_range<glyph_count_type>{
+							glyph_count_type(r.i0), glyph_count_type(r.n)
+						});
+					gl.attribs = attribs;
+
+					// Allocate GPU buffers for glyph-related data.
+					if (! render.create_glyph_layer(
+						layer_idx,
+						client.glyphs[layer_idx].attribs.count + 2,
+						client.trajectories.size(),
+						glyph_count_type{1000}
+					)) {
+						throw std::runtime_error("Failed to create glyph attribute buffers.");
+					}
+
+					// - sanity check
+					{
+						const auto num_ranges {ranges.size()};
+						const auto num_segs   {client.data->indices.size() / 2};
+						assert(num_ranges == num_segs);
+					}
+				}
+			}
+
+			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+			glyphs_out_of_date(false);
+		}*/
+	}
+
+	/*if(success) {
+		// Flush attribute allocation buffer.
+		std::ignore = render.traj_glyph_mem.flush();
+
+		taa.reset();
+		post_redraw();
+	}*/
+
+	// done
+	success = true; return success;
 }
 
 
@@ -1682,11 +1756,15 @@ void on_tube_vis::ensure_initial_dataset (context &ctx)
 			}
 			layer_cfg_init_pending.reset();
 		}
-		if (traj_mgr.has_data())
-			client.commit_session();
 
-		// If in service mode, this is the time to notify streaming API that init is done
-		if (run_as_service) {
+		// if not in service mode, we have to at least set the otv_instance in order to commit the setup of our initial
+		// dataset
+		if (!run_as_service && traj_mgr.has_data()) {
+			otv_instance = this;
+			client.commit_session();
+		}
+		// in service mode, this is the time to actually notify the streaming API that init is done
+		else if (run_as_service) {
 			std::lock_guard g(init_mtx);
 			otv_instance = this;
 			init_cv.notify_all();

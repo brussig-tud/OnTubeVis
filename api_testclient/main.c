@@ -34,6 +34,21 @@
 // Functions
 //
 
+// OnTubeVis API shutdown logic
+int shutdown_otv (void)
+{
+	const OTV_TerminateResult status = otv__terminate();
+	if (status.terminated) {
+		// OnTubeVis did shut down
+		printf("OnTubeVis service exited with code %i.\n", status.exit_code);
+		return status.exit_code;
+	}
+	// Something went wrong...
+	printf("OnTubeVis service did not honor shutdown request!\n");
+	printf("Performing unclean shutdown.\n");
+	return -1;
+}
+
 // The program entry point.
 int main (int argc, char** argv)
 {
@@ -47,11 +62,9 @@ int main (int argc, char** argv)
 		return -1;
 	}
 
-	////
-	// --- [BEGIN] A super simplified streaming example -----------------------------------------
 
 	////
-	// Preparation: Create and activate a visualization setup
+	// Preparation: create and activate a visualization setup
 
 	// Create it. The provided name will show up in the OnTubeVis GUI as the name of the visualized dataset
 	OTV_VisSetupHandle test_setup = otv__create_VisSetup("test");
@@ -86,13 +99,13 @@ int main (int argc, char** argv)
 	// Now we add another trajectory. It will inherit the already set-up layers.
 	traj_ids[2] = otv__add_trajectory(test_setup, /* radius: */.5f);
 
-
 	// Start a visualization session with the above setup
 	const bool session_started = otv__start_vis_session(test_setup);
 	otv__free_VisSetup(test_setup); // now not needed anymore
 	if (!session_started) {
 		printf("Unable to start visualization session!\n");
-		return -1;
+		const int exit_code = shutdown_otv();
+		return exit_code ? -1 : exit_code;
 	}
 
 
@@ -152,17 +165,8 @@ int main (int argc, char** argv)
 
 
 	////
-	// Shut down
+	// Shutdown
 
 	// Request service to stop and quit
-	const OTV_TerminateResult status = otv__terminate();
-	if (status.terminated) {
-		// OnTubeVis did shut down
-		printf("OnTubeVis service exited with code %i.\n", status.exit_code);
-		return status.exit_code;
-	}
-	// Something went wrong...
-	printf("OnTubeVis service did not honor shutdown request!\n");
-	printf("Performing unclean shutdown.\n");
-	return -1;
+	return shutdown_otv();
 }

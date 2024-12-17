@@ -66,10 +66,10 @@ class command_stream
 
 public:
 	static void push (const std::shared_ptr<command> &cmd) {
+		assert(otv_instance && "INTERNAL LOGIC ERROR: command pushed before otv_instance is ready!");
 		std::lock_guard g(mtx);
 		queue.push(cmd);
-		if (otv_instance)
-			otv_instance->post_redraw();
+		otv_instance->post_redraw();
 		cv.notify_all();
 	}
 	static std::shared_ptr<command> fetch (void)

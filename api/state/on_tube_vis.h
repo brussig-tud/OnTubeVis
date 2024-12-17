@@ -100,7 +100,14 @@ struct VisSetup
 {
 	VisSetup(const std::string &name) : name(name) {}
 
-	VisSetup(const VisSetup &other) : name(other.name), layers(other.layers), trajs(other.trajs) {}
+	VisSetup(const VisSetup &other)
+		: name(other.name), counter(other.counter.load()), layers(other.layers), trajs(other.trajs)
+	{}
+
+	VisSetup(VisSetup &&other) noexcept
+		: name(std::move(other.name)), counter(other.counter.load()), layers(std::move(other.layers)),
+		  trajs(std::move(other.trajs))
+	{}
 
 	std::string name;
 	std::atomic<uint32_t> counter{0};
@@ -117,7 +124,7 @@ struct VisSetup
 		return *this;
 	}
 
-	VisSetup& operator = (VisSetup &&other)
+	VisSetup& operator = (VisSetup &&other) noexcept
 	{
 		name = std::move(other.name);
 		counter.store(other.counter.load());
