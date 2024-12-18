@@ -11,6 +11,7 @@
 #include "util.h"
 #include "render/trajectory.h"
 
+
 // Forward declaration, actually defined in messy OnTubeVis internals
 class visualization_variables_info;
 

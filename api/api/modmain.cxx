@@ -15,7 +15,7 @@
 
 // Private interface
 #include <helper/module_handling.h>
-#include <state/on_tube_vis.h>
+#include <state/core.h>
 #include <state/streaming.h>
 
 // Local includes

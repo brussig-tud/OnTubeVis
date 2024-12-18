@@ -102,7 +102,7 @@ set(SOURCES
 	api/api/types.cxx
 	api/api/vis_setup.cxx
 	api/helper/module_handling.cxx
-	api/state/on_tube_vis.cxx
+	api/state/core.cxx
 	api/state/streaming.cxx
 
 	# main app
@@ -169,7 +169,7 @@ set(HEADERS
 	# API implementation
 	api/helper/glyphs.h
 	api/helper/module_handling.h
-	api/state/on_tube_vis.h
+	api/state/core.h
 	api/state/streaming.h
 	api/util/cppstream.h
 

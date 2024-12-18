@@ -15,7 +15,7 @@
 
 // Local includes
 #include <helper/glyphs.h>
-#include "on_tube_vis.h"
+#include "core.h"
 #include "streaming.h"
 
 
@@ -26,16 +26,12 @@
 //
 
 ////
-// on_tube_vis
+// streaming_dataset
 
-/*std::mutex on_tube_vis_api::init_mtx;
-bool on_tube_vis_api::init_pending = true;
-std::condition_variable on_tube_vis_api::init_cv;*/
-bool on_tube_vis_api::running = false;
-std::string on_tube_vis_api::ds_name;
-std::vector<OTV_LayerConfig> on_tube_vis_api::layers;
-std::vector<trajectory> on_tube_vis_api::trajectories;
-std::unordered_map<uint32_t, unsigned> on_tube_vis_api::traj_id_map;
+std::string streaming_dataset::name;
+std::vector<OTV_LayerConfig> streaming_dataset::layers;
+std::vector<trajectory> streaming_dataset::trajectories;
+std::unordered_map<uint32_t, unsigned> streaming_dataset::traj_id_map;
 
 
 ////
@@ -56,8 +52,8 @@ struct new_session_command : public command
 	virtual bool handle (void) final
 	{
 		// prepare new "dataset"
-		decltype(on_tube_vis_api::trajectories) trajectories;
-		decltype(on_tube_vis_api::traj_id_map) traj_id_map;
+		decltype(streaming_dataset::trajectories) trajectories;
+		decltype(streaming_dataset::traj_id_map) traj_id_map;
 		for (const auto &traj_setup : setup.trajs) {
 			if (!traj_id_map.emplace(traj_setup.id, (unsigned)trajectories.size()).second)
 				return notify_result(false);
@@ -67,16 +63,11 @@ struct new_session_command : public command
 		}
 
 		// commit
-		/*on_tube_vis_api::ds_name = std::move(setup.name);
-		on_tube_vis_api::layers = std::move(setup.layers);
-		on_tube_vis_api::trajectories = std::move(trajectories);
-		on_tube_vis_api::traj_id_map = std::move(traj_id_map);*/
-
 		otv_instance->start_new_streaming_session(setup);
-		on_tube_vis_api::ds_name = std::move(setup.name);
-		on_tube_vis_api::layers = std::move(setup.layers);
-		on_tube_vis_api::trajectories = std::move(trajectories);
-		on_tube_vis_api::traj_id_map = std::move(traj_id_map);;
+		streaming_dataset::name = std::move(setup.name);
+		streaming_dataset::layers = std::move(setup.layers);
+		streaming_dataset::trajectories = std::move(trajectories);
+		streaming_dataset::traj_id_map = std::move(traj_id_map);;
 		return notify_result(true);
 	}
 };
@@ -104,10 +95,10 @@ struct stream_spline_node_command : public command
 	virtual bool handle (void) final
 	{
 		static const irange_api empty_irange{};
-		const auto idx_it = on_tube_vis_api::traj_id_map.find(traj_id);
-		if (idx_it != on_tube_vis_api::traj_id_map.end())
+		const auto idx_it = streaming_dataset::traj_id_map.find(traj_id);
+		if (idx_it != streaming_dataset::traj_id_map.end())
 		{
-			auto &traj = on_tube_vis_api::trajectories[idx_it->second];
+			auto &traj = streaming_dataset::trajectories[idx_it->second];
 			if (traj.nodes.size() > 0)
 			{
 				// Check monotonicity
@@ -232,21 +223,21 @@ struct stream_glyph_command : public command
 
 	virtual bool handle (void) final
 	{
-		if (layer >= on_tube_vis_api::layers.size())
+		if (layer >= streaming_dataset::layers.size())
 		{
 			std::clog << describe()<<": layer "<<layer<<" exceeds no. of configured layers!" << std::endl
-					  << " - " << (on_tube_vis_api::layers.empty() ?
-					  	  '\''+on_tube_vis_api::ds_name+"' has no layers configured."
-					  	: "must be in the range of [0.."+std::to_string(on_tube_vis_api::layers.size()-1)+"].")
+					  << " - " << (streaming_dataset::layers.empty() ?
+					  	  '\''+streaming_dataset::name+"' has no layers configured."
+					  	: "must be in the range of [0.."+std::to_string(streaming_dataset::layers.size()-1)+"].")
 					  << std::endl;
 			return notify_result(false);
 		}
-		const auto idx_it = on_tube_vis_api::traj_id_map.find(traj_id);
-		if (idx_it != on_tube_vis_api::traj_id_map.end())
+		const auto idx_it = streaming_dataset::traj_id_map.find(traj_id);
+		if (idx_it != streaming_dataset::traj_id_map.end())
 		{
 			// Preamble
-			const auto &layer_conf = on_tube_vis_api::layers[layer];
-			auto &traj = on_tube_vis_api::trajectories[idx_it->second];
+			const auto &layer_conf = streaming_dataset::layers[layer];
+			auto &traj = streaming_dataset::trajectories[idx_it->second];
 			auto &glayer = traj.layers[layer];
 
 			// Sanity check
@@ -275,11 +266,12 @@ struct stream_glyph_command : public command
 			std::clog << describe()<<':' << std::endl;
 			if (!check_glyph_instance_type(layer_conf.type, glyph))
 				std::clog << " ! WARNING: provided glyph instance is potentially not of type '"
-							  <<otv__string_from_GlyphType(layer_conf.type)<<'\'' << std::endl;
+				          	<<otv__string_from_GlyphType(layer_conf.type)<<'\'' << std::endl;
 			// - check overlap
 			const auto gext =
 				OTV_Vec2{glyph.s, glyph.s} + otv__instantiate_Glyph(idx_it->second, layer, &glyph);
-			if (!glayer.glyphs.empty()) {
+			if (!glayer.glyphs.empty())
+			{
 				const float
 					s_min = glayer.glyphs.back().s + otv__instantiate_Glyph(traj_id, layer, &glayer.glyphs.back()).y,
 					dist = gext.x - s_min;
@@ -382,8 +374,8 @@ OTV_API bool otv__start_vis_session (OTV_VisSetupHandle vis_setup)
 
 OTV_API OTV_Vec2 otv__instantiate_Glyph (const uint32_t traj_id, const uint32_t layer, const OTV_GlyphData *data)
 {
-	const auto &traj = on_tube_vis_api::trajectories[on_tube_vis_api::traj_id_map.at(traj_id)];
-	const auto &lcfg = on_tube_vis_api::layers[layer];
+	const auto &traj = streaming_dataset::trajectories[streaming_dataset::traj_id_map.at(traj_id)];
+	const auto &lcfg = streaming_dataset::layers[layer];
 	switch (lcfg.type)
 	{
 		// Plot-likes (they all take infinitely small space, i.e. they're point-like)

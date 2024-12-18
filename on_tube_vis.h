@@ -34,7 +34,7 @@
 #include <cgv_post/temporal_anti_aliasing.h>
 
 // OnTubeVis private streaming API
-#include "api/state/on_tube_vis.h"
+#include "api/state/core.h"
 
 // local includes
 #include "traj_loader.h"
@@ -540,6 +540,7 @@ public:
 
 	void create_gui();
 };
+
 
 /// The OnTubeVis singleton instance implementing the streaming API
 extern on_tube_vis *otv_instance;

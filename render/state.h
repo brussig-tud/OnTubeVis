@@ -10,7 +10,7 @@
 #include "dbuf_queue.h"
 #include "glyph_layer_manager.h"
 #include "textured_spline_tube_renderer.h"
-#include "gpumem/ring_buffer.h"
+#include "gpumem/ring_buffer.inl"
 #include "render/trajectory.h"
 #include "render/common.h"
 

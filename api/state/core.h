@@ -3,8 +3,8 @@
 // INTERNAL HEADER - DO NOT INCLUDE!!!!!
 
 
-#ifndef __STATE_H__
-#define __STATE_H__
+#ifndef __CORE_H__
+#define __CORE_H__
 
 
 //////
@@ -134,20 +134,13 @@ struct VisSetup
 	}
 };
 
-struct on_tube_vis_api
-{
-	// Control flow
-	/*static std::mutex init_mtx;
-	static bool init_pending;
-	static std::condition_variable init_cv;*/
-	static bool running;
-
-	// Dataset
-	static std::string ds_name;
+// ToDo: REMOVE ME once node/glyph streaming is properly implemented
+struct streaming_dataset {
+	static std::string name;
 	static std::vector<OTV_LayerConfig> layers;
 	static std::vector<trajectory> trajectories;
 	static std::unordered_map<uint32_t, unsigned> traj_id_map;
 };
 
 
-#endif // ifdef __STATE_H__
+#endif // ifdef __CORE_H__

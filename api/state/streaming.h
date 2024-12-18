@@ -19,7 +19,6 @@
 #include <condition_variable>
 
 // Local includes
-#include <api/state/on_tube_vis.h>
 #include <api/state/../../on_tube_vis.h>
 
 

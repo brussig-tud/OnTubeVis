@@ -1572,8 +1572,11 @@ void on_tube_vis::quit() {
 	cgv::gui::get_gui_driver()->quit(/*EXIT_SUCCESS*/0);
 }
 
-bool on_tube_vis::on_exit_request() {
+bool on_tube_vis::on_exit_request()
+{
 	// TODO: does not seem to fire when window is maximized?
+	if (run_as_service)
+		return false;
 #ifndef _DEBUG
 	if(layer_config_has_unsaved_changes) {
 		return cgv::gui::question("The glyph layer configuration has unsaved changes. Are you sure you want to quit?");
@@ -3533,8 +3536,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 	}
 }
 
-void on_tube_vis::draw_density_volume(context& ctx) {
-
+void on_tube_vis::draw_density_volume(context& ctx)
+{
 	auto& vr = ref_volume_renderer(ctx);
 	vr.set_render_style(vstyle);
 	vr.set_volume_texture(&density_tex);
@@ -3546,7 +3549,8 @@ void on_tube_vis::draw_density_volume(context& ctx) {
 	vr.render(ctx, 0, 0);
 }
 
-shader_define_map on_tube_vis::build_tube_shading_defines() {
+shader_define_map on_tube_vis::build_tube_shading_defines()
+{
 	shader_define_map defines;
 
 	// debug defines
@@ -3564,8 +3568,8 @@ shader_define_map on_tube_vis::build_tube_shading_defines() {
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
 	// glyph layer defines
-	/*if (render.visualizations.size() > 0)
-	{*/
+	if (render.visualizations.size() > 0)
+	{
 		const auto &glyph_layers_config = render.visualizations.front().config;
 		shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
 
@@ -3579,7 +3583,7 @@ shader_define_map on_tube_vis::build_tube_shading_defines() {
 			shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
 			shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
 		}
-	//}
+	}
 
 	return defines;
 }
