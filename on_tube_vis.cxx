@@ -733,6 +733,7 @@ struct stream_ds_helper : public traj_format_handler<float>
 				C.data.append(Vec3(255, 255, float(t)/float(ds_trajs.size()-1)), i);
 			}
 		}
+		set_avg_segment_length(ds, 1);
 		// - copy over trajectory layout to remaining geometry attributes
 		trajectories(ds, T.attrib) = ds_trajs;
 		trajectories(ds, R.attrib) = ds_trajs;
