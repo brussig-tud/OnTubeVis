@@ -26,7 +26,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG c7378dc30caeae16e0a9ac894ca6b77388d269bc
+		GIT_TAG 61755bba5e53ded0dea930312aebbdab67c556e1
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -252,8 +252,8 @@ if (ENABLE_OPTIX_SUPPORT)
 		optixtracer_textured_spline_tube.h
 	)
 endif()
-# - resources (we'll likely get away with just globbing them)
-file(GLOB_RECURSE IMAGES RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.png" "*.bmp")
+# - resources (we'll likely get away with just globbing them inside the /res directory)
+file(GLOB_RECURSE IMAGES RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "res/*.png" "res/*.jpg" "res/*.bmp")
 
 # Make sure the public API is in the public-facing includes
 set(ONTUBEVIS_API_INCLUDE "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>$<INSTALL_INTERFACE:include>")
