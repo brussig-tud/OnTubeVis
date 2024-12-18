@@ -338,11 +338,11 @@ void otv_client::commit_session (void)
 					return {};
 				}();
 				// get static width/height if used
-				constexpr unsigned vattrib_idx__width=2, vattrib_idx__height=3;
+				constexpr unsigned vattrib_idx__length=2, vattrib_idx__height=3;
 				const std::optional<float> width = [&]() -> std::optional<float> {
-					const auto idx = lmappings.get_attrib_indices()[vattrib_idx__width];
+					const auto idx = lmappings.get_attrib_indices()[vattrib_idx__length];
 					if (idx < 0)
-						return lmappings.ref_attrib_mapping_values()[vattrib_idx__width].w();
+						return lmappings.ref_attrib_mapping_values()[vattrib_idx__length].w();
 					return {};
 				}();
 				const std::optional<float> height = [&]() -> std::optional<float> {

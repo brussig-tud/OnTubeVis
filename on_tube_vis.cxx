@@ -777,9 +777,8 @@ bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
 					{0.f, otv::interpolation_api_enum_to_attribval(gi.interpolation_mode)}
 				);
 				// - color
-				if (gi.static_flags & OTV_SurfaceColorInfoStaticFlags::SCI_STATIC_COLOR) {
+				if (gi.static_flags & OTV_SurfaceColorInfoStaticFlags::SCI_STATIC_COLOR)
 					m.set_attrib_color(vattrib_idx__color, rgb(gi.rgb.r, gi.rgb.g, gi.rgb.b));
-				}
 				else {
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
@@ -790,24 +789,120 @@ bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
 				break;
 			}
 
-			case OTV_GlyphType::LinePlot: {
+			case OTV_GlyphType::LinePlot:
+			{
+				// prelude
+				// - hardcoded meta/attribute indices
+				constexpr unsigned metaattrib_idx__outline=0, metaattrib_idx__interpolate=1, vattrib_idx__subplots=2;
+				// - upcasted access to static glyph parameters
+				const auto &gi = *otv__upcast_LinePlotInfo(&layer_src.static_params);
+
+				// construct GAM
 				glyph_attribute_mapping m;
+				m.set_name("LinePlot");
+				// - type
 				m.set_glyph_type(GlyphType::GT_LINE_PLOT);
-				//layer_gams.emplace_back(std::move(m));
+				// - outline
+				m.set_attrib_out_range(metaattrib_idx__outline, {0.f, layer_src.outline});
+				// - interpolation mode
+				m.set_attrib_out_range(
+					metaattrib_idx__interpolate,
+					{0.f, otv::interpolation_api_enum_to_attribval(gi.interpolation_mode)}
+				);
+				// - subplots
+				for (unsigned i=0; i<gi.num_subplots; i++) {
+					const auto &subplot_color = gi.subplot_colors[i];
+					const auto base_vattrib_idx = vattrib_idx__subplots + i+i;
+					m.set_attrib_color(
+						base_vattrib_idx, rgb(subplot_color.r, subplot_color.g, subplot_color.b)
+						);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					m.set_attrib_source_index(base_vattrib_idx+1, streamid);
+				}
+				layer_gams.emplace_back(std::move(m));
 				break;
 			}
 
-			case OTV_GlyphType::Rect: {
+			case OTV_GlyphType::Rect:
+			{
+				// prelude
+				// - hardcoded meta/attribute indices
+				constexpr unsigned metaattrib_idx__outline=0, vattrib_idx__color=1, vattrib_idx__length=2,
+				                   vattrib_idx__height=3;
+				// - upcasted access to static glyph parameters
+				const auto &gi = *otv__upcast_RectangleInfo(&layer_src.static_params);
+
+				// construct GAM
 				glyph_attribute_mapping m;
+				m.set_name("Rectangle");
+				// - type
 				m.set_glyph_type(GlyphType::GT_RECTANGLE);
-				//layer_gams.emplace_back(std::move(m));
+				// - outline
+				m.set_attrib_out_range(metaattrib_idx__outline, {0.f, layer_src.outline});
+				// - color
+				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_COLOR) {
+					m.set_attrib_color(vattrib_idx__color, rgb(gi.rgb.r, gi.rgb.g, gi.rgb.b));
+				}
+				else {
+					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
+					m.set_color_source_index(vattrib_idx__color, cmidx);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					m.set_attrib_source_index(vattrib_idx__color, streamid);
+				}
+				// - length
+				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_WIDTH)
+					m.set_attrib_out_range(vattrib_idx__length, {0.f, gi.width});
+				else {
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					m.set_attrib_source_index(vattrib_idx__length, streamid);
+				}
+				// - height
+				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_WIDTH)
+					m.set_attrib_out_range(vattrib_idx__height, {0.f, gi.height});
+				else {
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					m.set_attrib_source_index(vattrib_idx__height, streamid);
+				}
+				layer_gams.emplace_back(std::move(m));
 				break;
 			}
 
-			case OTV_GlyphType::SignBlob: {
+			case OTV_GlyphType::SignBlob:
+			{
+				// prelude
+				// - hardcoded meta/attribute indices
+				constexpr unsigned metaattrib_idx__outline=0, vattrib_idx__size=1, vattrib_idx__color=2,
+				                   vattrib_idx__value=3;
+				// - upcasted access to static glyph parameters
+				const auto &gi = *otv__upcast_SignBlobInfo(&layer_src.static_params);
+
+				// construct GAM
 				glyph_attribute_mapping m;
+				m.set_name("SignBlob");
+				// - type
 				m.set_glyph_type(GlyphType::GT_SIGN_BLOB);
-				//layer_gams.emplace_back(std::move(m));
+				// - outline
+				m.set_attrib_out_range(metaattrib_idx__outline, {0.f, layer_src.outline});
+				// - size (this is always a static parameter)
+				m.set_attrib_out_range(vattrib_idx__size, {0.f, gi.radius});
+				// - color
+				if (gi.static_flags & OTV_SignBlobInfoStaticFlags::SBI_STATIC_COLOR) {
+					m.set_attrib_color(vattrib_idx__color, rgb(gi.rgb.r, gi.rgb.g, gi.rgb.b));
+				}
+				else {
+					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
+					m.set_color_source_index(vattrib_idx__color, cmidx);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					m.set_attrib_source_index(vattrib_idx__color, streamid);
+				}
+				// - value
+				if (gi.static_flags & OTV_SignBlobInfoStaticFlags::SBI_STATIC_VALUE)
+					m.set_attrib_out_range(vattrib_idx__value, {0.f, gi.value});
+				else {
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					m.set_attrib_source_index(vattrib_idx__value, streamid);
+				}
+				layer_gams.emplace_back(std::move(m));
 				break;
 			}
 
