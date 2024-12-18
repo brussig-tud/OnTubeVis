@@ -687,6 +687,11 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 /// helper class for creating a traj_dataset
 struct stream_ds_helper : public traj_format_handler<float>
 {
+	static constexpr unsigned BUFFER_SIZE_POS_SAMPLES = 1024;
+	static constexpr unsigned BUFFER_SIZE_GLYPH_SAMPLES[4] = {
+		4*BUFFER_SIZE_POS_SAMPLES, 4*BUFFER_SIZE_POS_SAMPLES, 4*BUFFER_SIZE_POS_SAMPLES, 4*BUFFER_SIZE_POS_SAMPLES
+	};
+
 	static traj_dataset<float> create_streaming_dummy_dataset (const VisSetup &vis_setup)
 	{
 		// visual attribute source names for the dummy dataset
@@ -710,9 +715,25 @@ struct stream_ds_helper : public traj_format_handler<float>
 		auto R = add_attribute<real>(ds, ATTRIB_RADIUS);
 		auto C = add_attribute<Vec3>(ds, ATTRIB_COLOR);
 
-		// create geometry attribute trajectories
+		// construct geometry attribute trajectories
+		// - create
 		auto &ds_trajs = trajectories(ds, P.attrib);
-		ds_trajs.resize(vis_setup.trajs.size());
+		ds_trajs.reserve(vis_setup.trajs.size());
+		// - fill with dummy values
+		for (unsigned t=0; t<vis_setup.trajs.size(); t++)
+		{
+			const auto &traj_src = vis_setup.trajs[t];
+			ds_trajs.emplace_back(range{
+				/*traj.i0*/ P.data.num(), /*traj.n*/ BUFFER_SIZE_POS_SAMPLES, /*traj.med_radius*/ traj_src.radius
+			});
+			for (unsigned i=0; i<BUFFER_SIZE_POS_SAMPLES; i++) {
+				P.data.append(Vec3(i, 0, t), i);
+				T.data.append(Vec4(1, 0, 0, /*radius derivative*/0), i);
+				R.data.append(traj_src.radius, i);
+				C.data.append(Vec3(255, 255, float(t)/float(ds_trajs.size()-1)), i);
+			}
+		}
+		// - copy over trajectory layout to remaining geometry attributes
 		trajectories(ds, T.attrib) = ds_trajs;
 		trajectories(ds, R.attrib) = ds_trajs;
 		trajectories(ds, C.attrib) = ds_trajs;
@@ -724,38 +745,51 @@ struct stream_ds_helper : public traj_format_handler<float>
 		return ds;
 	}
 
-	static unsigned add_streaming_dummy_attrib (traj_dataset<float> &dataset)
+	static unsigned add_streaming_dummy_attrib (traj_dataset<float> &dataset, const unsigned buffer_size)
 	{
 		// create new attribute representing the stream
 		const auto id = (unsigned)attributes(dataset).size();
 		const std::string name = "stream"+std::to_string(id);
 		const auto new_stream = add_attribute<float>(dataset, name);
 
-		// create a dummy trajectory for the new attribute
-		const auto &P = positions(dataset);
-		const auto ds_traj = trajectories(dataset, P.attrib);
-		trajectories(dataset, new_stream.attrib) = ds_traj;
+		// construct dummy trajectory for the new attribute
+		// - create
+		const auto &P_trajs = trajectories(dataset, positions(dataset).attrib);
+		auto &ds_trajs = trajectories(dataset, new_stream.attrib);
+		ds_trajs.reserve(P_trajs.size());
+		// - fill with dummy values
+		for (unsigned t=0; t<P_trajs.size(); t++) {
+			ds_trajs.emplace_back(range{/*traj.i0*/new_stream.data.num(), /*traj.n*/buffer_size});
+			for (unsigned i=0; i<buffer_size; i++)
+				new_stream.data.append(0, i);
+		}
+
 		return id;
 	}
 };
 
 
-bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
+void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 {
 	// don't do anything if we're not operating as a streaming service
-	if (!run_as_service)
-		return true;
+	if (!run_as_service) {
+		session_active = true;
+		return;
+	}
 
-	// prelude: prepare internal dataset representation
-	bool success = true;
+	// prelude: prepare dummy dataset - the number of values per trajectory will be used to communicate the desired
+	// ring buffer size to the logic setting up the streaming renderer further downstream
+	session_starting = true;
 	std::clog << "OnTubeVis internals: preparing streaming dummy dataset" << std::endl<<std::endl;
 	traj_dataset<float> stream_ds = stream_ds_helper::create_streaming_dummy_dataset(vis_setup);
 
 	// build up glyph attribute mappings
 	std::vector<glyph_attribute_mapping> layer_gams;
 	layer_gams.reserve(vis_setup.layers.size());
+	/* ToDo: REMOVE ME */unsigned l=0;
 	for (const auto &layer_src : vis_setup.layers)
 	{
+		/* ToDo: REMOVE ME */const unsigned bufsize = stream_ds_helper::BUFFER_SIZE_GLYPH_SAMPLES[l];
 		switch (layer_src.type)
 		{
 			case OTV_GlyphType::SurfaceColor:
@@ -782,7 +816,7 @@ bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
 				else {
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
 					m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
 				layer_gams.emplace_back(std::move(m));
@@ -816,7 +850,7 @@ bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
 					m.set_attrib_color(
 						base_vattrib_idx, rgb(subplot_color.r, subplot_color.g, subplot_color.b)
 						);
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
 					m.set_attrib_source_index(base_vattrib_idx+1, streamid);
 				}
 				layer_gams.emplace_back(std::move(m));
@@ -846,21 +880,21 @@ bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
 				else {
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
 					m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
 				// - length
 				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_WIDTH)
 					m.set_attrib_out_range(vattrib_idx__length, {0.f, gi.width});
 				else {
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
 					m.set_attrib_source_index(vattrib_idx__length, streamid);
 				}
 				// - height
 				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_WIDTH)
 					m.set_attrib_out_range(vattrib_idx__height, {0.f, gi.height});
 				else {
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
 					m.set_attrib_source_index(vattrib_idx__height, streamid);
 				}
 				layer_gams.emplace_back(std::move(m));
@@ -892,14 +926,14 @@ bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
 				else {
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
 					m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
 				// - value
 				if (gi.static_flags & OTV_SignBlobInfoStaticFlags::SBI_STATIC_VALUE)
 					m.set_attrib_out_range(vattrib_idx__value, {0.f, gi.value});
 				else {
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
 					m.set_attrib_source_index(vattrib_idx__value, streamid);
 				}
 				layer_gams.emplace_back(std::move(m));
@@ -919,6 +953,7 @@ bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
 			default:
 				assert(false && "INTERNAL LOGIC ERROR: Unknown glyph type in visualization setup!");
 		}
+		/* ToDo: REMOVE ME */l++;
 	}
 	/*if(ds_config.config.layer_configs.size() > 0)
 	{
@@ -991,15 +1026,17 @@ bool on_tube_vis::start_new_session (const VisSetup &vis_setup)
 	// commit the streaming dummy dataset
 	traj_mgr.clear();
 	traj_mgr.add_dataset(std::move(stream_ds));
-	update_glyph_layer_managers();
+	update_dataset(*get_context(), false/*no new session, we are currently setting one up*/);
 
 	// add layers
 	auto &vis = render.visualizations.front();
 	for (const auto &layer_gam : layer_gams)
 		vis.manager.add_glyph_attribute_mapping(std::move(layer_gam));
+	vis.manager.notify_configuration_change();
 
 	// done
-	return success;
+	session_starting = false;
+	session_active = true;
 }
 
 
@@ -1087,7 +1124,7 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 #endif
 }
 
-bool on_tube_vis::update_visualizations() {
+bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 
 	auto& glyph_layer_mgr = render.visualizations.front().manager;
 	auto& glyph_layers_config = render.visualizations.front().config;
@@ -1097,7 +1134,7 @@ bool on_tube_vis::update_visualizations() {
 	bool new_session;
 	if(action == AT_CONFIGURATION_CHANGE)
 	{
-		new_session = !run_as_service && client.new_session_if_not_in_setup();
+		new_session = may_cause_new_session && client.new_session_if_not_in_setup();
 		glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 		context& ctx = *get_context();
@@ -1110,13 +1147,13 @@ bool on_tube_vis::update_visualizations() {
 		full_gui_update = true;
 	}
 	else if (action == AT_CONFIGURATION_VALUE_CHANGE) {
-		new_session = !run_as_service && client.new_session_if_not_in_setup();
+		new_session = may_cause_new_session && client.new_session_if_not_in_setup();
 		glyph_layers_config = glyph_layer_mgr.get_configuration();
 		glyphs_out_of_date(true);
 		changes = true;
 	}
 	else if (action == AT_MAPPING_VALUE_CHANGE) {
-		new_session = !run_as_service && client.new_session_if_not_in_setup();
+		new_session = may_cause_new_session && client.new_session_if_not_in_setup();
 		glyphs_out_of_date(true);
 		changes = true;
 	}
@@ -1251,7 +1288,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 
 	// visualization settings
 	if(!data_init_pending && m.is(render.visualizations.front().manager)) {
-		do_full_gui_update = update_visualizations();
+		do_full_gui_update = update_visualizations(!session_starting);
 		/* ToDo: REMOVE ME
 		auto& glyph_layer_mgr = render.visualizations.front().manager;
 		auto& glyph_layers_config = render.visualizations.front().config;
@@ -2382,7 +2419,7 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	glGetIntegerv(GL_VIEWPORT, viewport);
 
 	// Upload new data from host queues to GPU buffers.
-	if (traj_mgr.has_data() || session_active)
+	if (session_active)
 		render.update();
 
 	if (playback.active)

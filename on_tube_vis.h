@@ -102,10 +102,11 @@ public:
 	static std::condition_variable init_cv;
 	bool non_service_init_signaled = false;
 	void signal_non_service_init (void);
+	bool session_starting = false;
 	bool session_active = false;
 
 	// API command endpoints
-	bool start_new_session (const VisSetup &vis_setup);
+	void start_new_streaming_session (const VisSetup &vis_setup);
 
 	cgv::type::DummyEnum voxel_grid_resolution;
 
@@ -494,7 +495,7 @@ protected:
 	void set_view(void);
 	void ensure_initial_dataset(context& ctx);
 	void update_dataset(context &ctx, bool cause_new_session=true);
-	bool update_visualizations(void);
+	bool update_visualizations(bool may_cause_new_session=true);
 	void update_grid_ratios(void);
 	void update_attribute_bindings(void);
 	void update_debug_attribute_bindings(void);

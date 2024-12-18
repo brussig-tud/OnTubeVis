@@ -72,12 +72,12 @@ struct new_session_command : public command
 		on_tube_vis_api::trajectories = std::move(trajectories);
 		on_tube_vis_api::traj_id_map = std::move(traj_id_map);*/
 
-		const bool result = otv_instance->start_new_session(setup);
+		otv_instance->start_new_streaming_session(setup);
 		on_tube_vis_api::ds_name = std::move(setup.name);
 		on_tube_vis_api::layers = std::move(setup.layers);
 		on_tube_vis_api::trajectories = std::move(trajectories);
 		on_tube_vis_api::traj_id_map = std::move(traj_id_map);;
-		return notify_result(result);
+		return notify_result(true);
 	}
 };
 
