@@ -1,8 +1,6 @@
 
 #include <optional>
 
-#include "otv_client.h"
-
 #include "gpumem/ring_buffer.inl"
 #include "render/state.h"
 
@@ -10,6 +8,9 @@
 #include <thread>
 #include <cgv/gui/gui_driver.h>
 #include <OnTubeVis/OnTubeVis.h>
+
+// Implemented header
+#include "otv_client.h"
 
 
 namespace otv {
@@ -434,7 +435,8 @@ void otv_client::commit_session (void)
 
 	// Request starting the session
 	std::thread init_runner([this, setup] {
-		assert(otv__start_vis_session(setup) && "FATAL ERROR - otv_client: Failed to initialize streaming session!");
+		const bool session_start_success = otv__start_vis_session(setup);
+		assert(session_start_success && "FATAL ERROR - otv_client: Failed to initialize streaming session!");
 		this->session.signal_init_done();
 		otv__free_VisSetup(setup);
 	});
