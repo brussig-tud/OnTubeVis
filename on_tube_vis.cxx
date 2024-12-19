@@ -956,73 +956,6 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 		}
 		/* ToDo: REMOVE ME */l++;
 	}
-	/*if(ds_config.config.layer_configs.size() > 0)
-	{
-		cgv::utils::stopwatch s(true);
-		std::cout << "Compiling glyph attributes for dataset "<<ds_idx<<" '"<<ds.name()<<"'... ";
-
-		glyph_compiler gc;
-		gc.length_scale = render.style.length_scale;
-		gc.include_hidden_glyphs = debug.show_hidden_glyphs;
-
-		const auto &dataset = traj_mgr.dataset(0);
-
-		success = gc.compile_glyph_attributes(dataset, client.arclen_data, ds_config.config);
-
-		// get context
-		const auto &ctx = *get_context();
-
-		for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
-			if (! gc.layer_filled[layer_idx]) {
-				// Clear layer for client and renderer.
-				client.glyphs[layer_idx] = {};
-				render.glyphs[layer_idx] = {};
-			} else {
-				// Mark layer as active in render state.
-				render.active_glyph_layers.set(layer_idx);
-
-				const auto& ranges = gc.layer_ranges[layer_idx];
-				const auto& attribs = gc.layer_attribs[layer_idx];
-
-				// Copy glyph data into the simulated client.
-				auto &gl = client.glyphs.at(layer_idx);
-				gl.ranges.reserve(ranges.size());
-				for (const auto& r : ranges)
-					gl.ranges.emplace_back(index_range<glyph_count_type>{
-						glyph_count_type(r.i0), glyph_count_type(r.n)
-					});
-				gl.attribs = attribs;
-
-				// Allocate GPU buffers for glyph-related data.
-				if (! render.create_glyph_layer(
-					layer_idx,
-					client.glyphs[layer_idx].attribs.count + 2,
-					client.trajectories.size(),
-					glyph_count_type{1000}
-				)) {
-					throw std::runtime_error("Failed to create glyph attribute buffers.");
-				}
-
-				// - sanity check
-				{
-					const auto num_ranges {ranges.size()};
-					const auto num_segs   {client.data->indices.size() / 2};
-					assert(num_ranges == num_segs);
-				}
-			}
-		}
-
-		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
-		glyphs_out_of_date(false);
-	}*/
-
-	/*if(success) {
-		// Flush attribute allocation buffer.
-		std::ignore = render.traj_glyph_mem.flush();
-
-		taa.reset();
-		post_redraw();
-	}*/
 
 	// commit the streaming dummy dataset
 	traj_mgr.clear();
@@ -1288,47 +1221,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 	}
 
 	// visualization settings
-	if(!data_init_pending && m.is(render.visualizations.front().manager)) {
+	if(!data_init_pending && m.is(render.visualizations.front().manager))
 		do_full_gui_update = update_visualizations(!session_starting);
-		/* ToDo: REMOVE ME
-		auto& glyph_layer_mgr = render.visualizations.front().manager;
-		auto& glyph_layers_config = render.visualizations.front().config;
-		const auto action = glyph_layer_mgr.action_type();
-		bool changes = false;
-		bool new_session;
-		if(action == AT_CONFIGURATION_CHANGE) {
-			new_session = client.new_session_if_not_in_setup();
-			glyph_layers_config = glyph_layer_mgr.get_configuration();
-
-			context& ctx = *get_context();
-			tube_shading_defines = build_tube_shading_defines();
-			shaders.reload(ctx, "tube_shading", tube_shading_defines);
-
-			compile_glyph_attribs();
-
-			changes = true;
-			do_full_gui_update = true;
-		} else if(action == AT_CONFIGURATION_VALUE_CHANGE) {
-			new_session = client.new_session_if_not_in_setup();
-			glyph_layers_config = glyph_layer_mgr.get_configuration();
-			glyphs_out_of_date(true);
-			changes = true;
-		} else if(action == AT_MAPPING_VALUE_CHANGE) {
-			new_session = client.new_session_if_not_in_setup();
-			glyphs_out_of_date(true);
-			changes = true;
-		}
-
-		if(changes) {
-			layer_config_has_unsaved_changes = true;
-			on_set(&layer_config_has_unsaved_changes);
-			update_legends = true;
-			if (new_session) {
-				client.begin_setup(traj_mgr.dataset(0).name());
-				client.commit_session();
-			}
-		}*/
-	}
 
 	if(m.is(color_map_mgr)) {
 		switch(color_map_mgr.action_type()) {
@@ -1771,43 +1665,6 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 bool on_tube_vis::init (cgv::render::context &ctx)
 {
-	// ideal settings for .bcc yarn models:
-	/*ao_style.enable = true;
-	ao_style.sample_offset = .4f;
-	ao_style.sample_distance = .125f;
-	ao_style.strength_scale = 40;
-	ao_style.cone_angle = 50;
-	voxelize_gpu = true;
-	voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(512u);
-	grid_mode = GridMode::GM_NORMAL;*/
-
-	// ToDo: REMOVE ME
-	/*// generate demo dataset
-	// - demo AO settings
-	ao_style_bak = ao_style;
-	ao_style.strength_scale = 15.0f;
-	update_member(&ao_style);
-	// - demo geometry
-	constexpr unsigned seed = 11;
-#ifdef _DEBUG
-	constexpr unsigned num_trajectories = 3;
-	constexpr unsigned num_nodes = 16;
-#else
-	constexpr unsigned num_trajectories = 256; // 1
-	constexpr unsigned num_nodes = 256; // 32
-#endif
-	for (unsigned i=0; i<num_trajectories; i++)
-		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_nodes, seed+i));
-	traj_mgr.add_dataset(
-		demo::compile_dataset(dataset.demo_trajs)
-	);*/
-	/* ToDo: REMOVE ME
-	// - print out attribute statistics
-	std::cerr << "Data attributes:" << std::endl;
-	for (const auto& a : traj_mgr.dataset(0).attributes())
-		std::cerr << " - ["<<a.first<<"] - "<<a.second.get_timestamps().size()<<" samples" << std::endl;
-	std::cerr << std::endl;*/
-
 	// increase reference count of the renderers by one
 	auto &tstr = ref_textured_spline_tube_renderer(ctx, 1);
 	auto &vr = ref_volume_renderer(ctx, 1);
@@ -1815,16 +1672,6 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	// load all shaders in the library
 	success &= shaders.load_all(ctx);
-
-	/* ToDo: REMOVE ME
-	// prepare render-time dataset state
-	for (const auto &ds : traj_mgr.datasets()) {
-		auto &vis = render.visualizations.emplace_back(this);
-		vis.config = vis.manager.get_configuration();
-	}*/
-
-	/*tube_shading_defines = build_tube_shading_defines();
-	shaders.reload(ctx, "tube_shading", tube_shading_defines);*/
 
 	// init shared attribute array manager
 	success &= render.aam.init(ctx);
@@ -1862,13 +1709,6 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	// enable ambient occlusion
 	ao_style.enable = true;
 
-	/* ToDo: REMOVE ME
-	// init data-dependent render state
-	client.new_session();
-	client.begin_setup(traj_mgr.dataset(0).name());
-	update_attribute_bindings();
-	update_grid_ratios();*/
-
 	// init color maps
 	// - manager
 	color_map_mgr.init(ctx);
@@ -1900,12 +1740,6 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 		cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
 		cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 	}
-
-	/* ToDo: REMOVE ME
-	update_glyph_layer_managers();
-	compile_glyph_attribs();
-	client.commit_session();
-	ah_mgr.set_dataset(traj_mgr.dataset(0));*/
 
 	volume_tf.init(ctx);
 
@@ -1981,13 +1815,6 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	// Create an initial fence object to avoid the need for a null check in `draw_trajectories`.
 	render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-
-	// ToDo: REMOVE ME
-	/* Notify streaming API that init is done *//* {
-		std::lock_guard g(init_mtx);
-		otv_instance = this;
-		init_cv.notify_all();
-	}*/
 
 	// done
 	return success;
