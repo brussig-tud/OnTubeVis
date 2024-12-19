@@ -71,6 +71,7 @@ public:
 		otv_instance->post_redraw();
 		cv.notify_all();
 	}
+
 	static std::shared_ptr<command> fetch (void)
 	{
 		std::unique_lock l(mtx);
@@ -80,6 +81,7 @@ public:
 		queue.pop();
 		return cmd;
 	}
+
 	static std::shared_ptr<command> poll (void)
 	{
 		std::unique_lock l(mtx);
@@ -88,6 +90,11 @@ public:
 		auto cmd = std::move(queue.front());
 		queue.pop();
 		return cmd;
+	}
+
+	static bool has_pending (void) {
+		std::unique_lock l(mtx);
+		return !queue.empty();
 	}
 };
 

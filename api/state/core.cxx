@@ -94,6 +94,10 @@ struct stream_spline_node_command : public command
 
 	virtual bool handle (void) final
 	{
+		otv_instance->client.service_push_spline_node(
+			traj_id, otv::otv_client::convert_api_node_to_internal(node), (cgv::mat4*)&arclen
+		);
+
 		static const irange_api empty_irange{};
 		const auto idx_it = streaming_dataset::traj_id_map.find(traj_id);
 		if (idx_it != streaming_dataset::traj_id_map.end())

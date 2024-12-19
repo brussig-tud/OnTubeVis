@@ -775,6 +775,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 	// don't do anything if we're not operating as a streaming service
 	if (!run_as_service) {
 		session_active = true;
+		session_first_node = false; // only used in service mode
 		return;
 	}
 
@@ -960,6 +961,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 	// commit the streaming dummy dataset
 	traj_mgr.clear();
 	traj_mgr.add_dataset(std::move(stream_ds));
+	bbox.invalidate();
 	update_dataset(*get_context(), false/*no new session, we are currently setting one up*/);
 
 	// add layers
@@ -971,6 +973,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 	// done
 	session_starting = false;
 	session_active = true;
+	session_first_node = true;
 }
 
 
@@ -2467,13 +2470,28 @@ void on_tube_vis::after_finish(context& ctx) {
 	}
 
 	// Process any pending streaming API commands
-	static unsigned count = 0;
 	std::shared_ptr<command> cmd;
-	while ((cmd = command_stream::poll())) {
-		const bool cmd_result = cmd->handle();
-		if (!cmd_result)
+	if ((cmd = command_stream::poll())) {
+		if (!cmd->handle())
 			std::cerr << "OnTubeVis: command " << hex(cmd.get()) << " (" << cmd->describe() << ") failed execution!"
 			          << std::endl;
+		if (command_stream::has_pending())
+			post_redraw();
+	}
+
+	if (run_as_service && taa.is_enabled())
+	{
+		if (session_taa_keep_sampling) {
+			session_taa_missing_samples = taa.get_jitter_sample_count();
+			session_taa_keep_sampling = false;
+			taa.reset();
+		}
+
+		// make sure we eliminate ghosting by accumulating enough samples before we go to sleep again
+		/*if (session_taa_missing_samples > 0) {
+			post_redraw();
+			session_taa_missing_samples--;
+		}*/
 	}
 }
 
@@ -2485,7 +2503,7 @@ void on_tube_vis::signal_non_service_init() {
 	post_recreate_gui(); // make sure the button disappears
 }
 
-void on_tube_vis::create_gui(void)
+void on_tube_vis::create_gui (void)
 {
 	const auto add_heading = [&](const std::string& name) {
 		add_decorator(name, "heading", "level=1");
@@ -2735,7 +2753,7 @@ void on_tube_vis::create_gui(void)
 	}
 }
 
-void on_tube_vis::create_vec3_gui(const std::string& name, vec3& value, float min, float max) {
+void on_tube_vis::create_vec3_gui (const std::string& name, vec3& value, float min, float max) {
 
 	std::string value_config = "w=55;min=" + std::to_string(min) + ";max=" + std::to_string(max);
 	std::string slider_config = "w=55;min=" + std::to_string(min) + ";max=" + std::to_string(max) + ";step=0.0001;ticks=true";
@@ -2748,16 +2766,11 @@ void on_tube_vis::create_vec3_gui(const std::string& name, vec3& value, float mi
 	add_member_control(this, "", value[2], "slider", slider_config);
 }
 
-void on_tube_vis::set_view(void)
+void on_tube_vis::update_scene_extents (void)
 {
-	if (!view_ptr || !traj_mgr.has_data()) return;
-
-	view_ptr->set_focus(bbox.get_center());
-	double extent_factor = debug.near_view ? debug.near_extent_factor : debug.far_extent_factor;
-	view_ptr->set_y_extent_at_focus(extent_factor * (double)length(bbox.get_extent()));
-
 	auto* cview_ptr = dynamic_cast<cgv::render::clipped_view*>(view_ptr);
-	if(cview_ptr) {
+	if(cview_ptr)
+	{
 		// extent the bounding box to prevent accidental clipping of proxy geometry which could happen in certain scenarios.
 		box3 clip_bbox = bbox;
 		vec3 extent = bbox.get_extent();
@@ -2765,11 +2778,22 @@ void on_tube_vis::set_view(void)
 		clip_bbox.ref_max_pnt() += 0.25f*extent;
 		cview_ptr->set_scene_extent(clip_bbox);
 	}
+}
+
+void on_tube_vis::set_view (void)
+{
+	if (!view_ptr || !traj_mgr.has_data())
+		return;
+
+	view_ptr->set_focus(bbox.get_center());
+	double extent_factor = debug.near_view ? debug.near_extent_factor : debug.far_extent_factor;
+	view_ptr->set_y_extent_at_focus(extent_factor * (double)length(bbox.get_extent()));
+	update_scene_extents();
 
 	taa.reset();
 }
 
-void on_tube_vis::update_grid_ratios(void) {
+void on_tube_vis::update_grid_ratios (void) {
 	auto& ctx = *get_context();
 
 	if (! client.data->datasets.empty()) {
@@ -2808,8 +2832,10 @@ void on_tube_vis::update_attribute_bindings(void)
 
 	if (traj_mgr.has_data())
 	{
-		calculate_bounding_box();
-		set_view();
+		if (!run_as_service) {
+			calculate_bounding_box();
+			set_view();
+		}
 
 		// update min/max timestamps
 		auto &[tmin, tmax] = render.style.data_t_minmax;

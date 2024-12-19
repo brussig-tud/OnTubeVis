@@ -12,6 +12,8 @@
 // Implemented header
 #include "otv_client.h"
 
+#include "on_tube_vis.h"
+
 
 namespace otv {
 
@@ -504,6 +506,51 @@ void otv_client::update ()
 			++traj.segment_idx;
 		}
 	}
+}
+
+void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node, const cgv::mat4 *t_to_s)
+{
+	// obtain the trajectory we want to stream into
+	auto &render_traj = *render.try_get_trajectory(traj_id);
+
+	// get the desired base color and radius of the trajectory from the dummy dataset
+	const auto &traj_range = data->datasets[0].trajs[traj_id];
+	const auto &ds_idx = *(std::pair<unsigned, unsigned>*)&(data->indices[traj_range.i0]);
+	auto &color = data->colors[ds_idx.first];
+	auto radius = data->radii[ds_idx.first];
+	node.color.set(color.R(), color.G(), color.B(), 1);
+	node.pos_rad.w() = radius; node.tangent.w() = 0;
+	render.enqueue_node(traj_id, node, render_traj.is_empty() ? nullptr : t_to_s);
+
+	// update bounding box
+	static const auto diag = []() -> cgv::vec3 {
+		cgv::vec3 diag; diag.ones();
+		return diag;
+	}();
+	const auto pos = cgv::vec3(node.pos_rad);
+	otv_instance->bbox.add_point(pos - diag*radius);
+	otv_instance->bbox.add_point(pos + diag*radius);
+	otv_instance->bbox_wire_rd.clear();
+	otv_instance->bbox_wire_rd.add(
+		otv_instance->bbox.get_center(), otv_instance->bbox.get_extent(), cgv::rgb(0.75f)
+	);
+	otv_instance->bbox_rd.clear();
+	otv_instance->bbox_rd.add(otv_instance->bbox.get_center(), otv_instance->bbox.get_extent());
+	if (otv_instance->session_first_node) {
+		otv_instance->set_view();
+		otv_instance->session_first_node = false;
+	}
+	else
+		otv_instance->update_scene_extents();
+	otv_instance->session_taa_keep_sampling = true;
+}
+
+node_attribs otv_client::convert_api_node_to_internal (const OTV_HermiteNode &node) {
+	node_attribs out;
+	out.pos_rad.set(node.position.x, node.position.y, node.position.z);
+	out.tangent.set(node.tangent.x, node.tangent.y, node.tangent.z);
+	out.t.set(node.time, 0, 0, 0);
+	return std::move(out);
 }
 
 

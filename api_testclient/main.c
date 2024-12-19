@@ -77,7 +77,7 @@ int main (int argc, char** argv)
 		OTV_LayerConfig new_layer = {
 			.type=SurfaceColor, .outline=0,
 			.static_params=otv__construct_SurfaceColorInfo(
-				/* value: (not used here, see 'static_flags')*/otv__Rgb(0,0,0),
+				/* value: (not used here, see 'static_flags')*/otv__Rgb(0, 0, 0),
 				/* color_map: */Rainbow, /*interpolation_mode: */Cubic, /*static flags: */SCI_STATIC_NONE
 			)
 		};
@@ -131,9 +131,9 @@ int main (int argc, char** argv)
 
 	/* Stream a test trajectory */ {
 		// 1st node
-		OTV_HermiteNode n = {
-			.time=0, .position={0,0,0}, .tangent={0,0,0}
-		};
+		OTV_HermiteNode n = { // our test segment will be an x-line 4 units long...
+			.time=0, .position={0, 0, 0}, .tangent={4, 0, 0}
+		}; // ...so the x-derivative must also be 4 if we want a uniform parametrization
 		otv__stream_spline_node(traj_ids[1], &n, NULL/* first sample doesn't have an arclength */);
 
 		// Stream a second test glyph (first trajectory segment still missing its end node)
@@ -152,7 +152,7 @@ int main (int argc, char** argv)
 			{0, 1/3.f,  2/3.f, 1}, // this basically describes a linear re-parametrization that essentially
 			{1, 4/3.f,  5/3.f, 2}, // just scales the curve parameter t=0..1 to s=0..4. This is only valid
 			{2, 7/3.f,  8/3.f, 3}, // because we know our two nodes are exactly 4 units apart and are
-			{3,10/3.f, 11/3.f, 4}  // interpolated linearly (since the tangents are 0 at both ends).
+			{3,10/3.f, 11/3.f, 4}  // interpolated linearly (since the tangents are 4 at both ends).
 		}}; // Normally this parameterization would need to be fitted using distance samples taken along the path!
 		otv__stream_spline_node(traj_ids[1], &n, &alen);
 	}
@@ -170,6 +170,10 @@ int main (int argc, char** argv)
 
 	////
 	// Shutdown
+
+	// Wait for user to terminate the test client
+	printf("Streaming done. Press ENTER to shut down.");
+	getchar();
 
 	// Request service to stop and quit
 	return shutdown_otv();

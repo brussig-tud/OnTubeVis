@@ -104,6 +104,9 @@ public:
 	void signal_non_service_init (void);
 	bool session_starting = false;
 	bool session_active = false;
+	bool session_first_node = true;
+	bool session_taa_keep_sampling = false;
+	unsigned session_taa_missing_samples = 0;
 	unsigned session_glyphbuf_size = 0;
 
 	// API command endpoints
@@ -305,8 +308,10 @@ protected:
 		vertex_buffer rtlola_map_vbo;
 	} dataset;
 
+public:
 	cgv::post::temporal_anti_aliasing taa;
 
+protected:
 	cgv::render::managed_frame_buffer fbc;
 	cgv::render::shader_library shaders;
 	volume_render_style vstyle;
@@ -364,14 +369,20 @@ protected:
 
 	bool show_bbox = false;
 	bool show_wireframe_bbox = true;
+
+public:
 	cgv::render::box_render_data<> bbox_rd;
 	cgv::render::box_wire_render_data<> bbox_wire_rd;
 
+protected:
 	vec3 last_sort_pos;
 	vec3 last_sort_dir;
 
+public:
 	otv::render_state render;
 	otv::otv_client  client {render};
+
+protected:
 
 	int render_gui_dummy = 0;
 
@@ -475,7 +486,11 @@ protected:
 	bool layer_config_has_unsaved_changes = false;
 
 	bool voxelize_gpu = true;
+
+public:
 	box3 bbox;
+
+protected:
 	texture density_tex;
 	texture tf_tex;
 
@@ -493,7 +508,11 @@ protected:
 	bool has_changed = false;
 	void timer_event(double, double);
 
+public:
+	void update_scene_extents (void);
 	void set_view(void);
+
+protected:
 	void ensure_initial_dataset(context& ctx);
 	void update_dataset(context &ctx, bool cause_new_session=true);
 	bool update_visualizations(bool may_cause_new_session=true);

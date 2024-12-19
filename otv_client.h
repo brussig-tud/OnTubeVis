@@ -152,6 +152,20 @@ struct otv_client {
 
 	/// append all data points up to the current timestamp to their respective trajectory.
 	void update (void);
+
+	/// for service mode: enqueue a new hermite node to be uploaded to the GPU ring buffer of the indicated trajectory
+	/// NOTE: argument `node` will be updated with the color and radius (plus derivative) of the selected trajectory, so
+	/// the caller doesn't have to find that out itself, i.e. can just directly feed in the result of a call to
+	/// otv_client::convert_api_node_to_internal()
+	void service_push_spline_node (unsigned traj_id, node_attribs &&node, const cgv::mat4 *t_to_s);
+
+	/// for service mode: enqueue a glyph to the given layer of the given trajectory
+	// ToDo: implement
+
+	/// convert the given streaming API representation of a Hermite node to the internal one used for rendering, leaving
+	/// fields holding information about color and radius uninitialized (as the API does not support them)
+	/// NOTE: otv_client::service_push_spline_node will look up the correct values for these from the dummy dataset!
+	static node_attribs convert_api_node_to_internal (const OTV_HermiteNode &node);
 };
 
 
