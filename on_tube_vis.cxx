@@ -992,8 +992,19 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 	client.data = &(traj_mgr.get_render_data());
 	render.style.data_t_minmax = client.data->t_minmax;
 
-	// print out attribute statistics
+	// get a lower bound for the maximum number of glyphs on a layer on any trajectory
 	const auto &ds = traj_mgr.dataset(0);
+	const auto &attribs = ds.attributes();
+	session_glyphbuf_size = run_as_service ? 1 : 1000;
+	const unsigned sample_count_factor = run_as_service ? 1 : 8;
+	for (const auto &attrib_entry : attribs) {
+		const auto &attrib = attrib_entry.second;
+		const auto &trajs = ds.trajectories(attrib);
+		for (const auto &traj : trajs)
+			session_glyphbuf_size = std::max(session_glyphbuf_size, traj.n*sample_count_factor);
+	}
+
+	// print out attribute statistics
 	std::cerr << "Avg. segment length: "<<ds.avg_segment_length() << std::endl
 	          << "Data attributes:" << std::endl;
 	for (const auto &a : ds.attributes())
@@ -1619,7 +1630,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					const auto& ranges = gc.layer_ranges[layer_idx];
 					const auto& attribs = gc.layer_attribs[layer_idx];
 
-					// Copy glyph data into the simulated client.
+					// Copy glyph data into the simulated client
 					auto &gl = client.glyphs.at(layer_idx);
 					gl.ranges.reserve(ranges.size());
 					for (const auto& r : ranges)
@@ -1633,7 +1644,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 						layer_idx,
 						client.glyphs[layer_idx].attribs.count + 2,
 						client.trajectories.size(),
-						glyph_count_type{1000}
+						glyph_count_type{(int)session_glyphbuf_size}
 					)) {
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
 					}
@@ -2848,16 +2859,24 @@ void on_tube_vis::update_attribute_bindings(void)
 		update_member(&debug.render_percentage);
 		update_member(&debug.render_count);
 
-		// Calculate the total number of trajectories across all datasets.
+		// Calculate the total number of both number of segments and number of trajectories they are distributed over
+		// and across all datasets.
 		otv::gpumem::size_type num_trajectories {0};
-
+		otv::gpumem::size_type num_nodes {0};
 		for (const auto &dataset : traj_mgr.datasets()) {
-			num_trajectories += dataset.trajectories(dataset.positions().attrib).size();
+			const auto &trajs = dataset.trajectories(dataset.positions().attrib);
+			num_trajectories += trajs.size();
+			for (const auto &traj : trajs)
+				num_nodes += traj.n;
 		}
 
 		// Allocate ring buffers.
 		if (!(
-			render.create_geom_buffers(100 * num_trajectories, num_trajectories)
+			render.create_geom_buffers(
+				/* number of maximally renderable elements */ num_nodes, // 100 * num_trajectories
+				/* number of additional elements reserved at the end of the ringbuffer where new stuff can be added
+				   without having to wait for the current frame to finish rendering */ num_trajectories // num_trajectories
+			)
 			&& render.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
 		)) {
 			throw std::runtime_error("Error creating GPU buffers.");

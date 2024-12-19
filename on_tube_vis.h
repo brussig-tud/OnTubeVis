@@ -104,6 +104,7 @@ public:
 	void signal_non_service_init (void);
 	bool session_starting = false;
 	bool session_active = false;
+	unsigned session_glyphbuf_size = 0;
 
 	// API command endpoints
 	void start_new_streaming_session (const VisSetup &vis_setup);
