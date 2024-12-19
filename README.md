@@ -1,4 +1,8 @@
 # OnTubeVis
+
+> **NOTE**: The documentation for the streaming API is being kept current here:<br>
+> https://wwwpub.zih.tu-dresden.de/~s7370058/OnTubeVisAPI/index.html
+
 This visualization tool enables rendering of line data sets using high-quality spline tube geometry with surface texture mapping of attributes. It was created for the paper *"On-Tube Attribute Visualization for Multivariate Trajectory Data"* (https://doi.org/10.1109/TVCG.2022.3209400).
 
 > ### Disclaimer

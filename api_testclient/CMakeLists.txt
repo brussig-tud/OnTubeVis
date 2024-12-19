@@ -22,7 +22,7 @@ endif()
 set_target_properties(api_testclient PROPERTIES C_STANDARD 11)
 set_target_properties(api_testclient PROPERTIES C_STANDARD_REQUIRED TRUE)
 
-# Make sure the OnTubeVis_headless library (and all other libraries we depend on, for that matter) end up next to our
+# Make sure the OnTubeVis library (and all other libraries we depend on, for that matter) end up next to our
 # api_testclient build artifact
 #add_custom_command(TARGET api_testclient POST_BUILD
 #	COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:api_testclient> $<TARGET_RUNTIME_DLLS:api_testclient>
