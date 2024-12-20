@@ -563,15 +563,34 @@ std::vector<float> otv_client::convert_api_glyph_to_internal (
 	const auto &vis = otv_instance->render.visualizations[0];
 	const auto &ds = otv_instance->traj_mgr.dataset(0);
 	const float radius = ds.trajectories(ds.positions().attrib)[traj_id].med_radius;
+	const auto &lm = vis.manager.ref_glyph_attribute_mappings()[layer];
 	const auto &lcfg = vis.config.layer_configs[layer];
+	std::vector<float> data; data.reserve(glyph.N+2);
+	data.emplace_back(glyph.s);
+	data.emplace_back(0); // debug flag, not used when streaming
 	switch (lcfg.shape_ptr->type())
 	{
 		case GT_COLOR: {
-			break;
+			constexpr unsigned vattrib_idx__color=1;
+			const auto color_src_idx = lm.get_attrib_indices()[vattrib_idx__color];
+			if (color_src_idx >= 0) {
+				const auto &gd = *otv__upcast_SurfaceColorData(&glyph);
+				data.emplace_back(gd.color);
+			}
+			return std::move(data);
 		}
-		case GT_LINE_PLOT: /*{
-			break;
-		}*/
+		case GT_LINE_PLOT:
+		{
+			constexpr unsigned vattrib_idx__subplots=2;
+			const auto &src_indices = lm.get_attrib_indices();
+			const auto &gd = *otv__upcast_LinePlotData(&glyph);
+			for (unsigned i=0; i<4; i++) {
+				const auto vattrib_idx = vattrib_idx__subplots + i+i + 1;
+				if (src_indices[vattrib_idx] >= 0)
+					data.emplace_back(gd.values[i]);
+			}
+			return std::move(data);
+		}
 		case GT_RECTANGLE: /*{
 			break;
 		}*/
