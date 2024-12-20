@@ -386,9 +386,11 @@ protected:
 
 	int render_gui_dummy = 0;
 
+public:
 	/// trajectory manager
 	traj_manager<float> traj_mgr;
 
+protected:
 	/// attribute handle manager
 	attrib_handle_manager<float> ah_mgr;
 

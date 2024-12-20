@@ -172,6 +172,11 @@ public:
 		}
 	}
 
+	vec2 get_attrib_in_range(size_t idx) {
+		const auto &mapping_ranges = attrib_mapping_values[idx];
+		return {mapping_ranges.x(), mapping_ranges.y()};
+	}
+
 	void set_attrib_out_range(size_t idx, const vec2& range) {
 		if(idx < attrib_mapping_values.size()) {
 			attrib_mapping_values[idx].z() = range.x();
@@ -179,6 +184,15 @@ public:
 			
 			reverse_colors[idx].value = range.x() > range.y();
 		}
+	}
+
+	vec2 get_attrib_out_range(size_t idx) {
+		const auto &mapping_ranges = attrib_mapping_values[idx];
+		return {mapping_ranges.z(), mapping_ranges.w()};
+	}
+
+	bool get_attrib_reverse_color(size_t idx) {
+		return reverse_colors[idx].value;
 	}
 
 	void set_attrib_color(size_t idx, const rgb& color) {

@@ -545,12 +545,65 @@ void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node
 	otv_instance->session_taa_keep_sampling = true;
 }
 
+void otv_client::service_push_glyph (unsigned traj_id, unsigned layer, std::vector<float> &&glyph_data)
+{}
+
 node_attribs otv_client::convert_api_node_to_internal (const OTV_HermiteNode &node) {
 	node_attribs out;
 	out.pos_rad.set(node.position.x, node.position.y, node.position.z);
 	out.tangent.set(node.tangent.x, node.tangent.y, node.tangent.z);
 	out.t.set(node.time, 0, 0, 0);
 	return std::move(out);
+}
+
+std::vector<float> otv_client::convert_api_glyph_to_internal (
+	unsigned traj_id, unsigned layer, const OTV_GlyphData &glyph
+){
+	//const float radius = vis_setup.trajs[traj_id].radius;
+	const auto &vis = otv_instance->render.visualizations[0];
+	const auto &ds = otv_instance->traj_mgr.dataset(0);
+	const float radius = ds.trajectories(ds.positions().attrib)[traj_id].med_radius;
+	const auto &lcfg = vis.config.layer_configs[layer];
+	switch (lcfg.shape_ptr->type())
+	{
+		case GT_COLOR: {
+			break;
+		}
+		case GT_LINE_PLOT: /*{
+			break;
+		}*/
+		case GT_RECTANGLE: /*{
+			break;
+		}*/
+		case GT_SIGN_BLOB: /*{
+			break;
+		}*/
+
+		case GT_TRIANGLE:
+		case GT_CIRCLE:
+		case GT_WEDGE:
+		case GT_ARC_FLAT:
+		case GT_ARC_ROUNDED:
+		case GT_DROP:
+		case GT_STAR:
+		case GT_TEMPORAL_HEAT_MAP:
+			cgv::gui::get_gui_driver()->message(
+				"Config contains unimplemented glyph type: "+lcfg.shape_ptr->name()+"\n"
+				"OnTubeVis will now most likely crash."
+			);
+			assert(false && "INTERNAL LOGIC ERROR: Unimplemented glyph type in layer configuration!");
+
+		default:
+			/* see below */;
+	}
+
+	// Unknown/unsupported
+	cgv::gui::get_gui_driver()->message(
+		"Config contains unknown glyph type: "+lcfg.shape_ptr->name()+"\n"
+		"OnTubeVis will now most likely crash."
+	);
+	assert(false && "INTERNAL LOGIC ERROR: Unknown glyph type in layer configuration!");
+	return {};
 }
 
 

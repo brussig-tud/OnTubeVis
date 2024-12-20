@@ -730,7 +730,7 @@ struct stream_ds_helper : public traj_format_handler<float>
 				P.data.append(Vec3(i, 0, t), i);
 				T.data.append(Vec4(1, 0, 0, /*radius derivative*/0), i);
 				R.data.append(traj_src.radius, i);
-				C.data.append(Vec3(255, 255, float(t)/float(ds_trajs.size()-1)), i);
+				C.data.append(Vec3(255, 255, 255), i);
 			}
 		}
 		set_avg_segment_length(ds, 1);
@@ -746,8 +746,9 @@ struct stream_ds_helper : public traj_format_handler<float>
 		return ds;
 	}
 
-	static unsigned add_streaming_dummy_attrib (traj_dataset<float> &dataset, const unsigned buffer_size)
-	{
+	static unsigned add_streaming_dummy_attrib (
+		traj_dataset<float> &dataset, const unsigned buffer_size, const cgv::vec2 &vattrib_range
+	){
 		// create new attribute representing the stream
 		const auto id = (unsigned)attributes(dataset).size();
 		const std::string name = "stream"+std::to_string(id);
@@ -759,10 +760,14 @@ struct stream_ds_helper : public traj_format_handler<float>
 		auto &ds_trajs = trajectories(dataset, new_stream.attrib);
 		ds_trajs.reserve(P_trajs.size());
 		// - fill with dummy values
-		for (unsigned t=0; t<P_trajs.size(); t++) {
+		for (unsigned t=0; t<P_trajs.size(); t++)
+		{
 			ds_trajs.emplace_back(range{/*traj.i0*/new_stream.data.num(), /*traj.n*/buffer_size});
-			for (unsigned i=0; i<buffer_size; i++)
-				new_stream.data.append(0, i);
+			new_stream.data.append(vattrib_range.x(), 0); // embed information about vattrib minimum and
+			new_stream.data.append(vattrib_range.y(), 1); // maximum value as indicated by caller
+			const float dummyval = std::max(.0f, vattrib_range.x());
+			for (unsigned i=2; i<buffer_size; i++)
+				new_stream.data.append(dummyval, i);
 		}
 
 		return id;
@@ -818,7 +823,9 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				else {
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+						stream_ds, bufsize, m.get_attrib_out_range(vattrib_idx__color)
+					);
 					m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
 				layer_gams.emplace_back(std::move(m));
@@ -851,9 +858,15 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 					const auto base_vattrib_idx = vattrib_idx__subplots + i+i;
 					m.set_attrib_color(
 						base_vattrib_idx, rgb(subplot_color.r, subplot_color.g, subplot_color.b)
-						);
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
-					m.set_attrib_source_index(base_vattrib_idx+1, streamid);
+					);
+					const auto vattrib_range = vec2(0, 2);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+						stream_ds, bufsize, vattrib_range
+					);
+					const auto val_vattrib_idx = base_vattrib_idx+1;
+					m.set_attrib_source_index(val_vattrib_idx, streamid);
+					m.set_attrib_in_range(val_vattrib_idx, vattrib_range);
+					m.set_attrib_out_range(val_vattrib_idx, vattrib_range);
 				}
 				layer_gams.emplace_back(std::move(m));
 				break;
@@ -882,22 +895,33 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				else {
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+						stream_ds, bufsize, m.get_attrib_out_range(vattrib_idx__color)
+					);
 					m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
 				// - length
+				const auto width_height_range = vec2(0, 2);
 				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_WIDTH)
 					m.set_attrib_out_range(vattrib_idx__length, {0.f, gi.width});
 				else {
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+						stream_ds, bufsize, width_height_range
+					);
 					m.set_attrib_source_index(vattrib_idx__length, streamid);
+					m.set_attrib_in_range(vattrib_idx__length, width_height_range);
+					m.set_attrib_out_range(vattrib_idx__length, width_height_range);
 				}
 				// - height
 				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_WIDTH)
 					m.set_attrib_out_range(vattrib_idx__height, {0.f, gi.height});
 				else {
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+						stream_ds, bufsize, width_height_range
+					);
 					m.set_attrib_source_index(vattrib_idx__height, streamid);
+					m.set_attrib_in_range(vattrib_idx__height, width_height_range);
+					m.set_attrib_out_range(vattrib_idx__height, width_height_range);
 				}
 				layer_gams.emplace_back(std::move(m));
 				break;
@@ -928,15 +952,22 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				else {
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+						stream_ds, bufsize, m.get_attrib_out_range(vattrib_idx__color)
+					);
 					m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
 				// - value
 				if (gi.static_flags & OTV_SignBlobInfoStaticFlags::SBI_STATIC_VALUE)
 					m.set_attrib_out_range(vattrib_idx__value, {0.f, gi.value});
 				else {
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(stream_ds, bufsize);
+					const auto vattrib_range = vec2(-1, 1);
+					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+						stream_ds, bufsize, vattrib_range
+					);
 					m.set_attrib_source_index(vattrib_idx__value, streamid);
+					m.set_attrib_in_range(vattrib_idx__value, vattrib_range);
+					m.set_attrib_out_range(vattrib_idx__value, vattrib_range);
 				}
 				layer_gams.emplace_back(std::move(m));
 				break;

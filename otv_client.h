@@ -11,6 +11,8 @@
 #include "util.h"
 #include "render/trajectory.h"
 
+#include "api/state/core.h"
+
 
 // Forward declaration, actually defined in messy OnTubeVis internals
 class visualization_variables_info;
@@ -160,12 +162,18 @@ struct otv_client {
 	void service_push_spline_node (unsigned traj_id, node_attribs &&node, const cgv::mat4 *t_to_s);
 
 	/// for service mode: enqueue a glyph to the given layer of the given trajectory
-	// ToDo: implement
+	void service_push_glyph (unsigned traj_id, unsigned layer, std::vector<float> &&glyph_data);
 
 	/// convert the given streaming API representation of a Hermite node to the internal one used for rendering, leaving
 	/// fields holding information about color and radius uninitialized (as the API does not support them)
 	/// NOTE: otv_client::service_push_spline_node will look up the correct values for these from the dummy dataset!
 	static node_attribs convert_api_node_to_internal (const OTV_HermiteNode &node);
+
+	/// convert the given streaming API representation of a glyph to the internally used array of floats with dynamic
+	/// layout
+	static std::vector<float> convert_api_glyph_to_internal (
+		unsigned traj_id, unsigned layer, const OTV_GlyphData &glyph
+	);
 };
 
 
