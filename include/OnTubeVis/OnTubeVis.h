@@ -299,6 +299,10 @@ extern otv__stream_spline_node_funct otv__stream_spline_node;
  * The arc length up to the segment currently being parameterized, typically called @a sigma, can be provided as well,
  * resulting in all values of @a s computed by the resulting parameterization being offset by this value.
  *
+ * The implementation will typically perform a numerical approximation from scratch, which is relatively slow (albeit
+ * fairly accurate). Consider using information available to you in your data to infer arc length instead of relying on
+ * this function.
+ *
  * @note
  *		This computation is typically executed immediately and synchronously inside the thread of the caller, without
  *		generating a command that requires waiting for an answer containing the computation result (the reference
