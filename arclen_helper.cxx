@@ -52,6 +52,40 @@ struct curve_segment
 namespace arclen {
 
 template <class flt_type>
+cgv::math::fmat<flt_type, 4, 4> compute_single_t_to_s (
+	const typename traj_manager<flt_type>::render_data::Vec3 &pos0,
+	const typename traj_manager<flt_type>::render_data::Vec3 &tan0,
+	const typename traj_manager<flt_type>::render_data::Vec3 &pos1,
+	const typename traj_manager<flt_type>::render_data::Vec3 &tan1,
+	const flt_type offset
+){
+	typedef flt_type real;
+	const Bezier<real> b = Hermite<real>(pos0, pos1, tan0, tan1).to_bezier();
+	const auto alen_approx = b.arc_length_bezier_approximation(4);
+	Bezier<flt_type> t_to_s[4];
+	for (unsigned j=0; j<4; j++)
+	{
+		const real length_j = alen_approx.lengths[j+1] - alen_approx.lengths[j],
+		           length_jsum = offset + alen_approx.lengths[j];
+		t_to_s[j].points[0].y = length_jsum;
+		t_to_s[j].points[1].y = length_jsum + alen_approx.y1[j]*length_j;
+		t_to_s[j].points[2].y = length_jsum + alen_approx.y2[j]*length_j;
+		t_to_s[j].points[3].y = offset      + alen_approx.lengths[j+1];
+	}
+	cgv::math::fmat<real, 4, 4> out {
+		/* col1 */ t_to_s[0].points[0].y, t_to_s[0].points[1].y,
+		           t_to_s[0].points[2].y, t_to_s[0].points[3].y,
+		/* col2 */ t_to_s[1].points[0].y, t_to_s[1].points[1].y,
+		           t_to_s[1].points[2].y, t_to_s[1].points[3].y,
+		/* col3 */ t_to_s[2].points[0].y, t_to_s[2].points[1].y,
+		           t_to_s[2].points[2].y, t_to_s[2].points[3].y,
+		/* col4 */ t_to_s[3].points[0].y, t_to_s[3].points[1].y,
+		           t_to_s[3].points[2].y, t_to_s[3].points[3].y
+	};
+	return out;
+}
+
+template <class flt_type>
 parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 {
 	typedef flt_type real;
@@ -185,6 +219,16 @@ float eval (const cgv::mat4 &approx, float t)
 // Explicit template instantiations
 
 // Only float and double variants are intended
+template cgv::math::fmat<float, 4, 4> compute_single_t_to_s<float> (
+	const typename traj_manager<float>::render_data::Vec3&, const typename traj_manager<float>::render_data::Vec3&,
+	const typename traj_manager<float>::render_data::Vec3&, const typename traj_manager<float>::render_data::Vec3&,
+	const float
+);
+template cgv::math::fmat<double, 4, 4> compute_single_t_to_s<double> (
+	const typename traj_manager<double>::render_data::Vec3&, const typename traj_manager<double>::render_data::Vec3&,
+	const typename traj_manager<double>::render_data::Vec3&, const typename traj_manager<double>::render_data::Vec3&,
+	const double
+);
 template parametrization compute_parametrization<float>(const traj_manager<float>&);
 template parametrization compute_parametrization<double>(const traj_manager<double>&);
 

@@ -33,6 +33,16 @@ namespace arclen
 		std::vector<cgv::mat4> s_to_t;
 	};
 
+	// compute the t-to-s parameterization for a single curve segment, applying the specified offset to all values of s
+	// the parameterization yiels.
+	template <class flt_type> cgv::math::fmat<flt_type, 4, 4> compute_single_t_to_s (
+		const typename traj_manager<flt_type>::render_data::Vec3 &pos0,
+		const typename traj_manager<flt_type>::render_data::Vec3 &tan0,
+		const typename traj_manager<flt_type>::render_data::Vec3 &pos1,
+		const typename traj_manager<flt_type>::render_data::Vec3 &tan1,
+		const flt_type offset
+	);
+
 	/// compute arclength approximation for all trajectory segments of all loaded datasets.
 	template <class flt_type> parametrization compute_parametrization (const traj_manager<flt_type> &mgr);
 

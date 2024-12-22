@@ -290,6 +290,46 @@ extern otv__stream_spline_node_funct otv__stream_spline_node;
 
 
 // --------------------------------------------------------------------------------------------------------------------
+// otv__compute_arclen
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Compute an arc length parameterization for the given Hermite curve.
+ *
+ * Optionally, arc length up to the segment currently being parameterized by a call to this method can be provided.
+ *
+ * @note
+ *		This computation is typically executed immediately and synchronously inside the thread of the caller, without
+ *		generating a command that requires waiting for an answer containing the computation result (the reference
+ *		implementation by the OnTubeVis desktop application does it that way).
+ *
+ * @param node0 The start Hermite node of the curve.
+ * @param node1 The end Hermite node of the curve.
+ * @param sigma
+ *		A constant offset to apply to the parameterization, e.g. for incorporating cumulative arc length over a whole
+ *		spline up to @a node0 .
+ *
+ * @return
+ *		The extents of the given glyph relative to its anchor position. @c OTV_Vec2::x will contain the radius in
+ *		trailing direction of the trajectory, and @c OTV_Vec2::y the radius in leading direction.
+ */
+OTV_API OTV_SegmentArclen otv__compute_arclen (
+	const OTV_HermiteNode *node0, const OTV_HermiteNode *node1, const float sigma
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__compute_arclen() function.
+typedef OTV_SegmentArclen(*otv__compute_arclen_funct)(
+	const OTV_HermiteNode *node0, const OTV_HermiteNode *node1, const float sigma
+);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__compute_arclen()
+extern otv__compute_arclen_funct otv__compute_arclen;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
 // otv__stream_glyph
 
 #ifndef OTV_NO_PROTOTYPES

@@ -418,6 +418,16 @@ OTV_API void otv__stream_spline_node (
 	/* we don't wait for the result... */
 }
 
+OTV_API OTV_SegmentArclen otv__compute_arclen (
+	const OTV_HermiteNode *node0, const OTV_HermiteNode *node1, const float sigma
+){
+	const cgv::mat4 alen = arclen::compute_single_t_to_s<float>(
+		*(cgv::vec3*)(float*)&node0->position, *(cgv::vec3*)(float*)&node0->tangent,
+		*(cgv::vec3*)(float*)&node1->position,*(cgv::vec3*)(float*)&node1->tangent, sigma
+	);
+	return *(const OTV_SegmentArclen*)&alen;
+}
+
 OTV_API void otv__stream_glyph (const uint32_t traj_id, const uint32_t layer, const OTV_GlyphData *glyph_data)
 {
 	// Compile and submit command
