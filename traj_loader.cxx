@@ -1406,6 +1406,19 @@ const traj_attribute<flt_type>& traj_dataset<flt_type>::attribute (const std::st
 }
 
 template <class flt_type>
+unsigned traj_dataset<flt_type>::get_liner_attrib_index (const traj_attribute<real> &attribute) const
+{
+	const auto &attibs = pimpl->attribs;
+	unsigned idx = 0;
+	for (const auto &attrib : attibs) {
+		if (attrib.second.id() == attribute.id())
+			return idx;
+		idx++;
+	}
+	return -1; // attribute was not part of this dataset, cause caller to crash so they notice their mistake
+}
+
+template <class flt_type>
 flt_type traj_dataset<flt_type>::avg_segment_length (void) const
 {
 	return pimpl->avg_seg_len;

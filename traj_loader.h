@@ -1097,6 +1097,10 @@ public:
 	/// exists, use \ref has_attribute .
 	const traj_attribute<real>& attribute (const std::string &name) const;
 
+	/// returns the index into the list of names returned by @ref ::get_attribute_names() that corresponds to the given
+	/// attribute.
+	unsigned get_liner_attrib_index (const traj_attribute<real> &attribute) const;
+
 	/// report the average length of line segments
 	real avg_segment_length (void) const;
 

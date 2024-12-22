@@ -746,7 +746,7 @@ struct stream_ds_helper : public traj_format_handler<float>
 		return ds;
 	}
 
-	static unsigned add_streaming_dummy_attrib (
+	static traj_attribute<float>& add_streaming_dummy_attrib (
 		traj_dataset<float> &dataset, const unsigned buffer_size, const cgv::vec2 &vattrib_range
 	){
 		// create new attribute representing the stream
@@ -770,7 +770,7 @@ struct stream_ds_helper : public traj_format_handler<float>
 				new_stream.data.append(dummyval, i);
 		}
 
-		return id;
+		return new_stream.attrib;
 	}
 };
 
@@ -784,14 +784,24 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 		return;
 	}
 
-	// prelude: prepare dummy dataset - the number of values per trajectory will be used to communicate the desired
-	// ring buffer size to the logic setting up the streaming renderer further downstream
+	// prelude
+	// - helper map to assign vattrib source indices only _after_ all dummy streams have been added to the dummy
+	//   dataset, to deal with the not-done-as-intended indexing into source attributes via an index into the list of
+	//   their names (which will change as new attributes get added)
+	using vattrib_source_map_type = std::unordered_map<unsigned, const traj_attribute<float>&>;
+	// - helper struct to store the vattrib source map along the glyph attribute mapping for later registration with the
+	//   glyph attribute manager
+	struct gam_info {
+		glyph_attribute_mapping gam; vattrib_source_map_type vattrib_source_map;
+	};
+	// - prepare dummy dataset - the number of values per trajectory will be used to communicate the desired ring buffer
+	//   size to the logic setting up the streaming renderer further downstream
 	session_starting = true;
 	std::clog << "OnTubeVis internals: preparing streaming dummy dataset" << std::endl<<std::endl;
 	traj_dataset<float> stream_ds = stream_ds_helper::create_streaming_dummy_dataset(vis_setup);
 
 	// build up glyph attribute mappings
-	std::vector<glyph_attribute_mapping> layer_gams;
+	std::vector<gam_info> layer_gams;
 	layer_gams.reserve(vis_setup.layers.size());
 	/* ToDo: REMOVE ME */unsigned l=0;
 	for (const auto &layer_src : vis_setup.layers)
@@ -806,6 +816,8 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				constexpr unsigned metaattrib_idx__interpolate=0, vattrib_idx__color=1;
 				// - upcasted access to static glyph parameters
 				const auto &gi = *otv__upcast_SurfaceColorInfo(&layer_src.static_params);
+				// - the source map helper
+				vattrib_source_map_type vattrib_source_map;
 
 				// construct GAM
 				glyph_attribute_mapping m;
@@ -823,12 +835,13 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				else {
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
 						stream_ds, bufsize, m.get_attrib_out_range(vattrib_idx__color)
 					);
-					m.set_attrib_source_index(vattrib_idx__color, streamid);
+					vattrib_source_map.emplace(vattrib_idx__color, streamid);
+					//m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
-				layer_gams.emplace_back(std::move(m));
+				layer_gams.emplace_back(gam_info{std::move(m), std::move(vattrib_source_map)});
 				break;
 			}
 
@@ -839,6 +852,8 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				constexpr unsigned metaattrib_idx__outline=0, metaattrib_idx__interpolate=1, vattrib_idx__subplots=2;
 				// - upcasted access to static glyph parameters
 				const auto &gi = *otv__upcast_LinePlotInfo(&layer_src.static_params);
+				// - the source map helper
+				vattrib_source_map_type vattrib_source_map;
 
 				// construct GAM
 				glyph_attribute_mapping m;
@@ -860,15 +875,16 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 						base_vattrib_idx, rgb(subplot_color.r, subplot_color.g, subplot_color.b)
 					);
 					const auto vattrib_range = vec2(0, 2);
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
 						stream_ds, bufsize, vattrib_range
 					);
 					const auto val_vattrib_idx = base_vattrib_idx+1;
-					m.set_attrib_source_index(val_vattrib_idx, streamid);
 					m.set_attrib_in_range(val_vattrib_idx, vattrib_range);
 					m.set_attrib_out_range(val_vattrib_idx, vattrib_range);
+					vattrib_source_map.emplace(val_vattrib_idx, streamid);
+					//m.set_attrib_source_index(val_vattrib_idx, streamid);
 				}
-				layer_gams.emplace_back(std::move(m));
+				layer_gams.emplace_back(gam_info{std::move(m), std::move(vattrib_source_map)});
 				break;
 			}
 
@@ -880,6 +896,8 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				                   vattrib_idx__height=3;
 				// - upcasted access to static glyph parameters
 				const auto &gi = *otv__upcast_RectangleInfo(&layer_src.static_params);
+				// - the source map helper
+				vattrib_source_map_type vattrib_source_map;
 
 				// construct GAM
 				glyph_attribute_mapping m;
@@ -895,35 +913,38 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				else {
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
 						stream_ds, bufsize, m.get_attrib_out_range(vattrib_idx__color)
 					);
-					m.set_attrib_source_index(vattrib_idx__color, streamid);
+					vattrib_source_map.emplace(vattrib_idx__color, streamid);
+					//m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
 				// - length
 				const auto width_height_range = vec2(0, 2);
 				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_WIDTH)
 					m.set_attrib_out_range(vattrib_idx__length, {0.f, gi.width});
 				else {
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
 						stream_ds, bufsize, width_height_range
 					);
-					m.set_attrib_source_index(vattrib_idx__length, streamid);
 					m.set_attrib_in_range(vattrib_idx__length, width_height_range);
 					m.set_attrib_out_range(vattrib_idx__length, width_height_range);
+					vattrib_source_map.emplace(vattrib_idx__length, streamid);
+					//m.set_attrib_source_index(vattrib_idx__length, streamid);
 				}
 				// - height
 				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_WIDTH)
 					m.set_attrib_out_range(vattrib_idx__height, {0.f, gi.height});
 				else {
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
 						stream_ds, bufsize, width_height_range
 					);
-					m.set_attrib_source_index(vattrib_idx__height, streamid);
 					m.set_attrib_in_range(vattrib_idx__height, width_height_range);
 					m.set_attrib_out_range(vattrib_idx__height, width_height_range);
+					vattrib_source_map.emplace(vattrib_idx__height, streamid);
+					//m.set_attrib_source_index(vattrib_idx__height, streamid);
 				}
-				layer_gams.emplace_back(std::move(m));
+				layer_gams.emplace_back(gam_info{std::move(m), std::move(vattrib_source_map)});
 				break;
 			}
 
@@ -935,6 +956,8 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				                   vattrib_idx__value=3;
 				// - upcasted access to static glyph parameters
 				const auto &gi = *otv__upcast_SignBlobInfo(&layer_src.static_params);
+				// - the source map helper
+				vattrib_source_map_type vattrib_source_map;
 
 				// construct GAM
 				glyph_attribute_mapping m;
@@ -952,24 +975,26 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				else {
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
 						stream_ds, bufsize, m.get_attrib_out_range(vattrib_idx__color)
 					);
-					m.set_attrib_source_index(vattrib_idx__color, streamid);
+					vattrib_source_map.emplace(vattrib_idx__color, streamid);
+					//m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
 				// - value
 				if (gi.static_flags & OTV_SignBlobInfoStaticFlags::SBI_STATIC_VALUE)
 					m.set_attrib_out_range(vattrib_idx__value, {0.f, gi.value});
 				else {
 					const auto vattrib_range = vec2(-1, 1);
-					const unsigned streamid = stream_ds_helper::add_streaming_dummy_attrib(
+					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
 						stream_ds, bufsize, vattrib_range
 					);
-					m.set_attrib_source_index(vattrib_idx__value, streamid);
 					m.set_attrib_in_range(vattrib_idx__value, vattrib_range);
 					m.set_attrib_out_range(vattrib_idx__value, vattrib_range);
+					vattrib_source_map.emplace(vattrib_idx__value, streamid);
+					//m.set_attrib_source_index(vattrib_idx__value, streamid);
 				}
-				layer_gams.emplace_back(std::move(m));
+				layer_gams.emplace_back(gam_info{std::move(m), std::move(vattrib_source_map)});
 				break;
 			}
 
@@ -989,6 +1014,15 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 		/* ToDo: REMOVE ME */l++;
 	}
 
+	// set the source indices, now that all dummy attributes are accounted for
+	for (auto &l : layer_gams) {
+		// set attributes sources
+		for (const auto &vattrib_source : l.vattrib_source_map) {
+			const unsigned src_idx = (int)stream_ds.get_liner_attrib_index(vattrib_source.second);
+			l.gam.set_attrib_source_index(vattrib_source.first, src_idx);
+		}
+	}
+
 	// commit the streaming dummy dataset
 	traj_mgr.clear();
 	traj_mgr.add_dataset(std::move(stream_ds));
@@ -998,7 +1032,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 	// add layers
 	auto &vis = render.visualizations.front();
 	for (const auto &layer_gam : layer_gams)
-		vis.manager.add_glyph_attribute_mapping(std::move(layer_gam));
+		vis.manager.add_glyph_attribute_mapping(std::move(layer_gam.gam));
 	vis.manager.notify_configuration_change();
 
 	// done
