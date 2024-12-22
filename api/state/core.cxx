@@ -236,6 +236,10 @@ struct stream_glyph_command : public command
 					  << std::endl;
 			return notify_result(false);
 		}
+		otv_instance->client.service_push_glyph(
+			traj_id, layer, otv::otv_client::convert_api_glyph_to_internal(traj_id, layer, glyph)
+		);
+
 		const auto idx_it = streaming_dataset::traj_id_map.find(traj_id);
 		if (idx_it != streaming_dataset::traj_id_map.end())
 		{

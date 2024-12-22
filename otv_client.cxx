@@ -546,7 +546,17 @@ void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node
 }
 
 void otv_client::service_push_glyph (unsigned traj_id, unsigned layer, std::vector<float> &&glyph_data)
-{}
+{
+	auto &render_traj = *render.try_get_trajectory(traj_id);
+	const auto &data = glyph_data.begin();
+	/* debug check */ {
+		const unsigned num_floats_gd = glyph_data.size();
+		const unsigned num_floats_internal = render_traj.glyph_to_attrib_count(layer, glyph_count_type{1});
+		assert(num_floats_gd == num_floats_internal && "INTERNAL LOGIC ERROR: glyph data size mismatch!");
+	}
+	const auto data_range = ro_range{data, data + glyph_data.size()};
+	render_traj.enqueue_glyphs(layer, data_range);
+}
 
 node_attribs otv_client::convert_api_node_to_internal (const OTV_HermiteNode &node) {
 	node_attribs out;
@@ -565,14 +575,16 @@ std::vector<float> otv_client::convert_api_glyph_to_internal (
 	const float radius = ds.trajectories(ds.positions().attrib)[traj_id].med_radius;
 	const auto &lm = vis.manager.ref_glyph_attribute_mappings()[layer];
 	const auto &lcfg = vis.config.layer_configs[layer];
+	const auto &src_indices = lm.get_attrib_indices();
 	std::vector<float> data; data.reserve(glyph.N+2);
 	data.emplace_back(glyph.s);
 	data.emplace_back(0); // debug flag, not used when streaming
 	switch (lcfg.shape_ptr->type())
 	{
-		case GT_COLOR: {
+		case GT_COLOR:
+		{
 			constexpr unsigned vattrib_idx__color=1;
-			const auto color_src_idx = lm.get_attrib_indices()[vattrib_idx__color];
+			const auto color_src_idx = src_indices[vattrib_idx__color];
 			if (color_src_idx >= 0) {
 				const auto &gd = *otv__upcast_SurfaceColorData(&glyph);
 				data.emplace_back(gd.color);
@@ -582,7 +594,6 @@ std::vector<float> otv_client::convert_api_glyph_to_internal (
 		case GT_LINE_PLOT:
 		{
 			constexpr unsigned vattrib_idx__subplots=2;
-			const auto &src_indices = lm.get_attrib_indices();
 			const auto &gd = *otv__upcast_LinePlotData(&glyph);
 			for (unsigned i=0; i<4; i++) {
 				const auto vattrib_idx = vattrib_idx__subplots + i+i + 1;
@@ -591,12 +602,28 @@ std::vector<float> otv_client::convert_api_glyph_to_internal (
 			}
 			return std::move(data);
 		}
-		case GT_RECTANGLE: /*{
-			break;
-		}*/
-		case GT_SIGN_BLOB: /*{
-			break;
-		}*/
+		case GT_RECTANGLE:
+		{
+			constexpr unsigned vattrib_idx__color=1, vattrib_idx__length=2, vattrib_idx__height=3;
+			const auto &gd = *otv__upcast_RectangleData(&glyph);
+			if (src_indices[vattrib_idx__color] >= 0)
+				data.emplace_back(gd.color);
+			if (src_indices[vattrib_idx__length] >= 0)
+				data.emplace_back(gd.width);
+			if (src_indices[vattrib_idx__height] >= 0)
+				data.emplace_back(gd.height);
+			return std::move(data);
+		}
+		case GT_SIGN_BLOB:
+		{
+			constexpr unsigned vattrib_idx__color=2, vattrib_idx__value=3;
+			const auto &gd = *otv__upcast_SignBlobData(&glyph);
+			if (src_indices[vattrib_idx__color] >= 0)
+				data.emplace_back(gd.color);
+			if (src_indices[vattrib_idx__value] >= 0)
+				data.emplace_back(gd.value);
+			return std::move(data);
+		}
 
 		case GT_TRIANGLE:
 		case GT_CIRCLE:
