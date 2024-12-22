@@ -296,12 +296,13 @@ extern otv__stream_spline_node_funct otv__stream_spline_node;
 /**
  * @brief Compute an arc length parameterization for the given Hermite curve.
  *
- * Optionally, arc length up to the segment currently being parameterized by a call to this method can be provided.
+ * The arc length up to the segment currently being parameterized, typically called @a sigma, can be provided as well,
+ * resulting in all values of @a s computed by the resulting parameterization being offset by this value.
  *
  * @note
  *		This computation is typically executed immediately and synchronously inside the thread of the caller, without
  *		generating a command that requires waiting for an answer containing the computation result (the reference
- *		implementation by the OnTubeVis desktop application does it that way).
+ *		implementation by the OnTubeVis desktop application, for example, does it like this).
  *
  * @param node0 The start Hermite node of the curve.
  * @param node1 The end Hermite node of the curve.
@@ -309,9 +310,7 @@ extern otv__stream_spline_node_funct otv__stream_spline_node;
  *		A constant offset to apply to the parameterization, e.g. for incorporating cumulative arc length over a whole
  *		spline up to @a node0 .
  *
- * @return
- *		The extents of the given glyph relative to its anchor position. @c OTV_Vec2::x will contain the radius in
- *		trailing direction of the trajectory, and @c OTV_Vec2::y the radius in leading direction.
+ * @return An arc length parameterization for the input curve. See @c OTV_SegmentArclen for details.
  */
 OTV_API OTV_SegmentArclen otv__compute_arclen (
 	const OTV_HermiteNode *node0, const OTV_HermiteNode *node1, const float sigma
