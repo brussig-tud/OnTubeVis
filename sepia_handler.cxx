@@ -383,11 +383,23 @@ struct sepia_handler<flt_type>::Impl {
 
 	template <class T>
 	inline static T string_to_value (const std::string &str, size_t *pos) { return (T)std::stoll(str, pos); }
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline float string_to_value<float> (const std::string &str, size_t *pos) { return std::stof(str, pos); }
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline double string_to_value<double> (const std::string &str, size_t *pos) { return std::stod(str, pos); }
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline sample_on_off<real> string_to_value<sample_on_off<real>> (const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
@@ -401,7 +413,11 @@ struct sepia_handler<flt_type>::Impl {
 		*pos = str.length();
 		return {val};
 	}
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline sample_active_inactive<real> string_to_value<sample_active_inactive<real>> (const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
@@ -415,7 +431,11 @@ struct sepia_handler<flt_type>::Impl {
 		*pos = str.length();
 		return {val};
 	}
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline sample_reg_notreg<real> string_to_value<sample_reg_notreg<real>>(const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
@@ -429,7 +449,11 @@ struct sepia_handler<flt_type>::Impl {
 		*pos = str.length();
 		return { val };
 	}
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline sample_hit_nothit<real> string_to_value<sample_hit_nothit<real>>(const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
@@ -443,7 +467,11 @@ struct sepia_handler<flt_type>::Impl {
 		*pos = str.length();
 		return {val};
 	}
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline sample_handbreak<real> string_to_value<sample_handbreak<real>>(const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
@@ -458,7 +486,11 @@ struct sepia_handler<flt_type>::Impl {
 		*pos = str.length();
 		return { val };
 	}
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline sample_seatbelt<real> string_to_value<sample_seatbelt<real>>(const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
@@ -473,7 +505,11 @@ struct sepia_handler<flt_type>::Impl {
 		*pos = str.length();
 		return { val };
 	}
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline sample_open_closed<real> string_to_value<sample_open_closed<real>>(const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
@@ -488,7 +524,11 @@ struct sepia_handler<flt_type>::Impl {
 		*pos = str.length();
 		return { val };
 	}
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline sample_left_right<real> string_to_value<sample_left_right<real>> (const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
@@ -505,7 +545,11 @@ struct sepia_handler<flt_type>::Impl {
 		*pos = str.length();
 		return {val};
 	}
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline sample_gearsel<real> string_to_value<sample_gearsel<real>>(const std::string &str, size_t *pos)
 	{
 		static const std::string seperators = " \t";
@@ -535,7 +579,11 @@ struct sepia_handler<flt_type>::Impl {
 		*pos = pos_local;
 		return {val};
 	}
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline double_time string_to_value<double_time> (const std::string &str, size_t *pos)
 	{
 		switch (guess_timestamp_format(str))
@@ -657,11 +705,14 @@ struct sepia_handler<flt_type>::Impl {
 		}
 		return false;
 	}
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline bool traj_parse_prop(
 		sepia_traj_prop<typename trajectory<real>::gpsvec> *out, const char* name, const std::vector<std::string> &fields, const std::string &line
-	) noexcept
-	{
+	) noexcept {
 		if (cgv::utils::to_lower(fields[0]).compare(cgv::utils::to_lower(name)) == 0)
 		{
 			typename trajectory<real>::gpsvec::value_type c0, c1;
@@ -712,11 +763,14 @@ struct sepia_handler<flt_type>::Impl {
 		}
 		return 0;
 	}
+
 	template <>
+	#ifdef _MSC_VER
+		/* work around non-conforming behavior of MSVC++ compiler */static
+	#endif
 	inline unsigned traj_parse_sample<sample_accel<real>> (
 		double *ts, sample_accel<real> *out, const char* name, const std::vector<std::string> &fields, const std::string &line
-	) noexcept
-	{
+	) noexcept {
 		if (cgv::utils::to_lower(fields[1]).compare(cgv::utils::to_lower(name)) == 0)
 		{
 			if (fields.size() > 2)
