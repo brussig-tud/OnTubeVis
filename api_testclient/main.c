@@ -14,12 +14,16 @@
 #include <stdio.h>
 
 // Platform SDKs
+#ifdef _WIN32
+	#define NOMINMAX
+	#include <windows.h>
+	void sleep (unsigned seconds) { Sleep(seconds*1000); }
+#else
+	#include <unistd.h>
+#endif
 #if defined(OTVAPI_CLIENT_USE_DLOPEN) && OTVAPI_CLIENT_USE_DLOPEN!=0
 	#error Runtime loading of an OnTubeVis API implementation is not yet implemented in this example!
-	#ifdef _WIN32
-		#define NOMINMAX
-		#include <windows.h>
-	#else
+	#ifndef _WIN32
 		#include <dlfcn.h>
 	#endif
 #endif
@@ -145,6 +149,7 @@ int main (int argc, char** argv)
 			.time=0, .position={0, 0, 0}, .tangent={4, 0, 0}
 		}; // ...so the x-derivative must also be 4 if we want a uniform parametrization
 		otv__stream_spline_node(traj_ids[1], &n, NULL/* first sample doesn't have an arclength */);
+		sleep(1);
 
 		// Stream a second sign blob glyph (first trajectory segment still missing its end node)
 		OTV_GlyphData sign_blob = otv__construct_SignBlobData(
@@ -156,6 +161,7 @@ int main (int argc, char** argv)
 		);
 		last_border[1] = sign_blob.s+extents.y;
 		otv__stream_glyph(traj_ids[1], /* layer: */1, &sign_blob);
+		sleep(1);
 
 		// 2nd node
 		const OTV_HermiteNode n0 = n; // we need to keep a copy of the first node for computing arc length
@@ -167,6 +173,7 @@ int main (int argc, char** argv)
 		const OTV_SegmentArclen alen = otv__compute_arclen(&n0, &n, 0);
 		// - dispatch the node
 		otv__stream_spline_node(traj_ids[1], &n, &alen);
+		sleep(1);
 
 		// Stream a second surface color sample on layer 0
 		OTV_GlyphData surface_color = otv__construct_SurfaceColorData(/* s: */2, /* color: */1);
@@ -177,6 +184,7 @@ int main (int argc, char** argv)
 		);
 		last_border[0] = surface_color.s+extents.y;
 		otv__stream_glyph(traj_ids[1], /* layer: */0, &surface_color);
+		sleep(1);
 	}
 
 	/* Stream a third surface color sample on layer 0 */ {
@@ -188,6 +196,7 @@ int main (int argc, char** argv)
 		);
 		last_border[0] = surface_color.s+extents.y;
 		otv__stream_glyph(traj_ids[1], /* layer: */0, &surface_color);
+		sleep(1);
 	}
 
 	/* Stream a third sign blob glyph (falls onto the now complete first segment) */ {
@@ -201,6 +210,7 @@ int main (int argc, char** argv)
 		);
 		last_border[1] = sign_blob.s+extents.y;
 		otv__stream_glyph(traj_ids[1], /* layer: */1, &sign_blob);
+		sleep(1);
 	}
 
 
@@ -208,7 +218,7 @@ int main (int argc, char** argv)
 	// Shutdown
 
 	// Wait for user to terminate the test client
-	printf("Streaming done. Press ENTER to shut down.");
+	printf("\nStreaming done. Press ENTER to shut down.");
 	getchar();
 
 	// Request service to stop and quit
