@@ -2536,11 +2536,12 @@ void on_tube_vis::after_finish(context& ctx) {
 
 	// Process any pending streaming API commands
 	std::shared_ptr<command> cmd;
-	if ((cmd = command_stream::poll())) {
+	if ((cmd = command_stream::poll()))
+	{
 		if (!cmd->handle())
 			std::cerr << "OnTubeVis: command " << hex(cmd.get()) << " (" << cmd->describe() << ") failed execution!"
 			          << std::endl;
-		else //if (command_stream::has_pending())
+		else
 			post_redraw();
 	}
 	else if (run_as_service && taa.is_enabled())
@@ -2551,7 +2552,6 @@ void on_tube_vis::after_finish(context& ctx) {
 			session_taa_keep_sampling = false;
 		}
 		if (session_taa_missing_samples > 0) {
-			std::clog << "TAA: Sampling... ("<<session_taa_missing_samples<<" remaining)" << std::endl;
 			session_taa_missing_samples--;
 			post_redraw();
 		}
