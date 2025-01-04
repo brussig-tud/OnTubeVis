@@ -2540,23 +2540,21 @@ void on_tube_vis::after_finish(context& ctx) {
 		if (!cmd->handle())
 			std::cerr << "OnTubeVis: command " << hex(cmd.get()) << " (" << cmd->describe() << ") failed execution!"
 			          << std::endl;
-		if (command_stream::has_pending())
+		else //if (command_stream::has_pending())
 			post_redraw();
 	}
-
-	if (run_as_service && taa.is_enabled())
+	else if (run_as_service && taa.is_enabled())
 	{
+		// make sure we eliminate ghosting by accumulating enough samples before we go to sleep again
 		if (session_taa_keep_sampling) {
 			session_taa_missing_samples = taa.get_jitter_sample_count();
 			session_taa_keep_sampling = false;
-			taa.reset();
 		}
-
-		// make sure we eliminate ghosting by accumulating enough samples before we go to sleep again
-		/*if (session_taa_missing_samples > 0) {
-			post_redraw();
+		if (session_taa_missing_samples > 0) {
+			std::clog << "TAA: Sampling... ("<<session_taa_missing_samples<<" remaining)" << std::endl;
 			session_taa_missing_samples--;
-		}*/
+			post_redraw();
+		}
 	}
 }
 

@@ -556,6 +556,7 @@ void otv_client::service_push_glyph (unsigned traj_id, unsigned layer, std::vect
 	}
 	const auto data_range = ro_range{data, data + glyph_data.size()};
 	render_traj.enqueue_glyphs(layer, data_range);
+	otv_instance->session_taa_keep_sampling = true;
 }
 
 node_attribs otv_client::convert_api_node_to_internal (const OTV_HermiteNode &node) {
