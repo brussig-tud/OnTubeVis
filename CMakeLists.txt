@@ -13,6 +13,7 @@ option(ENABLE_HOLOGRAPHY
 	"Use the experimental Holo-View-Interactor of the CGV Framework for holography-compatible camera management (suitable e.g. for Looking Glass™ displays)"
 	OFF
 )
+option(ENABLE_MAPTILES "Load the CGV maptiles_plugin to automatically display OpenStreetMaps tiles and 3D buildings" OFF )
 
 # Fetch the CGV Framework if it's not obviously present on the system
 if (DEFINED ENV{CGV_DIR})
@@ -47,6 +48,9 @@ find_package(OpenMP)
 
 # handle optional dependencies
 set(OPTIONAL_DEPENDENCIES "")
+if (ENABLE_MAPTILES)
+	list(APPEND OPTIONAL_DEPENDENCIES maptiles_plugin)
+endif()
 if (CUDA_FOUND AND CUDAToolkit_FOUND)
 	set(ONTUBEVIS_CUDA_RESPREP_HOST_COMPILER "" CACHE FILEPATH
 		"The host compiler executable to use together with NVCC when preparing CUDA device code resources"
@@ -280,7 +284,7 @@ cgv_add_target(OnTubeVis
 	DEPENDENCIES
 		glew json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui
 		cgv_render cgv_os cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d
-		cgv_app cgv_post cgv_gpgpu maptiles_plugin ${OPTIONAL_DEPENDENCIES}
+		cgv_app cgv_post cgv_gpgpu ${OPTIONAL_DEPENDENCIES}
 
 	LINKTIME_PLUGIN_DEPENDENCIES
 		cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
