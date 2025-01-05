@@ -2466,6 +2466,10 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 			dataset.rtlola_map_tex.disable(ctx);
 		}
 
+		#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
+			maptiles_interfacer::force_draw(ctx);
+		#endif
+
 		if (show_wireframe_bbox)
 			bbox_wire_rd.render(ctx);
 
@@ -2474,10 +2478,6 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 
 		taa.end(ctx);
 	}
-
-	#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
-		maptiles_interfacer::force_draw(ctx);
-	#endif
 
 	// display drag-n-drop information, if a dnd operation is in progress
 	if(!dnd.text.empty())
