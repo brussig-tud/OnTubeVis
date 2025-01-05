@@ -9,11 +9,9 @@
 
 // CGV framework core
 #include <cgv/base/node.h>
-#include <cgv/gui/event_handler.h>
 #include <cgv/gui/provider.h>
 #include <cgv/gui/help_message.h>
 #include <cgv/gui/file_helper.h>
-#include <cgv/render/drawable.h>
 #include <cgv/render/managed_frame_buffer.h>
 #include <cgv/render/shader_library.h>
 #include <cgv/utils/stopwatch.h>

@@ -27,7 +27,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG ecd3b04844640f38f0885f3ad0c48e3e75ea8700
+		GIT_TAG b0696fe91d1356cd22b318878ec842ef74d861b2
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -47,10 +47,13 @@ endif()
 find_package(OpenMP)
 
 # handle optional dependencies
-set(OPTIONAL_DEPENDENCIES "")
+set(OPTIONAL_PLUGINS "")
+set(OPTIONAL_PLUGINS_CONFIG_DEFS "")
 if (ENABLE_MAPTILES)
-	list(APPEND OPTIONAL_DEPENDENCIES maptiles_plugin)
+	list(APPEND OPTIONAL_PLUGINS maptiles_plugin)
+	list(APPEND OPTIONAL_PLUGINS_CONFIG_DEFS "OTV_WITH_MAPTILES=1")
 endif()
+set(OPTIONAL_DEPENDENCIES "")
 if (CUDA_FOUND AND CUDAToolkit_FOUND)
 	set(ONTUBEVIS_CUDA_RESPREP_HOST_COMPILER "" CACHE FILEPATH
 		"The host compiler executable to use together with NVCC when preparing CUDA device code resources"
@@ -284,16 +287,17 @@ cgv_add_target(OnTubeVis
 	DEPENDENCIES
 		glew json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui
 		cgv_render cgv_os cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d
-		cgv_app cgv_post cgv_gpgpu ${OPTIONAL_DEPENDENCIES}
+		cgv_app cgv_post cgv_gpgpu ${OPTIONAL_PLUGINS} ${OPTIONAL_DEPENDENCIES}
 
 	LINKTIME_PLUGIN_DEPENDENCIES
 		cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
+		${OPTIONAL_PLUGINS} # <-- we're directly using the control APIs of the optional plugins
 
 	ADDITIONAL_INCLUDE_PATHS         ${ADDITIONAL_INCLUDE_PATHS}
 
 	ADDITIONAL_PRIVATE_INCLUDE_PATHS ${PRIVATE_API_INCLUDE}
 
-	ADDITIONAL_PRIVATE_DEFINES       ${NVRTC_INCLUDE_DEFS}
+	ADDITIONAL_PRIVATE_DEFINES       ${NVRTC_INCLUDE_DEFS} ${OPTIONAL_PLUGINS_CONFIG_DEFS}
 
 	ADDITIONAL_CMDLINE_ARGS
 		"config:\"${CMAKE_CURRENT_LIST_DIR}/config.def\""

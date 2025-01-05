@@ -33,6 +33,10 @@
 #include <plugins/cg_fltk/fltk_gl_view.h>
 // - stereo_view_interactor for controlling fix_view_up_dir
 #include <plugins/crg_stereo_view/stereo_view_interactor.h>
+// - maptiles plugin interface
+#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
+	#include <plugins/maptiles_plugin/maptiles_interfacer.h>
+#endif
 
 // CGV framework 3rd party libraries
 #include <3rd/xml/tinyxml2/tinyxml2.h>
@@ -2470,6 +2474,10 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 
 		taa.end(ctx);
 	}
+
+	#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
+		maptiles_interfacer::force_draw(ctx);
+	#endif
 
 	// display drag-n-drop information, if a dnd operation is in progress
 	if(!dnd.text.empty())
