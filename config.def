@@ -7,9 +7,17 @@ type(on_tube_vis):datapath="./testdata/cps_drone.csv"
 // - initial glyph layer config
 type(on_tube_vis):layer_config_file="./testdata/cps_drone_apiGlyphs.xml"
 
-// Maptiles reference for cps_drone.csv
+// Maptiles
+// - projection center for cps_drone.csv
 type(maptiles):latitude=51.0249894
 type(maptiles):longitude=13.7241362
+// - tile generation
+type(maptiles):frustum_raster_tiles_count=16
+type(maptiles):frustum_3d_tiles_distance=0.02
+type(maptiles):frustum_based_tiles=true
+
+// Disable TAA as maptiles is not perfectly integrated with it yet
+type(on_tube_vis):taa_enabled=false
 
 // Visualization and general settings
 // - How node attributes are made available to the spline tube shader when using the rasterization render path

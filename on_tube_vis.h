@@ -307,6 +307,7 @@ protected:
 	} dataset;
 
 public:
+	bool toggle_taa_proxy = true;
 	cgv::post::temporal_anti_aliasing taa;
 
 protected:

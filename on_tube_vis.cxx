@@ -396,6 +396,7 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("optix_debug_mode", optix.debug) &&
 		rh.reflect_member("optix_holographic", optix.holographic) &&
 #endif
+		rh.reflect_member("taa_enabled", toggle_taa_proxy) &&
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
@@ -1535,6 +1536,14 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 	// ###############################
 #endif
 
+	// TAA
+	if (m.is(toggle_taa_proxy)) {
+		if (toggle_taa_proxy)
+			taa.set_enabled(true);
+		else
+			taa.set_enabled(false);
+	}
+
 	// default implementation for all members
 	// - update GUI
 	if(do_full_gui_update)
@@ -2466,7 +2475,7 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 			dataset.rtlola_map_tex.disable(ctx);
 		}
 
-		#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
+		#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1 && !defined(CGV_FORCE_STATIC)
 			maptiles_interfacer::force_draw(ctx);
 		#endif
 
