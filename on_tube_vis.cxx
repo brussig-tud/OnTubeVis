@@ -113,6 +113,12 @@ void on_tube_vis::on_register()
 
 on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(this)
 {
+	// disable TAA by default when using maptiles (as that is not perfectly integrated yet) - can be switched back on
+	// via hotkey, GUI or config file though.
+	#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
+		taa.set_enabled(false);
+	#endif
+
 	// adjust geometry and grid style defaults
 	render.style.material.set_brdf_type(
 		(cgv::media::illum::BrdfType)(cgv::media::illum::BrdfType::BT_STRAUSS_DIFFUSE
