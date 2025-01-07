@@ -386,7 +386,7 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 			if (is_first)
 				refpos = {databuf_pos[0], databuf_pos[1]};
 			const auto mercator = wgs84::toCartesian(refpos, latlong{databuf_pos[0], databuf_pos[1]});
-			const vec3 proj_pos((real)mercator[0], databuf_pos[2], (real)mercator[1]);
+			const vec3 proj_pos((real)mercator[0], databuf_pos[2], -(real)mercator[1]);
 			vec3 diff;
 			if (!is_first) {
 				diff = proj_pos - P.data.values.back();
