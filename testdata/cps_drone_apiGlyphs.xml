@@ -1,0 +1,43 @@
+<GlyphConfiguration>
+    <ColorMaps>
+        <ColorMap name="GreenOrangeDiverging">
+            <ColorPoint x="0" r="0.12460409104824066" g="0.60571432113647461" b="0.17899048328399658"/>
+            <ColorPoint x="0.50055742263793945" r="0.82285714149475098" g="0.82285714149475098" b="0.82285714149475098"/>
+            <ColorPoint x="1" r="0.86857140064239502" g="0.20392543077468872" b="0"/>
+        </ColorMap>
+    </ColorMaps>
+    <Layers>
+        <Layer name="Time" active="true" glyph="color" sampling="original">
+            <Property name="interpolate" value="1.000000"/>
+            <Property name="color" attrib_name="Flight Time (s)" color_map_name="nuuk" in_range="0 677.356" out_range="0 1"/>
+        </Layer>
+        <Layer name="Power" active="true" glyph="line_plot" sampling="original">
+            <Property name="outline" value="0.015000"/>
+            <Property name="interpolate" value="1.000000"/>
+            <Property name="color_0" color="0.731429 0.400696 0" out_range="0 1"/>
+            <Property name="value_0" attrib_name="Bat.Current (mA)" in_range="1250 7880.81" out_range="0 0.45"/>
+            <Property name="color_1" color="0.92 0.02392 0" out_range="0 1"/>
+            <Property name="value_1" in_range="2 4" out_range="0 1"/>
+            <Property name="color_2" color="0.0323265 0.0787081 0.565714" out_range="0 1"/>
+            <Property name="value_2" in_range="2 4" out_range="0 1"/>
+            <Property name="color_3" color="0.153012 0.225124 0.377143" out_range="0 1"/>
+            <Property name="value_3" in_range="2 4" out_range="0 1"/>
+        </Layer>
+        <Layer name="Velocity" active="true" glyph="rectangle" sampling="equidist" sampling_step="0.333000">
+            <Property name="outline" value="0.035000"/>
+            <Property name="color" attrib_name="GPS.velComposite (m/s)" color_map_name="acton" in_range="0.125 6" out_range="0 1"/>
+            <Property name="length" attrib_name="GPS.velComposite (m/s)" in_range="0.125 4.25" out_range="0 2.25"/>
+            <Property name="height" attrib_name="GPS.velComposite (m/s)" in_range="0 5" out_range="1.75 0.125"/>
+        </Layer>
+        <Layer name="Yaw" active="true" glyph="sign_blob" sampling="equidist" sampling_step="0.333000">
+            <Property name="outline" value="0.031250"/>
+            <Property name="size" value="1.000000" out_range="0 1"/>
+            <Property name="color" attrib_name="Control.yaw" color_map_name="GreenOrangeDiverging" in_range="-1 1" out_range="1 0"/>
+            <Property name="value" attrib_name="Control.yaw" in_range="-1 1"/>
+        </Layer>
+    </Layers>
+    <Settings>
+        <Setting name="ambient_occlusion" value="false"/>
+        <Setting name="line_primitve" value="LP_TUBE_RUSSIG"/>
+    </Settings>
+</GlyphConfiguration>
