@@ -107,18 +107,23 @@ std::condition_variable on_tube_vis::init_cv;
 
 void on_tube_vis::on_register()
 {
+	// change window title
 	cgv::gui::application::get_window(0)->set("title", "OnTubeVis");
+
+	// special initialization if maptiles support is enabled
+	#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
+		// disable TAA by default with maptiles (as that is not perfectly integrated yet) - can be switched back on via
+		// hotkey, GUI or config file though
+		taa.set_enabled(false);
+
+		// make sure maptiles plugin does nothing at all before we actually need it
+		maptiles_interfacer::disable();
+	#endif
 }
 
 
 on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(this)
 {
-	// disable TAA by default when using maptiles (as that is not perfectly integrated yet) - can be switched back on
-	// via hotkey, GUI or config file though.
-	#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
-		taa.set_enabled(false);
-	#endif
-
 	// adjust geometry and grid style defaults
 	render.style.material.set_brdf_type(
 		(cgv::media::illum::BrdfType)(cgv::media::illum::BrdfType::BT_STRAUSS_DIFFUSE
@@ -1149,7 +1154,7 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 
 #if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
 	const auto &georef = ds.geo_reference();
-	if (georef.has_value()) {
+	if (georef.has_value() && (!run_as_service || !data_init_pending)) {
 		maptiles_interfacer::enable();
 		maptiles_interfacer::reref(georef.value());
 	}
