@@ -1872,12 +1872,6 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	taa.set_jitter_sample_count(8);
 	taa.set_mix_factor(0.125f);
 	taa.set_fxaa_mix_factor(0.5f);
-	#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
-		if (taa.is_enabled())
-			maptiles_interfacer::enable_foreign_draw_control();
-		else
-			maptiles_interfacer::disable_foreign_draw_control();
-	#endif
 
 	// use white background for paper screenshots
 	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
