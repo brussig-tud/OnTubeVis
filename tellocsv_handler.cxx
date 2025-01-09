@@ -383,8 +383,10 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 		if (tello.pos.validate_databuf(databuf_pos)) {
 			const bool is_first = P.data.values.empty();
 			const vec3 P_last = is_first ? vec3() : P.data.values.back();
-			if (is_first)
+			if (is_first) {
 				refpos = {databuf_pos[0], databuf_pos[1]};
+				traj_format_handler<real>::geo_reference(ret).emplace(refpos);
+			}
 			const auto mercator = wgs84::toCartesian(refpos, latlong{databuf_pos[0], databuf_pos[1]});
 			const vec3 proj_pos((real)mercator[0], databuf_pos[2], -(real)mercator[1]);
 			vec3 diff;
@@ -447,6 +449,10 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 		{VisualAttrib::POSITION, {TELLO_POSITION_ATTRIB_NAME}}, {VisualAttrib::RADIUS, {TELLO_RADIUS_ATTRIB_NAME}}
 	});
 	ret.set_mapping(std::move(vamap));
+
+	// set dataset name (we use the filename since our .csv model does not support other kinds of fields outside the actual data
+	// which could contain the name)
+	traj_format_handler<flt_type>::name(ret) = cgv::utils::file::drop_extension(cgv::utils::file::get_file_name(path));
 
 	// done!
 	return std::move(ret);

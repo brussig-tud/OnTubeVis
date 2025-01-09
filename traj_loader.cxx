@@ -1117,6 +1117,7 @@ struct traj_dataset<flt_type>::Impl
 
 	// fields
 	std::string name, data_source;
+	std::optional<cgv::dvec2> georef;
 	traj_attribute<flt_type> *positions;
 	const attrib_transform<flt_type> *pos_transform;
 	attribute_map<flt_type> attribs;
@@ -1237,6 +1238,12 @@ std::string& traj_dataset<flt_type>::data_source (void)
 }
 
 template <class flt_type>
+std::optional<cgv::dvec2>& traj_dataset<flt_type>::geo_reference (void)
+{
+	return pimpl->georef;
+}
+
+template <class flt_type>
 typename traj_dataset<flt_type>::template attrib_info<typename traj_dataset<flt_type>::Vec3> traj_dataset<flt_type>::positions (void)
 {
 	return attrib_info<Vec3>(*pimpl->positions);
@@ -1346,6 +1353,12 @@ template <class flt_type>
 const std::string& traj_dataset<flt_type>::data_source (void) const
 {
 	return pimpl->data_source;
+}
+
+template <class flt_type>
+const std::optional<cgv::dvec2>& traj_dataset<flt_type>::geo_reference (void) const
+{
+	return pimpl->georef;
 }
 
 template <class flt_type>
@@ -1493,6 +1506,12 @@ template <class flt_type>
 std::string& traj_format_handler<flt_type>::name (traj_dataset<real> &dataset)
 {
 	return dataset.name();
+}
+
+template <class flt_type>
+std::optional<cgv::dvec2>& traj_format_handler<flt_type>::geo_reference (traj_dataset<real> &dataset)
+{
+	return dataset.geo_reference();
 }
 
 template <class flt_type>

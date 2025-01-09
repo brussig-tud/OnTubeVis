@@ -1146,6 +1146,16 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 	// ###  END:  OptiX integration
 	// ###############################
 #endif
+
+#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
+	const auto &georef = ds.geo_reference();
+	if (georef.has_value()) {
+		maptiles_interfacer::enable();
+		maptiles_interfacer::reref(georef.value());
+	}
+	else
+		maptiles_interfacer::disable();
+#endif
 }
 
 bool on_tube_vis::update_visualizations(bool may_cause_new_session) {

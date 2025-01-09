@@ -6,6 +6,7 @@
 #include <vector>
 #include <map>
 #include <unordered_map>
+#include <optional>
 #include <utility>
 #include <functional>
 #include <type_traits>
@@ -988,6 +989,9 @@ protected:
 	/// write-access the source name (filename, description, etc.) the dataset was loaded / originated from
 	std::string& data_source (void);
 
+	/// write-access the optional geo reference for the dataset in WGS84 lat/long
+	std::optional<cgv::dvec2>& geo_reference (void);
+
 	/// write-access the "special" positions attribute data (for use by trajectory format handlers)
 	attrib_info<Vec3> positions (void);
 
@@ -1078,6 +1082,9 @@ public:
 
 	/// access the source name (filename, description, etc.) the dataset was loaded / originated from
 	const std::string& data_source (void) const;
+
+	/// read-only access the geo reference for the dataset in WGS84 lat/long if the dataset is geolocated
+	const std::optional<cgv::dvec2>& geo_reference (void) const;
 
 	/// access the "special" positions attribute data.
 	const traj_dataset<real>::attrib_info<Vec3> positions (void) const;
@@ -1199,6 +1206,9 @@ protected:
 
 	/// Proxy for derived classes to gain write-access the dataset name attribute
 	static std::string& name (traj_dataset<real> &dataset);
+
+	/// Proxy for derived classes to gain write-access the geo reference for the dataset
+	static std::optional<cgv::dvec2>& geo_reference (traj_dataset<real> &dataset);
 
 	/// Proxy for derived classes to gain write-access the "special" positions attribute
 	static typename traj_dataset<real>::template attrib_info<Vec3> positions (traj_dataset<real> &dataset);
