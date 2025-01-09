@@ -2602,11 +2602,11 @@ void on_tube_vis::after_finish(context& ctx) {
 		else
 			post_redraw();
 	}
-	else if (run_as_service && taa.is_enabled())
+	else if (run_as_service)
 	{
 		// make sure we eliminate ghosting by accumulating enough samples before we go to sleep again
 		if (session_taa_keep_sampling) {
-			session_taa_missing_samples = taa.get_jitter_sample_count();
+			session_taa_missing_samples = taa.is_fxaa_enabled() ? taa.get_jitter_sample_count() : 1;
 			session_taa_keep_sampling = false;
 		}
 		if (session_taa_missing_samples > 0) {
