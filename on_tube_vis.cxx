@@ -1552,12 +1552,23 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 	// ###############################
 #endif
 
-	// TAA
-	if (m.is(toggle_taa_proxy)) {
-		if (toggle_taa_proxy)
-			taa.set_enabled(true);
-		else
-			taa.set_enabled(false);
+	/* TAA */ {
+		bool taa_changed = false;
+		if (m.is(toggle_taa_proxy))
+		{
+			taa.set_enabled(toggle_taa_proxy);
+			taa_changed = true;
+		}
+		if (m.is(taa) || taa_changed)
+		{
+			toggle_taa_proxy = taa.is_enabled();
+			#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
+				if (taa.is_enabled())
+					maptiles_interfacer::enable_foreign_draw_control();
+				else
+					maptiles_interfacer::disable_foreign_draw_control();
+			#endif
+		}
 	}
 
 	// default implementation for all members
@@ -1856,6 +1867,12 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	taa.set_jitter_sample_count(8);
 	taa.set_mix_factor(0.125f);
 	taa.set_fxaa_mix_factor(0.5f);
+	#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
+		if (taa.is_enabled())
+			maptiles_interfacer::enable_foreign_draw_control();
+		else
+			maptiles_interfacer::disable_foreign_draw_control();
+	#endif
 
 	// use white background for paper screenshots
 	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
@@ -2491,8 +2508,9 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 			dataset.rtlola_map_tex.disable(ctx);
 		}
 
-		#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1 && !defined(CGV_FORCE_STATIC)
-			maptiles_interfacer::force_draw(ctx);
+		#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
+			if (taa.is_enabled())
+				maptiles_interfacer::force_draw(ctx);
 		#endif
 
 		if (show_wireframe_bbox)
