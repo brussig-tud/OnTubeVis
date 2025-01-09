@@ -1309,7 +1309,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 	}
 
 	// voxelization settings
-	if(m.one_of(voxel_grid_resolution, voxelize_gpu, render.style.radius_scale)) {
+	if(m.one_of(voxel_grid_resolution, /*voxelize_gpu, */render.style.radius_scale)) {
 		context& ctx = *get_context();
 		voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(cgv::math::clamp(static_cast<unsigned>(voxel_grid_resolution), 16u, 512u));
 		create_density_volume(ctx, voxel_grid_resolution);
@@ -2509,7 +2509,14 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 		}
 
 		#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
+		#if CGV_FORCE_STATIC // we seem to have hit a bug hidden deep within the CGV Framework that causes faulty
+		                     // traversal of drawables _for plugin builds_ under rare circumstances. Using OnTubeVis
+		                     // with maptiles seems to have unearthed this bug, causing maptiles to draw before the
+		                     // frame is actually started (resulting in it being invisible). So as a workaround, if
+		                     // we're not doing a single-exe or service build, we won't observe the TAA state and force
+		                     // foreign draw of maptiles plugin anyway as a workaround.
 			if (taa.is_enabled())
+		#endif
 				maptiles_interfacer::force_draw(ctx);
 		#endif
 
