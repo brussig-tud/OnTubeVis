@@ -3588,7 +3588,7 @@ shader_define_map on_tube_vis::build_tube_shading_defines()
 
 // plugins
 cgv::base::object_registration<on_tube_vis> reg_tubes("");
-cgv::base::registration_order_definition ro_def("stereo_view_interactor;on_tube_vis");
+cgv::base::registration_order_definition ro_def("stereo_view_interactor;on_tube_vis;maptiles");
 
 #ifdef CGV_FORCE_STATIC
 	#include <OnTubeVis_shader_inc.h>
