@@ -2514,7 +2514,7 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 		                     // with maptiles seems to have unearthed this bug, causing maptiles to draw before the
 		                     // frame is actually started (resulting in it being invisible). So as a workaround, if
 		                     // we're not doing a single-exe or service build, we won't observe the TAA state and force
-		                     // foreign draw of maptiles plugin anyway as a workaround.
+		                     // foreign draw of maptiles plugin anyway.
 			if (taa.is_enabled())
 		#endif
 				maptiles_interfacer::force_draw(ctx);
