@@ -390,6 +390,7 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("layer_config_file", layer_config_file_helper.file_name) && // ToDo: figure out proper reflection name
 		rh.reflect_member("show_hidden_glyphs", debug.show_hidden_glyphs) &&
 		rh.reflect_member("render_style", render.style) &&
+		rh.reflect_member("override_cap_clip_distance", override_cap_clip_distance_proxy) &&
 		rh.reflect_member("attrib_mode", (unsigned&)render.style.attrib_mode) &&
 		rh.reflect_member("bounding_geometry", render.style.bounding_geometry) &&
 		rh.reflect_member("bounding_box_color", bbox_rd.style.surface_color) &&
@@ -1097,7 +1098,7 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 	// TODO: For some datasets, e.g. fisch_wehr_streamline.0.csv, this results in a much too small value and
 	// caps are subsequently clipped at too short distances. The resulting cracks get smoothed out by the anti-
 	// aliasing and are thus only hardly noticeable.
-	SET_MEMBER(render.style.cap_clip_distance, ds.avg_segment_length() * 20.f);
+	SET_MEMBER(render.style.cap_clip_distance, override_cap_clip_distance.value_or(20*ds.avg_segment_length()));
 #ifdef RTX_SUPPORT
 	// ###############################
 	// ### BEGIN: OptiX integration
@@ -1493,6 +1494,16 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 
 		update_tube_ribbon_toggle();
 		reset_taa = true;
+	}
+
+	// cap clip distance override
+	if (m.is(render.style.cap_clip_distance)) {
+		override_cap_clip_distance.reset();
+	}
+
+	// cap clip distance override
+	if (m.is(override_cap_clip_distance_proxy)) {
+		override_cap_clip_distance.emplace(override_cap_clip_distance_proxy);
 	}
 
 #ifdef RTX_SUPPORT

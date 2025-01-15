@@ -213,6 +213,7 @@ namespace cgv {
 				rh.reflect_member("line_primitive", line_primitive) &&
 				rh.reflect_member("radius", radius) &&
 				rh.reflect_member("radius_scale", radius_scale) &&
+				rh.reflect_member("cap_clip_distance", cap_clip_distance) &&
 				rh.reflect_member("rcribbon_linearity_thr", rcribbon.linearity_thr) &&
 				rh.reflect_member("rcribbon_screwiness_thr", rcribbon.screwiness_thr) &&
 				rh.reflect_member("rcribbon_subdiv_abort_thr", rcribbon.subdiv_abort_thr) &&

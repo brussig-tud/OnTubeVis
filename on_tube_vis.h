@@ -378,6 +378,8 @@ protected:
 	vec3 last_sort_dir;
 
 public:
+	float override_cap_clip_distance_proxy;
+	std::optional<float> override_cap_clip_distance;
 	otv::render_state render;
 	otv::otv_client  client {render};
 

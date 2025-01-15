@@ -579,7 +579,7 @@ std::vector<float> otv_client::convert_api_glyph_to_internal (
 	const auto &src_indices = lm.get_attrib_indices();
 	std::vector<float> data; data.reserve(glyph.N+2);
 	data.emplace_back(glyph.s);
-	data.emplace_back(0); // debug flag, not used when streaming
+	data.emplace_back(.0f); // debug flag, not used when streaming
 	switch (lcfg.shape_ptr->type())
 	{
 		case GT_COLOR:
