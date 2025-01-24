@@ -30,9 +30,14 @@ To compile the prototype into a working state, build either the `OnTubeVis` or `
 
 The only required dependency is the CGV Framework, which in turn only requires basic native development packages of the target OS. On Windows, having a working installation of Visual Studio and a recent NVIDIA graphics driver is sufficient, no additional packages/SDKs/libraries need to be installed for a non-OptiX-enabled build.
 
-On Ubuntu (and likely most other Debian-based Linux distros), the required native packages are
+On **Debian**-based distros including **Ubuntu** (and likely others as well) the required development packages are:
 ```
 libglx-dev libglew-dev libxinerama-dev libxi-dev
+```
+
+On distros from **OpenSUSE** (Leap, Tumbleweed, MicroOS/Aeon etc.) the required development packages are:
+```
+Mesa-libGL-devel glew-devel libXi-devel libXinerama-devel
 ```
 
 ## Short Usage Instructions
