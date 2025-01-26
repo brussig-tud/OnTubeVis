@@ -27,7 +27,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 1697ce4a2d95123521a78d7c482946153ceacdc7
+		GIT_TAG 11b13e14814204e36964db3771e7432c6912b685
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -285,9 +285,9 @@ cgv_add_target(OnTubeVis
 	SHADER_SOURCES  ${SHADERS}
 	RESOURCES       ${IMAGES}
 	DEPENDENCIES
-		glew json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui
-		cgv_render cgv_os cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d
-		cgv_app cgv_post cgv_gpgpu ${OPTIONAL_PLUGINS} ${OPTIONAL_DEPENDENCIES}
+		json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui cgv_render
+		cgv_os cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d cgv_app
+		cgv_post cgv_gpgpu ${OPTIONAL_PLUGINS} ${OPTIONAL_DEPENDENCIES}
 
 	LINKTIME_PLUGIN_DEPENDENCIES
 		cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
