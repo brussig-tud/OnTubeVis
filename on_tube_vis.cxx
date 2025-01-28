@@ -2626,13 +2626,13 @@ void on_tube_vis::after_finish(context& ctx) {
 	}
 }
 
-void on_tube_vis::signal_non_service_init() {
+void on_tube_vis::signal_non_service_init() {/*
 	std::lock_guard g(init_mtx);
 	otv_instance = this;
 	init_cv.notify_all();
 	non_service_init_signaled = true;
 	post_recreate_gui(); // make sure the button disappears
-}
+*/}
 
 void on_tube_vis::create_gui (void)
 {
@@ -2653,7 +2653,8 @@ void on_tube_vis::create_gui (void)
 
 	datapath_helper.create_gui("Data Path");
 
-	if (!run_as_service && !non_service_init_signaled) {
+	// TODO: Remove for good once final design is done
+	/*if (!run_as_service && !non_service_init_signaled) {
 		connect_copy(
 			add_button(
 				"Streaming API: signal init done", "tooltip='When not in Service mode, can be used"
@@ -2661,7 +2662,7 @@ void on_tube_vis::create_gui (void)
 			)->click,
 			cgv::signal::rebind(this, &on_tube_vis::signal_non_service_init)
 		);
-	}
+	}*/
 
 	add_member_control(this, "Bounds", bbox_rd.style.surface_color, "", "w=20", " ");
 	add_member_control(this, "Box", show_bbox, "toggle", "w=83", "%x+=2");
