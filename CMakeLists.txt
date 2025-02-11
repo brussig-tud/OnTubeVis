@@ -27,9 +27,15 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG ca91c6ffea234d93d8b91110d2918e4905da1dde
+		GIT_TAG 99f3d88cec7d0c27e491be9da393cdd1c4f0b681
 	)
 	FetchContent_MakeAvailable(cgv)
+endif()
+
+# check hard dependencies
+find_package(OpenGL REQUIRED)
+if (NOT TARGET OpenGL::GLU)
+	message(FATAL_ERROR "The OpenGL utility library (GLU) development files could not be found!" )
 endif()
 
 # check optional dependencies
@@ -287,7 +293,7 @@ cgv_add_target(OnTubeVis
 	DEPENDENCIES
 		json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui cgv_render
 		cgv_os cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d cgv_app
-		cgv_post cgv_gpgpu ${OPTIONAL_PLUGINS} ${OPTIONAL_DEPENDENCIES}
+		cgv_post cgv_gpgpu ${OPTIONAL_PLUGINS} ${OPTIONAL_DEPENDENCIES} OpenGL::GLU
 
 	LINKTIME_PLUGIN_DEPENDENCIES
 		cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
