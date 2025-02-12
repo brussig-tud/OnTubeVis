@@ -380,11 +380,10 @@ protected:
 public:
 	float override_cap_clip_distance_proxy;
 	std::optional<float> override_cap_clip_distance;
-	otv::render_state render;
-	otv::otv_client  client {render};
+	otv::render_state render, extrapol;
+	otv::otv_client  client {render, extrapol};
 
 protected:
-
 	int render_gui_dummy = 0;
 
 public:

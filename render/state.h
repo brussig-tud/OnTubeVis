@@ -94,40 +94,6 @@ public:
 	std::bitset<max_glyph_layers> active_glyph_layers = 0;
 
 
-	////
-	// EXTRAPOLATION
-
-	/// Encompasses all render state needed for drawing the extrapolated segments
-	struct {
-		/// GPU ring buffer containing the nodes of the extrapolated segments.
-		gpumem::ring_buffer<node_attribs> node_buffer;
-
-		/// GPU ring buffer containing extrapolated segments defined as pairs of absolute indices into
-		/// #node_buffer.
-		gpumem::ring_buffer<cgv::uvec2> segment_buffer;
-
-		/// GPU buffer storing which trajectory each segment belongs to.
-		/// Entries correspond to #segment_buffer.
-		gpumem::array<unsigned> seg_to_traj;
-
-		/// GPU buffer containing segment-wise arclength parametrization.
-		/// Entries correspond to #segment_buffer.
-		gpumem::array<cgv::mat4> t_to_s;
-
-		/// Attribute array manager for binding the resources containing the extrapolated segments to the renderer
-		cgv::render::attribute_array_manager aam;
-
-		/// GPU storage for glyphs to be rendered on the projected trajectory until real position measurements are
-		/// committed (these are duplicates, the glyphs will also already be entered into the "real" buffers so they're
-		/// ready ASAP after a new "real" segment is created).
-		per_layer<glyph_layer> glyphs;
-
-		/// GPU buffer storing which index range of `glyphs[_].attribs` is used for each
-		/// trajectory's glyph attribute buffer.
-		/// The entry for trajectory id _t_ and layer _l_ is stored at index _t * max_glyph_layers + l_.
-		gpumem::array<irange> traj_glyph_mem;
-	} extrapol;
-
 	/// Create, register and return an empty trajectory.
 	[[nodiscard]] trajectory &add_trajectory()
 	{
