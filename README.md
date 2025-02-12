@@ -32,12 +32,12 @@ The only required dependency is the CGV Framework, which in turn only requires b
 
 On **Debian**-based distros including **Ubuntu** (and likely others as well) the required development packages are:
 ```
-libglx-dev libglew-dev libxinerama-dev libxi-dev
+libglx-dev libglew-dev libxft-dev libxinerama-dev libxi-dev 
 ```
 
 On distros from **OpenSUSE** (Leap, Tumbleweed, MicroOS/Aeon etc.) the required development packages are:
 ```
-Mesa-libGL-devel glew-devel libXi-devel libXinerama-devel
+Mesa-libGL-devel glew-devel libXft-devel libXinerama-devel libXi-devel
 ```
 
 ## Short Usage Instructions
