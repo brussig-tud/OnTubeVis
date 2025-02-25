@@ -13,7 +13,10 @@ option(ENABLE_HOLOGRAPHY
 	"Use the experimental Holo-View-Interactor of the CGV Framework for holography-compatible camera management (suitable e.g. for Looking Glass™ displays)"
 	OFF
 )
-option(ENABLE_MAPTILES "Load the CGV maptiles_plugin to automatically display OpenStreetMaps tiles and 3D buildings" OFF )
+option(ENABLE_MAPTILES
+	"Load the CGV maptiles_plugin to automatically display OpenStreetMaps tiles and 3D buildings"
+	OFF
+)
 
 # Fetch the CGV Framework if it's not obviously present on the system
 if (DEFINED ENV{CGV_DIR})
@@ -27,7 +30,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 6d991f0241d609d198059c4d2ef3b7ebe40a5b3d
+		GIT_TAG 4ff6795ea904e4e28c031558eb84f1ec7087ac88
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
