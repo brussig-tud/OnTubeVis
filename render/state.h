@@ -2,6 +2,7 @@
 
 // C++ STL
 #include <bitset>
+#include <optional>
 
 // CGV framework GPU algorithms
 #include <cgv_gpgpu/visibility_sort.h>
@@ -147,15 +148,36 @@ public:
 		glyph_count_type  glyphs_per_trajectory
 	);
 
-	/// Calculate the extent of a glyph on the given layer along the trajectory, taking into account
-	/// the configured scale.
-	/// `glyph_data` must point to an array of attributes as they are stored in the render buffer,
-	/// including attributes that do not affect the size of the glyph, but excluding arc length and
-	/// debug info.
-	[[nodiscard]] float glyph_length(layer_index_type layer, const float *glyph_data) {
+	/// Calculate the extent of a glyph relative to its anchor point on the given layer along the trajectory, taking
+	/// into account the configured scale. Plot control points have flexible extents which cannot be determined in
+	/// isolation (they extend all the way to their neighboring control points), so in case of non-glyphs, a @a none
+	/// @c std::optional will be returned.
+	///
+	/// ToDo: `glyph_data` must point to an array of attributes as they are stored in the render buffer, including
+	/// attributes that do not affect the size of the glyph, but excluding arc length and debug info.
+	[[nodiscard]] std::optional<cgv::vec2> glyph_extents (layer_index_type layer, const float *glyph_data) {
 		// Streaming visualization only supports one dataset.
-		return visualizations[0].config.layer_configs[layer].glyph_length(glyph_data)
-			/ style.length_scale;
+		const float length_scale_x2 = (style.length_scale+style.length_scale); // to get radius instead of diameter
+		const float glyph_length = visualizations[0].config.layer_configs[layer].glyph_length(glyph_data);
+		if (glyph_length < 0)
+			return std::optional<unsigned>();
+		const float radius = std::max(
+			visualizations[0].config.layer_configs[layer].glyph_length(glyph_data) / length_scale_x2, 0.f
+		);
+		return std::make_optional<cgv::vec2>(-radius, radius);
+	}
+
+	/// Calculate the diameter of a glyph on the given layer along the trajectory, taking into account the configured
+	/// scale.
+	///
+	/// ToDo: `glyph_data` must point to an array of attributes as they are stored in the render buffer, including
+	/// attributes that do not affect the size of the glyph, but excluding arc length and debug info.
+	[[nodiscard]] std::optional<float> glyph_diameter (layer_index_type layer, const float *glyph_data) {
+		// Streaming visualization only supports one dataset.
+		const auto extents = glyph_extents(layer, glyph_data);
+		return map_optional(extents, [](const cgv::vec2 &extents) {
+			return extents.y() - extents.x();
+		});
 	}
 
 private:

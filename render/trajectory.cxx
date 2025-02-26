@@ -108,6 +108,11 @@ void trajectory::append_node (const node_attribs &node, const cgv::mat4 *t_to_s)
 	});
 }
 
+float trajectory::arclength (void) const {
+	return _last_segment_idx != nil ? *_render.t_to_s[_last_segment_idx].end() : 0;
+}
+
+
 void trajectory::update_glyphs ()
 {
 	// Nothing to do if no layers changed.
@@ -171,7 +176,7 @@ void trajectory::update_glyphs ()
 				}
 
 				glyph_center = *seg_attribs.begin;
-				glyph_radius = _render.glyph_length(layer_idx, &*seg_attribs.begin + 2) * 0.5f;
+				glyph_radius = .5f * _render.glyph_diameter(layer_idx, &*seg_attribs.begin + 2).value_or(-2);
 
 				// Found a glyph potentially on the segment.
 				// Negative glyph length indicates potentially infinite extent.
@@ -210,7 +215,7 @@ void trajectory::update_glyphs ()
 				}
 
 				glyph_center = *seg_attribs.end;
-				glyph_radius = _render.glyph_length(layer_idx, &*seg_attribs.end + 2) * 0.5f;
+				glyph_radius = .5f * _render.glyph_diameter(layer_idx, &*seg_attribs.begin + 2).value_or(-2);
 			}
 
 			// Calculate the initial glyph range of this trajectory's next segment, consisting of

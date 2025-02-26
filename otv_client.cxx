@@ -508,12 +508,40 @@ void otv_client::update ()
 	}
 }
 
-unsigned otv_client::enqueue_glyphs (
+std::optional<unsigned> otv_client::enqueue_glyphs (
 	trajectory_ref target, unsigned layer, const ro_range<std::vector<float>::iterator> &glyph_data
 ){
+	// Enqueue glyphs to "regular" trajectories
 	target.traj.enqueue_glyphs(layer, glyph_data);
+
+	// Find out how many of the glyphs we must also route to the current extrapolation
+	const unsigned num_glyphs = target.traj.attrib_to_glyph_count(layer, glyph_data.length()).value;
+	const unsigned stride = target.traj.glyph_to_attrib_count(layer, glyph_count_type{1});
+	const float smax = target.traj.arclength();
+	unsigned num_glyphs_nonextrapol = 0;
+	// - loop through new glyphs newest-to-oldest, to avoid needing special handling for plot control points
+	ro_range one_glyph = {glyph_data.end-stride, glyph_data.end};
+	float glyph_pos = get_glyph_pos(one_glyph);
+	auto glyph_extents = render.glyph_extents(layer, &*one_glyph.begin + 2)
+	                          	.value_or(cgv::vec2(.0f, .0f)); // no special handling for plot control points!
+	float glyph_max = glyph_pos + glyph_extents.y();
+	while (glyph_max >= smax && num_glyphs_nonextrapol < num_glyphs)
+	{
+		num_glyphs_nonextrapol++;
+		if (one_glyph.begin > glyph_data.begin) {
+			one_glyph -= stride;
+			glyph_pos = get_glyph_pos(one_glyph);
+			glyph_extents = render.glyph_extents(layer, &*one_glyph.begin + 2)
+			                	.value_or(cgv::vec2(.0f, .0f));  // again, no special handling required!
+			glyph_max = glyph_pos + glyph_extents.y();
+		}
+	}
+
+	// Done!
 	otv_instance->session_taa_keep_sampling = true;
-	return target.traj.attrib_to_glyph_count(layer, glyph_data.length()).value;
+	return num_glyphs_nonextrapol ?
+		std::make_optional(num_glyphs - num_glyphs_nonextrapol) : // Some(index)
+		std::optional<unsigned>(); // None
 }
 
 void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node, const cgv::mat4 *t_to_s)

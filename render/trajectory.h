@@ -73,7 +73,7 @@ public:
 	);
 
 	/// Release all resources associated with a glyph layer.
-	void destroy_glyph_layer(layer_index_type idx)
+	void destroy_glyph_layer (layer_index_type idx)
 	{
 		_layers[idx] = {};
 	}
@@ -83,6 +83,11 @@ public:
 	/// parametrization `t_to_s`.
 	/// If the trajectory is empty, no segment is created and `t_to_s` is ignored.
 	void append_node (const node_attribs &node, const cgv::mat4 *t_to_s);
+
+	/// report the current logical arclength of the whole trajectory. @a Logical here means that this value represents
+	/// the arclength since the very first node that was ever inserted, even if this node has long since been popped
+	/// off the tail end of the buffer.
+	float arclength (void) const;
 
 	/// Copy glyph attributes to a host-side buffer, from whence they will be added to the render
 	/// buffer on the next frame.

@@ -166,9 +166,14 @@ struct otv_client {
 		return { id, *render.try_get_trajectory(id) };
 	}
 
+	/// Extract the arclength position of the first glyph pointed to by the given @c ro_range @a glyph_data.
+	[[nodiscard]] constexpr float get_glyph_pos (const ro_range<std::vector<float>::iterator> &glyph_data) {
+		return *glyph_data.begin;
+	}
+
 	/// perform necessary logic to enqueue glyphs. Returns the index of the first glyph within the input range that
-	/// needed to be added to an extrapolation.
-	unsigned enqueue_glyphs (
+	/// needed to be added to an extrapolation, if any.
+	std::optional<unsigned> enqueue_glyphs (
 		trajectory_ref target, unsigned layer, const ro_range<std::vector<float>::iterator> &glyph_data
 	);
 
