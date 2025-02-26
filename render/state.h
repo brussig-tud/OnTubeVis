@@ -160,7 +160,7 @@ public:
 		const float length_scale_x2 = (style.length_scale+style.length_scale); // to get radius instead of diameter
 		const float glyph_length = visualizations[0].config.layer_configs[layer].glyph_length(glyph_data);
 		if (glyph_length < 0)
-			return std::optional<unsigned>();
+			return std::optional<cgv::vec2>();
 		const float radius = std::max(
 			visualizations[0].config.layer_configs[layer].glyph_length(glyph_data) / length_scale_x2, 0.f
 		);

@@ -167,7 +167,7 @@ struct otv_client {
 	}
 
 	/// Extract the arclength position of the first glyph pointed to by the given @c ro_range @a glyph_data.
-	[[nodiscard]] constexpr float get_glyph_pos (const ro_range<std::vector<float>::iterator> &glyph_data) {
+	[[nodiscard]] float get_glyph_pos (const ro_range<std::vector<float>::iterator> &glyph_data) {
 		return *glyph_data.begin;
 	}
 
