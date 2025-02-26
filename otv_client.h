@@ -155,6 +155,23 @@ struct otv_client {
 	/// append all data points up to the current timestamp to their respective trajectory.
 	void update (void);
 
+	/// Helper type for @ref #enqueue_glyph
+	struct trajectory_ref {
+		unsigned id;
+		otv::trajectory &traj;
+	};
+
+	/// Finds the trajectory with the given ID and returns a reference to it.
+	[[nodiscard]] trajectory_ref find_trajectory (unsigned id) const {
+		return { id, *render.try_get_trajectory(id) };
+	}
+
+	/// perform necessary logic to enqueue glyphs. Returns the index of the first glyph within the input range that
+	/// needed to be added to an extrapolation.
+	unsigned enqueue_glyphs (
+		trajectory_ref target, unsigned layer, const ro_range<std::vector<float>::iterator> &glyph_data
+	);
+
 	/// for service mode: enqueue a new hermite node to be uploaded to the GPU ring buffer of the indicated trajectory
 	/// NOTE: argument `node` will be updated with the color and radius (plus derivative) of the selected trajectory, so
 	/// the caller doesn't have to find that out itself, i.e. can just directly feed in the result of a call to

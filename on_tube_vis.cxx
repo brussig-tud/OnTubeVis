@@ -709,6 +709,12 @@ struct stream_ds_helper : public traj_format_handler<float>
 		4*BUFFER_SIZE_POS_SAMPLES, 4*BUFFER_SIZE_POS_SAMPLES, 4*BUFFER_SIZE_POS_SAMPLES, 4*BUFFER_SIZE_POS_SAMPLES
 	};
 
+	/// Create a phony dataset which, rather than containing any actual data, just mirrors the structure of the given
+	/// visualization setup, with the aim of hooking external streaming into the impossible-to-refactor non-streaming
+	/// layer configuration process.
+	///
+	/// We make some constant assumptions about the length of trajectory trails until we actually support changing that
+	/// in the setup-API.
 	static traj_dataset<float> create_streaming_dummy_dataset (const VisSetup &vis_setup)
 	{
 		// visual attribute source names for the dummy dataset
@@ -1669,6 +1675,7 @@ void on_tube_vis::update_glyph_layer_managers() {
 	}
 
 	render.visualizations.clear();
+	extrapol.visualizations.clear();
 	for (unsigned i=0; i< traj_mgr.num_datasets(); i++)
 	{
 		const auto& dataset = traj_mgr.dataset(i);
@@ -3029,19 +3036,32 @@ void on_tube_vis::update_attribute_bindings(void)
 		}
 
 		// Allocate ring buffers.
-		if (!(
-			render.create_geom_buffers(
-				/* number of maximally renderable elements */ num_nodes, // 100 * num_trajectories
-				/* number of additional elements reserved at the end of the ringbuffer where new stuff can be added
-				   without having to wait for the current frame to finish rendering */ num_trajectories // num_trajectories
-			)
-			&& render.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
-		)) {
+		if (// - actual trajectories
+		    !(
+		    	render.create_geom_buffers(
+		    		/* number of maximally renderable elements */ num_nodes, // 100 * num_trajectories
+		    		/* number of additional elements reserved at the end of the ringbuffer where new stuff can be added
+		    		   without having to wait for the current frame to finish rendering */ num_trajectories
+		    	)
+		    	&& render.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
+		    )
+		    ||
+		    // - extrapolation
+		    !(
+		    	extrapol.create_geom_buffers(
+		    		/* number of maximally renderable elements */ num_trajectories * 3,
+		    		/* number of additional elements reserved at the end of the ringbuffer where new stuff can be added
+		    		   without having to wait for the current frame to finish rendering */ num_trajectories
+		    	)
+		    	&& extrapol.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
+		    )
+		){
 			throw std::runtime_error("Error creating GPU buffers.");
 		}
 
 		// Create trajectories to fill ring buffers.
 		render.trajectories.clear();
+		extrapol.trajectories.clear();
 		client.trajectories.clear();
 
 		for (const auto &dataset : traj_mgr.datasets()) {
@@ -3063,6 +3083,7 @@ void on_tube_vis::update_attribute_bindings(void)
 					first_segment,
 					render.add_trajectory().id()
 				});
+				extrapol.add_trajectory();
 			}
 		}
 

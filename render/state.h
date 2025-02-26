@@ -95,7 +95,7 @@ public:
 
 
 	/// Create, register and return an empty trajectory.
-	[[nodiscard]] trajectory &add_trajectory()
+	trajectory& add_trajectory()
 	{
 		trajectories.push_back({static_cast<trajectory::id_type>(trajectories.size()), *this});
 		return trajectories.back();

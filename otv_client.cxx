@@ -464,13 +464,13 @@ void otv_client::update ()
 				break;
 			}
 
-			auto &render_traj {*render.try_get_trajectory(traj.id)};
+			auto target = find_trajectory(traj.id);
 
 			// the first node of each trajectory does not create a segment, so there is no arc
 			// length parametrization
 			const cgv::mat4 *t_to_s {nullptr};
 
-			if (! render_traj.is_empty()) {
+			if (! target.traj.is_empty()) {
 				t_to_s = &arclen_data.t_to_s.at(traj.segment_idx);
 			}
 
@@ -497,15 +497,23 @@ void otv_client::update ()
 				const auto begin {glyphs[layer_idx].ranges.at(traj.segment_idx).i0};
 				const auto end   {glyphs[layer_idx].ranges.at(traj.segment_idx).end()};
 
-				render_traj.enqueue_glyphs(layer_idx, ro_range{
-					data + render_traj.glyph_to_attrib_count(layer_idx, begin),
-					data + render_traj.glyph_to_attrib_count(layer_idx, end)
+				enqueue_glyphs(target, layer_idx, ro_range{
+					data + target.traj.glyph_to_attrib_count(layer_idx, begin),
+					data + target.traj.glyph_to_attrib_count(layer_idx, end)
 				});
 			});
 
 			++traj.segment_idx;
 		}
 	}
+}
+
+unsigned otv_client::enqueue_glyphs (
+	trajectory_ref target, unsigned layer, const ro_range<std::vector<float>::iterator> &glyph_data
+){
+	target.traj.enqueue_glyphs(layer, glyph_data);
+	otv_instance->session_taa_keep_sampling = true;
+	return target.traj.attrib_to_glyph_count(layer, glyph_data.length()).value;
 }
 
 void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node, const cgv::mat4 *t_to_s)
@@ -547,16 +555,16 @@ void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node
 
 void otv_client::service_push_glyph (unsigned traj_id, unsigned layer, std::vector<float> &&glyph_data)
 {
-	auto &render_traj = *render.try_get_trajectory(traj_id);
-	const auto &data = glyph_data.begin();
 	/* debug check */ {
 		const unsigned num_floats_gd = glyph_data.size();
-		const unsigned num_floats_internal = render_traj.glyph_to_attrib_count(layer, glyph_count_type{1});
+		const unsigned num_floats_internal = render.trajectories.front().glyph_to_attrib_count(
+			layer, glyph_count_type{1}
+		);
 		assert(num_floats_gd == num_floats_internal && "INTERNAL LOGIC ERROR: glyph data size mismatch!");
 	}
+	const auto &data = glyph_data.begin();
 	const auto data_range = ro_range{data, data + glyph_data.size()};
-	render_traj.enqueue_glyphs(layer, data_range);
-	otv_instance->session_taa_keep_sampling = true;
+	enqueue_glyphs(find_trajectory(traj_id), layer, data_range);
 }
 
 node_attribs otv_client::convert_api_node_to_internal (const OTV_HermiteNode &node) {

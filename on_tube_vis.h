@@ -382,6 +382,7 @@ public:
 	std::optional<float> override_cap_clip_distance;
 	otv::render_state render, extrapol;
 	otv::otv_client  client {render, extrapol};
+	bool streaming_start_extrapol = false;
 
 protected:
 	int render_gui_dummy = 0;
