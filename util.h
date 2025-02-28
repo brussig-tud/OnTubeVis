@@ -42,9 +42,37 @@ template <class T>
 ro_range(T, T) -> ro_range<T>;
 
 
+/// A map() operator for optionals, enabling functional programming-style handling of std::optional.
 template <typename O, typename F>
 auto map_optional (O &&o, F &&f) -> std::optional<decltype(f(*std::forward<O>(o)))> {
 	if (!o.has_value())
 		return std::nullopt;
 	return {f(*std::forward<O>(o))};
 }
+
+
+/// A simple RAII-style finalizer, making sure the finalizer code is called when the helper gets destroyed. In case
+/// the finalizer contains code that should not be called under some circumstances (e.g. when the parent function as
+/// a whole succeeds and allocated resources should thus not be destroyed), it can be programmatically disarmed.
+template <class Finalizer>
+struct finalizer
+{
+	bool armed = true;
+	Finalizer f;
+
+	/// Construct for the provided finalizer.
+	[[nodiscard]] explicit finalizer(Finalizer &&f) : f(std::move(f))
+	{}
+
+	~finalizer() {
+		if (armed)
+			f();
+	}
+
+	/// Disarm iff the provided @a disarmed flag is @c true . Disarming means that when the finalizer is triggered, it
+	/// will not actually be executed. Forwards the passed in boolean as return.
+	bool disarm (bool disarmed=true) {
+		armed = !disarmed;
+		return disarmed;
+	}
+};

@@ -3055,6 +3055,7 @@ void on_tube_vis::update_attribute_bindings(void)
 		    	)
 		    	&& extrapol.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
 		    )
+		    || !client.extrapol_mgr.create_geom_buffers(num_trajectories, 3)
 		){
 			throw std::runtime_error("Error creating GPU buffers.");
 		}
