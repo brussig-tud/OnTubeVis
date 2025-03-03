@@ -1749,6 +1749,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			// get context
 			const auto &ctx = *get_context();
 
+			client.extrapol_mgr.create_glyph_and_per_layer_buffers((unsigned)gc.layer_filled.size());
 			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
 				if (! gc.layer_filled[layer_idx]) {
 					// Clear layer for client and renderer.
@@ -1771,17 +1772,16 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					gl.attribs = attribs;
 
 					// Allocate GPU buffers for glyph-related data.
-					if (! render.create_glyph_layer(
-						layer_idx,
-						client.glyphs[layer_idx].attribs.count + 2,
-						client.trajectories.size(),
-						glyph_count_type{(int)session_glyphbuf_size}
-					)) {
+					if (!render.create_glyph_layer(
+					    	layer_idx,
+					    	client.glyphs[layer_idx].attribs.count + 2,
+					    	client.trajectories.size(),
+					    	glyph_count_type{(int)session_glyphbuf_size}
+					    )
+					)
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
-					}
 
-					// - sanity check
-					{
+					/* sanity check */ {
 						const auto num_ranges {ranges.size()};
 						const auto num_segs   {client.data->indices.size() / 2};
 						assert(num_ranges == num_segs);
@@ -3044,18 +3044,17 @@ void on_tube_vis::update_attribute_bindings(void)
 		    		   without having to wait for the current frame to finish rendering */ num_trajectories
 		    	)
 		    	&& render.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
-		    )
-		    ||
+		    ) ||
 		    // - extrapolation
-		    !(
-		    	extrapol.create_geom_buffers(
-		    		/* number of maximally renderable elements */ num_trajectories * 3,
-		    		/* number of additional elements reserved at the end of the ringbuffer where new stuff can be added
-		    		   without having to wait for the current frame to finish rendering */ num_trajectories
-		    	)
-		    	&& extrapol.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
-		    )
-		    || !client.extrapol_mgr.create_geom_buffers(num_trajectories, 3)
+		    //!(
+		    //	extrapol.create_geom_buffers(
+		    //		/* number of maximally renderable elements */ num_trajectories * 3,
+		    //		/* number of additional elements reserved at the end of the ringbuffer where new stuff can be added
+		    //		   without having to wait for the current frame to finish rendering */ num_trajectories
+		    //	)
+		    //	&& extrapol.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
+		    //)
+		    !client.extrapol_mgr.create_geom_buffers(num_trajectories, 3)
 		){
 			throw std::runtime_error("Error creating GPU buffers.");
 		}

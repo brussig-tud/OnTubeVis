@@ -127,7 +127,7 @@ public:
 	[[nodiscard]] span<T> reinterpret_as () const noexcept;
 
 	/// The memory spanned by this object as raw bytes.
-	/// Equivalent to `reinterpret_as<std:byte>`.
+	/// Equivalent to `reinterpret_as<std::byte>`.
 	[[nodiscard]] span<std::byte> bytes () const noexcept
 	{
 		return reinterpret_as<std::byte>();
