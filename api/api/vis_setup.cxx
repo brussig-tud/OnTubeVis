@@ -70,3 +70,7 @@ OTV_API bool otv__add_layer (OTV_VisSetupHandle vis_setup, const OTV_LayerConfig
 OTV_API void otv__geo_reference (OTV_VisSetupHandle vis_setup, const double latitude, const double longitude) {
 	((VisSetup*)vis_setup)->georef->set(latitude, longitude);
 }
+
+OTV_API void otv__extrapolation_length (OTV_VisSetupHandle vis_setup, const uint32_t num_segments) {
+	((VisSetup*)vis_setup)->num_extrapol_segments = num_segments;
+}

@@ -418,6 +418,19 @@ OTV_API void otv__stream_spline_node (
 	/* we don't wait for the result... */
 }
 
+OTV_API void otv__stream_spline_node_and_extrapol (
+	const uint32_t traj_id, const OTV_HermiteNode *node, const OTV_SegmentArclen *arclen,
+	const OTV_Extrapolation *extrapol
+){
+	// Compile and submit command
+	const auto nn_cmd = arclen ?
+		  std::make_shared<stream_spline_node_command>(traj_id, *node, *arclen)
+		: std::make_shared<stream_spline_node_command>(traj_id, *node);
+	command_stream::push(nn_cmd);
+
+	/* we don't wait for the result... */
+}
+
 OTV_API OTV_SegmentArclen otv__compute_arclen (
 	const OTV_HermiteNode *node0, const OTV_HermiteNode *node1, const float sigma
 ){

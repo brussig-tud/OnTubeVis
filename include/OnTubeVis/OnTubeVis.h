@@ -57,6 +57,26 @@ typedef struct OTV_SegmentArclen {
 	OTV_Vec4 coeffs[4];
 } OTV_SegmentArclen;
 
+/// @brief Structure encapsulating all information related to @link extrapolation otv__extrapolation_length @endlink.
+typedef struct OTV_Extrapolation
+{
+	/**
+	 * @brief
+	 *		Pointer to an array of hermite nodes making up the extrapolated path, excluding the start node (which is
+	 *		always implicit). The number of nodes pointed-to by this field must not be less than the @link number of
+	 *		segments configured during setup otv__extrapolation_length @endlink.
+	 */
+	OTV_HermiteNode *nodes;
+
+	/**
+	 * @brief
+	 *		Pointer to an array of arc length approximations for segments of the extrapolated path. The number of
+	 *		elements in the array pointed-to by this field must not be less than the @link number of segments configured
+	 *		during setup otv__extrapolation_length @endlink.
+	 */
+	OTV_SegmentArclen *arclens;
+} OTV_Extrapolation;
+
 
 
 //////
@@ -253,11 +273,18 @@ extern otv__instantiate_Glyph_funct otv__instantiate_Glyph;
 
 #ifndef OTV_NO_PROTOTYPES
 /**
- * @brief Stream a spline node (made up of position, tangent and a timestamp) to the indicated trajectory.
+ * @brief
+ *		Stream a spline node (made up of position, tangent and a timestamp) to the indicated trajectory, when the
+ *		active visualization is @link set up otv__extrapolation_length @endlink to @b not use smooth
+ *		extrapolation.
  *
  * To accomodate time-critical realtime processes, this function is "fire-and-forget", i.e. no checks will be done to
  * determine whether the sample was processed successfully. Instead, the function will return immediatly after the
  * command to add the sample was submitted.
+ *
+ * Using this function on a @link setup that uses at least one extrapolation segment otv__extrapolation_length @endlink
+ * will cause the extrapolation to be @a point-like, i.e. all extrapolated nodes will be set to the position of the
+ * passed-in spline node.
  *
  * @param traj_id The trajectory to stream the node to.
  * @param node The Hermite node to stream.
@@ -286,6 +313,56 @@ typedef void(*otv__stream_spline_node_funct)(const uint32_t, const OTV_HermiteNo
 #ifdef OTV_NO_PROTOTYPES
 /// @copydoc otv__stream_spline_node()
 extern otv__stream_spline_node_funct otv__stream_spline_node;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__stream_spline_node_and_extrapol
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief
+ *		Stream a spline node (made up of position, tangent and a timestamp) to the indicated trajectory, as well as the
+ *		extrapolated path to use for smooth position refreshs and displaying as-of-yet- orphaned glyphs.
+ *
+ * To accomodate time-critical realtime processes, this function is "fire-and-forget", i.e. no checks will be done to
+ * determine whether the sample was processed successfully. Instead, the function will return immediatly after the
+ * command to add the sample was submitted.
+ *
+ * Using this function on a @link setup that uses no extrapolation segments otv__extrapolation_length @endlink
+ * will cause the provided extrapolation to be ignored.
+ *
+ * @param traj_id The trajectory to stream the node to.
+ * @param node The Hermite node to stream.
+ * @param arclen
+ *		The approximate arclength parameterization of the segment between the most recent and this new node. In case of
+ *		the very first sample in a trajectory, this parameter is ignored (it may be @c NULL).
+ * @param extrapol The extrapolated path after the provided @a node.
+ *
+ * @note
+ *		Nodes of a trajectory are expected to be submitted in <b>monotonically increasing time-order</b>! Nodes that
+ *		arrive <b>out-of-order</b> may be <b>discarded</b> by the implementation.
+ *
+ * @todo
+ *		If nodes are discarded due to wrong ordering, the trajectory arc length seen by OnTubeVis and the one assumed by
+ *		the client will be out-of-sync. This will never happen for direct in-memory communication (unless the client is
+ *		buggy), but can become a real issue if streaming is done over the network. <b>ToDo:</b> Investigate strategies
+ *		to deal with that.
+ */
+OTV_API void otv__stream_spline_node_and_extrapol (
+	const uint32_t traj_id, const OTV_HermiteNode *node, const OTV_SegmentArclen *arclen,
+	const OTV_Extrapolation *extrapol
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__stream_spline_node_and_extrapol() function.
+typedef void(*otv__stream_spline_node_and_extrapol_funct)(
+	const uint32_t, const OTV_HermiteNode*, const OTV_SegmentArclen*, const OTV_Extrapolation*
+);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__stream_spline_node_and_extrapol()
+extern otv__stream_spline_node_and_extrapol_funct otv__stream_spline_node_and_extrapol;
 #endif
 
 

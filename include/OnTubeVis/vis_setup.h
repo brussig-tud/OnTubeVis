@@ -188,4 +188,42 @@ extern otv__geo_reference_funct otv__geo_reference;
 #endif
 
 
+// --------------------------------------------------------------------------------------------------------------------
+// otv__extrapolation_length
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief
+ *		Set the amount of Hermite spline segments that should be used for smooth extrapolation of the trajectory while
+ *		waiting for new @link spline nodes otv__stream_spline_node @endlink to arrive. Setting this to 0 disables
+ *		displaying of extrapolations entirely.
+ *
+ * In the time between submission of spline nodes, which can (and ideally should) be streamed relatively infrequent
+ * (≤ 1/s) to utilize the expressiveness of cubic curves, an extrapolation can be displayed. This enables (a) smooth,
+ * continuous updates of the trajectory at screen refresh rates and (b) displaying glyphs / updating plots on the
+ * current, to-be-completed segment pending an actual position measurement.
+ *
+ * The API does not provide or use any sort of predictive models, instead the prediction should be made by the client
+ * and submitted to the API. Depending on the sophistication that clients want in their prediction, the number of
+ * extrapolated segments can be adjusted to account for more complex paths.
+ *
+ * When a new measurement arrives, implementations are expected to subdivide the current segment of the extrapolation at
+ * the exact time of the measurement, and smoothly morph the resulting set of extrapolated segments onto the actually
+ * measured new segment. Exactly how this happens is up to the implementation.
+ *
+ * @param vis_setup The visualization setup to set the extrapolation length for.
+ * @param num_segments The desired length of the trajectory extrapolations, in segments.
+ */
+OTV_API void otv__extrapolation_length (OTV_VisSetupHandle vis_setup, const uint32_t num_segments);
+#endif
+
+/// @brief The function pointer type for the @c otv__extrapolation_length() function.
+typedef void(*otv__extrapolation_length_funct)(OTV_VisSetupHandle, const double, const double);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__extrapolation_length()
+extern otv__extrapolation_length_funct otv__extrapolation_length;
+#endif
+
+
 #endif // ifdef __VIS_SETUP_H__

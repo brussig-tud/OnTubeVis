@@ -114,6 +114,7 @@ struct VisSetup
 	std::atomic<uint32_t> counter{0};
 	std::vector<OTV_LayerConfig> layers;
 	std::vector<trajectory_setup> trajs;
+	unsigned num_extrapol_segments = 0;
 	std::optional<cgv::dvec2> georef;
 
 	VisSetup& operator = (const VisSetup &other)
