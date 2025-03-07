@@ -826,6 +826,10 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 	std::clog << "OnTubeVis internals: preparing streaming dummy dataset" << std::endl<<std::endl;
 	traj_dataset<float> stream_ds = stream_ds_helper::create_streaming_dummy_dataset(vis_setup);
 
+	// setup client parameters
+	client.extrapol_mgr.clear();
+	client.num_extrapol_segments = vis_setup.num_extrapol_segments;
+
 	// build up glyph attribute mappings
 	std::vector<gam_info> layer_gams;
 	layer_gams.reserve(vis_setup.layers.size());
@@ -1752,7 +1756,10 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			// get context
 			const auto &ctx = *get_context();
 
-			client.extrapol_mgr.create_glyph_and_per_layer_buffers((unsigned)gc.layer_filled.size());
+			// setup extrapolation to receive glyphs
+			if (client.num_extrapol_segments)
+				client.extrapol_mgr.create_glyph_and_per_layer_buffers((unsigned)gc.layer_filled.size());
+
 			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
 				if (! gc.layer_filled[layer_idx]) {
 					// Clear layer for client and renderer.
@@ -3057,7 +3064,10 @@ void on_tube_vis::update_attribute_bindings(void)
 		    //	)
 		    //	&& extrapol.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
 		    //)
-		    !client.extrapol_mgr.create_geom_buffers(num_trajectories, 3)
+		    !(
+		    	   client.num_extrapol_segments == 0
+		    	|| client.extrapol_mgr.create_geom_buffers(num_trajectories, client.num_extrapol_segments)
+		    )
 		){
 			throw std::runtime_error("Error creating GPU buffers.");
 		}

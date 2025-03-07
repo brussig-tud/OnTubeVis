@@ -195,8 +195,8 @@ extern otv__geo_reference_funct otv__geo_reference;
 /**
  * @brief
  *		Set the amount of Hermite spline segments that should be used for smooth extrapolation of the trajectory while
- *		waiting for new @link spline nodes otv__stream_spline_node @endlink to arrive. Setting this to 0 disables
- *		displaying of extrapolations entirely.
+ *		waiting for new @link otv__stream_spline_node_and_extrapol spline nodes @endlink to arrive. Setting this to 0
+ *		disables extrapolation display entirely.
  *
  * In the time between submission of spline nodes, which can (and ideally should) be streamed relatively infrequent
  * (≤ 1/s) to utilize the expressiveness of cubic curves, an extrapolation can be displayed. This enables (a) smooth,

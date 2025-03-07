@@ -57,22 +57,22 @@ typedef struct OTV_SegmentArclen {
 	OTV_Vec4 coeffs[4];
 } OTV_SegmentArclen;
 
-/// @brief Structure encapsulating all information related to @link extrapolation otv__extrapolation_length @endlink.
+/// @brief Structure encapsulating all information related to @link otv__extrapolation_length extrapolation @endlink.
 typedef struct OTV_Extrapolation
 {
 	/**
 	 * @brief
 	 *		Pointer to an array of hermite nodes making up the extrapolated path, excluding the start node (which is
-	 *		always implicit). The number of nodes pointed-to by this field must not be less than the @link number of
-	 *		segments configured during setup otv__extrapolation_length @endlink.
+	 *		always implicit). The number of nodes pointed-to by this field must not be less than the @link
+	 *		otv__extrapolation_length number of segments configured during setup @endlink.
 	 */
 	OTV_HermiteNode *nodes;
 
 	/**
 	 * @brief
 	 *		Pointer to an array of arc length approximations for segments of the extrapolated path. The number of
-	 *		elements in the array pointed-to by this field must not be less than the @link number of segments configured
-	 *		during setup otv__extrapolation_length @endlink.
+	 *		elements in the array pointed-to by this field must not be less than the @link otv__extrapolation_length
+	 *		number of segments configured during setup @endlink.
 	 */
 	OTV_SegmentArclen *arclens;
 } OTV_Extrapolation;
@@ -275,14 +275,14 @@ extern otv__instantiate_Glyph_funct otv__instantiate_Glyph;
 /**
  * @brief
  *		Stream a spline node (made up of position, tangent and a timestamp) to the indicated trajectory, when the
- *		active visualization is @link set up otv__extrapolation_length @endlink to @b not use smooth
+ *		active visualization is @link otv__extrapolation_length set up @endlink to @b not use smooth
  *		extrapolation.
  *
- * To accomodate time-critical realtime processes, this function is "fire-and-forget", i.e. no checks will be done to
+ * To accommodate time-critical realtime processes, this function is "fire-and-forget", i.e. no checks will be done to
  * determine whether the sample was processed successfully. Instead, the function will return immediatly after the
  * command to add the sample was submitted.
  *
- * Using this function on a @link setup that uses at least one extrapolation segment otv__extrapolation_length @endlink
+ * Using this function on a @link otv__extrapolation_length setup that uses at least one extrapolation segment @endlink
  * will cause the extrapolation to be @a point-like, i.e. all extrapolated nodes will be set to the position of the
  * passed-in spline node.
  *
@@ -323,13 +323,14 @@ extern otv__stream_spline_node_funct otv__stream_spline_node;
 /**
  * @brief
  *		Stream a spline node (made up of position, tangent and a timestamp) to the indicated trajectory, as well as the
- *		extrapolated path to use for smooth position refreshs and displaying as-of-yet- orphaned glyphs.
+ *		extrapolated path @a following the node that should be used for smooth position refreshes and displaying
+ *		as-of-yet orphaned glyphs.
  *
- * To accomodate time-critical realtime processes, this function is "fire-and-forget", i.e. no checks will be done to
- * determine whether the sample was processed successfully. Instead, the function will return immediatly after the
+ * To accommodate time-critical realtime processes, this function is "fire-and-forget", i.e. no checks will be done to
+ * determine whether the sample was processed successfully. Instead, the function will return immediately after the
  * command to add the sample was submitted.
  *
- * Using this function on a @link setup that uses no extrapolation segments otv__extrapolation_length @endlink
+ * Using this function on a @link otv__extrapolation_length setup that uses no extrapolation segments @endlink
  * will cause the provided extrapolation to be ignored.
  *
  * @param traj_id The trajectory to stream the node to.
