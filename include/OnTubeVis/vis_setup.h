@@ -155,4 +155,37 @@ extern otv__add_layer_funct otv__add_layer;
 #endif
 
 
+// --------------------------------------------------------------------------------------------------------------------
+// otv__geo_reference
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief
+ *		Provide a geo reference for the trajectory data. Implementations may act on this by e.g. displaying map data, 3D
+ *		buildings etc. around the trajectories.
+ *
+ * When a geo reference is provided for a @link OTV_VisSetup visualization setup @endlink, then all 3D coordinates
+ * submitted to the API under this setup will be interpreted as being Cartesian coordinates with unit 1 meter, obtained
+ * from transforming @a UTM/WGS84 coordinates using this reference point for the Cartesian origin <code>(0,0,0)</code>.
+ *
+ * @note
+ *		The API does not define what implementations should do with the geographic reference, or if they should do
+ *		anything at all with it.
+ *
+ * @param vis_setup The visualization setup to attach the geo reference to.
+ * @param latitude The latitude of the geo reference.
+ * @param longitude The latitude of the geo reference.
+ */
+OTV_API void otv__geo_reference (OTV_VisSetupHandle vis_setup, const double latitude, const double longitude);
+#endif
+
+/// @brief The function pointer type for the @c otv__geo_reference() function.
+typedef void(*otv__geo_reference_funct)(OTV_VisSetupHandle, const double, const double);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__geo_reference()
+extern otv__geo_reference_funct otv__geo_reference;
+#endif
+
+
 #endif // ifdef __VIS_SETUP_H__

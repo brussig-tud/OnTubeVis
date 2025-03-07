@@ -66,3 +66,7 @@ OTV_API bool otv__add_layer (OTV_VisSetupHandle vis_setup, const OTV_LayerConfig
 	          << " - setup for '"+vs.name+"' now has "<<vs.layers.size()<<" layer(s)." << std::endl;
 	return true;
 }
+
+OTV_API void otv__geo_reference (OTV_VisSetupHandle vis_setup, const double latitude, const double longitude) {
+	((VisSetup*)vis_setup)->georef->set(latitude, longitude);
+}

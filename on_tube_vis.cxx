@@ -765,6 +765,9 @@ struct stream_ds_helper : public traj_format_handler<float>
 		// apply visual attribute mapping
 		ds.set_mapping(attrmap);
 
+		// Set geo reference
+		geo_reference(ds) = vis_setup.georef;
+
 		// done
 		return ds;
 	}

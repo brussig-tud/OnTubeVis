@@ -18,9 +18,10 @@
 #include <unordered_map>
 #include <atomic>
 #include <mutex>
-#include <condition_variable>
+#include <optional>
 
 // Public interface
+#include <cgv/math/fvec.h>
 #include <OnTubeVis/OnTubeVis.h>
 
 
@@ -113,6 +114,7 @@ struct VisSetup
 	std::atomic<uint32_t> counter{0};
 	std::vector<OTV_LayerConfig> layers;
 	std::vector<trajectory_setup> trajs;
+	std::optional<cgv::dvec2> georef;
 
 	VisSetup& operator = (const VisSetup &other)
 	{
