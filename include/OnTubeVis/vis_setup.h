@@ -169,8 +169,8 @@ extern otv__add_layer_funct otv__add_layer;
  * from transforming @a UTM/WGS84 coordinates using this reference point for the Cartesian origin <code>(0,0,0)</code>.
  *
  * @note
- *		The API does not define what implementations should do with the geographic reference, or if they should do
- *		anything at all with it.
+ *		The API does not define what exactly implementations should do with the geographic reference, or if they should
+ *		do anything at all with it.
  *
  * @param vis_setup The visualization setup to attach the geo reference to.
  * @param latitude The latitude of the geo reference.
