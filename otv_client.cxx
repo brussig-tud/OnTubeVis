@@ -12,10 +12,42 @@
 // Implemented header
 #include "otv_client.h"
 
+#include <glm/vec3.hpp>
+
 #include "on_tube_vis.h"
 
 
 namespace otv {
+
+void extrapolation_node::compute_path (
+	std::vector<extrapolation_node> &out, const unsigned num, const node_attribs &ref_node0,
+	const node_attribs &ref_node1, const cgv::mat4 &ref_t_to_s
+){
+	// Compute extrapolation parameters
+	const float r = ref_node0.pos_rad.w();
+	const auto p1 = cgv::vec3(ref_node1.pos_rad);
+	const auto m1 = cgv::vec3(ref_node1.tangent);
+	const auto m1_len = m1.length();
+	const float t1 = ref_node1.t.x();
+	const float dt = t1 - ref_node0.t.x();
+
+	// Extrapolate
+	extrapolation_node prev_extrapol = {
+		ref_node1, ref_t_to_s
+	};
+	for (unsigned i=0; i<num; i++)
+	{
+		const node_attribs new_node {
+			cgv::vec4(p1 + float(i)*m1, r), ref_node1.color, cgv::vec4(m1, 0),
+			cgv::vec4(t1 + float(i)*dt, 0, 0, 0)
+		};
+		const extrapolation_node new_extrapol {
+			new_node, arclen::single_linear_t_to_s(m1_len, /*sigma: */ prev_extrapol.t_to_s[15])
+		};
+		out.emplace_back(new_extrapol);
+		prev_extrapol = new_extrapol;
+	}
+}
 
 OTV_ColorMap colormap_name_to_api_enum (const std::string &name)
 {
@@ -452,13 +484,17 @@ void otv_client::update ()
 	session.wait_init_ready();
 
 	// extend all trajectories based on the animation time, emulating streaming
+	cgv::utils::stopwatch sw;
+	std::vector<extrapolation_node> extrapol_nodes;
+	extrapol_nodes.reserve(num_extrapol_segments);
+	std::clog << "otv_client::update(): starting update for t="<<render.style.max_t<<"s\n";
 	for (auto &traj : trajectories) {
 		// add new nodes, and thereby new segments
 		for (
 			auto &node_idx = traj.node_idcs.begin;
 			node_idx < traj.node_idcs.end;
 			++node_idx
-		) {
+		){
 			// only add data up to the current playback time
 			if (data->timestamps[node_idx] > render.style.max_t) {
 				break;
@@ -466,26 +502,50 @@ void otv_client::update ()
 
 			auto target = find_trajectory(traj.id);
 
+			// construct first GPU node
+			const auto col = data->colors[node_idx];
+			const node_attribs new_node {
+				{data->positions[node_idx], data->radii[node_idx]},
+				{col.R(), col.G(), col.B(), 1},
+				data->tangents[node_idx],
+				{data->timestamps[node_idx], 0, 0, 0}
+			};
+
 			// the first node of each trajectory does not create a segment, so there is no arc
 			// length parametrization
 			const cgv::mat4 *t_to_s {nullptr};
 
-			if (! target.traj.is_empty()) {
+			extrapol_nodes.clear();
+			if (! target.traj.is_empty())
+			{
+				// Compute arc length
 				t_to_s = &arclen_data.t_to_s.at(traj.segment_idx);
+
+				// Extrapolate from previous segment
+				const auto &prev_node = target.traj.most_recent_node();
+				extrapolation_node::compute_path(
+					extrapol_nodes, num_extrapol_segments, prev_node, new_node, *t_to_s
+				);
+			}
+			else
+			{
+				// Init with "blank" extrapolation (just the straight line segment that follows from the first tangent)
+				const auto pos0 = cgv::vec3(new_node.pos_rad), tan = cgv::vec3(new_node.tangent);
+				const auto extrapol_node = node_attribs {
+					cgv::vec4(pos0 + tan, new_node.pos_rad.w()),
+					new_node.color, cgv::vec4(tan, 0), cgv::vec4(new_node.t.x()+1, 0, 0, 0)
+				};
+				extrapolation_node::compute_path(
+					extrapol_nodes, num_extrapol_segments, new_node, extrapol_node,
+					arclen::compute_single_t_to_s(
+						pos0, tan, cgv::vec3(new_node.pos_rad), tan, .0f
+					)
+				);
 			}
 
 			// append a node, potentially creating a new segment
-			auto col = data->colors[node_idx];
-			render.enqueue_node(
-				traj.id,
-				{
-					{data->positions[node_idx], data->radii[node_idx]},
-					{col.R(), col.G(), col.B(), 1},
-					data->tangents[node_idx],
-					{data->timestamps[node_idx], 0, 0, 0}
-				},
-				t_to_s
-			);
+			enqueue_node(target, new_node, t_to_s, extrapol_nodes);
+			//render.enqueue_node(traj.id, node, t_to_s );
 
 			if (t_to_s == nullptr) {
 				continue;
@@ -506,6 +566,13 @@ void otv_client::update ()
 			++traj.segment_idx;
 		}
 	}
+	std::clog << "otv_client::update(): took "<<sw.get_elapsed_time()<<"s\n";
+}
+void otv_client::enqueue_node (
+	trajectory_ref target, const node_attribs &node, const cgv::mat4 *t_to_s,
+	const std::vector<extrapolation_node> &extrapol
+){
+	render.enqueue_node(target.id, node, t_to_s);
 }
 
 std::optional<unsigned> otv_client::enqueue_glyphs (
@@ -547,7 +614,8 @@ std::optional<unsigned> otv_client::enqueue_glyphs (
 void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node, const cgv::mat4 *t_to_s)
 {
 	// obtain the trajectory we want to stream into
-	auto &render_traj = *render.try_get_trajectory(traj_id);
+	//auto &render_traj = *render.try_get_trajectory(traj_id);
+	auto target = find_trajectory(traj_id);
 
 	// get the desired base color and radius of the trajectory from the dummy dataset
 	const auto &traj_range = data->datasets[0].trajs[traj_id];
@@ -556,7 +624,8 @@ void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node
 	auto radius = data->radii[ds_idx.first];
 	node.color.set(color.R(), color.G(), color.B(), 1);
 	node.pos_rad.w() = radius; node.tangent.w() = 0;
-	render.enqueue_node(traj_id, node, render_traj.is_empty() ? nullptr : t_to_s);
+	//render.enqueue_node(traj_id, node, render_traj.is_empty() ? nullptr : t_to_s);
+	enqueue_node(target, node, target.traj.is_empty() ? nullptr : t_to_s, {});
 
 	// update bounding box
 	static const auto diag = []() -> cgv::vec3 {

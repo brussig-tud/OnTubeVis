@@ -27,7 +27,7 @@ typedef struct OTV_Vec2
 } OTV_Vec2;
 
 /**
- * @brief A convenience struct for representing 2D vectors.
+ * @brief A convenience struct for representing 3D vectors.
  *
  * @see otv__Vec3()
  */
@@ -44,7 +44,7 @@ typedef struct OTV_Vec3
 } OTV_Vec3;
 
 /**
- * @brief A convenience struct for representing 2D vectors.
+ * @brief A convenience struct for representing 4D vectors.
  *
  * @see otv__Vec4()
  */

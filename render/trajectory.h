@@ -84,6 +84,12 @@ public:
 	/// If the trajectory is empty, no segment is created and `t_to_s` is ignored.
 	void append_node (const node_attribs &node, const cgv::mat4 *t_to_s);
 
+	/// Reference the most recently appended node. The contents of the memory behind the returned reference is undefined
+	/// if no node has ever been appended before the call to this method.
+	[[nodiscard]] const node_attribs& most_recent_node (void) const {
+		return _most_recent_node;
+	}
+
 	/// report the current logical arclength of the whole trajectory. @a Logical here means that this value represents
 	/// the arclength since the very first node that was ever inserted, even if this node has long since been popped
 	/// off the tail end of the buffer.
@@ -162,6 +168,8 @@ private:
 	render_state &_render;
 	/// The absolute index of the last entry in the node buffer belonging to this trajectory.
 	gpumem::index_type _last_node_idx {nil};
+	/// A copy of the most recently appended node.
+	node_attribs _most_recent_node;
 	/// Absolute index of the first, i.e. oldest, entry in the segment buffer belonging to this
 	/// trajectory.
 	gpumem::index_type _first_segment_idx {nil};

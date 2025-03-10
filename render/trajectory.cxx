@@ -54,6 +54,7 @@ void trajectory::append_node (const node_attribs &node, const cgv::mat4 *t_to_s)
 	// Store additional information on the node.
 	_render._node_to_traj[_last_node_idx]        = _id;
 	_render._node_starts_segment[_last_node_idx] = false;
+	_most_recent_node = node;
 
 	// If this node is the first one on the trajectory, there is nothing more to do.
 	if (prev_node_idx == nil) {

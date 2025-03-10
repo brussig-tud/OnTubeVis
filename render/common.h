@@ -3,6 +3,10 @@
 // CGV framework
 #include <cgv/math/fvec.h>
 
+// Local includes
+#include <OnTubeVis/OnTubeVis.h>
+
+
 
 /// data layout for per-node attributes within the attribute render SSBO
 struct node_attribs {
@@ -10,6 +14,23 @@ struct node_attribs {
 	cgv::vec4 color;
 	cgv::vec4 tangent;
 	cgv::vec4 t; // only uses .x component to store t, yzw are reserved for future use
+
+	inline static node_attribs from_api_node (
+		const OTV_HermiteNode &node, const float radius, const cgv::vec4 &color
+	){
+		return {
+			cgv::vec4(node.position.x, node.position.y, node.position.z, radius),
+			color, cgv::vec4(node.tangent.x, node.tangent.y, node.tangent.z, 0),
+			cgv::vec4(node.time, 0, 0, 0)
+		};
+	}
+
+	inline OTV_HermiteNode into_api_node (void) const {
+		return {
+			t.x(), otv__Vec3(pos_rad.x(), pos_rad.y(), pos_rad.z()),
+			otv__Vec3(tangent.x(), tangent.y(), tangent.z())
+		};
+	}
 };
 
 

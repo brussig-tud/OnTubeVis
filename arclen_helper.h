@@ -33,8 +33,14 @@ namespace arclen
 		std::vector<cgv::mat4> s_to_t;
 	};
 
-	// compute the t-to-s parameterization for a single curve segment, applying the specified offset to all values of s
-	// the parameterization yiels.
+	/// compute the t-to-s parameterization for a single <b>linear</b> curve segment which is known to be @a dist
+	/// units long, and apply the given offset to the parameterization. This is very fast compared to @ref
+	/// compute_single_t_to_s().
+	template <class flt_type>
+	cgv::math::fmat<flt_type, 4, 4> single_linear_t_to_s (const flt_type dist, const flt_type offset);
+
+	/// compute the t-to-s parameterization for a single curve segment, applying the specified offset to all values of s
+	/// the parameterization yiels.
 	template <class flt_type> cgv::math::fmat<flt_type, 4, 4> compute_single_t_to_s (
 		const typename traj_manager<flt_type>::render_data::Vec3 &pos0,
 		const typename traj_manager<flt_type>::render_data::Vec3 &tan0,

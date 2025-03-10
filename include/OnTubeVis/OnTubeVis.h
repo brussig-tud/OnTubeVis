@@ -57,24 +57,14 @@ typedef struct OTV_SegmentArclen {
 	OTV_Vec4 coeffs[4];
 } OTV_SegmentArclen;
 
-/// @brief Structure encapsulating all information related to @link otv__extrapolation_length extrapolation @endlink.
+/// @brief Structure encapsulating a single @link otv__extrapolation_length extrapolated @endlink segment.
 typedef struct OTV_Extrapolation
 {
-	/**
-	 * @brief
-	 *		Pointer to an array of hermite nodes making up the extrapolated path, excluding the start node (which is
-	 *		always implicit). The number of nodes pointed-to by this field must not be less than the @link
-	 *		otv__extrapolation_length number of segments configured during setup @endlink.
-	 */
-	OTV_HermiteNode *nodes;
+	/// @brief The end Hermite node of the extrapolated segment.
+	OTV_HermiteNode node;
 
-	/**
-	 * @brief
-	 *		Pointer to an array of arc length approximations for segments of the extrapolated path. The number of
-	 *		elements in the array pointed-to by this field must not be less than the @link otv__extrapolation_length
-	 *		number of segments configured during setup @endlink.
-	 */
-	OTV_SegmentArclen *arclens;
+	/// @brief The arc length approximation for the extrapolated segment.
+	OTV_SegmentArclen arclen;
 } OTV_Extrapolation;
 
 
@@ -338,7 +328,10 @@ extern otv__stream_spline_node_funct otv__stream_spline_node;
  * @param arclen
  *		The approximate arclength parameterization of the segment between the most recent and this new node. In case of
  *		the very first sample in a trajectory, this parameter is ignored (it may be @c NULL).
- * @param extrapol The extrapolated path after the provided @a node.
+ * @param extrapol
+ *		Pointer to an array of extrapolations forming the extrapolated path after the provided @a node. The number of
+ *		elements pointed-to by this parameter must not be less than the @link otv__extrapolation_length number of
+ *		extrapolated segments @endlink configured during setup.
  *
  * @note
  *		Nodes of a trajectory are expected to be submitted in <b>monotonically increasing time-order</b>! Nodes that
@@ -407,6 +400,40 @@ typedef OTV_SegmentArclen(*otv__compute_arclen_funct)(
 #ifdef OTV_NO_PROTOTYPES
 /// @copydoc otv__compute_arclen()
 extern otv__compute_arclen_funct otv__compute_arclen;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__compute_extrapol
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief
+ *		Create a primitive extrapolation of the desired length given one reference Hermite segment to extrapolate from.
+ *
+ * It is up to the implementation how the extrapolation is done exactly. The OnTubeVis desktop application currently
+ * just adds perfectly straight segments with the same velocity as the end node of the provided segment.
+ *
+ * @param out Pointer to an array of extrapolations large enough to hold @a num elements.
+ * @param num The desired number of segments in the extrapolation. Must be at least 1.
+ * @param ref_node0 The start Hermite node of the reference segment.
+ * @param ref_node1 The end Hermite node of the reference segment.
+ * @param ref_arclen The arc length re-parametrization of the reference segment.
+ */
+OTV_API void otv__compute_extrapol (
+	OTV_Extrapolation *out, const uint32_t num, const OTV_HermiteNode *ref_node0, const OTV_HermiteNode *ref_node1,
+	OTV_SegmentArclen *ref_arclen
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__compute_extrapol() function.
+typedef void(*otv__compute_extrapol_funct)(
+	OTV_Extrapolation*, const uint32_t, const OTV_HermiteNode*, const OTV_HermiteNode*, OTV_SegmentArclen*
+);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__compute_extrapol()
+extern otv__compute_extrapol_funct otv__compute_extrapol;
 #endif
 
 

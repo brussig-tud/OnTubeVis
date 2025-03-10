@@ -52,6 +52,14 @@ struct curve_segment
 namespace arclen {
 
 template <class flt_type>
+cgv::math::fmat<flt_type, 4, 4> single_linear_t_to_s (const flt_type dist, const flt_type offset) {
+	cgv::math::fmat<flt_type, 4, 4> out;
+	for (unsigned i=0; i<16; i++)
+		out[i] = offset + flt_type(i)/flt_type(15) * dist;
+	return out;
+}
+
+template <class flt_type>
 cgv::math::fmat<flt_type, 4, 4> compute_single_t_to_s (
 	const typename traj_manager<flt_type>::render_data::Vec3 &pos0,
 	const typename traj_manager<flt_type>::render_data::Vec3 &tan0,
@@ -219,6 +227,8 @@ float eval (const cgv::mat4 &approx, float t)
 // Explicit template instantiations
 
 // Only float and double variants are intended
+template cgv::math::fmat<float, 4, 4> single_linear_t_to_s<float> (const float, const float);
+template cgv::math::fmat<double, 4, 4> single_linear_t_to_s<double> (const double, const double);
 template cgv::math::fmat<float, 4, 4> compute_single_t_to_s<float> (
 	const typename traj_manager<float>::render_data::Vec3&, const typename traj_manager<float>::render_data::Vec3&,
 	const typename traj_manager<float>::render_data::Vec3&, const typename traj_manager<float>::render_data::Vec3&,

@@ -21,6 +21,31 @@ class visualization_variables_info;
 
 namespace otv {
 
+struct extrapolation_node
+{
+	node_attribs node;
+	cgv::mat4 t_to_s;
+
+	static void compute_path (
+		std::vector<extrapolation_node> &out, const unsigned num, const node_attribs &ref_node0,
+		const node_attribs &ref_node1, const cgv::mat4 &ref_t_to_s
+	);
+	inline static std::vector<extrapolation_node> compute_path (
+		const unsigned num, const node_attribs &ref_node0, const node_attribs &ref_node1, const cgv::mat4 &ref_t_to_s
+	){
+		std::vector<extrapolation_node> out;
+		out.reserve(num);
+		compute_path(out, num, ref_node0, ref_node1, ref_t_to_s);
+		return out;
+	}
+
+	inline OTV_Extrapolation into_api_extrapol (void) const {
+		return {
+			node.into_api_node(), *(const OTV_SegmentArclen*)&t_to_s
+		};
+	}
+};
+
 OTV_ColorMap colormap_name_to_api_enum (const std::string &name);
 unsigned colormap_name_to_internal_id (const color_map_manager &colormap_mgr, const std::string &colormap_name);
 unsigned colormap_api_enum_to_internal_id (const color_map_manager &colormap_mgr, const OTV_ColorMap &color_map);
@@ -175,6 +200,12 @@ struct otv_client {
 	[[nodiscard]] float get_glyph_pos (const ro_range<std::vector<float>::iterator> &glyph_data) {
 		return *glyph_data.begin;
 	}
+
+	/// perform necessary logic to enqueue a node.
+	void enqueue_node (
+		trajectory_ref target, const node_attribs &node, const cgv::mat4 *t_to_s,
+		const std::vector<extrapolation_node> &extrapol
+	);
 
 	/// perform necessary logic to enqueue glyphs. Returns the index of the first glyph within the input range that
 	/// needed to be added to an extrapolation, if any.

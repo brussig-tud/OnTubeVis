@@ -441,6 +441,23 @@ OTV_API OTV_SegmentArclen otv__compute_arclen (
 	return *(const OTV_SegmentArclen*)&alen;
 }
 
+OTV_API void otv__compute_extrapol (
+	OTV_Extrapolation *out, const uint32_t num, const OTV_HermiteNode *ref_node0, const OTV_HermiteNode *ref_node1,
+	OTV_SegmentArclen *ref_arclen
+){
+	// Delegate computation to internal facilities
+	const auto extrapol = otv::extrapolation_node::compute_path(
+		num, node_attribs::from_api_node(*ref_node0, 0, cgv::vec4(0,0,0,0)),
+		node_attribs::from_api_node(*ref_node1, 0, cgv::vec4(0,0,0,0)),
+		*(cgv::mat4*)ref_arclen
+	);
+
+	// Convert to API data structures
+	for (unsigned i=0; i<num; i++) {
+		out[i] = extrapol[i].into_api_extrapol();
+	}
+}
+
 OTV_API void otv__stream_glyph (const uint32_t traj_id, const uint32_t layer, const OTV_GlyphData *glyph_data)
 {
 	// Compile and submit command
