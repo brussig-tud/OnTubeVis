@@ -1093,8 +1093,13 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 	// get a lower bound for the maximum number of glyphs on a layer on any trajectory
 	const auto &ds = traj_mgr.dataset(0);
 	const auto &attribs = ds.attributes();
-	session_glyphbuf_size = run_as_service ? 1 : 1000;
-	const unsigned sample_count_factor = run_as_service ? 1 : 8;
+	session_glyphbuf_size = 1; // minimum capacity for glyphs per layer and trajectory that we never want to go below
+	const unsigned sample_count_factor = run_as_service ? 1 : 16; // how many per-glyph floats to assume for each
+	                                                              // attribute sample in the dataset. In case of service
+	                                                              // mode, we already abused the number of attributes in
+	                                                              // the dummy "dataset" to represent the number of
+	                                                              // glyphs we want to fit in a ring buffer, so it has
+	                                                              // to be exactly 1.
 	for (const auto &attrib_entry : attribs) {
 		const auto &attrib = attrib_entry.second;
 		const auto &trajs = ds.trajectories(attrib);
@@ -1756,10 +1761,9 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			// get context
 			const auto &ctx = *get_context();
 
-			// setup extrapolation to receive glyphs
-			if (client.num_extrapol_segments)
-				client.extrapol_mgr.create_glyph_and_per_layer_buffers((unsigned)gc.layer_filled.size());
-
+			// set up render/streaming
+			std::vector<unsigned> glyph_attrib_counts;
+			glyph_attrib_counts.reserve(4);
 			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
 				if (! gc.layer_filled[layer_idx]) {
 					// Clear layer for client and renderer.
@@ -1791,6 +1795,12 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					)
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
 
+					/* Log size of glyph instances on this layer (for setting up extrapolations below) */ {
+						const auto &some_traj = render.trajectories.front();
+						const auto attrib_count = some_traj.glyph_to_attrib_count(layer_idx, glyph_count_type{1});
+						glyph_attrib_counts.emplace_back(attrib_count);
+					}
+
 					/* sanity check */ {
 						const auto num_ranges {ranges.size()};
 						const auto num_segs   {client.data->indices.size() / 2};
@@ -1798,6 +1808,10 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					}
 				}
 			}
+
+			// setup extrapolation to receive glyphs
+			if (client.num_extrapol_segments)
+				client.extrapol_mgr.create_glyph_and_per_layer_buffers(glyph_attrib_counts);
 
 			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 			glyphs_out_of_date(false);

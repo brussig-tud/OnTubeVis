@@ -5,6 +5,7 @@
 
 // Local includes
 #include <OnTubeVis/OnTubeVis.h>
+#include "util.h"
 
 
 
@@ -147,3 +148,12 @@ struct glyph_attributes {
 			return 0.0f;
 	}
 };
+
+namespace otv {
+
+/// Extract the arclength position of the first glyph pointed to by the given @c ro_range @a glyph_data.
+[[nodiscard]] inline float get_glyph_pos (const ro_range<std::vector<float>::iterator> &glyph_data) {
+	return *glyph_data.begin;
+}
+
+}

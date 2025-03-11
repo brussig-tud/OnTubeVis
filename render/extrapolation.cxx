@@ -3,6 +3,8 @@
 #include "arclen_helper.h"
 #include "render/extrapolation.h"
 
+#include <numeric>
+
 
 namespace otv
 {
@@ -41,6 +43,17 @@ void compute_path (
 
 } // namespace extrapol
 
+void extrapolation_manager::clear(void)
+{
+	trajectories.clear();
+	glyphs.glyph_attribs_arena.destroy();
+	geom.ranges_arena.destroy();
+	std::fill(setup.glyph_attrib_counts.begin(), setup.glyph_attrib_counts.end(), 0);
+	geom.t_to_s_arena.destroy();
+	geom.nodes_arena.destroy();
+}
+
+
 
 bool extrapolation_manager::create_geom_buffers (unsigned num_trajectories, unsigned num_segments)
 {
@@ -71,7 +84,7 @@ bool extrapolation_manager::create_geom_buffers (unsigned num_trajectories, unsi
 }
 
 bool extrapolation_manager::create_glyph_and_per_layer_buffers (
-	unsigned num_layers, unsigned max_attribs_per_glyph, unsigned num_glyphs_capacity
+	const std::vector<unsigned> &per_layer_glyph_attrib_counts, unsigned per_layer_min_glyphs_capacity
 )
 {
 	// Sanity checks
@@ -87,16 +100,29 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (
 	// Make sure we don't leak resources when any single one of the steps fails
 	auto _ = finalizer([this] {
 		geom.ranges_arena.destroy();
+		glyphs.glyph_attribs_arena.destroy();
+		std::fill(setup.glyph_attrib_counts.begin(), setup.glyph_attrib_counts.end(), 0);
 	});
+
+	// Commit setup and find out actual number of float elements we need in our glyph attribute ring buffers. We need
+	// to use the least-common multiple for the single-glyph attribute counts from each layer in order to be able to
+	// advance the GPU ring buffers in a consistent way.
+	setup.glyph_attrib_counts.front() = per_layer_glyph_attrib_counts.front();
+	unsigned glyph_attribs_lcm = setup.glyph_attrib_counts.front();
+	for (unsigned i=1; i<per_layer_glyph_attrib_counts.size(); i++) {
+		setup.glyph_attrib_counts[i] = per_layer_glyph_attrib_counts[i];
+		glyph_attribs_lcm = std::lcm(glyph_attribs_lcm, setup.glyph_attrib_counts[i]);
+	}
 
 	// Create GPU ring buffer arenas
 	// - glyph index mapping ranges
+	const auto num_layers = (unsigned)per_layer_glyph_attrib_counts.size();
 	const auto num_trajectories = geom.t_to_s_arena.num_ring_buffers();
 	const auto num_segments = geom.t_to_s_arena.ring_buffer_capacity();
 	const auto num_buffers = num_trajectories*num_layers;
 	bool success = geom.ranges_arena.create(num_buffers, num_segments);
 	// - glyph instances
-	const auto num_attribs = max_attribs_per_glyph*num_glyphs_capacity;
+	const auto num_attribs = glyph_attribs_lcm*per_layer_min_glyphs_capacity;
 	success &= glyphs.glyph_attribs_arena.create(num_buffers, num_attribs);
 
 	// Assign range ring buffers from arena to corresponding layer on each trajectory
@@ -123,7 +149,7 @@ void extrapolation_manager::replace_extrapolation (unsigned traj_id, const std::
 	// Retrieve trajectory
 	auto &traj = trajectories[traj_id];
 
-	// Replace buffer contents
+	// Replace geometry buffer contents
 	#if DEBUG_OUTPUT
 		std::clog << "### UPDATING EXTRAPOLATED NODES ##############################\n";
 	#endif
@@ -132,6 +158,12 @@ void extrapolation_manager::replace_extrapolation (unsigned traj_id, const std::
 		traj.nodes.contents[i] = extrapolation[i].hnode;
 		traj.t_to_s.contents[i] = extrapolation[i].t_to_s;
 	}
+
+	// Update per-layer range maps for current set of glyphs
+	for (auto &layer : traj.layers) {
+		const auto front_glyph = layer.glyphs_deque.front();
+	}
+
 	// Flush nodes buffer
 	//const auto flush_result = traj.nodes.contents_mem.flush();
 	#if DEBUG_OUTPUT
@@ -154,7 +186,6 @@ bool extrapolation_manager::flush_changes(void) const {
 	result &= glyphs.glyph_attribs_arena.flush_all();
 	return result;
 }
-
 
 
 } // namespace otv

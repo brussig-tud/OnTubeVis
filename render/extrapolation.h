@@ -1,4 +1,7 @@
 
+#ifndef __EXTRAPOLATION_H__
+#define __EXTRAPOLATION_H__
+
 // C++ STL
 #include <optional>
 
@@ -49,6 +52,9 @@ namespace extrapol
 		/// Reference to the ring buffer to use for storing the actual glyph instances on the layer.
 		gpumem::ring_buffer_alt<float> &glyph_attribs;
 
+		/// The host-side queue of glyphs on the extrapolation for quick re-mapping when the extrapolation gets updated.
+		std::deque<float> glyphs_deque;
+
 		[[nodiscard]] inline explicit per_layer (
 			gpumem::ring_buffer_alt<irange> &ranges_buffer, gpumem::ring_buffer_alt<float> &glyphs_buffer
 		)
@@ -89,10 +95,16 @@ namespace extrapol
 	}
 } // namespace extrapol
 
+
 struct extrapolation_manager
 {
 	/// Per-trajectory extrapolated node buffers.
 	std::vector<extrapol::per_trajectory> trajectories;
+
+	/// Visualization setup meta data
+	struct {
+		std::array<unsigned, 4> glyph_attrib_counts;
+	} setup;
 
 	/// Members related to the geometry of extrapolated trajectories
 	struct {
@@ -119,20 +131,14 @@ struct extrapolation_manager
 		clear();
 	}
 
-	void clear (void) {
-		trajectories.clear();
-		glyphs.glyph_attribs_arena.destroy();
-		geom.ranges_arena.destroy();
-		geom.t_to_s_arena.destroy();
-		geom.nodes_arena.destroy();
-	}
+	void clear (void);
 
 	/// Create all buffers relating to pure geometry (nodes, node indices and segment arclength re-parametrizations).
 	bool create_geom_buffers (unsigned num_trajectories, unsigned num_segments);
 
 	/// Create all buffers relating to per-layer non-geometric information (glyph instances, mapping ranges).
 	bool create_glyph_and_per_layer_buffers (
-		unsigned num_layers, unsigned max_attribs_per_glyph=16, unsigned num_glyphs_capacity=128
+		const std::vector<unsigned> &per_layer_glyph_attrib_counts, unsigned per_layer_min_glyphs_capacity=128
 	);
 
 	/// Fully replace the current extrapolation for the given trajectory
@@ -142,8 +148,11 @@ struct extrapolation_manager
 	/// any changes (@ref replace_extrapolation() etc.) will ever become visible to the GPU unless this is called at
 	/// some point. The manager will make an attempt at coalescing the flushes to individual buffers.
 	///
-	/// @todo Currently blanket-flushes whole arenas. Investigate actual coalescing of unit buffers at finer granularity
+	/// @todo Currently blanket-flushes whole arenas. Investigate actual coalescing of unit buffer updates
 	bool flush_changes (void) const;
 };
 
 } // namespace otv
+
+
+#endif // ifndef __EXTRAPOLATION_H__

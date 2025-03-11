@@ -449,6 +449,8 @@ void otv_client::commit_session (void)
 
 void otv_client::update ()
 {
+	#define DEBUG_OUTPUT 1
+
 	// wait for the session to be ready if necessary (adds a very small constant overhead every update once the session
 	// actually is ready)
 	session.wait_init_ready();
@@ -457,7 +459,9 @@ void otv_client::update ()
 	cgv::utils::stopwatch sw;
 	std::vector<extrapol::node> extrapol_nodes;
 	extrapol_nodes.reserve(num_extrapol_segments);
-	std::clog << "otv_client::update(): starting update for t="<<render.style.max_t<<"s\n";
+	#if DEBUG_OUTPUT
+		std::clog << "otv_client::update(): starting update for t="<<render.style.max_t<<"s\n";
+	#endif
 	for (auto &traj : trajectories) {
 		// add new nodes, and thereby new segments
 		for (
@@ -539,8 +543,10 @@ void otv_client::update ()
 
 	// Flush changes to extrapolation
 	const bool extrapol_flush_result = extrapol_mgr.flush_changes();
-	std::clog << "otv_client::update(): flushing extrapolations - "<<(extrapol_flush_result ? "OK\n":"FAILURE\n")
-	          << "otv_client::update(): took "<<sw.get_elapsed_time()*1000<<"ms\n";
+	#if DEBUG_OUTPUT
+		std::clog << "otv_client::update(): flushing extrapolations - "<<(extrapol_flush_result ? "OK\n":"FAILURE\n")
+		          << "otv_client::update(): took "<<sw.get_elapsed_time()*1000<<"ms\n";
+	#endif
 }
 void otv_client::enqueue_node (
 	trajectory_ref target, const node_attribs &node, const cgv::mat4 *t_to_s,
@@ -576,7 +582,7 @@ std::optional<unsigned> otv_client::enqueue_glyphs (
 				one_glyph -= stride;
 				glyph_pos = get_glyph_pos(one_glyph);
 				glyph_extents = render.glyph_extents(layer, &*one_glyph.begin + 2)
-			                          .value_or(cgv::vec2(.0f, .0f));  // again, no special handling required!
+				                      .value_or(cgv::vec2(.0f, .0f));  // again, no special handling required!
 				glyph_max = glyph_pos + glyph_extents.y();
 			}
 		}

@@ -171,11 +171,6 @@ struct otv_client {
 		return { id, *render.try_get_trajectory(id) };
 	}
 
-	/// Extract the arclength position of the first glyph pointed to by the given @c ro_range @a glyph_data.
-	[[nodiscard]] float get_glyph_pos (const ro_range<std::vector<float>::iterator> &glyph_data) {
-		return *glyph_data.begin;
-	}
-
 	/// perform necessary logic to enqueue a node.
 	void enqueue_node (
 		trajectory_ref target, const node_attribs &node, const cgv::mat4 *t_to_s,
