@@ -540,7 +540,7 @@ void otv_client::update ()
 	// Flush changes to extrapolation
 	const bool extrapol_flush_result = extrapol_mgr.flush_changes();
 	std::clog << "otv_client::update(): flushing extrapolations - "<<(extrapol_flush_result ? "OK\n":"FAILURE\n")
-	          << "otv_client::update(): took "<<sw.get_elapsed_time()<<"s\n";
+	          << "otv_client::update(): took "<<sw.get_elapsed_time()*1000<<"ms\n";
 }
 void otv_client::enqueue_node (
 	trajectory_ref target, const node_attribs &node, const cgv::mat4 *t_to_s,
@@ -558,24 +558,27 @@ std::optional<unsigned> otv_client::enqueue_glyphs (
 
 	// Find out how many of the glyphs we must also route to the current extrapolation
 	const unsigned num_glyphs = target.traj.attrib_to_glyph_count(layer, glyph_data.length()).value;
-	const unsigned stride = target.traj.glyph_to_attrib_count(layer, glyph_count_type{1});
-	const float smax = target.traj.arclength();
 	unsigned num_glyphs_nonextrapol = 0;
-	// - loop through new glyphs newest-to-oldest, to avoid needing special handling for plot control points
-	ro_range one_glyph = {glyph_data.end-stride, glyph_data.end};
-	float glyph_pos = get_glyph_pos(one_glyph);
-	auto glyph_extents = render.glyph_extents(layer, &*one_glyph.begin + 2)
-	                          	.value_or(cgv::vec2(.0f, .0f)); // no special handling for plot control points!
-	float glyph_max = glyph_pos + glyph_extents.y();
-	while (glyph_max >= smax && num_glyphs_nonextrapol < num_glyphs)
+	if (num_glyphs > 0)
 	{
-		num_glyphs_nonextrapol++;
-		if (one_glyph.begin > glyph_data.begin) {
-			one_glyph -= stride;
-			glyph_pos = get_glyph_pos(one_glyph);
-			glyph_extents = render.glyph_extents(layer, &*one_glyph.begin + 2)
-			                	.value_or(cgv::vec2(.0f, .0f));  // again, no special handling required!
-			glyph_max = glyph_pos + glyph_extents.y();
+		const unsigned stride = target.traj.glyph_to_attrib_count(layer, glyph_count_type{1});
+		const float smax = target.traj.arclength();
+		// - loop through new glyphs newest-to-oldest, to avoid needing special handling for plot control points
+		ro_range one_glyph = {glyph_data.end-stride, glyph_data.end};
+		float glyph_pos = get_glyph_pos(one_glyph);
+		auto glyph_extents = render.glyph_extents(layer, &*one_glyph.begin + 2)
+	                          		.value_or(cgv::vec2(.0f, .0f)); // no special handling for plot control points!
+		float glyph_max = glyph_pos + glyph_extents.y();
+		while (glyph_max >= smax && num_glyphs_nonextrapol < num_glyphs)
+		{
+			num_glyphs_nonextrapol++;
+			if (one_glyph.begin > glyph_data.begin) {
+				one_glyph -= stride;
+				glyph_pos = get_glyph_pos(one_glyph);
+				glyph_extents = render.glyph_extents(layer, &*one_glyph.begin + 2)
+			                          .value_or(cgv::vec2(.0f, .0f));  // again, no special handling required!
+				glyph_max = glyph_pos + glyph_extents.y();
+			}
 		}
 	}
 
