@@ -446,7 +446,7 @@ OTV_API void otv__compute_extrapol (
 	OTV_SegmentArclen *ref_arclen
 ){
 	// Delegate computation to internal facilities
-	const auto extrapol = otv::extrapolation_node::compute_path(
+	const auto extrapol = otv::extrapol::compute_path(
 		num, node_attribs::from_api_node(*ref_node0, 0, cgv::vec4(0,0,0,0)),
 		node_attribs::from_api_node(*ref_node1, 0, cgv::vec4(0,0,0,0)),
 		*(cgv::mat4*)ref_arclen

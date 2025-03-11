@@ -19,36 +19,6 @@
 
 namespace otv {
 
-void extrapolation_node::compute_path (
-	std::vector<extrapolation_node> &out, const unsigned num, const node_attribs &ref_node0,
-	const node_attribs &ref_node1, const cgv::mat4 &ref_t_to_s
-){
-	// Compute extrapolation parameters
-	const float r = ref_node0.pos_rad.w();
-	const auto p1 = cgv::vec3(ref_node1.pos_rad);
-	const auto m1 = cgv::vec3(ref_node1.tangent);
-	const auto m1_len = m1.length();
-	const float t1 = ref_node1.t.x();
-	const float dt = t1 - ref_node0.t.x();
-
-	// Extrapolate
-	extrapolation_node prev_extrapol = {
-		ref_node1, ref_t_to_s
-	};
-	for (unsigned i=0; i<num; i++)
-	{
-		const node_attribs new_node {
-			cgv::vec4(p1 + float(i)*m1, r), ref_node1.color, cgv::vec4(m1, 0),
-			cgv::vec4(t1 + float(i)*dt, 0, 0, 0)
-		};
-		const extrapolation_node new_extrapol {
-			new_node, arclen::single_linear_t_to_s(m1_len, /*sigma: */ prev_extrapol.t_to_s[15])
-		};
-		out.emplace_back(new_extrapol);
-		prev_extrapol = new_extrapol;
-	}
-}
-
 OTV_ColorMap colormap_name_to_api_enum (const std::string &name)
 {
 	const std::string name_lower = cgv::utils::to_lower(name);
@@ -485,7 +455,7 @@ void otv_client::update ()
 
 	// extend all trajectories based on the animation time, emulating streaming
 	cgv::utils::stopwatch sw;
-	std::vector<extrapolation_node> extrapol_nodes;
+	std::vector<extrapol::node> extrapol_nodes;
 	extrapol_nodes.reserve(num_extrapol_segments);
 	std::clog << "otv_client::update(): starting update for t="<<render.style.max_t<<"s\n";
 	for (auto &traj : trajectories) {
@@ -523,7 +493,7 @@ void otv_client::update ()
 
 				// Extrapolate from previous segment
 				const auto &prev_node = target.traj.most_recent_node();
-				extrapolation_node::compute_path(
+				extrapol::compute_path(
 					extrapol_nodes, num_extrapol_segments, prev_node, new_node, *t_to_s
 				);
 			}
@@ -535,7 +505,7 @@ void otv_client::update ()
 					cgv::vec4(pos0 + tan, new_node.pos_rad.w()),
 					new_node.color, cgv::vec4(tan, 0), cgv::vec4(new_node.t.x()+1, 0, 0, 0)
 				};
-				extrapolation_node::compute_path(
+				extrapol::compute_path(
 					extrapol_nodes, num_extrapol_segments, new_node, extrapol_node,
 					arclen::compute_single_t_to_s(
 						pos0, tan, cgv::vec3(new_node.pos_rad), tan, .0f
@@ -570,9 +540,10 @@ void otv_client::update ()
 }
 void otv_client::enqueue_node (
 	trajectory_ref target, const node_attribs &node, const cgv::mat4 *t_to_s,
-	const std::vector<extrapolation_node> &extrapol
+	const std::vector<extrapol::node> &extrapol
 ){
 	render.enqueue_node(target.id, node, t_to_s);
+	extrapol_mgr.replace_extrapolation(target.id, extrapol);
 }
 
 std::optional<unsigned> otv_client::enqueue_glyphs (

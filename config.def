@@ -11,7 +11,8 @@ type(on_tube_vis):layer_config_file="./testdata/cps_drone_apiGlyphs.xml"
 type(on_tube_vis):override_cap_clip_distance=1024
 
 // Maptiles
-type(maptiles):frustum_raster_tiles_count=16
+type(maptiles):frustum_raster_tiles_count=8
+type(maptiles):frustum_raster_tiles_distance=0.02
 type(maptiles):frustum_3d_tiles_distance=0.02
 type(maptiles):frustum_based_tiles=true
 
