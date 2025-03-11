@@ -335,6 +335,8 @@ protected:
 	void playback_rewind() {
 		render.style.max_t = (float)playback.tstart;
 		on_set(&render.style.max_t);
+		/*on_set(&datapath_helper.file_name);
+		on_set(&layer_config_file_helper.file_name);*/
 	}
 	void playback_reset_ds() {
 		playback.active = false; update_member(&playback.active);

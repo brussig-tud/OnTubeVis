@@ -46,11 +46,11 @@ struct ring_buffer_alt
 	/// Reference to the in-memory struct of the ring buffer metadata.
 	ring_buffer_meta &meta;
 
-	// Reference to the in-memory array if elements of the ring buffer.
+	// Reference to the in-memory array of elements of the ring buffer.
 	Elem *contents;
 
 	/// Create the ring buffer using the given memory. While the internal metadata will be initialized on the host side,
-	/// it will NOT be available for the GPU until @ref flush_metadata is called at least once.
+	/// it will NOT be available for the GPU until @ref flush_meta is called at least once.
 	[[nodiscard]] explicit ring_buffer_alt (const span<ring_buffer_meta> &meta_mem, const span<Elem> &contents_mem)
 		: meta(*meta_mem.data())
 	{
@@ -63,12 +63,31 @@ struct ring_buffer_alt
 	/// The Destructor. Actually, we don't need a custom destructor; this is just here so we can place debug breakpoints
 	/// that trigger during destruction.
 	~ring_buffer_alt (void) {
-		std::cout.flush();
+		std::clog.flush();
 	}
 
 	/// Report max number of elements that can be stored when at full capacity.
 	[[nodiscard]] unsigned capacity (void) const {
 		return meta.len;
+	}
+
+	/// Flush just the ring buffer meta data (i.e. after all elements in the buffer were dropped so there is no reason
+	/// to change something in the contents)
+	bool flush_meta (void) const {
+		return meta_mem.flush();
+	}
+
+	/// Flush just the ring buffer contents (i.e. after all elements in the buffer were updated, but none were added or
+	/// dropped off the end)
+	bool flush_contents (void) const {
+		return contents_mem.flush();
+	}
+
+	/// Flush both the whole ring buffer and its meta data.
+	bool flush_all (void) const {
+		bool result = flush_meta();
+		result &= flush_contents();
+		return result;
 	}
 
 private:
@@ -175,6 +194,13 @@ struct ring_buffer_arena
 	/// Obtain a reference to the i-th buffer.
 	[[nodiscard]] ring_buffer_alt<Elem>& buffer (unsigned i) {
 		return ring_buffers[i];
+	}
+
+	/// Flush all memory in the arena.
+	bool flush_all (void) const {
+		bool result = meta_memory.flush();
+		result &= data_memory.flush();
+		return result;
 	}
 };
 

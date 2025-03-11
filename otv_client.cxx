@@ -536,7 +536,11 @@ void otv_client::update ()
 			++traj.segment_idx;
 		}
 	}
-	std::clog << "otv_client::update(): took "<<sw.get_elapsed_time()<<"s\n";
+
+	// Flush changes to extrapolation
+	const bool extrapol_flush_result = extrapol_mgr.flush_changes();
+	std::clog << "otv_client::update(): flushing extrapolations - "<<(extrapol_flush_result ? "OK\n":"FAILURE\n")
+	          << "otv_client::update(): took "<<sw.get_elapsed_time()<<"s\n";
 }
 void otv_client::enqueue_node (
 	trajectory_ref target, const node_attribs &node, const cgv::mat4 *t_to_s,

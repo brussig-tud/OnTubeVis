@@ -41,7 +41,7 @@ void compute_path (
 
 } // namespace extrapol
 
-/// Create all buffers relating to pure geometry (nodes, node indices and segment arclength re-parametrizations).
+
 bool extrapolation_manager::create_geom_buffers (unsigned num_trajectories, unsigned num_segments)
 {
 	// Make sure we don't leak resources when any single one of the steps fails
@@ -70,8 +70,9 @@ bool extrapolation_manager::create_geom_buffers (unsigned num_trajectories, unsi
 	return _.disarm(success);
 }
 
-/// Create all buffers relating to purely geometry (nodes, node indices and segment arclength re-parametrizations).
-bool extrapolation_manager::create_glyph_and_per_layer_buffers (unsigned num_layers)
+bool extrapolation_manager::create_glyph_and_per_layer_buffers (
+	unsigned num_layers, unsigned max_attribs_per_glyph, unsigned num_glyphs_capacity
+)
 {
 	// Sanity checks
 	assert(
@@ -89,18 +90,25 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (unsigned num_lay
 	});
 
 	// Create GPU ring buffer arenas
+	// - glyph index mapping ranges
 	const auto num_trajectories = geom.t_to_s_arena.num_ring_buffers();
 	const auto num_segments = geom.t_to_s_arena.ring_buffer_capacity();
-	const auto num_range_buffers = num_trajectories*num_layers;
-	const bool success = geom.ranges_arena.create(num_range_buffers, num_segments);
+	const auto num_buffers = num_trajectories*num_layers;
+	bool success = geom.ranges_arena.create(num_buffers, num_segments);
+	// - glyph instances
+	const auto num_attribs = max_attribs_per_glyph*num_glyphs_capacity;
+	success &= glyphs.glyph_attribs_arena.create(num_buffers, num_attribs);
 
 	// Assign range ring buffers from arena to corresponding layer on each trajectory
 	for (unsigned t=0; t<num_trajectories; t++) {
 		auto &traj = trajectories[t];
-		traj.ranges.reserve(num_layers);
+		traj.layers.reserve(num_layers);
 		for (unsigned l=0; l<num_layers; l++) {
 			const unsigned per_layer_buffer_id = t*num_layers + l;
-			traj.ranges.emplace_back(&geom.ranges_arena.buffer(per_layer_buffer_id));
+			traj.layers.emplace_back(
+				geom.ranges_arena.buffer(per_layer_buffer_id),
+				glyphs.glyph_attribs_arena.buffer(per_layer_buffer_id)
+			);
 		}
 	}
 
@@ -108,9 +116,45 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (unsigned num_lay
 	return _.disarm(success);
 }
 
-///
-void extrapolation_manager::replace_extrapolation (unsigned id, const std::vector<extrapol::node> &extrapolation)
+void extrapolation_manager::replace_extrapolation (unsigned traj_id, const std::vector<extrapol::node> &extrapolation)
 {
+	#define DEBUG_OUTPUT 0
+
+	// Retrieve trajectory
+	auto &traj = trajectories[traj_id];
+
+	// Replace buffer contents
+	#if DEBUG_OUTPUT
+		std::clog << "### UPDATING EXTRAPOLATED NODES ##############################\n";
+	#endif
+	const auto num = std::min<size_t>(traj.nodes.capacity(), extrapolation.size());
+	for (unsigned i=0; i<num; i++) {
+		traj.nodes.contents[i] = extrapolation[i].hnode;
+		traj.t_to_s.contents[i] = extrapolation[i].t_to_s;
+	}
+	// Flush nodes buffer
+	//const auto flush_result = traj.nodes.contents_mem.flush();
+	#if DEBUG_OUTPUT
+		for (unsigned i=0; i<num; i++) {
+			std::clog << "Elem["<<i<<"]:\n"
+			          << " .pos_rad = "<<traj.nodes.contents[i].pos_rad<<"\n"
+			          << " .color = "<<traj.nodes.contents[i].color<<"\n"
+			          << " .tangent = "<<traj.nodes.contents[i].tangent<<"\n"
+			          << " .t = "<<traj.nodes.contents[i].t<<"\n";
+		}
+		//std::clog << "flush_result: "<<flush_result << std::endl;
+		//std::clog.flush();
+	#endif
 }
+
+bool extrapolation_manager::flush_changes(void) const {
+	bool result = geom.nodes_arena.flush_all();
+	result &= geom.t_to_s_arena.flush_all();
+	result &= geom.ranges_arena.flush_all();
+	result &= glyphs.glyph_attribs_arena.flush_all();
+	return result;
+}
+
+
 
 } // namespace otv
