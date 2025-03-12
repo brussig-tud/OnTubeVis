@@ -152,8 +152,9 @@ struct glyph_attributes {
 namespace otv {
 
 /// Extract the arclength position of the first glyph pointed to by the given @c ro_range @a glyph_data.
-[[nodiscard]] inline float get_glyph_pos (const ro_range<std::vector<float>::iterator> &glyph_data) {
-	return *glyph_data.begin;
+template <class Iter>
+[[nodiscard]] inline float get_glyph_pos (const ro_range<Iter> &glyph_data) {
+	return static_cast<float>(*glyph_data.begin);
 }
 
 }

@@ -39,16 +39,24 @@ struct ro_range {
 		return elem >= begin && elem < end;
 	}
 
-	ro_range& operator += (const std::size_t offset) noexcept {
+	inline ro_range& operator += (const std::size_t offset) noexcept {
 		begin += offset;
 		end += offset;
 		return *this;
 	}
 
-	ro_range& operator -= (const std::size_t offset) noexcept {
+	[[nodiscard]] inline ro_range operator + (const std::size_t offset) noexcept {
+		return ro_range{begin+offset, end+offset};
+	}
+
+	inline ro_range& operator -= (const std::size_t offset) noexcept {
 		begin -= offset;
 		end -= offset;
 		return *this;
+	}
+
+	[[nodiscard]] inline ro_range operator - (const std::size_t offset) noexcept {
+		return ro_range{begin-offset, end-offset};
 	}
 };
 

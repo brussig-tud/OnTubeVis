@@ -1762,8 +1762,6 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			const auto &ctx = *get_context();
 
 			// set up render/streaming
-			std::vector<unsigned> glyph_attrib_counts;
-			glyph_attrib_counts.reserve(4);
 			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
 				if (! gc.layer_filled[layer_idx]) {
 					// Clear layer for client and renderer.
@@ -1795,12 +1793,6 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					)
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
 
-					/* Log size of glyph instances on this layer (for setting up extrapolations below) */ {
-						const auto &some_traj = render.trajectories.front();
-						const auto attrib_count = some_traj.glyph_to_attrib_count(layer_idx, glyph_count_type{1});
-						glyph_attrib_counts.emplace_back(attrib_count);
-					}
-
 					/* sanity check */ {
 						const auto num_ranges {ranges.size()};
 						const auto num_segs   {client.data->indices.size() / 2};
@@ -1811,7 +1803,9 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 			// setup extrapolation to receive glyphs
 			if (client.num_extrapol_segments)
-				client.extrapol_mgr.create_glyph_and_per_layer_buffers(glyph_attrib_counts);
+				client.extrapol_mgr.create_glyph_and_per_layer_buffers(
+					/* min_glyphs_capacity_per_traj_and_layer: */std::max<unsigned>(128, session_glyphbuf_size/16)
+				);
 
 			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 			glyphs_out_of_date(false);

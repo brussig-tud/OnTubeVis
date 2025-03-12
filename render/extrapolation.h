@@ -98,6 +98,9 @@ namespace extrapol
 
 struct extrapolation_manager
 {
+	/// Reference to the OnTubeVis render state
+	render_state &render;
+
 	/// Per-trajectory extrapolated node buffers.
 	std::vector<extrapol::per_trajectory> trajectories;
 
@@ -127,6 +130,9 @@ struct extrapolation_manager
 		gpumem::ring_buffer_arena<float> glyph_attribs_arena;
 	} glyphs;
 
+	extrapolation_manager(render_state &render) : render(render)
+	{}
+
 	~extrapolation_manager (void) {
 		clear();
 	}
@@ -137,12 +143,14 @@ struct extrapolation_manager
 	bool create_geom_buffers (unsigned num_trajectories, unsigned num_segments);
 
 	/// Create all buffers relating to per-layer non-geometric information (glyph instances, mapping ranges).
-	bool create_glyph_and_per_layer_buffers (
-		const std::vector<unsigned> &per_layer_glyph_attrib_counts, unsigned per_layer_min_glyphs_capacity=128
-	);
+	bool create_glyph_and_per_layer_buffers (unsigned per_layer_min_glyphs_capacity=128);
 
 	/// Fully replace the current extrapolation for the given trajectory
-	void replace_extrapolation (unsigned traj_id, const std::vector<extrapol::node> &extrapolation);
+	void replace_extrapolation (
+		unsigned traj_id, const node_attribs &last_measured_node, const std::vector<extrapol::node> &extrapolation
+	);
+
+	bool consider_glyphs (const ro_range<float*> &glyph_attribs);
 
 	/// Flush all changes to GPU buffers, making their current contents visible to the GPU. No guarantees are made that
 	/// any changes (@ref replace_extrapolation() etc.) will ever become visible to the GPU unless this is called at

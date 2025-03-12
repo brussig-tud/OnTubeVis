@@ -142,7 +142,9 @@ struct otv_client {
 
 
 	/// construct with reference to trajectory render data
-	otv_client(render_state &render, render_state &extrapol) : render(render), extrapol(extrapol) {}
+	otv_client(render_state &render, render_state &extrapol)
+		: render(render), extrapol(extrapol), extrapol_mgr(render)
+	{}
 
 	/// initialize a completely new session (i.e. a new dataset and layer configuration)
 	void new_session (void);

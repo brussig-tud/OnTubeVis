@@ -505,15 +505,14 @@ void otv_client::update ()
 			{
 				// Init with "blank" extrapolation (just the straight line segment that follows from the first tangent)
 				const auto pos0 = cgv::vec3(new_node.pos_rad), tan = cgv::vec3(new_node.tangent);
-				const auto extrapol_node = node_attribs {
-					cgv::vec4(pos0 + tan, new_node.pos_rad.w()),
-					new_node.color, cgv::vec4(tan, 0), cgv::vec4(new_node.t.x()+1, 0, 0, 0)
+				const auto fictitious_prev_node = node_attribs {
+					cgv::vec4(pos0 - tan, new_node.pos_rad.w()),
+					new_node.color, cgv::vec4(tan, 0), cgv::vec4(new_node.t.x()-1, 0, 0, 0)
 				};
+				const auto tan_len = tan.length();
 				extrapol::compute_path(
-					extrapol_nodes, num_extrapol_segments, new_node, extrapol_node,
-					arclen::compute_single_t_to_s(
-						pos0, tan, cgv::vec3(new_node.pos_rad), tan, .0f
-					)
+					extrapol_nodes, num_extrapol_segments, fictitious_prev_node, new_node,
+					arclen::single_linear_t_to_s(tan_len, -tan.length())
 				);
 			}
 
@@ -553,7 +552,7 @@ void otv_client::enqueue_node (
 	const std::vector<extrapol::node> &extrapol
 ){
 	render.enqueue_node(target.id, node, t_to_s);
-	extrapol_mgr.replace_extrapolation(target.id, extrapol);
+	extrapol_mgr.replace_extrapolation(target.id, node, extrapol);
 }
 
 std::optional<unsigned> otv_client::enqueue_glyphs (
