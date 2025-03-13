@@ -66,10 +66,10 @@ ro_range(T, T) -> ro_range<T>;
 ////
 // Various typedefs for iterator-like objects that can be used to greatly shorten explicit template instantiations for
 // all functions that have to work with ro_ranges
-#ifdef _STL_VECTOR_H
+#if defined(_STL_VECTOR_H) || (defined(_MSC_VER) && defined(_VECTOR_))
 	typedef std::vector<float>::iterator std_vector_float_iter;
 #endif
-#ifdef _STL_DEQUE_H
+#if defined(_STL_DEQUE_H) || (defined(_MSC_VER) && defined(_DEQUE_))
 	typedef std::deque<float>::iterator std_deque_float_iter;
 #endif
 
