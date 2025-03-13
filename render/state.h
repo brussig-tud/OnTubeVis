@@ -160,11 +160,24 @@ public:
 		const float length_scale_x2 = (style.length_scale+style.length_scale); // to get radius instead of diameter
 		const float glyph_length = visualizations[0].config.layer_configs[layer].glyph_length(glyph_data);
 		if (glyph_length < 0)
-			return std::optional<cgv::vec2>();
-		const float radius = std::max(
-			visualizations[0].config.layer_configs[layer].glyph_length(glyph_data) / length_scale_x2, 0.f
-		);
+			return {};
+		const float radius = glyph_length/length_scale_x2;
 		return std::make_optional<cgv::vec2>(-radius, radius);
+	}
+
+	/// Calculate the absolute extents of a glyph in terms of arc length covered on the given layer along the
+	/// trajectory, taking into account the configured scale. Plot control points have flexible extents which cannot be
+	/// determined in isolation (they extend all the way to their neighboring control points), so in case of non-glyphs,
+	/// a @a none @c std::optional will be returned.
+	///
+	/// ToDo: `glyph_data` must point to an array of attributes as they are stored in the render buffer, including
+	/// attributes that do not affect the size of the glyph, most importantly the first two meta attributes (arc length
+	/// position and debug flag).
+	[[nodiscard]] std::optional<cgv::vec2> glyph_range (layer_index_type layer, const float *glyph_data) {
+		const auto extents = glyph_extents(layer, glyph_data+2);
+		return map_optional(extents, [glyph_data](const cgv::vec2 &extents) {
+			return cgv::vec2(*glyph_data + extents.x(), *glyph_data + extents.y());
+		});
 	}
 
 	/// Calculate the diameter of a glyph on the given layer along the trajectory, taking into account the configured
