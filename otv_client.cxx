@@ -562,7 +562,8 @@ void otv_client::enqueue_node (
 	const std::vector<extrapol::node> &extrapol
 ){
 	render.enqueue_node(target.id, node, t_to_s);
-	extrapol_mgr.replace_extrapolation(target.id, node, extrapol);
+	if (num_extrapol_segments)
+		extrapol_mgr.replace_extrapolation(target.id, node, extrapol);
 }
 
 template <class Iter>
@@ -571,8 +572,12 @@ ro_range<Iter> otv_client::enqueue_glyphs (trajectory_ref target, unsigned layer
 	// Enqueue glyphs to "regular" trajectories
 	target.traj.enqueue_glyphs(layer, glyph_data);
 
-	// Also submit the glyphs to the extrapolation manager for consideration
-	const auto glyphs_on_extrapol = extrapol_mgr.consider_glyphs(target.id, layer, glyph_data);
+	// Also submit the glyphs to the extrapolation manager for consideration if extrapolation display is enabled
+	const auto glyphs_on_extrapol = [&]() -> ro_range<Iter> {
+		if (num_extrapol_segments)
+			return extrapol_mgr.consider_glyphs(target.id, layer, glyph_data);
+		return {}/*extrapol_mgr.skip_glyphs_before(target.id, layer, glyph_data)*/; // <- ToDo: Fix!!!
+	}();
 
 	// Done!
 	otv_instance->session_taa_keep_sampling = true;
