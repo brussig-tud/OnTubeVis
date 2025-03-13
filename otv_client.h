@@ -179,11 +179,10 @@ struct otv_client {
 		const std::vector<extrapol::node> &extrapol
 	);
 
-	/// perform necessary logic to enqueue glyphs. Returns the index of the first glyph within the input range that
-	/// needed to be added to an extrapolation, if any.
-	std::optional<unsigned> enqueue_glyphs (
-		trajectory_ref target, unsigned layer, const ro_range<std::vector<float>::iterator> &glyph_data
-	);
+	/// perform necessary logic to enqueue glyphs. Returns the sub-range of the input range that currently need to be
+	/// displayed on an extrapolation.
+	template <class Iter>
+	ro_range<Iter> enqueue_glyphs (trajectory_ref target, unsigned layer, const ro_range<Iter> &glyph_data);
 
 	/// for service mode: enqueue a new hermite node to be uploaded to the GPU ring buffer of the indicated trajectory
 	/// NOTE: argument `node` will be updated with the color and radius (plus derivative) of the selected trajectory, so

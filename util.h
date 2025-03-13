@@ -63,6 +63,16 @@ struct ro_range {
 template <class T>
 ro_range(T, T) -> ro_range<T>;
 
+////
+// Various typedefs for iterator-like objects that can be used to greatly shorten explicit template instantiations for
+// all functions that have to work with ro_ranges
+#ifdef _STL_VECTOR_H
+	typedef std::vector<float>::iterator std_vector_float_iter;
+#endif
+#ifdef _STL_DEQUE_H
+	typedef std::deque<float>::iterator std_deque_float_iter;
+#endif
+
 
 /// A map() operator for optionals, enabling functional programming-style handling of std::optional.
 template <typename O, typename F>

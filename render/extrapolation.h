@@ -150,7 +150,17 @@ struct extrapolation_manager
 		unsigned traj_id, const node_attribs &last_measured_node, const std::vector<extrapol::node> &extrapolation
 	);
 
-	bool consider_glyphs (const ro_range<float*> &glyph_attribs);
+	/// Consider the given range of <b>new</b> glyphs for inclusion on the current extrapolation. The same requirements
+	/// about monotonically increasing arc length positions of the provided glyphs apply; most notably that implies that
+	/// clients <b>must never</b> feed glyphs to this function that were submitted to the manager for consideration
+	/// before.
+	/// @return The sub range of the provided glyphs that were included for display on the extrapolation.
+	template <class Iter>
+	ro_range<Iter> consider_glyphs (unsigned traj_id, unsigned layer, const ro_range<Iter> &glyph_attribs);
+
+	///
+	template <class Iter>
+	ro_range<Iter> skip_glyphs_before (unsigned traj_id, unsigned layer, const ro_range<Iter> &glyph_attribs);
 
 	/// Flush all changes to GPU buffers, making their current contents visible to the GPU. No guarantees are made that
 	/// any changes (@ref replace_extrapolation() etc.) will ever become visible to the GPU unless this is called at

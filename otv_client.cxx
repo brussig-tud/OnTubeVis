@@ -1,4 +1,6 @@
 
+#include <vector>
+#include <deque>
 #include <optional>
 
 #include "gpumem/ring_buffer.inl"
@@ -530,10 +532,18 @@ void otv_client::update ()
 				const auto begin {glyphs[layer_idx].ranges.at(traj.segment_idx).i0};
 				const auto end   {glyphs[layer_idx].ranges.at(traj.segment_idx).end()};
 
-				enqueue_glyphs(target, layer_idx, ro_range{
+				/*const ro_range glyph_attribs_to_enqueue {
 					data + target.traj.glyph_to_attrib_count(layer_idx, begin),
 					data + target.traj.glyph_to_attrib_count(layer_idx, end)
-				});
+				};
+				std::clog << "otv_client::update(): [traj:"<<target.id<<", l:"<<unsigned(layer_idx)<<"] enqueueing "
+				          << glyph_attribs_to_enqueue.length()<<" glyph attribs\n";*/
+				const auto glyph_attribs_on_extrapol = enqueue_glyphs(
+					target, layer_idx, ro_range {data + target.traj.glyph_to_attrib_count(layer_idx, begin),
+					                             data + target.traj.glyph_to_attrib_count(layer_idx, end)}
+				);
+				/*std::clog << "otv_client::update(): placed "<<glyph_attribs_on_extrapol.length()<<" on extrapolation, "
+				          << glyph_attribs_to_enqueue.length()-glyph_attribs_on_extrapol.length()<<" skipped\n";*/
 			});
 
 			++traj.segment_idx;
@@ -555,44 +565,26 @@ void otv_client::enqueue_node (
 	extrapol_mgr.replace_extrapolation(target.id, node, extrapol);
 }
 
-std::optional<unsigned> otv_client::enqueue_glyphs (
-	trajectory_ref target, unsigned layer, const ro_range<std::vector<float>::iterator> &glyph_data
-){
+template <class Iter>
+ro_range<Iter> otv_client::enqueue_glyphs (trajectory_ref target, unsigned layer, const ro_range<Iter> &glyph_data)
+{
 	// Enqueue glyphs to "regular" trajectories
 	target.traj.enqueue_glyphs(layer, glyph_data);
 
-	// Find out how many of the glyphs we must also route to the current extrapolation
-	const unsigned num_glyphs = target.traj.attrib_to_glyph_count(layer, glyph_data.length()).value;
-	unsigned num_glyphs_nonextrapol = 0;
-	if (num_glyphs > 0)
-	{
-		const unsigned stride = target.traj.glyph_to_attrib_count(layer, glyph_count_type{1});
-		const float smax = target.traj.arclength();
-		// - loop through new glyphs newest-to-oldest, to avoid needing special handling for plot control points
-		ro_range one_glyph = {glyph_data.end-stride, glyph_data.end};
-		float glyph_pos = get_glyph_pos(one_glyph);
-		auto glyph_extents = render.glyph_extents(layer, &*one_glyph.begin + 2)
-	                          		.value_or(cgv::vec2(.0f, .0f)); // no special handling for plot control points!
-		float glyph_max = glyph_pos + glyph_extents.y();
-		while (glyph_max >= smax && num_glyphs_nonextrapol < num_glyphs)
-		{
-			num_glyphs_nonextrapol++;
-			if (one_glyph.begin > glyph_data.begin) {
-				one_glyph -= stride;
-				glyph_pos = get_glyph_pos(one_glyph);
-				glyph_extents = render.glyph_extents(layer, &*one_glyph.begin + 2)
-				                      .value_or(cgv::vec2(.0f, .0f));  // again, no special handling required!
-				glyph_max = glyph_pos + glyph_extents.y();
-			}
-		}
-	}
+	// Also submit the glyphs to the extrapolation manager for consideration
+	const auto glyphs_on_extrapol = extrapol_mgr.consider_glyphs(target.id, layer, glyph_data);
 
 	// Done!
 	otv_instance->session_taa_keep_sampling = true;
-	return num_glyphs_nonextrapol ?
-		std::make_optional(num_glyphs - num_glyphs_nonextrapol) : // Some(index)
-		std::optional<unsigned>(); // None
+	return glyphs_on_extrapol;
 }
+template ro_range<std_vector_float_iter> otv_client::enqueue_glyphs (
+	trajectory_ref, unsigned, const ro_range<std_vector_float_iter>&
+);
+template ro_range<std_deque_float_iter> otv_client::enqueue_glyphs (
+	trajectory_ref, unsigned, const ro_range<std_deque_float_iter>&
+);
+template ro_range<float*> otv_client::enqueue_glyphs (trajectory_ref, unsigned, const ro_range<float*>&);
 
 void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node, const cgv::mat4 *t_to_s)
 {

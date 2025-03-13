@@ -195,19 +195,28 @@ void extrapolation_manager::replace_extrapolation (
 			layer.glyphs_deque.emplace_back(0);*/
 		// --- END ---------------------
 
-		// Nothing to do if there are no glyphs here
+		// Retrieve general per-layer information
+		const unsigned stride = setup.glyph_attrib_counts[l];
+
+		// First, find the oldest glyph we need to still include
+		const auto on_extrapol = skip_glyphs_before(
+			traj_id, l, ro_range{layer.glyphs_deque.begin(), layer.glyphs_deque.end()}
+		);
+		// ...and erase those that fell off the extrapolation
+		if (on_extrapol.begin > layer.glyphs_deque.begin())
+			layer.glyphs_deque.erase(layer.glyphs_deque.begin(), on_extrapol.begin);
+
+		// Nothing to do if there are no in-range glyphs
 		if (layer.glyphs_deque.empty())
 			continue;
 
-		// First, retrieve general per-layer information
-		const unsigned stride = setup.glyph_attrib_counts[l];
-
 		// Next, differentiate between glyph and plot layers
-		// TODO: The code in both cases looks very similar and can probably be templated to avoid duplication
+		// TODO: The code in both cases looks very similar and can probably be templated – at least in part – to avoid
+		// duplication
 		const auto glyph_geometry = render.glyph_extents(l, &*(layer.glyphs_deque.begin()+2));
 		if (glyph_geometry.has_value()) // it's a glyph
 		{
-			////
+			/*////
 			// 1 - Eliminate all but the first relevant glyph
 
 			const auto &alen = traj.t_to_s.contents[0]; // arc length of first segment
@@ -224,11 +233,13 @@ void extrapolation_manager::replace_extrapolation (
 					break;
 
 				// Glyph didn't pass the check, remove
+				assert(false);
 				layer.glyphs_deque.erase(cur_glyph.begin, cur_glyph.end);
 				cur_glyph = {layer.glyphs_deque.begin(), layer.glyphs_deque.begin()+stride};
 				assert(cur_glyph.end <= layer.glyphs_deque.end());
 			}
-			while (!layer.glyphs_deque.empty());
+			while (!layer.glyphs_deque.empty());*/
+
 
 
 			////
@@ -238,6 +249,7 @@ void extrapolation_manager::replace_extrapolation (
 			const auto num_glyphs = (unsigned)render.trajectories.front().attrib_to_glyph_count(
 				l, (int)layer.glyphs_deque.size()
 			).value;
+			ro_range cur_glyph {on_extrapol.begin, on_extrapol.begin+stride};
 			unsigned cur_glyph_idx = 0;
 			for (unsigned seg=0; seg<num_segments; seg++)
 			{
@@ -277,7 +289,7 @@ void extrapolation_manager::replace_extrapolation (
 		}
 		else // it's a plot
 		{
-			////
+			/*////
 			// 1 - Eliminate all but the first relevant plot control point
 
 			// For this, we loop through all glyphs front to back, looking at the oldest _two_ points. We are looking
@@ -318,11 +330,12 @@ void extrapolation_manager::replace_extrapolation (
 
 				// If we arrived here, then the current control point does not contribute to the first segment, so
 				// we throw it out for good.
+				assert(false);
 				layer.glyphs_deque.erase(cur_glyph.begin, cur_glyph.end);
 				cur_glyph = {layer.glyphs_deque.begin(), layer.glyphs_deque.begin()+stride};
 				assert(cur_glyph.end <= layer.glyphs_deque.end());
 			}
-			while (true/*cur_glyph.begin < layer.glyphs_deque.end()*/);
+			while (true/*cur_glyph.begin < layer.glyphs_deque.end()*//*);*/
 
 
 			////
@@ -332,6 +345,7 @@ void extrapolation_manager::replace_extrapolation (
 			const auto num_glyphs = (unsigned)render.trajectories.front().attrib_to_glyph_count(
 				l, (int)layer.glyphs_deque.size()
 			).value;
+			ro_range cur_glyph {on_extrapol.begin, on_extrapol.begin+stride};
 			unsigned cur_glyph_idx = 0;
 			for (unsigned seg=0; seg<num_segments; seg++)
 			{
@@ -392,7 +406,149 @@ void extrapolation_manager::replace_extrapolation (
 	#endif
 }
 
-bool extrapolation_manager::flush_changes(void) const {
+template <class Iter>
+ro_range<Iter> extrapolation_manager::consider_glyphs (
+	unsigned traj_id, unsigned l, const ro_range<Iter> &glyph_attribs
+){
+	// Nothing to do if there are no glyphs
+	if (glyph_attribs.is_empty())
+		return glyph_attribs;
+
+	// Convenience shorthands
+	auto &traj = trajectories[traj_id];
+	auto &layer = traj.layers[l];
+
+	// First, retrieve general information about the layer
+	const unsigned stride = setup.glyph_attrib_counts[l];
+	const auto num_glyphs = render.trajectories[traj_id].attrib_to_glyph_count(l, glyph_attribs.length()).value;
+	/*std::clog << "extrapolation_manager::consider_glyphs(): considering "<<num_glyphs<<" glyphs over "<<glyph_attribs.length()
+	          << " attribs ("<<stride<<"/glyph) for inclusion\n";*/
+
+	const auto on_extrapol = skip_glyphs_before(traj_id, l, glyph_attribs);
+
+	// Add to displayed glyphs
+	if (!layer.glyphs_deque.empty()) {
+		const float old_max_s = get_glyph_pos(
+			ro_range{layer.glyphs_deque.end()-stride, layer.glyphs_deque.end()}
+		);
+		const float first_glyph_s = get_glyph_pos(on_extrapol);
+		assert(first_glyph_s >= old_max_s); // sanity check
+	}
+	/*const auto num_attribs = on_extrapol.length();
+	const auto num_glyphs_to_insert = render.trajectories[traj_id].attrib_to_glyph_count(l, num_attribs).value;
+	std::clog << "extrapolation_manager::consider_glyphs(): commiting "<<num_glyphs_to_insert<<" glyphs in "
+	          << num_attribs<<" attribs\n";*/
+	for (auto insert_iter=on_extrapol.begin; insert_iter!=glyph_attribs.end; insert_iter++)
+		layer.glyphs_deque.emplace_back(*insert_iter);
+	//layer.glyphs_deque.insert(layer.glyphs_deque.end(), cur_glyph.begin, glyph_attribs.end);
+
+	// Done!
+	return ro_range{on_extrapol.begin, glyph_attribs.end};
+}
+template ro_range<std_vector_float_iter> extrapolation_manager::consider_glyphs (
+	unsigned, unsigned, const ro_range<std_vector_float_iter>&
+);
+template ro_range<std_deque_float_iter> extrapolation_manager::consider_glyphs (
+	unsigned, unsigned, const ro_range<std_deque_float_iter>&
+	);
+template ro_range<float*> extrapolation_manager::consider_glyphs (unsigned, unsigned, const ro_range<float*>&);
+
+template <class Iter>
+ro_range<Iter> extrapolation_manager::skip_glyphs_before (
+	unsigned traj_id, unsigned l, const ro_range<Iter> &glyph_attribs
+){
+	// Nothing to do if there are no glyphs
+	if (glyph_attribs.is_empty())
+		return glyph_attribs;
+
+	// Convenience shorthands
+	auto &traj = trajectories[traj_id];
+	auto &layer = traj.layers[l];
+
+	// Init glyph cursor
+	const unsigned stride = setup.glyph_attrib_counts[l];
+	ro_range cur_glyph {glyph_attribs.begin, glyph_attribs.begin+stride};
+	assert(cur_glyph.end <= glyph_attribs.end);
+
+	// Next, differentiate between glyph and plot layers (the required logic is slightly different)
+	const auto glyph_geometry = render.glyph_extents(l, &*(glyph_attribs.begin+2));
+	if (glyph_geometry.has_value()) // it's a glyph
+	{
+		// Find first glyph that overlaps with the area behind the start of the extrapolation
+		const auto &alen = traj.t_to_s.contents[0]; // arc length of first segment
+		do {
+			// Determine arc length range covered by glyph
+			const auto s_range = render.glyph_range(l, &*cur_glyph.begin).value();
+
+			// Check if glyph is on the extrapolation
+			if (s_range.y() >= alen[0])
+				// We found the first glyph that actually lies on the extrapolation
+				break;
+
+			// Glyph didn't pass the check, remove from consideration
+			cur_glyph += stride;
+			assert(cur_glyph.begin <= glyph_attribs.end);
+		}
+		while (cur_glyph.begin < glyph_attribs.end);
+	}
+	else // it's a plot
+	{
+		// Find first plot control point that would need to be included on the extrapolation.
+		//
+		// For this, we loop through all control points front to back, looking at the oldest _two_ points. We are
+		// looking for either (a) two subsequent control points that bracket the start arc length of the first segment,
+		// or (b) the very last control point we know about (which will then extend over all extrapolated segments).
+
+		// Loop front to back until (a) or (b) is satisfied
+		const auto &alen = traj.t_to_s.contents[0]; // arc length of first segment
+		do {
+			const float s = get_glyph_pos(cur_glyph);
+			if (s < alen[0])
+			{
+				// Check condition (b) first:
+				if (cur_glyph.end == glyph_attribs.end)
+					// We arrived at the last control point, and it still precedes the first extrapolated segment. The
+					// search for the first control point to include is thus complete (we threw out all but the last
+					// one).
+					break;
+
+				// Now check condition (a):
+				const auto next_glyph = cur_glyph + stride;
+				const float next_s = get_glyph_pos(next_glyph);
+				if (next_s > alen[0])
+					// The current control point is the last one to precede the first extrapolated segment, so we must
+					// include it for proper interpolation, having thrown out all that came before. The search for the
+					// first control point to include is thus complete.
+					break;
+			}
+			else
+				// If we get here, the very first of the currently considered control points falls already within the
+				// arc length range of the extrapolation. We stop right here and now, not throwing out any points.
+				// (we might end up with some part of the beginning of the extrapolation not covered by the plot, which
+				// would then have been the client's fault for not telling us to consider all potentially relevant
+				// control points)
+				break;
+
+			// If we arrived here, then the current control point does not contribute to the first segment, so we throw
+			// it out for good.
+			cur_glyph += stride;
+			assert(cur_glyph.end <= glyph_attribs.end);
+		}
+		while (true/*cur_glyph.begin < glyph_attribs.end*/);
+	}
+
+	// Done!
+	return ro_range{cur_glyph.begin, glyph_attribs.end};
+}
+template ro_range<std_vector_float_iter> extrapolation_manager::skip_glyphs_before (
+	unsigned, unsigned, const ro_range<std_vector_float_iter>&
+);
+template ro_range<std_deque_float_iter> extrapolation_manager::skip_glyphs_before (
+	unsigned, unsigned, const ro_range<std_deque_float_iter>&
+	);
+template ro_range<float*> extrapolation_manager::skip_glyphs_before (unsigned, unsigned, const ro_range<float*>&);
+
+bool extrapolation_manager::flush_changes (void) const {
 	bool result = geom.nodes_arena.flush_all();
 	result &= geom.t_to_s_arena.flush_all();
 	result &= geom.ranges_arena.flush_all();
