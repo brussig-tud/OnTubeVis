@@ -173,7 +173,7 @@ void extrapolation_manager::replace_extrapolation (
 		auto &layer = traj.layers[l];
 
 		// ------------- DEBUG TEST ---
-		layer.glyphs_deque.clear();
+		/*layer.glyphs_deque.clear();
 		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-3][0]-.75f);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
 			layer.glyphs_deque.emplace_back(.0f);
@@ -194,7 +194,7 @@ void extrapolation_manager::replace_extrapolation (
 			layer.glyphs_deque.emplace_back(.0f);
 		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-1][14]);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(.0f);
+			layer.glyphs_deque.emplace_back(.0f);*/
 		// --- END ---------------------
 
 		// Retrieve general per-layer information
