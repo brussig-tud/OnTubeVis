@@ -24,18 +24,15 @@ struct ro_range {
 	Iter begin {};
 	Iter end   {};
 
-	[[nodiscard]] constexpr bool is_empty () const noexcept
-	{
+	[[nodiscard]] constexpr bool is_empty () const noexcept {
 		return begin == end;
 	}
 
-	[[nodiscard]] constexpr std::size_t length () const noexcept
-	{
+	[[nodiscard]] constexpr std::size_t length () const noexcept {
 		return end - begin;
 	}
 
-	[[nodiscard]] constexpr bool contains (const Iter &elem) const noexcept
-	{
+	[[nodiscard]] constexpr bool contains (const Iter &elem) const noexcept {
 		return elem >= begin && elem < end;
 	}
 
@@ -48,6 +45,11 @@ struct ro_range {
 		begin += offset;
 		const std::size_t safe_offset = max - end;
 		end += std::min(offset, safe_offset);
+	}
+	inline void safe_unadvance(const std::size_t offset) noexcept {
+		const std::size_t safe_offset = begin != end ? offset : 0;
+		begin -= offset;
+		end -= safe_offset;
 	}
 
 	[[nodiscard]] inline ro_range operator + (const std::size_t offset) noexcept {

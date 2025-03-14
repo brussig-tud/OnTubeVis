@@ -176,25 +176,25 @@ void extrapolation_manager::replace_extrapolation (
 		layer.glyphs_deque.clear();
 		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-3][0]-.75f);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(0);
+			layer.glyphs_deque.emplace_back(.0f);
 		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-3][0]-.5f);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(0);
+			layer.glyphs_deque.emplace_back(.0f);
 		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-3][7]);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(0);
+			layer.glyphs_deque.emplace_back(.0f);
 		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-3][15]);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(0);
+			layer.glyphs_deque.emplace_back(.0f);
 		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-2][15]);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(0);
+			layer.glyphs_deque.emplace_back(.0f);
 		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-1][6]);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(0);
+			layer.glyphs_deque.emplace_back(.0f);
 		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-1][14]);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(0);
+			layer.glyphs_deque.emplace_back(.0f);
 		// --- END ---------------------
 
 		// Retrieve general per-layer information
@@ -247,7 +247,7 @@ void extrapolation_manager::replace_extrapolation (
 				while (s_range.x() <= s_max) {
 					cur_range.n++;
 					cur_glyph_idx++;
-					cur_glyph += stride;
+					cur_glyph.safe_advance(stride, on_extrapol.end);
 					assert(cur_glyph_idx <= num_glyphs);
 					if (cur_glyph_idx == num_glyphs)
 						break; // all glyphs exhausted
@@ -259,7 +259,7 @@ void extrapolation_manager::replace_extrapolation (
 				// next segment.
 				if (cur_glyph_idx > 0 && s_range_prev.y() >= s_max) {
 					cur_glyph_idx--;
-					cur_glyph -= stride;
+					cur_glyph.safe_unadvance(stride);
 				}
 			}
 		}
@@ -312,7 +312,7 @@ void extrapolation_manager::replace_extrapolation (
 				// lies _exactly_ on the segment boundary (2nd condition), this is not necessary.
 				if (cur_glyph_idx > 0 && s!=s_max) {
 					cur_glyph_idx--;
-					cur_glyph -= stride;
+					cur_glyph.safe_unadvance(stride);
 				}
 			}
 		}
@@ -351,7 +351,7 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	/*std::clog << "extrapolation_manager::consider_glyphs(): considering "<<num_glyphs<<" glyphs over "<<glyph_attribs.length()
 	          << " attribs ("<<stride<<"/glyph) for inclusion\n";*/
 
-	const auto on_extrapol = skip_glyphs_before(traj_id, l, glyph_attribs);
+	const auto on_extrapol = skip_glyphs_before(l, traj.t_to_s.contents[0][0], glyph_attribs);
 
 	// Add to displayed glyphs
 	if (!layer.glyphs_deque.empty()) {
@@ -365,9 +365,10 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	const auto num_glyphs_to_insert = render.trajectories[traj_id].attrib_to_glyph_count(l, num_attribs).value;
 	std::clog << "extrapolation_manager::consider_glyphs(): commiting "<<num_glyphs_to_insert<<" glyphs in "
 	          << num_attribs<<" attribs\n";*/
-	for (auto insert_iter=on_extrapol.begin; insert_iter!=glyph_attribs.end; insert_iter++)
-		layer.glyphs_deque.emplace_back(*insert_iter);
-	//layer.glyphs_deque.insert(layer.glyphs_deque.end(), cur_glyph.begin, glyph_attribs.end);
+	const auto num_attribs_to_add = on_extrapol.length();
+	const auto glyphs_deque_old_size = layer.glyphs_deque.size();
+	layer.glyphs_deque.insert(layer.glyphs_deque.end(), on_extrapol.begin, glyph_attribs.end);
+	assert(layer.glyphs_deque.size() == glyphs_deque_old_size+num_attribs_to_add);
 
 	// Done!
 	return ro_range{on_extrapol.begin, glyph_attribs.end};
@@ -452,7 +453,7 @@ ro_range<Iter> extrapolation_manager::skip_glyphs_before (
 
 			// If we arrived here, then the current control point does not contribute to the first segment, so we throw
 			// it out for good.
-			cur_glyph += stride;
+			cur_glyph.safe_advance(stride, glyph_attribs.end);
 			assert(cur_glyph.end <= glyph_attribs.end);
 		}
 		while (true/*cur_glyph.begin < glyph_attribs.end*/);
