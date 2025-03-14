@@ -576,7 +576,7 @@ ro_range<Iter> otv_client::enqueue_glyphs (trajectory_ref target, unsigned layer
 	const auto glyphs_on_extrapol = [&]() -> ro_range<Iter> {
 		if (num_extrapol_segments)
 			return extrapol_mgr.consider_glyphs(target.id, layer, glyph_data);
-		return {}/*extrapol_mgr.skip_glyphs_before(target.id, layer, glyph_data)*/; // <- ToDo: Fix!!!
+		return extrapol_mgr.skip_glyphs_before(layer, target.traj.arclength(), glyph_data);
 	}();
 
 	// Done!

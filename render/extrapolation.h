@@ -106,7 +106,20 @@ struct extrapolation_manager
 
 	/// Visualization setup meta data
 	struct {
+		/// The umber of configured layers.
+		unsigned num_layers = 0;
+
+		/// The least common multiple of all @ref glyph_attrib_counts.
+		unsigned glyph_attribs_lcm = 0;
+
+		/// The attribute counts of each layer.
 		std::array<unsigned, 4> glyph_attrib_counts;
+
+		/// Clear every field to 0.
+		inline void reset (void) {
+			std::fill(glyph_attrib_counts.begin(), glyph_attrib_counts.end(), 0);
+			glyph_attribs_lcm = num_layers = 0;
+		}
 	} setup;
 
 	/// Members related to the geometry of extrapolated trajectories
@@ -142,7 +155,13 @@ struct extrapolation_manager
 	/// Create all buffers relating to pure geometry (nodes, node indices and segment arclength re-parametrizations).
 	bool create_geom_buffers (unsigned num_trajectories, unsigned num_segments);
 
-	/// Create all buffers relating to per-layer non-geometric information (glyph instances, mapping ranges).
+	/// Make sure internal knowledge about the layer configuration mirrors the one currently active in the @link render
+	/// render state @endlink, invalidating all glyph-related buffers until @ref create_glyph_and_per_layer_buffers() is
+	/// called.
+	void reinit_layer_config (void);
+
+	/// Create all buffers relating to per-layer non-geometric information (glyph instances, mapping ranges). Must not
+	/// be called before @ref reinit_layer_config() has been called at least once!
 	bool create_glyph_and_per_layer_buffers (unsigned per_layer_min_glyphs_capacity=128);
 
 	/// Fully replace the current extrapolation for the given trajectory
@@ -158,9 +177,10 @@ struct extrapolation_manager
 	template <class Iter>
 	ro_range<Iter> consider_glyphs (unsigned traj_id, unsigned layer, const ro_range<Iter> &glyph_attribs);
 
-	///
+	/// Return the sub-range of the range @a glyph_attribs on @a layer that have any influence after (and including)
+	/// @a s_min.
 	template <class Iter>
-	ro_range<Iter> skip_glyphs_before (unsigned traj_id, unsigned layer, const ro_range<Iter> &glyph_attribs);
+	ro_range<Iter> skip_glyphs_before (unsigned layer, float s_min, const ro_range<Iter> &glyph_attribs);
 
 	/// Flush all changes to GPU buffers, making their current contents visible to the GPU. No guarantees are made that
 	/// any changes (@ref replace_extrapolation() etc.) will ever become visible to the GPU unless this is called at

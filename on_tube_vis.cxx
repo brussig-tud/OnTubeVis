@@ -1802,6 +1802,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			}
 
 			// setup extrapolation to receive glyphs
+			client.extrapol_mgr.reinit_layer_config();
 			if (client.num_extrapol_segments)
 				client.extrapol_mgr.create_glyph_and_per_layer_buffers(
 					/* min_glyphs_capacity_per_traj_and_layer: */std::max<unsigned>(128, session_glyphbuf_size/16)
