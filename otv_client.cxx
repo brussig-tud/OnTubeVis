@@ -14,7 +14,7 @@
 // Implemented header
 #include "otv_client.h"
 
-#include <glm/vec3.hpp>
+//#include <glm/vec3.hpp>
 
 #include "on_tube_vis.h"
 

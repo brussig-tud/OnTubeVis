@@ -19,10 +19,10 @@ constexpr Integer find_lcm (const Integer &a, const Integer &b) {
 }
 
 /// A right-open range [begin, end).
-template <class T>
+template <class Iter>
 struct ro_range {
-	T begin {};
-	T end   {};
+	Iter begin {};
+	Iter end   {};
 
 	[[nodiscard]] constexpr bool is_empty () const noexcept
 	{
@@ -34,7 +34,7 @@ struct ro_range {
 		return end - begin;
 	}
 
-	[[nodiscard]] constexpr bool contains (const T &elem) const noexcept
+	[[nodiscard]] constexpr bool contains (const Iter &elem) const noexcept
 	{
 		return elem >= begin && elem < end;
 	}
@@ -43,6 +43,11 @@ struct ro_range {
 		begin += offset;
 		end += offset;
 		return *this;
+	}
+	inline void safe_advance (const std::size_t offset, const Iter &max) noexcept {
+		begin += offset;
+		const std::size_t safe_offset = max - end;
+		end += std::min(offset, safe_offset);
 	}
 
 	[[nodiscard]] inline ro_range operator + (const std::size_t offset) noexcept {
@@ -60,8 +65,8 @@ struct ro_range {
 	}
 };
 
-template <class T>
-ro_range(T, T) -> ro_range<T>;
+template <class Iter>
+ro_range(Iter, Iter) -> ro_range<Iter>;
 
 ////
 // Various typedefs for iterator-like objects that can be used to greatly shorten explicit template instantiations for

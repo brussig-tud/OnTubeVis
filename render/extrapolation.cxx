@@ -367,7 +367,7 @@ void extrapolation_manager::replace_extrapolation (
 				while (s < s_max) {
 					cur_range.n++;
 					cur_glyph_idx++;
-					cur_glyph += stride;
+					cur_glyph.safe_advance(stride, layer.glyphs_deque.end());
 					assert(cur_glyph_idx <= num_glyphs);
 					if (cur_glyph_idx == num_glyphs)
 						break; // all glyphs exhausted
@@ -486,7 +486,7 @@ ro_range<Iter> extrapolation_manager::skip_glyphs_before (
 				break;
 
 			// Glyph didn't pass the check, remove from consideration
-			cur_glyph += stride;
+			cur_glyph.safe_advance(stride, glyph_attribs.end);
 			assert(cur_glyph.begin <= glyph_attribs.end);
 		}
 		while (cur_glyph.begin < glyph_attribs.end);
