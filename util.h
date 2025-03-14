@@ -20,7 +20,8 @@ constexpr Integer find_lcm (const Integer &a, const Integer &b) {
 
 /// A right-open range [begin, end).
 template <class Iter>
-struct ro_range {
+struct ro_range
+{
 	Iter begin {};
 	Iter end   {};
 
@@ -60,6 +61,16 @@ struct ro_range {
 		begin -= offset;
 		end -= offset;
 		return *this;
+	}
+	inline void safe_retreat (const std::size_t offset, const Iter &min) noexcept {
+		const std::size_t safe_offset = begin - min;
+		begin -= std::min(offset, safe_offset);
+		end -= offset;
+	}
+	inline void safe_unretreat (const std::size_t offset) noexcept {
+		const std::size_t safe_offset = begin != end ? offset : 0;
+		begin += safe_offset;
+		end += offset;
 	}
 
 	[[nodiscard]] inline ro_range operator - (const std::size_t offset) noexcept {

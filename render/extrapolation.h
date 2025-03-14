@@ -178,9 +178,14 @@ struct extrapolation_manager
 	ro_range<Iter> consider_glyphs (unsigned traj_id, unsigned layer, const ro_range<Iter> &glyph_attribs);
 
 	/// Return the sub-range of the range @a glyph_attribs on @a layer that have any influence after (and including)
-	/// @a s_min.
+	/// @a s_min, searching from the front.
 	template <class Iter>
 	ro_range<Iter> skip_glyphs_before (unsigned layer, float s_min, const ro_range<Iter> &glyph_attribs);
+
+	/// Return the sub-range of the range @a glyph_attribs on @a layer that have any influence after (and including)
+	/// @a s_min, searching from the back.
+	template <class Iter>
+	ro_range<Iter> keep_glyphs_after_including (unsigned layer, float s_min, const ro_range<Iter> &glyph_attribs);
 
 	/// Flush all changes to GPU buffers, making their current contents visible to the GPU. No guarantees are made that
 	/// any changes (@ref replace_extrapolation() etc.) will ever become visible to the GPU unless this is called at

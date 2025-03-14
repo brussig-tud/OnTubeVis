@@ -347,28 +347,28 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 
 	// First, retrieve general information about the layer
 	const unsigned stride = setup.glyph_attrib_counts[l];
-	const auto num_glyphs = render.trajectories[traj_id].attrib_to_glyph_count(l, glyph_attribs.length()).value;
-	/*std::clog << "extrapolation_manager::consider_glyphs(): considering "<<num_glyphs<<" glyphs over "<<glyph_attribs.length()
-	          << " attribs ("<<stride<<"/glyph) for inclusion\n";*/
+	const auto num_glyphs = render.trajectories[traj_id].attrib_to_glyph_count(
+		l, glyph_attribs.length()
+	).value;
 
+	// Trim glyphs that precede the range covered by the extrapolation (this can happen due to network issues or if they
+	// were submitted late by the client for whatever reason)
 	const auto on_extrapol = skip_glyphs_before(l, traj.t_to_s.contents[0][0], glyph_attribs);
 
 	// Add to displayed glyphs
-	if (!layer.glyphs_deque.empty()) {
+	if (!layer.glyphs_deque.empty())
+	{
+		// Sanity check
 		const float old_max_s = get_glyph_pos(
 			ro_range{layer.glyphs_deque.end()-stride, layer.glyphs_deque.end()}
 		);
 		const float first_glyph_s = get_glyph_pos(on_extrapol);
-		assert(first_glyph_s >= old_max_s); // sanity check
+		assert(
+			first_glyph_s >= old_max_s &&
+			"extrapolation_manager::consider_glyphs(): new glyphs must never precede previously submitted glyphs!"
+		);
 	}
-	/*const auto num_attribs = on_extrapol.length();
-	const auto num_glyphs_to_insert = render.trajectories[traj_id].attrib_to_glyph_count(l, num_attribs).value;
-	std::clog << "extrapolation_manager::consider_glyphs(): commiting "<<num_glyphs_to_insert<<" glyphs in "
-	          << num_attribs<<" attribs\n";*/
-	const auto num_attribs_to_add = on_extrapol.length();
-	const auto glyphs_deque_old_size = layer.glyphs_deque.size();
 	layer.glyphs_deque.insert(layer.glyphs_deque.end(), on_extrapol.begin, glyph_attribs.end);
-	assert(layer.glyphs_deque.size() == glyphs_deque_old_size+num_attribs_to_add);
 
 	// Done!
 	return ro_range{on_extrapol.begin, glyph_attribs.end};
@@ -469,6 +469,106 @@ template ro_range<std_deque_float_iter> extrapolation_manager::skip_glyphs_befor
 	unsigned layer, float s_min, const ro_range<std_deque_float_iter>&
 );
 template ro_range<float*> extrapolation_manager::skip_glyphs_before (
+	unsigned layer, float s_min, const ro_range<float*>&
+);
+
+template <class Iter>
+ro_range<Iter> extrapolation_manager::keep_glyphs_after_including (
+	const unsigned layer, const float s_min, const ro_range<Iter> &glyph_attribs
+){
+	// Nothing to do if there are no glyphs
+	if (glyph_attribs.is_empty())
+		return glyph_attribs;
+
+	// Init glyph cursor
+	const unsigned stride = setup.glyph_attrib_counts[layer];
+	ro_range cur_glyph {glyph_attribs.end-stride, glyph_attribs.end};
+	assert(cur_glyph.begin >= glyph_attribs.begin);
+
+	// Next, differentiate between glyph and plot layers (the required logic is slightly different)
+	const auto glyph_geometry = render.glyph_extents(layer, &*(glyph_attribs.begin+2));
+	if (glyph_geometry.has_value()) // it's a glyph
+	{
+		// Find first glyph that doesn't overlap with the area behind the start of the extrapolation
+		do {
+			// Determine arc length range covered by glyph
+			const auto s_range = render.glyph_range(layer, &*cur_glyph.begin).value();
+
+			// Check if glyph is on the extrapolation
+			if (s_range.y() < s_min)
+				// We found the first glyph that lies completely outside the extrapolation, don't include it and all
+				// earlier ones
+				break;
+
+			// Glyph passed the check, keep it
+			cur_glyph.safe_retreat(stride, glyph_attribs.begin);
+			assert(cur_glyph.end >= glyph_attribs.begin);
+		}
+		while (cur_glyph.end > glyph_attribs.begin);
+
+		// We stopped at the first glyph completely preceding the extrapolation, so we have to advance forward one glyph
+		// again to obtain the range of glyphs _on_ the extrapolation. If the very first glyph we considered already
+		// precedes the extrapolation, then the curser will point at the first glyph _after_ the whole input range, so
+		// the reported sub range of glyphs on the extrapolation will be empty.
+		cur_glyph.safe_advance(stride, glyph_attribs.end);
+	}
+	else // it's a plot
+	{
+		// Find first plot control point that can be excluded from the extrapolation.
+		//
+		// For this, we loop through all control points back to front, looking at the last _two_ points. We are looking
+		// for either (a) two subsequent control points that bracket the start arc length of the first segment,
+		// or (b) the oldest control point we know about.
+
+		// Loop front to back until (a) or (b) is satisfied
+		do {
+			const float s = get_glyph_pos(cur_glyph);
+			if (s > s_min)
+			{
+				// Check condition (b) first:
+				if (cur_glyph.begin == glyph_attribs.begin)
+					// We arrived at the oldest control point, and it still doesn't precede the first extrapolated
+					// segment. The search for the first control point to include is thus complete. This means part of
+					// the beginning of the extrapolation will not be covered by the plot, but that would then have been
+					// the client's fault for not submitting all relevant control points.
+					break;
+
+				// Now check condition (a):
+				const auto prev_glyph = cur_glyph - stride;
+				const float prev_s = get_glyph_pos(prev_glyph);
+				if (prev_s <= s_min) {
+					// The previous control point is the most recent one not situated on the extrapolated segment (or
+					// exactly on the beginning), so we must include it for proper interpolation, but will throw out all
+					// older ones.
+					cur_glyph = prev_glyph;
+					break;
+				}
+			}
+			else {
+				// If we get here, the newest of the currently considered control points falls already outside the arc
+				// length range of the extrapolation. So we stop right here and now, keeping it to make sure it spreads
+				// out over the whole extrapolation.
+				break;
+			}
+
+			// If we arrived here, then the current control point does not contribute to the first segment, so we throw
+			// it out for good.
+			cur_glyph.safe_retreat(stride, glyph_attribs.begin);
+			assert(cur_glyph.end >= glyph_attribs.begin);
+		}
+		while (true/*cur_glyph.end > glyph_attribs.begin*/);
+	}
+
+	// Done!
+	return ro_range{cur_glyph.begin, glyph_attribs.end};
+}
+template ro_range<std_vector_float_iter> extrapolation_manager::keep_glyphs_after_including (
+	unsigned layer, float s_min, const ro_range<std_vector_float_iter>&
+);
+template ro_range<std_deque_float_iter> extrapolation_manager::keep_glyphs_after_including (
+	unsigned layer, float s_min, const ro_range<std_deque_float_iter>&
+);
+template ro_range<float*> extrapolation_manager::keep_glyphs_after_including (
 	unsigned layer, float s_min, const ro_range<float*>&
 );
 

@@ -458,10 +458,10 @@ void otv_client::update ()
 	session.wait_init_ready();
 
 	// extend all trajectories based on the animation time, emulating streaming
-	cgv::utils::stopwatch sw;
 	std::vector<extrapol::node> extrapol_nodes;
 	extrapol_nodes.reserve(num_extrapol_segments);
 	#if DEBUG_OUTPUT
+		cgv::utils::stopwatch sw;
 		std::clog << "otv_client::update(): starting update for t="<<render.style.max_t<<"s\n";
 	#endif
 	for (auto &traj : trajectories) {
