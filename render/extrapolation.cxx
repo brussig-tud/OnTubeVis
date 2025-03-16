@@ -149,15 +149,10 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (unsigned per_lay
 void extrapolation_manager::replace_extrapolation (
 	unsigned traj_id, const node_attribs &last_measured_node, const std::vector<extrapol::node> &extrapolation
 ){
-	#define DEBUG_OUTPUT 0
-
 	// Retrieve trajectory
 	auto &traj = trajectories[traj_id];
 
 	// Replace geometry buffer contents
-	#if DEBUG_OUTPUT
-		std::clog << "### UPDATING EXTRAPOLATED NODES ##############################\n";
-	#endif
 	const auto num_segments = traj.t_to_s.capacity();
 	assert(num_segments == (unsigned)extrapolation.size());
 	traj.nodes.contents[0] = last_measured_node;
@@ -173,28 +168,38 @@ void extrapolation_manager::replace_extrapolation (
 		auto &layer = traj.layers[l];
 
 		// ------------- DEBUG TEST ---
-		/*layer.glyphs_deque.clear();
-		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-3][0]-.75f);
+		/*const unsigned glyph_attrib_count = setup.glyph_attrib_counts[l];
+		gpumem::ring_buffer_arena<float> rba; rba.create(1, 6*glyph_attrib_count);
+		auto &buf = rba.buffer(0);
+		/*layer.glyph_attribs.clear();*//*
+		buf.push_back(traj.t_to_s.contents[num_segments-3][0]-.75f);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(.0f);
-		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-3][0]-.5f);
+			buf.push_back(.0f);
+		buf.push_back(traj.t_to_s.contents[num_segments-3][0]-.5f);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(.0f);
-		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-3][7]);
+			buf.push_back(.0f);
+		buf.push_back(traj.t_to_s.contents[num_segments-3][7]);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(.0f);
-		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-3][15]);
+			buf.push_back(.0f);
+		buf.push_back(traj.t_to_s.contents[num_segments-3][15]);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(.0f);
-		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-2][15]);
+			buf.push_back(.0f);
+		buf.push_back(traj.t_to_s.contents[num_segments-2][15]);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(.0f);
-		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-1][6]);
+			buf.push_back(.0f);
+		buf.push_back(traj.t_to_s.contents[num_segments-1][6]);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(.0f);
-		layer.glyphs_deque.emplace_back(traj.t_to_s.contents[num_segments-1][14]);
+			buf.push_back(.0f);
+		buf.push_back(traj.t_to_s.contents[num_segments-1][14]);
 		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			layer.glyphs_deque.emplace_back(.0f);*/
+			buf.push_back(.0f);
+		const auto test_range = ro_range{buf.begin(), buf.end()};
+		const auto test_range_len = test_range.length();
+		assert(test_range_len == 7*glyph_attrib_count);
+		for (unsigned i=0; i<test_range_len; i++) {
+			const auto it = test_range.begin+i;
+			std::clog << "glyph_attrib["<<it.idx<<"] = "<<*it << "\n";
+		}*/
 		// --- END ---------------------
 
 		// Retrieve general per-layer information
@@ -202,20 +207,28 @@ void extrapolation_manager::replace_extrapolation (
 
 		// First, find the oldest glyph we need to still include
 		const auto on_extrapol = skip_glyphs_before(
-			l, extrapolation.front().t_to_s[0], ro_range{layer.glyphs_deque.begin(), layer.glyphs_deque.end()}
+			l, extrapolation.front().t_to_s[0], ro_range{layer.glyph_attribs.begin(), layer.glyph_attribs.end()}
 		);
 		// ...and erase those that fell off the extrapolation
-		if (on_extrapol.begin > layer.glyphs_deque.begin())
-			layer.glyphs_deque.erase(layer.glyphs_deque.begin(), on_extrapol.begin);
+		if (on_extrapol.begin > layer.glyph_attribs.begin()) {
+			const auto erase_range = ro_range{layer.glyph_attribs.begin(), on_extrapol.begin};
+			const auto erase_count = on_extrapol.begin - layer.glyph_attribs.begin();
+			assert(erase_range.length() == erase_count);
+			const auto old_num = layer.glyph_attribs.size();
+			layer.glyph_attribs.pop_front(erase_count);
+			const auto new_num = layer.glyph_attribs.size();
+			assert(new_num % stride == 0);
+			assert(new_num == old_num-erase_count);
+		}
 
 		// Nothing to do if there are no in-range glyphs
-		if (layer.glyphs_deque.empty())
+		if (layer.glyph_attribs.empty())
 			continue;
 
 		// Next, differentiate between glyph and plot layers
 		// TODO: The code in both cases looks very similar and can probably be templated – at least in part – to avoid
 		// duplication
-		const auto glyph_geometry = render.glyph_extents(l, &*(layer.glyphs_deque.begin()+2));
+		const auto glyph_geometry = render.glyph_extents(l, &*(layer.glyph_attribs.begin()+2));
 		if (glyph_geometry.has_value()) // it's a glyph
 		{
 			////
@@ -223,7 +236,7 @@ void extrapolation_manager::replace_extrapolation (
 
 			// Outer loop is over extrapolated segments
 			const auto num_glyphs = (unsigned)render.trajectories.front().attrib_to_glyph_count(
-				l, (int)layer.glyphs_deque.size()
+				l, (int)layer.glyph_attribs.size()
 			).value;
 			ro_range cur_glyph {on_extrapol.begin, on_extrapol.begin+stride};
 			unsigned cur_glyph_idx = 0;
@@ -270,7 +283,7 @@ void extrapolation_manager::replace_extrapolation (
 
 			// Outer loop is over extrapolated segments
 			const auto num_glyphs = (unsigned)render.trajectories.front().attrib_to_glyph_count(
-				l, (int)layer.glyphs_deque.size()
+				l, (int)layer.glyph_attribs.size()
 			).value;
 			ro_range cur_glyph {on_extrapol.begin, on_extrapol.begin+stride};
 			unsigned cur_glyph_idx = 0;
@@ -294,7 +307,7 @@ void extrapolation_manager::replace_extrapolation (
 				while (s < s_max) {
 					cur_range.n++;
 					cur_glyph_idx++;
-					cur_glyph.safe_advance(stride, layer.glyphs_deque.end());
+					cur_glyph.safe_advance(stride, layer.glyph_attribs.end());
 					assert(cur_glyph_idx <= num_glyphs);
 					if (cur_glyph_idx == num_glyphs)
 						break; // all glyphs exhausted
@@ -318,19 +331,8 @@ void extrapolation_manager::replace_extrapolation (
 		}
 	}
 
-	// Flush nodes buffer
-	//const auto flush_result = traj.nodes.contents_mem.flush();
-	#if DEBUG_OUTPUT
-		for (unsigned i=0; i<num; i++) {
-			std::clog << "Elem["<<i<<"]:\n"
-			          << " .pos_rad = "<<traj.nodes.contents[i].pos_rad<<"\n"
-			          << " .color = "<<traj.nodes.contents[i].color<<"\n"
-			          << " .tangent = "<<traj.nodes.contents[i].tangent<<"\n"
-			          << " .t = "<<traj.nodes.contents[i].t<<"\n";
-		}
-		//std::clog << "flush_result: "<<flush_result << std::endl;
-		//std::clog.flush();
-	#endif
+	// Done!
+	return;
 }
 
 template <class Iter>
@@ -357,11 +359,11 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	assert(on_extrapol.end == glyph_attribs.end);
 
 	// Add to displayed glyphs
-	if (!layer.glyphs_deque.empty())
+	if (!layer.glyph_attribs.empty())
 	{
 		// Sanity check
 		const float old_max_s = get_glyph_pos(
-			ro_range{layer.glyphs_deque.end()-stride, layer.glyphs_deque.end()}
+			ro_range{layer.glyph_attribs.end()-stride, layer.glyph_attribs.end()}
 		);
 		const float first_glyph_s = get_glyph_pos(on_extrapol);
 		assert(
@@ -369,8 +371,8 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 			"extrapolation_manager::consider_glyphs(): new glyphs must never precede previously submitted glyphs!"
 		);
 	}
-	layer.glyphs_deque.insert(layer.glyphs_deque.end(), on_extrapol.begin, on_extrapol.end);
 	layer.glyph_attribs.push_range(on_extrapol);
+	assert(layer.glyph_attribs.size() % stride == 0); // sanity check
 
 	// Done!
 	return ro_range{on_extrapol.begin, glyph_attribs.end};

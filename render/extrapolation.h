@@ -52,9 +52,6 @@ namespace extrapol
 		/// Reference to the ring buffer to use for storing the actual glyph instances on the layer.
 		gpumem::ring_buffer_alt<float> &glyph_attribs;
 
-		/// The host-side queue of glyphs on the extrapolation for quick re-mapping when the extrapolation gets updated.
-		std::deque<float> glyphs_deque;
-
 		[[nodiscard]] inline explicit per_layer (
 			gpumem::ring_buffer_alt<irange> &ranges_buffer, gpumem::ring_buffer_alt<float> &glyphs_buffer
 		)
