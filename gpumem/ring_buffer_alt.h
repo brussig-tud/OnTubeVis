@@ -30,12 +30,106 @@ struct ring_buffer_meta
 	uint32_t tail {0};
 };
 
-template <class Elem/*, class Alloc = buffer_alloc*/>
+template <class Elem>
 struct ring_buffer_alt
 {
 	// This container does not construct or destroy its elements, so they should at least be trivially destructible to
 	// to avoid resource leaks.
 	static_assert(std::is_trivially_destructible_v<Elem>);
+
+	/// The iterator type
+	struct iterator
+	{
+		const unsigned len;
+		Elem *buf;
+		unsigned idx, real_idx;
+
+		iterator() = delete;
+		iterator(const iterator &other) = default;
+
+		inline explicit iterator (Elem *buf, const unsigned len, const unsigned idx, const unsigned real_idx)
+			: len(len), buf(buf), idx(idx), real_idx(real_idx)
+		{}
+
+		inline iterator& operator=(const iterator &other) = default;
+
+		inline Elem& operator* (void) {
+			return buf[real_idx];
+		}
+		inline const Elem& operator* (void) const {
+			return buf[real_idx];
+		}
+
+		inline bool operator== (const iterator &other) const {
+			return idx == other.idx;
+		}
+		inline bool operator!= (const iterator &other) const {
+			return idx != other.idx;
+		}
+
+		inline bool operator< (const iterator &other) const {
+			return idx < other.idx;
+		}
+		inline bool operator<= (const iterator &other) const {
+			return idx <= other.idx;
+		}
+
+		inline bool operator> (const iterator &other) const {
+			return idx > other.idx;
+		}
+		inline bool operator>= (const iterator &other) const {
+			return idx >= other.idx;
+		}
+
+		inline iterator& operator++ (void) {
+			++idx;
+			real_idx = (real_idx+1) % len;
+			return *this;
+		}
+		[[nodiscard]] inline iterator operator++ (int) {
+			const auto old{this};
+			operator++();
+			return old;
+		}
+		template <class Int>
+		inline iterator& operator+= (const Int offset) {
+			idx += offset;
+			real_idx = (real_idx+offset) % len;
+			return *this;
+		}
+		template <class Int>
+		inline iterator operator+ (const Int offset) const {
+			const auto new_idx = idx+offset;
+			const auto new_real_idx = (real_idx+offset) % len;
+			return iterator(buf, len, new_idx, new_real_idx);
+		}
+
+		inline iterator& operator-- (void) {
+			--idx;
+			real_idx = (real_idx-1) % len;
+			return *this;
+		}
+		[[nodiscard]] inline iterator operator-- (int) {
+			const auto old{this};
+			operator--();
+			return old;
+		}
+		template <class Int>
+		inline iterator& operator-= (const Int offset) {
+			idx -= offset;
+			real_idx = (real_idx-offset) % len;
+			return *this;
+		}
+		template <class Int>
+		inline iterator operator- (const Int offset) const {
+			const auto new_idx = idx-offset;
+			const auto new_real_idx = (real_idx-offset) % len;
+			return iterator(buf, len, new_idx, new_real_idx);
+		}
+		inline size_t operator- (const iterator &other) const {
+			return idx - other.idx;
+		}
+	};
 
 	/// The backing memory of ring the ring buffer metadata.
 	span<ring_buffer_meta> meta_mem;
@@ -46,8 +140,11 @@ struct ring_buffer_alt
 	/// Reference to the in-memory struct of the ring buffer metadata.
 	ring_buffer_meta &meta;
 
-	// Reference to the in-memory array of elements of the ring buffer.
+	/// Reference to the in-memory array of elements of the ring buffer.
 	Elem *contents;
+
+	/// Internal log of current number of elements. Required to distinguish full from empty in case head==tail.
+	unsigned num_elems = 0;
 
 	/// Create the ring buffer using the given memory. While the internal metadata will be initialized on the host side,
 	/// it will NOT be available for the GPU until @ref flush_meta is called at least once.
@@ -71,29 +168,59 @@ struct ring_buffer_alt
 		return meta.len;
 	}
 
-	/// Report the current number of elements in the buffer.
-	[[nodiscard]] unsigned num (void) const {
-		return meta.head >= meta.tail ?
-			   meta.head+1 - meta.tail
-			: /*newer range*/meta.head+1  +  /*older range*/meta.len-meta.tail;
+	/// Return the current number of elements in the buffer.
+	[[nodiscard]] unsigned size (void) const {
+		return num_elems;
 	}
 
-	/// Report the current number of available (free) elements in the ring buffer
+	/// Return whether the ring buffer contains no elements at all.
+	[[nodiscard]] inline bool empty (void) const {
+		return !size();
+	}
+
+	/// Report the number of elements that can still be pushed into the ring buffer without dropping old elements.
 	[[nodiscard]] unsigned num_free (void) const {
-		return meta.head >= meta.tail ?
-			  meta.tail + meta.len-meta.head - (meta.tail!=meta.head)
-			: meta.tail - meta.head;
+		return meta.len - num_elems;
 	}
 
-	/// Push elements into the ring buffer, reporting the number of old elements that had to be discarded to make space
+	/// Clear the ring buffer, choosing the indicated actual index @a head_tail as the new head and tail position.
+	void clear (const unsigned head_tail=0) {
+		meta.tail = meta.head = head_tail;
+		update_num(false);
+	}
+
+	/// Push a single element into the ring buffer, reporting whether an old element had to be discarded to accommodate
+	/// the new one.
+	bool push_back (const Elem &elem)
+	{
+		// Determine whether we need to adjust the tail
+		const bool drop_one = num_free()==0;
+
+		// Copy in new element
+		contents[meta.begin + meta.head] = elem;
+
+		// Update buffer geometry
+		meta.head = (meta.head+1) % meta.len;
+		meta.tail = (meta.tail+drop_one) % meta.len;
+		update_num(true);
+
+		// Done!
+		return drop_one;
+	}
+
+	/// Push elements into the ring buffer, reporting the number of old elements that had to be discarded to accommodate
 	/// for the new ones. Notably, <b>this includes</b> elements from the tail end of the input range, if it was larger
 	/// than the buffer's max capacity.
 	template <class Iter>
 	unsigned push_range (const ro_range<Iter> &new_elems)
 	{
+		// Don't do anything for empty input range
+		const auto num_new_elems = new_elems.length();
+		if (!num_new_elems)
+			return 0; // nothing could have been overwritten
+
 		// Infer amount of elements we actually need to copy
 		const int old_free = num_free();
-		const auto num_new_elems = new_elems.length();
 		const auto copy_count = std::min<unsigned>(meta.len, num_new_elems);
 
 		// Special handling for full buffer overwrite, as that presents an opportunity to eliminate wrap-around
@@ -102,41 +229,59 @@ struct ring_buffer_alt
 			// Set up and perform full-buffer copy
 			const auto copy_range = ro_range{new_elems.end-copy_count, new_elems.end};
 			assert (copy_range.length() == copy_count);
-			meta.tail = 0;
-			meta.head = copy_count-1;
 			Elem *my_begin = contents+meta.begin;
 			std::copy(copy_range.begin, copy_range.end, my_begin);
 
+			// Update buffer geometry
+			meta.tail = meta.head = 0;
+			const auto old_num = num_elems;
+			update_num(true);
+
 			// Done! Report number of discarded elements
-			return /*all old elements*/meta.len  +  /*some of the new elements*/num_new_elems-copy_count;
+			return /*all old elements*/old_num  +  /*some of the new elements*/num_new_elems-copy_count;
 		}
 		assert(num_new_elems-copy_count == 0); // we completely handle this case above
 
 		// Get a picture of the current buffer geometry
-		const bool was_empty = meta.head==meta.tail;
-		const auto insert = meta.head + !was_empty;
-		const auto num_after_head = meta.len - insert;
+		const auto num_from_head = meta.len - meta.head;
 		const auto buf_begin = contents + meta.begin;
-		const auto buf_insert = buf_begin + insert;
+		const auto buf_insert = buf_begin + meta.head;
 
 		// Build ranges for copying
-		const auto older_range_num = std::min(num_after_head, copy_count);
+		const auto older_range_num = std::min(num_from_head, copy_count);
 		const auto older_range = ro_range{new_elems.begin, new_elems.begin+older_range_num};
 		const auto newer_range_num = copy_count - older_range_num;
 		const auto newer_range = ro_range{older_range.end, older_range.end+newer_range_num};
 		assert(older_range.length()+newer_range.length() == copy_count);
 
-		// Copy, potentially with wrap-around (if newer_range is not empty)
+		// Copy, potentially with wrap-around (if both ranges are not empty)
 		std::copy(older_range.begin, older_range.end, buf_insert);
 		std::copy(newer_range.begin, newer_range.end, buf_begin);
 
 		// Update buffer geometry
 		const auto num_overwritten = std::max(int(copy_count) - int(old_free), 0);
-		meta.head = (meta.head+copy_count-was_empty) % meta.len;
+		meta.head = (meta.head+copy_count) % meta.len;
 		meta.tail = (meta.tail+num_overwritten) % meta.len;
+		update_num(true);
 
 		// Done! Report number of discarded elements
 		return num_overwritten;
+	}
+
+	/// Pop given number of elements from the tail end of the buffer.
+	void pop_front (const unsigned count=1) {
+		assert(count <= size()); // sanity check
+		meta.tail = (meta.tail+count) % meta.len; // just increase tail index accordingly
+		update_num(false);
+	}
+
+	/// Return a forward iterator initially pointing to the tail element.
+	inline iterator begin (void) {
+		return iterator(contents+meta.begin, meta.len, 0, meta.tail);
+	}
+	/// Return a forward iterator initially pointing to the head (i.e. one after the last actually contained) element.
+	inline iterator end (void) {
+		return iterator(contents+meta.begin, meta.len, num_elems, meta.head);
 	}
 
 	/// Flush just the ring buffer meta data (i.e. after all elements in the buffer were dropped so there is no reason
@@ -156,6 +301,21 @@ struct ring_buffer_alt
 		bool result = flush_meta();
 		result &= flush_contents();
 		return result;
+	}
+
+	/// Re-calculate number of elements in the buffer based on current values of head and tail indices, and disambiguate
+	/// the @c head==tail case via the provided hint whether the buffer should be considered @a full in such a case.
+	///
+	/// @note
+	///		How to choose the disambiguation hint @a full will typically be clear from the context (it certainly is for
+	///		all internal calls to this function). E.g. if we just added elements, then the buffer certainly can't be
+	///		empty afterwards.
+	inline void update_num (const bool full) {
+		num_elems = meta.head == meta.tail ? full * meta.len
+			: (meta.head > meta.tail ?
+			   	  meta.head - meta.tail
+			   	: /*newer range*/meta.head  +  /*older range*/meta.len-meta.tail
+			);
 	}
 
 private:
@@ -219,9 +379,8 @@ struct ring_buffer_arena
 		const size_t data_buffer_size = num_buffers * max_capacity;
 
 		// Create memory pools
-		const bool success
-		         = meta_memory.create(num_buffers, alignment_meta)
-		        && data_memory.create(data_buffer_size, alignment_data);
+		const bool success =    meta_memory.create(num_buffers, alignment_meta)
+		                     && data_memory.create(data_buffer_size, alignment_data);
 
 		// Create ring buffers
 		ring_buffers.reserve(num_buffers);
