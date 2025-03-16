@@ -354,6 +354,7 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	// Trim glyphs that precede the range covered by the extrapolation (this can happen due to network issues or if they
 	// were submitted late by the client for whatever reason)
 	const auto on_extrapol = skip_glyphs_before(l, traj.t_to_s.contents[0][0], glyph_attribs);
+	assert(on_extrapol.end == glyph_attribs.end);
 
 	// Add to displayed glyphs
 	if (!layer.glyphs_deque.empty())
@@ -368,7 +369,8 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 			"extrapolation_manager::consider_glyphs(): new glyphs must never precede previously submitted glyphs!"
 		);
 	}
-	layer.glyphs_deque.insert(layer.glyphs_deque.end(), on_extrapol.begin, glyph_attribs.end);
+	layer.glyphs_deque.insert(layer.glyphs_deque.end(), on_extrapol.begin, on_extrapol.end);
+	layer.glyph_attribs.push_range(on_extrapol);
 
 	// Done!
 	return ro_range{on_extrapol.begin, glyph_attribs.end};

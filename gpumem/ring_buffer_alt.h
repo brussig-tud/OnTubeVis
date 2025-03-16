@@ -71,6 +71,74 @@ struct ring_buffer_alt
 		return meta.len;
 	}
 
+	/// Report the current number of elements in the buffer.
+	[[nodiscard]] unsigned num (void) const {
+		return meta.head >= meta.tail ?
+			   meta.head+1 - meta.tail
+			: /*newer range*/meta.head+1  +  /*older range*/meta.len-meta.tail;
+	}
+
+	/// Report the current number of available (free) elements in the ring buffer
+	[[nodiscard]] unsigned num_free (void) const {
+		return meta.head >= meta.tail ?
+			  meta.tail + meta.len-meta.head - (meta.tail!=meta.head)
+			: meta.tail - meta.head;
+	}
+
+	/// Push elements into the ring buffer, reporting the number of old elements that had to be discarded to make space
+	/// for the new ones. Notably, <b>this includes</b> elements from the tail end of the input range, if it was larger
+	/// than the buffer's max capacity.
+	template <class Iter>
+	unsigned push_range (const ro_range<Iter> &new_elems)
+	{
+		// Infer amount of elements we actually need to copy
+		const int old_free = num_free();
+		const auto num_new_elems = new_elems.length();
+		const auto copy_count = std::min<unsigned>(meta.len, num_new_elems);
+
+		// Special handling for full buffer overwrite, as that presents an opportunity to eliminate wrap-around
+		if (copy_count == meta.len)
+		{
+			// Set up and perform full-buffer copy
+			const auto copy_range = ro_range{new_elems.end-copy_count, new_elems.end};
+			assert (copy_range.length() == copy_count);
+			meta.tail = 0;
+			meta.head = copy_count-1;
+			Elem *my_begin = contents+meta.begin;
+			std::copy(copy_range.begin, copy_range.end, my_begin);
+
+			// Done! Report number of discarded elements
+			return /*all old elements*/meta.len  +  /*some of the new elements*/num_new_elems-copy_count;
+		}
+		assert(num_new_elems-copy_count == 0); // we completely handle this case above
+
+		// Get a picture of the current buffer geometry
+		const bool was_empty = meta.head==meta.tail;
+		const auto insert = meta.head + !was_empty;
+		const auto num_after_head = meta.len - insert;
+		const auto buf_begin = contents + meta.begin;
+		const auto buf_insert = buf_begin + insert;
+
+		// Build ranges for copying
+		const auto older_range_num = std::min(num_after_head, copy_count);
+		const auto older_range = ro_range{new_elems.begin, new_elems.begin+older_range_num};
+		const auto newer_range_num = copy_count - older_range_num;
+		const auto newer_range = ro_range{older_range.end, older_range.end+newer_range_num};
+		assert(older_range.length()+newer_range.length() == copy_count);
+
+		// Copy, potentially with wrap-around (if newer_range is not empty)
+		std::copy(older_range.begin, older_range.end, buf_insert);
+		std::copy(newer_range.begin, newer_range.end, buf_begin);
+
+		// Update buffer geometry
+		const auto num_overwritten = std::max(int(copy_count) - int(old_free), 0);
+		meta.head = (meta.head+copy_count-was_empty) % meta.len;
+		meta.tail = (meta.tail+num_overwritten) % meta.len;
+
+		// Done! Report number of discarded elements
+		return num_overwritten;
+	}
+
 	/// Flush just the ring buffer meta data (i.e. after all elements in the buffer were dropped so there is no reason
 	/// to change something in the contents)
 	bool flush_meta (void) const {
