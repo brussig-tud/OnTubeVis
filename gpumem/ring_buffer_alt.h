@@ -34,7 +34,7 @@ template <class Elem>
 struct ring_buffer_alt
 {
 	// This container does not construct or destroy its elements, so they should at least be trivially destructible to
-	// to avoid resource leaks.
+	// avoid resource leaks.
 	static_assert(std::is_trivially_destructible_v<Elem>);
 
 	/// The iterator type

@@ -167,40 +167,47 @@ void extrapolation_manager::replace_extrapolation (
 		// Convenience shorthand
 		auto &layer = traj.layers[l];
 
-		// ------------- DEBUG TEST ---
-		/*const unsigned glyph_attrib_count = setup.glyph_attrib_counts[l];
-		gpumem::ring_buffer_arena<float> rba; rba.create(1, 6*glyph_attrib_count);
-		auto &buf = rba.buffer(0);
-		/*layer.glyph_attribs.clear();*//*
-		buf.push_back(traj.t_to_s.contents[num_segments-3][0]-.75f);
-		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			buf.push_back(.0f);
-		buf.push_back(traj.t_to_s.contents[num_segments-3][0]-.5f);
-		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			buf.push_back(.0f);
-		buf.push_back(traj.t_to_s.contents[num_segments-3][7]);
-		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			buf.push_back(.0f);
-		buf.push_back(traj.t_to_s.contents[num_segments-3][15]);
-		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			buf.push_back(.0f);
-		buf.push_back(traj.t_to_s.contents[num_segments-2][15]);
-		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			buf.push_back(.0f);
-		buf.push_back(traj.t_to_s.contents[num_segments-1][6]);
-		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			buf.push_back(.0f);
-		buf.push_back(traj.t_to_s.contents[num_segments-1][14]);
-		for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-			buf.push_back(.0f);
-		const auto test_range = ro_range{buf.begin(), buf.end()};
-		const auto test_range_len = test_range.length();
-		assert(test_range_len == 7*glyph_attrib_count);
-		for (unsigned i=0; i<test_range_len; i++) {
-			const auto it = test_range.begin+i;
-			std::clog << "glyph_attrib["<<it.idx<<"] = "<<*it << "\n";
+		/* --- DEBUG TEST ------------- */ /*{
+			const unsigned glyph_attrib_count = setup.glyph_attrib_counts[l];
+			layer.glyph_attribs.clear();
+			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-3][0]-.75f);
+			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
+				layer.glyph_attribs.push_back(.0f);
+			unsigned num_glyphs = 0;
+			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-3][0]-.5f);
+			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
+				layer.glyph_attribs.push_back(.0f);
+			num_glyphs++;
+			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-3][7]);
+			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
+				layer.glyph_attribs.push_back(.0f);
+			num_glyphs++;
+			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-3][15]);
+			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
+				layer.glyph_attribs.push_back(.0f);
+			num_glyphs++;
+			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-2][15]);
+			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
+				layer.glyph_attribs.push_back(.0f);
+			num_glyphs++;
+			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-1][6]);
+			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
+				layer.glyph_attribs.push_back(.0f);
+			num_glyphs++;
+			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-1][14]);
+			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
+				layer.glyph_attribs.push_back(.0f);
+			num_glyphs++;
+			const auto test_range = ro_range{layer.glyph_attribs.begin(), layer.glyph_attribs.end()};
+			const auto test_range_len = test_range.length();
+			assert(test_range_len == layer.glyph_attribs.size());
+			assert(test_range_len % glyph_attrib_count == 0);
+			assert(test_range_len == num_glyphs*glyph_attrib_count);
+			for (unsigned i=0; i<test_range_len; i++) {
+				const auto it = test_range.begin+i;
+				std::clog << "glyph_attrib["<<it.idx<<"] = "<<*it << "\n";
+			}
 		}*/
-		// --- END ---------------------
 
 		// Retrieve general per-layer information
 		const unsigned stride = setup.glyph_attrib_counts[l];
