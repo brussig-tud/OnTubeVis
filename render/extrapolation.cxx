@@ -253,7 +253,7 @@ void extrapolation_manager::replace_extrapolation (
 		if (glyph_geometry.has_value()) // it's a glyph
 		{
 			////
-			// Iterate through remaining gylphs to assign them to the extrapolated segments
+			// Iterate through remaining glyphs to assign them to the extrapolated segments
 
 			// Outer loop is over extrapolated segments
 			const auto num_glyphs = (unsigned)render.trajectories.front().attrib_to_glyph_count(
@@ -380,18 +380,16 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	assert(on_extrapol.end == glyph_attribs.end);
 
 	// Add to displayed glyphs
-	if (!layer.glyph_attribs.empty())
-	{
+	assert([&]{
+		if (layer.glyph_attribs.empty())
+			return true;
 		// Sanity check
 		const float old_max_s = get_glyph_pos(
 			ro_range{layer.glyph_attribs.end()-stride, layer.glyph_attribs.end()}
 		);
 		const float first_glyph_s = get_glyph_pos(on_extrapol);
-		assert(
-			first_glyph_s >= old_max_s &&
-			"extrapolation_manager::consider_glyphs(): new glyphs must never precede previously submitted glyphs!"
-		);
-	}
+		return first_glyph_s >= old_max_s;
+	}() && "extrapolation_manager::consider_glyphs(): new glyphs must never precede previously submitted glyphs!");
 
 	layer.glyph_attribs.push_range(on_extrapol);
 	assert(layer.glyph_attribs.size() % stride == 0); // sanity check
@@ -404,7 +402,7 @@ template ro_range<std_vector_float_iter> extrapolation_manager::consider_glyphs 
 );
 template ro_range<std_deque_float_iter> extrapolation_manager::consider_glyphs (
 	unsigned, unsigned, const ro_range<std_deque_float_iter>&
-	);
+);
 template ro_range<float*> extrapolation_manager::consider_glyphs (unsigned, unsigned, const ro_range<float*>&);
 
 template <class Iter>
