@@ -175,6 +175,7 @@ set(HEADERS
 	gpumem/memory_pool.inl
 	gpumem/ring_buffer.h
 	gpumem/ring_buffer.inl
+	gpumem/ring_buffer_alt.h
 	gpumem/span.h
 	gpumem/span.inl
 
