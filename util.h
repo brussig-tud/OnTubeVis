@@ -4,20 +4,6 @@
 #include <optional>
 
 
-/// Find the largest common denominator of two integers.
-template <class Integer>
-constexpr Integer find_gcd (const Integer &a, const Integer &b) {
-	if (b==0)
-		return a;
-	return find_gcd(b, a%b);
-}
-
-/// Find the largest common multiple of two integers.
-template <class Integer>
-constexpr Integer find_lcm (const Integer &a, const Integer &b) {
-	return a/find_gcd(a, b) * b;
-}
-
 /// A right-open range [begin, end).
 template <class Iter>
 struct ro_range

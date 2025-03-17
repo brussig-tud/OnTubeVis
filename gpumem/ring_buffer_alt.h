@@ -8,6 +8,9 @@
 // Includes
 //
 
+// C++ STL
+#include <numeric>
+
 // Local includes
 #include "gpumem/alloc.h"
 
@@ -380,8 +383,8 @@ struct ring_buffer_arena
 
 		// Enforce sane alignment
 		#define MINIMUM_ALIGNMENT size_t(64)
-		constexpr size_t alignment_meta = find_lcm(alignof(ring_buffer_meta), MINIMUM_ALIGNMENT);
-		const size_t alignment_data = find_lcm(min_alignment, MINIMUM_ALIGNMENT);
+		constexpr size_t alignment_meta = std::lcm(alignof(ring_buffer_meta), MINIMUM_ALIGNMENT);
+		const size_t alignment_data = std::lcm(min_alignment, MINIMUM_ALIGNMENT);
 		if (alignment_data > MINIMUM_ALIGNMENT*4)
 			std::cerr << "\n!!! WARNING !!! - very large GPU ring buffer alignment: "<<alignment_data<<" bytes"
 			          << std::endl;
@@ -392,7 +395,6 @@ struct ring_buffer_arena
 		// Create memory pools
 		const bool success =    meta_memory.create(num_buffers, alignment_meta)
 		                     && data_memory.create(data_buffer_size, alignment_data);
-		std::fill_n(data_memory.data(), data_memory.length(), Elem{5});
 
 		// Create ring buffers
 		ring_buffers.reserve(num_buffers);
