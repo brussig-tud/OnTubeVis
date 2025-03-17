@@ -3329,15 +3329,14 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// prepare index buffer pointer
 		const vertex_buffer* segment_idx_buffer_ptr = tstr.get_index_buffer_ptr(render.aam);
 
-		if(segment_idx_buffer_ptr == nullptr ||
-			node_idx_buffer_ptr == nullptr)
+		if(segment_idx_buffer_ptr == nullptr || node_idx_buffer_ptr == nullptr)
 			return;
 
-		// onyl perform a new visibility sort step when the view configuration deviates significantly
+		// only perform a new visibility sort step when the view configuration deviates significantly
 		bool do_sort = false;
 		float pos_angle = dot(normalize(last_sort_pos), normalize(cyclopic_eye));
 		float view_angle = dot(view_dir, last_sort_dir);
-		if(view_angle < 0.8f || pos_angle < 0.8f || !debug.lazy_sort) {
+		if (view_angle < 0.8f || pos_angle < 0.8f || !debug.lazy_sort) {
 			do_sort = true;
 			last_sort_pos = normalize(cyclopic_eye);
 			last_sort_dir = view_dir;
