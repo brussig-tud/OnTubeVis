@@ -1805,7 +1805,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			client.extrapol_mgr.reinit_layer_config();
 			if (client.num_extrapol_segments)
 				client.extrapol_mgr.create_glyph_and_per_layer_buffers(
-					/* min_glyphs_capacity_per_traj_and_layer: */std::max<unsigned>(128, session_glyphbuf_size/16)
+					/* min_glyphs_capacity_per_traj_and_layer: */std::min<unsigned>(session_glyphbuf_size/64, 128)
 				);
 
 			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;

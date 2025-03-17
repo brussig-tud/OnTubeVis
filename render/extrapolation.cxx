@@ -60,16 +60,20 @@ void extrapolation_manager::clear(void)
 bool extrapolation_manager::create_geom_buffers (unsigned num_trajectories, unsigned num_segments)
 {
 	// Make sure we don't leak resources when any single one of the steps fails
-	auto _ = finalizer(std::bind(&extrapolation_manager::clear, this));
+	auto _ = finalizer([this] {
+		this->clear();
+		std::cerr << "extrapolation_manager::create_geom_buffers(): failed to create GPU resources!"
+		          << std::endl<<std::endl;
+	});
 
 	// Clean up previous contents, if any
-	_.f(); // re-use finalizer to perform cleanup of GPU memory arenas
+	clear();
 
 	// Create GPU ring buffer arenas
 	const unsigned num_nodes = num_segments+1;
-	const bool success
-	         = geom.nodes_arena.create(num_trajectories, num_nodes)
-	        && geom.t_to_s_arena.create(num_trajectories, num_segments);
+	const bool success =
+		   geom.nodes_arena.create(num_trajectories, num_nodes)
+		&& geom.t_to_s_arena.create(num_trajectories, num_segments);
 
 	// Distribute per-trajectory ringbuffers and create indices in the process
 	trajectories.reserve(num_trajectories);
@@ -105,11 +109,11 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (unsigned per_lay
 	// Sanity checks
 	assert(
 		!geom.nodes_arena.ring_buffers.empty() &&
-		"extrapolation_manager: create_glyph_and_per_layer_buffers() needs pre-created geometry buffers"
+		"extrapolation_manager::create_glyph_and_per_layer_buffers() needs pre-created geometry buffers"
 	);
 	assert(
 		geom.ranges_arena.ring_buffers.empty() &&
-		"extrapolation_manager: create_glyph_and_per_layer_buffers() must not be called on a fully constructed setup"
+		"extrapolation_manager::create_glyph_and_per_layer_buffers() must not be called on a fully constructed setup"
 	);
 
 	// Make sure we don't leak resources when any single one of the steps fails
@@ -117,6 +121,8 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (unsigned per_lay
 		geom.ranges_arena.destroy();
 		glyphs.glyph_attribs_arena.destroy();
 		std::fill(setup.glyph_attrib_counts.begin(), setup.glyph_attrib_counts.end(), 0);
+		std::cerr << "extrapolation_manager::create_glyph_and_per_layer_buffers(): failed to create GPU resources!"
+		          << std::endl<<std::endl;
 	});
 
 	// Create GPU ring buffer arenas
@@ -173,7 +179,7 @@ void extrapolation_manager::replace_extrapolation (
 			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-3][0]-.75f);
 			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
 				layer.glyph_attribs.push_back(.0f);
-			unsigned num_glyphs = 0;
+			unsigned num_glyphs = 1;
 			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-3][0]-.5f);
 			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
 				layer.glyph_attribs.push_back(.0f);
@@ -198,6 +204,14 @@ void extrapolation_manager::replace_extrapolation (
 			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
 				layer.glyph_attribs.push_back(.0f);
 			num_glyphs++;
+			const unsigned max_glyphs = layer.glyph_attribs.capacity()/glyph_attrib_count;
+			for (unsigned g=num_glyphs; g<max_glyphs; ++g) {
+				layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-1][15] + float(g)*.5f);
+				for (unsigned i = 1; i < setup.glyph_attrib_counts[l]; i++)
+					layer.glyph_attribs.push_back(.0f);
+				num_glyphs++;
+			}
+			assert(num_glyphs == max_glyphs);
 			const auto test_range = ro_range{layer.glyph_attribs.begin(), layer.glyph_attribs.end()};
 			const auto test_range_len = test_range.length();
 			assert(test_range_len == layer.glyph_attribs.size());
@@ -378,6 +392,7 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 			"extrapolation_manager::consider_glyphs(): new glyphs must never precede previously submitted glyphs!"
 		);
 	}
+
 	layer.glyph_attribs.push_range(on_extrapol);
 	assert(layer.glyph_attribs.size() % stride == 0); // sanity check
 

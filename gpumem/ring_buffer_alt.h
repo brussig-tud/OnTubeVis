@@ -16,7 +16,8 @@ namespace otv::gpumem {
 
 struct ring_buffer_meta
 {
-	/// Index of the start element in the backing buffer.
+	/// Index of the start element in the backing buffer object. This is needed for shader-side access, as there all
+	/// ring buffers in the arena will be mapped at the same bind point, so we can't use buffer-local adressing.
 	uint32_t begin {0};
 
 	/// The number of elements from @ref begin that make up the full capacity of the ring buffer inside the backing
@@ -157,11 +158,23 @@ struct ring_buffer_alt
 		init_meta();
 	}
 
+	/// No copy construction!
+	ring_buffer_alt (const ring_buffer_alt&) = delete;
+
+	/// The move constructor.
+	ring_buffer_alt(ring_buffer_alt&&) = default;
+
 	/// The Destructor. Actually, we don't need a custom destructor; this is just here so we can place debug breakpoints
 	/// that trigger during destruction.
 	~ring_buffer_alt (void) {
 		std::clog.flush();
 	}
+
+	/// No copy assignment!
+	ring_buffer_alt& operator= (const ring_buffer_alt&) = delete;
+
+	/// The move assignment operator.
+	ring_buffer_alt& operator= (ring_buffer_alt&&) = default;
 
 	/// Report max number of elements that can be stored when at full capacity.
 	[[nodiscard]] unsigned capacity (void) const {
@@ -197,7 +210,7 @@ struct ring_buffer_alt
 		const bool drop_one = num_free()==0;
 
 		// Copy in new element
-		contents[meta.begin + meta.head] = elem;
+		contents[meta.head] = elem;
 
 		// Update buffer geometry
 		meta.head = (meta.head+1) % meta.len;
@@ -209,8 +222,8 @@ struct ring_buffer_alt
 	}
 
 	/// Push elements into the ring buffer, reporting the number of old elements that had to be discarded to accommodate
-	/// for the new ones. Notably, <b>this includes</b> elements from the tail end of the input range, if it was larger
-	/// than the buffer's max capacity.
+	/// the new ones. Notably, <b>this includes</b> elements from the tail end of the input range, if it was larger than
+	/// the buffer's max capacity.
 	template <class Iter>
 	unsigned push_range (const ro_range<Iter> &new_elems)
 	{
@@ -229,8 +242,7 @@ struct ring_buffer_alt
 			// Set up and perform full-buffer copy
 			const auto copy_range = ro_range{new_elems.end-copy_count, new_elems.end};
 			assert (copy_range.length() == copy_count);
-			Elem *my_begin = contents+meta.begin;
-			std::copy(copy_range.begin, copy_range.end, my_begin);
+			std::copy(copy_range.begin, copy_range.end, contents);
 
 			// Update buffer geometry
 			meta.tail = meta.head = 0;
@@ -244,8 +256,7 @@ struct ring_buffer_alt
 
 		// Get a picture of the current buffer geometry
 		const auto num_from_head = meta.len - meta.head;
-		const auto buf_begin = contents + meta.begin;
-		const auto buf_insert = buf_begin + meta.head;
+		const auto insert_older = contents + meta.head;
 
 		// Build ranges for copying
 		const auto older_range_num = std::min(num_from_head, copy_count);
@@ -255,8 +266,8 @@ struct ring_buffer_alt
 		assert(older_range.length()+newer_range.length() == copy_count);
 
 		// Copy, potentially with wrap-around (if both ranges are not empty)
-		std::copy(older_range.begin, older_range.end, buf_insert);
-		std::copy(newer_range.begin, newer_range.end, buf_begin);
+		std::copy(older_range.begin, older_range.end, insert_older);
+		std::copy(newer_range.begin, newer_range.end, contents);
 
 		// Update buffer geometry
 		const auto num_overwritten = std::max(int(copy_count) - int(old_free), 0);
@@ -277,11 +288,11 @@ struct ring_buffer_alt
 
 	/// Return a forward iterator initially pointing to the tail element.
 	inline iterator begin (void) {
-		return iterator(contents+meta.begin, meta.len, 0, meta.tail);
+		return iterator(contents, meta.len, 0, meta.tail);
 	}
 	/// Return a forward iterator initially pointing to the head (i.e. one after the last actually contained) element.
 	inline iterator end (void) {
-		return iterator(contents+meta.begin, meta.len, num_elems, meta.head);
+		return iterator(contents, meta.len, num_elems, meta.head);
 	}
 
 	/// Flush just the ring buffer meta data (i.e. after all elements in the buffer were dropped so there is no reason
@@ -381,6 +392,7 @@ struct ring_buffer_arena
 		// Create memory pools
 		const bool success =    meta_memory.create(num_buffers, alignment_meta)
 		                     && data_memory.create(data_buffer_size, alignment_data);
+		std::fill_n(data_memory.data(), data_memory.length(), Elem{5});
 
 		// Create ring buffers
 		ring_buffers.reserve(num_buffers);
