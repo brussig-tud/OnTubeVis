@@ -41,7 +41,7 @@ struct ring_buffer_alt
 	// avoid resource leaks.
 	static_assert(std::is_trivially_destructible_v<Elem>);
 
-	/// The iterator type
+	/// The iterator type.
 	struct iterator
 	{
 		const unsigned len;
@@ -387,7 +387,7 @@ struct ring_buffer_arena
 		const size_t alignment_data = std::lcm(min_alignment, MINIMUM_ALIGNMENT);
 		if (alignment_data > MINIMUM_ALIGNMENT*4)
 			std::cerr << "\n!!! WARNING !!! - very large GPU ring buffer alignment: "<<alignment_data<<" bytes"
-			          << std::endl;
+			          << std::endl<<std::endl;
 
 		// Determine size of data buffer
 		const size_t data_buffer_size = num_buffers * max_capacity;
