@@ -476,7 +476,7 @@ void otv_client::update ()
 				break;
 			}
 
-			auto target = find_trajectory(traj.id);
+			auto target_traj = find_trajectory(traj.id);
 
 			// construct first GPU node
 			const auto col = data->colors[node_idx];
@@ -492,13 +492,13 @@ void otv_client::update ()
 			const cgv::mat4 *t_to_s {nullptr};
 
 			extrapol_nodes.clear();
-			if (! target.traj.is_empty())
+			if (!target_traj.ref.is_empty())
 			{
 				// Compute arc length
 				t_to_s = &arclen_data.t_to_s.at(traj.segment_idx);
 
 				// Extrapolate from previous segment
-				const auto &prev_node = target.traj.most_recent_node();
+				const auto &prev_node = target_traj.ref.most_recent_node();
 				extrapol::compute_path(
 					extrapol_nodes, num_extrapol_segments, prev_node, new_node, *t_to_s
 				);
@@ -519,7 +519,7 @@ void otv_client::update ()
 			}
 
 			// append a node, potentially creating a new segment
-			enqueue_node(target, new_node, t_to_s, extrapol_nodes);
+			enqueue_node(target_traj, new_node, t_to_s, extrapol_nodes);
 			//render.enqueue_node(traj.id, node, t_to_s );
 
 			if (t_to_s == nullptr) {
@@ -539,8 +539,8 @@ void otv_client::update ()
 				std::clog << "otv_client::update(): [traj:"<<target.id<<", l:"<<unsigned(layer_idx)<<"] enqueueing "
 				          << glyph_attribs_to_enqueue.length()<<" glyph attribs\n";*/
 				const auto glyph_attribs_on_extrapol = enqueue_glyphs(
-					target, layer_idx, ro_range {data + target.traj.glyph_to_attrib_count(layer_idx, begin),
-					                             data + target.traj.glyph_to_attrib_count(layer_idx, end)}
+					target_traj, layer_idx, ro_range {data + target_traj.ref.glyph_to_attrib_count(layer_idx, begin),
+					                                  data + target_traj.ref.glyph_to_attrib_count(layer_idx, end)}
 				);
 				/*std::clog << "otv_client::update(): placed "<<glyph_attribs_on_extrapol.length()<<" on extrapolation, "
 				          << glyph_attribs_to_enqueue.length()-glyph_attribs_on_extrapol.length()<<" skipped\n";*/
@@ -567,16 +567,16 @@ void otv_client::enqueue_node (
 }
 
 template <class Iter>
-ro_range<Iter> otv_client::enqueue_glyphs (trajectory_ref target, unsigned layer, const ro_range<Iter> &glyph_data)
+ro_range<Iter> otv_client::enqueue_glyphs (trajectory_ref traj, unsigned layer, const ro_range<Iter> &glyph_data)
 {
 	// Enqueue glyphs to "regular" trajectories
-	target.traj.enqueue_glyphs(layer, glyph_data);
+	traj.ref.enqueue_glyphs(layer, glyph_data);
 
 	// Also submit the glyphs to the extrapolation manager for consideration if extrapolation display is enabled
 	const auto glyphs_on_extrapol = [&]() -> ro_range<Iter> {
 		if (num_extrapol_segments)
-			return extrapol_mgr.consider_glyphs(target.id, layer, glyph_data);
-		return extrapol_mgr.skip_glyphs_before(layer, target.traj.arclength(), glyph_data);
+			return extrapol_mgr.consider_glyphs(traj.id, layer, glyph_data);
+		return extrapol_mgr.skip_glyphs_before(layer, traj.ref.arclength(), glyph_data);
 	}();
 
 	// Done!
@@ -595,7 +595,7 @@ void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node
 {
 	// obtain the trajectory we want to stream into
 	//auto &render_traj = *render.try_get_trajectory(traj_id);
-	auto target = find_trajectory(traj_id);
+	auto traj = find_trajectory(traj_id);
 
 	// get the desired base color and radius of the trajectory from the dummy dataset
 	const auto &traj_range = data->datasets[0].trajs[traj_id];
@@ -605,7 +605,7 @@ void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node
 	node.color.set(color.R(), color.G(), color.B(), 1);
 	node.pos_rad.w() = radius; node.tangent.w() = 0;
 	//render.enqueue_node(traj_id, node, render_traj.is_empty() ? nullptr : t_to_s);
-	enqueue_node(target, node, target.traj.is_empty() ? nullptr : t_to_s, {});
+	enqueue_node(traj, node, traj.ref.is_empty() ? nullptr : t_to_s, {});
 
 	// update bounding box
 	static const auto diag = []() -> cgv::vec3 {

@@ -61,6 +61,9 @@ struct otv_client {
 		glyph_attributes attribs;
 	};
 
+	/// Helper type for @ref #enqueue_glyph
+	typedef ref_with_id<otv::trajectory> trajectory_ref;
+
 	/// session control state - the whole thing is completely atomic (and thus thread-safe) on its public interface.
 	class {
 		OTV_VisSetupHandle pending_setup = nullptr;
@@ -162,12 +165,6 @@ struct otv_client {
 	/// append all data points up to the current timestamp to their respective trajectory.
 	void update (void);
 
-	/// Helper type for @ref #enqueue_glyph
-	struct trajectory_ref {
-		unsigned id;
-		otv::trajectory &traj;
-	};
-
 	/// Finds the trajectory with the given ID and returns a reference to it.
 	[[nodiscard]] trajectory_ref find_trajectory (unsigned id) const {
 		return { id, *render.try_get_trajectory(id) };
@@ -182,7 +179,7 @@ struct otv_client {
 	/// perform necessary logic to enqueue glyphs. Returns the sub-range of the input range that currently need to be
 	/// displayed on an extrapolation.
 	template <class Iter>
-	ro_range<Iter> enqueue_glyphs (trajectory_ref target, unsigned layer, const ro_range<Iter> &glyph_data);
+	ro_range<Iter> enqueue_glyphs (trajectory_ref traj, unsigned layer, const ro_range<Iter> &glyph_data);
 
 	/// for service mode: enqueue a new hermite node to be uploaded to the GPU ring buffer of the indicated trajectory
 	/// NOTE: argument `node` will be updated with the color and radius (plus derivative) of the selected trajectory, so

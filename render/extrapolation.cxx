@@ -1,10 +1,10 @@
 
-// local includes
-#include "arclen_helper.h"
-#include "render/extrapolation.h"
-
+// C++ STL
 #include <numeric>
 
+// Local includes
+#include "arclen_helper.h"
+#include "render/extrapolation.h"
 #include "state/core.h"
 
 
@@ -47,10 +47,13 @@ void compute_path (
 
 void extrapolation_manager::clear(void)
 {
+	// Glyph-related
 	trajectories.clear();
 	glyphs.glyph_attribs_arena.destroy();
 	geom.ranges_arena.destroy();
 	setup.reset();
+
+	// Purely geometry-related
 	geom.t_to_s_arena.destroy();
 	geom.nodes_arena.destroy();
 }
@@ -71,15 +74,22 @@ bool extrapolation_manager::create_geom_buffers (unsigned num_trajectories, unsi
 
 	// Create GPU ring buffer arenas
 	const unsigned num_nodes = num_segments+1;
-	const bool success =
-		   geom.nodes_arena.create(num_trajectories, num_nodes)
-		&& geom.t_to_s_arena.create(num_trajectories, num_segments);
+	const bool success =    geom.nodes_arena.create(num_trajectories, num_nodes)
+	                     && geom.t_to_s_arena.create(num_trajectories, num_segments);
 
 	// Distribute per-trajectory ringbuffers and create indices in the process
 	trajectories.reserve(num_trajectories);
 	geom.node_indices.reserve(num_trajectories * num_segments);
 	for (unsigned t=0; t<num_trajectories; t++) {
-		trajectories.emplace_back(geom.nodes_arena.buffer(t), geom.t_to_s_arena.buffer(t));
+		auto &nodes_buf = geom.nodes_arena.buffer(t); {
+			const auto too_many = nodes_buf.push_uninit(num_nodes);
+			assert(too_many==0);
+		}
+		auto &alen_buf = geom.t_to_s_arena.buffer(t); {
+			const auto too_many = alen_buf.push_uninit(num_segments);
+			assert(too_many==0);
+		}
+		trajectories.emplace_back(nodes_buf, alen_buf);
 		uint32_t start_index = t*num_nodes;
 		for (unsigned i=0; i<num_segments; i++)
 			geom.node_indices.emplace_back(start_index+i, start_index+i+1);
@@ -141,9 +151,12 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (unsigned per_lay
 		traj.layers.reserve(setup.num_layers);
 		for (unsigned l=0; l<setup.num_layers; l++) {
 			const unsigned per_layer_buffer_id = t*setup.num_layers + l;
+			auto &ranges_buf = geom.ranges_arena.buffer(per_layer_buffer_id); {
+				const auto too_many = ranges_buf.push_uninit(num_segments);
+				assert(too_many==0);
+			}
 			traj.layers.emplace_back(
-				geom.ranges_arena.buffer(per_layer_buffer_id),
-				glyphs.glyph_attribs_arena.buffer(per_layer_buffer_id)
+				ranges_buf, glyphs.glyph_attribs_arena.buffer(per_layer_buffer_id)
 			);
 		}
 	}
@@ -227,7 +240,7 @@ void extrapolation_manager::replace_extrapolation (
 		const unsigned stride = setup.glyph_attrib_counts[l];
 
 		// First, find the oldest glyph we need to still include
-		const auto on_extrapol = skip_glyphs_before(
+		auto on_extrapol = skip_glyphs_before(
 			l, extrapolation.front().t_to_s[0], ro_range{layer.glyph_attribs.begin(), layer.glyph_attribs.end()}
 		);
 		// ...and erase those that fell off the extrapolation
@@ -240,116 +253,21 @@ void extrapolation_manager::replace_extrapolation (
 			const auto new_num = layer.glyph_attribs.size();
 			assert(new_num % stride == 0);
 			assert(new_num == old_num-erase_count);
+			// Refresh on_extrapol range since iterators are _theoretically_ invalidated by pop_front()
+			// ToDo: investigate whether we can get away with not refreshing in all cases (it definitely works if the
+			//       range was empty before)
+			on_extrapol = ro_range{layer.glyph_attribs.begin(), layer.glyph_attribs.end()};
 		}
 
 		// Nothing to do if there are no in-range glyphs
 		if (layer.glyph_attribs.empty())
 			continue;
 
-		// Next, differentiate between glyph and plot layers
-		// TODO: The code in both cases looks very similar and can probably be templated – at least in part – to avoid
-		// duplication
-		const auto glyph_geometry = render.glyph_extents(l, &*(layer.glyph_attribs.begin()+2));
-		if (glyph_geometry.has_value()) // it's a glyph
-		{
-			////
-			// Iterate through remaining glyphs to assign them to the extrapolated segments
-
-			// Outer loop is over extrapolated segments
-			const auto num_glyphs = (unsigned)render.trajectories.front().attrib_to_glyph_count(
-				l, (int)layer.glyph_attribs.size()
-			).value;
-			ro_range cur_glyph {on_extrapol.begin, on_extrapol.begin+stride};
-			unsigned cur_glyph_idx = 0;
-			for (unsigned seg=0; seg<num_segments; seg++)
-			{
-				// Obtain relevant quantities and references
-				const auto &alen = traj.t_to_s.contents[seg];
-				const auto s_max = alen[15];
-				auto &cur_range = layer.ranges.contents[seg];
-				cur_range.i0 = (int)cur_glyph_idx; // <- this can already be out-of-range, but it doesn't matter since
-				cur_range.n = 0;                   //    in that case n will remain 0
-
-				// Check if we have any glyphs remaining
-				assert(cur_glyph_idx <= num_glyphs);
-				if (cur_glyph_idx == num_glyphs)
-					// While we're actually fully done, we need to ensure the remaining segments get initialized too
-					continue;
-
-				// Inner loop is over the glyphs that overlap the current segment
-				auto s_range = render.glyph_range(l, &*cur_glyph.begin).value(), s_range_prev = s_range;
-				while (s_range.x() <= s_max) {
-					cur_range.n++;
-					cur_glyph_idx++;
-					cur_glyph.safe_advance(stride, on_extrapol.end);
-					assert(cur_glyph_idx <= num_glyphs);
-					if (cur_glyph_idx == num_glyphs)
-						break; // all glyphs exhausted
-					s_range_prev = s_range;
-					s_range = render.glyph_range(l, &*cur_glyph.begin).value();
-				}
-
-				// Finally, move the cursor back one glyph (if it's not already the first) in case it also overlaps the
-				// next segment.
-				if (cur_glyph_idx > 0 && s_range_prev.y() >= s_max) {
-					cur_glyph_idx--;
-					cur_glyph.safe_unadvance(stride);
-				}
-			}
-		}
-		else // it's a plot
-		{
-			////
-			// Iterate through remaining control points to assign them to the extrapolated segments
-
-			// Outer loop is over extrapolated segments
-			const auto num_glyphs = (unsigned)render.trajectories.front().attrib_to_glyph_count(
-				l, (int)layer.glyph_attribs.size()
-			).value;
-			ro_range cur_glyph {on_extrapol.begin, on_extrapol.begin+stride};
-			unsigned cur_glyph_idx = 0;
-			for (unsigned seg=0; seg<num_segments; seg++)
-			{
-				// Obtain relevant quantities and references
-				const auto &alen = traj.t_to_s.contents[seg];
-				const auto s_max = alen[15];
-				auto &cur_range = layer.ranges.contents[seg];
-				cur_range.i0 = (int)cur_glyph_idx; // <- this can already be out-of-range, but it doesn't matter since
-				cur_range.n = 0;                   //    in that case n will remain 0
-
-				// Check if we have any control points remaining
-				assert(cur_glyph_idx <= num_glyphs);
-				if (cur_glyph_idx == num_glyphs)
-					// While we're actually fully done, we need to ensure the remaining segments get initialized too
-					continue;
-
-				// Inner loop is over control points that fall _before_ the end of the segment
-				auto s = get_glyph_pos(cur_glyph);
-				while (s < s_max) {
-					cur_range.n++;
-					cur_glyph_idx++;
-					cur_glyph.safe_advance(stride, layer.glyph_attribs.end());
-					assert(cur_glyph_idx <= num_glyphs);
-					if (cur_glyph_idx == num_glyphs)
-						break; // all glyphs exhausted
-					s = get_glyph_pos(cur_glyph);
-				}
-
-				// Now, include one additional (if it exists) control point to ensure correct inter-segment
-				// interpolation on the _current_ segment.
-				if (cur_glyph_idx < num_glyphs)
-					cur_range.n++;
-
-				// Finally, move the cursor back one control point (if it's not already the first) to make sure the last
-				// control point considered to be _on_ the current segment will be included in the next segment also, to
-				// ensure correct inter-segment interpolation on the _next_ segment. In case the current control point
-				// lies _exactly_ on the segment boundary (2nd condition), this is not necessary.
-				if (cur_glyph_idx > 0 && s!=s_max) {
-					cur_glyph_idx--;
-					cur_glyph.safe_unadvance(stride);
-				}
-			}
-		}
+		// Assign remaining in-range glyphs
+		assign_glyphs(
+			ro_range{layer.ranges.begin(), layer.ranges.end()}, ro_range{traj.t_to_s.begin(), traj.t_to_s.end()},
+			l, on_extrapol
+		);
 	}
 
 	// Done!
@@ -391,8 +309,44 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 		return first_glyph_s >= old_max_s;
 	}() && "extrapolation_manager::consider_glyphs(): new glyphs must never precede previously submitted glyphs!");
 
-	layer.glyph_attribs.push_range(on_extrapol);
+	layer.glyph_attribs.push_uninit(6);
+	const int old_num = layer.glyph_attribs.size();
+	const int num_total_discarded = layer.glyph_attribs.push_uninit(layer.glyph_attribs.capacity()+stride); // layer.glyph_attribs.push_range(on_extrapol)
+	// make sure we don't include the number of discarded elements from the _input_ range in the count
+	const unsigned num_discarded = num_total_discarded ? old_num : 0;
+	assert(num_discarded <= num_total_discarded);
 	assert(layer.glyph_attribs.size() % stride == 0); // sanity check
+
+	// Unlink discarded glyphs, if any
+	const unsigned num_segments = layer.ranges.size();
+	unsigned num_unlinked = 0, remaining_discarded = num_discarded;
+	for (auto range_it=layer.ranges.begin();
+	     num_unlinked < num_discarded  &&  range_it < layer.ranges.end();
+	     ++range_it)
+	{
+		auto &range = *range_it;
+		if (range.n <= remaining_discarded) {
+			num_unlinked += range.n;
+			remaining_discarded -= range.n;
+			assert(num_unlinked<=num_discarded && remaining_discarded>=0);
+			range.i0 = 0; range.n = 0;
+		}
+		else {
+			range.n -= remaining_discarded;
+			assert(range.n > 0);
+			num_unlinked += remaining_discarded;
+			assert(num_unlinked==num_discarded);
+			remaining_discarded = 0;
+			range.i0 = 0;
+		}
+	}
+	assert(num_unlinked==num_discarded && remaining_discarded==0);
+
+	// Assign to segments
+	assign_glyphs( // FIXME: start from most recently covered-by-glyphs segment
+		ro_range{layer.ranges.begin(), layer.ranges.end()}, ro_range{traj.t_to_s.begin(), traj.t_to_s.end()},
+		l, on_extrapol
+	);
 
 	// Done!
 	return ro_range{on_extrapol.begin, glyph_attribs.end};
@@ -595,6 +549,114 @@ template ro_range<std_deque_float_iter> extrapolation_manager::keep_glyphs_after
 template ro_range<float*> extrapolation_manager::keep_glyphs_after_including (
 	unsigned layer, float s_min, const ro_range<float*>&
 );
+
+template <class IRangeIter, class AlenIter, class GlyphAttribsIter>
+void extrapolation_manager::assign_glyphs (
+	ro_range<IRangeIter> &&ranges_out, const ro_range<AlenIter> &t_to_s, unsigned layer,
+	const ro_range<GlyphAttribsIter> &glyph_attribs, const unsigned idx_offset
+){
+	// Prelude
+	const unsigned num_segments = ranges_out.length();
+	const auto num_glyphs = (unsigned)render.trajectories.front().attrib_to_glyph_count(
+		layer, (int)glyph_attribs.length()
+	).value + idx_offset;
+	const auto stride = setup.glyph_attrib_counts[layer];
+	ro_range cur_glyph {glyph_attribs.begin, glyph_attribs.begin+stride};
+	unsigned cur_glyph_idx = idx_offset;
+
+
+	/////
+	// Iterate through input glyph attribute range to assign them to the extrapolated segments
+
+	// We need to differentiate between glyph and plot layers.
+	// TODO: The code in both cases looks very similar and can probably be templated – at least partially – to minimize
+	// duplication.
+	const auto glyph_geometry = render.glyph_extents(layer, &*(glyph_attribs.begin+2));
+	if (glyph_geometry.has_value()) // it's a glyph
+	{
+		// Outer loop is over extrapolated segments
+		for (unsigned seg=0; seg<num_segments; seg++)
+		{
+			// Obtain relevant quantities and references
+			const auto s_max = (*(t_to_s.begin+seg))[15];
+			auto &cur_range = *(ranges_out.begin+seg);
+			cur_range.i0 = (int)cur_glyph_idx; // <- this can already be out-of-range, but it doesn't matter since
+			cur_range.n = 0;                   //    in that case n will remain 0
+
+			// Check if we have any glyphs remaining
+			assert(cur_glyph_idx <= num_glyphs);
+			if (cur_glyph_idx == num_glyphs)
+				// While we're actually fully done, we need to ensure the remaining segments get initialized too
+				continue;
+
+			// Inner loop is over the glyphs that overlap the current segment
+			auto s_range = render.glyph_range(layer, &*cur_glyph.begin).value(), s_range_prev = s_range;
+			while (s_range.x() <= s_max)
+			{
+				cur_range.n++;
+				cur_glyph_idx++;
+				cur_glyph.safe_advance(stride, glyph_attribs.end);
+				assert(cur_glyph_idx <= num_glyphs);
+				if (cur_glyph_idx == num_glyphs)
+					break; // all glyphs exhausted
+				s_range_prev = s_range;
+				s_range = render.glyph_range(layer, &*cur_glyph.begin).value();
+			}
+
+			// Finally, move the cursor back one glyph (if it's not already the first) in case it also overlaps the
+			// next segment.
+			if (cur_glyph_idx > 0 && s_range_prev.y() >= s_max) {
+				cur_glyph_idx--;
+				cur_glyph.safe_unadvance(stride);
+			}
+		}
+	}
+	else // it's a plot
+	{
+		// Outer loop is over extrapolated segments
+		for (unsigned seg=0; seg<num_segments; seg++)
+		{
+			// Obtain relevant quantities and references
+			const auto s_max = (*(t_to_s.begin+seg))[15];
+			auto &cur_range = *(ranges_out.begin+seg);
+			cur_range.i0 = (int)cur_glyph_idx; // <- this can already be out-of-range, but it doesn't matter since
+			cur_range.n = 0;                   //    in that case n will remain 0
+
+			// Check if we have any control points remaining
+			assert(cur_glyph_idx <= num_glyphs);
+			if (cur_glyph_idx == num_glyphs)
+				// While we're actually fully done, we need to ensure the remaining segments get initialized too
+				continue;
+
+			// Inner loop is over control points that fall _before_ the end of the segment
+			auto s = get_glyph_pos(cur_glyph);
+			while (s < s_max)
+			{
+				cur_range.n++;
+				cur_glyph_idx++;
+				cur_glyph.safe_advance(stride, glyph_attribs.end);
+				assert(cur_glyph_idx <= num_glyphs);
+				if (cur_glyph_idx == num_glyphs)
+					break; // all glyphs exhausted
+				s = get_glyph_pos(cur_glyph);
+			}
+
+			// Now, include one additional (if it exists) control point to ensure correct inter-segment
+			// interpolation on the _current_ segment.
+			if (cur_glyph_idx < num_glyphs)
+				cur_range.n++;
+
+			// Finally, move the cursor back one control point (if it's not already the first) to make sure the last
+			// control point considered to be _on_ the current segment will be included in the next segment also, to
+			// ensure correct inter-segment interpolation on the _next_ segment. In case the current control point
+			// lies _exactly_ on the segment boundary (2nd condition), this is not necessary.
+			if (cur_glyph_idx > 0 && s!=s_max) {
+				cur_glyph_idx--;
+				cur_glyph.safe_unadvance(stride);
+			}
+		}
+	}
+}
 
 bool extrapolation_manager::flush_changes (void) const {
 	bool result = geom.nodes_arena.flush_all();
