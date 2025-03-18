@@ -2,13 +2,8 @@
 #ifndef __EXTRAPOLATION_H__
 #define __EXTRAPOLATION_H__
 
-// C++ STL
-#include <optional>
-
-// local includes
-#include "dbuf_queue.h"
+// Local includes
 #include "glyph_layer_manager.h"
-#include "textured_spline_tube_renderer.h"
 #include "render/common.h"
 #include "render/trajectory.h"
 #include "render/state.h"
@@ -170,19 +165,38 @@ struct extrapolation_manager
 	/// about monotonically increasing arc length positions of the provided glyphs apply; most notably that implies that
 	/// clients <b>must never</b> feed glyphs to this function that were submitted to the manager for consideration
 	/// before.
-	/// @return The sub range of the provided glyphs that were included for display on the extrapolation.
+	///
+	/// @return
+	///		The sub range of the provided glyphs that were included for display on the extrapolation.
+	///
+	/// @note
+	///		Typically, to-be-considered glyphs (unless clients are greatly behind with submitting them) will succeed the
+	///		most recent real segment pending new position measurements, so the returned sub range should be empty ≥90%
+	///		of the time. If not, clients should check their node/glyph submission logic.
 	template <class Iter>
 	ro_range<Iter> consider_glyphs (unsigned traj_id, unsigned layer, const ro_range<Iter> &glyph_attribs);
 
-	/// Return the sub-range of the range @a glyph_attribs on @a layer that have any influence after (and including)
+	/// Return the sub-range of the range @a glyph_attribs on @a layer that have influence after (and including)
 	/// @a s_min, searching from the front.
 	template <class Iter>
 	ro_range<Iter> skip_glyphs_before (unsigned layer, float s_min, const ro_range<Iter> &glyph_attribs);
 
-	/// Return the sub-range of the range @a glyph_attribs on @a layer that have any influence after (and including)
+	/// Return the sub-range of the range @a glyph_attribs on @a layer that have influence after (and including)
 	/// @a s_min, searching from the back.
 	template <class Iter>
 	ro_range<Iter> keep_glyphs_after_including (unsigned layer, float s_min, const ro_range<Iter> &glyph_attribs);
+
+	/// Given a range of Hermite segments and their arc length parameterization, assign the given range of glyphs known
+	/// to be from the given layer to these segments such that each segment only references the glyphs that influence
+	/// it.
+	///
+	/// If the input range of glyph attributes is known to be a sub-range of some larger collection, @a idx_offset may
+	/// be used offset each assigned glyph index by the given amount.
+	template <class IRangeIter, class AlenIter, class GlyphAttribsIter>
+	void assign_glyphs (
+		ro_range<IRangeIter> &&ranges_out, const ro_range<AlenIter> &t_to_s, unsigned layer,
+		const ro_range<GlyphAttribsIter> &glyph_attribs, unsigned idx_offset=0
+	);
 
 	/// Flush all changes to GPU buffers, making their current contents visible to the GPU. No guarantees are made that
 	/// any changes (@ref replace_extrapolation() etc.) will ever become visible to the GPU unless this is called at

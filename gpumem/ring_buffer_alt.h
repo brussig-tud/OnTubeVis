@@ -1,6 +1,6 @@
 
-#ifndef __PERSISTENT_BUFFER_H__
-#define __PERSISTENT_BUFFER_H__
+#ifndef __RING_BUFFER_ALT_H__
+#define __RING_BUFFER_ALT_H__
 
 
 //////
@@ -44,18 +44,18 @@ struct ring_buffer_alt
 	/// The iterator type.
 	struct iterator
 	{
-		const unsigned len;
+		unsigned len;
 		Elem *buf;
 		unsigned idx, real_idx;
 
 		iterator() = delete;
-		iterator(const iterator &other) = default;
+		//iterator(const iterator &other) = default;
 
 		inline explicit iterator (Elem *buf, const unsigned len, const unsigned idx, const unsigned real_idx)
 			: len(len), buf(buf), idx(idx), real_idx(real_idx)
 		{}
 
-		inline iterator& operator=(const iterator &other) = default;
+		//inline iterator& operator=(const iterator &other) = default;
 
 		inline Elem& operator* (void) {
 			return buf[real_idx];
@@ -282,6 +282,36 @@ struct ring_buffer_alt
 		return num_overwritten;
 	}
 
+	/// Push the given number of elements to the end of the buffer <b>without initializing</b> them! This is realized
+	/// internally by just moving the head pointer. No construction of the thus "created" elements will take place!
+	///
+	/// @note pushing zero uninitialized elements is allowed for improved client ergonomics.
+	///
+	/// @return The number of old elements that had to be discarded to accommodate the new ones. Notably, <b>this
+	/// includes</b> elements from the tail end of the pushed @a count, if @a count is larger than the buffer's max
+	/// capacity.
+	unsigned push_uninit (const unsigned count=1)
+	{
+		// Infer amount of elements we actually need to push
+		const int old_free = num_free();
+		const auto push_count = std::min<unsigned>(meta.len, count);
+		const auto num_overwritten = std::max(int(push_count) - int(old_free), 0);
+
+		// We don't take the opportunity to eliminate wraparound in case push_count==capacity(), as uninitialized pushes
+		// often occur in performance-critical code and thus we don't want the added complexity.
+		meta.head = (meta.head+push_count) % meta.len;      // just increase indices
+		meta.tail = (meta.tail+num_overwritten) % meta.len; // accordingly
+		update_num(true);
+		if (num_overwritten)
+			assert(meta.head==meta.tail && num_elems==meta.len && num_free()==0);
+		else
+			assert(num_elems==(meta.len-old_free)+push_count && num_free()==old_free-push_count);
+
+		// Report number of discarded elements
+		const auto num_dropped = count - push_count;
+		return num_overwritten + num_dropped;
+	}
+
 	/// Pop given number of elements from the tail end of the buffer.
 	void pop_front (const unsigned count=1) {
 		assert(count <= size()); // sanity check
@@ -447,4 +477,4 @@ struct ring_buffer_arena
 
 }
 
-#endif // ifndef __PERSISTENT_BUFFER_H__
+#endif // ifndef __RING_BUFFER_ALT_H__

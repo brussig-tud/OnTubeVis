@@ -23,6 +23,9 @@ struct ro_range
 		return elem >= begin && elem < end;
 	}
 
+	/*ro_range(const ro_range &other) = default;
+	inline ro_range& operator = (const ro_range &other) = default;*/
+
 	inline ro_range& operator += (const std::size_t offset) noexcept {
 		begin += offset;
 		end += offset;
@@ -85,6 +88,18 @@ auto map_optional (O &&o, F &&f) -> std::optional<decltype(f(*std::forward<O>(o)
 		return std::nullopt;
 	return {f(*std::forward<O>(o))};
 }
+
+
+/// A simple helper struct for storing both the index of and a reference to some object typically residing in some
+/// index-able container.
+template <class T>
+struct ref_with_id {
+	/// The index of the referenced object.
+	unsigned id;
+
+	/// Reference to the object itself.
+	T &ref;
+};
 
 
 /// A simple RAII-style finalizer, making sure the finalizer code is called when the helper gets destroyed. In case
