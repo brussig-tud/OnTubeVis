@@ -135,6 +135,23 @@ struct ring_buffer_alt
 		}
 	};
 
+	/// The return type of @c push... methods holding information of overwritten/dropped elements to accommodate the
+	/// push.
+	struct push_result
+	{
+		/// The number of elements in the ring buffer that were overwritten.
+		unsigned num_overwritten;
+
+		/// The number of elements at the tail end of the input range that did not fit (essentially @ref capacity() −
+		/// @a num_input_elems)
+		unsigned num_skipped;
+
+		/// Report the total number of dropped elements as a result of the push.
+		[[nodiscard]] inline unsigned total (void) const {
+			return num_overwritten + num_skipped;
+		}
+	};
+
 	/// The backing memory of ring the ring buffer metadata.
 	span<ring_buffer_meta> meta_mem;
 
@@ -285,17 +302,15 @@ struct ring_buffer_alt
 	/// Push the given number of elements to the end of the buffer <b>without initializing</b> them! This is realized
 	/// internally by just moving the head pointer. No construction of the thus "created" elements will take place!
 	///
-	/// @note pushing zero uninitialized elements is allowed for improved client ergonomics.
+	/// @note Pushing zero uninitialized elements is allowed for improved client ergonomics.
 	///
-	/// @return The number of old elements that had to be discarded to accommodate the new ones. Notably, <b>this
-	/// includes</b> elements from the tail end of the pushed @a count, if @a count is larger than the buffer's max
-	/// capacity.
-	unsigned push_uninit (const unsigned count=1)
+	/// @return The number of both old and new elements that had to be discarded to perform the push.
+	push_result push_uninit (const unsigned count=1)
 	{
 		// Infer amount of elements we actually need to push
 		const int old_free = num_free();
 		const auto push_count = std::min<unsigned>(meta.len, count);
-		const auto num_overwritten = std::max(int(push_count) - int(old_free), 0);
+		const unsigned num_overwritten = std::max(int(push_count) - int(old_free), 0);
 
 		// We don't take the opportunity to eliminate wraparound in case push_count==capacity(), as uninitialized pushes
 		// often occur in performance-critical code and thus we don't want the added complexity.
@@ -308,8 +323,8 @@ struct ring_buffer_alt
 			assert(num_elems==(meta.len-old_free)+push_count && num_free()==old_free-push_count);
 
 		// Report number of discarded elements
-		const auto num_dropped = count - push_count;
-		return num_overwritten + num_dropped;
+		const auto num_skipped = count - push_count;
+		return push_result{num_overwritten, num_skipped};
 	}
 
 	/// Pop given number of elements from the tail end of the buffer.

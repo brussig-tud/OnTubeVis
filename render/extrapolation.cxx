@@ -82,12 +82,12 @@ bool extrapolation_manager::create_geom_buffers (unsigned num_trajectories, unsi
 	geom.node_indices.reserve(num_trajectories * num_segments);
 	for (unsigned t=0; t<num_trajectories; t++) {
 		auto &nodes_buf = geom.nodes_arena.buffer(t); {
-			const auto too_many = nodes_buf.push_uninit(num_nodes);
-			assert(too_many==0);
+			const auto res = nodes_buf.push_uninit(num_nodes);
+			assert(res.num_overwritten==0 && res.num_skipped==0);
 		}
 		auto &alen_buf = geom.t_to_s_arena.buffer(t); {
-			const auto too_many = alen_buf.push_uninit(num_segments);
-			assert(too_many==0);
+			const auto res = alen_buf.push_uninit(num_segments);
+			assert(res.num_overwritten==0 && res.num_skipped==0);
 		}
 		trajectories.emplace_back(nodes_buf, alen_buf);
 		uint32_t start_index = t*num_nodes;
@@ -152,8 +152,8 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (unsigned per_lay
 		for (unsigned l=0; l<setup.num_layers; l++) {
 			const unsigned per_layer_buffer_id = t*setup.num_layers + l;
 			auto &ranges_buf = geom.ranges_arena.buffer(per_layer_buffer_id); {
-				const auto too_many = ranges_buf.push_uninit(num_segments);
-				assert(too_many==0);
+				const auto res = ranges_buf.push_uninit(num_segments);
+				assert(res.num_overwritten==0 && res.num_skipped==0);
 			}
 			traj.layers.emplace_back(
 				ranges_buf, glyphs.glyph_attribs_arena.buffer(per_layer_buffer_id)
@@ -309,38 +309,38 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 		return first_glyph_s >= old_max_s;
 	}() && "extrapolation_manager::consider_glyphs(): new glyphs must never precede previously submitted glyphs!");
 
+	//DEBUG TEST:
+	layer.ranges.contents[0].i0 = 0;
+	layer.ranges.contents[0].n = 4;
+	layer.ranges.contents[1].i0 = 2;
+	layer.ranges.contents[1].n = 6;
+	layer.ranges.contents[2].i0 = 6;
+	layer.ranges.contents[2].n = 5;
+
 	layer.glyph_attribs.push_uninit(6);
-	const int old_num = layer.glyph_attribs.size();
-	const int num_total_discarded = layer.glyph_attribs.push_uninit(layer.glyph_attribs.capacity()+stride); // layer.glyph_attribs.push_range(on_extrapol)
+	const auto discarded = layer.glyph_attribs.push_uninit(layer.glyph_attribs.capacity()+stride); // layer.glyph_attribs.push_range(on_extrapol)
 	// make sure we don't include the number of discarded elements from the _input_ range in the count
-	const unsigned num_discarded = num_total_discarded ? old_num : 0;
-	assert(num_discarded <= num_total_discarded);
+	const int num_discarded = discarded.num_overwritten;
+	assert(num_discarded <= discarded.total());
 	assert(layer.glyph_attribs.size() % stride == 0); // sanity check
 
 	// Unlink discarded glyphs, if any
-	const unsigned num_segments = layer.ranges.size();
-	unsigned num_unlinked = 0, remaining_discarded = num_discarded;
-	for (auto range_it=layer.ranges.begin();
-	     num_unlinked < num_discarded  &&  range_it < layer.ranges.end();
-	     ++range_it)
+	for (auto range_it=layer.ranges.begin(); range_it<layer.ranges.end(); ++range_it)
 	{
 		auto &range = *range_it;
-		if (range.n <= remaining_discarded) {
-			num_unlinked += range.n;
-			remaining_discarded -= range.n;
-			assert(num_unlinked<=num_discarded && remaining_discarded>=0);
-			range.i0 = 0; range.n = 0;
-		}
-		else {
-			range.n -= remaining_discarded;
-			assert(range.n > 0);
-			num_unlinked += remaining_discarded;
-			assert(num_unlinked==num_discarded);
-			remaining_discarded = 0;
+		int num_affected = std::max(num_discarded-range.i0, 0);
+		if (num_affected > 0) {
+			// This segment now has some or all of its glyphs missing, which we can resolve solely on the basis of its
+			// mapping range start index
 			range.i0 = 0;
+			num_affected = std::min<unsigned>(num_affected, range.n);
+			range.n -= num_affected;
 		}
+		else
+			// All glyphs mapped to this segment are still there, they just moved tailwards, so adjust start index
+			// accordingly
+			range.i0 -= num_discarded;
 	}
-	assert(num_unlinked==num_discarded && remaining_discarded==0);
 
 	// Assign to segments
 	assign_glyphs( // FIXME: start from most recently covered-by-glyphs segment
