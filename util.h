@@ -127,3 +127,38 @@ struct finalizer
 		return disarmed;
 	}
 };
+
+
+/// A simple RAII-wrapper for some resource. Calls the specified cleanup function on the wrapped resource in its
+/// destructor.
+template <class ResourceHandle, void(*finalizer)(ResourceHandle)>
+struct RAII
+{
+	/// Handle for the wrapped resource.
+	ResourceHandle handle;
+
+	// No default and copy construction/assignment.
+	RAII() = delete;
+	RAII(const ResourceHandle&) = delete;
+	RAII& operator= (const ResourceHandle&) = delete;
+
+	/// The move constructor.
+	inline RAII(RAII &&other) = default;
+
+	/// Construct by moving in the given resource.
+	inline RAII(ResourceHandle &&handle) : handle(std::move(handle))
+	{}
+
+	/// The destructor. Calls the finalizer on the wrapped resource.
+	inline ~RAII() {
+		drop();
+	}
+
+	/// Explicitly call the finalizer on the wrapped resource. Leaves the RAII wrapper in an undefined state.
+	inline void drop (void) {
+		if (handle) {
+			finalizer(handle);
+			handle = nullptr;
+		}
+	}
+};

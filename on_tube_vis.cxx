@@ -1762,12 +1762,29 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			const auto &ctx = *get_context();
 
 			// set up render/streaming
-			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
-				if (! gc.layer_filled[layer_idx]) {
+			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx)
+			{
+				if (! gc.layer_filled[layer_idx])
+				{
 					// Clear layer for client and renderer.
 					client.glyphs[layer_idx] = {};
 					render.glyphs[layer_idx] = {};
-				} else {
+					if (run_as_service)
+					{
+						// In case we're running as service, glyphs can still be streamed even when no attributes are
+						// mapped. We must be able to receive them, so create GPU buffers for this layer anyway.
+						if (!render.create_glyph_layer(
+						    	layer_idx,
+						    	client.glyphs[layer_idx].attribs.count + 2,
+						    	client.trajectories.size(),
+						    	glyph_count_type{(int)session_glyphbuf_size}
+						    )
+						)
+							throw std::runtime_error("Failed to create glyph attribute buffers.");
+					}
+				}
+				else
+				{
 					// Mark layer as active in render state.
 					render.active_glyph_layers.set(layer_idx);
 

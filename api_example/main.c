@@ -21,7 +21,7 @@
 #else
 	#include <unistd.h>
 #endif
-#if defined(OTVAPI_CLIENT_USE_DLOPEN) && OTVAPI_CLIENT_USE_DLOPEN!=0
+#if defined(OTVAPI_EXAMPLE_USE_DLOPEN) && OTVAPI_EXAMPLE_USE_DLOPEN!=0
 	#error Runtime loading of an OnTubeVis API implementation is not yet implemented in this example!
 	#ifndef _WIN32
 		#include <dlfcn.h>
