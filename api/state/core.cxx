@@ -461,7 +461,7 @@ OTV_API float otv__eval_arclen (const OTV_SegmentArclen *s, const float t) {
 
 OTV_API void otv__compute_extrapol (
 	OTV_Extrapolation *out, const uint32_t num, const OTV_HermiteNode *ref_node0, const OTV_HermiteNode *ref_node1,
-	OTV_SegmentArclen *ref_arclen
+	const OTV_SegmentArclen *ref_arclen
 ){
 	// Delegate computation to internal facilities
 	const auto extrapol = otv::extrapol::compute_path(

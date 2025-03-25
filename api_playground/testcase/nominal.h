@@ -56,16 +56,16 @@ void nominal_run (const NominalConfig &config)
 
 	auto traj = stream::Nodes::compile({
 		stream::Nodes::Event{.0f, cgv::vec3(0,0,0), cgv::vec3(4,0,0)},
-		stream::Nodes::Event{4.f, cgv::vec3(4,0,0), cgv::vec3(4,0,0)}
+		stream::Nodes::Event{4.f, cgv::vec3(4,0,0), cgv::vec3(1,0,0)},
+		stream::Nodes::Event{5.f, cgv::vec3(5,0,0), cgv::vec3(2,0,0)},
+		stream::Nodes::Event{7.f, cgv::vec3(9,0,0), cgv::vec3(2,0,0)}
 	});
-	const auto &segment = traj.segment(0);
-
-	const float s0 = segment.s_from_time(0);
-	const float s1 = segment.s_from_time(1);
-	const float s2 = segment.s_from_time(2);
-	const float s3 = segment.s_from_time(3);
-	const float s4 = segment.s_from_time(4);
-	std::clog << "alen: "<<s0<<", "<<s1<<", "<<s2<<", "<<s3<<", "<<s4 << std::endl;
+	for (unsigned t=0; t<9; ++t) {
+		const auto time = (float)t;
+		const auto &segment = traj.segment_containing_time(time);
+		const float s = segment.s_from_time(time);
+		std::clog <<"alen at t="<<time<<"s, ["<<segment.n0.time<<".."<<segment.n1.time<<"]: s="<<s << std::endl;
+	}
 
 	/* Stream test glyphs (trajectory segment not yet there) */ {
 		// First sign blob on layer 1
