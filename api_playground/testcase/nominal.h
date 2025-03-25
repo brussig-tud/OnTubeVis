@@ -51,9 +51,7 @@ void nominal_run (const NominalConfig &config)
 {
 	// Keep track of the most recent glyph's extent to check if there is no overlap when we want to stream another one.
 	// we have 3 layers (streaming to just 1 trajectory in this example), so it's actually a three-element array.
-	auto last_border = make_array<NominalConfig::num_layers>(
-		-std::numeric_limits<float>::infinity()
-	);
+	auto last_border = make_array<NominalConfig::num_layers>(-std::numeric_limits<float>::infinity());
 
 	/* Stream test glyphs (trajectory segment not yet there) */ {
 		// First sign blob on layer 1
