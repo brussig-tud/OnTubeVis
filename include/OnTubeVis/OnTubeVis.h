@@ -413,7 +413,8 @@ extern otv__compute_arclen_funct otv__compute_arclen;
  *		compute the arc length @a s at the given (time-like) curve parameter @a t.
  *
  * The parameter @a t can be any number, but the arc length parameterization strategy used in the OnTubeVis API by
- * construction only gives reliable results for <em>t=0..1</em> on the corresponding segment.
+ * construction only gives reliable results for <em>t=0..1</em> on the corresponding segment, and can potentially even
+ * <em>decrease</em> again for <em>t≥1</em> (or increase for <em>t≤0</em>)
  *
  * @note
  *		This computation is typically executed immediately and synchronously inside the thread of the caller, without
@@ -456,13 +457,13 @@ extern otv__eval_arclen_funct otv__eval_arclen;
  */
 OTV_API void otv__compute_extrapol (
 	OTV_Extrapolation *out, const uint32_t num, const OTV_HermiteNode *ref_node0, const OTV_HermiteNode *ref_node1,
-	OTV_SegmentArclen *ref_arclen
+	const OTV_SegmentArclen *ref_arclen
 );
 #endif
 
 /// @brief The function pointer type for the @c otv__compute_extrapol() function.
 typedef void(*otv__compute_extrapol_funct)(
-	OTV_Extrapolation*, const uint32_t, const OTV_HermiteNode*, const OTV_HermiteNode*, OTV_SegmentArclen*
+	OTV_Extrapolation*, const uint32_t, const OTV_HermiteNode*, const OTV_HermiteNode*, const OTV_SegmentArclen*
 );
 
 #ifdef OTV_NO_PROTOTYPES
