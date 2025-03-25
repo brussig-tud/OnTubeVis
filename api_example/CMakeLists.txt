@@ -1,7 +1,7 @@
 
 # Build-time configuration
 option(
-	OTVAPI_EXAMPLE_USE_DLOPEN "Whether the client example should load the headless service dynamically at runtime." OFF
+	OTVAPI_EXAMPLE_USE_DLOPEN "Whether the client example should load the OnTubeVis service dynamically at runtime." OFF
 )
 
 # The testbed sample client application

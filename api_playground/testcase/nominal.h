@@ -17,6 +17,7 @@
 
 // Local includes
 #include "common.h"
+#include "stream/stream.h"
 
 
 
@@ -35,7 +36,8 @@ namespace testcase {
 //
 
 /// Create visualization setup for the test case '@a nominal'.
-auto nominal_setup (void) {
+auto nominal_setup (void)
+{
 	// Create the configuration
 	return OTVConfiguration(
 		"nominal", 3, 0.5f,
@@ -49,9 +51,21 @@ typedef std::invoke_result_t<decltype(nominal_setup)> NominalConfig;
 /// Entry point for the test case '@a nominal'.
 void nominal_run (const NominalConfig &config)
 {
-	// Keep track of the most recent glyph's extent to check if there is no overlap when we want to stream another one.
-	// we have 3 layers (streaming to just 1 trajectory in this example), so it's actually a three-element array.
+	// Keep track of the most recent glyph's extent per layer to check if there is no overlap when streaming new ones
 	auto last_border = make_array<NominalConfig::num_layers>(-std::numeric_limits<float>::infinity());
+
+	auto traj = stream::Nodes::compile({
+		stream::Nodes::Event{.0f, cgv::vec3(0,0,0), cgv::vec3(4,0,0)},
+		stream::Nodes::Event{4.f, cgv::vec3(4,0,0), cgv::vec3(4,0,0)}
+	});
+	const auto &segment = traj.segment(0);
+
+	const float s0 = segment.s_from_time(0);
+	const float s1 = segment.s_from_time(1);
+	const float s2 = segment.s_from_time(2);
+	const float s3 = segment.s_from_time(3);
+	const float s4 = segment.s_from_time(4);
+	std::clog << "alen: "<<s0<<", "<<s1<<", "<<s2<<", "<<s3<<", "<<s4 << std::endl;
 
 	/* Stream test glyphs (trajectory segment not yet there) */ {
 		// First sign blob on layer 1

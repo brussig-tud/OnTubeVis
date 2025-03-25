@@ -48,6 +48,7 @@ struct ColormapProperty {
 };
 
 
+
 //////
 //
 // Module namespace(s) close
