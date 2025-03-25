@@ -372,13 +372,16 @@ target_compile_definitions(OnTubeVis_static PUBLIC ${FEATURE_DEFINES} "INPUT_DIR
 target_include_directories(OnTubeVis PUBLIC ${ADDITIONAL_INCLUDES})
 target_include_directories(OnTubeVis_static PUBLIC ${ADDITIONAL_INCLUDES})
 
-# Add the Streaming API test client
+# Add the Streaming API clients
 # - create the interface target for no-link usage (dlopen etc.) of the API
 add_library(OnTubeVis_api INTERFACE)
 target_include_directories(OnTubeVis_api INTERFACE ${ONTUBEVIS_API_INCLUDE})
 set_target_properties(OnTubeVis_api PROPERTIES C_STANDARD 11)
 set_target_properties(OnTubeVis_api PROPERTIES C_STANDARD_REQUIRED TRUE)
-add_subdirectory("api_testclient")
+# - the example/demo
+add_subdirectory("api_example")
+# - the more involved (C++) playground client
+add_subdirectory("api_playground")
 
 # Visual Studio fluff
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT OnTubeVis)

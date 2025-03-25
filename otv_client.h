@@ -187,18 +187,18 @@ struct otv_client {
 	/// otv_client::convert_api_node_to_internal()
 	void service_push_spline_node (unsigned traj_id, node_attribs &&node, const cgv::mat4 *t_to_s);
 
-	/// for service mode: enqueue a glyph to the given layer of the given trajectory
-	void service_push_glyph (unsigned traj_id, unsigned layer, std::vector<float> &&glyph_data);
+	/// for service mode: enqueue glyphs to the given layer of the given trajectory
+	void service_push_glyphs (unsigned traj_id, unsigned layer, std::vector<float> &&glyph_data);
 
 	/// convert the given streaming API representation of a Hermite node to the internal one used for rendering, leaving
 	/// fields holding information about color and radius uninitialized (as the API does not support them)
 	/// NOTE: otv_client::service_push_spline_node will look up the correct values for these from the dummy dataset!
 	static node_attribs convert_api_node_to_internal (const OTV_HermiteNode &node);
 
-	/// convert the given streaming API representation of a glyph to the internally used array of floats with dynamic
-	/// layout
-	static std::vector<float> convert_api_glyph_to_internal (
-		unsigned traj_id, unsigned layer, const OTV_GlyphData &glyph
+	/// convert the given streaming API representation of an array of glyphs <b>of the same type and configuration</b>
+	/// to the internally used array of floats.
+	static std::vector<float> convert_api_glyphs_to_internal (
+		unsigned traj_id, unsigned layer, const std::vector<OTV_GlyphData> &glyphs
 	);
 };
 

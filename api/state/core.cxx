@@ -210,18 +210,20 @@ struct stream_spline_node_command : public command
 };
 
 // stream a spline sample
-struct stream_glyph_command : public command
+struct stream_glyphs_command : public command
 {
 	const uint32_t traj_id;
 	const uint32_t layer;
-	const OTV_GlyphData glyph;
+	std::vector<OTV_GlyphData> glyphs;
 
-	stream_glyph_command(const uint32_t traj_id, const uint32_t layer, const OTV_GlyphData &glyph)
-		: traj_id(traj_id), layer(layer), glyph(glyph)
+	stream_glyphs_command(
+		const uint32_t traj_id, const uint32_t layer, const OTV_GlyphData *glyphs, const uint32_t num_glyphs
+	)
+		: traj_id(traj_id), layer(layer), glyphs(glyphs, glyphs+num_glyphs)
 	{}
 
 	virtual const std::string& describe (void) final {
-		const static std::string desc = "stream_glyph";
+		const static std::string desc = "stream_glyphs";
 		return desc;
 	}
 
@@ -236,8 +238,8 @@ struct stream_glyph_command : public command
 					  << std::endl;
 			return notify_result(false);
 		}
-		otv_instance->client.service_push_glyph(
-			traj_id, layer, otv::otv_client::convert_api_glyph_to_internal(traj_id, layer, glyph)
+		otv_instance->client.service_push_glyphs(
+			traj_id, layer, otv::otv_client::convert_api_glyphs_to_internal(traj_id, layer, glyphs)
 		);
 
 		const auto idx_it = streaming_dataset::traj_id_map.find(traj_id);
@@ -248,101 +250,113 @@ struct stream_glyph_command : public command
 			auto &traj = streaming_dataset::trajectories[idx_it->second];
 			auto &glayer = traj.layers[layer];
 
-			// Sanity check
-			if (glyph.s < 0) {
-				std::clog << describe()<<':' << std::endl
-				          << " ! ERROR: invalid arc length, should be s ≥ 0   !!!DISCARDING!!!" << std::endl;
-				return notify_result(false);
-			}
-
-			// Check monotonicity
-			if (glayer.not_empty())
+			// Treat each glyph individually
+			bool success = true;
+			const auto num_glyphs = (unsigned)glyphs.size();
+			std::clog << describe()<<": received "<<num_glyphs<<" glyph "<<(num_glyphs==1?"instance":"instances")
+			          << std::endl;
+			for (unsigned g=0; g<num_glyphs; ++g)
 			{
-				const float prevs = glayer.glyphs.back().s;
-				if (prevs >= glyph.s) {
+				// Sanity check
+				if (glyphs[g].s < 0) {
 					std::clog << describe()<<':' << std::endl
-					          << " - traj #"<<traj_id<<".layer["<<layer<<"] <- "
-					          	<<fmt_glyph_instance(layer_conf, glyph) << std::endl
-					          << " ! ERROR: glyph arc length is out-of-order: "<<prevs<<"(old) ≥ "<<glyph.s<<"(new)"
-					          << "   !!!DISCARDING!!!" << std::endl;
-					return notify_result(false);
+					          << " ! ERROR: invalid arc length, should be s ≥ 0   !!!DISCARDING!!!" << std::endl;
+					success = false;
+					continue;
 				}
-			}
 
-			// Enter new glyph
-			const unsigned new_glyph_idx = (unsigned)glayer.glyphs.size();
-			std::clog << describe()<<':' << std::endl;
-			if (!check_glyph_instance_type(layer_conf.type, glyph))
-				std::clog << " ! WARNING: provided glyph instance is potentially not of type '"
-				          	<<otv__string_from_GlyphType(layer_conf.type)<<'\'' << std::endl;
-			// - check overlap
-			const auto gext =
-				OTV_Vec2{glyph.s, glyph.s} + otv__instantiate_Glyph(idx_it->second, layer, &glyph);
-			if (!glayer.glyphs.empty())
-			{
-				const float
-					s_min = glayer.glyphs.back().s + otv__instantiate_Glyph(traj_id, layer, &glayer.glyphs.back()).y,
-					dist = gext.x - s_min;
-				if (dist < 0)
-					std::clog << " ! WARNING: provided glyph instance will overlap with preceding glyph:" << std::endl
-					          << "            "<<fmt_glyph_instance(layer_conf, glayer.glyphs.back())
-					          << ", dist="<<dist << std::endl;
-			}
-			// - commit
-			glayer.glyphs.emplace_back(glyph);
-			std::clog << " - traj #"<<traj_id<<", layer["<<layer<<"] <- "
-			          	<<fmt_glyph_instance(layer_conf, glyph) << std::endl;
-
-			// Update glyph references
-			// - output helper function
-			const auto output_orphan_info = [&gext, &traj]() {
-				std::clog << " - ORPHANING: trajectory:s_max="<<(
-				          	traj.segment_arclens.empty() ? 0 : traj.segment_arclens.back().coeffs[3].w
-				          )<<" < ["<<gext.x<<".."<<gext.y<<"]=s:glyph" << std::endl;
-			};
-			// (we check many redundant conditions, more than would be needed for each branch, to assert that we don't
-			//  have any logic errors anywhere)
-			if (   !glayer.earliest_unrefed.exists()
-			    && (traj.segment_arclens.empty() || gext.x > traj.segment_arclens.back().coeffs[3].w))
-			{
-				// This is the first orphaned glyph on that trajectory and layer for which no segment exists (yet)
-				output_orphan_info();
-				glayer.earliest_unrefed.idx = new_glyph_idx;
-				glayer.earliest_unrefed.s = gext.x;
-			}
-			else if (    glayer.earliest_unrefed.exists()
-			         && (traj.segment_arclens.empty() || gext.x > traj.segment_arclens.back().coeffs[3].w))
-				// This is another orphaned glyph on that trajectory and layer for which no segment exists (yet)
-				output_orphan_info();
-			else if (   !glayer.earliest_unrefed.exists()
-			         && !traj.segment_arclens.empty() && gext.x <= traj.segment_arclens.back().coeffs[3].w)
-			{
-				// This glyph lies somewhere on the trajectory - link it to its segment
-				const unsigned search_start = glayer.latest_refed.exists() ? glayer.latest_refed.idx : 0;
-				bool found = false;
-				for (unsigned i=search_start; i<(unsigned)traj.segment_arclens.size(); i++) {
-					const auto &alen = traj.segment_arclens[i];
-					if (gext.y >= alen.coeffs[0].x && gext.x <= alen.coeffs[3].w) {
-						std::clog << " - LINKING: to segment "<<i<<", alen=["
-						          	<<alen.coeffs[0].x<<".."<<alen.coeffs[3].w<<']'
-						          << std::endl;
-						auto &range = glayer.ranges[i];
-						range.i0 = std::min(range.i0, new_glyph_idx);
-						range.n++;
-						glayer.latest_refed.idx = i;
-						glayer.latest_refed.s = gext.y;
-						found = true; // for assertion (see below)
-						continue; // <-- no breaking - the glyph could overlap more segments
+				// Check monotonicity
+				if (glayer.not_empty())
+				{
+					const float prevs = glayer.glyphs.back().s;
+					if (prevs >= glyphs[g].s) {
+						std::clog << describe()<<':' << std::endl
+						          << " - traj #"<<traj_id<<".layer["<<layer<<"] <- "
+					          		<<fmt_glyph_instance(layer_conf, glyphs[g]) << std::endl
+						          << " ! ERROR: glyph arc length is out-of-order: "<<prevs<<"(old) ≥ "<<glyphs[g].s<<"(new)"
+						          << "   !!!DISCARDING!!!" << std::endl;
+						success = false;
+						continue;
 					}
-					if (gext.y < alen.coeffs[0].x)
-						break; // <-- now it's safe to break
 				}
-				assert(found && "INTERNAL LOGIC ERROR: In-range glyph was not assigned to a segment!");
+
+				// Enter new glyph
+				const unsigned new_glyph_idx = (unsigned)glayer.glyphs.size();
+				std::clog << describe()<<':' << std::endl;
+				if (!check_glyph_instance_type(layer_conf.type, glyphs[g]))
+					std::clog << " ! WARNING: provided glyph instance is potentially not of type '"
+				          		<<otv__string_from_GlyphType(layer_conf.type)<<'\'' << std::endl;
+				// - check overlap
+				const auto gext =
+					OTV_Vec2{glyphs[g].s, glyphs[g].s} + otv__instantiate_Glyph(idx_it->second, layer, &glyphs[g]);
+				if (!glayer.glyphs.empty())
+				{
+					const float
+						s_min = glayer.glyphs.back().s + otv__instantiate_Glyph(traj_id, layer, &glayer.glyphs.back()).y,
+						dist = gext.x - s_min;
+					if (dist < 0)
+						std::clog << " ! WARNING: provided glyph instance will overlap with preceding glyph:" << std::endl
+						          << "            "<<fmt_glyph_instance(layer_conf, glayer.glyphs.back())
+						          << ", dist="<<dist << std::endl;
+				}
+				// - commit
+				glayer.glyphs.emplace_back(glyphs[g]);
+				std::clog << " - traj #"<<traj_id<<", layer["<<layer<<"] <- "
+			          		<<fmt_glyph_instance(layer_conf, glyphs[g]) << std::endl;
+
+				// Update glyph references
+				// - output helper function
+				const auto output_orphan_info = [&gext, &traj]() {
+					std::clog << " - ORPHANING: trajectory:s_max="<<(
+				          		traj.segment_arclens.empty() ? 0 : traj.segment_arclens.back().coeffs[3].w
+					          )<<" < ["<<gext.x<<".."<<gext.y<<"]=s:glyph" << std::endl;
+				};
+				// (we check many redundant conditions, more than would be needed for each branch, to assert that we don't
+				//  have any logic errors anywhere)
+				if (   !glayer.earliest_unrefed.exists()
+				    && (traj.segment_arclens.empty() || gext.x > traj.segment_arclens.back().coeffs[3].w))
+				{
+					// This is the first orphaned glyph on that trajectory and layer for which no segment exists (yet)
+					output_orphan_info();
+					glayer.earliest_unrefed.idx = new_glyph_idx;
+					glayer.earliest_unrefed.s = gext.x;
+				}
+				else if (    glayer.earliest_unrefed.exists()
+				         && (traj.segment_arclens.empty() || gext.x > traj.segment_arclens.back().coeffs[3].w))
+					// This is another orphaned glyph on that trajectory and layer for which no segment exists (yet)
+					output_orphan_info();
+				else if (   !glayer.earliest_unrefed.exists()
+				         && !traj.segment_arclens.empty() && gext.x <= traj.segment_arclens.back().coeffs[3].w)
+				{
+					// This glyph lies somewhere on the trajectory - link it to its segment
+					const unsigned search_start = glayer.latest_refed.exists() ? glayer.latest_refed.idx : 0;
+					bool found = false;
+					for (unsigned i=search_start; i<(unsigned)traj.segment_arclens.size(); i++) {
+						const auto &alen = traj.segment_arclens[i];
+						if (gext.y >= alen.coeffs[0].x && gext.x <= alen.coeffs[3].w) {
+							std::clog << " - LINKING: to segment "<<i<<", alen=["
+						          		<<alen.coeffs[0].x<<".."<<alen.coeffs[3].w<<']'
+							          << std::endl;
+							auto &range = glayer.ranges[i];
+							range.i0 = std::min(range.i0, new_glyph_idx);
+							range.n++;
+							glayer.latest_refed.idx = i;
+							glayer.latest_refed.s = gext.y;
+							found = true; // for assertion (see below)
+							continue; // <-- no breaking - the glyph could overlap more segments
+						}
+						if (gext.y < alen.coeffs[0].x)
+							break; // <-- now it's safe to break
+					}
+					assert(found && "INTERNAL LOGIC ERROR: In-range glyph was not assigned to a segment!");
+				}
+				else
+					assert(false &&
+					      "INTERNAL LOGIC ERROR: Uncovered condition for deciding whether to link or orphan a new glyph!");
 			}
-			else
-				assert(false &&
-				      "INTERNAL LOGIC ERROR: Uncovered condition for deciding whether to link or orphan a new glyph!");
-			return notify_result(true);
+
+			// Done!
+			return notify_result(success);
 		}
 		std::clog << describe()<<':' << std::endl << " ! ERROR: trajectory id #"<<traj_id<<" is invalid!" << std::endl;
 		return notify_result(false);
@@ -461,8 +475,18 @@ OTV_API void otv__compute_extrapol (
 OTV_API void otv__stream_glyph (const uint32_t traj_id, const uint32_t layer, const OTV_GlyphData *glyph_data)
 {
 	// Compile and submit command
-	const auto nn_cmd = std::make_shared<stream_glyph_command>(traj_id, layer, *glyph_data);
-	command_stream::push(nn_cmd);
+	const auto ng_cmd = std::make_shared<stream_glyphs_command>(traj_id, layer, glyph_data, 1);
+	command_stream::push(ng_cmd);
+
+	/* we don't wait for the result... */
+}
+
+OTV_API void otv__stream_glyphs (
+	const uint32_t traj_id, const uint32_t layer, const OTV_GlyphData *glyphs_data, const uint32_t num_glyphs
+){
+	// Compile and submit command
+	const auto ngs_cmd = std::make_shared<stream_glyphs_command>(traj_id, layer, glyphs_data, num_glyphs);
+	command_stream::push(ngs_cmd);
 
 	/* we don't wait for the result... */
 }

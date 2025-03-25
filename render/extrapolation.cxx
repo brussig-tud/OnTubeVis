@@ -82,12 +82,12 @@ bool extrapolation_manager::create_geom_buffers (unsigned num_trajectories, unsi
 	geom.node_indices.reserve(num_trajectories * num_segments);
 	for (unsigned t=0; t<num_trajectories; t++) {
 		auto &nodes_buf = geom.nodes_arena.buffer(t); {
-			const auto too_many = nodes_buf.push_uninit(num_nodes);
-			assert(too_many==0);
+			const auto res = nodes_buf.push_uninit(num_nodes);
+			assert(res.num_overwritten==0 && res.num_skipped==0);
 		}
 		auto &alen_buf = geom.t_to_s_arena.buffer(t); {
-			const auto too_many = alen_buf.push_uninit(num_segments);
-			assert(too_many==0);
+			const auto res = alen_buf.push_uninit(num_segments);
+			assert(res.num_overwritten==0 && res.num_skipped==0);
 		}
 		trajectories.emplace_back(nodes_buf, alen_buf);
 		uint32_t start_index = t*num_nodes;
@@ -152,8 +152,8 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (unsigned per_lay
 		for (unsigned l=0; l<setup.num_layers; l++) {
 			const unsigned per_layer_buffer_id = t*setup.num_layers + l;
 			auto &ranges_buf = geom.ranges_arena.buffer(per_layer_buffer_id); {
-				const auto too_many = ranges_buf.push_uninit(num_segments);
-				assert(too_many==0);
+				const auto res = ranges_buf.push_uninit(num_segments);
+				assert(res.num_overwritten==0 && res.num_skipped==0);
 			}
 			traj.layers.emplace_back(
 				ranges_buf, glyphs.glyph_attribs_arena.buffer(per_layer_buffer_id)
@@ -288,68 +288,108 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 
 	// First, retrieve general information about the layer
 	const unsigned stride = setup.glyph_attrib_counts[l];
-	const auto num_glyphs = render.trajectories[traj_id].attrib_to_glyph_count(
-		l, glyph_attribs.length()
-	).value;
 
 	// Trim glyphs that precede the range covered by the extrapolation (this can happen due to network issues or if they
 	// were submitted late by the client for whatever reason)
 	const auto on_extrapol = skip_glyphs_before(l, traj.t_to_s.contents[0][0], glyph_attribs);
 	assert(on_extrapol.end == glyph_attribs.end);
+	if (on_extrapol.is_empty())
+		// Nothing to do if the client only submitted very old glyphs that don't affect the extrapolation
+		return on_extrapol;
+
+	// Monotonicity check
+	#ifndef NDEBUG
+		float old_max_s;
+		float first_glyph_s;
+		if (!layer.glyph_attribs.empty()) {
+			// Sanity check
+			old_max_s = get_glyph_pos(
+				ro_range{layer.glyph_attribs.end()-stride, layer.glyph_attribs.end()}
+			);
+			first_glyph_s = get_glyph_pos(on_extrapol);
+			assert(
+				first_glyph_s >= old_max_s &&
+				"extrapolation_manager::consider_glyphs(): new glyphs must never precede previously submitted glyphs!"
+			);
+		}
+	#endif
 
 	// Add to displayed glyphs
-	assert([&]{
-		if (layer.glyph_attribs.empty())
-			return true;
-		// Sanity check
-		const float old_max_s = get_glyph_pos(
-			ro_range{layer.glyph_attribs.end()-stride, layer.glyph_attribs.end()}
-		);
-		const float first_glyph_s = get_glyph_pos(on_extrapol);
-		return first_glyph_s >= old_max_s;
-	}() && "extrapolation_manager::consider_glyphs(): new glyphs must never precede previously submitted glyphs!");
-
-	layer.glyph_attribs.push_uninit(6);
-	const int old_num = layer.glyph_attribs.size();
-	const int num_total_discarded = layer.glyph_attribs.push_uninit(layer.glyph_attribs.capacity()+stride); // layer.glyph_attribs.push_range(on_extrapol)
-	// make sure we don't include the number of discarded elements from the _input_ range in the count
-	const unsigned num_discarded = num_total_discarded ? old_num : 0;
-	assert(num_discarded <= num_total_discarded);
+	const auto num_glyphs_before =  layer.glyph_attribs.size()/stride;
+	#ifndef NDEBUG
+		const unsigned num_attribs_before =  layer.glyph_attribs.size();
+		const unsigned num_glyphs_before_check = render.trajectories[traj_id].attrib_to_glyph_count(
+			l, static_cast<int>(num_attribs_before)
+		).value;
+	#endif
+	assert(num_glyphs_before == num_glyphs_before_check);
+	const auto discarded = layer.glyph_attribs.push_range(on_extrapol);
 	assert(layer.glyph_attribs.size() % stride == 0); // sanity check
+	const auto actually_on_extrapol = ro_range{on_extrapol.begin+discarded.num_skipped, on_extrapol.end};
+	assert(actually_on_extrapol.end == on_extrapol.end);
+	#ifndef NDEBUG
+		const unsigned actually_on_extrapol_len = actually_on_extrapol.length();
+		assert(actually_on_extrapol_len == on_extrapol.length()-discarded.num_skipped);
+		const unsigned num_new_glyphs = render.trajectories[traj_id].attrib_to_glyph_count(
+			l, actually_on_extrapol_len
+		).value;
+		assert(num_new_glyphs == actually_on_extrapol_len/stride);
+		if (discarded.num_overwritten > 0) {
+			assert(num_new_glyphs > 0);
+			std::clog.flush();
+		}
+	#endif
 
-	// Unlink discarded glyphs, if any
-	const unsigned num_segments = layer.ranges.size();
-	unsigned num_unlinked = 0, remaining_discarded = num_discarded;
-	for (auto range_it=layer.ranges.begin();
-	     num_unlinked < num_discarded  &&  range_it < layer.ranges.end();
-	     ++range_it)
+	// Unlink discarded glyphs, if any, and search for the newest segment that has any glyphs at the same time
+	unsigned newest_seg_with_glyphs=0, seg=0;
+	for (auto range_it=layer.ranges.begin(); range_it<layer.ranges.end(); ++range_it, ++seg)
 	{
 		auto &range = *range_it;
-		if (range.n <= remaining_discarded) {
-			num_unlinked += range.n;
-			remaining_discarded -= range.n;
-			assert(num_unlinked<=num_discarded && remaining_discarded>=0);
-			range.i0 = 0; range.n = 0;
+		int num_affected = std::max(static_cast<int>(discarded.num_overwritten) - range.i0, 0);
+		if (num_affected > 0) {
+			// This segment now has some or all of its glyphs missing, which we can resolve solely on the basis of its
+			// mapped range start index
+			range.i0 = 0; // <- glyphs can only ever be missing at the tail end
+			num_affected = std::min<unsigned>(num_affected, range.n);
+			range.n -= num_affected;
+			newest_seg_with_glyphs = seg;
 		}
-		else {
-			range.n -= remaining_discarded;
-			assert(range.n > 0);
-			num_unlinked += remaining_discarded;
-			assert(num_unlinked==num_discarded);
-			remaining_discarded = 0;
-			range.i0 = 0;
+		else if (range.n) {
+			// All glyphs mapped to this segment are still there, they just moved tailwards, so adjust start index
+			// accordingly
+			const int new_i0 = range.i0 - discarded.num_overwritten;
+			assert(new_i0 >= 0);
+			range.i0 = new_i0;
+			newest_seg_with_glyphs = seg;
 		}
 	}
-	assert(num_unlinked==num_discarded && remaining_discarded==0);
 
 	// Assign to segments
-	assign_glyphs( // FIXME: start from most recently covered-by-glyphs segment
-		ro_range{layer.ranges.begin(), layer.ranges.end()}, ro_range{traj.t_to_s.begin(), traj.t_to_s.end()},
-		l, on_extrapol
+	if (newest_seg_with_glyphs>0)
+		std::clog.flush();
+	assign_glyphs(
+		ro_range{layer.ranges.begin()+newest_seg_with_glyphs, layer.ranges.end()},
+		ro_range{traj.t_to_s.begin()+newest_seg_with_glyphs, traj.t_to_s.end()},
+		l, actually_on_extrapol, num_glyphs_before
 	);
 
+	#ifndef NDEBUG
+	/* final sanity checks */ {
+		const auto newest_input = actually_on_extrapol.end-1;
+		const auto newest_committed = layer.glyph_attribs.end()-1;
+		assert(*newest_input == *newest_committed);
+		const auto oldest_input = actually_on_extrapol.begin;
+		const auto oldest_committed = newest_committed - (actually_on_extrapol.length()-1);
+		const auto input_range = ro_range{oldest_input, newest_input};
+		const auto committed_range = ro_range{oldest_committed, newest_committed};
+		const auto input_range_len = input_range.length(), committed_range_len = committed_range.length();
+		assert(input_range_len == committed_range_len);
+		assert(*input_range.begin == *committed_range.begin);
+	}
+	#endif
+
 	// Done!
-	return ro_range{on_extrapol.begin, glyph_attribs.end};
+	return ro_range{actually_on_extrapol.begin, actually_on_extrapol.end};
 }
 template ro_range<std_vector_float_iter> extrapolation_manager::consider_glyphs (
 	unsigned, unsigned, const ro_range<std_vector_float_iter>&
@@ -563,6 +603,11 @@ void extrapolation_manager::assign_glyphs (
 	const auto stride = setup.glyph_attrib_counts[layer];
 	ro_range cur_glyph {glyph_attribs.begin, glyph_attribs.begin+stride};
 	unsigned cur_glyph_idx = idx_offset;
+	const bool replace = !idx_offset; // make it an extra variable for code readability
+	#ifndef NDEBUG
+		if (!replace)
+			std::clog.flush();
+	#endif
 
 
 	/////
@@ -570,7 +615,12 @@ void extrapolation_manager::assign_glyphs (
 
 	// We need to differentiate between glyph and plot layers.
 	// TODO: The code in both cases looks very similar and can probably be templated – at least partially – to minimize
-	// duplication.
+	//       duplication.
+	// FIXME: The below algorithm currently DOES NOT unlink plot control points that get superseded by a new one passed
+	//        to this function. Such a replacement would be possible if both old and new control points precede the
+	//        start of a segment. However, the potential runtime gain of the bisection search in the fragment shader
+	//        from unlinking a few control points before the segment start is likely negligible and thus not worth the
+	//        hassle.
 	const auto glyph_geometry = render.glyph_extents(layer, &*(glyph_attribs.begin+2));
 	if (glyph_geometry.has_value()) // it's a glyph
 	{
@@ -580,8 +630,8 @@ void extrapolation_manager::assign_glyphs (
 			// Obtain relevant quantities and references
 			const auto s_max = (*(t_to_s.begin+seg))[15];
 			auto &cur_range = *(ranges_out.begin+seg);
-			cur_range.i0 = (int)cur_glyph_idx; // <- this can already be out-of-range, but it doesn't matter since
-			cur_range.n = 0;                   //    in that case n will remain 0
+			cur_range.i0 = replace ? (int)cur_glyph_idx : cur_range.i0;
+			cur_range.n = replace ? 0 : cur_range.n;
 
 			// Check if we have any glyphs remaining
 			assert(cur_glyph_idx <= num_glyphs);
@@ -619,8 +669,8 @@ void extrapolation_manager::assign_glyphs (
 			// Obtain relevant quantities and references
 			const auto s_max = (*(t_to_s.begin+seg))[15];
 			auto &cur_range = *(ranges_out.begin+seg);
-			cur_range.i0 = (int)cur_glyph_idx; // <- this can already be out-of-range, but it doesn't matter since
-			cur_range.n = 0;                   //    in that case n will remain 0
+			cur_range.i0 = replace ? (int)cur_glyph_idx : cur_range.i0;
+			cur_range.n = replace ? 0 : cur_range.n;
 
 			// Check if we have any control points remaining
 			assert(cur_glyph_idx <= num_glyphs);

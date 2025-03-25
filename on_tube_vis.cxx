@@ -952,7 +952,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				// - length
 				const auto width_height_range = vec2(0, 2);
 				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_WIDTH)
-					m.set_attrib_out_range(vattrib_idx__length, {0.f, gi.width});
+					m.set_attrib_out_range(vattrib_idx__length, {0.f, gi.half_width});
 				else {
 					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
 						stream_ds, bufsize, width_height_range
@@ -964,7 +964,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				}
 				// - height
 				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_WIDTH)
-					m.set_attrib_out_range(vattrib_idx__height, {0.f, gi.height});
+					m.set_attrib_out_range(vattrib_idx__height, {0.f, gi.half_height});
 				else {
 					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
 						stream_ds, bufsize, width_height_range
@@ -1762,12 +1762,29 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			const auto &ctx = *get_context();
 
 			// set up render/streaming
-			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
-				if (! gc.layer_filled[layer_idx]) {
+			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx)
+			{
+				if (! gc.layer_filled[layer_idx])
+				{
 					// Clear layer for client and renderer.
 					client.glyphs[layer_idx] = {};
 					render.glyphs[layer_idx] = {};
-				} else {
+					if (run_as_service)
+					{
+						// In case we're running as service, glyphs can still be streamed even when no attributes are
+						// mapped. We must be able to receive them, so create GPU buffers for this layer anyway.
+						if (!render.create_glyph_layer(
+						    	layer_idx,
+						    	client.glyphs[layer_idx].attribs.count + 2,
+						    	client.trajectories.size(),
+						    	glyph_count_type{(int)session_glyphbuf_size}
+						    )
+						)
+							throw std::runtime_error("Failed to create glyph attribute buffers.");
+					}
+				}
+				else
+				{
 					// Mark layer as active in render state.
 					render.active_glyph_layers.set(layer_idx);
 

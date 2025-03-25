@@ -317,15 +317,18 @@ typedef struct OTV_RectangleInfo
 	OTV_ColorMap color_map;
 
 	/**
-	 * @brief The @a width of the rectangle in multiples of the tube/ribbon radius in case a static value is to be used.
+	 * @brief
+	 *		The @a half-width (i.e. @c width/2) of the rectangle in multiples of half the tube/ribbon radius in case a
+	 *		static value is to be used.
 	 */
-	float width;
+	float half_width;
 
 	/**
 	 * @brief
-	 *		The @a height of the rectangle in multiples of the tube/ribbon radius in case a static value is to be used.
+	 *		The @a half-height (i.e. @c height/2) of the rectangle in multiples of half the tube/ribbon radius in case a
+	 *		static value is to be used.
 	 */
-	float height;
+	float half_height;
 
 	/// @brief Which of the dynamic glyph properties should statically assume the values defined in this info struct.
 	OTV_RectangleInfoStaticFlags static_flags;
@@ -358,15 +361,17 @@ typedef struct OTV_RectangleData
 
 	/**
 	 * @brief
-	 *		The @a width of the rectangle in multiples of the tube/ribbon radius in case a dynamic value is to be used.
+	 *		The @a half-width (i.e. @c width/2) of the rectangle in multiples of half the tube/ribbon radius in case a
+	 *		dynamic value is to be used.
 	 */
-	float width;
+	float half_width;
 
 	/**
 	 * @brief
-	 *		The @a height of the rectangle in multiples of the tube/ribbon radius in case a dynamic value is to be used.
+	 *		The @a half-height (i.e. @c height/2) of the rectangle in multiples of half the tube/ribbon radius in case a
+	 *		dynamic value is to be used.
 	 */
-	float height;
+	float half_height;
 } OTV_RectangleData;
 
 
@@ -390,7 +395,7 @@ typedef struct OTV_SignBlobInfo
 	/// @brief The selected color map to query colors from if no static color is used.
 	OTV_ColorMap color_map;
 
-	// The radius of the glyph instances (always stays fixed for sign blobs)
+	// The radius of the glyph instances (always stays fixed for sign blobs) in multiples of half the tube radius.
 	float radius;
 
 	/// @brief The @a value of the sign blob in the range <c>-1..1</c> in case a static value is to be used.
@@ -862,8 +867,8 @@ extern otv__downcast_LinePlotData_funct otv__downcast_LinePlotData;
  *
  * @param rgb The value for the field @c OTV_RectangleInfo::rgb
  * @param color_map The value for the field @c OTV_RectangleInfo::color_map
- * @param width The value for the field @c OTV_RectangleInfo::width
- * @param height The value for the field @c OTV_RectangleInfo::height
+ * @param half_width The value for the field @c OTV_RectangleInfo::half_width
+ * @param half_height The value for the field @c OTV_RectangleInfo::half_height
  * @param static_flags The value for the field @c OTV_RectangleInfo::static_flags
  *
  * @return An instance of the @c OTV_RectangleInfo struct, downcasted to the generic @c OTV_GlyphInfo.
@@ -873,7 +878,7 @@ extern otv__downcast_LinePlotData_funct otv__downcast_LinePlotData;
  * using @c otv__upcast_RectangleInfo().
  */
 OTV_API OTV_GlyphInfo otv__construct_RectangleInfo (
-	const OTV_Rgb rgb, const OTV_ColorMap color_map, const float width, const float height,
+	const OTV_Rgb rgb, const OTV_ColorMap color_map, const float half_width, const float half_height,
 	const OTV_RectangleInfoStaticFlags static_flags
 );
 #endif
@@ -970,8 +975,8 @@ extern otv__downcast_RectangleInfo_funct otv__downcast_RectangleInfo;
  *
  * @param s The value for the field @c OTV_RectangleData::s
  * @param color The value for the field @c OTV_RectangleData::color
- * @param width The value for the field @c OTV_RectangleData::width
- * @param height The value for the field @c OTV_RectangleData::height
+ * @param half_width The value for the field @c OTV_RectangleData::half_width
+ * @param half_height The value for the field @c OTV_RectangleData::half_height
  *
  * @return An instance of the @c OTV_RectangleData struct, downcasted to the generic @c OTV_GlyphData.
  *
@@ -980,7 +985,7 @@ extern otv__downcast_RectangleInfo_funct otv__downcast_RectangleInfo;
  * using @c otv__upcast_RectangleData().
  */
 OTV_API OTV_GlyphData otv__construct_RectangleData (
-	const float s, const float color, const float width, const float height
+	const float s, const float color, const float half_width, const float half_height
 );
 #endif
 

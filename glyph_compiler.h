@@ -787,11 +787,12 @@ protected:
 			const auto& layer_config = layers_config.layer_configs[layer_idx];
 
 			// skip this layer if it does not have any mapped attributes
-			if(layer_config.mapped_attributes.size() == 0) {
+			if(layer_config.mapped_attributes.empty()) {
+				// This can only happen when streaming
 				continue;
 			}
-
-			compile_glyph_layer(layer_idx, data_set, parametrization, attrib_names, layer_config, P, tube_trajs);
+			else
+				compile_glyph_layer(layer_idx, data_set, parametrization, attrib_names, layer_config, P, tube_trajs);
 		}
 	}
 

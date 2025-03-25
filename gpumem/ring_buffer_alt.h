@@ -51,8 +51,12 @@ struct ring_buffer_alt
 		iterator() = delete;
 		//iterator(const iterator &other) = default;
 
+
 		inline explicit iterator (Elem *buf, const unsigned len, const unsigned idx, const unsigned real_idx)
 			: len(len), buf(buf), idx(idx), real_idx(real_idx)
+		{}
+		inline explicit iterator (Elem *buf, const ring_buffer_meta &meta, const unsigned idx, const unsigned real_idx)
+			: iterator(buf, meta.len, idx, real_idx)
 		{}
 
 		//inline iterator& operator=(const iterator &other) = default;
@@ -98,19 +102,19 @@ struct ring_buffer_alt
 		template <class Int>
 		inline iterator& operator+= (const Int offset) {
 			idx += offset;
-			real_idx = (real_idx+offset) % len;
+			real_idx = (len+real_idx + offset) % len;
 			return *this;
 		}
 		template <class Int>
 		inline iterator operator+ (const Int offset) const {
 			const auto new_idx = idx+offset;
-			const auto new_real_idx = (real_idx+offset) % len;
+			const auto new_real_idx = (len+real_idx + offset) % len;
 			return iterator(buf, len, new_idx, new_real_idx);
 		}
 
 		inline iterator& operator-- (void) {
 			--idx;
-			real_idx = (real_idx-1) % len;
+			real_idx = (len+real_idx - 1) % len;
 			return *this;
 		}
 		[[nodiscard]] inline iterator operator-- (int) {
@@ -121,17 +125,33 @@ struct ring_buffer_alt
 		template <class Int>
 		inline iterator& operator-= (const Int offset) {
 			idx -= offset;
-			real_idx = (real_idx-offset) % len;
+			real_idx = (len+real_idx - offset) % len;
 			return *this;
 		}
 		template <class Int>
 		inline iterator operator- (const Int offset) const {
-			const auto new_idx = idx-offset;
-			const auto new_real_idx = (real_idx-offset) % len;
-			return iterator(buf, len, new_idx, new_real_idx);
+			const auto new_real_idx = (len+real_idx-offset) % len;
+			return iterator(buf, len, idx-offset, new_real_idx);
 		}
 		inline size_t operator- (const iterator &other) const {
 			return idx - other.idx;
+		}
+	};
+
+	/// The return type of @c push... methods holding information of overwritten/dropped elements to accommodate the
+	/// push.
+	struct discard_counts
+	{
+		/// The number of elements in the ring buffer that were overwritten.
+		unsigned num_overwritten;
+
+		/// The number of elements at the tail end of the input range that did not fit (essentially @ref capacity() −
+		/// @a num_input_elems)
+		unsigned num_skipped;
+
+		/// Report the total number of dropped elements as a result of the push.
+		[[nodiscard]] inline unsigned total (void) const {
+			return num_overwritten + num_skipped;
 		}
 	};
 
@@ -224,16 +244,18 @@ struct ring_buffer_alt
 		return drop_one;
 	}
 
-	/// Push elements into the ring buffer, reporting the number of old elements that had to be discarded to accommodate
-	/// the new ones. Notably, <b>this includes</b> elements from the tail end of the input range, if it was larger than
-	/// the buffer's max capacity.
+	/// Push range of elements into the ring buffer.
+	///
+	/// @note Pushing an empty range of elements is allowed for improved client ergonomics.
+	///
+	/// @return The number of both old and new elements that had to be discarded to perform the push.
 	template <class Iter>
-	unsigned push_range (const ro_range<Iter> &new_elems)
+	discard_counts push_range (const ro_range<Iter> &new_elems)
 	{
 		// Don't do anything for empty input range
-		const auto num_new_elems = new_elems.length();
+		const auto num_new_elems = (unsigned)new_elems.length();
 		if (!num_new_elems)
-			return 0; // nothing could have been overwritten
+			return {0, 0}; // nothing could have been overwritten
 
 		// Infer amount of elements we actually need to copy
 		const int old_free = num_free();
@@ -253,7 +275,7 @@ struct ring_buffer_alt
 			update_num(true);
 
 			// Done! Report number of discarded elements
-			return /*all old elements*/old_num  +  /*some of the new elements*/num_new_elems-copy_count;
+			return discard_counts{/*all old elements*/old_num, /*some of the new elements*/num_new_elems-copy_count};
 		}
 		assert(num_new_elems-copy_count == 0); // we completely handle this case above
 
@@ -273,29 +295,27 @@ struct ring_buffer_alt
 		std::copy(newer_range.begin, newer_range.end, contents);
 
 		// Update buffer geometry
-		const auto num_overwritten = std::max(int(copy_count) - int(old_free), 0);
+		const unsigned num_overwritten = std::max(int(copy_count) - int(old_free), 0);
 		meta.head = (meta.head+copy_count) % meta.len;
 		meta.tail = (meta.tail+num_overwritten) % meta.len;
 		update_num(true);
 
 		// Done! Report number of discarded elements
-		return num_overwritten;
+		return discard_counts{num_overwritten, /*no elements from the input range had to be skipped*/0};
 	}
 
 	/// Push the given number of elements to the end of the buffer <b>without initializing</b> them! This is realized
 	/// internally by just moving the head pointer. No construction of the thus "created" elements will take place!
 	///
-	/// @note pushing zero uninitialized elements is allowed for improved client ergonomics.
+	/// @note Pushing zero uninitialized elements is allowed for improved client ergonomics.
 	///
-	/// @return The number of old elements that had to be discarded to accommodate the new ones. Notably, <b>this
-	/// includes</b> elements from the tail end of the pushed @a count, if @a count is larger than the buffer's max
-	/// capacity.
-	unsigned push_uninit (const unsigned count=1)
+	/// @return The number of both old and new elements that had to be discarded to perform the push.
+	discard_counts push_uninit (const unsigned count=1)
 	{
 		// Infer amount of elements we actually need to push
 		const int old_free = num_free();
 		const auto push_count = std::min<unsigned>(meta.len, count);
-		const auto num_overwritten = std::max(int(push_count) - int(old_free), 0);
+		const unsigned num_overwritten = std::max(int(push_count) - int(old_free), 0);
 
 		// We don't take the opportunity to eliminate wraparound in case push_count==capacity(), as uninitialized pushes
 		// often occur in performance-critical code and thus we don't want the added complexity.
@@ -308,8 +328,8 @@ struct ring_buffer_alt
 			assert(num_elems==(meta.len-old_free)+push_count && num_free()==old_free-push_count);
 
 		// Report number of discarded elements
-		const auto num_dropped = count - push_count;
-		return num_overwritten + num_dropped;
+		const auto num_skipped = count - push_count;
+		return discard_counts{num_overwritten, num_skipped};
 	}
 
 	/// Pop given number of elements from the tail end of the buffer.
@@ -321,11 +341,11 @@ struct ring_buffer_alt
 
 	/// Return a forward iterator initially pointing to the tail element.
 	inline iterator begin (void) {
-		return iterator(contents, meta.len, 0, meta.tail);
+		return iterator(contents, meta, 0, meta.tail);
 	}
 	/// Return a forward iterator initially pointing to the head (i.e. one after the last actually contained) element.
 	inline iterator end (void) {
-		return iterator(contents, meta.len, num_elems, meta.head);
+		return iterator(contents, meta, num_elems, meta.head);
 	}
 
 	/// Flush just the ring buffer meta data (i.e. after all elements in the buffer were dropped so there is no reason
