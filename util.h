@@ -90,6 +90,18 @@ auto map_optional (O &&o, F &&f) -> std::optional<decltype(f(*std::forward<O>(o)
 }
 
 
+template <typename T, std::size_t ... Is>
+constexpr std::array<T, sizeof...(Is)> make_array_helper(T value, std::index_sequence<Is...>) {
+	return {{(static_cast<void>(Is), value)...}};
+}
+
+/// Create an @c std::array of the given type @c T containing @a N elements initialized to @a value.
+template <std::size_t N, class T>
+constexpr std::array<T, N> make_array(const T &value) {
+	return make_array_helper(value, std::make_index_sequence<N>());
+}
+
+
 /// A simple helper struct for storing both the index of and a reference to some object typically residing in some
 /// index-able container.
 template <class T>

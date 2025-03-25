@@ -952,7 +952,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				// - length
 				const auto width_height_range = vec2(0, 2);
 				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_WIDTH)
-					m.set_attrib_out_range(vattrib_idx__length, {0.f, gi.width});
+					m.set_attrib_out_range(vattrib_idx__length, {0.f, gi.half_width});
 				else {
 					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
 						stream_ds, bufsize, width_height_range
@@ -964,7 +964,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				}
 				// - height
 				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_WIDTH)
-					m.set_attrib_out_range(vattrib_idx__height, {0.f, gi.height});
+					m.set_attrib_out_range(vattrib_idx__height, {0.f, gi.half_height});
 				else {
 					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
 						stream_ds, bufsize, width_height_range

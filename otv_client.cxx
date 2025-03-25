@@ -630,14 +630,14 @@ void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node
 	otv_instance->session_taa_keep_sampling = true;
 }
 
-void otv_client::service_push_glyph (unsigned traj_id, unsigned layer, std::vector<float> &&glyph_data)
+void otv_client::service_push_glyphs (unsigned traj_id, unsigned layer, std::vector<float> &&glyph_data)
 {
 	/* debug check */ {
-		const unsigned num_floats_gd = glyph_data.size();
-		const unsigned num_floats_internal = render.trajectories.front().glyph_to_attrib_count(
+		const unsigned num_floats = glyph_data.size();
+		const unsigned stride = render.trajectories.front().glyph_to_attrib_count(
 			layer, glyph_count_type{1}
 		);
-		assert(num_floats_gd == num_floats_internal && "INTERNAL LOGIC ERROR: glyph data size mismatch!");
+		assert(num_floats % stride == 0 && "INTERNAL LOGIC ERROR: glyph data size mismatch!");
 	}
 	const auto &data = glyph_data.begin();
 	const auto data_range = ro_range{data, data + glyph_data.size()};
@@ -652,8 +652,8 @@ node_attribs otv_client::convert_api_node_to_internal (const OTV_HermiteNode &no
 	return std::move(out);
 }
 
-std::vector<float> otv_client::convert_api_glyph_to_internal (
-	unsigned traj_id, unsigned layer, const OTV_GlyphData &glyph
+std::vector<float> otv_client::convert_api_glyphs_to_internal (
+	unsigned traj_id, unsigned layer, const std::vector<OTV_GlyphData> &glyphs
 ){
 	//const float radius = vis_setup.trajs[traj_id].radius;
 	const auto &vis = otv_instance->render.visualizations[0];
@@ -662,54 +662,67 @@ std::vector<float> otv_client::convert_api_glyph_to_internal (
 	const auto &lm = vis.manager.ref_glyph_attribute_mappings()[layer];
 	const auto &lcfg = vis.config.layer_configs[layer];
 	const auto &src_indices = lm.get_attrib_indices();
-	std::vector<float> data; data.reserve(glyph.N+2);
-	data.emplace_back(glyph.s);
-	data.emplace_back(.0f); // debug flag, not used when streaming
+	std::vector<float> data; data.reserve(glyphs.size()*(glyphs.front().N+2));
 	switch (lcfg.shape_ptr->type())
 	{
 		case GT_COLOR:
-		{
-			constexpr unsigned vattrib_idx__color=1;
-			const auto color_src_idx = src_indices[vattrib_idx__color];
-			if (color_src_idx >= 0) {
-				const auto &gd = *otv__upcast_SurfaceColorData(&glyph);
-				data.emplace_back(gd.color);
+			for (const auto &glyph: glyphs)
+			{
+				data.emplace_back(glyph.s);
+				data.emplace_back(.0f); // debug flag, not used when streaming
+				constexpr unsigned vattrib_idx__color=1;
+				const auto color_src_idx = src_indices[vattrib_idx__color];
+				if (color_src_idx >= 0) {
+					const auto &gd = *otv__upcast_SurfaceColorData(&glyph);
+					data.emplace_back(gd.color);
+				}
 			}
 			return std::move(data);
-		}
+
 		case GT_LINE_PLOT:
-		{
-			constexpr unsigned vattrib_idx__subplots=2;
-			const auto &gd = *otv__upcast_LinePlotData(&glyph);
-			for (unsigned i=0; i<4; i++) {
-				const auto vattrib_idx = vattrib_idx__subplots + i+i + 1;
-				if (src_indices[vattrib_idx] >= 0)
-					data.emplace_back(gd.values[i]);
+			for (const auto &glyph: glyphs)
+			{
+				data.emplace_back(glyph.s);
+				data.emplace_back(.0f); // debug flag, not used when streaming
+				constexpr unsigned vattrib_idx__subplots=2;
+				const auto &gd = *otv__upcast_LinePlotData(&glyph);
+				for (unsigned i=0; i<4; i++) {
+					const auto vattrib_idx = vattrib_idx__subplots + i+i + 1;
+					if (src_indices[vattrib_idx] >= 0)
+						data.emplace_back(gd.values[i]);
+				}
 			}
 			return std::move(data);
-		}
+
 		case GT_RECTANGLE:
-		{
-			constexpr unsigned vattrib_idx__color=1, vattrib_idx__length=2, vattrib_idx__height=3;
-			const auto &gd = *otv__upcast_RectangleData(&glyph);
-			if (src_indices[vattrib_idx__color] >= 0)
-				data.emplace_back(gd.color);
-			if (src_indices[vattrib_idx__length] >= 0)
-				data.emplace_back(gd.width);
-			if (src_indices[vattrib_idx__height] >= 0)
-				data.emplace_back(gd.height);
+			for (const auto &glyph: glyphs)
+			{
+				data.emplace_back(glyph.s);
+				data.emplace_back(.0f); // debug flag, not used when streaming
+				constexpr unsigned vattrib_idx__color=1, vattrib_idx__length=2, vattrib_idx__height=3;
+				const auto &gd = *otv__upcast_RectangleData(&glyph);
+				if (src_indices[vattrib_idx__color] >= 0)
+					data.emplace_back(gd.color);
+				if (src_indices[vattrib_idx__length] >= 0)
+					data.emplace_back(gd.half_width);
+				if (src_indices[vattrib_idx__height] >= 0)
+					data.emplace_back(gd.half_height);
+			}
 			return std::move(data);
-		}
+
 		case GT_SIGN_BLOB:
-		{
-			constexpr unsigned vattrib_idx__color=2, vattrib_idx__value=3;
-			const auto &gd = *otv__upcast_SignBlobData(&glyph);
-			if (src_indices[vattrib_idx__color] >= 0)
-				data.emplace_back(gd.color);
-			if (src_indices[vattrib_idx__value] >= 0)
-				data.emplace_back(gd.value);
+			for (const auto &glyph: glyphs)
+			{
+				data.emplace_back(glyph.s);
+				data.emplace_back(.0f); // debug flag, not used when streaming
+				constexpr unsigned vattrib_idx__color=2, vattrib_idx__value=3;
+				const auto &gd = *otv__upcast_SignBlobData(&glyph);
+				if (src_indices[vattrib_idx__color] >= 0)
+					data.emplace_back(gd.color);
+				if (src_indices[vattrib_idx__value] >= 0)
+					data.emplace_back(gd.value);
+			}
 			return std::move(data);
-		}
 
 		case GT_TRIANGLE:
 		case GT_CIRCLE:

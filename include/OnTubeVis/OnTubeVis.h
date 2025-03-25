@@ -456,7 +456,7 @@ extern otv__compute_extrapol_funct otv__compute_extrapol;
  *
  * @note
  *		Glyphs within a layer on a trajectory are expected to be submitted in <b>monotonically increasing order</b> of
- *		arc length! Glyphs that arrive <b>out-of-order</b> may be <b>discarded</b> by the implementation.
+ *		arc length! Glyphs that arrive <b>out-of-order</b> will cause <b>undefined behavior</b>.
  */
 OTV_API void otv__stream_glyph (const uint32_t traj_id, const uint32_t layer, const OTV_GlyphData *glyph_data);
 #endif
@@ -467,6 +467,42 @@ typedef void(*otv__stream_glyph_funct)(const uint32_t, const uint32_t, const OTV
 #ifdef OTV_NO_PROTOTYPES
 /// @copydoc otv__stream_glyph()
 extern otv__stream_glyph_funct otv__stream_glyph;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__stream_glyphs
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Stream a number of glyph instances to the specified layer on the specified trajectory.
+ *
+ * To accomodate time-critical realtime processes, this function is "fire-and-forget", i.e. no checks will be done to
+ * determine whether the glyphs were processed successfully. Instead, the function will return immediatly after the
+ * command to add the glyphs was submitted.
+ *
+ * @param traj_id The trajectory to stream the glyphs to.
+ * @param layer The on-tube layer the glyphs are for.
+ * @param glyphs_data
+ *		The parameters for instantiating the glyphs. Responsibility for making sure the proper specialization of the
+ *		@c OTV_GlyphData struct is used for the specified layer lies with the caller.
+ * @param num_glyphs The number of glyph instances pointed to by @a glyphs_data.
+ *
+ * @note
+ *		Glyphs within a layer on a trajectory are expected to be submitted in <b>monotonically increasing order</b> of
+ *		arc length! Glyphs that arrive <b>out-of-order</b> will cause <b>undefined behavior</b>.
+ */
+OTV_API void otv__stream_glyphs (
+	const uint32_t traj_id, const uint32_t layer, const OTV_GlyphData *glyphs_data, const uint32_t num_glyphs
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__stream_glyphs() function.
+typedef void(*otv__stream_glyphs_funct)(const uint32_t, const uint32_t, const OTV_GlyphData*, const uint32_t);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__stream_glyphs()
+extern otv__stream_glyphs_funct otv__stream_glyphs;
 #endif
 
 

@@ -62,12 +62,12 @@ std::string fmt_glyph_instance (const OTV_LayerConfig &config, const OTV_GlyphDa
 			str << ", color:";
 			if (cfg.static_flags & RI_STATIC_COLOR)  str << "<static>";
 			else                                     str << r.color;
-			str << ", width:";
+			str << ", half_width:";
 			if (cfg.static_flags & RI_STATIC_WIDTH)  str << "<static>";
-			else                                     str << r.width;
-			str << ", height:";
+			else                                     str << r.half_width;
+			str << ", half_height:";
 			if (cfg.static_flags & RI_STATIC_HEIGHT) str << "<static>";
-			else                                     str << r.height;
+			else                                     str << r.half_height;
 			break;
 		}
 		case OTV_GlyphType::SignBlob: {

@@ -1,7 +1,8 @@
 /**
 \mainpage OnTubeVis Streaming API
 
-This is the documentation of the OnTubeVis streaming API as implemented in the reference OnTubeVis OpenGL/C++ desktop application.
+This is the documentation of the OnTubeVis streaming API as implemented in the reference OnTubeVis OpenGL/C++ desktop
+application.
 
 ## Structure of the documentation
 
@@ -15,8 +16,9 @@ Information on specific API elements (including the functions) can always be qui
 
 ## Usage example
 
-For a minimal usage example of the API, see the @link main.c sample client @endlink included in the repository. Its main
-code is also reproduced here:
+For a minimal usage example of the API, see the @link api_example/main.c sample client @endlink included in
+therepository. Its main code is also reproduced here:
+
 
 ```
 int shutdown_otv (void)
