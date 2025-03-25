@@ -29,6 +29,6 @@ endif()
 # Setup required language standard
 set_target_properties(api_playground PROPERTIES C_STANDARD 11)
 set_target_properties(api_playground PROPERTIES C_STANDARD_REQUIRED TRUE)
-set_target_properties(api_playground PROPERTIES CXX_STANDARD 17)
+set_target_properties(api_playground PROPERTIES CXX_STANDARD 20)
 set_target_properties(api_playground PROPERTIES CXX_STANDARD_REQUIRED ON)
-target_compile_features(api_playground PUBLIC cxx_std_17)
+target_compile_features(api_playground PUBLIC cxx_std_20)
