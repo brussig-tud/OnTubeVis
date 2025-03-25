@@ -404,6 +404,40 @@ extern otv__compute_arclen_funct otv__compute_arclen;
 
 
 // --------------------------------------------------------------------------------------------------------------------
+// otv__eval_arclen
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief
+ *		Evaluate @a s(t), where @a s is defined by the coefficients of the provided arc length parameterization, to
+ *		compute the arc length @a s at the given (time-like) curve parameter @a t.
+ *
+ * The parameter @a t can be any number, but the arc length parameterization strategy used in the OnTubeVis API by
+ * construction only gives reliable results for <em>t=0..1</em> on the corresponding segment.
+ *
+ * @note
+ *		This computation is typically executed immediately and synchronously inside the thread of the caller, without
+ *		generating a command that requires waiting for an answer containing the computation result (the reference
+ *		implementation by the OnTubeVis desktop application, for example, does it like this).
+ *
+ * @param s The arc length parametrization to evaluate.
+ * @param t The (time-like) curve parameter to evaluate the arc length for.
+ *
+ * @return @a s(t), i.e. the arc length @a s at curve parameter @a t.
+ */
+OTV_API float otv__eval_arclen (const OTV_SegmentArclen *s, const float t);
+#endif
+
+/// @brief The function pointer type for the @c otv__compute_arclen() function.
+typedef float(*otv__eval_arclen_funct)(const OTV_SegmentArclen*, const float);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__eval_arclen()
+extern otv__eval_arclen_funct otv__eval_arclen;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
 // otv__compute_extrapol
 
 #ifndef OTV_NO_PROTOTYPES

@@ -455,6 +455,10 @@ OTV_API OTV_SegmentArclen otv__compute_arclen (
 	return *(const OTV_SegmentArclen*)&alen;
 }
 
+OTV_API float otv__eval_arclen (const OTV_SegmentArclen *s, const float t) {
+	return arclen::eval(*(cgv::mat4*)s->coeffs, t);
+}
+
 OTV_API void otv__compute_extrapol (
 	OTV_Extrapolation *out, const uint32_t num, const OTV_HermiteNode *ref_node0, const OTV_HermiteNode *ref_node1,
 	OTV_SegmentArclen *ref_arclen

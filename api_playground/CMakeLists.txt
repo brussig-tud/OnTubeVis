@@ -2,7 +2,7 @@
 # Build-time configuration
 option(
 	OTVAPI_PLAYGROUND_USE_DLOPEN
-	"Whether the 'playground' client should load the headless service dynamically at runtime." OFF
+	"Whether the 'playground' client should load OnTubeVis service dynamically at runtime." OFF
 )
 
 # The testbed sample client application
@@ -10,6 +10,7 @@ add_executable(api_playground
 	main.cxx
 	common.h
 	layer/properties.h
+	stream/stream.h
 	testcase/nominal.h
 )
 
@@ -32,3 +33,10 @@ set_target_properties(api_playground PROPERTIES C_STANDARD_REQUIRED TRUE)
 set_target_properties(api_playground PROPERTIES CXX_STANDARD 20)
 set_target_properties(api_playground PROPERTIES CXX_STANDARD_REQUIRED ON)
 target_compile_features(api_playground PUBLIC cxx_std_20)
+
+# Make sure the OnTubeVis library (and all other libraries we depend on, for that matter) end up next to our
+# api_example build artifact
+#add_custom_command(TARGET api_example POST_BUILD
+#	COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:api_example> $<TARGET_RUNTIME_DLLS:api_example>
+#	COMMAND_EXPAND_LISTS
+#)
