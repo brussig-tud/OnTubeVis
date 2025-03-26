@@ -243,12 +243,19 @@ struct OTVConfiguration
 	/// The array of indices for the configured trajectories.
 	std::vector<unsigned> traj_ids;
 
+	/// The configured extrapolation length
+	const unsigned extrapol_length;
+
 	/// The configured tube radius.
 	const float tube_radius;
 
 	/// Instantiante a particular configuration.
-	OTVConfiguration(const std::string &name, const unsigned num_trajs, const float tube_radius, LayerTypes ...layers)
-		: name(name), num_trajs(num_trajs), tube_radius(tube_radius), layers(std::move(layers)...)
+	OTVConfiguration(
+		const std::string &name, const unsigned num_trajs, const unsigned extrapol_length, const float tube_radius,
+		LayerTypes ...layers
+	)
+		: name(name), num_trajs(num_trajs), extrapol_length(extrapol_length), tube_radius(tube_radius),
+		  layers(std::move(layers)...)
 	{}
 
 	/// Apply this configuration to the given visualization setup.
@@ -267,6 +274,9 @@ struct OTVConfiguration
 		traj_ids.reserve(num_trajs);
 		for (unsigned i=0; i<num_trajs; ++i)
 			traj_ids.emplace_back(otv__add_trajectory(setup.handle, tube_radius));
+
+		// Set configured extrapolation length
+		otv__extrapolation_length(setup.handle, extrapol_length);
 
 		// Done!
 		return true;

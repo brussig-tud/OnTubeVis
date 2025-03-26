@@ -185,7 +185,9 @@ struct otv_client {
 	/// NOTE: argument `node` will be updated with the color and radius (plus derivative) of the selected trajectory, so
 	/// the caller doesn't have to find that out itself, i.e. can just directly feed in the result of a call to
 	/// otv_client::convert_api_node_to_internal()
-	void service_push_spline_node (unsigned traj_id, node_attribs &&node, const cgv::mat4 *t_to_s);
+	void service_push_spline_node (
+		unsigned traj_id, node_attribs &&node, const cgv::mat4 *t_to_s, std::vector<extrapol::node> &&extrapol
+	);
 
 	/// for service mode: enqueue glyphs to the given layer of the given trajectory
 	void service_push_glyphs (unsigned traj_id, unsigned layer, std::vector<float> &&glyph_data);
@@ -194,6 +196,12 @@ struct otv_client {
 	/// fields holding information about color and radius uninitialized (as the API does not support them)
 	/// NOTE: otv_client::service_push_spline_node will look up the correct values for these from the dummy dataset!
 	static node_attribs convert_api_node_to_internal (const OTV_HermiteNode &node);
+
+	/// convert the given streaming API representation of a trajectory extrapolation to the internal one used for
+	/// rendering.
+	static std::vector<extrapol::node> convert_api_extrapol_to_internal (
+		const std::vector<OTV_Extrapolation> &extrapol
+	);
 
 	/// convert the given streaming API representation of an array of glyphs <b>of the same type and configuration</b>
 	/// to the internally used array of floats.

@@ -102,12 +102,13 @@ struct VisSetup
 	VisSetup(const std::string &name) : name(name) {}
 
 	VisSetup(const VisSetup &other)
-		: name(other.name), counter(other.counter.load()), layers(other.layers), trajs(other.trajs)
+		: name(other.name), counter(other.counter.load()), layers(other.layers), trajs(other.trajs),
+		  num_extrapol_segments(other.num_extrapol_segments), georef(other.georef)
 	{}
 
 	VisSetup(VisSetup &&other) noexcept
 		: name(std::move(other.name)), counter(other.counter.load()), layers(std::move(other.layers)),
-		  trajs(std::move(other.trajs))
+		  trajs(std::move(other.trajs)), num_extrapol_segments(other.num_extrapol_segments), georef(other.georef)
 	{}
 
 	std::string name;
