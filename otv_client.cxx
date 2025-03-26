@@ -591,10 +591,17 @@ template ro_range<std_deque_float_iter> otv_client::enqueue_glyphs (
 );
 template ro_range<float*> otv_client::enqueue_glyphs (trajectory_ref, unsigned, const ro_range<float*>&);
 
-void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node, const cgv::mat4 *t_to_s)
+void otv_client::service_push_spline_node (
+	unsigned traj_id, node_attribs &&node, const cgv::mat4 *t_to_s, std::vector<extrapol::node> &&extrapol
+)
 {
+	// the static constant unit diagonal for use with bounding box updates below
+	static const auto diag = []() -> cgv::vec3 {
+		cgv::vec3 diag; diag.ones();
+		return diag;
+	}();
+
 	// obtain the trajectory we want to stream into
-	//auto &render_traj = *render.try_get_trajectory(traj_id);
 	auto traj = find_trajectory(traj_id);
 
 	// get the desired base color and radius of the trajectory from the dummy dataset
@@ -604,14 +611,18 @@ void otv_client::service_push_spline_node (unsigned traj_id, node_attribs &&node
 	auto radius = data->radii[ds_idx.first];
 	node.color.set(color.R(), color.G(), color.B(), 1);
 	node.pos_rad.w() = radius; node.tangent.w() = 0;
-	//render.enqueue_node(traj_id, node, render_traj.is_empty() ? nullptr : t_to_s);
-	enqueue_node(traj, node, traj.ref.is_empty() ? nullptr : t_to_s, {});
+	for (auto &e : extrapol) {
+		// set extrapol node radius and color
+		e.hnode.pos_rad.w() = radius; e.hnode.tangent.w() = 0;
+		e.hnode.color.set(color.R(), color.G(), color.B(), 1);
+		// also include in bbox while we're at it
+		const auto pos = cgv::vec3(e.hnode.pos_rad);
+		otv_instance->bbox.add_point(pos - diag*radius);
+		otv_instance->bbox.add_point(pos + diag*radius);
+	}
+	enqueue_node(traj, node, traj.ref.is_empty() ? nullptr : t_to_s, extrapol);
 
 	// update bounding box
-	static const auto diag = []() -> cgv::vec3 {
-		cgv::vec3 diag; diag.ones();
-		return diag;
-	}();
 	const auto pos = cgv::vec3(node.pos_rad);
 	otv_instance->bbox.add_point(pos - diag*radius);
 	otv_instance->bbox.add_point(pos + diag*radius);
@@ -650,6 +661,16 @@ node_attribs otv_client::convert_api_node_to_internal (const OTV_HermiteNode &no
 	out.tangent.set(node.tangent.x, node.tangent.y, node.tangent.z);
 	out.t.set(node.time, 0, 0, 0);
 	return std::move(out);
+}
+
+std::vector<extrapol::node> otv_client::convert_api_extrapol_to_internal (
+	const std::vector<OTV_Extrapolation> &extrapol
+){
+	std::vector<extrapol::node> out;
+	out.reserve(extrapol.size());
+	for (const auto &e : extrapol)
+		out.emplace_back(extrapol::node::from_api_extrapol(e));
+	return out;
 }
 
 std::vector<float> otv_client::convert_api_glyphs_to_internal (

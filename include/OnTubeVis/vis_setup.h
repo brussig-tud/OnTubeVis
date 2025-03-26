@@ -199,8 +199,9 @@ extern otv__geo_reference_funct otv__geo_reference;
  *		disables extrapolation display entirely.
  *
  * In the time between submission of spline nodes, which can (and ideally should) be streamed relatively infrequent
- * (≤ 1/s) to utilize the expressiveness of cubic curves, an extrapolation can be displayed. This enables (a) smooth,
- * continuous updates of the trajectory at screen refresh rates and (b) displaying glyphs / updating plots on the
+ * (≤ 1/s) to utilize the expressiveness of cubic curves, an extrapolation can be displayed. This enables @a (a) smooth,
+ * continuous updates of the trajectory at screen refresh rates and @a
+ * (b) displaying glyphs / updating plots on the
  * current, to-be-completed segment pending an actual position measurement.
  *
  * The API does not provide or use any sort of predictive models, instead the prediction should be made by the client

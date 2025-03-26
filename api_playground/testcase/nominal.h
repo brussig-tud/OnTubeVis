@@ -12,6 +12,9 @@
 #include <array>
 #include <type_traits>
 
+// CGV Framework
+#include <cgv/math/ftransform.h>
+
 // OnTubeVis API
 #include <OnTubeVis/OnTubeVis.h>
 
@@ -40,7 +43,7 @@ auto nominal_setup (void)
 {
 	// Create the configuration
 	return OTVConfiguration(
-		"nominal", 3, 0.5f,
+		"nominal", 2, 3, 0.5f,
 		SurfaceColorLayer(Rainbow, Linear),
 		SignBlobLayer(.03125f, 1, otv__Rgb(1/3.f, 2/3.f, 1)),
 		RectangleLayer(.03125f, otv__Rgb(6/7.f, 1/3.f, 0.03125f))
@@ -51,143 +54,121 @@ typedef std::invoke_result_t<decltype(nominal_setup)> NominalConfig;
 /// Entry point for the test case '@a nominal'.
 void nominal_run (const NominalConfig &config)
 {
-	// Keep track of the most recent glyph's extent per layer to check if there is no overlap when streaming new ones
-	auto last_border = make_array<NominalConfig::num_layers>(-std::numeric_limits<float>::infinity());
+	// Create event stream
+	stream::Dataset data = stream::Dataset::construct(config);
 
-	auto traj = stream::Nodes::compile({
+	// Base trajectory (will be identical except for translation)
+	auto traj0 = stream::Nodes::compile(config, {
 		stream::Nodes::Event{.0f, cgv::vec3(0,0,0), cgv::vec3(4,0,0)},
 		stream::Nodes::Event{4.f, cgv::vec3(4,0,0), cgv::vec3(1,0,0)},
 		stream::Nodes::Event{5.f, cgv::vec3(5,0,0), cgv::vec3(2,0,0)},
-		stream::Nodes::Event{7.f, cgv::vec3(9,0,0), cgv::vec3(2,0,0)}
 	});
-	for (unsigned t=0; t<9; ++t) {
-		const auto time = (float)t;
-		const auto &segment = traj.segment_containing_time(time);
-		const float s = segment.s_from_time(time);
-		std::clog <<"alen at t="<<time<<"s, ["<<segment.n0.time<<".."<<segment.n1.time<<"]: s="<<s << std::endl;
+	const float traj1_dt = .25f;
+
+	// Glyphs on layer 0
+	stream::Glyphs t0l0;
+	/* 1st segment */ {
+		const auto &seg = traj0.segment(0);
+		float time = 0;
+		t0l0.add(
+			time,
+			otv__construct_SurfaceColorData(seg.s_from_time(time), 0)
+			);
+		time = 0;
+		t0l0.add(
+			time,
+			otv__construct_SurfaceColorData(seg.s_from_time(time), .25f)
+		);
+		time = 1.f;
+		t0l0.add(
+			time,
+			otv__construct_SurfaceColorData(seg.s_from_time(time), .5f)
+		);
+		time = 3.5f;
+		t0l0.add(
+			time,
+			otv__construct_SurfaceColorData(seg.s_from_time(time), .9f)
+		);
+	}
+	/* 2nd segment */ {
+		const auto &seg = traj0.segment(1);
+		float time = 4.f;
+		t0l0.add(
+			time,
+			otv__construct_SurfaceColorData(seg.s_from_time(time), .75)
+			);
+		time = 4.75f;
+		t0l0.add(
+			time,
+			otv__construct_SurfaceColorData(seg.s_from_time(time), 1.f)
+		);
+		time = 4.8f;
+		t0l0.add(
+			time,
+			otv__construct_SurfaceColorData(seg.s_from_time(time), .5f)
+		);
+	}
+	/* beyond last segment */ {
+		float time = 5.125f;
+		t0l0.add(
+			time,
+			otv__construct_SurfaceColorData(traj0.nodes.back().alen().coeffs[3].w+.125f, .75)
+		);
 	}
 
-	/* Stream test glyphs (trajectory segment not yet there) */ {
-		// First sign blob on layer 1
-		OTV_GlyphData sign_blob = otv__construct_SignBlobData(
-			/* s: */.0f, /* color: (configured to be static)*/0, /* value: */1.f
+	// Glyphs on layer 1
+	stream::Glyphs t0l1;
+	/* 1st segment */ {
+		const auto &seg = traj0.segment(0);
+		float time = traj1_dt;
+		t0l1.add(
+			time,
+			otv__construct_SignBlobData(seg.s_from_time(time), 0, 0)
+			);
+		time = traj1_dt+1.5f;
+		t0l1.add(
+			time,
+			otv__construct_SignBlobData(seg.s_from_time(time), 0, -.5f)
 		);
-		OTV_Vec2 extents = otv__instantiate_Glyph(config.traj_ids[1], 1, &sign_blob);
-		printf("Streaming new sign blob - extents relative to anchor are [%f..%f]\n", extents.x, extents.y);
-		printf(
-			"                        - free space to previous one is %f\n",
-			sign_blob.s+extents.x - last_border[1]
+		time = traj1_dt+2.75f;
+		t0l1.add(
+			time,
+			otv__construct_SignBlobData(seg.s_from_time(time), 0, -1.f)
 		);
-		last_border[1] = sign_blob.s+extents.y;
-		last_border[1] = sign_blob.s + extents.y;
-		otv__stream_glyph(config.traj_ids[1], /* layer: */1, &sign_blob);
-
-		// First surface color sample on layer 0
-		OTV_GlyphData surface_color = otv__construct_SurfaceColorData(/* s: */0, /* color: */0);
-		extents = otv__instantiate_Glyph(config.traj_ids[1], 0, &surface_color);
-		printf("Streaming new surface color sample - extents relative to anchor are [%f..%f]\n",
-		       extents.x, extents.y);
-		last_border[0] = surface_color.s+extents.y;
-		otv__stream_glyph(config.traj_ids[1], /* layer: */0, &surface_color);
+	}
+	/* 2nd segment */ {
+		const auto &seg = traj0.segment(1);
+		float time = traj1_dt+4.f;
+		t0l1.add(
+			time,
+			otv__construct_SignBlobData(seg.s_from_time(time), 0, .25f)
+			);
+		time = traj1_dt+4.75f;
+		t0l1.add(
+			time,
+			otv__construct_SignBlobData(seg.s_from_time(time), 0, .75f)
+		);
+	}
+	/* beyond last segment */ {
+		const auto &seg = traj0.segment(1).extrapol(0);
+		float time = traj1_dt+5.03125f;
+		t0l1.add(
+			time,
+			otv__construct_SignBlobData(seg.s_from_time(time), 0, .125f)
+		);
 	}
 
-	/* Stream a test trajectory */ {
-		// 1st node
-		OTV_HermiteNode n = { // our test segment will be an x-line 4 units long...
-			.time=0, .position={0, 0, 0}, .tangent={4, 0, 0}
-		}; // ...so the x-derivative must also be 4 if we want a uniform parametrization
-		otv__stream_spline_node(config.traj_ids[1], &n, NULL/* first sample doesn't have an arclength */);
-		std::this_thread::sleep_for(std::chrono::seconds(1));
+	// Build event stream
+	data.set_node_stream(
+		1, traj0.transformed(translate4(cgv::vec3{1.f, .0f, -1.5f}), 2/3.f
+	));
+	data.set_node_stream(0, std::move(traj0));
+	data.set_glyph_stream(0, 0, std::move(t0l0));
+	data.set_glyph_stream(1, 1, std::move(t0l1));
+	const auto event_stream = stream::EventSequence::compile(data);
 
-		// Stream a second sign blob glyph (first trajectory segment still missing its end node)
-		OTV_GlyphData sign_blob = otv__construct_SignBlobData(
-			/* s: */1.f, /* color: (configured to be static)*/0, /* value: */1.f
-		);
-		OTV_Vec2 extents = otv__instantiate_Glyph(config.traj_ids[1], 1, &sign_blob);
-		printf(
-			"Streaming new sign blob - free space to previous one is %f\n", sign_blob.s+extents.x - last_border[1]
-		);
-		last_border[1] = sign_blob.s+extents.y;
-		otv__stream_glyph(config.traj_ids[1], /* layer: */1, &sign_blob);
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-
-		// 2nd node
-		const OTV_HermiteNode n0 = n; // we need to keep a copy of the first node for computing arc length
-		n.time += 10;
-		n.position.x += 4;
-		// - compute arc length - we use the numerical approximation provided by the API here, which is relatively slow
-		//   (albeit fairly accurate). Consider using information available to you in your data to infer arc length
-		//   yourself.
-		const OTV_SegmentArclen alen = otv__compute_arclen(&n0, &n, 0);
-		// - dispatch the node
-		otv__stream_spline_node(config.traj_ids[1], &n, &alen);
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-
-		// Stream a second surface color sample on layer 0
-		OTV_GlyphData surface_color = otv__construct_SurfaceColorData(/* s: */2, /* color: */1);
-		extents = otv__instantiate_Glyph(config.traj_ids[1], 0, &surface_color);
-		printf(
-			"Streaming new surface color sample - free space to previous one is %f\n",
-			surface_color.s+extents.x - last_border[0]
-		);
-		last_border[0] = surface_color.s+extents.y;
-		otv__stream_glyph(config.traj_ids[1], /* layer: */0, &surface_color);
-		std::this_thread::sleep_for(std::chrono::milliseconds(333));
-	}
-
-	/* Stream a third surface color sample on layer 0 */ {
-		OTV_GlyphData surface_color = otv__construct_SurfaceColorData(/* s: */3.95, /* color: */0.5);
-		const OTV_Vec2 extents = otv__instantiate_Glyph(config.traj_ids[1], 0, &surface_color);
-		printf(
-			"Streaming new surface color sample - free space to previous one is %f\n",
-			surface_color.s+extents.x - last_border[0]
-		);
-		last_border[0] = surface_color.s+extents.y;
-		otv__stream_glyph(config.traj_ids[1], /* layer: */0, &surface_color);
-		std::this_thread::sleep_for(std::chrono::milliseconds(333));
-	}
-
-	/* Stream two rectangle glyphs at once */ {
-		const OTV_GlyphData rectangles[2] = {
-			otv__construct_RectangleData(
-				/* s: */2, /* color: (configured to be static)*/0,
-				/* width: (configured to be static)*/1, /* height: (configured to be static)*/1
-			),
-			otv__construct_RectangleData(
-				/* s: */3, /* color: (configured to be static)*/0,
-				/* width: (configured to be static)*/1, /* height: (configured to be static)*/.5f
-			)
-		};
-		const OTV_Vec2 extents0 = otv__instantiate_Glyph(config.traj_ids[1], 2, &rectangles[0]);
-		printf("Streaming new rectangle - extents relative to anchor are [%f..%f]\n", extents0.x, extents0.y);
-		printf(
-			"                        - free space to previous one is %f\n",
-			rectangles[0].s+extents0.x - last_border[2]
-		);
-		last_border[2] = rectangles[0].s+extents0.y;
-		const OTV_Vec2 extents1 = otv__instantiate_Glyph(config.traj_ids[1], 2, &rectangles[1]);
-		printf(
-			"Streaming new rectangle - free space to previous one is %f\n",
-			rectangles[1].s+extents1.x - last_border[2]
-		);
-		last_border[2] = rectangles[1].s+extents1.y;
-		otv__stream_glyphs(config.traj_ids[1], /* layer: */2, rectangles, 2);
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-	}
-
-	/* Stream a third sign blob glyph (falls onto the now complete first segment) */ {
-		const OTV_GlyphData sign_blob = otv__construct_SignBlobData(
-			/* s: */2.f, /* color: (configured to be static)*/0, /* value: */1.f
-		);
-		const OTV_Vec2 extents = otv__instantiate_Glyph(config.traj_ids[1], 1, &sign_blob);
-		printf(
-			"Streaming new sign blob  - free space to previous one is %f\n",
-			sign_blob.s+extents.x - last_border[1]
-		);
-		last_border[1] = sign_blob.s+extents.y;
-		otv__stream_glyph(config.traj_ids[1], /* layer: */1, &sign_blob);
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-	}
+	// Play back in OnTubeVis
+	event_stream.play_back();
 }
 
 

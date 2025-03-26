@@ -29,9 +29,17 @@ namespace extrapol
 		/// The arclength re-parameterization of the extrapolated seegment.
 		cgv::mat4 t_to_s;
 
+		/// Construct from the contents of an instance of the API equivalent struct @c OTV_Extrapolation.
+		[[nodiscard]] inline static node from_api_extrapol (const OTV_Extrapolation &api_extrapol) {
+			return {
+				node_attribs::from_api_node(api_extrapol.node, 0, {0,0,0,0}),
+				*(const cgv::mat4*)&api_extrapol.arclen
+			};
+		}
+
 		/// Construct an instance of the API equivalent struct @c OTV_Extrapolation from the contents of this
 		/// extrapolation node.
-		inline OTV_Extrapolation into_api_extrapol (void) const {
+		[[nodiscard]] inline OTV_Extrapolation into_api_extrapol (void) const {
 			return {
 				hnode.into_api_node(), *(const OTV_SegmentArclen*)&t_to_s
 			};

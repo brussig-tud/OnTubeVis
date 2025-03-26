@@ -78,13 +78,27 @@ struct stream_spline_node_command : public command
 	const uint32_t traj_id;
 	const OTV_HermiteNode node;
 	const OTV_SegmentArclen arclen;
+	const std::vector<OTV_Extrapolation> extrapol;
 
+	// Constructors without extrapolation
 	stream_spline_node_command(const uint32_t traj_id, const OTV_HermiteNode &node)
 		: traj_id(traj_id), node(node), arclen()
 	{}
-
 	stream_spline_node_command(const uint32_t traj_id, const OTV_HermiteNode &node, const OTV_SegmentArclen &arclen)
 		: traj_id(traj_id), node(node), arclen(arclen)
+	{}
+
+	// Constructors with extrapolation
+	stream_spline_node_command(
+		const uint32_t traj_id, const OTV_HermiteNode &node, std::vector<OTV_Extrapolation> &&extrapol
+	)
+		: traj_id(traj_id), node(node), arclen(), extrapol(std::move(extrapol))
+	{}
+	stream_spline_node_command(
+		const uint32_t traj_id, const OTV_HermiteNode &node, const OTV_SegmentArclen &arclen,
+		std::vector<OTV_Extrapolation> &&extrapol
+	)
+		: traj_id(traj_id), node(node), arclen(arclen), extrapol(std::move(extrapol))
 	{}
 
 	virtual const std::string& describe (void) final {
@@ -95,7 +109,8 @@ struct stream_spline_node_command : public command
 	virtual bool handle (void) final
 	{
 		otv_instance->client.service_push_spline_node(
-			traj_id, otv::otv_client::convert_api_node_to_internal(node), (cgv::mat4*)&arclen
+			traj_id, otv::otv_client::convert_api_node_to_internal(node), (cgv::mat4*)&arclen,
+			otv::otv_client::convert_api_extrapol_to_internal(extrapol)
 		);
 
 		static const irange_api empty_irange{};
@@ -437,9 +452,12 @@ OTV_API void otv__stream_spline_node_and_extrapol (
 	const OTV_Extrapolation *extrapol
 ){
 	// Compile and submit command
+	auto extrapolations = std::vector(
+		extrapol, extrapol+otv_instance->client.num_extrapol_segments
+	);
 	const auto nn_cmd = arclen ?
-		  std::make_shared<stream_spline_node_command>(traj_id, *node, *arclen)
-		: std::make_shared<stream_spline_node_command>(traj_id, *node);
+		  std::make_shared<stream_spline_node_command>(traj_id, *node, *arclen, std::move(extrapolations))
+		: std::make_shared<stream_spline_node_command>(traj_id, *node, std::move(extrapolations));
 	command_stream::push(nn_cmd);
 
 	/* we don't wait for the result... */
