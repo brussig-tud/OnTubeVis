@@ -20,7 +20,8 @@
 
 // Local includes
 #include "common.h"
-#include "stream/stream.h"
+#include "stream/dataset.h"
+#include "stream/eventseq.h"
 
 
 

@@ -174,3 +174,19 @@ struct RAII
 		}
 	}
 };
+
+
+#if defined(OTV_API_INCLUDED) && defined(CGV_MATH_FVEC_DECLARED) && defined(CGV_MATH_FMAT_DECLARED)
+/// Return a version of the given hermite @a node that has the given transformation applied.
+inline OTV_HermiteNode transform_hermite_node (
+	const OTV_HermiteNode &node, const cgv::mat4 &trans, const cgv::mat4 &tangents_trans
+){
+	const auto pos = trans * cgv::vec4(cgv::vec3(3, (float*)&node.position), 1);
+	const auto tan = tangents_trans * cgv::vec4(cgv::vec3(3, (float*)&node.tangent), 0);
+	return {
+		.time = node.time,
+		.position = otv__Vec3(pos.x()/pos.w(), pos.y()/pos.w(), pos.z()/pos.w()),
+		.tangent = *(OTV_Vec3*)&tan
+	};
+}
+#endif

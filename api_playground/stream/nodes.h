@@ -1,6 +1,6 @@
 
-#ifndef __LAYER_STREAM_H__
-#define __LAYER_STREAM_H__
+#ifndef __STREAM_NODES_H__
+#define __STREAM_NODES_H__
 
 
 //////
@@ -10,13 +10,9 @@
 
 // C++ STL
 #include <cassert>
-#include <cstring>
-#include <array>
-#include <memory>
 #include <vector>
 #include <map>
 #include <optional>
-#include <chrono>
 
 // CGV Framework
 #include <cgv/math/fvec.h>
@@ -29,9 +25,6 @@
 // OnTubeVis internals
 #include "../util.h"
 
-// Local includes
-#include "../layer/properties.h"
-
 
 
 //////
@@ -40,25 +33,6 @@
 //
 
 namespace stream {
-
-
-
-//////
-//
-// Functions
-//
-
-OTV_HermiteNode transform_hermite_node (
-	const OTV_HermiteNode &node, const cgv::mat4 &trans, const cgv::mat4 &tangents_trans
-){
-	const auto pos = trans * cgv::vec4(cgv::vec3(3, (float*)&node.position), 1);
-	const auto tan = tangents_trans * cgv::vec4(cgv::vec3(3, (float*)&node.tangent), 0);
-	return {
-		.time = node.time,
-		.position = otv__Vec3(pos.x()/pos.w(), pos.y()/pos.w(), pos.z()/pos.w()),
-		.tangent = *(OTV_Vec3*)&tan
-	};
-}
 
 
 
@@ -156,11 +130,6 @@ struct Nodes
 	};
 	std::vector<NodeInstance> nodes;
 	std::map<float, unsigned> time_sequence;
-
-	/*inline Nodes (const Nodes &other) = default;
-	inline Nodes (Nodes &&other) = default;
-	Nodes& operator= (const Nodes &other) = default;
-	Nodes& operator= (Nodes &&other) = default;*/
 
 	template <class Config>
 	static Nodes compile (const Config &config, const std::vector<Event>& events)
@@ -277,195 +246,6 @@ struct Nodes
 	}
 };
 
-struct GlyphInstance
-{
-	OTV_GlyphData glyph;
-
-	GlyphInstance(const GlyphInstance &other) = default;
-	GlyphInstance& operator= (const GlyphInstance &other) {
-		memcpy(&glyph, &other.glyph, sizeof(OTV_GlyphData)); // <- WTF C++??? Why do I have to resort to this???
-		return *this;
-	};
-
-	explicit inline GlyphInstance (const OTV_GlyphData &glyph) : glyph(glyph) {}
-};
-
-struct Glyphs
-{
-	std::vector<GlyphInstance> glyphs;
-	std::map<float, unsigned> time_sequence;
-	std::map<float, unsigned> dist_sequence;
-
-	void add (const float t, const OTV_GlyphData &glyph)
-	{
-		// Sanity checks
-		assert(time_sequence.upper_bound(t) == time_sequence.end());
-		assert(dist_sequence.upper_bound(glyph.s) == dist_sequence.end());
-
-		// Insert into stream
-		const unsigned idx = (unsigned)glyphs.size();
-		glyphs.emplace_back(glyph);
-		time_sequence.emplace_hint(time_sequence.end(), t, idx);
-		dist_sequence.emplace_hint(dist_sequence.end(), glyph.s, idx);
-	}
-};
-
-struct Dataset
-{
-	struct Trajectory {
-		Nodes nodes;
-		std::vector<Glyphs> layers;
-
-		explicit Trajectory (const unsigned num_layers)
-			: layers(num_layers)
-		{}
-	};
-
-	std::vector<Trajectory> trajs;
-	unsigned num_layers;
-
-	template <class Config>
-	static Dataset construct (const Config &config)
-	{
-		Dataset events;
-		events.num_layers = Config::num_layers;
-		events.trajs.reserve(config.num_trajs);
-		for (unsigned i=0; i<config.num_trajs; ++i)
-			events.trajs.emplace_back(Config::num_layers);
-		return events;
-	}
-
-	void set_node_stream (const unsigned traj_id, const Nodes &nodes) {
-		trajs[traj_id].nodes = nodes;
-	}
-	void set_node_stream (const unsigned traj_id, Nodes &&nodes) {
-		trajs[traj_id].nodes = std::move(nodes);
-	}
-
-	void set_glyph_stream (const unsigned traj_id, const unsigned layer, const Glyphs &glyphs) {
-		trajs[traj_id].layers[layer] = glyphs;
-	}
-	void set_glyph_stream (const unsigned traj_id, const unsigned layer, Glyphs &&glyphs) {
-		trajs[traj_id].layers[layer] = std::move(glyphs);
-	}
-};
-
-struct EventSequence
-{
-	struct Event {
-		virtual ~Event () = default;
-		virtual void stream (void) const = 0;
-	};
-
-	struct NodeEvent : public Event
-	{
-		unsigned traj_id;
-		NodeInstance node;
-
-		NodeEvent(const unsigned traj_id, const NodeInstance &node)
-			: traj_id(traj_id), node(node)
-		{}
-
-		void stream (void) const override {
-			otv__stream_spline_node_and_extrapol(
-				traj_id, &node.node, node.t_to_s.has_value() ? &node.t_to_s.value() : nullptr,
-				node.extrapolation.data()
-			);
-		}
-	};
-
-	struct GlyphEvent : public Event
-	{
-		unsigned traj_id;
-		unsigned layer;
-		GlyphInstance glyph;
-
-		GlyphEvent(const unsigned traj_id, const unsigned layer, const GlyphInstance &glyph)
-			: traj_id(traj_id), layer(layer), glyph(glyph)
-		{}
-
-		void stream (void) const override {
-			otv__stream_glyph(traj_id, layer, &glyph.glyph);
-		}
-	};
-
-	typedef std::vector<std::unique_ptr<Event>> EventList;
-	std::map<float, EventList> events;
-
-	template <class EventType>
-	bool insert (const float time, EventType &&event)
-	{
-		// Move input event to heap
-		auto new_event = std::make_unique<EventType>(std::move(event));
-
-		// Insert into sequence according to provided time
-		auto it = events.find(time);
-		if (it == events.end()) {
-			EventList new_event_list; new_event_list.emplace_back(std::move(new_event));
-			events.emplace(time, std::move(new_event_list));
-			return false; // report no collision
-		}
-		it->second.emplace_back(std::move(new_event));
-		return true; // report collision
-	}
-
-	static EventSequence compile (const Dataset &dataset)
-	{
-		EventSequence events;
-
-		// Insert trajectory by trajectory
-		for (unsigned traj_id=0; traj_id<dataset.trajs.size(); ++traj_id)
-		{
-			// Convenience shorthand
-			const auto &traj = dataset.trajs[traj_id];
-
-			// Insert node events
-			for (const auto &[time, node_id] : traj.nodes.time_sequence) {
-				const auto &node = traj.nodes.nodes[node_id];
-				assert(time == node.node.time);
-				events.insert(time, NodeEvent(traj_id, node));
-			}
-
-			// Insert glyph events
-			for (unsigned l=0; l<dataset.num_layers; ++l) {
-				const auto &layer = traj.layers[l];
-				for (const auto &[time, glyph_id] : layer.time_sequence) {
-					const auto &glyph = layer.glyphs[glyph_id];
-					events.insert(time, GlyphEvent(traj_id, l, glyph));
-				}
-			}
-		}
-
-		// Done!
-		return events;
-	}
-
-	void play_back (void) const
-	{
-		// Log reference time point of playback start
-		const auto time_start = std::chrono::high_resolution_clock::now();
-
-		// Loop until events run out
-		auto it = events.begin();
-		if (it != events.end()) do
-		{
-			// Figure out when next event will be and sleep until then
-			const auto event_time = time_start + std::chrono::microseconds(static_cast<long>(1000000.*double(it->first)));
-			std::this_thread::sleep_until<std::chrono::high_resolution_clock>(event_time);
-
-			// Stream event(s)
-			for (const auto &event : it->second)
-				event->stream();
-
-			// Advance
-			++it;
-		}
-		while (it != events.end());
-
-		// Done!
-		std::this_thread::sleep_for(std::chrono::milliseconds(250));
-	}
-};
 
 
 //////
@@ -477,4 +257,4 @@ struct EventSequence
 }
 
 
-#endif // ifndef __LAYER_STREAM_H__
+#endif // ifndef __STREAM_NODES_H__

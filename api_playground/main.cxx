@@ -31,17 +31,11 @@
 // OnTubeVis API
 #include <OnTubeVis/OnTubeVis.h>
 
+// Testcases
+#include "testcase/nominal.h"
+
 // Local includes
 #include "../util.h"
-
-
-
-//////
-//
-// Testcases
-//
-
-#include "testcase/nominal.h"
 
 
 

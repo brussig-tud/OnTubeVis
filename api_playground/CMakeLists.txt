@@ -10,7 +10,10 @@ add_executable(api_playground
 	main.cxx
 	common.h
 	layer/properties.h
-	stream/stream.h
+	stream/dataset.h
+	stream/eventseq.h
+	stream/glyphs.h
+	stream/nodes.h
 	testcase/nominal.h
 )
 

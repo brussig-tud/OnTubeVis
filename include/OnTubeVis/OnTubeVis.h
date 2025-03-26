@@ -541,4 +541,8 @@ extern otv__stream_glyphs_funct otv__stream_glyphs;
 #endif
 
 
+/// When this symbol is defined, the OnTubeVis API is included the in the scope of the current compilation unit.
+#define OTV_API_INCLUDED
+
+
 #endif // ifdef __ONTUBEVIS_H__
