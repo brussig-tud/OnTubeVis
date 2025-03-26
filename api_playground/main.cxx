@@ -14,6 +14,8 @@
 // C++ STL
 #include <iostream>
 #include <thread>
+#define _M_PI 3.14159265358979323846fM_PI
+#define M_PI _M_PI
 
 // Platform SDKs
 #if defined(OTVAPI_PLAYGROUND_USE_DLOPEN) && OTVAPI_PLAYGROUND_USE_DLOPEN!=0

@@ -16,6 +16,7 @@
 #include <vector>
 #include <map>
 #include <optional>
+#include <chrono>
 
 // CGV Framework
 #include <cgv/math/fvec.h>
@@ -324,7 +325,8 @@ struct Dataset
 	unsigned num_layers;
 
 	template <class Config>
-	static Dataset construct (const Config &config) {
+	static Dataset construct (const Config &config)
+	{
 		Dataset events;
 		events.num_layers = Config::num_layers;
 		events.trajs.reserve(config.num_trajs);
@@ -433,6 +435,8 @@ struct EventSequence
 				}
 			}
 		}
+
+		// Done!
 		return events;
 	}
 

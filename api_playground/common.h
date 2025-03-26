@@ -235,7 +235,7 @@ struct OTVConfiguration
 	const std::tuple<LayerTypes...> layers;
 
 	/// The number of configured layers.
-	static constexpr auto num_layers = std::tuple_size_v<decltype(layers)>;
+	static constexpr auto num_layers = (unsigned)std::tuple_size_v<decltype(layers)>;
 
 	/// The number of configured trajectories.
 	const unsigned num_trajs;
