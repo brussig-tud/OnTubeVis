@@ -25,6 +25,9 @@
 // OnTubeVis internals
 #include "../util.h"
 
+// Local includes
+#include "./glyphs.h"
+
 
 
 //////
@@ -243,6 +246,39 @@ struct Nodes
 	[[nodiscard]] inline Nodes transformed (const cgv::mat4 &trans, const float time_shift=0) const {
 		const auto tangents_trans = cgv::math::inv(cgv::math::transpose(trans));
 		return transformed(trans, tangents_trans, time_shift);
+	}
+
+	[[nodiscard]] Glyphs adapt_glyphs (const Glyphs &glyphs, const float time_shift=0) const
+	{
+		Glyphs result;
+		result.glyphs.reserve(glyphs.glyphs.size());
+		for (const auto &event : glyphs.time_sequence)
+		{
+			// Prelude
+			const auto cur_glyph_idx = (unsigned)result.glyphs.size();
+			const float glyph_time = event.first + time_shift;
+
+			// Create (to-be-adapted) glyph and keep reference
+			auto &glyph = result.glyphs.emplace_back(glyphs.glyphs[cur_glyph_idx]);
+			result.time_sequence.emplace_hint(result.time_sequence.end(), glyph_time, cur_glyph_idx);
+
+			// Find segment for the (potentially shifted) glyph
+			const auto seg = segment(segment_idx_containing_time(glyph_time));
+
+			// Adapt arclength position
+			if (seg.n0.time <= glyph_time) {
+				glyph.glyph.s = seg.s_from_time(glyph_time);
+				result.dist_sequence.emplace_hint(result.dist_sequence.end(), glyph.glyph.s, cur_glyph_idx);
+
+			}
+			else {
+				glyph.glyph.s = glyph_time - seg.n0.time;
+				result.dist_sequence.emplace_hint(result.dist_sequence.end(), glyph.glyph.s, cur_glyph_idx);
+			}
+		}
+
+		// Done!
+		return result;
 	}
 };
 
