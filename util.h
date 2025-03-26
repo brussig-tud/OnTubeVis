@@ -184,9 +184,7 @@ inline OTV_HermiteNode transform_hermite_node (
 	const auto pos = trans * cgv::vec4(cgv::vec3(3, (float*)&node.position), 1);
 	const auto tan = tangents_trans * cgv::vec4(cgv::vec3(3, (float*)&node.tangent), 0);
 	return {
-		.time = node.time,
-		.position = otv__Vec3(pos.x()/pos.w(), pos.y()/pos.w(), pos.z()/pos.w()),
-		.tangent = *(OTV_Vec3*)&tan
+		node.time, otv__Vec3(pos.x()/pos.w(), pos.y()/pos.w(), pos.z()/pos.w()), *(OTV_Vec3*)&tan
 	};
 }
 #endif
