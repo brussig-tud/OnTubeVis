@@ -2,15 +2,14 @@
 #ifndef __EXTRAPOLATION_H__
 #define __EXTRAPOLATION_H__
 
+// C++ STL
+#include <chrono>
+
 // Local includes
 #include "glyph_layer_manager.h"
 #include "render/common.h"
 #include "render/trajectory.h"
 #include "render/state.h"
-#include "gpumem/alloc.h"
-#include "gpumem/array.h"
-#include "gpumem/memory_pool.h"
-#include "gpumem/span.h"
 #include "gpumem/ring_buffer_alt.h"
 
 
@@ -98,8 +97,25 @@ namespace extrapol
 
 struct extrapolation_manager
 {
+	/// Render state for the extrapolations.
+	struct {
+		/// render style for the textured spline tubes
+		cgv::render::textured_spline_tube_render_style style;
+
+		/// custom attribute array manager for binding the ring buffers to the renderer
+		cgv::render::attribute_array_manager aam;
+	} render;
+
+	/// Logical state.
+	struct state_struct {
+		static constexpr uint8_t SEGMENTS_DIRTY=1, RANGES_DIRTY=2, GLYPHS_DIRTY=4;
+		uint8_t dirty_flags = 0;
+		bool update_needed = false;
+		std::chrono::time_point<std::chrono::high_resolution_clock> last_frame_timepoint;
+	} state;
+
 	/// Reference to the OnTubeVis render state
-	render_state &render;
+	render_state &otv_render;
 
 	/// Per-trajectory extrapolated node buffers.
 	std::vector<extrapol::per_trajectory> trajectories;
@@ -143,7 +159,7 @@ struct extrapolation_manager
 		gpumem::ring_buffer_arena<float> glyph_attribs_arena;
 	} glyphs;
 
-	extrapolation_manager(render_state &render) : render(render)
+	extrapolation_manager(render_state &render) : otv_render(render)
 	{}
 
 	~extrapolation_manager (void) {
@@ -211,8 +227,20 @@ struct extrapolation_manager
 	/// some point. The manager will make an attempt at coalescing the flushes to individual buffers.
 	///
 	/// @todo Currently blanket-flushes whole arenas. Investigate actual coalescing of unit buffer updates
-	bool flush_changes (void) const;
+	bool flush_changes (void);
+
+	/// Reports @c true if the manager needs to additional frames (e.g. to finish morphing animations), @c false
+	/// otherwise. Notably, when @c false is  returned, the application is free to sleep and block (e.g. to safe energy
+	/// while waiting for user interaction).
+	bool update_needed (void) const;
+
+	/// Update internal state required for rendering, e.g. to update animations.
+	void update (void);
+
+	/// Draw the managed extrapolations in their current state.
+	void draw_extrapolations (void) const;
 };
+
 
 } // namespace otv
 

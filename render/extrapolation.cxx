@@ -104,8 +104,8 @@ void extrapolation_manager::reinit_layer_config (void)
 	// Commit setup and find out actual number of float elements we need in our glyph attribute ring buffers. We need
 	// to use the least-common multiple for the single-glyph attribute counts from each layer in order to be able to
 	// advance the GPU ring buffers in a consistent way.
-	setup.num_layers = render.visualizations[0].config.layer_configs.size();
-	const auto &some_traj = render.trajectories.front();
+	setup.num_layers = otv_render.visualizations[0].config.layer_configs.size();
+	const auto &some_traj = otv_render.trajectories.front();
 	setup.glyph_attrib_counts.front() = some_traj.glyph_to_attrib_count(0, glyph_count_type{1});
 	setup.glyph_attribs_lcm = setup.glyph_attrib_counts.front();
 	for (unsigned l=1; l<setup.num_layers; l++) {
@@ -180,61 +180,14 @@ void extrapolation_manager::replace_extrapolation (
 		traj.t_to_s.contents[i] = extrapolation[i].t_to_s;
 	}
 
+	// Indicate that flush of geometry-related arenas will be required
+	state.dirty_flags = state.dirty_flags | state.SEGMENTS_DIRTY;
+
 	// Update per-layer range maps for current set of glyphs
 	for (unsigned l=0; l<setup.num_layers; l++)
 	{
 		// Convenience shorthand
 		auto &layer = traj.layers[l];
-
-		/* --- DEBUG TEST ------------- */ /*{
-			const unsigned glyph_attrib_count = setup.glyph_attrib_counts[l];
-			layer.glyph_attribs.clear();
-			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-3][0]-.75f);
-			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-				layer.glyph_attribs.push_back(.0f);
-			unsigned num_glyphs = 1;
-			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-3][0]-.5f);
-			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-				layer.glyph_attribs.push_back(.0f);
-			num_glyphs++;
-			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-3][7]);
-			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-				layer.glyph_attribs.push_back(.0f);
-			num_glyphs++;
-			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-3][15]);
-			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-				layer.glyph_attribs.push_back(.0f);
-			num_glyphs++;
-			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-2][15]);
-			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-				layer.glyph_attribs.push_back(.0f);
-			num_glyphs++;
-			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-1][6]);
-			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-				layer.glyph_attribs.push_back(.0f);
-			num_glyphs++;
-			layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-1][14]);
-			for (unsigned i=1; i<setup.glyph_attrib_counts[l]; i++)
-				layer.glyph_attribs.push_back(.0f);
-			num_glyphs++;
-			const unsigned max_glyphs = layer.glyph_attribs.capacity()/glyph_attrib_count;
-			for (unsigned g=num_glyphs; g<max_glyphs; ++g) {
-				layer.glyph_attribs.push_back(traj.t_to_s.contents[num_segments-1][15] + float(g)*.5f);
-				for (unsigned i = 1; i < setup.glyph_attrib_counts[l]; i++)
-					layer.glyph_attribs.push_back(.0f);
-				num_glyphs++;
-			}
-			assert(num_glyphs == max_glyphs);
-			const auto test_range = ro_range{layer.glyph_attribs.begin(), layer.glyph_attribs.end()};
-			const auto test_range_len = test_range.length();
-			assert(test_range_len == layer.glyph_attribs.size());
-			assert(test_range_len % glyph_attrib_count == 0);
-			assert(test_range_len == num_glyphs*glyph_attrib_count);
-			for (unsigned i=0; i<test_range_len; i++) {
-				const auto it = test_range.begin+i;
-				std::clog << "glyph_attrib["<<it.idx<<"] = "<<*it << "\n";
-			}
-		}*/
 
 		// Retrieve general per-layer information
 		const unsigned stride = setup.glyph_attrib_counts[l];
@@ -244,7 +197,9 @@ void extrapolation_manager::replace_extrapolation (
 			l, extrapolation.front().t_to_s[0], ro_range{layer.glyph_attribs.begin(), layer.glyph_attribs.end()}
 		);
 		// ...and erase those that fell off the extrapolation
-		if (on_extrapol.begin > layer.glyph_attribs.begin()) {
+		if (on_extrapol.begin > layer.glyph_attribs.begin())
+		{
+			// Pop old glyphs from the ring buffer
 			const auto erase_range = ro_range{layer.glyph_attribs.begin(), on_extrapol.begin};
 			const auto erase_count = on_extrapol.begin - layer.glyph_attribs.begin();
 			assert(erase_range.length() == erase_count);
@@ -253,6 +208,10 @@ void extrapolation_manager::replace_extrapolation (
 			const auto new_num = layer.glyph_attribs.size();
 			assert(new_num % stride == 0);
 			assert(new_num == old_num-erase_count);
+
+			// Indicate that flush of glyph-related arenas will be required
+			state.dirty_flags = state.dirty_flags | state.SEGMENTS_DIRTY;
+
 			// Refresh on_extrapol range since iterators are _theoretically_ invalidated by pop_front()
 			// ToDo: investigate whether we can get away with not refreshing in all cases (it definitely works if the
 			//       range was empty before)
@@ -318,7 +277,7 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	const auto num_glyphs_before =  layer.glyph_attribs.size()/stride;
 	#ifndef NDEBUG
 		const unsigned num_attribs_before =  layer.glyph_attribs.size();
-		const unsigned num_glyphs_before_check = render.trajectories[traj_id].attrib_to_glyph_count(
+		const unsigned num_glyphs_before_check = otv_render.trajectories[traj_id].attrib_to_glyph_count(
 			l, static_cast<int>(num_attribs_before)
 		).value;
 	#endif
@@ -330,7 +289,7 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	#ifndef NDEBUG
 		const unsigned actually_on_extrapol_len = actually_on_extrapol.length();
 		assert(actually_on_extrapol_len == on_extrapol.length()-discarded.num_skipped);
-		const unsigned num_new_glyphs = render.trajectories[traj_id].attrib_to_glyph_count(
+		const unsigned num_new_glyphs = otv_render.trajectories[traj_id].attrib_to_glyph_count(
 			l, actually_on_extrapol_len
 		).value;
 		assert(num_new_glyphs == actually_on_extrapol_len/stride);
@@ -339,6 +298,9 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 			std::clog.flush();
 		}
 	#endif
+
+	// Indicate that flush of glyph-related arenas will be required
+	state.dirty_flags = state.dirty_flags | state.GLYPHS_DIRTY;
 
 	// Unlink discarded glyphs, if any, and search for the newest segment that has any glyphs at the same time
 	unsigned newest_seg_with_glyphs=0, seg=0;
@@ -413,13 +375,13 @@ ro_range<Iter> extrapolation_manager::skip_glyphs_before (
 	assert(cur_glyph.end <= glyph_attribs.end);
 
 	// Next, differentiate between glyph and plot layers (the required logic is slightly different)
-	const auto glyph_geometry = render.glyph_extents(layer, &*(glyph_attribs.begin+2));
+	const auto glyph_geometry = otv_render.glyph_extents(layer, &*(glyph_attribs.begin+2));
 	if (glyph_geometry.has_value()) // it's a glyph
 	{
 		// Find first glyph that overlaps with the area behind the start of the extrapolation
 		do {
 			// Determine arc length range covered by glyph
-			const auto s_range = render.glyph_range(layer, &*cur_glyph.begin).value();
+			const auto s_range = otv_render.glyph_range(layer, &*cur_glyph.begin).value();
 
 			// Check if glyph is on the extrapolation
 			if (s_range.y() >= s_min)
@@ -504,13 +466,13 @@ ro_range<Iter> extrapolation_manager::keep_glyphs_after_including (
 	assert(cur_glyph.begin >= glyph_attribs.begin);
 
 	// Next, differentiate between glyph and plot layers (the required logic is slightly different)
-	const auto glyph_geometry = render.glyph_extents(layer, &*(glyph_attribs.begin+2));
+	const auto glyph_geometry = otv_render.glyph_extents(layer, &*(glyph_attribs.begin+2));
 	if (glyph_geometry.has_value()) // it's a glyph
 	{
 		// Find first glyph that doesn't overlap with the area behind the start of the extrapolation
 		do {
 			// Determine arc length range covered by glyph
-			const auto s_range = render.glyph_range(layer, &*cur_glyph.begin).value();
+			const auto s_range = otv_render.glyph_range(layer, &*cur_glyph.begin).value();
 
 			// Check if glyph is on the extrapolation
 			if (s_range.y() < s_min)
@@ -595,9 +557,11 @@ void extrapolation_manager::assign_glyphs (
 	ro_range<IRangeIter> &&ranges_out, const ro_range<AlenIter> &t_to_s, unsigned layer,
 	const ro_range<GlyphAttribsIter> &glyph_attribs, const unsigned idx_offset
 ){
+	////
 	// Prelude
+
 	const unsigned num_segments = ranges_out.length();
-	const auto num_glyphs = (unsigned)render.trajectories.front().attrib_to_glyph_count(
+	const auto num_glyphs = (unsigned)otv_render.trajectories.front().attrib_to_glyph_count(
 		layer, (int)glyph_attribs.length()
 	).value + idx_offset;
 	const auto stride = setup.glyph_attrib_counts[layer];
@@ -609,6 +573,10 @@ void extrapolation_manager::assign_glyphs (
 			std::clog.flush();
 	#endif
 
+	// If we're replacing, then we will need to make sure the dirty flag gets set even if none of the conditions further
+	// down get triggered (e.g. because no glyphs actually end up being assigned)
+	state.dirty_flags = state.dirty_flags | (replace * state.RANGES_DIRTY);
+
 
 	/////
 	// Iterate through input glyph attribute range to assign them to the extrapolated segments
@@ -618,10 +586,9 @@ void extrapolation_manager::assign_glyphs (
 	//       duplication.
 	// FIXME: The below algorithm currently DOES NOT unlink plot control points that get superseded by a new one passed
 	//        to this function. Such a replacement would be possible if both old and new control points precede the
-	//        start of a segment. However, the potential runtime gain of the bisection search in the fragment shader
-	//        from unlinking a few control points before the segment start is likely negligible and thus not worth the
-	//        hassle.
-	const auto glyph_geometry = render.glyph_extents(layer, &*(glyph_attribs.begin+2));
+	//        start of a segment. However, the potential runtime gain for the bisection search in the fragment shader is
+	//        likely negligible and thus not worth the hassle.
+	const auto glyph_geometry = otv_render.glyph_extents(layer, &*(glyph_attribs.begin+2));
 	if (glyph_geometry.has_value()) // it's a glyph
 	{
 		// Outer loop is over extrapolated segments
@@ -640,17 +607,23 @@ void extrapolation_manager::assign_glyphs (
 				continue;
 
 			// Inner loop is over the glyphs that overlap the current segment
-			auto s_range = render.glyph_range(layer, &*cur_glyph.begin).value(), s_range_prev = s_range;
+			auto s_range = otv_render.glyph_range(layer, &*cur_glyph.begin).value(), s_range_prev = s_range;
 			while (s_range.x() <= s_max)
 			{
+				// Update the range
 				cur_range.n++;
 				cur_glyph_idx++;
 				cur_glyph.safe_advance(stride, glyph_attribs.end);
+
+				// Indicate that flush of the glyph mapping ranges arena will be required
+				state.dirty_flags = state.dirty_flags | state.RANGES_DIRTY;
+
+				// Advance glyph cursor
 				assert(cur_glyph_idx <= num_glyphs);
 				if (cur_glyph_idx == num_glyphs)
 					break; // all glyphs exhausted
 				s_range_prev = s_range;
-				s_range = render.glyph_range(layer, &*cur_glyph.begin).value();
+				s_range = otv_render.glyph_range(layer, &*cur_glyph.begin).value();
 			}
 
 			// Finally, move the cursor back one glyph (if it's not already the first) in case it also overlaps the
@@ -682,8 +655,14 @@ void extrapolation_manager::assign_glyphs (
 			auto s = get_glyph_pos(cur_glyph);
 			while (s < s_max)
 			{
+				// Update the range
 				cur_range.n++;
 				cur_glyph_idx++;
+
+				// Indicate that flush of the glyph mapping ranges arena will be required
+				state.dirty_flags = state.dirty_flags | state.RANGES_DIRTY;
+
+				// Advance glyph cursor
 				cur_glyph.safe_advance(stride, glyph_attribs.end);
 				assert(cur_glyph_idx <= num_glyphs);
 				if (cur_glyph_idx == num_glyphs)
@@ -693,8 +672,13 @@ void extrapolation_manager::assign_glyphs (
 
 			// Now, include one additional (if it exists) control point to ensure correct inter-segment
 			// interpolation on the _current_ segment.
-			if (cur_glyph_idx < num_glyphs)
+			if (cur_glyph_idx < num_glyphs) {
+				// Update the range
 				cur_range.n++;
+
+				// Indicate that flush of the glyph mapping ranges arena will be required
+				state.dirty_flags = state.dirty_flags | state.RANGES_DIRTY;
+			}
 
 			// Finally, move the cursor back one control point (if it's not already the first) to make sure the last
 			// control point considered to be _on_ the current segment will be included in the next segment also, to
@@ -708,12 +692,46 @@ void extrapolation_manager::assign_glyphs (
 	}
 }
 
-bool extrapolation_manager::flush_changes (void) const {
-	bool result = geom.nodes_arena.flush_all();
-	result &= geom.t_to_s_arena.flush_all();
-	result &= geom.ranges_arena.flush_all();
-	result &= glyphs.glyph_attribs_arena.flush_all();
+bool extrapolation_manager::flush_changes (void)
+{
+	// Determine the arenas we need to flush
+	const bool flush_nodes = state.dirty_flags & state.SEGMENTS_DIRTY,
+	           flush_t_to_s = state.dirty_flags & state.SEGMENTS_DIRTY,
+	           flush_ranges = state.dirty_flags &  state.RANGES_DIRTY,
+	           flush_glyphs = state.dirty_flags & state.GLYPHS_DIRTY;
+
+	// Perform flushes
+	bool result = true;
+	if (flush_nodes)
+		result &= geom.nodes_arena.flush_all();
+	if (flush_t_to_s)
+		result &= geom.t_to_s_arena.flush_all();
+	if (flush_ranges)
+		result &= geom.ranges_arena.flush_all();
+	if (flush_glyphs)
+		result &= glyphs.glyph_attribs_arena.flush_all();
+
+	// Update state
+	state.last_frame_timepoint = state.update_needed ?
+		  state.last_frame_timepoint
+		: std::chrono::high_resolution_clock::now();
+	state.update_needed |= state.dirty_flags;
+	state.dirty_flags = 0;
+
+	// Done!
 	return result;
+}
+
+bool extrapolation_manager::update_needed (void) const {
+	return state.update_needed;
+}
+
+void extrapolation_manager::update (void) {
+	// ToDo: implement
+}
+
+void extrapolation_manager::draw_extrapolations() const {
+	// ToDo: implement
 }
 
 

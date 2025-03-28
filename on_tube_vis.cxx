@@ -2468,6 +2468,9 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		client.update();
 	}
 
+	// Handle extrapolations. FIXME: Verify if it's safe to move into client.update()
+	client.extrapol_mgr.update();
+
 	if(benchmark.requested) {
 		if(!misc_cfg.instant_redraw_proxy) {
 			misc_cfg.instant_redraw_proxy = true;
@@ -2646,14 +2649,14 @@ void on_tube_vis::after_finish(context& ctx) {
 	}
 
 	// Process any pending streaming API commands
+	bool redraw_needed = false;
 	std::shared_ptr<command> cmd;
-	if ((cmd = command_stream::poll()))
-	{
+	if ((cmd = command_stream::poll())) {
 		if (!cmd->handle())
 			std::cerr << "OnTubeVis: command " << hex(cmd.get()) << " (" << cmd->describe() << ") failed execution!"
 			          << std::endl;
 		else
-			post_redraw();
+			redraw_needed = true;
 	}
 	else if (run_as_service)
 	{
@@ -2664,9 +2667,11 @@ void on_tube_vis::after_finish(context& ctx) {
 		}
 		if (session_taa_missing_samples > 0) {
 			session_taa_missing_samples--;
-			post_redraw();
+			redraw_needed = true;
 		}
 	}
+	if (redraw_needed)
+		post_redraw();
 }
 
 void on_tube_vis::signal_non_service_init() {/*
