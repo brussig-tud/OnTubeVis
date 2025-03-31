@@ -124,7 +124,7 @@ struct otv_client {
 
 
 	/// the render "servers" (one each for real and extrapolated) used by the client.
-	render_state &render, &extrapol;
+	render_state &render;
 
 	///
 	unsigned num_extrapol_segments = 3;
@@ -145,8 +145,8 @@ struct otv_client {
 
 
 	/// construct with reference to trajectory render data
-	otv_client(render_state &render, render_state &extrapol)
-		: render(render), extrapol(extrapol), extrapol_mgr(render)
+	otv_client(render_state &render)
+		: render(render), extrapol_mgr(render)
 	{}
 
 	/// initialize a completely new session (i.e. a new dataset and layer configuration)

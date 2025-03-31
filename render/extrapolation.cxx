@@ -60,7 +60,9 @@ void extrapolation_manager::clear(void)
 
 
 
-bool extrapolation_manager::create_geom_buffers (unsigned num_trajectories, unsigned num_segments)
+bool extrapolation_manager::create_geom_buffers (
+	cgv::render::context &ctx, unsigned num_trajectories, unsigned num_segments
+)
 {
 	// Make sure we don't leak resources when any single one of the steps fails
 	auto _ = finalizer([this] {
@@ -80,7 +82,10 @@ bool extrapolation_manager::create_geom_buffers (unsigned num_trajectories, unsi
 	// Distribute per-trajectory ringbuffers and create indices in the process
 	trajectories.reserve(num_trajectories);
 	geom.node_indices.reserve(num_trajectories * num_segments);
-	for (unsigned t=0; t<num_trajectories; t++) {
+	std::vector<unsigned> segment_indices;
+	segment_indices.reserve(geom.node_indices.size());
+	for (unsigned idx=-1, t=0; t<num_trajectories; t++)
+	{
 		auto &nodes_buf = geom.nodes_arena.buffer(t); {
 			const auto res = nodes_buf.push_uninit(num_nodes);
 			assert(res.num_overwritten==0 && res.num_skipped==0);
@@ -91,9 +96,24 @@ bool extrapolation_manager::create_geom_buffers (unsigned num_trajectories, unsi
 		}
 		trajectories.emplace_back(nodes_buf, alen_buf);
 		uint32_t start_index = t*num_nodes;
-		for (unsigned i=0; i<num_segments; i++)
+		for (unsigned i=0; i<num_segments; i++) {
 			geom.node_indices.emplace_back(start_index+i, start_index+i+1);
+			segment_indices.emplace_back(++idx);
+		}
 	}
+
+	// Set up attribute array manager
+	if (!render.aam.is_created())
+		render.aam.init(ctx);
+	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
+	tstr.enable_attribute_array_manager(ctx, render.aam);
+	tstr.set_node_id_array(
+		ctx, reinterpret_cast<const cgv::uvec2*>(geom.node_indices.data()),
+		num_trajectories*num_segments,
+		sizeof(cgv::uvec2)
+	);
+	tstr.set_indices(ctx, segment_indices);
+	tstr.disable_attribute_array_manager(ctx, render.aam);
 
 	// Done!
 	return _.disarm(success);
@@ -210,7 +230,7 @@ void extrapolation_manager::replace_extrapolation (
 			assert(new_num == old_num-erase_count);
 
 			// Indicate that flush of glyph-related arenas will be required
-			state.dirty_flags = state.dirty_flags | state.SEGMENTS_DIRTY;
+			state.dirty_flags = state.dirty_flags | state.GLYPHS_DIRTY;
 
 			// Refresh on_extrapol range since iterators are _theoretically_ invalidated by pop_front()
 			// ToDo: investigate whether we can get away with not refreshing in all cases (it definitely works if the
@@ -575,7 +595,7 @@ void extrapolation_manager::assign_glyphs (
 
 	// If we're replacing, then we will need to make sure the dirty flag gets set even if none of the conditions further
 	// down get triggered (e.g. because no glyphs actually end up being assigned)
-	state.dirty_flags = state.dirty_flags | (replace * state.RANGES_DIRTY);
+	state.dirty_flags = state.dirty_flags | (replace*state.RANGES_DIRTY);
 
 
 	/////

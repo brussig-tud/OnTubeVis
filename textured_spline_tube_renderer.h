@@ -22,6 +22,10 @@ namespace cgv { // @<
 			float radius_scale;
 			/// default tube radius, initialized to 1
 			float radius;
+
+			/// whether to disable g-buffer output and perform texturing immediately in the fragment shader.
+			bool forward = false;
+
 			/// specifies the calculation routinbe and output of the fragment shader for debug purposes
 			enum FragmentMode {
 				FM_NO_OP = 0, // discards all fragments

@@ -1687,7 +1687,6 @@ void on_tube_vis::update_glyph_layer_managers() {
 	}
 
 	render.visualizations.clear();
-	extrapol.visualizations.clear();
 	for (unsigned i=0; i< traj_mgr.num_datasets(); i++)
 	{
 		const auto& dataset = traj_mgr.dataset(i);
@@ -3087,17 +3086,9 @@ void on_tube_vis::update_attribute_bindings(void)
 		    	&& render.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
 		    ) ||
 		    // - extrapolation
-		    //!(
-		    //	extrapol.create_geom_buffers(
-		    //		/* number of maximally renderable elements */ num_trajectories * 3,
-		    //		/* number of additional elements reserved at the end of the ringbuffer where new stuff can be added
-		    //		   without having to wait for the current frame to finish rendering */ num_trajectories
-		    //	)
-		    //	&& extrapol.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
-		    //)
 		    !(
 		    	   client.num_extrapol_segments == 0
-		    	|| client.extrapol_mgr.create_geom_buffers(num_trajectories, client.num_extrapol_segments)
+		    	|| client.extrapol_mgr.create_geom_buffers(ctx, num_trajectories, client.num_extrapol_segments)
 		    )
 		){
 			throw std::runtime_error("Error creating GPU buffers.");
@@ -3105,7 +3096,6 @@ void on_tube_vis::update_attribute_bindings(void)
 
 		// Create trajectories to fill ring buffers.
 		render.trajectories.clear();
-		extrapol.trajectories.clear();
 		client.trajectories.clear();
 
 		for (const auto &dataset : traj_mgr.datasets()) {
@@ -3127,7 +3117,6 @@ void on_tube_vis::update_attribute_bindings(void)
 					first_segment,
 					render.add_trajectory().id()
 				});
-				extrapol.add_trajectory();
 			}
 		}
 
@@ -3600,7 +3589,20 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// Flush the command buffer.
 		glFlush();
 
-		if(playback.active)
+
+		////
+		// RENDER EXTRAPOLATIONS
+
+		tstr.set_render_style(client.extrapol_mgr.render.style);
+		//tstr.set_or
+		tstr.enable_attribute_array_manager(ctx, client.extrapol_mgr.render.aam);
+			tstr.render(ctx, 0, 1);
+			/* */
+		tstr.disable_attribute_array_manager(ctx, client.extrapol_mgr.render.aam);
+
+
+		// Make sure we keep drawing if required
+		if(playback.active || client.extrapol_mgr.update_needed())
 			post_redraw();
 	}
 }

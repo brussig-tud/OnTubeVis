@@ -97,23 +97,6 @@ namespace extrapol
 
 struct extrapolation_manager
 {
-	/// Render state for the extrapolations.
-	struct {
-		/// render style for the textured spline tubes
-		cgv::render::textured_spline_tube_render_style style;
-
-		/// custom attribute array manager for binding the ring buffers to the renderer
-		cgv::render::attribute_array_manager aam;
-	} render;
-
-	/// Logical state.
-	struct state_struct {
-		static constexpr uint8_t SEGMENTS_DIRTY=1, RANGES_DIRTY=2, GLYPHS_DIRTY=4;
-		uint8_t dirty_flags = 0;
-		bool update_needed = false;
-		std::chrono::time_point<std::chrono::high_resolution_clock> last_frame_timepoint;
-	} state;
-
 	/// Reference to the OnTubeVis render state
 	render_state &otv_render;
 
@@ -159,8 +142,30 @@ struct extrapolation_manager
 		gpumem::ring_buffer_arena<float> glyph_attribs_arena;
 	} glyphs;
 
-	extrapolation_manager(render_state &render) : otv_render(render)
-	{}
+	/// Render state for the extrapolations.
+	struct {
+		/// render style for the textured spline tubes
+		cgv::render::textured_spline_tube_render_style style;
+
+		/// custom attribute array manager for binding the ring buffers to the renderer
+		cgv::render::attribute_array_manager aam;
+	} render;
+
+	/// Logical state.
+	struct state_struct {
+		static constexpr uint8_t SEGMENTS_DIRTY=1, RANGES_DIRTY=2, GLYPHS_DIRTY=4;
+		uint8_t dirty_flags = 0;
+		bool update_needed = false;
+		std::chrono::time_point<std::chrono::high_resolution_clock> last_frame_timepoint;
+	} state;
+
+	extrapolation_manager(render_state &otv_render_state) : otv_render(otv_render_state)
+	{
+		// Setup render style
+		render.style = otv_render.style;
+		render.style.attrib_mode = cgv::render::textured_spline_tube_render_style::AM_ATTRIBLESS;
+		render.style.forward = true; // <- can't use deferred shading with transparency
+	}
 
 	~extrapolation_manager (void) {
 		clear();
@@ -169,7 +174,7 @@ struct extrapolation_manager
 	void clear (void);
 
 	/// Create all buffers relating to pure geometry (nodes, node indices and segment arclength re-parametrizations).
-	bool create_geom_buffers (unsigned num_trajectories, unsigned num_segments);
+	bool create_geom_buffers (cgv::render::context &ctx, unsigned num_trajectories, unsigned num_segments);
 
 	/// Make sure internal knowledge about the layer configuration mirrors the one currently active in the @link render
 	/// render state @endlink, invalidating all glyph-related buffers until @ref create_glyph_and_per_layer_buffers() is

@@ -96,6 +96,9 @@ namespace cgv {
 
 			defines.clear();
 
+			// forward shading
+			shader_code::set_define(defines, "FORWARD_SHADING", rs.forward, false);
+
 			shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
 			if (rs.is_tube()) {
 				shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
