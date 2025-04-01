@@ -13,3 +13,4 @@ fragment_file:fragment.glfs
 fragment_file:transform.glsl
 fragment_file:curve_tools.glsl
 fragment_file:rcc.glsl
+fragment_file:otv_shading.glsl

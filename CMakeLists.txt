@@ -245,6 +245,7 @@ set (SHADERS
 	glsl/optix_display.glpr
 	glsl/rcc.glsl
 	glsl/surface_mod.glsl
+	glsl/otv_shading.glsl
 	glsl/textured_line_primitive.glvs
 	glsl/textured_spline_ribbon.glfs
 	glsl/textured_spline_ribbon.glgs

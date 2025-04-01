@@ -56,14 +56,15 @@ void extrapolation_manager::clear(void)
 	// Purely geometry-related
 	geom.t_to_s_arena.destroy();
 	geom.nodes_arena.destroy();
+	geom.node_indices.clear();
+	//geom.segment_indices.clear();
 }
 
 
 
 bool extrapolation_manager::create_geom_buffers (
 	cgv::render::context &ctx, unsigned num_trajectories, unsigned num_segments
-)
-{
+){
 	// Make sure we don't leak resources when any single one of the steps fails
 	auto _ = finalizer([this] {
 		this->clear();
@@ -83,7 +84,7 @@ bool extrapolation_manager::create_geom_buffers (
 	trajectories.reserve(num_trajectories);
 	geom.node_indices.reserve(num_trajectories * num_segments);
 	std::vector<unsigned> segment_indices;
-	segment_indices.reserve(geom.node_indices.size());
+	/*geom.*/segment_indices.reserve(geom.node_indices.size());
 	for (unsigned idx=-1, t=0; t<num_trajectories; t++)
 	{
 		auto &nodes_buf = geom.nodes_arena.buffer(t); {
@@ -98,22 +99,31 @@ bool extrapolation_manager::create_geom_buffers (
 		uint32_t start_index = t*num_nodes;
 		for (unsigned i=0; i<num_segments; i++) {
 			geom.node_indices.emplace_back(start_index+i, start_index+i+1);
-			segment_indices.emplace_back(++idx);
+			/*geom.*/segment_indices.emplace_back(++idx);
 		}
 	}
+	assert(geom.node_indices.size() == num_trajectories*num_segments);
+	assert(geom.node_indices.size() == /*geom.*/segment_indices.size());
 
-	// Set up attribute array manager
-	if (!render.aam.is_created())
-		render.aam.init(ctx);
-	auto &tstr = cgv::render::ref_textured_spline_tube_renderer(ctx);
-	tstr.enable_attribute_array_manager(ctx, render.aam);
-	tstr.set_node_id_array(
+	// Set up renderer
+	if (!render.aam.is_created()) {
+		if (!render.tstr.init(ctx))
+			ctx.error(std::string("unable to initialize textured spline tube renderer for extrapolations"));
+		render.tstr.set_render_style(render.style);
+		if (!render.aam.init(ctx))
+			ctx.error(std::string("unable to initialize attribute array manager for extrapolations"));
+	}
+	render.tstr.enable_attribute_array_manager(ctx, render.aam);
+	render.tstr.set_node_id_array(
 		ctx, reinterpret_cast<const cgv::uvec2*>(geom.node_indices.data()),
 		num_trajectories*num_segments,
 		sizeof(cgv::uvec2)
 	);
-	tstr.set_indices(ctx, segment_indices);
-	tstr.disable_attribute_array_manager(ctx, render.aam);
+	render.tstr.set_indices(ctx, /*geom.*/segment_indices);
+	render.tstr.disable_attribute_array_manager(ctx, render.aam);
+
+	/*geom.test_nodes.create(1, 2);
+	geom.test_alens.create(1, 1);*/
 
 	// Done!
 	return _.disarm(success);
@@ -747,11 +757,59 @@ bool extrapolation_manager::update_needed (void) const {
 }
 
 void extrapolation_manager::update (void) {
-	// ToDo: implement
+	render.style.max_t = std::numeric_limits<float>::max()-1.f;
 }
 
-void extrapolation_manager::draw_extrapolations() const {
-	// ToDo: implement
+void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx)
+{
+	// Do nothing if no data
+	if (geom.node_indices.empty())
+		return;
+
+	// Set up draw call
+	/*auto nodes = geom.test_nodes.data_memory.data();
+	nodes[0].color.set(0, 1, 0, 1);
+	nodes[0].pos_rad.set(0, 0, -1, 0.25);
+	nodes[0].tangent.set(0, 0, 1, 0);
+	nodes[0].t.x() = 0;
+	nodes[1].color.set(1, 0, 1, 1);
+	nodes[1].pos_rad.set(0, 0, 0, 0.25);
+	nodes[1].tangent.set(0, 0, 1, 0);
+	nodes[1].t.x() = 1;
+	assert(geom.nodes_arena.data_memory.flush());
+	auto alens = geom.test_alens.data_memory.data();
+	alens[0] = arclen::compute_single_t_to_s(
+		cgv::vec3(nodes[0].pos_rad), cgv::vec3(nodes[0].tangent),
+		cgv::vec3(nodes[1].pos_rad), cgv::vec3(nodes[1].tangent), .0f
+	);
+	assert(geom.test_alens.data_memory.flush());
+	std::vector<cgv::uvec2> nids;
+	nids.emplace_back(0, 1);
+	std::vector<unsigned> indices;
+	indices.emplace_back(0);*/
+
+	render.tstr.set_render_style(render.style);
+	render.tstr.enable_attribute_array_manager(ctx, render.aam);
+	/*render.tstr.set_node_id_array(
+		ctx, nids.data(), 1, sizeof(cgv::uvec2)
+	);
+	render.tstr.set_indices(ctx, indices);
+	glFlush();*/
+	const auto node_id_buf = render.tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
+	const auto buffer_handles = std::array{
+		geom.nodes_arena.data_memory.handle(),
+		geom.t_to_s_arena.data_memory.handle(),/*
+		geom.test_nodes.data_memory.handle(),
+		geom.test_alens.data_memory.handle(),*/
+		(GLuint&)node_id_buf->handle-1 // <- make sure to include node indices SBO since we're drawing attriubute-less
+	};
+	glBindBuffersBase(
+		GL_SHADER_STORAGE_BUFFER, 0, (GLsizei)buffer_handles.size(), buffer_handles.data()
+	);
+
+	// Draw and clean up
+	render.tstr.render(ctx, 0, geom.node_indices.size());
+	render.tstr.disable_attribute_array_manager(ctx, render.aam);
 }
 
 

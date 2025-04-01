@@ -124,16 +124,18 @@ struct extrapolation_manager
 	/// Members related to the geometry of extrapolated trajectories
 	struct {
 		/// The GPU arena housing the per-trajectory node ring buffers.
-		gpumem::ring_buffer_arena<node_attribs> nodes_arena;
+		gpumem::ring_buffer_arena<node_attribs> nodes_arena/*, test_nodes*/;
 
 		/// The GPU arena housing the per-trajectory t_to_s ring buffers.
-		gpumem::ring_buffer_arena<cgv::mat4> t_to_s_arena;
+		gpumem::ring_buffer_arena<cgv::mat4> t_to_s_arena/*, test_alens*/;
 
 		/// The GPU arena housing the per-trajectory and per-layer glyph index ranges ring buffers.
 		gpumem::ring_buffer_arena<irange> ranges_arena;
 
 		/// The static (except for visibility sorting) index buffer
 		std::vector<std::pair<uint32_t, uint32_t>> node_indices;
+
+		//std::vector<unsigned> segment_indices;
 	} geom;
 
 	/// Members related to the glyph data on extrapolated trajectories
@@ -144,6 +146,9 @@ struct extrapolation_manager
 
 	/// Render state for the extrapolations.
 	struct {
+		/// textured spline tube renderer
+		cgv::render::textured_spline_tube_renderer tstr;
+
 		/// render style for the textured spline tubes
 		cgv::render::textured_spline_tube_render_style style;
 
@@ -243,7 +248,7 @@ struct extrapolation_manager
 	void update (void);
 
 	/// Draw the managed extrapolations in their current state.
-	void draw_extrapolations (void) const;
+	void draw_extrapolations (cgv::render::context &ctx);
 };
 
 

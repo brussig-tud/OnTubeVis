@@ -143,20 +143,20 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 
 	debug.geometry.segments.style.rounded_caps = true;
 
-	grids.resize(2);
-	grids[0].scaling = vec2(1.0f, 1.0f);
-	grids[0].thickness = 0.05f;
-	grids[0].blend_factor = 0.5f;
-	grids[1].scaling = vec2(4.0f);
-	grids[1].thickness = 0.1f;
-	grids[1].blend_factor = 0.333f;
-	grid_color = rgba(0.25f, 0.25f, 0.25f, 0.75f);
-	grid_mode = GM_COLOR_AND_NORMAL;
-	grid_normal_settings = (cgv::type::DummyEnum)1u;
-	grid_normal_inwards = true;
-	grid_normal_variant = true;
-	normal_mapping_scale = 1.0f;
-	enable_fuzzy_grid = false;
+	tube_shading.grids.resize(2);
+	tube_shading.grids[0].scaling = vec2(1.0f, 1.0f);
+	tube_shading.grids[0].thickness = 0.05f;
+	tube_shading.grids[0].blend_factor = 0.5f;
+	tube_shading.grids[1].scaling = vec2(4.0f);
+	tube_shading.grids[1].thickness = 0.1f;
+	tube_shading.grids[1].blend_factor = 0.333f;
+	tube_shading.grid_color = rgba(0.25f, 0.25f, 0.25f, 0.75f);
+	tube_shading.grid_mode = GM_COLOR_AND_NORMAL;
+	tube_shading.grid_normal_settings = (cgv::type::DummyEnum)1u;
+	tube_shading.grid_normal_inwards = true;
+	tube_shading.grid_normal_variant = true;
+	tube_shading.normal_mapping_scale = 1.0f;
+	tube_shading.enable_fuzzy_grid = false;
 
 	// set default voxel grid resolution
 #ifdef _DEBUG
@@ -396,11 +396,11 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("bounding_box_color", bbox_rd.style.surface_color) &&
 		rh.reflect_member("show_bounding_box", show_bbox) &&
 		rh.reflect_member("show_wireframe_box", show_wireframe_bbox) &&
-		rh.reflect_member("grid_mode", grid_mode) &&
-		rh.reflect_member("grid_normal_settings", grid_normal_settings) &&
-		rh.reflect_member("grid_normal_inwards", grid_normal_inwards) &&
-		rh.reflect_member("grid_normal_variant", grid_normal_variant) &&
-		rh.reflect_member("ambient_occlusion", ao_style.enable) &&
+		rh.reflect_member("grid_mode", tube_shading.grid_mode) &&
+		rh.reflect_member("grid_normal_settings", tube_shading.grid_normal_settings) &&
+		rh.reflect_member("grid_normal_inwards", tube_shading.grid_normal_inwards) &&
+		rh.reflect_member("grid_normal_variant", tube_shading.grid_normal_variant) &&
+		rh.reflect_member("ambient_occlusion", tube_shading.ao_style.enable) &&
 		rh.reflect_member("voxelize_gpu", voxelize_gpu) &&
 #ifdef RTX_SUPPORT
 		rh.reflect_member("use_optix", optix.enabled) &&
@@ -456,8 +456,8 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 					SET_MEMBER(debug.force_initial_order, true);
 					on_set(&debug.force_initial_order);
 				}
-				SET_MEMBER(ao_style.enable, false);
-				on_set(&ao_style.enable);
+				SET_MEMBER(tube_shading.ao_style.enable, false);
+				on_set(&tube_shading.ao_style.enable);
 				handled = true;
 				break;
 			case '2':
@@ -470,8 +470,8 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 					SET_MEMBER(debug.force_initial_order, true);
 					on_set(&debug.force_initial_order);
 				}
-				SET_MEMBER(ao_style.enable, false);
-				on_set(&ao_style.enable);
+				SET_MEMBER(tube_shading.ao_style.enable, false);
+				on_set(&tube_shading.ao_style.enable);
 				handled = true;
 				break;
 			case '3':
@@ -484,8 +484,8 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 					SET_MEMBER(debug.force_initial_order, false);
 					on_set(&debug.force_initial_order);
 				}
-				SET_MEMBER(ao_style.enable, false);
-				on_set(&ao_style.enable);
+				SET_MEMBER(tube_shading.ao_style.enable, false);
+				on_set(&tube_shading.ao_style.enable);
 				handled = true;
 				break;
 			case '4':
@@ -498,14 +498,14 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 					SET_MEMBER(debug.force_initial_order, false);
 					on_set(&debug.force_initial_order);
 				}
-				SET_MEMBER(ao_style.enable, true);
-				on_set(&ao_style.enable);
+				SET_MEMBER(tube_shading.ao_style.enable, true);
+				on_set(&tube_shading.ao_style.enable);
 				handled = true;
 				break;
 			case 'A':
-				ao_style.enable = !ao_style.enable;
-				std::cout << "Ambient occlusion: " << (ao_style.enable ? "on" : "off") << std::endl;
-				on_set(&ao_style.enable);
+				tube_shading.ao_style.enable = !tube_shading.ao_style.enable;
+				std::cout << "Ambient occlusion: " << (tube_shading.ao_style.enable ? "on" : "off") << std::endl;
+				on_set(&tube_shading.ao_style.enable);
 				handled = true;
 				break;
 			case 'B':
@@ -525,8 +525,8 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				handled = true;
 				break;
 			case 'G':
-				grid_mode = static_cast<GridMode>((static_cast<int>(grid_mode) + 1) % 4);
-				on_set(&grid_mode);
+				tube_shading.grid_mode = static_cast<GridMode>((static_cast<int>(tube_shading.grid_mode) + 1) % 4);
+				on_set(&tube_shading.grid_mode);
 				handled = true;
 				break;
 		#ifdef RTX_SUPPORT
@@ -1146,7 +1146,7 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 		client.commit_session();
 	ah_mgr.set_dataset(ds);
 
-	tube_shading_defines = build_tube_shading_defines();
+	tube_shading_defines = build_tube_shading_defines(tube_shading, debug, render.visualizations.front());
 	shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
 	// reset glyph layer configuration file
@@ -1196,7 +1196,7 @@ bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 		glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 		context& ctx = *get_context();
-		tube_shading_defines = build_tube_shading_defines();
+		tube_shading_defines = build_tube_shading_defines(tube_shading, debug, render.visualizations.front());
 		shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
 		compile_glyph_attribs();
@@ -1284,8 +1284,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 	if(data_set_changed)
 	{
 		if(from_demo) {
-			ao_style = ao_style_bak;	// reset from handcrafted AO settings
-			update_member(&ao_style);
+			tube_shading.ao_style = ao_style_bak;	// reset from handcrafted AO settings
+			update_member(&tube_shading.ao_style);
 		}
 		if(traj_mgr.dataset(0).name().compare("rtlola_droneflight") == 0)
 			dataset.is_rtlola = true;
@@ -1297,14 +1297,17 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 	}
 
 	// render settings
-	if(!data_init_pending && m.one_of(debug.highlight_segments,
-				ao_style.enable,
-				grid_mode,
-				grid_normal_settings,
-				grid_normal_inwards,
-				grid_normal_variant,
-				enable_fuzzy_grid)) {
-		shader_define_map defines = build_tube_shading_defines();
+	if(!data_init_pending && m.one_of(
+		debug.highlight_segments,
+			tube_shading.ao_style.enable,
+			tube_shading.grid_mode,
+			tube_shading.grid_normal_settings,
+			tube_shading.grid_normal_inwards,
+			tube_shading.grid_normal_variant,
+			tube_shading.enable_fuzzy_grid
+		)
+	){
+		shader_define_map defines = build_tube_shading_defines(tube_shading, debug, render.visualizations.front());
 		if(defines != tube_shading_defines) {
 			context& ctx = *get_context();
 			tube_shading_defines = defines;
@@ -1642,7 +1645,7 @@ bool on_tube_vis::save_layer_configuration(const std::string& file_name) {
 
 	auto line_primitive_reflection = cgv::reflect::get_reflection_traits(render.style.line_primitive);
 	settings["line_primitve"] = line_primitive_reflection.get_enum_name(static_cast<int>(render.style.line_primitive));
-	settings["ambient_occlusion"] = ao_style.enable ? "true" : "false";
+	settings["ambient_occlusion"] = tube_shading.ao_style.enable ? "true" : "false";
 
 	return layer_configuration_io::write_layer_configuration(file_name, visualization.variables, visualization.manager, color_map_mgr, settings);
 }
@@ -1884,7 +1887,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	debug.geometry.segments.init(ctx);
 
 	// enable ambient occlusion
-	ao_style.enable = true;
+	tube_shading.ao_style.enable = true;
 
 	// init color maps
 	// - manager
@@ -2005,9 +2008,9 @@ void on_tube_vis::ensure_initial_dataset (context &ctx)
 		{
 			// generate demo dataset
 			// - demo AO settings
-			ao_style_bak = ao_style;
-			ao_style.strength_scale = 15.0f;
-			update_member(&ao_style);
+			ao_style_bak = tube_shading.ao_style;
+			tube_shading.ao_style.strength_scale = 15.0f;
+			update_member(&tube_shading.ao_style);
 			// - demo geometry
 			constexpr unsigned seed = 11;
 		#ifdef _DEBUG
@@ -2648,14 +2651,16 @@ void on_tube_vis::after_finish(context& ctx) {
 	}
 
 	// Process any pending streaming API commands
-	bool redraw_needed = false;
+	bool redraw_needed = false, flush_needed = false;
 	std::shared_ptr<command> cmd;
 	if ((cmd = command_stream::poll())) {
 		if (!cmd->handle())
 			std::cerr << "OnTubeVis: command " << hex(cmd.get()) << " (" << cmd->describe() << ") failed execution!"
 			          << std::endl;
-		else
+		else {
 			redraw_needed = true;
+			flush_needed = true;
+		}
 	}
 	else if (run_as_service)
 	{
@@ -2669,6 +2674,8 @@ void on_tube_vis::after_finish(context& ctx) {
 			redraw_needed = true;
 		}
 	}
+	if (flush_needed)
+		client.extrapol_mgr.flush_changes();
 	if (redraw_needed)
 		post_redraw();
 }
@@ -2783,24 +2790,24 @@ void on_tube_vis::create_gui (void)
 
 	add_decorator("", "separator");
 
-	if(begin_tree_node("Grid", grids, false)) {
+	if(begin_tree_node("Grid", tube_shading.grids, false)) {
 		align("\a");
-		add_member_control(this, "Mode", grid_mode, "dropdown", "enums='None, Color, Normal, Color + Normal'");
-		add_member_control(this, "Fuzzy coloring", enable_fuzzy_grid, "check");
-		add_member_control(this, "Color", grid_color);
-		add_member_control(this, "Normal Type", grid_normal_settings, "dropdown", "enums='0,1,2,3'");
-		add_member_control(this, "Inward", grid_normal_inwards, "check");
-		add_member_control(this, "Variant", grid_normal_variant, "check");
-		add_member_control(this, "Normal Scale", normal_mapping_scale, "value_slider", "min=0;max=1;step=0.001;ticks=true");
-		for(size_t i = 0; i < grids.size(); ++i) {
+		add_member_control(this, "Mode", tube_shading.grid_mode, "dropdown", "enums='None, Color, Normal, Color + Normal'");
+		add_member_control(this, "Fuzzy coloring", tube_shading.enable_fuzzy_grid, "check");
+		add_member_control(this, "Color", tube_shading.grid_color);
+		add_member_control(this, "Normal Type", tube_shading.grid_normal_settings, "dropdown", "enums='0,1,2,3'");
+		add_member_control(this, "Inward", tube_shading.grid_normal_inwards, "check");
+		add_member_control(this, "Variant", tube_shading.grid_normal_variant, "check");
+		add_member_control(this, "Normal Scale", tube_shading.normal_mapping_scale, "value_slider", "min=0;max=1;step=0.001;ticks=true");
+		for(size_t i = 0; i < tube_shading.grids.size(); ++i) {
 			add_decorator("Grid " + std::to_string(i), "heading", "level=3");
-			add_member_control(this, "Scaling U", grids[i].scaling[0], "value_slider", "min=1;max=50;step=0.5;ticks=true");
-			add_member_control(this, "Scaling V", grids[i].scaling[1], "value_slider", "min=1;max=50;step=0.5;ticks=true");
-			add_member_control(this, "Thickness", grids[i].thickness, "value_slider", "min=0;max=1;step=0.01;ticks=true");
-			add_member_control(this, "Blend Factor", grids[i].blend_factor, "value_slider", "min=0;max=1;step=0.01;ticks=true");
+			add_member_control(this, "Scaling U", tube_shading.grids[i].scaling[0], "value_slider", "min=1;max=50;step=0.5;ticks=true");
+			add_member_control(this, "Scaling V", tube_shading.grids[i].scaling[1], "value_slider", "min=1;max=50;step=0.5;ticks=true");
+			add_member_control(this, "Thickness", tube_shading.grids[i].thickness, "value_slider", "min=0;max=1;step=0.01;ticks=true");
+			add_member_control(this, "Blend Factor", tube_shading.grids[i].blend_factor, "value_slider", "min=0;max=1;step=0.01;ticks=true");
 		}
 		align("\b");
-		end_tree_node(grids);
+		end_tree_node(tube_shading.grids);
 	}
 
 	add_decorator("", "separator");
@@ -2840,13 +2847,13 @@ void on_tube_vis::create_gui (void)
 			end_tree_node(taa);
 		}
 
-		if(begin_tree_node("Ambient Occlusion", ao_style, false)) {
+		if(begin_tree_node("Ambient Occlusion", tube_shading.ao_style, false)) {
 			align("\a");
-			add_gui("ao_style", ao_style);
+			add_gui("ao_style", tube_shading.ao_style);
 			add_member_control(this, "Voxel Grid Resolution", voxel_grid_resolution, "dropdown", "enums='16=16, 32=32, 64=64, 128=128, 256=256, 512=512'");
 			add_member_control(this, "Voxelize using GPU", voxelize_gpu, "check");
 			align("\b");
-			end_tree_node(ao_style);
+			end_tree_node(tube_shading.ao_style);
 		}
 
 		align("\b");
@@ -2990,16 +2997,16 @@ void on_tube_vis::update_grid_ratios (void) {
 		// we base everything on the mean of all trajectory median radii
 		float inv_mean_rad = 1.f / static_cast<float>(mean_rad);
 		render.style.length_scale = inv_mean_rad;
-		grids[0].scaling.x() = inv_mean_rad;
+		tube_shading.grids[0].scaling.x() = inv_mean_rad;
 		//grids[0].scaling.y() = grids[0].scaling.x()/4;
-		grids[0].scaling.y() = 1.0f;
-		grids[1].scaling.x() = grids[0].scaling.x()*4;
+		tube_shading.grids[0].scaling.y() = 1.0f;
+		tube_shading.grids[1].scaling.x() = tube_shading.grids[0].scaling.x()*4;
 		//grids[1].scaling.y() = grids[0].scaling.x();
-		grids[1].scaling.y() = 4.0f;
+		tube_shading.grids[1].scaling.y() = 4.0f;
 		for (unsigned i=0; i<2; i++)
 		{
-			update_member(&(grids[i].scaling[0]));
-			update_member(&(grids[i].scaling[1]));
+			update_member(&(tube_shading.grids[i].scaling[0]));
+			update_member(&(tube_shading.grids[i].scaling[1]));
 		}
 		update_member(&render.style.length_scale);
 	}
@@ -3248,7 +3255,7 @@ void on_tube_vis::create_density_volume(context& ctx, unsigned resolution) {
 
 	std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
-	ao_style.derive_voxel_grid_parameters(density_volume.ref_voxel_grid());
+	tube_shading.ao_style.derive_voxel_grid_parameters(density_volume.ref_voxel_grid());
 }
 
 void on_tube_vis::draw_dnd(context& ctx) {
@@ -3300,6 +3307,72 @@ void on_tube_vis::draw_dnd(context& ctx) {
 	ctx.output_stream().flush();
 	ctx.pop_pixel_coords();
 }
+
+void on_tube_vis::tube_shading_settings::set_uniforms (
+	context &ctx, shader_program &prog, const textured_spline_tube_render_style &render_style,
+	const glyph_layer_manager::configuration &glyph_layers_config
+	#if RTX_SUPPORT
+		, bool optix_enabled
+	#endif
+) const {
+	// set render parameters
+	prog.set_uniform(ctx, "use_gamma", true);
+
+	// set ambient occlusion parameters
+	if(ao_style.enable) {
+		//prog.set_uniform(ctx, "ambient_occlusion.enable", ao_style.enable);
+		prog.set_uniform(ctx, "ambient_occlusion.sample_offset", ao_style.sample_offset);
+		prog.set_uniform(ctx, "ambient_occlusion.sample_distance", ao_style.sample_distance);
+		prog.set_uniform(ctx, "ambient_occlusion.strength_scale", ao_style.strength_scale);
+
+		prog.set_uniform(ctx, "ambient_occlusion.tex_offset", ao_style.texture_offset);
+		prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", ao_style.texture_scaling);
+		prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", ao_style.texcoord_scaling);
+		prog.set_uniform(ctx, "ambient_occlusion.texel_size", ao_style.texel_size);
+
+		prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
+		prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
+	}
+
+	// set grid parameters
+	prog.set_uniform(ctx, "grid_color", grid_color);
+	prog.set_uniform(ctx, "normal_mapping_scale", normal_mapping_scale);
+	for(size_t i=0; i<grids.size(); ++i) {
+		std::string base_name = "grids[" + std::to_string(i) + "].";
+		prog.set_uniform(ctx, base_name + "scaling", grids[i].scaling);
+		prog.set_uniform(ctx, base_name + "thickness", grids[i].thickness);
+		prog.set_uniform(ctx, base_name + "blend_factor", grids[i].blend_factor);
+	}
+
+	// set attribute mapping parameters
+	for(const auto& p : glyph_layers_config.constant_float_parameters)
+		prog.set_uniform(ctx, p.first, *p.second);
+
+	for(const auto& p : glyph_layers_config.constant_color_parameters)
+		prog.set_uniform(ctx, p.first, *p.second);
+
+	for(const auto& p : glyph_layers_config.mapping_parameters)
+		prog.set_uniform(ctx, p.first, *p.second);
+
+	// map global settings
+	prog.set_uniform(
+		ctx, "use_curvature_correction", (
+			#if RTX_SUPPORT
+				optix_enabled ||
+			#endif
+			render_style.is_tube()
+		) && render_style.use_curvature_correction
+	);
+	prog.set_uniform(ctx, "length_scale", render_style.length_scale);
+	prog.set_uniform(ctx, "antialias_radius", render_style.antialias_radius);
+
+	// CGV surface/lighting parameters
+	const surface_render_style& srs = *static_cast<const surface_render_style*>(&render_style);
+	prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
+	prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
+	prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
+}
+
 
 void on_tube_vis::draw_trajectories(context& ctx)
 {
@@ -3396,11 +3469,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// If the segment buffer is contiguous in memory.
 		if (render.segment_buffer.front() < render.segment_buffer.gpu_back()) {
 			GLsizei count = render.segment_buffer.gpu_back() - render.segment_buffer.front();
-			tstr.render(
-				ctx,
-				render.segment_buffer.front(),
-				render.segment_buffer.gpu_back() - render.segment_buffer.front()
-			);
+			tstr.render(ctx, render.segment_buffer.front(), count);
 		}
 		// If the segment buffer wraps around,
 		else {
@@ -3412,7 +3481,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 				static_cast<GLsizei>(render.segment_buffer.as_span().length() - render.segment_buffer.front()),
 				static_cast<GLsizei>(render.segment_buffer.gpu_back())
 			};
-			std::ignore = tstr.multirender_indexed(ctx, render.aam, span_starts.data(), span_lens.data(), 2);
+			std::ignore = tstr.multirender_indexed(ctx, /*render.aam, */span_starts.data(), span_lens.data(), 2);
 		}
 
 		tstr.disable_attribute_array_manager(ctx, render.aam);
@@ -3438,64 +3507,15 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// perform the deferred shading pass and draw the image into the shading framebuffer when not using OptiX (for now)
 		shader_program& prog = shaders.get("tube_shading");
 		prog.enable(ctx);
-		// set render parameters
-		prog.set_uniform(ctx, "use_gamma", true);
 
-		// set ambient occlusion parameters
-		if(ao_style.enable) {
-			//prog.set_uniform(ctx, "ambient_occlusion.enable", ao_style.enable);
-			prog.set_uniform(ctx, "ambient_occlusion.sample_offset", ao_style.sample_offset);
-			prog.set_uniform(ctx, "ambient_occlusion.sample_distance", ao_style.sample_distance);
-			prog.set_uniform(ctx, "ambient_occlusion.strength_scale", ao_style.strength_scale);
-
-			prog.set_uniform(ctx, "ambient_occlusion.tex_offset", ao_style.texture_offset);
-			prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", ao_style.texture_scaling);
-			prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", ao_style.texcoord_scaling);
-			prog.set_uniform(ctx, "ambient_occlusion.texel_size", ao_style.texel_size);
-
-			prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
-			prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
-		}
-
-		// set grid parameters
-		prog.set_uniform(ctx, "grid_color", grid_color);
-		prog.set_uniform(ctx, "normal_mapping_scale", normal_mapping_scale);
-		for(size_t i = 0; i < grids.size(); ++i) {
-			std::string base_name = "grids[" + std::to_string(i) + "].";
-			prog.set_uniform(ctx, base_name + "scaling", grids[i].scaling);
-			prog.set_uniform(ctx, base_name + "thickness", grids[i].thickness);
-			prog.set_uniform(ctx, base_name + "blend_factor", grids[i].blend_factor);
-		}
-
-		// set attribute mapping parameters
+		// Set tube shading uniforms
 		const auto &glyph_layers_config = render.visualizations.front().config;
-		for(const auto& p : glyph_layers_config.constant_float_parameters)
-			prog.set_uniform(ctx, p.first, *p.second);
-
-		for(const auto& p : glyph_layers_config.constant_color_parameters)
-			prog.set_uniform(ctx, p.first, *p.second);
-
-		for(const auto& p : glyph_layers_config.mapping_parameters)
-			prog.set_uniform(ctx, p.first, *p.second);
-
-		// map global settings
-		prog.set_uniform(
-			ctx, "use_curvature_correction", (
-				#if RTX_SUPPORT
-					optix.enabled ||
-				#endif
-				render.style.is_tube()
-			) && render.style.use_curvature_correction
+		tube_shading.set_uniforms(
+			ctx, prog, render.style, glyph_layers_config
+			#if RTX_SUPPORT
+				, optix.enabled
+			#endif
 		);
-
-		prog.set_uniform(ctx, "length_scale", render.style.length_scale);
-		prog.set_uniform(ctx, "antialias_radius", render.style.antialias_radius);
-
-		const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
-
-		prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
-		prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
-		prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
 
 		#ifdef RTX_SUPPORT
 			prog.set_uniform(ctx, "holographic_raycast", optix.enabled && optix.initialized && optix.holographic);
@@ -3511,7 +3531,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		fbc.enable_attachment(ctx, "normal", 2);
 		fbc.enable_attachment(ctx, "tangent", 3);
 		tex_depth.enable(ctx, 4);
-		if(ao_style.enable)
+		if(tube_shading.ao_style.enable)
 			density_tex.enable(ctx, 5);
 		color_map_mgr.ref_texture().enable(ctx, 6);
 
@@ -3559,7 +3579,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		fbc.disable_attachment(ctx, "normal");
 		fbc.disable_attachment(ctx, "tangent");
 		tex_depth.disable(ctx);
-		if(ao_style.enable)
+		if(tube_shading.ao_style.enable)
 			density_tex.disable(ctx);
 		color_map_mgr.ref_texture().disable(ctx);
 
@@ -3586,20 +3606,11 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// safely manipulated again.
 		render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
-		// Flush the command buffer.
+		// flush the command buffer.
 		glFlush();
 
-
-		////
-		// RENDER EXTRAPOLATIONS
-
-		tstr.set_render_style(client.extrapol_mgr.render.style);
-		//tstr.set_or
-		tstr.enable_attribute_array_manager(ctx, client.extrapol_mgr.render.aam);
-			tstr.render(ctx, 0, 1);
-			/* */
-		tstr.disable_attribute_array_manager(ctx, client.extrapol_mgr.render.aam);
-
+		// render extrapolations
+		client.extrapol_mgr.draw_extrapolations(ctx);
 
 		// Make sure we keep drawing if required
 		if(playback.active || client.extrapol_mgr.update_needed())
@@ -3620,28 +3631,29 @@ void on_tube_vis::draw_density_volume(context& ctx)
 	vr.render(ctx, 0, 0);
 }
 
-shader_define_map on_tube_vis::build_tube_shading_defines()
-{
+shader_define_map on_tube_vis::build_tube_shading_defines(
+		const tube_shading_settings &tube_shading, const debug_settings &debug, const otv::on_tube_visualization &otv
+){
 	shader_define_map defines;
 
 	// debug defines
 	shader_code::set_define(defines, "DEBUG_SEGMENTS", debug.highlight_segments, false);
 
 	// ambient occlusion defines
-	shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
+	shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", tube_shading.ao_style.enable, true);
 
 	// grid defines
-	shader_code::set_define(defines, "GRID_MODE", grid_mode, GM_COLOR);
-	unsigned gs = static_cast<unsigned>(grid_normal_settings);
-	if(grid_normal_inwards) gs += 4u;
-	if(grid_normal_variant) gs += 8u;
+	shader_code::set_define(defines, "GRID_MODE", tube_shading.grid_mode, GM_COLOR);
+	auto gs = static_cast<unsigned>(tube_shading.grid_normal_settings);
+	if(tube_shading.grid_normal_inwards) gs += 4u;
+	if(tube_shading.grid_normal_variant) gs += 8u;
 	shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
-	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
+	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", tube_shading.enable_fuzzy_grid, false);
 
 	// glyph layer defines
-	if (render.visualizations.size() > 0)
+	//if (render.visualizations.size() > 0)
 	{
-		const auto &glyph_layers_config = render.visualizations.front().config;
+		const auto &glyph_layers_config = otv.config;
 		shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
 
 		shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));

@@ -204,7 +204,7 @@ namespace cgv { // @<
 			/// Draw multiple subspans of an index buffer with a single draw call.
 			[[nodiscard]] bool multirender_indexed(
 				context& ctx,
-				const attribute_array_manager &aam,
+				//const attribute_array_manager &aam,
 				const void *const *span_starts,
 				const GLsizei *span_lens, 
 				GLsizei num_spans

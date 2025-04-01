@@ -188,7 +188,7 @@ namespace cgv {
 
 		[[nodiscard]] bool textured_spline_tube_renderer::multirender_indexed(
 			context& ctx,
-			const attribute_array_manager &aam,
+			//const attribute_array_manager &aam,
 			const void *const *span_starts,
 			const GLsizei *span_lens,
 			GLsizei num_spans

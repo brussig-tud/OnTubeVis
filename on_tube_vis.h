@@ -237,14 +237,28 @@ protected:
 		float blend_factor;
 	};
 
-	GridMode grid_mode;
-	rgba grid_color;
-	cgv::type::DummyEnum grid_normal_settings;
-	bool grid_normal_inwards;
-	bool grid_normal_variant;
-	float normal_mapping_scale;
-	std::vector<grid_parameters> grids;
-	bool enable_fuzzy_grid;
+	/// tube shading settings
+	struct tube_shading_settings
+	{
+		rgba grid_color;
+		GridMode grid_mode;
+		cgv::type::DummyEnum grid_normal_settings;
+		bool grid_normal_inwards;
+		bool grid_normal_variant;
+		bool enable_fuzzy_grid;
+		float normal_mapping_scale;
+		std::vector<grid_parameters> grids;
+
+		ambient_occlusion_style ao_style;
+
+		void set_uniforms (
+			context &ctx, shader_program &prog, const textured_spline_tube_render_style &render_style,
+			const glyph_layer_manager::configuration &glyph_layers_config
+		#if RTX_SUPPORT
+			, bool optix_enabled
+		#endif
+		) const;
+	} tube_shading;
 
 	/// shader defines for the deferred shading pass
 	shader_define_map tube_shading_defines;
@@ -431,7 +445,7 @@ protected:
 	};
 
 	/// debug state fields
-	struct {
+	struct debug_settings {
 		DebugRenderMode render_mode = DRM_NONE;
 
 		/// debug render data
@@ -500,7 +514,7 @@ protected:
 	texture tf_tex;
 
 	voxelizer density_volume;
-	ambient_occlusion_style ao_style, ao_style_bak; // the latter is used to restore defaults after demo data is unloaded
+	ambient_occlusion_style ao_style_bak; // used to restore defaults after demo data is unloaded
 
 	bool save_layer_configuration(const std::string& file_name);
 	bool read_layer_configuration(const std::string& file_name);
@@ -534,7 +548,9 @@ protected:
 	void draw_density_volume(context& ctx);
 
 	/// helper methods
-	shader_define_map build_tube_shading_defines();
+	static shader_define_map build_tube_shading_defines(
+		const tube_shading_settings &tube_shading, const debug_settings &debug, const otv::on_tube_visualization &otv
+	);
 	void on_register();
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
 

@@ -90,11 +90,9 @@ bool span<Elem>::flush () const noexcept
 		return true;
 	}
 	// Flush.
-	glFlushMappedBufferRange(
-		GL_COPY_READ_BUFFER,
-		bytes().data() - buffer().data(),
-		bytes().length()
-	);
+	const auto offset = bytes().data() - buffer().data();
+	const auto length = bytes().length();
+	glFlushMappedBufferRange(GL_COPY_READ_BUFFER, offset, length);
 
 	return check_gl_errors("gpumem::span::flush");
 }
