@@ -39,7 +39,6 @@
 #include "demo.h" // interactive testbed helper classes and data
 #include "attrib_handle_manager.h"
 #include "voxelizer.h"
-#include "ambient_occlusion_style.h"
 #include "color_map_manager.h"
 #include "color_legend_manager.h"
 #include "textured_spline_tube_renderer.h"
@@ -52,14 +51,6 @@
 #include "optixtracer_textured_spline_tube.h"
 #endif
 
-
-// define GridMode outside of main on_tube_vis class to be able to use it with type reflection
-enum GridMode {
-	GM_NONE = 0,
-	GM_COLOR = 1,
-	GM_NORMAL = 2,
-	GM_COLOR_AND_NORMAL = 3
-};
 
 namespace cgv {
 namespace reflect {
@@ -231,35 +222,10 @@ protected:
 	bool show_navigator = false;
 	bool show_performance_monitor = false;
 
-	struct grid_parameters {
-		vec2 scaling;
-		float thickness;
-		float blend_factor;
-	};
-
 	/// tube shading settings
-	struct tube_shading_settings
-	{
-		rgba grid_color;
-		GridMode grid_mode;
-		cgv::type::DummyEnum grid_normal_settings;
-		bool grid_normal_inwards;
-		bool grid_normal_variant;
-		bool enable_fuzzy_grid;
-		float normal_mapping_scale;
-		std::vector<grid_parameters> grids;
+	tube_shading_settings tube_shading;
 
-		ambient_occlusion_style ao_style;
-
-		void set_uniforms (
-			context &ctx, shader_program &prog, const textured_spline_tube_render_style &render_style,
-			const glyph_layer_manager::configuration &glyph_layers_config
-		#if RTX_SUPPORT
-			, bool optix_enabled
-		#endif
-		) const;
-	} tube_shading;
-
+protected:
 	/// shader defines for the deferred shading pass
 	shader_define_map tube_shading_defines;
 
@@ -548,9 +514,6 @@ protected:
 	void draw_density_volume(context& ctx);
 
 	/// helper methods
-	static shader_define_map build_tube_shading_defines(
-		const tube_shading_settings &tube_shading, const debug_settings &debug, const otv::on_tube_visualization &otv
-	);
 	void on_register();
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
 

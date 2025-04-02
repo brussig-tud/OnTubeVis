@@ -30,7 +30,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 11e19bbbb3036a356bbf63c2249c925071c138e8
+		GIT_TAG e76552bd63598314e0b7114be1f0e0d473b30284
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -109,6 +109,7 @@ set(SOURCES
 	gpumem/memory_pool.cxx
 
 	# Trajectory rendering.
+	render/common.cxx
 	render/extrapolation.cxx
 	render/state.cxx
 	render/trajectory.cxx

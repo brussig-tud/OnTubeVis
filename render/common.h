@@ -5,6 +5,9 @@
 
 // Local includes
 #include <OnTubeVis/OnTubeVis.h>
+#include "../ambient_occlusion_style.h"
+#include "../textured_spline_tube_renderer.h"
+#include "../glyph_layer_manager.h"
 #include "util.h"
 
 
@@ -32,6 +35,48 @@ struct node_attribs {
 			otv__Vec3(tangent.x(), tangent.y(), tangent.z())
 		};
 	}
+};
+
+// define GridMode outside of main on_tube_vis class to be able to use it with type reflection
+enum GridMode {
+	GM_NONE = 0,
+	GM_COLOR = 1,
+	GM_NORMAL = 2,
+	GM_COLOR_AND_NORMAL = 3
+};
+
+/// tube shading settings
+struct tube_shading_settings
+{
+	struct grid_parameters {
+		cgv::vec2 scaling;
+		float thickness;
+		float blend_factor;
+	};
+
+	cgv::rgba grid_color;
+	GridMode grid_mode;
+	cgv::type::DummyEnum grid_normal_settings;
+	bool grid_normal_inwards;
+	bool grid_normal_variant;
+	bool enable_fuzzy_grid;
+	float normal_mapping_scale;
+	std::vector<grid_parameters> grids;
+
+	ambient_occlusion_style ao_style;
+
+	[[nodiscard]] cgv::render::shader_define_map build_tube_shading_defines (
+		const glyph_layer_manager::configuration &glyph_layers_config, bool debug_highlight_segments=false
+	) const;
+
+	void set_uniforms (
+		cgv::render::context &ctx, cgv::render::shader_program &prog,
+		const cgv::render::textured_spline_tube_render_style &render_style,
+		const glyph_layer_manager::configuration &glyph_layers_config
+	#if RTX_SUPPORT
+		, bool optix_enabled
+	#endif
+	) const;
 };
 
 

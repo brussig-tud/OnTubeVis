@@ -144,8 +144,10 @@ void extrapolation_manager::reinit_layer_config (void)
 	}
 }
 
-bool extrapolation_manager::create_glyph_and_per_layer_buffers (unsigned per_layer_min_glyphs_capacity)
-{
+bool extrapolation_manager::create_glyph_and_per_layer_buffers (
+		const tube_shading_settings &tube_shading, const glyph_layer_manager::configuration &layer_config,
+		unsigned per_layer_min_glyphs_capacity
+){
 	// Sanity checks
 	assert(
 		!geom.nodes_arena.ring_buffers.empty() &&
@@ -190,6 +192,13 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (unsigned per_lay
 			);
 		}
 	}
+
+	// Copy tube shading configuration form on_tube_vis as basis and modify for extrapolation
+	render.tube_shading = tube_shading;
+	const auto tube_shading_defines = render.tube_shading.build_tube_shading_defines(
+		layer_config, false
+	);
+	render.tstr.set_additional_defines(tube_shading_defines);
 
 	// Done!
 	return _.disarm(success);
@@ -758,6 +767,7 @@ bool extrapolation_manager::update_needed (void) const {
 
 void extrapolation_manager::update (void) {
 	render.style.max_t = std::numeric_limits<float>::max()-1.f;
+	state.update_needed = false;
 }
 
 void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx)
@@ -801,7 +811,7 @@ void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx)
 		geom.t_to_s_arena.data_memory.handle(),/*
 		geom.test_nodes.data_memory.handle(),
 		geom.test_alens.data_memory.handle(),*/
-		(GLuint&)node_id_buf->handle-1 // <- make sure to include node indices SBO since we're drawing attriubute-less
+		cgv::render::gl::get_gl_id(node_id_buf->handle) // <- required since we're drawing attribute-less
 	};
 	glBindBuffersBase(
 		GL_SHADER_STORAGE_BUFFER, 0, (GLsizei)buffer_handles.size(), buffer_handles.data()

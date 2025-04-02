@@ -87,8 +87,11 @@ namespace cgv {
 			}
 			return true;
 		}
-		void textured_spline_tube_renderer::set_additional_defines(shader_define_map& defines) {
+		void textured_spline_tube_renderer::set_additional_defines(const shader_define_map &defines) {
 			additional_defines = defines;
+		}
+		void textured_spline_tube_renderer::set_additional_defines(shader_define_map &&defines) {
+			additional_defines = std::move(defines);
 		}
 		void textured_spline_tube_renderer::update_defines(shader_define_map& defines)
 		{

@@ -13,6 +13,10 @@
 #include "gpumem/ring_buffer_alt.h"
 
 
+// Forward declarations
+class on_tube_vis;
+
+
 namespace otv
 {
 
@@ -152,6 +156,9 @@ struct extrapolation_manager
 		/// render style for the textured spline tubes
 		cgv::render::textured_spline_tube_render_style style;
 
+		/// the tube shading configuration for the forward renderer
+		tube_shading_settings tube_shading;
+
 		/// custom attribute array manager for binding the ring buffers to the renderer
 		cgv::render::attribute_array_manager aam;
 	} render;
@@ -188,7 +195,10 @@ struct extrapolation_manager
 
 	/// Create all buffers relating to per-layer non-geometric information (glyph instances, mapping ranges). Must not
 	/// be called before @ref reinit_layer_config() has been called at least once!
-	bool create_glyph_and_per_layer_buffers (unsigned per_layer_min_glyphs_capacity=128);
+	bool create_glyph_and_per_layer_buffers (
+		const tube_shading_settings &tube_shading, const glyph_layer_manager::configuration &layer_config,
+		unsigned per_layer_min_glyphs_capacity=128
+	);
 
 	/// Fully replace the current extrapolation for the given trajectory
 	void replace_extrapolation (

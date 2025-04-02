@@ -1146,7 +1146,9 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 		client.commit_session();
 	ah_mgr.set_dataset(ds);
 
-	tube_shading_defines = build_tube_shading_defines(tube_shading, debug, render.visualizations.front());
+	tube_shading_defines = tube_shading.build_tube_shading_defines(
+		render.visualizations.front().config, debug.highlight_segments
+	);
 	shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
 	// reset glyph layer configuration file
@@ -1196,7 +1198,9 @@ bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 		glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 		context& ctx = *get_context();
-		tube_shading_defines = build_tube_shading_defines(tube_shading, debug, render.visualizations.front());
+		tube_shading_defines = tube_shading.build_tube_shading_defines(
+			render.visualizations.front().config, debug.highlight_segments
+		);
 		shaders.reload(ctx, "tube_shading", tube_shading_defines);
 
 		compile_glyph_attribs();
@@ -1307,7 +1311,9 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 			tube_shading.enable_fuzzy_grid
 		)
 	){
-		shader_define_map defines = build_tube_shading_defines(tube_shading, debug, render.visualizations.front());
+		shader_define_map defines = tube_shading.build_tube_shading_defines(
+			render.visualizations.front().config, debug.highlight_segments
+		);
 		if(defines != tube_shading_defines) {
 			context& ctx = *get_context();
 			tube_shading_defines = defines;
@@ -1824,6 +1830,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			client.extrapol_mgr.reinit_layer_config();
 			if (client.num_extrapol_segments)
 				client.extrapol_mgr.create_glyph_and_per_layer_buffers(
+					tube_shading, render.visualizations.front().config,
 					/* min_glyphs_capacity_per_traj_and_layer: */std::min<unsigned>(session_glyphbuf_size/64, 128)
 				);
 
@@ -2470,7 +2477,7 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		client.update();
 	}
 
-	// Handle extrapolations. FIXME: Verify if it's safe to move into client.update()
+	// Handle extrapolations.
 	client.extrapol_mgr.update();
 
 	if(benchmark.requested) {
@@ -3308,72 +3315,6 @@ void on_tube_vis::draw_dnd(context& ctx) {
 	ctx.pop_pixel_coords();
 }
 
-void on_tube_vis::tube_shading_settings::set_uniforms (
-	context &ctx, shader_program &prog, const textured_spline_tube_render_style &render_style,
-	const glyph_layer_manager::configuration &glyph_layers_config
-	#if RTX_SUPPORT
-		, bool optix_enabled
-	#endif
-) const {
-	// set render parameters
-	prog.set_uniform(ctx, "use_gamma", true);
-
-	// set ambient occlusion parameters
-	if(ao_style.enable) {
-		//prog.set_uniform(ctx, "ambient_occlusion.enable", ao_style.enable);
-		prog.set_uniform(ctx, "ambient_occlusion.sample_offset", ao_style.sample_offset);
-		prog.set_uniform(ctx, "ambient_occlusion.sample_distance", ao_style.sample_distance);
-		prog.set_uniform(ctx, "ambient_occlusion.strength_scale", ao_style.strength_scale);
-
-		prog.set_uniform(ctx, "ambient_occlusion.tex_offset", ao_style.texture_offset);
-		prog.set_uniform(ctx, "ambient_occlusion.tex_scaling", ao_style.texture_scaling);
-		prog.set_uniform(ctx, "ambient_occlusion.texcoord_scaling", ao_style.texcoord_scaling);
-		prog.set_uniform(ctx, "ambient_occlusion.texel_size", ao_style.texel_size);
-
-		prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
-		prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
-	}
-
-	// set grid parameters
-	prog.set_uniform(ctx, "grid_color", grid_color);
-	prog.set_uniform(ctx, "normal_mapping_scale", normal_mapping_scale);
-	for(size_t i=0; i<grids.size(); ++i) {
-		std::string base_name = "grids[" + std::to_string(i) + "].";
-		prog.set_uniform(ctx, base_name + "scaling", grids[i].scaling);
-		prog.set_uniform(ctx, base_name + "thickness", grids[i].thickness);
-		prog.set_uniform(ctx, base_name + "blend_factor", grids[i].blend_factor);
-	}
-
-	// set attribute mapping parameters
-	for(const auto& p : glyph_layers_config.constant_float_parameters)
-		prog.set_uniform(ctx, p.first, *p.second);
-
-	for(const auto& p : glyph_layers_config.constant_color_parameters)
-		prog.set_uniform(ctx, p.first, *p.second);
-
-	for(const auto& p : glyph_layers_config.mapping_parameters)
-		prog.set_uniform(ctx, p.first, *p.second);
-
-	// map global settings
-	prog.set_uniform(
-		ctx, "use_curvature_correction", (
-			#if RTX_SUPPORT
-				optix_enabled ||
-			#endif
-			render_style.is_tube()
-		) && render_style.use_curvature_correction
-	);
-	prog.set_uniform(ctx, "length_scale", render_style.length_scale);
-	prog.set_uniform(ctx, "antialias_radius", render_style.antialias_radius);
-
-	// CGV surface/lighting parameters
-	const surface_render_style& srs = *static_cast<const surface_render_style*>(&render_style);
-	prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
-	prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
-	prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
-}
-
-
 void on_tube_vis::draw_trajectories(context& ctx)
 {
 	// common init
@@ -3449,19 +3390,20 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// render.render_sbo.bind(ctx, VBT_STORAGE, 0);
 
 		// Bind buffers.
-		glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 2, std::array{
-			render.node_buffer.as_span().handle(),
-			render.t_to_s.handle()
-		}.data());
+		tstr.set_node_id_array(ctx, render.segment_buffer.as_span().data(), render.segment_buffer.as_span().length(), sizeof(uvec2));
 		// glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, render.node_buffer.handle());
 		// render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
-		tstr.set_node_id_array(ctx, render.segment_buffer.as_span().data(), render.segment_buffer.as_span().length(), sizeof(uvec2));
+		glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 3, std::array{
+			render.node_buffer.as_span().handle(),
+			render.t_to_s.handle(),
+			gl::get_gl_id(node_idx_buffer_ptr->handle) // <- streaming requires we always bind the node indices as SBO regardless of attribute-less mode
+		}.data());
 
-		//if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
+		/*if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
 			// for now we always bind the node indices buffer to enable smooth intra-segment t filtering
 			node_idx_buffer_ptr->bind(ctx, VBT_STORAGE, 2);
 			// tstr.render(ctx, 0, count);
-		/*}
+		*//*}
 		else
 			tstr.render(ctx, 0, count);*/
 
@@ -3589,6 +3531,9 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		auto wait_result = glClientWaitSync(render.draw_fence, 0, -1);
 		glDeleteSync(render.draw_fence);
 
+		// render extrapolations
+		client.extrapol_mgr.draw_extrapolations(ctx);
+
 		// Ensure that there is enough memory for new glyphs.
 		for (auto &traj : render.trajectories) {
 			traj.trim_glyphs();
@@ -3609,9 +3554,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// flush the command buffer.
 		glFlush();
 
-		// render extrapolations
-		client.extrapol_mgr.draw_extrapolations(ctx);
-
 		// Make sure we keep drawing if required
 		if(playback.active || client.extrapol_mgr.update_needed())
 			post_redraw();
@@ -3629,46 +3571,6 @@ void on_tube_vis::draw_density_volume(context& ctx)
 	vr.transform_to_bounding_box(true);
 
 	vr.render(ctx, 0, 0);
-}
-
-shader_define_map on_tube_vis::build_tube_shading_defines(
-		const tube_shading_settings &tube_shading, const debug_settings &debug, const otv::on_tube_visualization &otv
-){
-	shader_define_map defines;
-
-	// debug defines
-	shader_code::set_define(defines, "DEBUG_SEGMENTS", debug.highlight_segments, false);
-
-	// ambient occlusion defines
-	shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", tube_shading.ao_style.enable, true);
-
-	// grid defines
-	shader_code::set_define(defines, "GRID_MODE", tube_shading.grid_mode, GM_COLOR);
-	auto gs = static_cast<unsigned>(tube_shading.grid_normal_settings);
-	if(tube_shading.grid_normal_inwards) gs += 4u;
-	if(tube_shading.grid_normal_variant) gs += 8u;
-	shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
-	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", tube_shading.enable_fuzzy_grid, false);
-
-	// glyph layer defines
-	//if (render.visualizations.size() > 0)
-	{
-		const auto &glyph_layers_config = otv.config;
-		shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
-
-		shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
-		shader_code::set_define(defines, "CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
-		shader_code::set_define(defines, "MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
-
-		for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
-			const auto& lc = glyph_layers_config.layer_configs[i];
-			shader_code::set_define(defines, "L" + std::to_string(i) + "_VISIBLE", lc.visible, true);
-			shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
-			shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
-		}
-	}
-
-	return defines;
 }
 
 
