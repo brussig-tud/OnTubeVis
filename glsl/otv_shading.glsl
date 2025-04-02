@@ -38,7 +38,7 @@ mat3 get_normal_matrix();
 mat3 get_inverse_normal_matrix();
 //***** end interface of view.glsl ***********************************
 
-////***** begin interface of surface.glsl ***********************************
+////***** begin interface of surface.glsl *********************************
 vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color, int side, float specular_factor);
 ////***** end interface of surface.glsl ***********************************
 

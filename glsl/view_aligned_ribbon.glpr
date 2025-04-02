@@ -8,7 +8,7 @@ fragment_file:view.glsl
 fragment_file:side.glsl
 fragment_file:lights.glsl
 fragment_file:brdf.glsl
-fragment_file:surface.glsl
+fragment_file:surface_mod.glsl
 fragment_file:fragment.glfs
 fragment_file:transform.glsl
 fragment_file:curve_tools.glsl

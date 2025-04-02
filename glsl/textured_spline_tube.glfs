@@ -92,6 +92,9 @@ uniform vec4 viewport;
 uniform float max_t;
 uniform float cap_clip_distance;
 
+uniform vec3 gamma3 = vec3(2.2);
+
+
 struct node_data_type {
 	vec4 pos_rad;
 	vec4 color;
@@ -135,7 +138,7 @@ layout (depth_greater) out float gl_FragDepth;
 #endif
 
 #if FORWARD_SHADING == 1
-	out vec4 frag_albedo;
+	out vec4 color_out;
 #else
 	layout (location = 0) out uvec4 frag_albedo;
 	layout (location = 1) out vec3 frag_position;
@@ -907,7 +910,7 @@ void main()
 	return;
 #elif MODE == 1
 	#if FORWARD_SHADING == 1
-		frag_albedo = vec4(1,0,0,1);
+		color_out = vec4(1,0,0,1);
 	#else
 		frag_albedo = uvec4(0xFF0000FF, floatBitsToUint(0.0), floatBitsToUint(0.0), 0);
 		frag_position = vec3(0.0, 0.0, 1.0);
@@ -949,7 +952,7 @@ void main()
 	if(hit.t == POS_INF || (hit.cap && hit.t > cap_clip_distance)) {
 #if MODE == 2
 	#if FORWARD_SHADING == 1
-		frag_albedo = vec4(1,0,0,1);
+		color_out = vec4(1,0,0,1);
 	#else
 		frag_albedo = uvec4(0xFF0000FF, floatBitsToUint(0.0), floatBitsToUint(0.0), 0);
 		frag_position = vec3(0.0, 0.0, 1.0);
@@ -963,7 +966,7 @@ void main()
 		vec3 hit_pos_eye = direction * hit.t;
 		float spline_t = hit.l * 0.5 + l_offset_fs;
 		// determine color - since we ignore the tangents, interpolation is just linear
-		const vec4 col = spline_t >= max_t ? vec4(0.75, 0.75, 0.75, 1) :
+		vec4 col = spline_t >= max_t ? vec4(0.75, 0.75, 0.75, 1) :
 		#if ATTRIB_MODE & 2
 			vec4(mix(color0, color1, spline_t), 1.0);
 		#else
@@ -992,7 +995,11 @@ void main()
 
 		//frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(col)), spline_t, v, intBitsToFloat(segment_id_fs));
 #if FORWARD_SHADING == 1
-		frag_albedo = col/*vec4(1,0,1,1)*/;
+		col = otv_shade_fragment(
+			col.rgb, /*texcoord: */vec2(alen(spline_t), v), segment_id_fs,  hit_pos_eye.xyz, hit.normal, tangent,
+			gl_FragDepth, /*specular_factor: */1
+		);
+		color_out = vec4(pow(col.rgb, 1.0/gamma3), col.a);
 #else
 		frag_albedo = uvec4(
 			packUnorm4x8(col),

@@ -776,6 +776,11 @@ void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx)
 	if (geom.node_indices.empty())
 		return;
 
+	// Pull in up-to-date render style settings
+	render.style = otv_render.style;
+	render.style.attrib_mode = cgv::render::textured_spline_tube_render_style::AM_ATTRIBLESS;
+	render.style.forward = true; // <- can't use deferred shading with transparency
+
 	// Set up draw call
 	/*auto nodes = geom.test_nodes.data_memory.data();
 	nodes[0].color.set(0, 1, 0, 1);

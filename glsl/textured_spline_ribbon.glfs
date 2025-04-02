@@ -14,6 +14,8 @@
    3: Attribute-less (except segment and sub-curve ids) */
 #define ATTRIB_MODE 0
 
+#define FORWARD_SHADING 0
+
 #define FLT_EPS 1.19209290e-07
 #define POS_INF 3e+37
 #define NEG_INF -3e+37
@@ -76,6 +78,9 @@ uniform vec4 viewport;
 uniform float max_t;
 uniform float cap_clip_distance;
 
+uniform vec3 gamma3 = vec3(2.2);
+
+
 struct node_data_type {
 	vec4 pos_rad;
 	vec4 color;
@@ -112,10 +117,14 @@ in flat float l_offset_fs;
 in flat int segment_id_fs;
 in flat mat4 SM_fs; // spline matrix
 
-layout (location = 0) out uvec4 frag_albedo;
-layout (location = 1) out vec3 frag_position;
-layout (location = 2) out vec3 frag_normal;
-layout (location = 3) out vec3 frag_tangent;
+#if FORWARD_SHADING == 1
+	out vec4 color_out;
+#else
+	layout (location = 0) out uvec4 frag_albedo;
+	layout (location = 1) out vec3 frag_position;
+	layout (location = 2) out vec3 frag_normal;
+	layout (location = 3) out vec3 frag_tangent;
+#endif
 
 #define DEF_SplitCurve0(T)						\
 void SplitCurve0(T v0, T d0, T v1, T d1,		\
@@ -280,10 +289,14 @@ void main()
 	discard;
 	return;
 #elif MODE == 1
-	frag_albedo = uvec4(0xFF0000FF, floatBitsToUint(0.0), floatBitsToUint(0.0), 0);
-	frag_position = vec3(0.0, 0.0, 1.0);
-	frag_normal = vec3(0.0, 0.0, 1.0);
-	frag_tangent = vec3(1.0, 0.0, 0.0);
+	#if FORWARD_SHADING == 1
+		color_out = vec4(1,0,1,1);
+	#else
+		frag_albedo = uvec4(0xFF0000FF, floatBitsToUint(0.0), floatBitsToUint(0.0), 0);
+		frag_position = vec3(0.0, 0.0, 1.0);
+		frag_normal = vec3(0.0, 0.0, 1.0);
+		frag_tangent = vec3(1.0, 0.0, 0.0);
+	#endif
 	return;
 #else
 	vec3 hit_pos_eye = position_fs;
@@ -303,14 +316,18 @@ void main()
 
 	float v = texcoords_fs.y;
 
-	frag_albedo = uvec4(
-		packUnorm4x8(col),
-		floatBitsToUint(alen(spline_t)),
-		floatBitsToUint(v),
-		segment_id_fs
-	);
-	frag_position = vec3(hit_pos_eye);
-	frag_normal = normal_fs;
-	frag_tangent = tangent;
+	#if FORWARD_SHADING == 1
+		color_out = vec4(pow(col.rgb, 1.0/gamma3), col.a);
+	#else
+		frag_albedo = uvec4(
+			packUnorm4x8(col),
+			floatBitsToUint(alen(spline_t)),
+			floatBitsToUint(v),
+			segment_id_fs
+		);
+		frag_position = vec3(hit_pos_eye);
+		frag_normal = normal_fs;
+		frag_tangent = tangent;
+	#endif
 #endif
 }
