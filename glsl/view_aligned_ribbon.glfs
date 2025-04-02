@@ -278,24 +278,22 @@ uniform float subdiv_abort_thr = 512;
 uniform vec3 gamma3 = vec3(2.2);
 
 
-#if ATTRIB_MODE > 0
-	struct node_data_type {
-		vec4 pos_rad;
-		vec4 color;
-		vec4 tangent;
-		vec4 t; // only uses .x component to store t, yzw are reserved for future use
-	};
+struct node_data_type {
+	vec4 pos_rad;
+	vec4 color;
+	vec4 tangent;
+	vec4 t; // only uses .x component to store t, yzw are reserved for future use
+};
 
-	// node attribute buffer
-	layout(std430, binding=0) readonly buffer data_buffer {
-		node_data_type nodes[];
-	};
+// node attribute buffer
+layout(std430, binding=0) readonly buffer data_buffer {
+	node_data_type nodes[];
+};
 
-	// node index pair buffer
-	layout(std430, binding=2) readonly buffer nid_buffer {
-		uvec2 node_ids[];
-	};
-#endif
+// node index pair buffer
+layout(std430, binding=2) readonly buffer nid_buffer {
+	uvec2 node_ids[];
+};
 
 // arclen approximations SBO
 layout (std430, binding=1) readonly buffer arclen_buffer {
@@ -598,16 +596,18 @@ void main()
 
 	// Init stack
 	// - retrieve segment curve data
+	uvec2 nids = node_ids[segment_id_fs];
 	#if ATTRIB_MODE > 0
 		#if ATTRIB_MODE & 2
 			// Re-declare the two color values since we don't have them as attribute inputs
 			mat2x4 color_fs;
 		#endif
 		#if ATTRIB_MODE & 1
+		float n0_t, n1_t;
 		/* local scope */ {
 			// Fetch nodes from attribute buffers
-			node_data_type n0 = nodes[node_ids[segment_id_fs].x],
-			               n1 = nodes[node_ids[segment_id_fs].y];
+			node_data_type n0 = nodes[nids.x], n1 = nodes[nids.y];
+			n0_t=n0.t.x; n1_t=n1.t.x;
 
 			// Transform to eye-space, split and put onto stack as root task directly, without creating and converting from a
 			// Hermite curve first
@@ -637,10 +637,7 @@ void main()
 			#endif
 		}
 		#elif ATTRIB_MODE & 2
-			color_fs = mat2x4(
-				nodes[node_ids[segment_id_fs].x].color,
-				nodes[node_ids[segment_id_fs].y].color
-			);
+			color_fs = mat2x4(nodes[nids.x].color, nodes[nids.y].color);
 			color_fs[0] = t_offset_fs == 0 ? color_fs[0] : .5*(color_fs[0]+color_fs[1]);
 			color_fs[1] = t_offset_fs == 0 ? .5*(color_fs[0]+color_fs[1]) : color_fs[1];
 		#endif
@@ -649,6 +646,7 @@ void main()
 		// Unpack curve-related attributes into root task on stack
 		stack[0].curve = mat4x3(curve_fs);
 		stack[0].radius = vec4(curve_fs[0].w, curve_fs[1].w, curve_fs[2].w, curve_fs[3].w);
+		float n0_t=nodes[nids.x].t.x, n1_t=nodes[nids.y].t.x;
 	#endif
 	// - if applicable, immediatly transform according to chosen constant bbox coordinate system
 	#if BBOX_COORD_SYSTEM!=1
@@ -672,6 +670,10 @@ void main()
 	#endif
 	// - store root parameter interval
 	stack[0].t = vec2(0, 1);
+
+	// Determine curve parameter after which to discard intersections according to user-requested max time
+	float t_max_cubic = (max_t - n0_t)/(n1_t - n0_t);
+	float t_max = t_offset_fs > 0.0 ? 2*(t_max_cubic - 0.5) : t_max_cubic + t_max_cubic;
 
 	// Main loop
 	// - prepare result variables
@@ -741,10 +743,16 @@ void main()
 				subdiv_abort = dot(cdelta, cdelta) < subdiv_abort_thr;
 			}
 
-			// Evaluate subdivision criteria and proceed accordingly
-			if (  (nonlinearness(curve) < linearity_thr && nonlinearness(radius) < linearity_thr && dot(bt[0], bt[1]) > screwiness_thr)
-			    || sp > STACK_OVERFLOW_THRESHOLD || subdiv_abort)
-			{
+			// Completely discard segment if it's beyond the selected user threshold
+			if (t_stack.x > t_max)
+				sp--;
+
+			// Otherwise evaluate subdivision criteria and proceed accordingly
+			else if (
+			       (   nonlinearness(curve) < linearity_thr && nonlinearness(radius) < linearity_thr
+			        && dot(bt[0], bt[1]) > screwiness_thr)
+			    || sp > STACK_OVERFLOW_THRESHOLD || subdiv_abort
+			){
 				// Subcurve is linear enough, intersect bilinear patch
 				// - augment bitangents with radius
 				bt[0] *= radius[0];
@@ -833,6 +841,12 @@ void main()
 	// Process intersection if any
 	if (l < _inf())
 	{
+		// Observe max curve parameter filtering
+		if (t > t_max) {
+			discard;
+			return;
+		}
+
 		// Calculate screen depth
 		float depth; vec3 pos_eye; {
 			pos_eye = ray.orig + l*ray.dir;
