@@ -1743,7 +1743,7 @@ void on_tube_vis::glyphs_out_of_date(bool state)
 		ctrl->set("color", state ? cgv::gui::theme_info::instance().warning_hex() : "");
 }
 
-bool on_tube_vis::compile_glyph_attribs (void)
+bool on_tube_vis::compile_glyph_attribs ()
 {
 	// Mark all layers as inactive in render state.
 	render.active_glyph_layers = 0;
@@ -1765,9 +1765,6 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			const auto &dataset = traj_mgr.dataset(0);
 
 			success = gc.compile_glyph_attributes(dataset, client.arclen_data, ds_config.config);
-
-			// get context
-			const auto &ctx = *get_context();
 
 			// set up render/streaming
 			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx)
@@ -1830,7 +1827,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			client.extrapol_mgr.reinit_layer_config();
 			if (client.num_extrapol_segments)
 				client.extrapol_mgr.create_glyph_and_per_layer_buffers(
-					tube_shading, render.visualizations.front().config,
+					*get_context(), tube_shading, render.visualizations.front().config,
 					/* min_glyphs_capacity_per_traj_and_layer: */std::min<unsigned>(session_glyphbuf_size/64, 128)
 				);
 

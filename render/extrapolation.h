@@ -171,16 +171,19 @@ struct extrapolation_manager
 		std::chrono::time_point<std::chrono::high_resolution_clock> last_frame_timepoint;
 	} state;
 
-	extrapolation_manager(render_state &otv_render_state) : otv_render(otv_render_state)
-	{
-		// Setup render style
-		render.style = otv_render.style;
-		render.style.attrib_mode = cgv::render::textured_spline_tube_render_style::AM_ATTRIBLESS;
-		render.style.forward = true; // <- can't use deferred shading with transparency
+	extrapolation_manager(render_state &otv_render_state) : otv_render(otv_render_state) {
+		update_render_style(otv_render.style);
 	}
 
 	~extrapolation_manager (void) {
 		clear();
+	}
+
+	void update_render_style (const cgv::render::textured_spline_tube_render_style &rs) {
+		render.style = otv_render.style;
+		render.style.attrib_mode = cgv::render::textured_spline_tube_render_style::AM_ATTRIBLESS;
+		render.style.forward = true; // <- can't use deferred shading with transparency
+		render.tube_shading.ao_style.enable = false; // <- not supported when streaming
 	}
 
 	void clear (void);
@@ -196,8 +199,8 @@ struct extrapolation_manager
 	/// Create all buffers relating to per-layer non-geometric information (glyph instances, mapping ranges). Must not
 	/// be called before @ref reinit_layer_config() has been called at least once!
 	bool create_glyph_and_per_layer_buffers (
-		const tube_shading_settings &tube_shading, const glyph_layer_manager::configuration &layer_config,
-		unsigned per_layer_min_glyphs_capacity=128
+		cgv::render::context &ctx, const tube_shading_settings &tube_shading,
+		const glyph_layer_manager::configuration &layer_config, unsigned per_layer_min_glyphs_capacity=128
 	);
 
 	/// Fully replace the current extrapolation for the given trajectory

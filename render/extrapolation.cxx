@@ -145,8 +145,8 @@ void extrapolation_manager::reinit_layer_config (void)
 }
 
 bool extrapolation_manager::create_glyph_and_per_layer_buffers (
-		const tube_shading_settings &tube_shading, const glyph_layer_manager::configuration &layer_config,
-		unsigned per_layer_min_glyphs_capacity
+	cgv::render::context &ctx, const tube_shading_settings &tube_shading,
+	const glyph_layer_manager::configuration &layer_config, unsigned per_layer_min_glyphs_capacity
 ){
 	// Sanity checks
 	assert(
@@ -199,6 +199,8 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (
 		layer_config, false
 	);
 	render.tstr.set_additional_defines(tube_shading_defines);
+	render.tstr.enable(ctx);
+	render.tstr.disable(ctx);
 
 	// Done!
 	return _.disarm(success);
@@ -766,7 +768,6 @@ bool extrapolation_manager::update_needed (void) const {
 }
 
 void extrapolation_manager::update (void) {
-	render.style.max_t = std::numeric_limits<float>::max()-1.f;
 	state.update_needed = false;
 }
 
@@ -777,9 +778,8 @@ void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx)
 		return;
 
 	// Pull in up-to-date render style settings
-	render.style = otv_render.style;
-	render.style.attrib_mode = cgv::render::textured_spline_tube_render_style::AM_ATTRIBLESS;
-	render.style.forward = true; // <- can't use deferred shading with transparency
+	// FIXME: this should be push rather than pull
+	update_render_style(otv_render.style);
 
 	// Set up draw call
 	/*auto nodes = geom.test_nodes.data_memory.data();
@@ -820,6 +820,11 @@ void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx)
 	};
 	glBindBuffersBase(
 		GL_SHADER_STORAGE_BUFFER, 0, (GLsizei)buffer_handles.size(), buffer_handles.data()
+	);
+
+	// Set uniforms
+	render.tube_shading.set_uniforms(
+		ctx, render.tstr.ref_prog(), render.style, otv_render.visualizations[0].config
 	);
 
 	// Draw and clean up
