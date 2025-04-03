@@ -32,6 +32,7 @@
 #include <OnTubeVis/OnTubeVis.h>
 
 // Testcases
+#include "testcase/debug.h"
 #include "testcase/nominal.h"
 
 // Local includes
@@ -80,7 +81,7 @@ int main (int argc, char** argv)
 	// Execute a test case
 
 	// Collect test configuration
-	auto config = testcase::nominal_setup();
+	auto config = testcase::/*nominal*/debug_setup();
 
 	// Set up visualization
 	VisSetup setup(otv__create_VisSetup(config.name.c_str()));
@@ -95,7 +96,7 @@ int main (int argc, char** argv)
 	}
 
 	// Run the test case
-	testcase::nominal_run(config);
+	testcase::/*nominal*/debug_run(config);
 
 
 	////

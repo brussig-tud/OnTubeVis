@@ -14,6 +14,7 @@ add_executable(api_playground
 	stream/eventseq.h
 	stream/glyphs.h
 	stream/nodes.h
+	testcase/debug.h
 	testcase/nominal.h
 )
 
