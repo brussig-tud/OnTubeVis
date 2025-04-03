@@ -3482,6 +3482,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 				const auto aindex_handle  {render.glyphs[i].ranges.handle()};
 				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 0, attribs_handle);
 				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 1, aindex_handle);
+				active_sbos[i] = true;
 			}
 		}
 
@@ -3518,18 +3519,25 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		fbc.disable_attachment(ctx, "normal");
 		fbc.disable_attachment(ctx, "tangent");
 		tex_depth.disable(ctx);
-		if(tube_shading.ao_style.enable)
-			density_tex.disable(ctx);
-		color_map_mgr.ref_texture().disable(ctx);
+		// ^ don't disable density and color maps textures yet, we still need them for the extrapolations
 
 		prog.disable(ctx);
 
-		// Wait for the previous draw call to complete.
+		// Synchronization - after this code, the memory consumed by the previous frame's tube rendering commands will
+		// be safe to write to again.
+		// - wait for the previous draw call to complete.
 		auto wait_result = glClientWaitSync(render.draw_fence, 0, -1);
 		glDeleteSync(render.draw_fence);
+		// - create a fence object to check when this frame's tube drawing has completed
+		render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 		// render extrapolations
-		client.extrapol_mgr.draw_extrapolations(ctx);
+		client.extrapol_mgr.draw_extrapolations(ctx, cyclopic_eye);
+
+		// now disable density and color maps textures
+		if(tube_shading.ao_style.enable)
+			density_tex.disable(ctx);
+		color_map_mgr.ref_texture().disable(ctx);
 
 		// Ensure that there is enough memory for new glyphs.
 		for (auto &traj : render.trajectories) {
@@ -3543,10 +3551,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		for (auto &trajectory : render.trajectories) {
 			trajectory.on_frame_done();
 		}
-
-		// Create a fence object to check when the new draw call has completed and the memory it was reading can be
-		// safely manipulated again.
-		render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 		// flush the command buffer.
 		glFlush();

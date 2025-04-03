@@ -133,8 +133,8 @@ struct extrapolation_manager
 		/// The GPU arena housing the per-trajectory t_to_s ring buffers.
 		gpumem::ring_buffer_arena<cgv::mat4> t_to_s_arena/*, test_alens*/;
 
-		/// The GPU arena housing the per-trajectory and per-layer glyph index ranges ring buffers.
-		gpumem::ring_buffer_arena<irange> ranges_arena;
+		/// The GPU arena housing the per-trajectory t_to_s ring buffers.
+		gpumem::ring_buffer_arena<unsigned> seg_to_traj_arena;
 
 		/// The static (except for visibility sorting) index buffer
 		std::vector<std::pair<uint32_t, uint32_t>> node_indices;
@@ -145,7 +145,10 @@ struct extrapolation_manager
 	/// Members related to the glyph data on extrapolated trajectories
 	struct {
 		/// The GPU arena housing the per-trajectory and per-layer glyph instances.
-		gpumem::ring_buffer_arena<float> glyph_attribs_arena;
+		gpumem::ring_buffer_arena<float> glyph_attribs_arena [4];
+
+		/// The GPU arena housing the per-trajectory and per-layer glyph index ranges ring buffers.
+		gpumem::ring_buffer_arena<irange> ranges_arena [4];
 	} glyphs;
 
 	/// Render state for the extrapolations.
@@ -165,8 +168,12 @@ struct extrapolation_manager
 
 	/// Logical state.
 	struct state_struct {
-		static constexpr uint8_t SEGMENTS_DIRTY=1, RANGES_DIRTY=2, GLYPHS_DIRTY=4;
-		uint8_t dirty_flags = 0;
+		static constexpr uint16_t SEGMENTS_DIRTY=1, RANGES0_DIRTY=2, RANGES1_DIRTY=4, RANGES2_DIRTY=8, RANGES3_DIRTY=16,
+		                          GLYPHS0_DIRTY=32, GLYPHS1_DIRTY=64, GLYPHS2_DIRTY=128, GLYPHS3_DIRTY=256;
+		static constexpr uint16_t ranges_dirty_flag[4] = {RANGES0_DIRTY, RANGES1_DIRTY, RANGES2_DIRTY, RANGES3_DIRTY},
+		                          glyphs_dirty_flag[4] = {GLYPHS0_DIRTY, GLYPHS1_DIRTY, GLYPHS2_DIRTY, GLYPHS3_DIRTY};
+
+		uint16_t dirty_flags = 0;
 		bool update_needed = false;
 		std::chrono::time_point<std::chrono::high_resolution_clock> last_frame_timepoint;
 	} state;
@@ -261,7 +268,7 @@ struct extrapolation_manager
 	void update (void);
 
 	/// Draw the managed extrapolations in their current state.
-	void draw_extrapolations (cgv::render::context &ctx);
+	void draw_extrapolations (cgv::render::context &ctx, const cgv::vec3 &eye_pos);
 };
 
 

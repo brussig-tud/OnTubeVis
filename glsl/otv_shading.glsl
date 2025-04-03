@@ -1,6 +1,8 @@
 #version 440
 #define M_PI 3.14159265359
 
+#define FORWARD_SHADING 0
+
 #define DEBUG_SEGMENTS 0
 
 #define ENABLE_AMBIENT_OCCLUSION 1
@@ -169,23 +171,42 @@ bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info cl
 	return false; \
 }
 
+#if FORWARD_SHADING == 1
+	#define L0_BINDING_0 3
+	#define L0_BINDING_1 4
+	#define L1_BINDING_0 5
+	#define L1_BINDING_1 6
+	#define L2_BINDING_0 7
+	#define L2_BINDING_1 8
+	#define L3_BINDING_0 9
+	#define L3_BINDING_1 10
+#else
+	#define L0_BINDING_0 0
+	#define L0_BINDING_1 1
+	#define L1_BINDING_0 2
+	#define L1_BINDING_1 3
+	#define L2_BINDING_0 4
+	#define L2_BINDING_1 5
+	#define L3_BINDING_0 6
+	#define L3_BINDING_1 7
+#endif
 #if L0_MAPPED_ATTRIB_COUNT > 0
-DEF_GLYPH_DESC_AND_BUFFERS(0, L0_MAPPED_ATTRIB_COUNT, 0, 1)
+DEF_GLYPH_DESC_AND_BUFFERS(0, L0_MAPPED_ATTRIB_COUNT, L0_BINDING_0, L0_BINDING_1)
 DEF_CLOSEST_SAMPLES(0, ranges0, glyphs0)
 #endif
 
 #if L1_MAPPED_ATTRIB_COUNT > 0
-DEF_GLYPH_DESC_AND_BUFFERS(1, L1_MAPPED_ATTRIB_COUNT, 2, 3)
+DEF_GLYPH_DESC_AND_BUFFERS(1, L1_MAPPED_ATTRIB_COUNT, L1_BINDING_0, L1_BINDING_1)
 DEF_CLOSEST_SAMPLES(1, ranges1, glyphs1)
 #endif
 
 #if L2_MAPPED_ATTRIB_COUNT > 0
-DEF_GLYPH_DESC_AND_BUFFERS(2, L2_MAPPED_ATTRIB_COUNT, 4, 5)
+DEF_GLYPH_DESC_AND_BUFFERS(2, L2_MAPPED_ATTRIB_COUNT, L2_BINDING_0, L2_BINDING_1)
 DEF_CLOSEST_SAMPLES(2, ranges2, glyphs2)
 #endif
 
 #if L3_MAPPED_ATTRIB_COUNT > 0
-DEF_GLYPH_DESC_AND_BUFFERS(3, L3_MAPPED_ATTRIB_COUNT, 6, 7)
+DEF_GLYPH_DESC_AND_BUFFERS(3, L3_MAPPED_ATTRIB_COUNT, L3_BINDING_0, L3_BINDING_1)
 DEF_CLOSEST_SAMPLES(3, ranges3, glyphs3)
 #endif
 
@@ -1571,6 +1592,26 @@ vec4 otv_shade_fragment (
 	//subp_color = vec4(vec3(depth), 1.0); // tangent
 	//subp_color = vec4(0.1*texcoord.x, texcoord.y, 0.0, 1.0); // texcoords
 	//subp_color = vec4(hash31(segment_id), 1.0); // segment_id
+
+/*#if FORWARD_SHADING == 1 && L0_VISIBLE > 0 && L0_MAPPED_ATTRIB_COUNT > 0
+	irange ir = ranges0[segment_id];
+	if (ir.n < 1)
+		subp_color.rgb = vec3(0,0,0);
+	else if (ir.n < 2)
+		subp_color.rgb = vec3(1,0,0);
+	else if (ir.n < 3)
+		subp_color.rgb = vec3(0,1,0);
+	else if (ir.n < 4)
+		subp_color.rgb = vec3(0,0,1);
+	else if (ir.n < 5)
+		subp_color.rgb = vec3(0,1,1);
+	else if (ir.n < 6)
+		subp_color.rgb = vec3(1,1,0);
+	else if (ir.n < 7)
+		subp_color.rgb = vec3(1,0,1);
+	else
+		subp_color.rgb = vec3(1,0,1);
+#endif*/
 
 	return subp_color;
 }

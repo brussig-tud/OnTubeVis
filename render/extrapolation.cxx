@@ -49,11 +49,14 @@ void extrapolation_manager::clear(void)
 {
 	// Glyph-related
 	trajectories.clear();
-	glyphs.glyph_attribs_arena.destroy();
-	geom.ranges_arena.destroy();
+	for (unsigned l=0; l<4; ++l) {
+		glyphs.glyph_attribs_arena[l].destroy();
+		glyphs.ranges_arena[l].destroy();
+	}
 	setup.reset();
 
 	// Purely geometry-related
+	geom.seg_to_traj_arena.destroy();
 	geom.t_to_s_arena.destroy();
 	geom.nodes_arena.destroy();
 	geom.node_indices.clear();
@@ -78,7 +81,8 @@ bool extrapolation_manager::create_geom_buffers (
 	// Create GPU ring buffer arenas
 	const unsigned num_nodes = num_segments+1;
 	const bool success =    geom.nodes_arena.create(num_trajectories, num_nodes)
-	                     && geom.t_to_s_arena.create(num_trajectories, num_segments);
+	                     && geom.t_to_s_arena.create(num_trajectories, num_segments)
+	                     && geom.seg_to_traj_arena.create(num_trajectories, num_segments);
 
 	// Distribute per-trajectory ringbuffers and create indices in the process
 	trajectories.reserve(num_trajectories);
@@ -87,13 +91,21 @@ bool extrapolation_manager::create_geom_buffers (
 	/*geom.*/segment_indices.reserve(geom.node_indices.size());
 	for (unsigned idx=-1, t=0; t<num_trajectories; t++)
 	{
+		// Resize nodes buffer
 		auto &nodes_buf = geom.nodes_arena.buffer(t); {
 			const auto res = nodes_buf.push_uninit(num_nodes);
 			assert(res.num_overwritten==0 && res.num_skipped==0);
 		}
+		// Resize t_to_s buffer
 		auto &alen_buf = geom.t_to_s_arena.buffer(t); {
 			const auto res = alen_buf.push_uninit(num_segments);
 			assert(res.num_overwritten==0 && res.num_skipped==0);
+		}
+		// Set segment-to-trajectory mapping buffer
+		auto &seg_to_traj_buf = geom.seg_to_traj_arena.buffer(t); {
+			const auto res = seg_to_traj_buf.push_uninit(num_segments);
+			assert(res.num_overwritten==0 && res.num_skipped==0);
+			std::fill(seg_to_traj_buf.begin(), seg_to_traj_buf.end(), t);
 		}
 		trajectories.emplace_back(nodes_buf, alen_buf);
 		uint32_t start_index = t*num_nodes;
@@ -154,14 +166,17 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (
 		"extrapolation_manager::create_glyph_and_per_layer_buffers() needs pre-created geometry buffers"
 	);
 	assert(
-		geom.ranges_arena.ring_buffers.empty() &&
+		glyphs.ranges_arena[0].ring_buffers.empty() && glyphs.ranges_arena[1].ring_buffers.empty() &&
+		glyphs.ranges_arena[2].ring_buffers.empty() && glyphs.ranges_arena[3].ring_buffers.empty() &&
 		"extrapolation_manager::create_glyph_and_per_layer_buffers() must not be called on a fully constructed setup"
 	);
 
 	// Make sure we don't leak resources when any single one of the steps fails
 	auto _ = finalizer([this] {
-		geom.ranges_arena.destroy();
-		glyphs.glyph_attribs_arena.destroy();
+		glyphs.ranges_arena[3].destroy(); glyphs.ranges_arena[2].destroy();
+		glyphs.ranges_arena[1].destroy(); glyphs.ranges_arena[0].destroy();
+		glyphs.glyph_attribs_arena[3].destroy(); glyphs.glyph_attribs_arena[2].destroy();
+		glyphs.glyph_attribs_arena[1].destroy(); glyphs.glyph_attribs_arena[0].destroy();
 		std::fill(setup.glyph_attrib_counts.begin(), setup.glyph_attrib_counts.end(), 0);
 		std::cerr << "extrapolation_manager::create_glyph_and_per_layer_buffers(): failed to create GPU resources!"
 		          << std::endl<<std::endl;
@@ -171,24 +186,30 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (
 	// - glyph index mapping ranges
 	const auto num_trajectories = geom.t_to_s_arena.num_ring_buffers();
 	const auto num_segments = geom.t_to_s_arena.ring_buffer_capacity();
-	const auto num_buffers = num_trajectories*setup.num_layers;
-	bool success = geom.ranges_arena.create(num_buffers, num_segments);
+	//const auto num_buffers = num_trajectories*setup.num_layers;
+	bool success = glyphs.ranges_arena[0].create(num_trajectories, num_segments)
+	            && glyphs.ranges_arena[1].create(num_trajectories, num_segments)
+	            && glyphs.ranges_arena[2].create(num_trajectories, num_segments)
+	            && glyphs.ranges_arena[3].create(num_trajectories, num_segments);
 	// - glyph instances
 	const auto num_attribs = setup.glyph_attribs_lcm*per_layer_min_glyphs_capacity;
-	success &= glyphs.glyph_attribs_arena.create(num_buffers, num_attribs);
+	success &= glyphs.glyph_attribs_arena[0].create(num_trajectories, num_attribs)
+	        && glyphs.glyph_attribs_arena[1].create(num_trajectories, num_attribs)
+	        && glyphs.glyph_attribs_arena[2].create(num_trajectories, num_attribs)
+	        && glyphs.glyph_attribs_arena[3].create(num_trajectories, num_attribs);
 
 	// Assign range ring buffers from arena to corresponding layer on each trajectory
 	for (unsigned t=0; t<num_trajectories; t++) {
 		auto &traj = trajectories[t];
 		traj.layers.reserve(setup.num_layers);
 		for (unsigned l=0; l<setup.num_layers; l++) {
-			const unsigned per_layer_buffer_id = t*setup.num_layers + l;
-			auto &ranges_buf = geom.ranges_arena.buffer(per_layer_buffer_id); {
+			const unsigned per_layer_buffer_id = t/* *setup.num_layers + l*/;
+			auto &ranges_buf = glyphs.ranges_arena[l].buffer(per_layer_buffer_id); {
 				const auto res = ranges_buf.push_uninit(num_segments);
 				assert(res.num_overwritten==0 && res.num_skipped==0);
 			}
 			traj.layers.emplace_back(
-				ranges_buf, glyphs.glyph_attribs_arena.buffer(per_layer_buffer_id)
+				ranges_buf, glyphs.glyph_attribs_arena[l].buffer(per_layer_buffer_id)
 			);
 		}
 	}
@@ -251,7 +272,7 @@ void extrapolation_manager::replace_extrapolation (
 			assert(new_num == old_num-erase_count);
 
 			// Indicate that flush of glyph-related arenas will be required
-			state.dirty_flags = state.dirty_flags | state.GLYPHS_DIRTY;
+			state.dirty_flags = state.dirty_flags | state.glyphs_dirty_flag[l];
 
 			// Refresh on_extrapol range since iterators are _theoretically_ invalidated by pop_front()
 			// ToDo: investigate whether we can get away with not refreshing in all cases (it definitely works if the
@@ -341,7 +362,7 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	#endif
 
 	// Indicate that flush of glyph-related arenas will be required
-	state.dirty_flags = state.dirty_flags | state.GLYPHS_DIRTY;
+	state.dirty_flags = state.dirty_flags | state.glyphs_dirty_flag[l];
 
 	// Unlink discarded glyphs, if any, and search for the newest segment that has any glyphs at the same time
 	unsigned newest_seg_with_glyphs=0, seg=0;
@@ -616,7 +637,7 @@ void extrapolation_manager::assign_glyphs (
 
 	// If we're replacing, then we will need to make sure the dirty flag gets set even if none of the conditions further
 	// down get triggered (e.g. because no glyphs actually end up being assigned)
-	state.dirty_flags = state.dirty_flags | (replace*state.RANGES_DIRTY);
+	state.dirty_flags = state.dirty_flags | (replace*state.ranges_dirty_flag[layer]);
 
 
 	/////
@@ -657,7 +678,7 @@ void extrapolation_manager::assign_glyphs (
 				cur_glyph.safe_advance(stride, glyph_attribs.end);
 
 				// Indicate that flush of the glyph mapping ranges arena will be required
-				state.dirty_flags = state.dirty_flags | state.RANGES_DIRTY;
+				state.dirty_flags = state.dirty_flags | state.ranges_dirty_flag[layer];
 
 				// Advance glyph cursor
 				assert(cur_glyph_idx <= num_glyphs);
@@ -701,7 +722,7 @@ void extrapolation_manager::assign_glyphs (
 				cur_glyph_idx++;
 
 				// Indicate that flush of the glyph mapping ranges arena will be required
-				state.dirty_flags = state.dirty_flags | state.RANGES_DIRTY;
+				state.dirty_flags = state.dirty_flags | state.ranges_dirty_flag[layer];
 
 				// Advance glyph cursor
 				cur_glyph.safe_advance(stride, glyph_attribs.end);
@@ -718,7 +739,7 @@ void extrapolation_manager::assign_glyphs (
 				cur_range.n++;
 
 				// Indicate that flush of the glyph mapping ranges arena will be required
-				state.dirty_flags = state.dirty_flags | state.RANGES_DIRTY;
+				state.dirty_flags = state.dirty_flags | state.ranges_dirty_flag[layer];
 			}
 
 			// Finally, move the cursor back one control point (if it's not already the first) to make sure the last
@@ -738,8 +759,14 @@ bool extrapolation_manager::flush_changes (void)
 	// Determine the arenas we need to flush
 	const bool flush_nodes = state.dirty_flags & state.SEGMENTS_DIRTY,
 	           flush_t_to_s = state.dirty_flags & state.SEGMENTS_DIRTY,
-	           flush_ranges = state.dirty_flags &  state.RANGES_DIRTY,
-	           flush_glyphs = state.dirty_flags & state.GLYPHS_DIRTY;
+	           flush_ranges[4] = {
+	           	bool(state.dirty_flags & state.RANGES0_DIRTY), bool(state.dirty_flags & state.RANGES1_DIRTY),
+	           	bool(state.dirty_flags & state.RANGES2_DIRTY), bool(state.dirty_flags & state.RANGES3_DIRTY)
+	           },
+	           flush_glyphs[4] = {
+	           	bool(state.dirty_flags & state.GLYPHS0_DIRTY), bool(state.dirty_flags & state.GLYPHS1_DIRTY),
+	           	bool(state.dirty_flags & state.GLYPHS2_DIRTY), bool(state.dirty_flags & state.GLYPHS3_DIRTY)
+	           };
 
 	// Perform flushes
 	bool result = true;
@@ -747,10 +774,12 @@ bool extrapolation_manager::flush_changes (void)
 		result &= geom.nodes_arena.flush_all();
 	if (flush_t_to_s)
 		result &= geom.t_to_s_arena.flush_all();
-	if (flush_ranges)
-		result &= geom.ranges_arena.flush_all();
-	if (flush_glyphs)
-		result &= glyphs.glyph_attribs_arena.flush_all();
+	for (unsigned l=0; l<4; l++) {
+		if (flush_ranges[l])
+			result &= glyphs.ranges_arena[l].flush_all();
+		if (flush_glyphs[l])
+			result &= glyphs.glyph_attribs_arena[l].flush_all();
+	}
 
 	// Update state
 	state.last_frame_timepoint = state.update_needed ?
@@ -771,7 +800,7 @@ void extrapolation_manager::update (void) {
 	state.update_needed = false;
 }
 
-void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx)
+void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx, const cgv::vec3 &eye_pos)
 {
 	// Do nothing if no data
 	if (geom.node_indices.empty())
@@ -804,6 +833,7 @@ void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx)
 	indices.emplace_back(0);*/
 
 	render.tstr.set_render_style(render.style);
+	render.tstr.set_cyclopic_eye(eye_pos);
 	render.tstr.enable_attribute_array_manager(ctx, render.aam);
 	/*render.tstr.set_node_id_array(
 		ctx, nids.data(), 1, sizeof(cgv::uvec2)
@@ -816,10 +846,18 @@ void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx)
 		geom.t_to_s_arena.data_memory.handle(),/*
 		geom.test_nodes.data_memory.handle(),
 		geom.test_alens.data_memory.handle(),*/
-		cgv::render::gl::get_gl_id(node_id_buf->handle) // <- required since we're drawing attribute-less
+		cgv::render::gl::get_gl_id(node_id_buf->handle), // <- required since we're drawing attribute-less
+		glyphs.glyph_attribs_arena[0].data_memory.handle(),
+		glyphs.ranges_arena[0].data_memory.handle(),
+		glyphs.glyph_attribs_arena[1].data_memory.handle(),
+		glyphs.ranges_arena[1].data_memory.handle(),
+		glyphs.glyph_attribs_arena[2].data_memory.handle(),
+		glyphs.ranges_arena[2].data_memory.handle(),
+		glyphs.glyph_attribs_arena[3].data_memory.handle(),
+		glyphs.ranges_arena[3].data_memory.handle(),
 	};
 	glBindBuffersBase(
-		GL_SHADER_STORAGE_BUFFER, 0, (GLsizei)buffer_handles.size(), buffer_handles.data()
+		GL_SHADER_STORAGE_BUFFER, 0, 3 + setup.num_layers*2, buffer_handles.data()
 	);
 
 	// Set uniforms
