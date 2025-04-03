@@ -53,6 +53,7 @@ void extrapolation_manager::clear(void)
 		glyphs.glyph_attribs_arena[l].destroy();
 		glyphs.ranges_arena[l].destroy();
 	}
+	glyphs.traj_glyph_mem_arena.destroy();
 	setup.reset();
 
 	// Purely geometry-related
@@ -105,6 +106,7 @@ bool extrapolation_manager::create_geom_buffers (
 		auto &seg_to_traj_buf = geom.seg_to_traj_arena.buffer(t); {
 			const auto res = seg_to_traj_buf.push_uninit(num_segments);
 			assert(res.num_overwritten==0 && res.num_skipped==0);
+			assert(seg_to_traj_buf.num_elems == num_segments);
 			std::fill(seg_to_traj_buf.begin(), seg_to_traj_buf.end(), t);
 		}
 		trajectories.emplace_back(nodes_buf, alen_buf);
@@ -173,6 +175,7 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (
 
 	// Make sure we don't leak resources when any single one of the steps fails
 	auto _ = finalizer([this] {
+	    glyphs.traj_glyph_mem_arena.destroy();
 		glyphs.ranges_arena[3].destroy(); glyphs.ranges_arena[2].destroy();
 		glyphs.ranges_arena[1].destroy(); glyphs.ranges_arena[0].destroy();
 		glyphs.glyph_attribs_arena[3].destroy(); glyphs.glyph_attribs_arena[2].destroy();
@@ -197,12 +200,22 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (
 	        && glyphs.glyph_attribs_arena[1].create(num_trajectories, num_attribs)
 	        && glyphs.glyph_attribs_arena[2].create(num_trajectories, num_attribs)
 	        && glyphs.glyph_attribs_arena[3].create(num_trajectories, num_attribs);
+	// - ring buffer delimiting ranges (must not pack tightly by allocating less when less than 4 layers are configured)
+	success &= glyphs.traj_glyph_mem_arena.create(num_trajectories, 4);
 
 	// Assign range ring buffers from arena to corresponding layer on each trajectory
-	for (unsigned t=0; t<num_trajectories; t++) {
+	for (unsigned t=0; t<num_trajectories; t++)
+	{
 		auto &traj = trajectories[t];
 		traj.layers.reserve(setup.num_layers);
-		for (unsigned l=0; l<setup.num_layers; l++) {
+		auto &traj_glyph_mem_buf = glyphs.traj_glyph_mem_arena.buffer(t); {
+			const auto res = traj_glyph_mem_buf.push_uninit(setup.num_layers);
+			assert(res.num_overwritten==0 && res.num_skipped==0);
+			assert(traj_glyph_mem_buf.num_elems == setup.num_layers);
+		}
+		auto traj_glyph_mem = &*traj_glyph_mem_buf.begin();
+		for (unsigned l=0; l<setup.num_layers; l++)
+		{
 			const unsigned per_layer_buffer_id = t/* *setup.num_layers + l*/;
 			auto &ranges_buf = glyphs.ranges_arena[l].buffer(per_layer_buffer_id); {
 				const auto res = ranges_buf.push_uninit(num_segments);
@@ -211,6 +224,7 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (
 			traj.layers.emplace_back(
 				ranges_buf, glyphs.glyph_attribs_arena[l].buffer(per_layer_buffer_id)
 			);
+			traj_glyph_mem[l] = irange{int((t/* *setup.num_layers + l*/)*num_attribs), (int)num_attribs};
 		}
 	}
 
@@ -841,23 +855,21 @@ void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx, const
 	render.tstr.set_indices(ctx, indices);
 	glFlush();*/
 	const auto node_id_buf = render.tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
-	const auto buffer_handles = std::array{
+	GLuint buffer_handles[13] = {
 		geom.nodes_arena.data_memory.handle(),
 		geom.t_to_s_arena.data_memory.handle(),/*
 		geom.test_nodes.data_memory.handle(),
 		geom.test_alens.data_memory.handle(),*/
 		cgv::render::gl::get_gl_id(node_id_buf->handle), // <- required since we're drawing attribute-less
-		glyphs.glyph_attribs_arena[0].data_memory.handle(),
-		glyphs.ranges_arena[0].data_memory.handle(),
-		glyphs.glyph_attribs_arena[1].data_memory.handle(),
-		glyphs.ranges_arena[1].data_memory.handle(),
-		glyphs.glyph_attribs_arena[2].data_memory.handle(),
-		glyphs.ranges_arena[2].data_memory.handle(),
-		glyphs.glyph_attribs_arena[3].data_memory.handle(),
-		glyphs.ranges_arena[3].data_memory.handle(),
 	};
+	for (unsigned l=0; l<setup.num_layers; ++l) {
+		buffer_handles[3 + l*2] = glyphs.glyph_attribs_arena[l].data_memory.handle();
+		buffer_handles[4 + l*2] = glyphs.ranges_arena[l].data_memory.handle();
+	}
+	buffer_handles[3 + setup.num_layers*2] = geom.seg_to_traj_arena.data_memory.handle();
+	buffer_handles[4 + setup.num_layers*2] = glyphs.traj_glyph_mem_arena.data_memory.handle();
 	glBindBuffersBase(
-		GL_SHADER_STORAGE_BUFFER, 0, 3 + setup.num_layers*2, buffer_handles.data()
+		GL_SHADER_STORAGE_BUFFER, 0, 3+2 + setup.num_layers*2, buffer_handles
 	);
 
 	// Set uniforms

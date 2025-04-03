@@ -133,7 +133,10 @@ struct extrapolation_manager
 		/// The GPU arena housing the per-trajectory t_to_s ring buffers.
 		gpumem::ring_buffer_arena<cgv::mat4> t_to_s_arena/*, test_alens*/;
 
-		/// The GPU arena housing the per-trajectory t_to_s ring buffers.
+		/// The GPU arena housing the per-segment trajectory IDs to reverse-map from segment to trajectory for fetching
+		/// glyph-related data. Technically not needed for extrapolation display, as this mapping could be computed
+		/// statically. But we need to mirror the regular trajectories shading interface to keep shader code complexity
+		/// down.
 		gpumem::ring_buffer_arena<unsigned> seg_to_traj_arena;
 
 		/// The static (except for visibility sorting) index buffer
@@ -149,6 +152,11 @@ struct extrapolation_manager
 
 		/// The GPU arena housing the per-trajectory and per-layer glyph index ranges ring buffers.
 		gpumem::ring_buffer_arena<irange> ranges_arena [4];
+
+		/// The GPU arena housing the per-segment and per-layer index range delimiting the corresponding glyph data
+		/// ring buffer. Technically not needed for extrapolation display, as these ranges could be computed statically.
+		/// But we need to mirror the regular trajectories shading interface to keep shader code complexity down.
+		gpumem::ring_buffer_arena<irange> traj_glyph_mem_arena;
 	} glyphs;
 
 	/// Render state for the extrapolations.
