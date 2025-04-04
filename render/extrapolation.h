@@ -58,6 +58,12 @@ namespace extrapol
 		/// Reference to the ring buffer to use for storing the actual glyph instances on the layer.
 		gpumem::ring_buffer_alt<float> &glyph_attribs;
 
+		/// Index of the last segment of the containing trajectory that has a glyph or control point assigned _within
+		/// its start and end arclength_. This bookkeeping information is required because plots can have infinite
+		/// influence, so for themthere is no way to extract this information on-the-fly reliably just by looking at the
+		/// @ref ranges information (which can be done easily for glyphs and their finite influence).
+		unsigned newest_seg_with_glyphs = 0;
+
 		[[nodiscard]] inline explicit per_layer (
 			gpumem::ring_buffer_alt<irange> &ranges_buffer, gpumem::ring_buffer_alt<float> &glyphs_buffer
 		)
@@ -254,8 +260,12 @@ struct extrapolation_manager
 	///
 	/// If the input range of glyph attributes is known to be a sub-range of some larger collection, @a idx_offset may
 	/// be used offset each assigned glyph index by the given amount.
+	///
+	/// @return
+	///		The index of the last segment from the input segment range that got a glyph assigned <em>within its
+	///		borders</em>.
 	template <class IRangeIter, class AlenIter, class GlyphAttribsIter>
-	void assign_glyphs (
+	unsigned assign_glyphs (
 		ro_range<IRangeIter> &&ranges_out, const ro_range<AlenIter> &t_to_s, unsigned layer,
 		const ro_range<GlyphAttribsIter> &glyph_attribs, unsigned idx_offset=0
 	);

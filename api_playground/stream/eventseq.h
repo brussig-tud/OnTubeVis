@@ -55,10 +55,7 @@ struct EventSequence
 		{}
 
 		void stream (void) const override {
-			otv__stream_spline_node_and_extrapol(
-				traj_id, &node.node, node.t_to_s.has_value() ? &node.t_to_s.value() : nullptr,
-				node.extrapolation.data()
-			);
+			node.stream(traj_id);
 		}
 	};
 
@@ -72,7 +69,7 @@ struct EventSequence
 		{}
 
 		void stream (void) const override {
-			otv__stream_glyph(traj_id, layer, &glyph.glyph);
+			glyph.stream(traj_id, layer);
 		}
 	};
 

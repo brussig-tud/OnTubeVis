@@ -75,10 +75,18 @@ struct NodeInstance
 		// Done!
 		return result;
 	}
+
+	void stream (const unsigned traj_id) const {
+		otv__stream_spline_node_and_extrapol(
+			traj_id, &node, t_to_s.has_value() ? &t_to_s.value() : nullptr, extrapolation.data()
+		);
+	}
 };
 
 struct Nodes
 {
+	typedef std::map<float, unsigned> Sequence;
+
 	struct Event {
 		float t;
 		cgv::vec3 pos;
@@ -132,7 +140,7 @@ struct Nodes
 		}
 	};
 	std::vector<NodeInstance> nodes;
-	std::map<float, unsigned> time_sequence;
+	Sequence time_sequence;
 
 	template <class Config>
 	static Nodes compile (const Config &config, const std::vector<Event>& events)
@@ -279,6 +287,31 @@ struct Nodes
 
 		// Done!
 		return result;
+	}
+};
+
+struct NodesStreamer
+{
+	const unsigned traj_id;
+	const Nodes &nodes;
+	float time_cursor = -std::numeric_limits<float>::infinity();
+
+	NodesStreamer (const Nodes &nodes, const unsigned traj_id)
+		: traj_id(traj_id), nodes(nodes)
+	{}
+
+	void stream_up_to_time (float time)
+	{
+		// Sanity check
+		assert(time > time_cursor);
+
+		// Iterate until target time
+		auto it_cursor = nodes.time_sequence.upper_bound(time_cursor);
+		while (it_cursor != nodes.time_sequence.end() && it_cursor->first <= time) {
+			nodes.nodes[it_cursor->second].stream(traj_id);
+			++it_cursor;
+		}
+		time_cursor = time;
 	}
 };
 

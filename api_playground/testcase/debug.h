@@ -44,7 +44,7 @@ auto debug_setup (void)
 {
 	// Create the configuration
 	return OTVConfiguration(
-		"debug", 2, 3, 0.5f,
+		"debug", 1, 3, 0.5f,
 		SurfaceColorLayer(Rainbow, Linear),
 		SignBlobLayer(.03125f, 1, otv__Rgb(1/3.f, 2/3.f, 1)),
 		RectangleLayer(.03125f, otv__Rgb(6/7.f, 1/3.f, 0.03125f))
@@ -60,15 +60,13 @@ void debug_run (const NominalConfig &config)
 
 	// Base trajectory (will be identical except for translation)
 	auto traj0 = stream::Nodes::compile(config, {
-		stream::Nodes::Event{.0f, cgv::vec3(0,0,0), cgv::vec3(4,0,0)},
-		stream::Nodes::Event{4.f, cgv::vec3(4,0.5f,0.125f), cgv::vec3(2,0,0)}
+		stream::Nodes::Event{.0f, cgv::vec3(0,0,0), cgv::vec3(2,0,0)},
+		stream::Nodes::Event{2.f, cgv::vec3(2,.5f,.125f), cgv::vec3(2,0,0)},
+		stream::Nodes::Event{4.f, cgv::vec3(4,.25f,-.125f), cgv::vec3(2,0,0)}
 	});
+	stream::NodesStreamer traj0_stream(traj0, 0);
 
-	// 2nd trajectory (time-shifted and translated)
-	const float traj1_dt = .25f;
-	auto traj1 = traj0.transformed(translate4(cgv::vec3{1.f, .0f, -1.5f}), traj1_dt);
-
-	// Glyphs on traj 0, layer 0
+	// Surface color layer
 	stream::Glyphs t0l0;
 	/* 1st segment */ {
 		const auto &seg = traj0.segment(0);
@@ -77,75 +75,126 @@ void debug_run (const NominalConfig &config)
 			time,
 			otv__construct_SurfaceColorData(seg.s_from_time(time), 0)
 			);
-		time = 0;
+		time = 1/3.f;
+		t0l0.add(
+			time,
+			otv__construct_SurfaceColorData(seg.s_from_time(time), .75f)
+		);
+		time = 4/3.f;
 		t0l0.add(
 			time,
 			otv__construct_SurfaceColorData(seg.s_from_time(time), .25f)
 		);
-		time = 1.f;
-		t0l0.add(
-			time,
-			otv__construct_SurfaceColorData(seg.s_from_time(time), .5f)
-		);
-		time = 3.5f;
+	}
+	/* 2nd segment */ {
+		const auto &seg = traj0.segment(1);
+		float time = 2.5f;
 		t0l0.add(
 			time,
 			otv__construct_SurfaceColorData(seg.s_from_time(time), .9f)
+			);
+		time = 3.5f;
+		t0l0.add(
+			time,
+			otv__construct_SurfaceColorData(seg.s_from_time(time), .125f)
 		);
 	}
+	/* beyond traj */ {
+		const auto &seg = traj0.segment(1).extrapol(0);
+		float time = 4.5f;
+		t0l0.add(
+			time,
+			otv__construct_SurfaceColorData(seg.s_from_time(time), 1)
+		);
+	}
+	stream::GlyphsStreamer t0l0_stream(t0l0, 0, 0);
 
-	// Glyphs on layer 1
-	stream::Glyphs t1l1;
+	// Sign Blob layer
+	stream::Glyphs t0l1;
 	/* 1st segment */ {
-		const auto &seg = traj1.segment(0);
-		float time = traj1_dt;
-		t1l1.add(
+		const auto &seg = traj0.segment(0);
+		float time = .25f;
+		t0l1.add(
 			time,
 			otv__construct_SignBlobData(seg.s_from_time(time), 0, 0)
 			);
-		time = traj1_dt+1.5f;
-		t1l1.add(
-			time,
-			otv__construct_SignBlobData(seg.s_from_time(time), 0, -.5f)
-		);
-		time = traj1_dt+2.75f;
-		t1l1.add(
-			time,
-			otv__construct_SignBlobData(seg.s_from_time(time), 0, -1.f)
-		);
-	}
-	/* 2nd segment */ {
-		const auto &seg = traj1.segment(0).extrapol(0);
-		float time = traj1_dt+4.f;
-		t1l1.add(
-			time,
-			otv__construct_SignBlobData(seg.s_from_time(time), 0, .25f)
-			);
-		time = traj1_dt+5.f;
-		t1l1.add(
+		time = 1.5f;
+		t0l1.add(
 			time,
 			otv__construct_SignBlobData(seg.s_from_time(time), 0, .75f)
 		);
 	}
-	/* beyond last segment */ {
-		const auto &seg = traj1.segment(0).extrapol(0);
-		float time = traj1_dt+6.0125f;
-		t1l1.add(
+	/* 2nd segment */ {
+		const auto &seg = traj0.segment(1);
+		float time = 2.75f;
+		t0l1.add(
 			time,
-			otv__construct_SignBlobData(seg.s_from_time(time), 0, .125f)
+			otv__construct_SignBlobData(seg.s_from_time(time), 0, -.75f)
+			);
+		time = 3.5f;
+		t0l1.add(
+			time,
+			otv__construct_SignBlobData(seg.s_from_time(time), 0, -.125f)
 		);
 	}
+	/* beyond traj */ {
+		const auto &seg = traj0.segment(1).extrapol(0);
+		float time = 4.5f;
+		t0l1.add(
+			time,
+			otv__construct_SignBlobData(seg.s_from_time(time), 0, 1/3.f)
+		);
+	}
+	stream::GlyphsStreamer t0l1_stream(t0l1, 0, 1);
+
+	traj0_stream.stream_up_to_time(1);
+
+	t0l0_stream.stream_up_to_time(0);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+	t0l0_stream.stream_up_to_time(1);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+	t0l0_stream.stream_up_to_time(2);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+
+	t0l0_stream.stream_up_to_time(3);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+	t0l0_stream.stream_up_to_time(4);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+
+	t0l0_stream.stream_up_to_time(5);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+
+	t0l1_stream.stream_up_to_time(0);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+	t0l1_stream.stream_up_to_time(1);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+	t0l1_stream.stream_up_to_time(2);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+
+	/*traj0_stream.stream_up_to_time(2);
+	std::cerr << "[ENTER]" << std::endl; getchar();*/
+
+	t0l1_stream.stream_up_to_time(3);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+	t0l1_stream.stream_up_to_time(4);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+
+	t0l1_stream.stream_up_to_time(5);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+
+	//traj0_stream.stream_up_to_time(4);
+	/* done */
 
 	// Build event stream
 	//data.set_node_stream(1, std::move(traj1));
 	/*data.set_glyph_stream(0, 0, std::move(t0l0));
 	data.set_glyph_stream(0, 1, traj0.adapt_glyphs(t1l1, -traj1_dt));
-	data.set_glyph_stream(1, 1, std::move(t1l1));*/
+	data.set_glyph_stream(1, 1, std::move(t1l1));
 	data.set_node_stream(0, std::move(traj0));
 	const auto event_stream = stream::EventSequence::compile(data);
 
 	// Play back in OnTubeVis
-	event_stream.play_back();
+	event_stream.play_back();*/
 }
 
 
