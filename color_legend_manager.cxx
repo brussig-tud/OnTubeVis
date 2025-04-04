@@ -3,12 +3,12 @@
 #include "color_legend_manager.h"
 
 
-color_legend_manager::color_legend_manager(cgv::app::application_plugin_base &owner) : owner(owner) {
+color_legend_manager::color_legend_manager(cgv::base::group &owner) : owner(owner) {
 	std::stringstream str;
 	for (unsigned i=0; i<legends.size(); i++) {
 		str.flush();
 		str << "Legend_layer" << i;
-		legends[i] = owner.register_overlay<cgv::app::color_map_legend>(str.str());
+		legends[i] = owner.create_and_append_child<cgv::app::color_map_legend>(str.str());
 		legends[i]->set_size(legends[i]->get_rectangle().size + cgv::ivec2(16, 0));
 		legends[i]->set_num_ticks(5);
 		legends[i]->set_visibility(false);

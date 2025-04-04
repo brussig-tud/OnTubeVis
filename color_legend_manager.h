@@ -3,11 +3,11 @@
 #include <vector>
 
 #include <cgv/base/base.h>
+#include <cgv/base/group.h>
 #include <cgv/gui/provider.h>
 #include <cgv/render/context.h>
 #include <cgv/render/texture.h>
 #include <cgv/render/color_map.h>
-#include <cgv_app/application_plugin.h>
 #include <cgv_app/color_map_legend.h>
 
 #include "gui_util.h"
@@ -40,7 +40,7 @@ public:
 protected:
 
 	/// reference to the application plugin using the manager
-	cgv::app::application_plugin_base &owner;
+	cgv::base::group &owner;
 
 	/// the (fixed) pool of color map legend overlays. currently set to 4 since we can have max. 4 on-tube glyph layers.
 	std::array<cgv::app::color_map_legend_ptr, 4> legends;
@@ -52,10 +52,10 @@ protected:
 public:
 
 	/// construct a new color map manager
-	color_legend_manager(cgv::app::application_plugin_base &owner);
+	color_legend_manager(cgv::base::group &owner);
 
 	/// construct a new color map manager, taking the owning applicatino plugin as a pointer
-	inline color_legend_manager(cgv::app::application_plugin_base *owner) : color_legend_manager(*owner) {}
+	inline color_legend_manager(cgv::base::group *owner) : color_legend_manager(*owner) {}
 
 	// the destructor
 	~color_legend_manager() {}
