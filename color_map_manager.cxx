@@ -154,7 +154,7 @@ void color_map_manager::edit_color_map(const size_t index) {
 }
 
 bool color_map_manager::create_or_replace_texture(cgv::render::context& ctx, unsigned w, unsigned h, std::vector<uint8_t>& data) {
-	cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res, h, TI_UINT8, cgv::data::CF_RGB), data.data());
+	cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res, h, cgv::type::info::TI_UINT8, cgv::data::CF_RGB), data.data());
 
 	unsigned width = (unsigned)tex.get_width();
 	unsigned height = (unsigned)tex.get_height();
