@@ -12,7 +12,6 @@
 #include "render/state.h"
 #include "gpumem/ring_buffer_alt.h"
 
-
 // Forward declarations
 class on_tube_vis;
 
@@ -205,6 +204,16 @@ struct extrapolation_manager
 		render.style.attrib_mode = cgv::render::textured_spline_tube_render_style::AM_ATTRIBLESS;
 		render.style.forward = true; // <- can't use deferred shading with transparency
 		render.tube_shading.ao_style.enable = false; // <- not supported when streaming
+	}
+
+	void update_tube_shading (
+		const tube_shading_settings &tube_shading, const glyph_layer_manager::configuration &layer_config
+	){
+		render.tube_shading = tube_shading;
+		const auto tube_shading_defines = render.tube_shading.build_tube_shading_defines(
+			layer_config, false
+		);
+		render.tstr.set_additional_defines(tube_shading_defines);
 	}
 
 	void clear (void);

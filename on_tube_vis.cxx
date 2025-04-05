@@ -1318,6 +1318,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 			context& ctx = *get_context();
 			tube_shading_defines = defines;
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
+			client.extrapol_mgr.update_tube_shading(tube_shading, render.visualizations.front().config);
 		}
 	}
 

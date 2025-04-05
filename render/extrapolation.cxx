@@ -229,12 +229,8 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (
 	}
 
 	// Copy tube shading configuration form on_tube_vis as basis and modify for extrapolation
-	render.tube_shading = tube_shading;
-	const auto tube_shading_defines = render.tube_shading.build_tube_shading_defines(
-		layer_config, false
-	);
-	render.tstr.set_additional_defines(tube_shading_defines);
-	render.tstr.enable(ctx);
+	update_tube_shading(tube_shading, layer_config);
+	render.tstr.enable(ctx);  // make sure the shader program gets recompiled
 	render.tstr.disable(ctx);
 
 	// Done!
@@ -295,8 +291,10 @@ void extrapolation_manager::replace_extrapolation (
 		}
 
 		// Nothing to do if there are no in-range glyphs
-		if (layer.glyph_attribs.empty())
+		if (layer.glyph_attribs.empty()) {
+			layer.newest_seg_with_glyphs = 0;
 			continue;
+		}
 
 		// Assign remaining in-range glyphs
 		layer.newest_seg_with_glyphs = assign_glyphs(

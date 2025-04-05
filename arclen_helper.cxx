@@ -52,10 +52,20 @@ struct curve_segment
 namespace arclen {
 
 template <class flt_type>
-cgv::math::fmat<flt_type, 4, 4> single_linear_t_to_s (const flt_type dist, const flt_type offset) {
+cgv::math::fmat<flt_type, 4, 4> single_linear_t_to_s (flt_type dist, flt_type offset)
+{
+	static constexpr flt_type one_over_12 = 1/flt_type(12.f);
+	dist = dist*one_over_12;
 	cgv::math::fmat<flt_type, 4, 4> out;
-	for (unsigned i=0; i<16; i++)
-		out[i] = offset + flt_type(i)/flt_type(15) * dist;
+	for (unsigned sub=0; sub<4; ++sub) {
+		const unsigned sub_id = sub*4;
+		flt_type a;
+		for (unsigned i=0; i<4; ++i) {
+			a = flt_type(i)*dist;
+			out[sub_id+i] = offset + a;
+		}
+		offset += a;
+	}
 	return out;
 }
 

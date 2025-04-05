@@ -1593,7 +1593,7 @@ vec4 otv_shade_fragment (
 	//subp_color = vec4(0.1*texcoord.x, texcoord.y, 0.0, 1.0); // texcoords
 	//subp_color = vec4(hash31(segment_id), 1.0); // segment_id
 
-/*#if FORWARD_SHADING == 1 && L0_VISIBLE > 0 && L0_MAPPED_ATTRIB_COUNT > 0
+#if FORWARD_SHADING == 1/* && L0_VISIBLE > 0 && L0_MAPPED_ATTRIB_COUNT > 0
 	irange ir = ranges0[segment_id];
 	if (ir.n < 1)
 		subp_color.rgb = vec3(0,0,0);
@@ -1610,8 +1610,9 @@ vec4 otv_shade_fragment (
 	else if (ir.n < 7)
 		subp_color.rgb = vec3(1,0,1);
 	else
-		subp_color.rgb = vec3(1,0,1);
-#endif*/
+		subp_color.rgb = vec3(1,0,1);*/
+    //subp_color.rgb = vec3(texcoord.s, 0, 1-texcoord.s);
+#endif
 
 	return subp_color;
 }
