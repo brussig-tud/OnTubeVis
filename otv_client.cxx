@@ -527,23 +527,30 @@ void otv_client::update ()
 			}
 
 			// if the node created a segment, enqueue its glyphs and advance the index
-			render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
+			render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &)
+			{
+				// prelude
 				const auto data  {glyphs[layer_idx].attribs.data.begin()};
-				const auto begin {glyphs[layer_idx].ranges.at(traj.segment_idx).i0};
-				const auto end   {glyphs[layer_idx].ranges.at(traj.segment_idx).end()};
+				const auto cur_range = glyphs[layer_idx].ranges.at(traj.segment_idx);
+				const auto begin {cur_range.i0};
+				const auto end   {cur_range.end()};
+				const unsigned stride = target_traj.ref.glyph_to_attrib_count(layer_idx, glyph_count_type{1});
 
-				/*const ro_range glyph_attribs_to_enqueue {
-					data + target.traj.glyph_to_attrib_count(layer_idx, begin),
-					data + target.traj.glyph_to_attrib_count(layer_idx, end)
+				// skip glyphs we already submitted when handling the previous segment
+				auto glyphs_attribs = ro_range {
+					data + target_traj.ref.glyph_to_attrib_count(layer_idx, begin),
+					data + target_traj.ref.glyph_to_attrib_count(layer_idx, end)
 				};
-				std::clog << "otv_client::update(): [traj:"<<target.id<<", l:"<<unsigned(layer_idx)<<"] enqueueing "
-				          << glyph_attribs_to_enqueue.length()<<" glyph attribs\n";*/
+				while (glyphs_attribs.begin != glyphs_attribs.end && *glyphs_attribs.begin <= traj.last_s[layer_idx])
+					glyphs_attribs.begin += stride;
+
+				// submit new unique glyphs
 				const auto glyph_attribs_on_extrapol = enqueue_glyphs(
-					target_traj, layer_idx, ro_range {data + target_traj.ref.glyph_to_attrib_count(layer_idx, begin),
-					                                  data + target_traj.ref.glyph_to_attrib_count(layer_idx, end)}
+					target_traj, layer_idx, glyphs_attribs
 				);
-				/*std::clog << "otv_client::update(): placed "<<glyph_attribs_on_extrapol.length()<<" on extrapolation, "
-				          << glyph_attribs_to_enqueue.length()-glyph_attribs_on_extrapol.length()<<" skipped\n";*/
+
+				// update last_s
+				traj.last_s[layer_idx] = cur_range.n.value ? *(glyphs_attribs.end-stride) : traj.last_s[layer_idx];
 			});
 
 			++traj.segment_idx;

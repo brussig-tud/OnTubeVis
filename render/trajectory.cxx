@@ -16,7 +16,7 @@ gpumem::span<const float> trajectory::create_glyph_layer (
 	layer_index_type layer_idx,
 	glyph_size_type  glyph_size,
 	glyph_count_type capacity
-) {
+){
 	auto &layer {_layers[layer_idx]};
 
 	// Ensure that the layer is not currently in use.
@@ -121,7 +121,10 @@ void trajectory::update_glyphs ()
 		return;
 	}
 
-	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer) {
+	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer)
+	{
+		const volatile auto &my_traj_id = _id;
+
 		// Update only the layers that have changed.
 		if (! (_needs_glyph_update & 1 << layer_idx)) {
 			return;
@@ -150,7 +153,8 @@ void trajectory::update_glyphs ()
 		}
 
 		// Starting at the segment where we last left of, iterate over the rest of the trajectory.
-		while (layer.current_segment != nil) {
+		while (layer.current_segment != nil)
+		{
 			auto &range {shared_layer.ranges[layer.current_segment]};
 
 			// Initialize new segments.
@@ -168,8 +172,8 @@ void trajectory::update_glyphs ()
 			// Skip glyphs that lie before the current segment.
 			ro_range seg_attribs {layer.attrib_queue.begin(), layer.attrib_queue.begin()};
 			float glyph_center, glyph_radius;
-
-			while (true) {
+			while (true)
+			{
 				if (seg_attribs.begin == layer.attrib_queue.end()) {
 					// All glyphs are too old, nothing more to do.
 					layer.attrib_queue.flush();
@@ -188,13 +192,24 @@ void trajectory::update_glyphs ()
 				seg_attribs.begin += _glyph_sizes[layer_idx];
 			}
 
+			// By now, we know if the layer is a plot
+			const bool is_plot = glyph_radius < 0;
+
 			// Now that the start of the glyph range is known, find its end.
 			// Count the number of glyphs along the way.
 			seg_attribs.end = seg_attribs.begin;
 
+			glyph_count_type range_end;
+			bool plot_ctrl_pt_after_cur_seg = false;
 			while (true) {
 				// If the glyph lies fully beyond the current segment, the segment is complete.
 				if (glyph_center - std::max(glyph_radius, 0.0f) > seg_s_max) {
+					range_end = range.end();
+					if (is_plot && layer.last_glyph_center<seg_s_max) {
+						range.n += glyph_count_type{1};
+						seg_attribs.end += _glyph_sizes[layer_idx];
+						plot_ctrl_pt_after_cur_seg = true;
+					}
 					break;
 				}
 
@@ -209,9 +224,11 @@ void trajectory::update_glyphs ()
 				}
 
 				// Next glyph.
+				layer.last_glyph_center = glyph_center;
 				seg_attribs.end += _glyph_sizes[layer_idx];
 
 				if (seg_attribs.end == layer.attrib_queue.end()) {
+					range_end = range.end();
 					break;
 				}
 
@@ -221,7 +238,7 @@ void trajectory::update_glyphs ()
 
 			// Calculate the initial glyph range of this trajectory's next segment, consisting of
 			// all glyphs shared with the current segment.
-			layer.next_segment_range.i0  = range.end() - layer.next_segment_range.n;
+			layer.next_segment_range.i0  = range_end - layer.next_segment_range.n;
 			layer.next_segment_range.i0 -= layer.next_segment_range.i0 >= layer.buffer_size
 				? layer.buffer_size
 				: glyph_count_type{0};
@@ -312,9 +329,8 @@ void trajectory::trim_glyphs ()
 		assert(free_capacity >= 0 && target_capacity >= 0);
 
 		// Nothing to do if the remaining capacity is already sufficient.
-		if (free_capacity >= target_capacity) {
+		if (free_capacity >= target_capacity)
 			return;
-		}
 
 		// Logically delete the glyphs.
 		const auto diff {target_capacity - free_capacity};
@@ -348,7 +364,8 @@ void trajectory::trim_glyphs ()
 				: oldest_glyph_idx + layer.buffer_size - range.i0
 			};
 
-			if (offset < range.n) {
+			if (offset < range.n)
+			{
 				// If the current segment contains the oldest glyph, remove all preceding glyphs
 				// from its range.
 				range.n           -= offset;
@@ -356,12 +373,13 @@ void trajectory::trim_glyphs ()
 				found_oldest_glpyh = true;
 
 				// We are not done yet, removed glyphs could also overlap the next segment.
-			} else {
+			}
+			else
+			{
 				// Only wehen the oldest glyph was found and it does not overlap the current segment
 				// are we done.
-				if (found_oldest_glpyh) {
+				if (found_oldest_glpyh)
 					return;
-				}
 
 				// If the oldest remaining glyph has not been found yet, the current segment must
 				// be earlier, so all of its glyphs have been deleted.
@@ -382,19 +400,15 @@ void trajectory::trim_glyphs ()
 	});
 }
 
-bool trajectory::flush_glyph_attribs ()
-{
+bool trajectory::flush_glyph_attribs () {
 	auto ok {true};
-
 	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
 		ok &= _layers[layer_idx].glyph_attribs.flush();
 	});
-
 	return ok;
 }
 
-void trajectory::on_frame_done ()
-{
+void trajectory::on_frame_done () {
 	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
 		auto &attribs {_layers[layer_idx].glyph_attribs};
 		attribs.set_gpu_front(attribs.front());

@@ -3124,11 +3124,9 @@ void on_tube_vis::update_attribute_bindings(void)
 					trajectory.i0 - static_cast<unsigned>(render.trajectories.size());
 
 				// Construct the trajectory.
-				client.trajectories.push_back({
-					{trajectory.i0, trajectory.i0 + trajectory.n},
-					first_segment,
-					render.add_trajectory().id()
-				});
+				client.trajectories.emplace_back(
+					trajectory.i0, trajectory.n, first_segment, render.add_trajectory().id()
+				);
 			}
 		}
 

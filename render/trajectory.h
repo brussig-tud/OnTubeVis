@@ -17,10 +17,8 @@ class trajectory {
 public:
 	using id_type = unsigned int;
 
-
 	/// Create a new trajectory.
 	trajectory(id_type id, render_state &render);
-
 
 	/// Return this trajectory's ID.
 	[[nodiscard]] constexpr id_type id () const noexcept
@@ -61,7 +59,6 @@ public:
 	) const noexcept {
 		return num_glyphs.value * _glyph_sizes[layer];
 	}
-
 
 	/// Initialize a glyph layer to hold up to `capacity` glyphs of `glyph_size` floats each.
 	/// If the layer is in use already it must first be freed by `destroy_glyph_layer`.
@@ -143,42 +140,57 @@ private:
 	struct layer_data {
 		/// Compiled glyphs shown on the trajectory.
 		gpumem::ring_buffer<float, gpumem::memory_pool_ptr> glyph_attribs {};
+
 		/// Glyph attributes received from the client that have not been entered into the render
 		/// buffer yet.
 		dbuf_queue<float> attrib_queue;
+
 		/// Absolute index of the segment glyphs are currently being placed on.
 		gpumem::index_type current_segment {nil};
+
 		/// The initial range of glyphs on the segment that will next have glyphs added, including
 		/// potential overlap (i.e. glyphs on multiple segments).
 		index_range<glyph_count_type> next_segment_range {};
+
+		/// The glyph center of the last added glyph. Required to resolve inter-segment ambiguities for plots when a
+		/// control point lies directly on a Hermite node.
+		float last_glyph_center = -std::numeric_limits<float>::infinity();
+
 		/// The size, not capacity, of this layer's glyph buffer.
 		glyph_count_type buffer_size;
+
 		/// Indicates whether `current_segment` has changed since the last call to `update_glyphs`.
 		bool segment_is_new;
 	};
 
-
 	/// Index value indicating the lack of an object.
 	static constexpr gpumem::index_type nil {-1};
 
-
 	/// Data specific to each glyph layer.
 	per_layer<layer_data> _layers;
+
 	/// Rendering data independent of any specific trajectories.
 	render_state &_render;
+
 	/// The absolute index of the last entry in the node buffer belonging to this trajectory.
 	gpumem::index_type _last_node_idx {nil};
+
 	/// A copy of the most recently appended node.
 	node_attribs _most_recent_node;
+
 	/// Absolute index of the first, i.e. oldest, entry in the segment buffer belonging to this
 	/// trajectory.
 	gpumem::index_type _first_segment_idx {nil};
+
 	/// Absolute index of the last entry in the segment buffer belonging to this trajectory.
 	gpumem::index_type _last_segment_idx {nil};
+
 	/// Uniquely identifies this trajectory.
 	id_type _id;
+
 	/// The number of 32-bit float values used to define one glyph instance on each layer.
 	per_layer<glyph_size_type> _glyph_sizes;
+
 	/// Bits indicate whether a layer has new potentially visible glyphs that should be uploaded to
 	/// the GPU.
 	uint8_t _needs_glyph_update {0};

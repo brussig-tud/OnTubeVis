@@ -61,7 +61,7 @@ void debug_run (const NominalConfig &config)
 	// Base trajectory (will be identical except for translation)
 	auto traj0 = stream::Nodes::compile(config, {
 		stream::Nodes::Event{.0f, cgv::vec3(0,0,0), cgv::vec3(2,0,0)},
-		stream::Nodes::Event{2.f, cgv::vec3(2,.5f,.125f), cgv::vec3(2,0,0)},
+		stream::Nodes::Event{2.f, cgv::vec3(2,0/*.5f*/,0/*.125f*/), cgv::vec3(2,0,0)},
 		stream::Nodes::Event{4.f, cgv::vec3(4,.25f,-.125f), cgv::vec3(2,0,0)}
 	});
 	stream::NodesStreamer traj0_stream(traj0, 0);

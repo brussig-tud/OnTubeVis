@@ -35,12 +35,31 @@ struct otv_client {
 	/// Wrapper around a rendered trajectory that can be used to simulate streaming by gradually
 	/// adding data from a buffer.
 	struct trajectory {
+		trajectory() = delete;
+		trajectory(const unsigned i0, const unsigned n, unsigned first_segment, unsigned traj_id)
+			: node_idcs{i0, i0+n}, segment_idx(first_segment), id(traj_id)
+		{}
+
 		/// The range of nodes in the client's buffer belonging to this trajectory.
 		ro_range<unsigned> node_idcs;
+
 		/// The index of the next segment in the client's buffer belonging to this trajectory.
 		/// There is always one fewer segment than nodes, so there is no need to store the maximum
 		/// index.
 		unsigned segment_idx;
+
+		/// The arclength position of the last glyph submitted for this trajectory on each layer. Required because the
+		/// indexing into a trajectory glyph series is non-monotonous by nature due to potential overlap between
+		/// segments. This is especially the case for plots, which almost always need inter-segment overlap to ensure
+		/// smooth interpolation.
+		/// Bookkeeping the most recently submitted s positions enables filtering out duplicated references and submit
+		/// unique glyphs only like the submission interface requires (this information will be properly recreated
+		/// behind the interface, including re-routing to extrapolations).
+		float last_s[4] = {
+			-std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity(),
+			-std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity()
+		};
+
 		/// The ID under which this is managed by the render state.
 		otv::trajectory::id_type id;
 	};
@@ -55,7 +74,7 @@ struct otv_client {
 		glyph_layer &operator= (const glyph_layer &) = delete;
 		glyph_layer &operator= (glyph_layer &&) noexcept = default;
 
-		/// The ranges of glyphs located on each segment.
+		/// The ranges of glyphs in this layer on each trajectory.
 		std::vector<index_range<glyph_count_type>> ranges;
 		/// The attributes defining each glyph.
 		glyph_attributes attribs;
