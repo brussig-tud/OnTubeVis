@@ -119,13 +119,35 @@ layout (std430, binding=B1) readonly buffer ranges_buffer##I { \
 	irange ranges##I[]; \
 }; \
 
+#if FORWARD_SHADING == 1
+	#define L0_BINDING_0 3
+	#define L0_BINDING_1 4
+	#define L1_BINDING_0 5
+	#define L1_BINDING_1 6
+	#define L2_BINDING_0 7
+	#define L2_BINDING_1 8
+	#define L3_BINDING_0 9
+	#define L3_BINDING_1 10
+	#define FIRST_BINDING_AFTER_GLYPH_LAYERS 11
+#else
+	#define L0_BINDING_0 0
+	#define L0_BINDING_1 1
+	#define L1_BINDING_0 2
+	#define L1_BINDING_1 3
+	#define L2_BINDING_0 4
+	#define L2_BINDING_1 5
+	#define L3_BINDING_0 6
+	#define L3_BINDING_1 7
+	#define FIRST_BINDING_AFTER_GLYPH_LAYERS 8
+#endif
+
 /// Buffer storing which trajectory each segment belongs to.
-layout (binding = max_glyph_layers * 2) readonly buffer seg_to_traj_buffer {
+layout (binding = FIRST_BINDING_AFTER_GLYPH_LAYERS) readonly buffer seg_to_traj_buffer {
 	TRAJECTORY_ID_T seg_to_traj[];
 };
 
 /// See `get_traj_glyph_mem`.
-layout (binding = max_glyph_layers * 2 + 1) readonly buffer traj_glyph_mem_buffer {
+layout (binding = FIRST_BINDING_AFTER_GLYPH_LAYERS+1) readonly buffer traj_glyph_mem_buffer {
 	irange traj_glyph_mem[];
 };
 
@@ -171,25 +193,6 @@ bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info cl
 	return false; \
 }
 
-#if FORWARD_SHADING == 1
-	#define L0_BINDING_0 3
-	#define L0_BINDING_1 4
-	#define L1_BINDING_0 5
-	#define L1_BINDING_1 6
-	#define L2_BINDING_0 7
-	#define L2_BINDING_1 8
-	#define L3_BINDING_0 9
-	#define L3_BINDING_1 10
-#else
-	#define L0_BINDING_0 0
-	#define L0_BINDING_1 1
-	#define L1_BINDING_0 2
-	#define L1_BINDING_1 3
-	#define L2_BINDING_0 4
-	#define L2_BINDING_1 5
-	#define L3_BINDING_0 6
-	#define L3_BINDING_1 7
-#endif
 #if L0_MAPPED_ATTRIB_COUNT > 0
 DEF_GLYPH_DESC_AND_BUFFERS(0, L0_MAPPED_ATTRIB_COUNT, L0_BINDING_0, L0_BINDING_1)
 DEF_CLOSEST_SAMPLES(0, ranges0, glyphs0)

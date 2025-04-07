@@ -44,7 +44,7 @@ auto debug_setup (void)
 {
 	// Create the configuration
 	return OTVConfiguration(
-		"debug", 1, 3, 0.5f,
+		"debug", 3, 3, 0.5f,
 		SurfaceColorLayer(Rainbow, Linear),
 		SignBlobLayer(.03125f, 1, otv__Rgb(1/3.f, 2/3.f, 1)),
 		RectangleLayer(.03125f, otv__Rgb(6/7.f, 1/3.f, 0.03125f))
@@ -65,6 +65,12 @@ void debug_run (const NominalConfig &config)
 		stream::Nodes::Event{4.f, cgv::vec3(4,.25f,-.125f), cgv::vec3(2,0,0)}
 	});
 	stream::NodesStreamer traj0_stream(traj0, 0);
+
+	auto traj1 = traj0.transformed(translate4(cgv::vec3{1.f, .0f, -1.5f}));
+	stream::NodesStreamer traj1_stream(traj1, 0);
+
+	auto traj2 = traj0.transformed(translate4(cgv::vec3{-1.f, .0f, -1.5f}));
+	stream::NodesStreamer traj2_stream(traj2, 0);
 
 	// Surface color layer
 	stream::Glyphs t0l0;
@@ -150,33 +156,37 @@ void debug_run (const NominalConfig &config)
 	traj0_stream.stream_up_to_time(1);
 	t0l0_stream.stream_up_to_time(0);
 
-	//std::cerr << "[ENTER]" << std::endl; getchar();
+	std::cerr << "[ENTER]" << std::endl; getchar();
 	t0l0_stream.stream_up_to_time(1);
-	//std::cerr << "[ENTER]" << std::endl; getchar();
+	std::cerr << "[ENTER]" << std::endl; getchar();
 	t0l0_stream.stream_up_to_time(2);
 
-	//std::cerr << "[ENTER]" << std::endl; getchar();
+	std::cerr << "[ENTER]" << std::endl; getchar();
 	t0l0_stream.stream_up_to_time(3);
-	//std::cerr << "[ENTER]" << std::endl; getchar();
+	std::cerr << "[ENTER]" << std::endl; getchar();
 	t0l0_stream.stream_up_to_time(4);
 
-	//std::cerr << "[ENTER]" << std::endl; getchar();
+	std::cerr << "[ENTER]" << std::endl; getchar();
 	t0l0_stream.stream_up_to_time(5);
 
 
-	//std::cerr << "[ENTER]" << std::endl; getchar();
+	std::cerr << "[ENTER]" << std::endl; getchar();
 	t0l1_stream.stream_up_to_time(1);
-	//std::cerr << "[ENTER]" << std::endl; getchar();
+	std::cerr << "[ENTER]" << std::endl; getchar();
 	t0l1_stream.stream_up_to_time(2);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+	t0l1_stream.stream_up_to_time(3);
+	std::cerr << "[ENTER]" << std::endl; getchar();
+	t0l1_stream.stream_up_to_time(4);
 
 	std::cerr << "[ENTER]" << std::endl; getchar();
 	traj0_stream.stream_up_to_time(2);
 
-	std::cerr << "[ENTER]" << std::endl; getchar();
-	t0l1_stream.stream_up_to_time(3);
+	/*std::cerr << "[ENTER]" << std::endl; getchar();
+	t0l1_stream.stream_up_to_time(3);*/
 
-	std::cerr << "[ENTER]" << std::endl; getchar();
-	t0l1_stream.stream_up_to_time(4);
+	/*std::cerr << "[ENTER]" << std::endl; getchar();
+	t0l1_stream.stream_up_to_time(4);*/
 
 	std::cerr << "[ENTER]" << std::endl; getchar();
 	t0l1_stream.stream_up_to_time(5);

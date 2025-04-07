@@ -123,7 +123,9 @@ void trajectory::update_glyphs ()
 
 	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer)
 	{
-		const volatile auto &my_traj_id = _id;
+		#ifndef NDEBUG
+			const volatile auto &my_traj_id = _id;
+		#endif
 
 		// Update only the layers that have changed.
 		if (! (_needs_glyph_update & 1 << layer_idx)) {
@@ -200,15 +202,14 @@ void trajectory::update_glyphs ()
 			seg_attribs.end = seg_attribs.begin;
 
 			glyph_count_type range_end;
-			bool plot_ctrl_pt_after_cur_seg = false;
-			while (true) {
+			while (true)
+			{
 				// If the glyph lies fully beyond the current segment, the segment is complete.
 				if (glyph_center - std::max(glyph_radius, 0.0f) > seg_s_max) {
 					range_end = range.end();
 					if (is_plot && layer.last_glyph_center<seg_s_max) {
 						range.n += glyph_count_type{1};
 						seg_attribs.end += _glyph_sizes[layer_idx];
-						plot_ctrl_pt_after_cur_seg = true;
 					}
 					break;
 				}
@@ -217,21 +218,22 @@ void trajectory::update_glyphs ()
 				range.n += glyph_count_type{1};
 
 				// If the glyph also overlaps the next segment, count it there as well.
-				if (glyph_radius < 0) {
+				if (glyph_radius < 0)
 					layer.next_segment_range.n = glyph_count_type{1};
-				} else if (glyph_center + glyph_radius > seg_s_max) {
+				else if (glyph_center + glyph_radius > seg_s_max)
 					layer.next_segment_range.n += glyph_count_type{1};
-				}
 
 				// Next glyph.
 				layer.last_glyph_center = glyph_center;
 				seg_attribs.end += _glyph_sizes[layer_idx];
 
+				// Processed all glyphs in the queue.
 				if (seg_attribs.end == layer.attrib_queue.end()) {
 					range_end = range.end();
 					break;
 				}
 
+				// Update geometry info for new unprocessed glyph
 				glyph_center = *seg_attribs.end;
 				glyph_radius = .5f * _render.glyph_diameter(layer_idx, &*seg_attribs.begin + 2).value_or(-2);
 			}
