@@ -802,7 +802,7 @@ bool extrapolation_manager::flush_changes (void)
 	state.last_frame_timepoint = state.update_needed ?
 		  state.last_frame_timepoint
 		: std::chrono::high_resolution_clock::now();
-	state.update_needed |= state.dirty_flags;
+	state.update_needed = state.update_needed || state.dirty_flags;
 	state.dirty_flags = 0;
 
 	// Done!
