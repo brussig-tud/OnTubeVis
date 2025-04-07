@@ -121,10 +121,12 @@ void trajectory::update_glyphs ()
 		return;
 	}
 
+	const auto self = this;
 	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer)
 	{
 		#ifndef NDEBUG
 			const volatile auto &my_traj_id = _id;
+			const volatile auto &my_traj = self;
 		#endif
 
 		// Update only the layers that have changed.
@@ -210,6 +212,7 @@ void trajectory::update_glyphs ()
 					if (is_plot && layer.last_glyph_center<seg_s_max) {
 						range.n += glyph_count_type{1};
 						seg_attribs.end += _glyph_sizes[layer_idx];
+						layer.last_glyph_center = glyph_center;
 					}
 					break;
 				}
