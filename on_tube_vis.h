@@ -97,6 +97,7 @@ public:
 	bool session_taa_keep_sampling = false;
 	unsigned session_taa_missing_samples = 0;
 	unsigned session_glyphbuf_size = 0;
+	unsigned session_sample_count_factor = 0;
 
 	// API command endpoints
 	void start_new_streaming_session (const VisSetup &vis_setup);

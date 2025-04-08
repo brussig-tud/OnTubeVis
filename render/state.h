@@ -197,12 +197,15 @@ private:
 	friend class trajectory;
 
 	/// All information required to append a node to a trajectory.
-	struct new_node {
+	struct new_node
+	{
 		/// Attributes of the node itself.
 		node_attribs node;
+
 		/// Arclength parametrization of the segment completed by the node.
 		/// May be arbitrary if the node is first in its trajectory.
 		cgv::mat4 t_to_s;
+
 		/// Identifies the trajectory to which the node will be added.
 		trajectory::id_type trajectory;
 	};

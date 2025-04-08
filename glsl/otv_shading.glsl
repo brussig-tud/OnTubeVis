@@ -3,6 +3,8 @@
 
 #define FORWARD_SHADING 0
 
+#define ALTERNATIVE_RING_BUFFER 0
+
 #define DEBUG_SEGMENTS 0
 
 #define ENABLE_AMBIENT_OCCLUSION 1
@@ -1476,6 +1478,48 @@ vec4 otv_shade_fragment (
 	{
 		closest_glyphs_info closest;
 		vec2 glyphuv = uv;
+		/*if (segment_id==6)
+			color = vec3(1,0,0);
+		else if (segment_id==7)
+			color = vec3(0,1,0);
+		else if (segment_id==8)
+			color = vec3(0,0,1);*/
+		const uint traj_id = seg_to_traj[segment_id];
+		const uint layer = 0;
+		/*if (traj_id==0)
+			color = vec3(1,0,0);
+		else if (traj_id==1)
+			color = vec3(0,1,0);
+		else if (traj_id==2)
+			color = vec3(0,0,1);*/
+		const irange tgm = get_traj_glyph_mem(traj_id, layer);
+		/*if (tgm.i0<1536)
+			color = vec3(1,0,0);
+		else if (tgm.i0==1536)
+			color = vec3(0,1,0);
+		else if (tgm.i0>1536)
+			color = vec3(0,0,1);*/
+		/*if (tgm.n<768)
+			color = vec3(1,0,0);
+		else if (tgm.n==768)
+			color = vec3(0,1,0);
+		else if (tgm.n>768)
+			color = vec3(0,0,1);*/
+		const uint testidx = abs_index(3, traj_id, layer);
+		/*if (testidx<1536)
+			color = vec3(1,0,0);
+		else if (testidx==1536)
+			color = vec3(0,1,0);
+		else if (testidx>1536)
+			color = vec3(0,0,1);*/
+		glyph_desc0 testglyph = glyphs0[testidx];
+		/*if (testglyph.s<0)
+			color = vec3(1,0,0);
+		else if (testglyph.s==0)
+			color = vec3(0,1,0);
+		else if (testglyph.s>0)
+			color = vec3(0,0,1);*/
+
 		if (get_closest_samples0(segment_id, glyphuv.s, closest)) {
 			glyph_desc0 glyph = glyphs0[closest.id];
 

@@ -224,7 +224,10 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (
 			traj.layers.emplace_back(
 				ranges_buf, glyphs.glyph_attribs_arena[l].buffer(per_layer_buffer_id)
 			);
-			traj_glyph_mem[l] = irange{int(t*num_attribs/* + l*/), (int)num_attribs};
+			assert(num_attribs%setup.glyph_attrib_counts[l] == 0);
+			const unsigned layer_glyph_capacity = num_attribs / setup.glyph_attrib_counts[l];
+			assert(layer_glyph_capacity*setup.glyph_attrib_counts[l] == num_attribs);
+			traj_glyph_mem[l] = irange{int(t*layer_glyph_capacity/* + l*/), (int)layer_glyph_capacity};
 		}
 	}
 

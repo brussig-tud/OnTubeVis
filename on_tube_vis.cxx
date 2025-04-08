@@ -1094,17 +1094,18 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 	const auto &ds = traj_mgr.dataset(0);
 	const auto &attribs = ds.attributes();
 	session_glyphbuf_size = 1; // minimum capacity for glyphs per layer and trajectory that we never want to go below
-	const unsigned sample_count_factor = run_as_service ? 1 : 16; // how many per-glyph floats to assume for each
-	                                                              // attribute sample in the dataset. In case of service
-	                                                              // mode, we already abused the number of attributes in
-	                                                              // the dummy "dataset" to represent the number of
-	                                                              // glyphs we want to fit in a ring buffer, so it has
-	                                                              // to be exactly 1.
+	session_sample_count_factor = run_as_service ? 1 : 5;  // how many per-glyph floats to assume for each attribute
+	                                                       // sample in the dataset. In case of service mode, we already
+	                                                       // abused the number of attributes in the dummy "dataset" to
+	                                                       // represent the number of glyphs we want to fit in a ring
+	                                                       // buffer, so it has to be exactly 1.
+	                                                       // TODO: should be determined _after_ applying a layer
+	                                                       //       config, since we will know the exact values by then
 	for (const auto &attrib_entry : attribs) {
 		const auto &attrib = attrib_entry.second;
 		const auto &trajs = ds.trajectories(attrib);
 		for (const auto &traj : trajs)
-			session_glyphbuf_size = std::max(session_glyphbuf_size, traj.n*sample_count_factor);
+			session_glyphbuf_size = std::max(session_glyphbuf_size, traj.n*session_sample_count_factor);
 	}
 
 	// print out attribute statistics
@@ -1768,9 +1769,9 @@ bool on_tube_vis::compile_glyph_attribs ()
 			success = gc.compile_glyph_attributes(dataset, client.arclen_data, ds_config.config);
 
 			// set up render/streaming
-			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx)
+			for(size_t layer_idx=0; layer_idx<gc.layer_filled.size(); ++layer_idx)
 			{
-				if (! gc.layer_filled[layer_idx])
+				if (!gc.layer_filled[layer_idx])
 				{
 					// Clear layer for client and renderer.
 					client.glyphs[layer_idx] = {};
@@ -1829,7 +1830,7 @@ bool on_tube_vis::compile_glyph_attribs ()
 			if (client.num_extrapol_segments)
 				client.extrapol_mgr.create_glyph_and_per_layer_buffers(
 					*get_context(), tube_shading, render.visualizations.front().config,
-					/* min_glyphs_capacity_per_traj_and_layer: */std::min<unsigned>(session_glyphbuf_size/64, 128)
+					/* min_glyphs_capacity_per_traj_and_layer: */32
 				);
 
 			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
@@ -1840,7 +1841,6 @@ bool on_tube_vis::compile_glyph_attribs ()
 	if(success) {
 		// Flush attribute allocation buffer.
 		std::ignore = render.traj_glyph_mem.flush();
-
 		taa.reset();
 		post_redraw();
 	}

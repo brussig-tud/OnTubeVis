@@ -54,8 +54,9 @@ struct tube_shading_settings
 		float blend_factor;
 	};
 
+	// grid-related
 	cgv::rgba grid_color;
-	GridMode grid_mode;
+	GridMode grid_mode = GM_NONE;
 	cgv::type::DummyEnum grid_normal_settings;
 	bool grid_normal_inwards;
 	bool grid_normal_variant;
@@ -63,7 +64,11 @@ struct tube_shading_settings
 	float normal_mapping_scale;
 	std::vector<grid_parameters> grids;
 
+	// ambient occlusion
 	ambient_occlusion_style ao_style;
+
+	// streaming-related
+	bool alternative_ring_buffer = false;
 
 	[[nodiscard]] cgv::render::shader_define_map build_tube_shading_defines (
 		const glyph_layer_manager::configuration &glyph_layers_config, bool debug_highlight_segments=false

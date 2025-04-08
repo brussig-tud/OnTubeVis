@@ -7,6 +7,9 @@ cgv::render::shader_define_map tube_shading_settings::build_tube_shading_defines
 ) const {
 	cgv::render::shader_define_map defines;
 
+	// streaming-related defines
+	cgv::render::shader_code::set_define(defines, "ALTERNATIVE_RING_BUFFER", alternative_ring_buffer, false);
+
 	// debug defines
 	cgv::render::shader_code::set_define(defines, "DEBUG_SEGMENTS", debug_highlight_segments, false);
 
@@ -81,10 +84,8 @@ void tube_shading_settings::set_uniforms (
 	// set attribute mapping parameters
 	for(const auto& p : glyph_layers_config.constant_float_parameters)
 		prog.set_uniform(ctx, p.first, *p.second);
-
 	for(const auto& p : glyph_layers_config.constant_color_parameters)
 		prog.set_uniform(ctx, p.first, *p.second);
-
 	for(const auto& p : glyph_layers_config.mapping_parameters)
 		prog.set_uniform(ctx, p.first, *p.second);
 

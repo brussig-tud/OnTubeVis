@@ -48,7 +48,8 @@ namespace extrapol
 		}
 	};
 
-	struct per_layer {
+	struct per_layer
+	{
 		/// Reference to the ring buffer to use for storing the glyph index ranges mapped to each segment for this
 		/// layer. The capacity of each ringbuffer should match up with the corresponding per-segment ring buffers in
 		/// @ref otv::per_trajectory .
@@ -68,9 +69,17 @@ namespace extrapol
 		)
 			: ranges(ranges_buffer), glyph_attribs(glyphs_buffer)
 		{}
+
+		inline unsigned real_glyph_idx_from_logical (const unsigned logical_idx) {
+			return glyph_attribs.real_idx_from_logical(logical_idx);;
+		}
+		inline unsigned logical_glyph_idx_from_real (const unsigned real_idx) {
+			return glyph_attribs.logical_idx_from_real(real_idx);
+		}
 	};
 
-	struct per_trajectory {
+	struct per_trajectory
+	{
 		/// The ring buffer containing the trajectory nodes.
 		gpumem::ring_buffer_alt<node_attribs> &nodes;
 
@@ -180,7 +189,8 @@ struct extrapolation_manager
 	} render;
 
 	/// Logical state.
-	struct state_struct {
+	struct state_struct
+	{
 		static constexpr uint16_t SEGMENTS_DIRTY=1, RANGES0_DIRTY=2, RANGES1_DIRTY=4, RANGES2_DIRTY=8, RANGES3_DIRTY=16,
 		                          GLYPHS0_DIRTY=32, GLYPHS1_DIRTY=64, GLYPHS2_DIRTY=128, GLYPHS3_DIRTY=256;
 		static constexpr uint16_t ranges_dirty_flag[4] = {RANGES0_DIRTY, RANGES1_DIRTY, RANGES2_DIRTY, RANGES3_DIRTY},
@@ -210,6 +220,7 @@ struct extrapolation_manager
 		const tube_shading_settings &tube_shading, const glyph_layer_manager::configuration &layer_config
 	){
 		render.tube_shading = tube_shading;
+		render.tube_shading.alternative_ring_buffer = true;
 		const auto tube_shading_defines = render.tube_shading.build_tube_shading_defines(
 			layer_config, false
 		);

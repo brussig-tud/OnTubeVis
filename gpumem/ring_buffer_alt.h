@@ -27,10 +27,11 @@ struct ring_buffer_meta
 	/// buffer.
 	uint32_t len {0};
 
-	/// Index of the newest element, relative to @ref begin .
+	/// Index of the @a new element (i.e. the slot that will receive the first newly pushed value), relative to
+	/// @ref begin.
 	uint32_t head {0};
 
-	/// Index of the oldest element, relative to @ref begin .
+	/// Index of the oldest element, relative to @ref begin.
 	uint32_t tail {0};
 };
 
@@ -348,6 +349,46 @@ struct ring_buffer_alt
 		return iterator(contents, meta, num_elems, meta.head);
 	}
 
+	/// Report the real index of the buffer slot corresponding to the given logical element index.
+	inline unsigned real_idx_from_logical (const unsigned logical_idx) {
+		const unsigned real_idx = (begin()+logical_idx).real_idx;
+		return real_idx;
+	}
+
+	/// Compute the logical element index corresponding to the given real index of a buffer slot. This can also compute
+	/// out-of-bounds logical indices if the given real index corresponds to a vacant slot in the ring buffer. In such a
+	/// case, the true out-of-bounds logical index will be disambiguated according to the current buffer geometry.
+	inline unsigned logical_idx_from_real (const unsigned real_idx)
+	{
+		// Enforce our assumptions
+		assert(real_idx < meta.len);
+
+		// Disambiguate
+		if (real_idx > meta.head)
+		{
+			if (real_idx < meta.tail) {
+				const unsigned to_head = real_idx - meta.head;
+				const unsigned logical_idx = num_elems-1 + to_head;
+				return logical_idx;
+			}
+			/* real_idx >= meta.tail */ {
+				const unsigned to_tail = real_idx - meta.tail;
+				return to_tail;
+			}
+		}
+		/* real_idx <= meta.head */ {
+			if (real_idx < meta.tail) {
+				const unsigned after_front = real_idx+1;
+				const unsigned after_head = meta.len - meta.head;
+				const unsigned logical_idx = num_elems + after_head + after_front;
+				return logical_idx;
+			}
+			/* real_idx >= meta.tail */ {
+				return num_elems;
+			}
+		}
+	}
+
 	/// Flush just the ring buffer meta data (i.e. after all elements in the buffer were dropped so there is no reason
 	/// to change something in the contents)
 	bool flush_meta (void) const {
@@ -448,7 +489,8 @@ struct ring_buffer_arena
 
 		// Create ring buffers
 		ring_buffers.reserve(num_buffers);
-		for (unsigned i=0; i<num_buffers; i++) {
+		for (unsigned i=0; i<num_buffers; i++)
+		{
 			const span<ring_buffer_meta> meta_span{
 				meta_memory.data()+i, 1, meta_memory.handle()
 			};

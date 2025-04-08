@@ -89,7 +89,8 @@ void render_state::trim_trajectories ()
 		node_buffer.capacity()
 	)};
 
-	while (free_capacity < target_capacity) {
+	while (free_capacity < target_capacity)
+	{
 		// Draw calls are over a contiguous (except for wrap-around) range of segments, so segments
 		// must be deleted in order.
 		auto *segment = segment_buffer.try_first();
@@ -112,7 +113,8 @@ void render_state::trim_trajectories ()
 		// Remove all nodes no longer used by a segment from the front of the buffer.
 		// Depending on order, some unused nodes could be kept for now, but this is fine; they will
 		// be removed by one of the next trimmings.
-		while (auto *node = node_buffer.try_first()) {
+		while (auto *node = node_buffer.try_first())
+		{
 			if (_node_starts_segment[node_buffer.front()]) {
 				assert(! segment_buffer.is_empty());
 				break;
@@ -128,19 +130,16 @@ void render_state::trim_trajectories ()
 	}
 }
 
-bool render_state::create_geom_buffers (
-	gpumem::size_type max_nodes,
-	gpumem::size_type reserve_nodes
-) {
+bool render_state::create_geom_buffers (gpumem::size_type max_nodes, gpumem::size_type reserve_nodes)
+{
 	// Store desired margin.
 	this->reserve_nodes = reserve_nodes;
 
 	// Allocate memory for rendered and reserved nodes.
 	auto capacity {max_nodes + reserve_nodes};
 
-	if (! node_buffer.create(capacity)) {
+	if (!node_buffer.create(capacity))
 		return false;
-	}
 
 	_node_starts_segment = std::vector<bool>(node_buffer.as_span().length());
 

@@ -192,8 +192,7 @@ void debug_run (const NominalConfig &config)
 	std::cerr << "[ENTER]" << std::endl; getchar();
 	traj0_stream.stream_up_to_time(5);*/
 
-	//std::cerr << "[ENTER]" << std::endl; getchar();
-	traj0_stream.stream_up_to_time(2);
+	/*traj0_stream.stream_up_to_time(2);
 
 	std::cerr << "[ENTER]" << std::endl; getchar();
 	t0l1_stream.stream_up_to_time(1);
@@ -223,10 +222,12 @@ void debug_run (const NominalConfig &config)
 	t0l1_stream.stream_up_to_time(5);
 
 	std::cerr << "[ENTER]" << std::endl; getchar();
-	traj0_stream.stream_up_to_time(7);
+	traj0_stream.stream_up_to_time(7);*/
 
 
-	/*traj2_stream.stream_up_to_time(1);
+	traj2_stream.stream_up_to_time(1);
+
+	std::cerr << "[ENTER]" << std::endl; getchar();
 	t2l0_stream.stream_up_to_time(0);
 
 	std::cerr << "[ENTER]" << std::endl; getchar();
@@ -259,7 +260,7 @@ void debug_run (const NominalConfig &config)
 	t2l1_stream.stream_up_to_time(5);
 
 	std::cerr << "[ENTER]" << std::endl; getchar();
-	traj2_stream.stream_up_to_time(5);*/
+	traj2_stream.stream_up_to_time(5);
 
 	/*std::cerr << "[ENTER]" << std::endl; getchar();
 	traj2_stream.stream_up_to_time(2);
