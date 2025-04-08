@@ -302,7 +302,7 @@ void extrapolation_manager::replace_extrapolation (
 		// Assign remaining in-range glyphs
 		layer.newest_seg_with_glyphs = assign_glyphs(
 			ro_range{layer.ranges.begin(), layer.ranges.end()}, ro_range{traj.t_to_s.begin(), traj.t_to_s.end()},
-			l, on_extrapol
+			traj_id, l, on_extrapol
 		);
 	}
 
@@ -383,7 +383,8 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	for (auto range_it=layer.ranges.begin(); range_it<layer.ranges.end(); ++range_it)
 	{
 		auto &range = *range_it;
-		int num_affected = std::max(static_cast<int>(discarded.num_overwritten) - range.i0, 0);
+		// ORIGINAL WITH LOGICAL IDCS IN RANGE:
+		/*int num_affected = std::max(static_cast<int>(discarded.num_overwritten) - range.i0, 0);
 		if (num_affected > 0) {
 			// This segment now has some or all of its glyphs missing, which we can resolve solely on the basis of its
 			// mapped range start index
@@ -397,14 +398,31 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 			const int new_i0 = range.i0 - discarded.num_overwritten;
 			assert(new_i0 >= 0);
 			range.i0 = new_i0;
+		}*/
+		int logical_i0 = layer.logical_glyph_idx_from_real(stride, range.i0);
+		int num_affected = std::max(static_cast<int>(discarded.num_overwritten) - logical_i0, 0);
+		if (num_affected > 0) {
+			// This segment now has some or all of its glyphs missing, which we can resolve solely on the basis of its
+			// mapped range start index
+			logical_i0 = 0; // <- glyphs can only ever be missing at the tail end
+			num_affected = std::min<unsigned>(num_affected, range.n);
+			range.n -= num_affected;
 		}
+		else if (range.n) {
+			// All glyphs mapped to this segment are still there, they just moved tailwards, so adjust start index
+			// accordingly
+			const int new_i0 = logical_i0 - discarded.num_overwritten;
+			assert(new_i0 >= 0);
+			logical_i0 = new_i0;
+		}
+		range.i0 = layer.real_glyph_idx_from_logical(stride, logical_i0); // commit changes to range i0
 	}
 
 	// Assign to segments
 	layer.newest_seg_with_glyphs += assign_glyphs(
 		ro_range{layer.ranges.begin()+layer.newest_seg_with_glyphs, layer.ranges.end()},
 		ro_range{traj.t_to_s.begin()+layer.newest_seg_with_glyphs, traj.t_to_s.end()},
-		l, actually_on_extrapol, num_glyphs_before
+		traj_id, l, actually_on_extrapol, num_glyphs_before
 	);
 
 	#ifndef NDEBUG
@@ -626,12 +644,13 @@ template ro_range<float*> extrapolation_manager::keep_glyphs_after_including (
 
 template <class IRangeIter, class AlenIter, class GlyphAttribsIter>
 unsigned extrapolation_manager::assign_glyphs (
-	ro_range<IRangeIter> &&ranges_out, const ro_range<AlenIter> &t_to_s, unsigned layer,
+	ro_range<IRangeIter> &&ranges_out, const ro_range<AlenIter> &t_to_s, const unsigned traj_id, const unsigned layer,
 	const ro_range<GlyphAttribsIter> &glyph_attribs, const unsigned idx_offset
 ){
 	////
 	// Prelude
 
+	const auto &layer_ref = trajectories[traj_id].layers[layer];
 	const unsigned num_segments = ranges_out.length();
 	const auto num_glyphs = (unsigned)otv_render.trajectories.front().attrib_to_glyph_count(
 		layer, (int)glyph_attribs.length()
@@ -670,7 +689,10 @@ unsigned extrapolation_manager::assign_glyphs (
 			// Obtain relevant quantities and references
 			const auto s_max = (*(t_to_s.begin+seg))[15];
 			auto &cur_range = *(ranges_out.begin+seg);
-			cur_range.i0 = (replace || !cur_range.n) ? (int)cur_glyph_idx : cur_range.i0;
+			// ORIGINAL WITH LOGICAL IDCS IN RANGE:
+			/*cur_range.i0 = (replace || !cur_range.n) ? (int)cur_glyph_idx : cur_range.i0;*/
+			cur_range.i0 = (replace || !cur_range.n) ?
+				(int)layer_ref.real_glyph_idx_from_logical(stride, cur_glyph_idx) : cur_range.i0;
 			cur_range.n = replace ? 0 : cur_range.n;
 
 			// Check if we have any glyphs remaining
@@ -718,7 +740,10 @@ unsigned extrapolation_manager::assign_glyphs (
 			// Obtain relevant quantities and references
 			const auto s_min = (*(t_to_s.begin+seg))[0], s_max = (*(t_to_s.begin+seg))[15];
 			auto &cur_range = *(ranges_out.begin+seg);
-			cur_range.i0 = (replace || !cur_range.n) ? (int)cur_glyph_idx : cur_range.i0;
+			// ORIGINAL WITH LOGICAL IDCS IN RANGE:
+			/*cur_range.i0 = (replace || !cur_range.n) ? (int)cur_glyph_idx : cur_range.i0;*/
+			cur_range.i0 = (replace || !cur_range.n) ?
+				(int)layer_ref.real_glyph_idx_from_logical(stride, cur_glyph_idx) : cur_range.i0;
 			cur_range.n = replace ? 0 : cur_range.n;
 
 			// Check if we have any control points remaining

@@ -70,11 +70,19 @@ namespace extrapol
 			: ranges(ranges_buffer), glyph_attribs(glyphs_buffer)
 		{}
 
-		inline unsigned real_glyph_idx_from_logical (const unsigned logical_idx) {
-			return glyph_attribs.real_idx_from_logical(logical_idx);;
+		inline unsigned real_glyph_idx_from_logical (const unsigned glyph_stride, const unsigned logical_idx) const {
+			assert(glyph_attribs.capacity()%glyph_stride == 0);
+			const unsigned logical_idx_buf = logical_idx*glyph_stride;
+			const unsigned real_idx_buf = glyph_attribs.real_idx_from_logical(logical_idx_buf);
+			const unsigned real_idx = real_idx_buf/glyph_stride;
+			return real_idx;
 		}
-		inline unsigned logical_glyph_idx_from_real (const unsigned real_idx) {
-			return glyph_attribs.logical_idx_from_real(real_idx);
+		inline unsigned logical_glyph_idx_from_real (const unsigned glyph_stride, const unsigned real_idx) const {
+			assert(glyph_attribs.capacity()%glyph_stride == 0);
+			const unsigned real_idx_buf = real_idx*glyph_stride;
+			const unsigned logical_idx_buf = glyph_attribs.logical_idx_from_real(real_idx_buf);
+			const unsigned logical_idx = logical_idx_buf/glyph_stride;
+			return logical_idx;
 		}
 	};
 
@@ -286,7 +294,7 @@ struct extrapolation_manager
 	///		borders</em>.
 	template <class IRangeIter, class AlenIter, class GlyphAttribsIter>
 	unsigned assign_glyphs (
-		ro_range<IRangeIter> &&ranges_out, const ro_range<AlenIter> &t_to_s, unsigned layer,
+		ro_range<IRangeIter> &&ranges_out, const ro_range<AlenIter> &t_to_s, unsigned traj_id, unsigned layer,
 		const ro_range<GlyphAttribsIter> &glyph_attribs, unsigned idx_offset=0
 	);
 

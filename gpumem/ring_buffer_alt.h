@@ -378,13 +378,14 @@ struct ring_buffer_alt
 		}
 		/* real_idx <= meta.head */ {
 			if (real_idx < meta.tail) {
-				const unsigned after_front = real_idx+1;
-				const unsigned after_head = meta.len - meta.head;
-				const unsigned logical_idx = num_elems + after_head + after_front;
+				const unsigned after_front_minus_1 = real_idx;
+				const unsigned after_last = meta.len - meta.head;
+				const unsigned logical_idx = num_elems + after_last + after_front_minus_1;
 				return logical_idx;
 			}
 			/* real_idx >= meta.tail */ {
-				return num_elems;
+				const unsigned to_tail = real_idx - meta.tail;
+				return to_tail;
 			}
 		}
 	}
