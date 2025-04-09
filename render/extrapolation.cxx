@@ -350,6 +350,17 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 		}
 	#endif
 
+	// Store current logical start indices from each segment before actually adding any glyphs to the ring buffer. This
+	// should be done before adding the new glyphs to the ring buffer as on-the-fly computation from real indices can
+	// yield wildly wrong values when adding the new glyphs caused some old ones being popped off the buffer. The reason
+	// for this is that the stored real indices can slip in front of the tail element when old elements are popped.
+	// ORIGINAL WITH LOGICAL IDCS IN RANGE:
+	/* nothing at all */
+	int logical_i0 [16]; // <- we'll assume there won't ever be more than 16 segments of extrapolation per traj
+	const auto range0 = layer.ranges.begin();
+	for (unsigned seg=0; seg<layer.ranges.size(); seg++)
+		logical_i0[seg] = layer.logical_glyph_idx_from_real(stride, (range0+seg)->i0);
+
 	// Add to displayed glyphs
 	const auto num_glyphs_before =  layer.glyph_attribs.size()/stride;
 	#ifndef NDEBUG
@@ -395,27 +406,35 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 		else if (range.n) {
 			// All glyphs mapped to this segment are still there, they just moved tailwards, so adjust start index
 			// accordingly
+			#ifndef NDEBUG
+				if (discarded.num_overwritten > 0)
+					std::clog.flush();
+			#endif
 			const int new_i0 = range.i0 - discarded.num_overwritten;
 			assert(new_i0 >= 0);
 			range.i0 = new_i0;
 		}*/
-		int logical_i0 = layer.logical_glyph_idx_from_real(stride, range.i0);
-		int num_affected = std::max(static_cast<int>(discarded.num_overwritten) - logical_i0, 0);
+		const auto seg = std::distance(range0, range_it);
+		int num_affected = std::max(static_cast<int>(discarded.num_overwritten) - logical_i0[seg], 0);
 		if (num_affected > 0) {
 			// This segment now has some or all of its glyphs missing, which we can resolve solely on the basis of its
 			// mapped range start index
-			logical_i0 = 0; // <- glyphs can only ever be missing at the tail end
+			logical_i0[seg] = 0; // <- glyphs can only ever be missing at the tail end
 			num_affected = std::min<unsigned>(num_affected, range.n);
 			range.n -= num_affected;
 		}
 		else if (range.n) {
 			// All glyphs mapped to this segment are still there, they just moved tailwards, so adjust start index
 			// accordingly
-			const int new_i0 = logical_i0 - discarded.num_overwritten;
+			#ifndef NDEBUG
+				if (discarded.num_overwritten > 0)
+					std::clog.flush();
+			#endif
+			const int new_i0 = logical_i0[seg] - discarded.num_overwritten;
 			assert(new_i0 >= 0);
-			logical_i0 = new_i0;
+			logical_i0[seg] = new_i0;
 		}
-		range.i0 = layer.real_glyph_idx_from_logical(stride, logical_i0); // commit changes to range i0
+		range.i0 = layer.real_glyph_idx_from_logical(stride, logical_i0[seg]); // commit changes to range i0
 	}
 
 	// Assign to segments
