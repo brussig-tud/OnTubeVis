@@ -602,24 +602,30 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				handled = true;
 				break;
 			case cgv::gui::Keys::KEY_Space:
-				if(modifiers == 0) {
+				if(!run_as_service && modifiers == 0) {
 					playback.active = !playback.active;
 					on_set(&playback.active);
 					handled = true;
 				}
 				break;
 			case cgv::gui::Keys::KEY_Home:
-				playback.follow = !playback.follow;
-				on_set(&playback.follow);
-				handled = true;
+				if (!run_as_service) {
+					playback.follow = !playback.follow;
+					on_set(&playback.follow);
+					handled = true;
+				}
 				break;
 			case cgv::gui::Keys::KEY_Back_Space:
-				playback_rewind();
-				handled = true;
+				if (!run_as_service) {
+					playback_rewind();
+					handled = true;
+				}
 				break;
 			case cgv::gui::Keys::KEY_End:
-				playback_reset_ds();
-				handled = true;
+				if (!run_as_service) {
+					playback_reset_ds();
+					handled = true;
+				}
 				break;
 			default:
 				break;
@@ -2693,6 +2699,8 @@ void on_tube_vis::signal_non_service_init() {/*
 	post_recreate_gui(); // make sure the button disappears
 */}
 
+void do_nothing (void) {}
+
 void on_tube_vis::create_gui (void)
 {
 	const auto add_heading = [&](const std::string& name) {
@@ -2747,18 +2755,22 @@ void on_tube_vis::create_gui (void)
 			const std::string tmin_str = std::to_string(tmin), tmax_str = std::to_string(tmax),
 				step_str = std::to_string((tmax - tmin) / 10000.f);
 
-			connect_copy(
-				add_button("@|<", "tooltip='(Backspace) Resets playback time to start.';w=50", " ")->click,
-				cgv::signal::rebind(this, &on_tube_vis::playback_rewind)
-			);
+			auto rewind_btn = add_button("@|<", "tooltip='(Backspace) Resets playback time to start.';w=50", " ");
+			if (run_as_service)
+				connect_copy(rewind_btn->click, cgv::signal::rebind(do_nothing));
+			else
+				connect_copy(rewind_btn->click, cgv::signal::rebind(this, &on_tube_vis::playback_rewind));
+
 			add_member_control(
 				this, "@play", playback.active, "toggle",
 				"tooltip='(Space) Controls whether to animate the dataset(s) within the set timeframe.';w=76", " "
 			);
-			connect_copy(
-				add_button("@>|", "tooltip='(End) Cancels playback and displays the full data.';w=50")->click,
-				cgv::signal::rebind(this, &on_tube_vis::playback_reset_ds)
-			);
+
+			auto ffwd_btn = add_button("@>|", "tooltip='(End) Cancels playback and displays the full data.';w=50");
+			if (run_as_service)
+				connect_copy(ffwd_btn->click, cgv::signal::rebind(do_nothing));
+			else
+				connect_copy(ffwd_btn->click, cgv::signal::rebind(this, &on_tube_vis::playback_reset_ds));
 
 			add_member_control(this, "Playback Speed", playback.speed, "value_slider", "min=0.01;max=1000;step=0.01;ticks=true;log=true");
 			add_member_control(this, "Timeframe Start", playback.tstart, "value_slider", "min=" + tmin_str + ";max=" + tmax_str + ";step=" + step_str + ";ticks=false");
