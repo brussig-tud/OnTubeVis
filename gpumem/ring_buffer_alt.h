@@ -45,13 +45,31 @@ struct ring_buffer_alt
 	/// The iterator type.
 	struct iterator
 	{
+		////
+		// Implementation requirements for std::iterator_traits
+
+		using iterator_category = std::random_access_iterator_tag;
+		using value_type = Elem;
+		using difference_type = int;
+		using pointer = Elem*;
+		using const_pointer = Elem*;
+		using reference = Elem&;
+		using const_reference = const Elem&;
+
+
+		////
+		// Fields
+
 		unsigned len;
 		Elem *buf;
 		unsigned idx, real_idx;
 
+
+		////
+		// Methods
+
 		iterator() = delete;
 		//iterator(const iterator &other) = default;
-
 
 		inline explicit iterator (Elem *buf, const unsigned len, const unsigned idx, const unsigned real_idx)
 			: len(len), buf(buf), idx(idx), real_idx(real_idx)
@@ -62,11 +80,18 @@ struct ring_buffer_alt
 
 		//inline iterator& operator=(const iterator &other) = default;
 
-		inline Elem& operator* (void) {
+		inline reference operator* (void) {
 			return buf[real_idx];
 		}
-		inline const Elem& operator* (void) const {
+		inline const_reference operator* (void) const {
 			return buf[real_idx];
+		}
+
+		inline pointer operator-> (void) {
+			return buf + real_idx;
+		}
+		inline const_pointer operator-> (void) const {
+			return buf + real_idx;
 		}
 
 		inline bool operator== (const iterator &other) const {
@@ -134,7 +159,7 @@ struct ring_buffer_alt
 			const auto new_real_idx = (len+real_idx-offset) % len;
 			return iterator(buf, len, idx-offset, new_real_idx);
 		}
-		inline size_t operator- (const iterator &other) const {
+		inline difference_type operator- (const iterator &other) const {
 			return idx - other.idx;
 		}
 	};
@@ -198,15 +223,15 @@ struct ring_buffer_alt
 	ring_buffer_alt& operator= (const ring_buffer_alt&) = delete;
 
 	/// The move assignment operator.
-	ring_buffer_alt& operator= (ring_buffer_alt&&) = default;
+	inline ring_buffer_alt& operator= (ring_buffer_alt&&) = default;
 
 	/// Report max number of elements that can be stored when at full capacity.
-	[[nodiscard]] unsigned capacity (void) const {
+	[[nodiscard]] inline unsigned capacity (void) const {
 		return meta.len;
 	}
 
 	/// Return the current number of elements in the buffer.
-	[[nodiscard]] unsigned size (void) const {
+	[[nodiscard]] inline unsigned size (void) const {
 		return num_elems;
 	}
 
@@ -216,7 +241,7 @@ struct ring_buffer_alt
 	}
 
 	/// Report the number of elements that can still be pushed into the ring buffer without dropping old elements.
-	[[nodiscard]] unsigned num_free (void) const {
+	[[nodiscard]] inline unsigned num_free (void) const {
 		return meta.len - num_elems;
 	}
 
