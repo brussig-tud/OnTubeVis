@@ -1470,13 +1470,13 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 		const auto& ds = traj_mgr.dataset(0);
 		const auto& pos = ds.positions();
 		const auto& traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
-		playback.follow_last_nid = find_sample(pos.attrib, traj_range, render.style.max_t);
+		playback.follow_last_nid = !run_as_service ? find_sample(pos.attrib, traj_range, render.style.max_t) : 0;
 	}
 	if(m.is(playback.follow_traj)) {
 		const auto& ds = traj_mgr.dataset(0);
 		const auto& pos = ds.positions();
 		const auto& traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
-		playback.follow_last_nid = find_sample(pos.attrib, traj_range, render.style.max_t);
+		playback.follow_last_nid = !run_as_service ? find_sample(pos.attrib, traj_range, render.style.max_t) : 0;
 	}
 
 	// widget controls
@@ -2478,7 +2478,8 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		}
 
 		// Add new data to host queues according to playback time.
-		client.update();
+		if (!run_as_service)
+			client.update();
 	}
 
 	// Handle extrapolations.
@@ -2605,7 +2606,8 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 
 void on_tube_vis::after_finish(context& ctx) {
 
-	if(initialize_view_ptr()) {
+	if(initialize_view_ptr())
+	{
 		// do one-time initialization that needs the view if necessary
 		set_view();
 		ensure_selected_in_tab_group_parent();

@@ -73,6 +73,8 @@ class on_tube_vis :
 	public cgv::base::argument_handler, // derive from argument handler to be able to process custom arguments
 	public cgv::app::application_plugin // derive from application plugin, which is a node, drawable, gui provider and event handler and can handle overlays
 {
+	friend otv::otv_client;
+
 public:
 	using vec2 = cgv::vec2;
 	using vec3 = cgv::vec3;
@@ -473,10 +475,8 @@ protected:
 
 	bool voxelize_gpu = true;
 
-public:
 	box3 bbox;
 
-protected:
 	texture density_tex;
 	texture tf_tex;
 
@@ -493,12 +493,9 @@ protected:
 	double recalc_delay = 0.2;
 	bool has_changed = false;
 	void timer_event(double, double);
-
-public:
 	void update_scene_extents (void);
 	void set_view(void);
 
-protected:
 	void ensure_initial_dataset(context& ctx);
 	void update_dataset(context &ctx, bool cause_new_session=true);
 	bool update_visualizations(bool may_cause_new_session=true);

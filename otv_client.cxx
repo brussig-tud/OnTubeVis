@@ -639,8 +639,19 @@ void otv_client::service_push_spline_node (
 	);
 	otv_instance->bbox_rd.clear();
 	otv_instance->bbox_rd.add(otv_instance->bbox.get_center(), otv_instance->bbox.get_extent());
-	if (otv_instance->session_first_node) {
+	if (otv_instance->session_first_node)
+	{
+		// intialize camera
 		otv_instance->set_view();
+
+		// start progression of time
+		otv_instance->playback.tstart = otv_instance->render.style.max_t = node.t.x();
+		otv_instance->playback.tend = std::numeric_limits<float>::infinity();
+		otv_instance->playback.active = true;
+		otv_instance->playback.timer.add_time();
+		otv_instance->playback.speed = 1;//otv_instance->on_set(&otv_instance->playback.active);
+
+		// done processing very first node of session
 		otv_instance->session_first_node = false;
 	}
 	else
