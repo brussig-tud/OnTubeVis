@@ -364,9 +364,8 @@ void trajectory::trim_glyphs ()
 
 			// Calculate the index of the oldest remaining glyph relative to the segment, accounting
 			// for wrap-around.
-			const auto offset {oldest_glyph_idx >= range.i0
-				? oldest_glyph_idx - range.i0
-				: oldest_glyph_idx + layer.buffer_size - range.i0
+			const auto offset {
+				oldest_glyph_idx >= range.i0 ? oldest_glyph_idx-range.i0 : oldest_glyph_idx+layer.buffer_size - range.i0
 			};
 
 			if (offset < range.n)
