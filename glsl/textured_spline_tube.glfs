@@ -996,8 +996,8 @@ void main()
 		//frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(col)), spline_t, v, intBitsToFloat(segment_id_fs));
 #if FORWARD_SHADING == 1
 		col = otv_shade_fragment(
-			col.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(alen(spline_t), v), segment_id_fs,  hit_pos_eye.xyz, hit.normal, tangent,
-			gl_FragDepth, /*specular_factor: */1
+			col.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(alen(spline_t), v), segment_id_fs,  hit_pos_eye.xyz,
+			hit.normal, tangent, gl_FragDepth, /*specular_factor: */1
 		);
 		color_out = vec4(pow(col.rgb, 1.0/gamma3), col.a);
 #else

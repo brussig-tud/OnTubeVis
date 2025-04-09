@@ -907,8 +907,8 @@ void main()
 		//finish_fragment(color, depth);
 		#if FORWARD_SHADING == 1
 			color = otv_shade_fragment(
-				color.rgb, /*texcoord: */vec2(alen(t_seg), v), segment_id_fs,  pos_eye.xyz, normal, tangent,
-				gl_FragDepth, /*specular_factor: */1
+				color.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(alen(t_seg), v), segment_id_fs,  pos_eye.xyz,
+				normal, tangent, gl_FragDepth, /*specular_factor: */1
 			);
 			color_out = vec4(pow(color.rgb, 1.0/gamma3), color.a);
 		#else
