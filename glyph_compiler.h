@@ -273,7 +273,7 @@ protected:
 
 		// fill the attribute buffer with one glyph entry if it is empty (will cause crash otherwise)
 		if(attribs.empty()) {
-			lci.times.emplace_back(0);
+			lci.times.emplace_back(0.0f);
 			attribs.add(0.0f);
 			attribs.add(0.0f);
 			for(size_t i = 0; i < attrib_count; ++i)
