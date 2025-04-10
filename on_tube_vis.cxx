@@ -2012,7 +2012,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 #endif
 
 	// Create an initial fence object to avoid the need for a null check in `draw_trajectories`.
-	render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+	//render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 	// done
 	return success;
@@ -3547,10 +3547,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// Synchronization - after this code, the memory consumed by the previous frame's tube rendering commands will
 		// be safe to write to again.
 		// - wait for the previous draw call to complete.
-		auto wait_result = glClientWaitSync(render.draw_fence, 0, -1);
+		/*auto wait_result = *//*glClientWaitSync(render.draw_fence, 0, -1);
 		glDeleteSync(render.draw_fence);
 		// - create a fence object to check when this frame's tube drawing has completed
-		render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+		render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);*/
 
 		// render extrapolations
 		client.extrapol_mgr.draw_extrapolations(ctx, cyclopic_eye);

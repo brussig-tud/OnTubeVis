@@ -464,7 +464,35 @@ void otv_client::update ()
 		cgv::utils::stopwatch sw(/* silent: */true);
 		std::clog << "otv_client::update(): starting update for t="<<render.style.max_t<<"s\n";
 	#endif
-	for (auto &traj : trajectories) {
+	for (auto &traj : trajectories)
+	{
+		// traj init
+		const auto target_traj = find_trajectory(traj.id);
+		const auto enqueue_glyphs = [&](const auto layer_idx, const auto &)
+		{
+			// prelude
+			const auto data  {glyphs[layer_idx].attribs.data.begin()};
+			const auto cur_range = glyphs[layer_idx].ranges.at(traj.segment_idx);
+			const auto begin {cur_range.i0};
+			const auto end   {cur_range.end()};
+			const unsigned stride = target_traj.ref.glyph_to_attrib_count(layer_idx, glyph_count_type{1});
+
+			// skip glyphs we already submitted when handling the previous segment
+			auto glyphs_attribs = ro_range {
+				data + target_traj.ref.glyph_to_attrib_count(layer_idx, begin),
+				data + target_traj.ref.glyph_to_attrib_count(layer_idx, end)
+			};
+			while (glyphs_attribs.begin != glyphs_attribs.end && *glyphs_attribs.begin <= traj.last_s[layer_idx])
+				glyphs_attribs.begin += stride;
+
+			// submit new unique glyphs
+			const auto glyph_attribs_on_extrapol = this->enqueue_glyphs(
+				target_traj, layer_idx, glyphs_attribs
+			);
+
+			// update last_s
+			traj.last_s[layer_idx] = cur_range.n.value ? *(glyphs_attribs.end-stride) : traj.last_s[layer_idx];
+		};
 		// add new nodes, and thereby new segments
 		for (
 			auto &node_idx = traj.node_idcs.begin;
@@ -475,8 +503,6 @@ void otv_client::update ()
 			if (data->timestamps[node_idx] > render.style.max_t) {
 				break;
 			}
-
-			auto target_traj = find_trajectory(traj.id);
 
 			// construct first GPU node
 			const auto col = data->colors[node_idx];
@@ -491,8 +517,23 @@ void otv_client::update ()
 			// length parametrization
 			const cgv::mat4 *t_to_s {nullptr};
 
+			const bool is_first_seg = target_traj.ref.is_empty();
 			extrapol_nodes.clear();
-			if (!target_traj.ref.is_empty())
+			if (is_first_seg)
+			{
+				// Init with "blank" extrapolation (just the straight line segment that follows from the first tangent)
+				const auto pos0 = cgv::vec3(new_node.pos_rad), tan = cgv::vec3(new_node.tangent);
+				const auto fictitious_prev_node = node_attribs {
+					cgv::vec4(pos0 - tan, new_node.pos_rad.w()),
+					new_node.color, cgv::vec4(tan, 0), cgv::vec4(new_node.t.x()-1, 0, 0, 0)
+				};
+				const auto tan_len = tan.length();
+				extrapol::compute_path(
+					extrapol_nodes, num_extrapol_segments, fictitious_prev_node, new_node,
+					arclen::single_linear_t_to_s(tan_len, -tan.length())
+				);
+			}
+			else
 			{
 				// Compute arc length
 				t_to_s = &arclen_data.t_to_s.at(traj.segment_idx);
@@ -512,57 +553,23 @@ void otv_client::update ()
 					extrapol_nodes, num_extrapol_segments, prev_node, new_node, *t_to_s
 				);
 			}
-			else
-			{
-				// Init with "blank" extrapolation (just the straight line segment that follows from the first tangent)
-				const auto pos0 = cgv::vec3(new_node.pos_rad), tan = cgv::vec3(new_node.tangent);
-				const auto fictitious_prev_node = node_attribs {
-					cgv::vec4(pos0 - tan, new_node.pos_rad.w()),
-					new_node.color, cgv::vec4(tan, 0), cgv::vec4(new_node.t.x()-1, 0, 0, 0)
-				};
-				const auto tan_len = tan.length();
-				extrapol::compute_path(
-					extrapol_nodes, num_extrapol_segments, fictitious_prev_node, new_node,
-					arclen::single_linear_t_to_s(tan_len, -tan.length())
-				);
-			}
 
 			// append a node, potentially creating a new segment
 			enqueue_node(target_traj, new_node, t_to_s, extrapol_nodes);
-			//render.enqueue_node(traj.id, node, t_to_s );
+
+			//render.for_each_active_glyph_layer(enqueue_glyphs);
 
 			if (t_to_s == nullptr) {
+				// submit first segment glyphs
+				render.for_each_active_glyph_layer(enqueue_glyphs);
 				continue;
 			}
 
-			// if the node created a segment, enqueue its glyphs and advance the index
-			render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &)
-			{
-				// prelude
-				const auto data  {glyphs[layer_idx].attribs.data.begin()};
-				const auto cur_range = glyphs[layer_idx].ranges.at(traj.segment_idx);
-				const auto begin {cur_range.i0};
-				const auto end   {cur_range.end()};
-				const unsigned stride = target_traj.ref.glyph_to_attrib_count(layer_idx, glyph_count_type{1});
-
-				// skip glyphs we already submitted when handling the previous segment
-				auto glyphs_attribs = ro_range {
-					data + target_traj.ref.glyph_to_attrib_count(layer_idx, begin),
-					data + target_traj.ref.glyph_to_attrib_count(layer_idx, end)
-				};
-				while (glyphs_attribs.begin != glyphs_attribs.end && *glyphs_attribs.begin <= traj.last_s[layer_idx])
-					glyphs_attribs.begin += stride;
-
-				// submit new unique glyphs
-				const auto glyph_attribs_on_extrapol = enqueue_glyphs(
-					target_traj, layer_idx, glyphs_attribs
-				);
-
-				// update last_s
-				traj.last_s[layer_idx] = cur_range.n.value ? *(glyphs_attribs.end-stride) : traj.last_s[layer_idx];
-			});
-
+			// advance the playback index and already submit the _next_ segment's glyphs, so they show up on the
+			// extrapolation
 			++traj.segment_idx;
+			if (node_idx < traj.node_idcs.end-1) // <- make sure there _is_ a next semgment
+				render.for_each_active_glyph_layer(enqueue_glyphs);
 		}
 	}
 

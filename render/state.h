@@ -84,7 +84,7 @@ public:
 	std::vector<trajectory> trajectories;
 
 	/// Fence placed directly after the last draw command for synchronization with the GPU.
-	GLsync draw_fence;
+	//GLsync draw_fence;
 
 	/// The minimum number of node slots that will be vacant after each call to
 	/// `trim_trajectories`, and thus the maximum number of nodes that can be added each frame

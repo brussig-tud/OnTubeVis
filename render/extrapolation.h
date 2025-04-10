@@ -194,6 +194,9 @@ struct extrapolation_manager
 
 		/// custom attribute array manager for binding the ring buffers to the renderer
 		cgv::render::attribute_array_manager aam;
+
+		/// OpenGL fence object to sync buffer flushes with rendering
+		//GLsync draw_fence = nullptr;
 	} render;
 
 	/// Logical state.

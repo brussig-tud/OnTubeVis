@@ -89,7 +89,7 @@ bool extrapolation_manager::create_geom_buffers (
 	trajectories.reserve(num_trajectories);
 	geom.node_indices.reserve(num_trajectories * num_segments);
 	std::vector<unsigned> segment_indices;
-	/*geom.*/segment_indices.reserve(geom.node_indices.size());
+	segment_indices.reserve(geom.node_indices.size());
 	for (unsigned idx=-1, t=0; t<num_trajectories; t++)
 	{
 		// Resize nodes buffer
@@ -113,11 +113,11 @@ bool extrapolation_manager::create_geom_buffers (
 		uint32_t start_index = t*num_nodes;
 		for (unsigned i=0; i<num_segments; i++) {
 			geom.node_indices.emplace_back(start_index+i, start_index+i+1);
-			/*geom.*/segment_indices.emplace_back(++idx);
+			segment_indices.emplace_back(++idx);
 		}
 	}
 	assert(geom.node_indices.size() == num_trajectories*num_segments);
-	assert(geom.node_indices.size() == /*geom.*/segment_indices.size());
+	assert(geom.node_indices.size() == segment_indices.size());
 
 	// Set up renderer
 	if (!render.aam.is_created()) {
@@ -133,11 +133,8 @@ bool extrapolation_manager::create_geom_buffers (
 		num_trajectories*num_segments,
 		sizeof(cgv::uvec2)
 	);
-	render.tstr.set_indices(ctx, /*geom.*/segment_indices);
+	render.tstr.set_indices(ctx, segment_indices);
 	render.tstr.disable_attribute_array_manager(ctx, render.aam);
-
-	/*geom.test_nodes.create(1, 2);
-	geom.test_alens.create(1, 1);*/
 
 	// Done!
 	return _.disarm(success);
@@ -832,6 +829,13 @@ bool extrapolation_manager::flush_changes (void)
 	           	bool(state.dirty_flags & state.GLYPHS2_DIRTY), bool(state.dirty_flags & state.GLYPHS3_DIRTY)
 	           };
 
+	// Wait for extrapolation rendering to complete
+	/*if (render.draw_fence) {
+		/*auto wait_result = *//*glClientWaitSync(render.draw_fence, 0, -1);
+		glDeleteSync(render.draw_fence);
+		render.draw_fence = nullptr;
+	}*/
+
 	// Perform flushes
 	bool result = true;
 	if (flush_nodes)
@@ -875,35 +879,9 @@ void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx, const
 	update_render_style(otv_render.style);
 
 	// Set up draw call
-	/*auto nodes = geom.test_nodes.data_memory.data();
-	nodes[0].color.set(0, 1, 0, 1);
-	nodes[0].pos_rad.set(0, 0, -1, 0.25);
-	nodes[0].tangent.set(0, 0, 1, 0);
-	nodes[0].t.x() = 0;
-	nodes[1].color.set(1, 0, 1, 1);
-	nodes[1].pos_rad.set(0, 0, 0, 0.25);
-	nodes[1].tangent.set(0, 0, 1, 0);
-	nodes[1].t.x() = 1;
-	assert(geom.nodes_arena.data_memory.flush());
-	auto alens = geom.test_alens.data_memory.data();
-	alens[0] = arclen::compute_single_t_to_s(
-		cgv::vec3(nodes[0].pos_rad), cgv::vec3(nodes[0].tangent),
-		cgv::vec3(nodes[1].pos_rad), cgv::vec3(nodes[1].tangent), .0f
-	);
-	assert(geom.test_alens.data_memory.flush());
-	std::vector<cgv::uvec2> nids;
-	nids.emplace_back(0, 1);
-	std::vector<unsigned> indices;
-	indices.emplace_back(0);*/
-
 	render.tstr.set_render_style(render.style);
 	render.tstr.set_cyclopic_eye(eye_pos);
 	render.tstr.enable_attribute_array_manager(ctx, render.aam);
-	/*render.tstr.set_node_id_array(
-		ctx, nids.data(), 1, sizeof(cgv::uvec2)
-	);
-	render.tstr.set_indices(ctx, indices);
-	glFlush();*/
 	const auto node_id_buf = render.tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
 	GLuint buffer_handles[13] = {
 		geom.nodes_arena.data_memory.handle(),
@@ -932,6 +910,13 @@ void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx, const
 	// Draw and clean up
 	render.tstr.render(ctx, 0, geom.node_indices.size());
 	render.tstr.disable_attribute_array_manager(ctx, render.aam);
+
+	// Insert sync point for potential buffer flushes
+	/*if (render.draw_fence) {
+		/*auto wait_result = *//*glClientWaitSync(render.draw_fence, 0, -1);
+		glDeleteSync(render.draw_fence);
+	}
+	render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);*/
 }
 
 
