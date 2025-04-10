@@ -11,23 +11,27 @@
 
 
 
-class glyph_compiler {
+class glyph_compiler
+{
 public:
 	using vec4 = cgv::vec4;
 	using uvec2 = cgv::uvec2;
 	using mat4 = cgv::mat4;
 
 protected:
-	struct layer_compile_info {
+	struct layer_compile_info
+	{
 		const glyph_shape* current_shape;
 		std::vector<const traj_attribute<float>*> mapped_attribs;
 		std::vector<const std::vector<range>*> attribs_trajs;
 		size_t attrib_count;
 
 		std::vector<irange> ranges;
+		std::vector<float> times; /// timestamps of all placed glyphs
 		glyph_attributes attribs;
 
 		layer_compile_info(const glyph_shape* shape_ptr) : current_shape(shape_ptr) {}
+
 		void update_attribute_count() {
 			attrib_count = mapped_attribs.size();
 			attribs.count = attrib_count;
@@ -35,7 +39,10 @@ protected:
 	};
 
 	// generate a glyph at every attribute sample location (interpolates attributes if more than one is mapped in this layer)
-	void compile_glyphs_front_at_samples(const traj_attribute<float>& P, const std::vector<range>& tube_trajs, const std::vector<mat4>& arc_length, const glyph_layer_manager::configuration::layer_configuration& layer_config, layer_compile_info& lci) {
+	void compile_glyphs_front_at_samples(
+		const traj_attribute<float>& P, const std::vector<range>& tube_trajs, const std::vector<mat4>& arc_length,
+		const glyph_layer_manager::configuration::layer_configuration& layer_config, layer_compile_info& lci
+	){
 		// convenience shorthands
 		const size_t attrib_count = lci.attrib_count;
 		const auto& mapped_attribs = lci.mapped_attribs;
@@ -140,7 +147,7 @@ protected:
 				if((seg == num_segments - 1 || min_t >= segtime.t0) && min_t <= segtime.t1) {
 					// compute segment-relative t and arclength
 					const float t_seg = (min_t - segtime.t0) / (segtime.t1 - segtime.t0),
-						s = arclen::eval(alen[global_seg], t_seg);
+					            s = arclen::eval(alen[global_seg], t_seg);
 
 					for(size_t i = 0; i < attrib_count; ++i) {
 						unsigned attrib_idx = attrib_indices[i];
@@ -216,6 +223,7 @@ protected:
 						}
 						// store the new glyph
 						attribs.add(s);
+						lci.times.emplace_back(min_t);
 						int debug_info = include_glyph ? 0 : 1;
 
 						attribs.add(*reinterpret_cast<float*>(&debug_info));
@@ -256,8 +264,16 @@ protected:
 			traj_offset += num_segments;
 		}
 
+		/* sanity check */ {
+			const unsigned stride_check = attrib_count+2;
+			const unsigned stride = attribs.size()/lci.times.size();
+			assert(stride == stride_check);
+			assert(lci.times.size() == attribs.size()/stride);
+		}
+
 		// fill the attribute buffer with one glyph entry if it is empty (will cause crash otherwise)
 		if(attribs.empty()) {
+			lci.times.emplace_back(0);
 			attribs.add(0.0f);
 			attribs.add(0.0f);
 			for(size_t i = 0; i < attrib_count; ++i)
@@ -387,7 +403,7 @@ protected:
 				if((seg == num_segments - 1 || sample_t >= segtime.t0) && sample_t <= segtime.t1) {
 					// compute segment-relative t and arclength
 					const float t_seg = (sample_t - segtime.t0) / (segtime.t1 - segtime.t0),
-						s = arclen::eval(alen[global_seg], t_seg);
+					            s = arclen::eval(alen[global_seg], t_seg);
 
 					// interpolate each mapped attribute value
 					for(size_t i = 0; i < attrib_count; ++i) {
@@ -450,6 +466,7 @@ protected:
 						}
 						// store the new glyph
 						attribs.add(s);
+						lci.times.emplace_back(sample_t);
 						int debug_info = include_glyph ? 0 : 1;
 
 						attribs.add(*reinterpret_cast<float*>(&debug_info));
@@ -482,6 +499,13 @@ protected:
 
 			// update auxiliary indices
 			traj_offset += num_segments;
+		}
+
+		/* sanity check */ {
+			const unsigned stride_check = attrib_count+2;
+			const unsigned stride = attribs.size()/lci.times.size();
+			assert(stride == stride_check);
+			assert(lci.times.size() == attribs.size()/stride);
 		}
 	}
 
@@ -568,10 +592,9 @@ protected:
 					const unsigned count = attrib_index_counts[i];
 
 					// increment indices until the sample time point lies between the first and second attribute sample
-					while(
-						sample_t > mapped_attrib->signed_magnitude_at(indices.y()).t &&
-						indices.x() < count - 1
-						) {
+					while(   sample_t > mapped_attrib->signed_magnitude_at(indices.y()).t
+					      && indices.x() < count-1)
+					{
 						indices.x() = indices.y();
 						indices.y() = std::min(indices.x() + 1, count - 1);
 					}
@@ -606,7 +629,7 @@ protected:
 				if((seg == num_segments - 1 || sample_t >= segtime.t0) && sample_t <= segtime.t1) {
 					// compute segment-relative t and arclength
 					const float t_seg = (sample_t - segtime.t0) / (segtime.t1 - segtime.t0),
-						s = arclen::eval(param.t_to_s[global_seg], t_seg);
+					            s = arclen::eval(param.t_to_s[global_seg], t_seg);
 
 					// interpolate each mapped attribute value
 					for(size_t i = 0; i < attrib_count; ++i) {
@@ -669,6 +692,7 @@ protected:
 						}
 						// store the new glyph
 						attribs.add(s);
+						lci.times.emplace_back(sample_t);
 						int debug_info = include_glyph ? 0 : 1;
 
 						attribs.add(*reinterpret_cast<float*>(&debug_info));
@@ -713,6 +737,13 @@ protected:
 
 			// update auxiliary indices
 			traj_offset += num_segments;
+		}
+
+		/* sanity check */ {
+			const unsigned stride_check = attrib_count+2;
+			const unsigned stride = attribs.size()/lci.times.size();
+			assert(stride == stride_check);
+			assert(lci.times.size() == attribs.size()/stride);
 		}
 	}
 
@@ -762,6 +793,7 @@ protected:
 		layer_filled[layer_idx] = true;
 		layer_ranges[layer_idx] = lci.ranges;
 		layer_attribs[layer_idx] = lci.attribs;
+		layer_timestamps[layer_idx] = lci.times;
 	}
 
 	void compile_glyph_attributes_impl(const traj_dataset<float> &data_set, const arclen::parametrization &parametrization, const glyph_layer_manager::configuration &layers_config) {
@@ -773,8 +805,9 @@ protected:
 		size_t layer_count = layers_config.layer_configs.size();
 
 		layer_filled.resize(layer_count, false);
-		layer_ranges.resize(layer_count, std::vector<irange>());
-		layer_attribs.resize(layer_count, glyph_attributes());
+		layer_ranges.resize(layer_count);
+		layer_attribs.resize(layer_count);
+		layer_timestamps.resize(layer_count);
 
 		// build seperate range and attribs buffers for each glyph layer
 
@@ -802,6 +835,7 @@ public:
 	std::vector<bool> layer_filled;
 	std::vector<std::vector<irange>> layer_ranges;
 	std::vector<glyph_attributes> layer_attribs;
+	std::vector<std::vector<float>> layer_timestamps;
 
 	bool include_hidden_glyphs;
 	float length_scale;
@@ -811,6 +845,7 @@ public:
 		layer_filled.clear();
 		layer_ranges.clear();
 		layer_attribs.clear();
+		layer_timestamps.clear();
 		if(layers_config.layer_configs.size() > 0) {
 			compile_glyph_attributes_impl(data_set, parametrization, layers_config);
 			success = true;

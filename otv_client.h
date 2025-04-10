@@ -78,6 +78,8 @@ struct otv_client {
 		std::vector<index_range<glyph_count_type>> ranges;
 		/// The attributes defining each glyph.
 		glyph_attributes attribs;
+		/// The timestamps of each glyph
+		std::vector<float> timestamps;
 	};
 
 	/// Helper type for @ref #enqueue_glyph

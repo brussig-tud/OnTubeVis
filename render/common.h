@@ -179,8 +179,8 @@ struct glyph_attributes {
 		return static_cast<glyph_count_type>(size() / (2 + count));
 	}
 
-	void add(const float& x) {
-		data.push_back(x);
+	void add(const float val) {
+		data.emplace_back(val);
 	}
 
 	float& operator [](int idx) {

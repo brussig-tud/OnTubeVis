@@ -496,6 +496,15 @@ void otv_client::update ()
 			{
 				// Compute arc length
 				t_to_s = &arclen_data.t_to_s.at(traj.segment_idx);
+				/*#ifndef NDEBUG
+					const auto &s_to_t = arclen_data.s_to_t.at(traj.segment_idx);
+					const float s_span = (*t_to_s)[15] - (*t_to_s)[0];
+					const float s = (arclen::eval(*t_to_s, .75f) - (*t_to_s)[0])/s_span;
+					const float t = arclen::eval(s_to_t, s);
+					const float eps_sqr = std::numeric_limits<float>::epsilon(), eps = 4*std::sqrt(std::sqrt(eps_sqr));
+					const float err = std::abs(t-.75f);
+					assert(err <= eps);
+				#endif*/
 
 				// Extrapolate from previous segment
 				const auto &prev_node = target_traj.ref.most_recent_node();

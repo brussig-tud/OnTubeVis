@@ -1806,17 +1806,19 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					// Mark layer as active in render state.
 					render.active_glyph_layers.set(layer_idx);
 
-					const auto& ranges = gc.layer_ranges[layer_idx];
-					const auto& attribs = gc.layer_attribs[layer_idx];
+					//const auto& ranges = gc.layer_ranges[layer_idx];
+					//const auto& attribs = gc.layer_attribs[layer_idx];
 
 					// Copy glyph data into the simulated client
 					auto &gl = client.glyphs.at(layer_idx);
-					gl.ranges.reserve(ranges.size());
+					/*gl.ranges.reserve(gc.layer_ranges[layer_idx].size());
 					for (const auto& r : ranges)
 						gl.ranges.emplace_back(index_range<glyph_count_type>{
 							glyph_count_type(r.i0), glyph_count_type(r.n)
-						});
-					gl.attribs = attribs;
+						});*/
+					gl.ranges = std::move((std::vector<index_range<glyph_count_type>>&)gc.layer_ranges[layer_idx]);
+					gl.attribs = std::move(gc.layer_attribs[layer_idx]);
+					gl.timestamps = std::move(gc.layer_timestamps[layer_idx]);
 
 					// Allocate GPU buffers for glyph-related data.
 					if (!render.create_glyph_layer(
@@ -1829,7 +1831,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
 
 					/* sanity check */ {
-						const auto num_ranges {ranges.size()};
+						const auto num_ranges {gl.ranges.size()};
 						const auto num_segs   {client.data->indices.size() / 2};
 						assert(num_ranges == num_segs);
 					}
