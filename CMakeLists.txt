@@ -26,11 +26,11 @@ if (DEFINED ENV{CGV_DIR})
 	add_subdirectory(${CGV_DIR} ./framework)
 else()
 	message("Including the CGV Framework source from https://github.com/sgumhold/cgv.git")
-	message("This could take a while when run the first time...")
+	message("This could take a while when run for the first time...")
 	include(FetchContent)
 	FetchContent_Declare(
-		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG e76552bd63598314e0b7114be1f0e0d473b30284
+			cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
+			GIT_TAG a3170429a5b65da037b8d31628a5ada9c69b4f73
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -65,7 +65,7 @@ endif()
 set(OPTIONAL_DEPENDENCIES "")
 if (CUDA_FOUND AND CUDAToolkit_FOUND)
 	set(ONTUBEVIS_CUDA_RESPREP_HOST_COMPILER "" CACHE FILEPATH
-		"The host compiler executable to use together with NVCC when preparing CUDA device code resources"
+			"The host compiler executable to use together with NVCC when preparing CUDA device code resources"
 	)
 	if (OptiX_INCLUDE AND NOT OptiX_INCLUDE STREQUAL "OptiX_INCLUDE-NOTFOUND")
 		add_subdirectory(tool/cuda_resprep) # build the cuda_resprep custom tool
@@ -73,11 +73,11 @@ if (CUDA_FOUND AND CUDAToolkit_FOUND)
 		list(APPEND FEATURE_DEFINES "RTX_SUPPORT=1")
 		set(ADDITIONAL_INCLUDE_PATHS ${OptiX_INCLUDE}) #  ${CUDA_TOOLKIT_INCLUDE}
 		set(NVRTC_INCLUDE_DEFS
-			"CUDA_RUNTIME_COMPILER__INC_DIR_CUDA=\"${CUDA_TOOLKIT_INCLUDE}\""
-			"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX=\"${OptiX_INCLUDE}\""
-			"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK=\"${OptiX_INSTALL_DIR}/SDK\""
-			"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK_CUDA=\"${OptiX_INSTALL_DIR}/SDK/cuda\""
-			"CUDA_RUNTIME_COMPILER__HOSTCC=\"${ONTUBEVIS_CUDA_RESPREP_HOST_COMPILER}\""
+				"CUDA_RUNTIME_COMPILER__INC_DIR_CUDA=\"${CUDA_TOOLKIT_INCLUDE}\""
+				"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIX=\"${OptiX_INCLUDE}\""
+				"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK=\"${OptiX_INSTALL_DIR}/SDK\""
+				"CUDA_RUNTIME_COMPILER__INC_DIR_OPTIXSDK_CUDA=\"${OptiX_INSTALL_DIR}/SDK/cuda\""
+				"CUDA_RUNTIME_COMPILER__HOSTCC=\"${ONTUBEVIS_CUDA_RESPREP_HOST_COMPILER}\""
 		)
 	endif()
 else()
@@ -91,186 +91,186 @@ endif()
 # gather source files
 # - additional include paths required when baking sub-components into the codebase like we do below
 set(ADDITIONAL_INCLUDES
-	"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rd/fastgl>" "$<INSTALL_INTERFACE:3rd/fastgl>"
-	"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rd/peridetic>" "$<INSTALL_INTERFACE:3rd/peridetic>"
-	"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rd/wgs84mercator>" "$<INSTALL_INTERFACE:3rd/wgs84mercator>"
+		"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rd/fastgl>" "$<INSTALL_INTERFACE:3rd/fastgl>"
+		"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rd/peridetic>" "$<INSTALL_INTERFACE:3rd/peridetic>"
+		"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rd/wgs84mercator>" "$<INSTALL_INTERFACE:3rd/wgs84mercator>"
 )
 # - C/C++ sources
 set(SOURCES
-	# 3rd party code
-	# - FastGL library
-	3rd/fastgl/fastgl.cpp
+		# 3rd party code
+		# - FastGL library
+		3rd/fastgl/fastgl.cpp
 
-	# arclength helpers
-	arclength/bezier.cpp
-	arclength/hermite.cpp
+		# arclength helpers
+		arclength/bezier.cpp
+		arclength/hermite.cpp
 
-	# GPU-accessible memory.
-	gpumem/memory_pool.cxx
+		# GPU-accessible memory.
+		gpumem/memory_pool.cxx
 
-	# Trajectory rendering.
-	render/common.cxx
-	render/extrapolation.cxx
-	render/state.cxx
-	render/trajectory.cxx
+		# Trajectory rendering.
+		render/common.cxx
+		render/extrapolation.cxx
+		render/state.cxx
+		render/trajectory.cxx
 
-	# API implementation
-	api/api/glyph_types.cxx
-	api/api/modmain.cxx
-	api/api/types.cxx
-	api/api/vis_setup.cxx
-	api/helper/module_handling.cxx
-	api/state/core.cxx
-	api/state/streaming.cxx
+		# API implementation
+		api/api/glyph_types.cxx
+		api/api/modmain.cxx
+		api/api/types.cxx
+		api/api/vis_setup.cxx
+		api/helper/module_handling.cxx
+		api/state/core.cxx
+		api/state/streaming.cxx
 
-	# main app
-	ambient_occlusion_style.cxx
-	arclen_helper.cxx
-	attrib_handle_manager.cxx
-	bcc_handler.cxx
-	bezdat_handler.cxx
-	color_legend_manager.cxx
-	color_map_manager.cxx
-	color_map_viewer.cxx
-	csv_handler.cxx
-	gl_util.cxx
-	glyph_attribute_mapping.cxx
-	glyph_layer_manager.cxx
-	mapping_legend.cxx
-	obd_handler.cxx
-	on_tube_vis.cxx
-	otv_client.cxx
-	regulargrid.cxx
-	sepia_handler.cxx
-	tasc_handler.cxx
-	textured_spline_tube_renderer.cxx
-	tgen_handler.cxx
-	traj_loader.cxx
-	tellocsv_handler.cxx
-	voxelizer.cxx
+		# main app
+		ambient_occlusion_style.cxx
+		arclen_helper.cxx
+		attrib_handle_manager.cxx
+		bcc_handler.cxx
+		bezdat_handler.cxx
+		color_legend_manager.cxx
+		color_map_manager.cxx
+		color_map_viewer.cxx
+		csv_handler.cxx
+		gl_util.cxx
+		glyph_attribute_mapping.cxx
+		glyph_layer_manager.cxx
+		mapping_legend.cxx
+		obd_handler.cxx
+		on_tube_vis.cxx
+		otv_client.cxx
+		regulargrid.cxx
+		sepia_handler.cxx
+		tasc_handler.cxx
+		textured_spline_tube_renderer.cxx
+		tgen_handler.cxx
+		traj_loader.cxx
+		tellocsv_handler.cxx
+		voxelizer.cxx
 )
 # - C/C++ headers
 set(HEADERS
-	# 3rd party code
-	# - FastGL library
-	3rd/fastgl/fastgl.h
-	# - Peridetic ECEF/geodetics header-only library
-	3rd/peridetic/periDetail.h
-	3rd/peridetic/peridetic.h
-	# - Wgs84mercator geoid utility header-only library
-	3rd/wgs84mercator/WGS84toCartesian.hpp
+		# 3rd party code
+		# - FastGL library
+		3rd/fastgl/fastgl.h
+		# - Peridetic ECEF/geodetics header-only library
+		3rd/peridetic/periDetail.h
+		3rd/peridetic/peridetic.h
+		# - Wgs84mercator geoid utility header-only library
+		3rd/wgs84mercator/WGS84toCartesian.hpp
 
-	# arclength helpers
-	arclength/bezier.h
-	arclength/hermite.h
-	arclength/PolynomialRegression.h
-	arclength/v3.h
+		# arclength helpers
+		arclength/bezier.h
+		arclength/hermite.h
+		arclength/PolynomialRegression.h
+		arclength/v3.h
 
-	# GPU-accessible memory.
-	gpumem/alloc.h
-	gpumem/alloc.inl
-	gpumem/array.h
-	gpumem/array.inl
-	gpumem/common.h
-	gpumem/memory_pool.h
-	gpumem/memory_pool.inl
-	gpumem/ring_buffer.h
-	gpumem/ring_buffer.inl
-	gpumem/ring_buffer_alt.h
-	gpumem/span.h
-	gpumem/span.inl
+		# GPU-accessible memory.
+		gpumem/alloc.h
+		gpumem/alloc.inl
+		gpumem/array.h
+		gpumem/array.inl
+		gpumem/common.h
+		gpumem/memory_pool.h
+		gpumem/memory_pool.inl
+		gpumem/ring_buffer.h
+		gpumem/ring_buffer.inl
+		gpumem/ring_buffer_alt.h
+		gpumem/span.h
+		gpumem/span.inl
 
-	# Trajectory rendering.
-	render/common.h
-	render/extrapolation.h
-	render/state.h
-	render/trajectory.h
+		# Trajectory rendering.
+		render/common.h
+		render/extrapolation.h
+		render/state.h
+		render/trajectory.h
 
-	# API implementation
-	api/helper/glyphs.h
-	api/helper/module_handling.h
-	api/state/core.h
-	api/state/streaming.h
-	api/util/cppstream.h
+		# API implementation
+		api/helper/glyphs.h
+		api/helper/module_handling.h
+		api/state/core.h
+		api/state/streaming.h
+		api/util/cppstream.h
 
-	# Public API
-	include/OnTubeVis/config.h
-	include/OnTubeVis/glyph_types.h
-	include/OnTubeVis/OnTubeVis.h
-	include/OnTubeVis/types.h
-	include/OnTubeVis/vis_setup.h
+		# Public API
+		include/OnTubeVis/config.h
+		include/OnTubeVis/glyph_types.h
+		include/OnTubeVis/OnTubeVis.h
+		include/OnTubeVis/types.h
+		include/OnTubeVis/vis_setup.h
 
-	# main app
-	ambient_occlusion_style.h
-	arclen_helper.h
-	attrib_handle_manager.h
-	bcc_handler.h
-	bezdat_handler.h
-	color_legend_manager.h
-	color_map_manager.h
-	color_map_viewer.h
-	csv_handler.h
-	csv_handler_detail.h
-	curveutils.h
-	demo.h
-	gl_util.h
-	glyph_attribute_mapping.h
-	glyph_compiler.h
-	glyph_layer_manager.h
-	glyph_shapes.h
-	gui_util.h
-	hermite_spline_tube.h
-	layer_config_io.h
-	mapping_legend.h
-	obd_handler.h
-	on_tube_vis.h
-	otv_client.h
-	quadratic_bezier_tube.h
-	regulargrid.h
-	sepia_handler.h
-	tasc_handler.h
-	textured_spline_tube_renderer.h
-	tgen_handler.h
-	traj_loader.h
-	tellocsv_handler.h
-	util.h
-	voxel_grid.h
-	voxelizer.h
+		# main app
+		ambient_occlusion_style.h
+		arclen_helper.h
+		attrib_handle_manager.h
+		bcc_handler.h
+		bezdat_handler.h
+		color_legend_manager.h
+		color_map_manager.h
+		color_map_viewer.h
+		csv_handler.h
+		csv_handler_detail.h
+		curveutils.h
+		demo.h
+		gl_util.h
+		glyph_attribute_mapping.h
+		glyph_compiler.h
+		glyph_layer_manager.h
+		glyph_shapes.h
+		gui_util.h
+		hermite_spline_tube.h
+		layer_config_io.h
+		mapping_legend.h
+		obd_handler.h
+		on_tube_vis.h
+		otv_client.h
+		quadratic_bezier_tube.h
+		regulargrid.h
+		sepia_handler.h
+		tasc_handler.h
+		textured_spline_tube_renderer.h
+		tgen_handler.h
+		traj_loader.h
+		tellocsv_handler.h
+		util.h
+		voxel_grid.h
+		voxelizer.h
 )
 # - GLSL shaders
 set (SHADERS
-	glsl/color_maps.glfs
-	glsl/color_maps.glpr
-	glsl/curve_tools.glsl
-	glsl/optix_display.glfs
-	glsl/optix_display.glpr
-	glsl/rcc.glsl
-	glsl/surface_mod.glsl
-	glsl/otv_shading.glsl
-	glsl/textured_line_primitive.glvs
-	glsl/textured_spline_ribbon.glfs
-	glsl/textured_spline_ribbon.glgs
-	glsl/textured_spline_ribbon.glpr
-	glsl/textured_spline_tube.glfs
-	glsl/textured_spline_tube.glgs
-	glsl/textured_spline_tube.glpr
-	glsl/textured_spline_tube_shading.glfs
-	glsl/textured_spline_tube_shading.glpr
-	glsl/transform.glsl
-	glsl/view_aligned_ribbon.glfs
-	glsl/view_aligned_ribbon.glgs
-	glsl/view_aligned_ribbon.glpr
-	glsl/voxelize.glcs
+		glsl/color_maps.glfs
+		glsl/color_maps.glpr
+		glsl/curve_tools.glsl
+		glsl/optix_display.glfs
+		glsl/optix_display.glpr
+		glsl/rcc.glsl
+		glsl/surface_mod.glsl
+		glsl/otv_shading.glsl
+		glsl/textured_line_primitive.glvs
+		glsl/textured_spline_ribbon.glfs
+		glsl/textured_spline_ribbon.glgs
+		glsl/textured_spline_ribbon.glpr
+		glsl/textured_spline_tube.glfs
+		glsl/textured_spline_tube.glgs
+		glsl/textured_spline_tube.glpr
+		glsl/textured_spline_tube_shading.glfs
+		glsl/textured_spline_tube_shading.glpr
+		glsl/transform.glsl
+		glsl/view_aligned_ribbon.glfs
+		glsl/view_aligned_ribbon.glgs
+		glsl/view_aligned_ribbon.glpr
+		glsl/voxelize.glcs
 )
 # - add contitional source files
 if (ENABLE_OPTIX_SUPPORT)
 	list(APPEND SOURCES
-		optix_integration.cxx
-		optixtracer_textured_spline_tube.cxx
+			optix_integration.cxx
+			optixtracer_textured_spline_tube.cxx
 	)
 	list(APPEND HEADERS
-		optix_integration.h
-		optixtracer_textured_spline_tube.h
+			optix_integration.h
+			optixtracer_textured_spline_tube.h
 	)
 endif()
 # - resources (we'll likely get away with just globbing them inside the /res directory)
@@ -292,28 +292,28 @@ endif()
 
 # create the OnTubeVis plugin within the CGV Framework build infrastructure
 cgv_add_target(OnTubeVis
-	TYPE plugin SERVICE
+		TYPE plugin SERVICE
 
-	SOURCES         ${SOURCES}
-	HEADERS         ${HEADERS}
-	SHADER_SOURCES  ${SHADERS}
-	RESOURCES       ${IMAGES}
-	DEPENDENCIES
+		SOURCES         ${SOURCES}
+		HEADERS         ${HEADERS}
+		SHADER_SOURCES  ${SHADERS}
+		RESOURCES       ${IMAGES}
+		DEPENDENCIES
 		json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui cgv_render
 		cgv_os cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d cgv_app
 		cgv_post cgv_gpgpu ${OPTIONAL_PLUGINS} ${OPTIONAL_DEPENDENCIES} OpenGL::GLU
 
-	LINKTIME_PLUGIN_DEPENDENCIES
+		LINKTIME_PLUGIN_DEPENDENCIES
 		cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
 		${OPTIONAL_PLUGINS} # <-- we're directly using the control APIs of the optional plugins
 
-	ADDITIONAL_INCLUDE_PATHS         ${ADDITIONAL_INCLUDE_PATHS}
+		ADDITIONAL_INCLUDE_PATHS         ${ADDITIONAL_INCLUDE_PATHS}
 
-	ADDITIONAL_PRIVATE_INCLUDE_PATHS ${PRIVATE_API_INCLUDE}
+		ADDITIONAL_PRIVATE_INCLUDE_PATHS ${PRIVATE_API_INCLUDE}
 
-	ADDITIONAL_PRIVATE_DEFINES       ${NVRTC_INCLUDE_DEFS} ${OPTIONAL_PLUGINS_CONFIG_DEFS}
+		ADDITIONAL_PRIVATE_DEFINES       ${NVRTC_INCLUDE_DEFS} ${OPTIONAL_PLUGINS_CONFIG_DEFS}
 
-	ADDITIONAL_CMDLINE_ARGS
+		ADDITIONAL_CMDLINE_ARGS
 		"config:\"${CMAKE_CURRENT_LIST_DIR}/config.def\""
 )
 
@@ -328,24 +328,25 @@ if (ENABLE_OPTIX_SUPPORT)
 	endif()
 	# - compile include path for nvcc pointing to CUDA and OptiX SDKs
 	set(NVCC_INCLUDE_PATH
-		"-I\"${CUDA_TOOLKIT_INCLUDE}\"" "-I\"${OptiX_INCLUDE}\"" "-I\"${OptiX_INSTALL_DIR}/SDK\""
-		"-I\"${OptiX_INSTALL_DIR}/SDK/cuda\"")
+			"-I\"${CUDA_TOOLKIT_INCLUDE}\"" "-I\"${OptiX_INCLUDE}\"" "-I\"${OptiX_INSTALL_DIR}/SDK\""
+			"-I\"${OptiX_INSTALL_DIR}/SDK/cuda\"")
 	# - add the CUDA source files and build rule
 	cgv_add_custom_sources(OnTubeVis STATIC
-		SOURCES
-			cuda/optix_curves_builtin2.cu cuda/optix_curves_builtin3.cu cuda/optix_curves_phantom.cu
-			cuda/optix_curves_russig.cu
-		HEADERS
-			cuda/optix_interface.h cuda/optix_curves_impl.cuh cuda/optix_isect_phantom.cuh
-			cuda/optix_isect_russig.cuh cuda/optix_tools.cuh
+			SOURCES
+				cuda/optix_curves_builtin2.cu cuda/optix_curves_builtin3.cu cuda/optix_curves_phantom.cu
+				cuda/optix_curves_russig.cu
+			HEADERS
+				cuda/optix_interface.h cuda/optix_curves_impl.cuh cuda/optix_isect_phantom.cuh
+				cuda/optix_isect_russig.cuh cuda/optix_tools.cuh
 
-		OUTFILE_TEMPLATE "<<<FN>>>_<<<EXT>>>.cpp"
+			OUTFILE_TEMPLATE "<<<FN>>>_<<<EXT>>>.cpp"
 
-		BUILD_SUBDIR     "cuda"
-		BUILD_TOOL       cuda_resprep
-		BUILD_TOOL_ARGS
-			"${CUDA_NVCC_EXECUTABLE}" "<<<INFILE>>>" "<<<OUTFILE>>>" "${NVCC_BINCC_OPT}" "${NVCC_BINCC_ARG}" "-std=c++17" "-ptx"
-			"-arch=compute_61" "--use_fast_math" "-O=3" "-dopt=on" "-D__x86_64" "-I\"<<<INFILE_PATH>>>\"" ${NVCC_INCLUDE_PATH}
+			BUILD_SUBDIR     "cuda"
+			BUILD_TOOL       cuda_resprep
+			BUILD_TOOL_ARGS
+				"${CUDA_NVCC_EXECUTABLE}" "<<<INFILE>>>" "<<<OUTFILE>>>" "${NVCC_BINCC_OPT}" "${NVCC_BINCC_ARG}"
+				"-std=c++17" "-ptx" "-arch=compute_61" "--use_fast_math" "-O=3" "-dopt=on" "-D__x86_64"
+				"-I\"<<<INFILE_PATH>>>\"" ${NVCC_INCLUDE_PATH}
 	)
 endif()
 
@@ -353,9 +354,9 @@ endif()
 # visible
 if (NOT OpenMP_CXX_FOUND)
 	cmake_language(
-		DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL message
-		"WARNING: OpenMP development files not found on the system!\n"
-		"         Preprocessing for large datasets will be slow."
+			DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL message
+			"WARNING: OpenMP development files not found on the system!\n"
+			"         Preprocessing for large datasets will be slow."
 	)
 endif()
 

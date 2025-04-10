@@ -8,7 +8,7 @@
 #include <condition_variable>
 
 // CGV framework core
-#include <cgv/base/node.h>
+#include <cgv/base/group.h>
 #include <cgv/gui/provider.h>
 #include <cgv/gui/help_message.h>
 #include <cgv/gui/file_helper.h>
@@ -23,7 +23,6 @@
 #include <cgv_gl/volume_renderer.h>
 
 // CGV framework application utility
-#include <cgv_app/application_plugin.h>
 #include <cgv_app/color_map_editor.h>
 #include <cgv_app/navigator.h>
 #include <cgv_app/performance_monitor.h>
@@ -71,7 +70,10 @@ using namespace cgv::render;
 /// baseline visualization plugin for arbitrary trajectory data as tubes using the framework tube renderers and trajectory loading facilities
 class on_tube_vis :
 	public cgv::base::argument_handler, // derive from argument handler to be able to process custom arguments
-	public cgv::app::application_plugin // derive from application plugin, which is a node, drawable, gui provider and event handler and can handle overlays
+	public cgv::base::group,			// derive from group to support child nodes (needed for overlays)
+	public cgv::gui::event_handler,		// derive from event handler to receive input events
+	public cgv::gui::provider,			// derive from gui provider to have gui controls
+	public cgv::render::drawable		// derive from drawable to allow drawing in the GL context
 {
 	friend otv::otv_client;
 
@@ -206,6 +208,8 @@ protected:
 	// ###  END:  OptiX integration
 	// ###############################
 #endif
+
+	view* view_ptr = nullptr;
 
 	// don't load any dataset, disable most GUIs
 	bool run_as_service = false;
@@ -528,10 +532,10 @@ public:
 	void stream_help(std::ostream& os);
 	void stream_stats(std::ostream& os) {}
 
-	bool handle_event(cgv::gui::event& e);
+	bool handle(cgv::gui::event& e);
 	void handle_color_map_change();
 	void handle_transfer_function_change();
-	void handle_member_change(const cgv::utils::pointer_test& m);
+	void on_set(void* member_ptr);
 	void quit();
 	bool on_exit_request();
 

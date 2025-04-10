@@ -122,7 +122,7 @@ void on_tube_vis::on_register()
 }
 
 
-on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(this)
+on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(this)
 {
 	// adjust geometry and grid style defaults
 	render.style.material.set_brdf_type(
@@ -175,31 +175,31 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
 
 	// register overlay widgets
-	mapping_legend_ptr = register_overlay<mapping_legend>("Mapping Legend");
+	mapping_legend_ptr = create_and_append_child<mapping_legend>("Mapping Legend");
 
-	cm_editor_ptr = register_overlay<cgv::app::color_map_editor>("Color Scales");
+	cm_editor_ptr = create_and_append_child<cgv::app::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
 	cm_editor_ptr->gui_options.create_default_tree_node = false;
 	cm_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_color_map_change, this));
 	cm_editor_ptr->set_stretch(cgv::app::overlay::SO_HORIZONTAL);
 
-	tf_editor_ptr = register_overlay<cgv::app::color_map_editor>("Transfer Function");
+	tf_editor_ptr = create_and_append_child<cgv::app::color_map_editor>("Transfer Function");
 	tf_editor_ptr->set_visibility(false);
 	tf_editor_ptr->set_opacity_support(true);
 	tf_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_transfer_function_change, this));
 	tf_editor_ptr->set_stretch(cgv::app::overlay::SO_HORIZONTAL);
 
-	navigator_ptr = register_overlay<cgv::app::navigator>("Navigator");
+	navigator_ptr = create_and_append_child<cgv::app::navigator>("Navigator");
 	navigator_ptr->set_visibility(false);
 	navigator_ptr->gui_options.show_layout_options = false;
 	navigator_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_START);
 	navigator_ptr->set_size(100);
 
-	cm_viewer_ptr = register_overlay<color_map_viewer>("Color Scale Viewer");
+	cm_viewer_ptr = create_and_append_child<color_map_viewer>("Color Scale Viewer");
 	cm_viewer_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_END);
 	cm_viewer_ptr->set_visibility(false);
 
-	perfmon_ptr = register_overlay<cgv::app::performance_monitor>("Performance Monitor");
+	perfmon_ptr = create_and_append_child<cgv::app::performance_monitor>("Performance Monitor");
 	perfmon_ptr->set_visibility(false);
 	//perfmon_ptr->set_show_background(false);
 	perfmon_ptr->enable_monitoring_only_when_visible(true);
@@ -421,7 +421,7 @@ void on_tube_vis::stream_help (std::ostream &os) {
 
 #define SET_MEMBER(m, v) m = v; update_member(&m);
 
-bool on_tube_vis::handle_event(cgv::gui::event &e) {
+bool on_tube_vis::handle(cgv::gui::event &e) {
 
 	unsigned et = e.get_kind();
 	unsigned char modifiers = e.get_modifiers();
@@ -1242,8 +1242,11 @@ bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 }
 
 
-void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
+void on_tube_vis::on_set(void* member_ptr)
 {
+	// helper for determining what fields or subfields were affected
+	const cgv::utils::pointer_test& m(member_ptr);
+
 	// control flags
 	bool do_full_gui_update = false, data_set_changed = false, from_demo = false, reset_taa = true;
 
@@ -1631,6 +1634,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m)
 		taa.reset();
 	else
 		taa.reset_static_frame_count(); // Just make sure we keep multisampling
+	// - redraw
+	post_redraw();
 }
 
 void on_tube_vis::quit() {
@@ -1751,7 +1756,7 @@ void on_tube_vis::glyphs_out_of_date(bool state)
 		ctrl->set("color", state ? cgv::gui::theme_info::instance().warning_hex() : "");
 }
 
-bool on_tube_vis::compile_glyph_attribs ()
+bool on_tube_vis::compile_glyph_attribs (void)
 {
 	// Mark all layers as inactive in render state.
 	render.active_glyph_layers = 0;
@@ -2606,8 +2611,7 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 
 void on_tube_vis::after_finish(context& ctx) {
 
-	if(initialize_view_ptr())
-	{
+	if(!view_ptr && (view_ptr = find_view_as_node())) {
 		// do one-time initialization that needs the view if necessary
 		set_view();
 		ensure_selected_in_tab_group_parent();
@@ -2701,7 +2705,9 @@ void on_tube_vis::signal_non_service_init() {/*
 	post_recreate_gui(); // make sure the button disappears
 */}
 
-void do_nothing (void) {}
+void do_nothing (void) {
+	std::clog.flush();
+}
 
 void on_tube_vis::create_gui (void)
 {
