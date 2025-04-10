@@ -31,10 +31,12 @@ float interpolation_api_enum_to_attribval (const OTV_InterpolationMode interpola
 /// Stores trajectory data that is known ahead of time in host memory, then gradually feeds it
 /// to the renderer to simulate streaming.
 /// NOTE: This type is only used for testing and not required to implement the OnTubeVis API.
-struct otv_client {
+struct otv_client
+{
 	/// Wrapper around a rendered trajectory that can be used to simulate streaming by gradually
 	/// adding data from a buffer.
-	struct trajectory {
+	struct trajectory
+	{
 		trajectory() = delete;
 		trajectory(const unsigned i0, const unsigned n, unsigned first_segment, unsigned traj_id)
 			: node_idcs{i0, i0+n}, segment_idx(first_segment), id(traj_id)
@@ -53,7 +55,7 @@ struct otv_client {
 		/// segments. This is especially the case for plots, which almost always need inter-segment overlap to ensure
 		/// smooth interpolation.
 		/// Bookkeeping the most recently submitted s positions enables filtering out duplicated references and submit
-		/// unique glyphs only like the submission interface requires (this information will be properly recreated
+		/// unique glyphs only, as the submission interface requires (this information will be properly recreated
 		/// behind the interface, including re-routing to extrapolations).
 		float last_s[4] = {
 			-std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity(),
@@ -65,7 +67,8 @@ struct otv_client {
 	};
 
 	/// Host-side data for one glyph layer.
-	struct glyph_layer {
+	struct glyph_layer
+	{
 		glyph_layer() = default;
 
 		glyph_layer(const glyph_layer &) = delete;
@@ -161,6 +164,9 @@ struct otv_client {
 	/// trajectory arclength at the segment, packed into the columns of a 4x4 matrix)
 	arclen::parametrization arclen_data;
 
+	/// pre-computed trajectory extrapolation for each Hermite node.
+	std::vector<std::vector<extrapol::node>> extrapols;
+
 	/// data specific to each trajectory.
 	std::vector<trajectory> trajectories;
 
@@ -182,6 +188,9 @@ struct otv_client {
 
 	/// start a pending session with the current setup
 	void commit_session (void);
+
+	/// pre-compute all extrapolations for the current dataset
+	void precompute_extrapolations (void);
 
 	/// append all data points up to the current timestamp to their respective trajectory.
 	void update (void);

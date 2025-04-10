@@ -449,6 +449,60 @@ void otv_client::commit_session (void)
 	init_runner.detach(); // let session init continue in the background
 }
 
+void otv_client::precompute_extrapolations (void)
+{
+	extrapols.clear();
+	extrapols.resize(data->positions.size());
+	for (auto &traj : trajectories)
+	{
+		unsigned segment_idx = traj.segment_idx;
+		bool is_first_node = true;
+		node_attribs prev_node;
+		for (auto node_idx=traj.node_idcs.begin; node_idx<traj.node_idcs.end; ++node_idx)
+		{
+			// get node data
+			const auto col = data->colors[node_idx];
+			const node_attribs cur_node {
+				{data->positions[node_idx], data->radii[node_idx]},
+				{col.R(), col.G(), col.B(), 1},
+				data->tangents[node_idx],
+				{data->timestamps[node_idx], 0, 0, 0}
+			};
+
+			// compute extrapolation
+			auto &extrapol = extrapols[node_idx];
+			extrapol.reserve(num_extrapol_segments);
+			if (is_first_node)
+			{
+				// Init with "blank" extrapolation (just the straight line segment that follows from the first tangent)
+				const auto pos0 = cgv::vec3(cur_node.pos_rad), tan = cgv::vec3(cur_node.tangent);
+				const auto fictitious_prev_node = node_attribs {
+					cgv::vec4(pos0 - tan, cur_node.pos_rad.w()),
+					cur_node.color, cgv::vec4(tan, 0), cgv::vec4(cur_node.t.x()-1, 0, 0, 0)
+				};
+				const auto tan_len = tan.length();
+				extrapol::compute_path(
+					extrapol, num_extrapol_segments, fictitious_prev_node, cur_node,
+					arclen::single_linear_t_to_s(tan_len, -tan.length())
+				);
+				is_first_node = false;
+			}
+			else
+			{
+				// Get arc length
+				const auto &t_to_s = arclen_data.t_to_s.at(segment_idx);
+
+				// Extrapolate from previous segment
+				extrapol::compute_path(
+					extrapol, num_extrapol_segments, prev_node, cur_node, t_to_s
+				);
+				++segment_idx;
+			}
+			prev_node = cur_node;
+		}
+	}
+}
+
 void otv_client::update ()
 {
 	#define DEBUG_OUTPUT 1
@@ -457,13 +511,12 @@ void otv_client::update ()
 	// actually is ready)
 	session.wait_init_ready();
 
-	// extend all trajectories based on the animation time, emulating streaming
-	std::vector<extrapol::node> extrapol_nodes;
-	extrapol_nodes.reserve(num_extrapol_segments);
 	#if DEBUG_OUTPUT
 		cgv::utils::stopwatch sw(/* silent: */true);
 		std::clog << "otv_client::update(): starting update for t="<<render.style.max_t<<"s\n";
 	#endif
+
+	// extend all trajectories based on the animation time, emulating streaming
 	for (auto &traj : trajectories)
 	{
 		// traj init
@@ -515,47 +568,10 @@ void otv_client::update ()
 
 			// the first node of each trajectory does not create a segment, so there is no arc
 			// length parametrization
-			const cgv::mat4 *t_to_s {nullptr};
-
-			const bool is_first_seg = target_traj.ref.is_empty();
-			extrapol_nodes.clear();
-			if (is_first_seg)
-			{
-				// Init with "blank" extrapolation (just the straight line segment that follows from the first tangent)
-				const auto pos0 = cgv::vec3(new_node.pos_rad), tan = cgv::vec3(new_node.tangent);
-				const auto fictitious_prev_node = node_attribs {
-					cgv::vec4(pos0 - tan, new_node.pos_rad.w()),
-					new_node.color, cgv::vec4(tan, 0), cgv::vec4(new_node.t.x()-1, 0, 0, 0)
-				};
-				const auto tan_len = tan.length();
-				extrapol::compute_path(
-					extrapol_nodes, num_extrapol_segments, fictitious_prev_node, new_node,
-					arclen::single_linear_t_to_s(tan_len, -tan.length())
-				);
-			}
-			else
-			{
-				// Compute arc length
-				t_to_s = &arclen_data.t_to_s.at(traj.segment_idx);
-				/*#ifndef NDEBUG
-					const auto &s_to_t = arclen_data.s_to_t.at(traj.segment_idx);
-					const float s_span = (*t_to_s)[15] - (*t_to_s)[0];
-					const float s = (arclen::eval(*t_to_s, .75f) - (*t_to_s)[0])/s_span;
-					const float t = arclen::eval(s_to_t, s);
-					const float eps_sqr = std::numeric_limits<float>::epsilon(), eps = 4*std::sqrt(std::sqrt(eps_sqr));
-					const float err = std::abs(t-.75f);
-					assert(err <= eps);
-				#endif*/
-
-				// Extrapolate from previous segment
-				const auto &prev_node = target_traj.ref.most_recent_node();
-				extrapol::compute_path(
-					extrapol_nodes, num_extrapol_segments, prev_node, new_node, *t_to_s
-				);
-			}
+			const cgv::mat4 *t_to_s {target_traj.ref.is_empty() ? nullptr : &arclen_data.t_to_s.at(traj.segment_idx)};
 
 			// append a node, potentially creating a new segment
-			enqueue_node(target_traj, new_node, t_to_s, extrapol_nodes);
+			enqueue_node(target_traj, new_node, t_to_s, extrapols[node_idx]);
 
 			//render.for_each_active_glyph_layer(enqueue_glyphs);
 

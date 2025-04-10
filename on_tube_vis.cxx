@@ -2421,7 +2421,36 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	// keep the framebuffer up to date with the viewport size
 	fbc.ensure(ctx);
 
+	// make sure TAA is ready
 	taa.ensure(ctx);
+
+	// make sure we have a view pointer, and that related initialization is done
+	if(!view_ptr && (view_ptr = find_view_as_node()))
+	{
+		// do one-time initialization that needs the view if necessary
+		set_view();
+		ensure_selected_in_tab_group_parent();
+
+		// set one of the loaded color maps as the transfer function for the volume renderer
+		if(tf_editor_ptr)
+		{
+			auto& cmcs = color_map_mgr.ref_color_maps();
+			for(auto& cmc : cmcs) {
+				if(cmc.name == "imola") {
+					for(const auto& p : cmc.cm.ref_color_points())
+						volume_tf.add_color_point(p.first, p.second);
+
+					volume_tf.add_opacity_point(0.0f, 0.0f);
+					volume_tf.add_opacity_point(1.0f, 1.0f);
+
+					tf_editor_ptr->set_color_map(&volume_tf);
+					break;
+				}
+			}
+		}
+
+		taa.set_view(view_ptr);
+	}
 
 #ifdef RTX_SUPPORT
 	// ###############################
@@ -2611,34 +2640,10 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 		draw_dnd(ctx);
 }
 
-void on_tube_vis::after_finish(context& ctx) {
-
-	if(!view_ptr && (view_ptr = find_view_as_node())) {
-		// do one-time initialization that needs the view if necessary
-		set_view();
-		ensure_selected_in_tab_group_parent();
-
-		// set one of the loaded color maps as the transfer function for the volume renderer
-		if(tf_editor_ptr) {
-			auto& cmcs = color_map_mgr.ref_color_maps();
-			for(auto& cmc : cmcs) {
-				if(cmc.name == "imola") {
-					for(const auto& p : cmc.cm.ref_color_points())
-						volume_tf.add_color_point(p.first, p.second);
-
-					volume_tf.add_opacity_point(0.0f, 0.0f);
-					volume_tf.add_opacity_point(1.0f, 1.0f);
-
-					tf_editor_ptr->set_color_map(&volume_tf);
-					break;
-				}
-			}
-		}
-
-		taa.set_view(view_ptr);
-	}
-
-	if(benchmark.running) {
+void on_tube_vis::after_finish(context& ctx)
+{
+	if (benchmark.running)
+	{
 		++benchmark.total_frames;
 		double benchmark_time = 5.0;
 
@@ -3131,11 +3136,11 @@ void on_tube_vis::update_attribute_bindings(void)
 		// Create trajectories to fill ring buffers.
 		render.trajectories.clear();
 		client.trajectories.clear();
-
-		for (const auto &dataset : traj_mgr.datasets()) {
+		for (const auto &dataset : traj_mgr.datasets())
+		{
 			const auto &pos_attrib = dataset.positions().attrib;
-
-			for (const auto &trajectory : dataset.trajectories(pos_attrib)) {
+			for (const auto &trajectory : dataset.trajectories(pos_attrib))
+			{
 				// Index of the first nodes.
 				auto i0 = trajectory.i0;
 
@@ -3150,6 +3155,13 @@ void on_tube_vis::update_attribute_bindings(void)
 					trajectory.i0, trajectory.n, first_segment, render.add_trajectory().id()
 				);
 			}
+		}
+
+		// With all geometry and topology complete, pre-compute the trajectory extrapolations that the internal client
+		// will submit to the streaming interface
+		if (!run_as_service) {
+			std::cout << "[internal streaming client]: pre-computing extrapolations" << std::endl;
+			client.precompute_extrapolations();
 		}
 
 		// Generate the density volume (uses GPU buffer data so we need to do this after upload)
