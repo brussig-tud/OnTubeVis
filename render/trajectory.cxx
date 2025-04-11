@@ -80,13 +80,15 @@ void trajectory::append_node (const node_attribs &node, const cgv::mat4 *t_to_s)
 	// Link the previous segment to the new one.
 	if (prev_seg_idx != nil) {
 		_render._next_segment[prev_seg_idx] = _last_segment_idx;
+		_render.seg_to_traj[prev_seg_idx].next = _last_segment_idx;
 	}
 
 	// The new segment has no successor yet.
 	_render._next_segment[_last_segment_idx] = nil;
 
 	// Mark the segment as belonging to the trajectory.
-	_render.seg_to_traj[_last_segment_idx] = _id;
+	_render.seg_to_traj[_last_segment_idx].traj = _id;
+	_render.seg_to_traj[_last_segment_idx].next = -1;
 
 	// Store the segment's arclength parametrization at the corresponding index.
 	_render.t_to_s[_last_segment_idx] = *t_to_s;

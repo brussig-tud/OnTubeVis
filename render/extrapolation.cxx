@@ -26,6 +26,7 @@ void compute_path (
 	const float dt = t1 - ref_node0.t.x();
 
 	// Extrapolate
+	const cgv::vec4 color(cgv::vec3(ref_node1.color), .5f);
 	const extrapol::node prev_extrapol_values = {
 		ref_node1, ref_t_to_s
 	};
@@ -33,7 +34,7 @@ void compute_path (
 	for (unsigned i=1; i<=num; i++)
 	{
 		const node_attribs new_node {
-			cgv::vec4(p1 + float(i)*m1, r), ref_node1.color, cgv::vec4(m1, 0),
+			cgv::vec4(p1 + float(i)*m1, r), color, cgv::vec4(m1, 0),
 			cgv::vec4(t1 + float(i)*dt, 0, 0, 0)
 		};
 		const extrapol::node new_extrapol {
@@ -107,7 +108,9 @@ bool extrapolation_manager::create_geom_buffers (
 			const auto res = seg_to_traj_buf.push_uninit(num_segments);
 			assert(res.num_overwritten==0 && res.num_skipped==0);
 			assert(seg_to_traj_buf.num_elems == num_segments);
-			std::fill(seg_to_traj_buf.begin(), seg_to_traj_buf.end(), t);
+			for (unsigned seg=0; seg<num_segments; ++seg)
+				seg_to_traj_buf.contents[seg] = topology_info{t, t*num_segments + seg};
+			seg_to_traj_buf.contents[num_segments-1].next = -1;
 		}
 		trajectories.emplace_back(nodes_buf, alen_buf);
 		uint32_t start_index = t*num_nodes;
@@ -246,7 +249,7 @@ void extrapolation_manager::replace_extrapolation (
 	// Replace geometry buffer contents
 	const auto num_segments = traj.t_to_s.capacity();
 	assert(num_segments == (unsigned)extrapolation.size());
-	traj.nodes.contents[0] = last_measured_node;
+	traj.nodes.contents[0] = last_measured_node;traj.nodes.contents[0].color.w() = extrapolation.front().hnode.color.w();
 	for (unsigned i=0; i<num_segments; i++) {
 		traj.nodes.contents[i+1] = extrapolation[i].hnode;
 		traj.t_to_s.contents[i] = extrapolation[i].t_to_s;
@@ -831,7 +834,7 @@ bool extrapolation_manager::flush_changes (void)
 
 	// Wait for extrapolation rendering to complete
 	/*if (render.draw_fence) {
-		/*auto wait_result = *//*glClientWaitSync(render.draw_fence, 0, -1);
+		*//*auto wait_result = *//*glClientWaitSync(render.draw_fence, 0, -1);
 		glDeleteSync(render.draw_fence);
 		render.draw_fence = nullptr;
 	}*/
@@ -885,18 +888,16 @@ void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx, const
 	const auto node_id_buf = render.tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
 	GLuint buffer_handles[13] = {
 		geom.nodes_arena.data_memory.handle(),
-		geom.t_to_s_arena.data_memory.handle(),/*
-		geom.test_nodes.data_memory.handle(),
-		geom.test_alens.data_memory.handle(),*/
+		geom.t_to_s_arena.data_memory.handle(),
 		cgv::render::gl::get_gl_id(node_id_buf->handle), // <- required since we're drawing attribute-less
+		geom.seg_to_traj_arena.data_memory.handle()
 	};
 	for (unsigned l=0; l<setup.num_layers; ++l) {
-		buffer_handles[3 + l*2] = glyphs.glyph_attribs_arena[l].data_memory.handle();
-		buffer_handles[4 + l*2] = glyphs.ranges_arena[l].data_memory.handle();
+		buffer_handles[4 + l*2] = glyphs.glyph_attribs_arena[l].data_memory.handle();
+		buffer_handles[5 + l*2] = glyphs.ranges_arena[l].data_memory.handle();
 	}
 	for (unsigned nl=setup.num_layers; nl<4; ++nl)
-		buffer_handles[4 + nl*2] = buffer_handles[3 + nl*2] = 0;
-	buffer_handles[3 + 8] = geom.seg_to_traj_arena.data_memory.handle();
+		buffer_handles[5 + nl*2] = buffer_handles[4 + nl*2] = 0;
 	buffer_handles[4 + 8] = glyphs.traj_glyph_mem_arena.data_memory.handle();
 	glBindBuffersBase(
 		GL_SHADER_STORAGE_BUFFER, 0, 13, buffer_handles
@@ -913,7 +914,7 @@ void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx, const
 
 	// Insert sync point for potential buffer flushes
 	/*if (render.draw_fence) {
-		/*auto wait_result = *//*glClientWaitSync(render.draw_fence, 0, -1);
+		*//*auto wait_result = *//*glClientWaitSync(render.draw_fence, 0, -1);
 		glDeleteSync(render.draw_fence);
 	}
 	render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);*/

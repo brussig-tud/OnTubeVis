@@ -119,37 +119,37 @@ layout (std430, binding=B0) readonly buffer attribs_buffer##I { \
 }; \
 layout (std430, binding=B1) readonly buffer ranges_buffer##I { \
 	irange ranges##I[]; \
-}; \
-
-#if FORWARD_SHADING == 1
-	#define L0_BINDING_0 3
-	#define L0_BINDING_1 4
-	#define L1_BINDING_0 5
-	#define L1_BINDING_1 6
-	#define L2_BINDING_0 7
-	#define L2_BINDING_1 8
-	#define L3_BINDING_0 9
-	#define L3_BINDING_1 10
-	#define FIRST_BINDING_AFTER_GLYPH_LAYERS 11
-#else
-	#define L0_BINDING_0 0
-	#define L0_BINDING_1 1
-	#define L1_BINDING_0 2
-	#define L1_BINDING_1 3
-	#define L2_BINDING_0 4
-	#define L2_BINDING_1 5
-	#define L3_BINDING_0 6
-	#define L3_BINDING_1 7
-	#define FIRST_BINDING_AFTER_GLYPH_LAYERS 8
-#endif
-
-/// Buffer storing which trajectory each segment belongs to.
-layout (binding = FIRST_BINDING_AFTER_GLYPH_LAYERS) readonly buffer seg_to_traj_buffer {
-	TRAJECTORY_ID_T seg_to_traj[];
 };
 
+// buffer storing which trajectory each segment belongs to.
+layout (binding = 3) readonly buffer seg_to_traj_buffer {
+	uvec2 seg_to_traj[];
+};
+
+#if FORWARD_SHADING == 1
+	#define L0_BINDING_0 4
+	#define L0_BINDING_1 5
+	#define L1_BINDING_0 6
+	#define L1_BINDING_1 7
+	#define L2_BINDING_0 8
+	#define L2_BINDING_1 9
+	#define L3_BINDING_0 10
+	#define L3_BINDING_1 11
+	#define FIRST_BINDING_AFTER_GLYPH_LAYERS 12
+#else
+	#define L0_BINDING_0 4
+	#define L0_BINDING_1 5
+	#define L1_BINDING_0 6
+	#define L1_BINDING_1 7
+	#define L2_BINDING_0 8
+	#define L2_BINDING_1 9
+	#define L3_BINDING_0 10
+	#define L3_BINDING_1 11
+	#define FIRST_BINDING_AFTER_GLYPH_LAYERS 12
+#endif
+
 /// See `get_traj_glyph_mem`.
-layout (binding = FIRST_BINDING_AFTER_GLYPH_LAYERS+1) readonly buffer traj_glyph_mem_buffer {
+layout (binding = FIRST_BINDING_AFTER_GLYPH_LAYERS) readonly buffer traj_glyph_mem_buffer {
 	irange traj_glyph_mem[];
 };
 
@@ -175,7 +175,7 @@ struct closest_glyphs_info {
 #define DEF_CLOSEST_SAMPLES(I, ranges, glyphs) \
 bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info closest) { \
 	const irange          segment = ranges[segid]; \
-	const TRAJECTORY_ID_T traj    = seg_to_traj[segid]; \
+	const TRAJECTORY_ID_T traj    = seg_to_traj[segid].x; \
 	if (segment.n > 0) { \
 		irange rng = segment; \
 		while (rng.n > 1) { \
@@ -1478,47 +1478,11 @@ vec4 otv_shade_fragment (
 	{
 		closest_glyphs_info closest;
 		vec2 glyphuv = uv;
-		/*if (segment_id==6)
-			color = vec3(1,0,0);
-		else if (segment_id==7)
-			color = vec3(0,1,0);
-		else if (segment_id==8)
-			color = vec3(0,0,1);*/
-		const uint traj_id = seg_to_traj[segment_id];
+		const uint traj_id = seg_to_traj[segment_id].x;
 		const uint layer = 0;
-		/*if (traj_id==0)
-			color = vec3(1,0,0);
-		else if (traj_id==1)
-			color = vec3(0,1,0);
-		else if (traj_id==2)
-			color = vec3(0,0,1);*/
 		const irange tgm = get_traj_glyph_mem(traj_id, layer);
-		/*if (tgm.i0<1536)
-			color = vec3(1,0,0);
-		else if (tgm.i0==1536)
-			color = vec3(0,1,0);
-		else if (tgm.i0>1536)
-			color = vec3(0,0,1);*/
-		/*if (tgm.n<768)
-			color = vec3(1,0,0);
-		else if (tgm.n==768)
-			color = vec3(0,1,0);
-		else if (tgm.n>768)
-			color = vec3(0,0,1);*/
 		const uint testidx = abs_index(3, traj_id, layer);
-		/*if (testidx<1536)
-			color = vec3(1,0,0);
-		else if (testidx==1536)
-			color = vec3(0,1,0);
-		else if (testidx>1536)
-			color = vec3(0,0,1);*/
 		glyph_desc0 testglyph = glyphs0[testidx];
-		/*if (testglyph.s<0)
-			color = vec3(1,0,0);
-		else if (testglyph.s==0)
-			color = vec3(0,1,0);
-		else if (testglyph.s>0)
-			color = vec3(0,0,1);*/
 
 		if (get_closest_samples0(segment_id, glyphuv.s, closest)) {
 			glyph_desc0 glyph = glyphs0[closest.id];

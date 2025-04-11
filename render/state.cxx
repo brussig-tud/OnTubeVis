@@ -103,8 +103,8 @@ void render_state::trim_trajectories ()
 			_node_starts_segment[segment->x()] = false;
 
 			// Notify the trajectory to which the segment belonged.
-			trajectories[seg_to_traj[segment_buffer.front()]]
-					.on_delete_segment(segment_buffer.front());
+			trajectories[seg_to_traj[segment_buffer.front()].traj]
+				.on_delete_segment(segment_buffer.front());
 
 			// Remove the segment.
 			segment_buffer.pop_front();
@@ -149,7 +149,7 @@ bool render_state::create_geom_buffers (gpumem::size_type max_nodes, gpumem::siz
 		// capacity!
 		&& seg_to_traj.create(segment_buffer.as_span().length())
 		&& t_to_s.create(segment_buffer.as_span().length())
-		};
+	};
 
 	// Allocate CPU buffers.
 	_node_to_traj = std::make_unique<trajectory::id_type[]>(node_buffer.as_span().length());

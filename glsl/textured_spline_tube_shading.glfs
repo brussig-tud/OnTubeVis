@@ -28,6 +28,7 @@
 
 const uint max_glyph_layers = 4;
 
+
 //***** begin interface of view.glsl ***********************************
 mat4 get_modelview_matrix();
 mat4 get_projection_matrix();
@@ -44,6 +45,7 @@ vec4 otv_shade_fragment (
 	in float depth, in float specular_factor
 );
 // *** end of interface of otv_shading.glsl *******************************
+
 
 layout (binding = 0) uniform usampler2D albedo_tex;
 layout (binding = 1) uniform sampler2D position_tex;
@@ -62,6 +64,7 @@ uniform float framebuf_width;
 in vec2 texcoord_fs;
 
 out vec4 frag_color;
+
 
 void main()
 {

@@ -159,7 +159,7 @@ struct extrapolation_manager
 		/// glyph-related data. Technically not needed for extrapolation display, as this mapping could be computed
 		/// statically. But we need to mirror the regular trajectories shading interface to keep shader code complexity
 		/// down.
-		gpumem::ring_buffer_arena<unsigned> seg_to_traj_arena;
+		gpumem::ring_buffer_arena<topology_info> seg_to_traj_arena;
 
 		/// The static (except for visibility sorting) index buffer
 		std::vector<std::pair<uint32_t, uint32_t>> node_indices;

@@ -118,6 +118,10 @@ void on_tube_vis::on_register()
 
 		// make sure maptiles plugin does nothing at all before we actually need it
 		maptiles_interfacer::disable();
+
+		// make sure the plugin only draws when triggered by us, as we have no other way to ensure proper transparency
+		// with the maptiles backdrop otherwise
+		maptiles_interfacer::enable_foreign_draw_control();
 	#endif
 }
 
@@ -1616,12 +1620,12 @@ void on_tube_vis::on_set(void* member_ptr)
 		if (m.is(taa) || taa_changed)
 		{
 			toggle_taa_proxy = taa.is_enabled();
-			#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
+			/*#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
 				if (taa.is_enabled())
 					maptiles_interfacer::enable_foreign_draw_control();
 				else
 					maptiles_interfacer::disable_foreign_draw_control();
-			#endif
+			#endif*/
 		}
 	}
 
@@ -2576,25 +2580,26 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 		if(debug.limit_render_count)
 			debug_idx_count = static_cast<int>(2 * debug.render_count);
 
-		switch(debug.render_mode) {
-		case DRM_NONE:
-			draw_trajectories(ctx);
-			break;
-		case DRM_NODES:
-			debug.geometry.nodes.render(ctx, 0, debug_idx_count);
-			break;
-		case DRM_SEGMENTS:
-			debug.geometry.segments.render(ctx, 0, debug_idx_count);
-			break;
-		case DRM_NODES_SEGMENTS:
-			debug.geometry.nodes.render(ctx, 0, debug_idx_count);
-			debug.geometry.segments.render(ctx, 0, debug_idx_count);
-			break;
-		case DRM_VOLUME:
-			draw_density_volume(ctx);
-			break;
-		default:
-			break;
+		switch(debug.render_mode)
+		{
+			case DRM_NONE:
+				draw_trajectories(ctx);
+				break;
+			case DRM_NODES:
+				debug.geometry.nodes.render(ctx, 0, debug_idx_count);
+				break;
+			case DRM_SEGMENTS:
+				debug.geometry.segments.render(ctx, 0, debug_idx_count);
+				break;
+			case DRM_NODES_SEGMENTS:
+				debug.geometry.nodes.render(ctx, 0, debug_idx_count);
+				debug.geometry.segments.render(ctx, 0, debug_idx_count);
+				break;
+			case DRM_VOLUME:
+				draw_density_volume(ctx);
+				break;
+			default:
+				break;
 		}
 
 		if (dataset.is_rtlola && dataset.rtlola_show_map)
@@ -2615,22 +2620,39 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 		}
 
 		#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
-		#if CGV_FORCE_STATIC // we seem to have hit a bug hidden deep within the CGV Framework that causes faulty
+		/*#if CGV_FORCE_STATIC // we seem to have hit a bug hidden deep within the CGV Framework that causes faulty
 		                     // traversal of drawables _for plugin builds_ under rare circumstances. Using OnTubeVis
 		                     // with maptiles seems to have unearthed this bug, causing maptiles to draw before the
 		                     // frame is actually started (resulting in it being invisible). So as a workaround, if
 		                     // we're not doing a single-exe or service build, we won't observe the TAA state and force
 		                     // foreign draw of maptiles plugin anyway.
-			if (taa.is_enabled())
-		#endif
+			//if (taa.is_enabled())
+		#endif*/
 				maptiles_interfacer::force_draw(ctx);
 		#endif
 
+		// render dataset bounding box
 		if (show_wireframe_bbox)
 			bbox_wire_rd.render(ctx);
-
 		if (show_bbox)
 			bbox_rd.render(ctx);
+
+		// render extrapolations
+		// - enable textures
+		if (tube_shading.ao_style.enable)
+			density_tex.enable(ctx, 5);
+		color_map_mgr.ref_texture().enable(ctx, 6);
+		// - draw with alpha blending
+		glPushAttrib(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		//glDepthMask(GL_FALSE);
+			client.extrapol_mgr.draw_extrapolations(ctx, view_ptr->get_eye());
+		glPopAttrib();
+		// - disable textures
+		if (tube_shading.ao_style.enable)
+			density_tex.disable(ctx);
+		color_map_mgr.ref_texture().disable(ctx);
 
 		taa.end(ctx);
 	}
@@ -2639,6 +2661,9 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 	if(!dnd.text.empty())
 		draw_dnd(ctx);
 }
+
+/*void on_tube_vis::finish_frame(context &ctx)
+{}*/
 
 void on_tube_vis::after_finish(context& ctx)
 {
@@ -3423,10 +3448,11 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		tstr.set_node_id_array(ctx, render.segment_buffer.as_span().data(), render.segment_buffer.as_span().length(), sizeof(uvec2));
 		// glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, render.node_buffer.handle());
 		// render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
-		glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 3, std::array{
+		glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 4, std::array{
 			render.node_buffer.as_span().handle(),
 			render.t_to_s.handle(),
-			gl::get_gl_id(node_idx_buffer_ptr->handle) // <- streaming requires we always bind the node indices as SBO regardless of attribute-less mode
+			gl::get_gl_id(node_idx_buffer_ptr->handle), // <- streaming requires we always bind the node indices as SBO
+			render.seg_to_traj.as_span().handle()       //    regardless of chosen attribute-less mode
 		}.data());
 
 		/*if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
@@ -3507,52 +3533,46 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			density_tex.enable(ctx, 5);
 		color_map_mgr.ref_texture().enable(ctx, 6);
 
-		// bind range attribute sbos of active glyph layers
+		// bind seg-to-traj buffer
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, render.seg_to_traj.as_span().handle());
+
+		// bind range attribute SBOs of active glyph layers
 		bool active_sbos[4] = { false, false, false, false };
 		for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
 			if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
 				const auto attribs_handle {render.glyphs[i].attribs.as_span().handle()};
 				const auto aindex_handle  {render.glyphs[i].ranges.handle()};
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 0, attribs_handle);
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 1, aindex_handle);
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 4, attribs_handle);
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 5, aindex_handle);
 				active_sbos[i] = true;
 			}
 		}
 
-		std::array extra_buffers {
-			render.seg_to_traj.as_span().handle(),
-			render.traj_glyph_mem.handle()
-		};
-		glBindBuffersBase(
-			GL_SHADER_STORAGE_BUFFER,
-			max_glyph_layers * 2,
-			extra_buffers.size(),
-			extra_buffers.data()
+		// bind trajectory glyph memory range buffer
+		glBindBufferBase(
+			GL_SHADER_STORAGE_BUFFER, max_glyph_layers*2 + 4, render.traj_glyph_mem.handle()
 		);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-		for(size_t i = 0; i < 4; ++i) {
+		// unbind all SBOs
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, 0);
+		for(size_t i=0; i<4; ++i) {
 			if(active_sbos[i]) {
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 0, 0);
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 1, 0);
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 4, 0);
+				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 5, 0);
 			}
 		}
-
-		std::fill(extra_buffers.begin(), extra_buffers.end(), 0);
-		glBindBuffersBase(
-			GL_SHADER_STORAGE_BUFFER,
-			max_glyph_layers * 2,
-			extra_buffers.size(),
-			extra_buffers.data()
-		);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, max_glyph_layers*2 + 4, 0);
 
 		fbc.disable_attachment(ctx, "albedo");
 		fbc.disable_attachment(ctx, "position");
 		fbc.disable_attachment(ctx, "normal");
 		fbc.disable_attachment(ctx, "tangent");
 		tex_depth.disable(ctx);
-		// ^ don't disable density and color maps textures yet, we still need them for the extrapolations
+		if (tube_shading.ao_style.enable)
+			density_tex.disable(ctx);
+		color_map_mgr.ref_texture().disable(ctx);
 
 		prog.disable(ctx);
 
@@ -3563,14 +3583,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		glDeleteSync(render.draw_fence);
 		// - create a fence object to check when this frame's tube drawing has completed
 		render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);*/
-
-		// render extrapolations
-		client.extrapol_mgr.draw_extrapolations(ctx, cyclopic_eye);
-
-		// now disable density and color maps textures
-		if(tube_shading.ao_style.enable)
-			density_tex.disable(ctx);
-		color_map_mgr.ref_texture().disable(ctx);
 
 		// Ensure that there is enough memory for new glyphs.
 		for (auto &traj : render.trajectories) {

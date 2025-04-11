@@ -37,6 +37,12 @@ struct node_attribs {
 	}
 };
 
+/// data layout for per-segment topology info within the corresponding SSBO
+struct topology_info {
+	unsigned traj; // id of the trajectory the segment belongs to
+	unsigned next; // -1 means no next segment
+};
+
 // define GridMode outside of main on_tube_vis class to be able to use it with type reflection
 enum GridMode {
 	GM_NONE = 0,
