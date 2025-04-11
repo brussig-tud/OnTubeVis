@@ -653,7 +653,7 @@ void otv_client::service_push_spline_node (
 	for (auto &e : extrapol) {
 		// set extrapol node radius and color
 		e.hnode.pos_rad.w() = radius; e.hnode.tangent.w() = 0;
-		e.hnode.color.set(color.R(), color.G(), color.B(), 1);
+		e.hnode.color.set(color.R(), color.G(), color.B(), 0.5);
 		// also include in bbox while we're at it
 		const auto pos = cgv::vec3(e.hnode.pos_rad);
 		otv_instance->bbox.add_point(pos - diag*radius);
