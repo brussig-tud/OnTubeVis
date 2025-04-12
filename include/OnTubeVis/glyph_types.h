@@ -127,6 +127,17 @@ typedef enum OTV_SurfaceColorInfoStaticFlags {
 	SurfaceColorInfoStaticFlags_FORCE32 = 0x7fffffff
 } OTV_SurfaceColorInfoStaticFlags;
 
+/// @brief Enumeration of static parameter flags for @c OTV_CircleInfo structs.
+typedef enum OTV_CircleInfoStaticFlags {
+	// Since OnTubeVis API v0
+	CI_STATIC_NONE = 0,
+	CI_STATIC_COLOR = 1,
+	CI_STATIC_RADIUS = 2,
+
+	// Force enum to be 32 bits
+	CircleInfoStaticFlags_FORCE32 = 0x7fffffff
+} OTV_CircleInfoStaticFlags;
+
 /// @brief Enumeration of static parameter flags for @c OTV_RectangleInfo structs.
 typedef enum OTV_RectangleInfoStaticFlags {
 	// Since OnTubeVis API v0
@@ -294,6 +305,63 @@ typedef struct OTV_LinePlotData
 	 */
 	float values[4];
 } OTV_LinePlotData;
+
+
+////
+// Circle
+
+/**
+ * @brief The info struct for the @c GlyphType::Circle glyph.
+ *
+ * @see otv__construct_CircleInfo()
+ * @see otv__construct_empty_CircleInfo()
+ */
+typedef struct OTV_CircleInfo
+{
+	/// @brief The number of 32bit static properties of a circle layer. Must be 7 always.
+	const uint32_t N;
+
+	/// @brief The glyph color in case a static color is assigned.
+	OTV_Rgb rgb;
+
+	/// @brief The selected color map to query colors from if no static color is used.
+	OTV_ColorMap color_map;
+
+	/// The @a radius of the circle in multiples of half the tube radius, in case a static radius is to be used.
+	float radius;
+
+	/// @brief Which of the dynamic glyph properties should statically assume the values defined in this info struct.
+	OTV_CircleInfoStaticFlags static_flags;
+} OTV_CircleInfo;
+
+/**
+ * @brief The data struct for the @c GlyphType::Circle glyph.
+ *
+ * @see otv__construct_CircleData()
+ * @see otv__construct_empty_CircleData()
+ * @see otv__instantiate_Circle()
+ */
+typedef struct OTV_CircleData
+{
+	/**
+	 * @brief
+	 *		The number of 32bit dynamic properties (excluding arc length @c s) of a circle glyph layer. Must be 2
+	 *		always.
+	 */
+	const uint32_t N;
+
+	/// @brief The arc length along the trajectory that the surface color control point is located.
+	float s;
+
+	/**
+	 * @brief
+	 *		A value in the range <c>0..1</c> to query the selected color map with in case a dynamic color is to be used.
+	 */
+	float color;
+
+	/// The @a radius of the circle in multiples of half the tube radius, in case a dynamic radius is to be used.
+	float radius;
+} OTV_CircleData;
 
 
 ////
@@ -851,6 +919,242 @@ typedef OTV_GlyphData*(*otv__downcast_LinePlotData_funct)(const OTV_LinePlotData
 #ifdef OTV_NO_PROTOTYPES
 /// @copydoc otv__downcast_LinePlotData()
 extern otv__downcast_LinePlotData_funct otv__downcast_LinePlotData;
+#endif
+
+
+////
+// ####################################################################################################################
+// OTV_CircleInfo
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__construct_CircleInfo
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Constructs an instance of the @c OTV_CircleInfo struct that will be correctly up- and downcastable.
+ *
+ * @param rgb The value for the field @c OTV_CircleInfo::rgb
+ * @param color_map The value for the field @c OTV_CircleInfo::color_map
+ * @param radius The value for the field @c OTV_CircleInfo::radius
+ * @param static_flags The value for the field @c OTV_CircleInfo::static_flags
+ *
+ * @return An instance of the @c OTV_CircleInfo struct, downcasted to the generic @c OTV_GlyphInfo.
+ *
+ * @note It is necessary to return a generic @c OTV_GlyphInfo view on the created instance because of limitations
+ * of the C language. If you need access to the object in its concrete @c OTV_CircleInfo form, you can upcast it
+ * using @c otv__upcast_CircleInfo().
+ */
+OTV_API OTV_GlyphInfo otv__construct_CircleInfo (
+	const OTV_Rgb rgb, const OTV_ColorMap color_map, const float radius, const OTV_CircleInfoStaticFlags static_flags
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__construct_CircleInfo() function.
+typedef OTV_GlyphInfo(*otv__construct_CircleInfo_funct)(
+	const OTV_ColorMap color_map, const OTV_InterpolationMode interpolation_mode
+);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__construct_CircleInfo()
+extern otv__construct_CircleInfo_funct otv__construct_CircleInfo;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__construct_empty_CircleInfo
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @copybrief otv__construct_CircleInfo()
+ * All but the constant @c N will be left uninitialized.
+ *
+ * @copydetails otv__construct_CircleInfo()
+ */
+OTV_API OTV_GlyphInfo otv__construct_empty_CircleInfo (void);
+#endif
+
+/// @brief The function pointer type for the @c otv__construct_empty_CircleInfo() function.
+typedef OTV_GlyphInfo(*otv__construct_empty_CircleInfo_funct)(void);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__construct_empty_CircleInfo()
+extern otv__construct_empty_CircleInfo_funct otv__construct_empty_CircleInfo;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__upcast_CircleInfo
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Upcasts a @c OTV_GlyphInfo struct to a @c OTV_CircleInfo.
+ *
+ * @param line_plot_info The @c OTV_GlyphInfo to upcast.
+ *
+ * @return The upcasted @c OTV_CircleInfo view on the given @c OTV_GlyphInfo.
+ */
+OTV_API OTV_CircleInfo* otv__upcast_CircleInfo (const OTV_GlyphInfo *line_plot_info);
+#endif
+
+/// @brief The function pointer type for the @c otv__upcast_CircleInfo() function.
+typedef OTV_CircleInfo*(*otv__upcast_CircleInfo_funct)(const OTV_GlyphInfo*);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__upcast_CircleInfo()
+extern otv__upcast_CircleInfo_funct otv__upcast_CircleInfo;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__downcast_CircleInfo
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Downcasts a @c OTV_CircleInfo struct to a @c OTV_GlyphInfo.
+ *
+ * @param line_plot_info The @c OTV_CircleInfo to downcast.
+ *
+ * @return The downcasted @c OTV_GlyphInfo view on the given @c OTV_CircleInfo.
+ */
+OTV_API OTV_GlyphInfo* otv__downcast_CircleInfo (const OTV_CircleInfo *line_plot_info);
+#endif
+
+/// @brief The function pointer type for the @c otv__downcast_CircleInfo() function.
+typedef OTV_GlyphInfo*(*otv__downcast_CircleInfo_funct)(const OTV_CircleInfo*);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__downcast_CircleInfo()
+extern otv__downcast_CircleInfo_funct otv__downcast_CircleInfo;
+#endif
+
+
+////
+// ####################################################################################################################
+// OTV_CircleData
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__construct_CircleData
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Constructs an instance of the @c OTV_CircleData struct that will be correctly up- and downcastable.
+ *
+ * @param s The value for the field @c OTV_CircleData::s
+ * @param color The value for the field @c OTV_CircleData::color
+ * @param radius The value for the field @c OTV_CircleData::radius
+ *
+ * @return An instance of the @c OTV_CircleData struct, downcasted to the generic @c OTV_GlyphData.
+ *
+ * @note It is necessary to return a generic @c OTV_GlyphData view on the created instance because of limitations
+ * of the C language. If you need access to the object in its concrete @c OTV_CircleData form, you can upcast it
+ * using @c otv__upcast_CircleData().
+ */
+OTV_API OTV_GlyphData otv__construct_CircleData (const float s, const float color, const float radius);
+#endif
+
+/// @brief The function pointer type for the @c otv__construct_CircleData() function.
+typedef OTV_GlyphData(*otv__construct_CircleData_funct)(const float, const float, const float);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__construct_CircleData()
+extern otv__construct_CircleData_funct otv__construct_CircleData;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__construct_empty_CircleData
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @copybrief otv__construct_CircleData()
+ * All but the constant @c N will be left uninitialized.
+ *
+ * @copydetails otv__construct_CircleData()
+ */
+OTV_API OTV_GlyphData otv__construct_empty_CircleData (void);
+#endif
+
+/// @brief The function pointer type for the @c otv__construct_empty_CircleData() function.
+typedef OTV_GlyphData(*otv__construct_empty_CircleData_funct)(void);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__construct_empty_CircleData()
+extern otv__construct_empty_CircleData_funct otv__construct_empty_CircleData;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__upcast_CircleData
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Upcasts a @c OTV_GlyphData struct to a @c OTV_CircleData.
+ *
+ * @param circle_data The @c OTV_GlyphData to upcast.
+ *
+ * @return The upcasted @c OTV_CircleData view on the given @c OTV_GlyphData.
+ */
+OTV_API OTV_CircleData* otv__upcast_CircleData (const OTV_GlyphData *circle_data);
+#endif
+
+/// @brief The function pointer type for the @c otv__upcast_CircleData() function.
+typedef OTV_CircleData*(*otv__upcast_CircleData_funct)(const OTV_GlyphData*);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__upcast_CircleData()
+extern otv__upcast_CircleData_funct otv__upcast_CircleData;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__downcast_CircleData
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Downcasts a @c OTV_CircleData struct to a @c OTV_GlyphData.
+ *
+ * @param circle_data The @c OTV_CircleData to downcast.
+ *
+ * @return The downcasted @c OTV_GlyphData view on the given @c OTV_CircleData.
+ */
+OTV_API OTV_GlyphData* otv__downcast_CircleData (const OTV_CircleData *circle_data);
+#endif
+
+/// @brief The function pointer type for the @c otv__downcast_CircleData() function.
+typedef OTV_GlyphData*(*otv__downcast_CircleData_funct)(const OTV_CircleData*);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__downcast_CircleData()
+extern otv__downcast_CircleData_funct otv__downcast_CircleData;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__instantiate_Circle
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Instantiates the given Circle glyph to calculate its geometry and returns its extents along the trajectory.
+ *
+ * @param traj_radius The radius of the trajectory on which to instantiate the Circle.
+ * @param info The static glyph parameters to use during instantiation.
+ * @param data The data to instantiate the Circle with.
+ *
+ * @return
+ *		The extents of the given Circle glyph relative to its anchor position. @c OTV_Vec2::x will contain the radius
+ *		in trailing direction of the trajectory, and @c OTV_Vec2::y the radius in leading direction.
+ */
+OTV_API OTV_Vec2 otv__instantiate_Circle (
+	const float traj_radius, const OTV_CircleInfo *info, const OTV_CircleData *data
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__instantiate_Circle() function.
+typedef OTV_Vec2(*otv__instantiate_Circle_funct)(const float, const OTV_CircleInfo*, const OTV_CircleData*);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__instantiate_Circle()
+extern otv__instantiate_Circle_funct otv__instantiate_Circle;
 #endif
 
 
