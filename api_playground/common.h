@@ -504,22 +504,25 @@ struct OTVConfiguration
 	/// The number of configured trajectories.
 	const unsigned num_trajs;
 
+	/// The configured tube radius.
+	const float tube_radius;
+
 	/// The array of indices for the configured trajectories.
 	std::vector<unsigned> traj_ids;
 
 	/// The configured extrapolation length
 	const unsigned extrapol_length;
 
-	/// The configured tube radius.
-	const float tube_radius;
+	/// The configured extrapolation progression mode
+	const OTV_ExtrapolProgression progression_mode;
 
 	/// Instantiante a particular configuration.
 	OTVConfiguration(
-		const std::string &name, const unsigned num_trajs, const unsigned extrapol_length, const float tube_radius,
-		LayerTypes ...layers
+		const std::string &name, const unsigned num_trajs, const float tube_radius, const unsigned extrapol_length,
+		const OTV_ExtrapolProgression progression_mode, LayerTypes ...layers
 	)
-		: name(name), num_trajs(num_trajs), extrapol_length(extrapol_length), tube_radius(tube_radius),
-		  layers(std::move(layers)...)
+		: name(name), num_trajs(num_trajs), tube_radius(tube_radius), extrapol_length(extrapol_length),
+		  progression_mode(progression_mode), layers(std::move(layers)...)
 	{}
 
 	/// Apply this configuration to the given visualization setup.
@@ -541,6 +544,9 @@ struct OTVConfiguration
 
 		// Set configured extrapolation length
 		otv__extrapolation_length(setup.handle, extrapol_length);
+
+		// Set configured progression mode
+		otv__extrapol_progression(setup.handle, progression_mode);
 
 		// Done!
 		return true;

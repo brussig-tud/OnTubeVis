@@ -247,6 +247,7 @@ void otv_client::commit_session (void)
 {
 	// Transition out of setup state
 	OTV_VisSetupHandle setup = session.finish_setup();
+	otv__extrapol_progression(setup, OTV_ExtrapolProgression::Natural); // <- we force this for now
 
 	// Add trajectories to setup
 	for (unsigned i=0; i<trajectories.size(); i++) {
@@ -513,7 +514,7 @@ void otv_client::update ()
 
 	#if DEBUG_OUTPUT
 		cgv::utils::stopwatch sw(/* silent: */true);
-		std::clog << "otv_client::update(): starting update for t="<<render.style.max_t<<"s\n";
+		std::clog << "otv_client::update(): starting update for t="<<playback_t<<"s\n";
 	#endif
 
 	// extend all trajectories based on the animation time, emulating streaming
@@ -553,7 +554,7 @@ void otv_client::update ()
 			++node_idx
 		){
 			// only add data up to the current playback time
-			if (data->timestamps[node_idx] > render.style.max_t) {
+			if (data->timestamps[node_idx] > playback_t) {
 				break;
 			}
 
@@ -676,18 +677,26 @@ void otv_client::service_push_spline_node (
 		// intialize camera
 		otv_instance->set_view();
 
-		// start progression of time
-		otv_instance->playback.tstart = otv_instance->render.style.max_t = node.t.x();
-		otv_instance->playback.tend = std::numeric_limits<float>::infinity();
-		otv_instance->playback.active = true;
-		otv_instance->playback.timer.add_time();
-		otv_instance->playback.speed = 1;//otv_instance->on_set(&otv_instance->playback.active);
+		// start progression of time if continuous time mode is enabled
+		if (num_extrapol_segments && use_natural_progression) {
+			otv_instance->playback.tstart = otv_instance->render.style.max_t = playback_t = node.t.x();
+			otv_instance->playback.tend = std::numeric_limits<float>::infinity();
+			otv_instance->playback.active = true;
+			otv_instance->playback.timer.add_time();
+			otv_instance->playback.speed = 1;//otv_instance->on_set(&otv_instance->playback.active);
+		}
+		else {
+			playback_t = node.t.x();
+			otv_instance->render.style.max_t = std::numeric_limits<float>::infinity();
+		}
 
 		// done processing very first node of session
 		otv_instance->session_first_node = false;
 	}
-	else
+	else {
+		playback_t = std::max(playback_t, node.t.x());
 		otv_instance->update_scene_extents();
+	}
 	otv_instance->session_taa_keep_sampling = true;
 }
 
@@ -703,6 +712,7 @@ void otv_client::service_push_glyphs (unsigned traj_id, unsigned layer, std::vec
 	const auto &data = glyph_data.begin();
 	const auto data_range = ro_range{data, data + glyph_data.size()};
 	enqueue_glyphs(find_trajectory(traj_id), layer, data_range);
+	//playback_t = std::max(playback_t, glyph.t);
 }
 
 node_attribs otv_client::convert_api_node_to_internal (const OTV_HermiteNode &node) {

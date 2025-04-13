@@ -320,14 +320,14 @@ protected:
 	} playback;
 
 	void playback_rewind() {
-		render.style.max_t = (float)playback.tstart;
+		render.style.max_t = client.playback_t = (float)playback.tstart;
 		on_set(&render.style.max_t);
 		/*on_set(&datapath_helper.file_name);
 		on_set(&layer_config_file_helper.file_name);*/
 	}
 	void playback_reset_ds() {
 		playback.active = false; update_member(&playback.active);
-		render.style.max_t = render.style.data_t_minmax.second;
+		render.style.max_t = client.playback_t = render.style.data_t_minmax.second;
 		on_set(&render.style.max_t);
 	}
 
@@ -342,7 +342,7 @@ protected:
 		on_set(&render.style.line_primitive);
 	}
 
-	std::string get_tube_ribbon_toggle_label()
+	std::string get_tube_ribbon_toggle_label() const
 	{
 		std::string label = "Current: ";
 		label += render.style.is_tube() ? "tubes" : "ribbons";

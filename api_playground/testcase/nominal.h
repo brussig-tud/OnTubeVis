@@ -44,7 +44,7 @@ auto nominal_setup (void)
 {
 	// Create the configuration
 	return OTVConfiguration(
-		"nominal", 3, 3, 0.5f,
+		"nominal", 3, .5f, 3, OTV_ExtrapolProgression::Instant,
 		SurfaceColorLayer(Rainbow, Linear),
 		SignBlobLayer(.03125f, 1, otv__Rgb(1/3.f, 2/3.f, 1)),
 		RectangleLayer(.03125f, otv__Rgb(6/7.f, 1/3.f, 0.03125f))

@@ -103,20 +103,24 @@ struct VisSetup
 
 	VisSetup(const VisSetup &other)
 		: name(other.name), counter(other.counter.load()), layers(other.layers), trajs(other.trajs),
-		  num_extrapol_segments(other.num_extrapol_segments), georef(other.georef)
+		  georef(other.georef), num_extrapol_segments(other.num_extrapol_segments),
+		  use_natural_progression(other.use_natural_progression)
 	{}
 
 	VisSetup(VisSetup &&other) noexcept
 		: name(std::move(other.name)), counter(other.counter.load()), layers(std::move(other.layers)),
-		  trajs(std::move(other.trajs)), num_extrapol_segments(other.num_extrapol_segments), georef(other.georef)
+		  trajs(std::move(other.trajs)), georef(other.georef), num_extrapol_segments(other.num_extrapol_segments),
+		  use_natural_progression(other.use_natural_progression)
 	{}
 
 	std::string name;
 	std::atomic<uint32_t> counter{0};
 	std::vector<OTV_LayerConfig> layers;
 	std::vector<trajectory_setup> trajs;
-	unsigned num_extrapol_segments = 0;
+
 	std::optional<cgv::dvec2> georef;
+	unsigned num_extrapol_segments = 0;
+	bool use_natural_progression = false;
 
 	VisSetup& operator = (const VisSetup &other)
 	{

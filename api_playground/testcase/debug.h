@@ -44,7 +44,7 @@ auto debug_setup (void)
 {
 	// Create the configuration
 	return OTVConfiguration(
-		"debug", 3, 3, 0.5f,
+		"debug", 3, 0.5f, 3, OTV_ExtrapolProgression::Instant,
 		SurfaceColorLayer(Rainbow, Linear),
 		CircleLayer(.03125f, otv__Rgb(1,0,1)),
 		IsoscelesTriangleLayer(

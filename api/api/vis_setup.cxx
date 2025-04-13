@@ -74,3 +74,21 @@ OTV_API void otv__geo_reference (OTV_VisSetupHandle vis_setup, const double lati
 OTV_API void otv__extrapolation_length (OTV_VisSetupHandle vis_setup, const uint32_t num_segments) {
 	((VisSetup*)vis_setup)->num_extrapol_segments = num_segments;
 }
+
+OTV_API void otv__extrapol_progression (OTV_VisSetupHandle vis_setup, const OTV_ExtrapolProgression progression)
+{
+	switch (progression)
+	{
+		case OTV_ExtrapolProgression::Instant:
+			((VisSetup*)vis_setup)->use_natural_progression = false;
+			return;
+
+		case OTV_ExtrapolProgression::Natural:
+			((VisSetup*)vis_setup)->use_natural_progression = true;
+			return;
+	}
+
+	// This should never happen
+	std::cerr << std::endl << "FATAL ERROR: unknown extrapolation progression mode!" << std::endl << std::endl;
+	*(size_t*)size_t(-1) = 0; // <-- crash and burn
+}

@@ -46,6 +46,29 @@ typedef struct OTV_VisSetup OTV_VisSetup;
 /// @brief The typed handle for @link OTV_VisSetup visualization setups @endlink.
 typedef OTV_VisSetup *OTV_VisSetupHandle;
 
+/**
+ * @brief The enumeration of time progression modes for the display of trajectory extrapolations.
+ *
+ * @see otv__set_extrapol_progression()
+ */
+typedef enum OTV_ExtrapolProgression
+{
+	/**
+	 * @brief
+	 *		Show the full extrapolated path immediately, as soon as it is known. Implementations are free to use
+	 *		additional means of visualizing the current time, e.g. by drawing a time cursor on the extrapolated path.
+	 */
+	Instant = 0,
+
+	/**
+	 * @brief
+	 *		Smoothly extend the trajectory along its extrapolated path as time progresses, giving of the impression of
+	 *		natural movement. Implementations are still free to mark extrapolated parts of the displayed trajectory in
+	 *		any way they see fit (e.g. by drawing the extrapolated part translucent).
+	 */
+	Natural
+} OTV_ExtrapolProgression;
+
 
 
 //////
@@ -224,6 +247,29 @@ typedef void(*otv__extrapolation_length_funct)(OTV_VisSetupHandle, const double,
 #ifdef OTV_NO_PROTOTYPES
 /// @copydoc otv__extrapolation_length()
 extern otv__extrapolation_length_funct otv__extrapolation_length;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__extrapol_progression
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief
+ *		Set how the extrapolations (if enabled) should be visualized in terms of time progression.
+ *
+ * @param vis_setup The visualization setup to set the progression of extrapolations for.
+ * @param progression The progression mode for extrapolations.
+ */
+OTV_API void otv__extrapol_progression (OTV_VisSetupHandle vis_setup, const OTV_ExtrapolProgression progression);
+#endif
+
+/// @brief The function pointer type for the @c otv__geo_reference() function.
+typedef void(*otv__extrapol_progression_funct)(OTV_VisSetupHandle vis_setup, const OTV_ExtrapolProgression);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__extrapol_progression()
+extern otv__extrapol_progression_funct otv__extrapol_progression;
 #endif
 
 

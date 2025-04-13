@@ -814,6 +814,7 @@ struct stream_ds_helper : public traj_format_handler<float>
 void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 {
 	// don't do anything if we're not operating as a streaming service
+	client.use_natural_progression = vis_setup.use_natural_progression;
 	if (!run_as_service) {
 		session_active = true;
 		session_first_node = false; // only used in service mode
@@ -1582,18 +1583,19 @@ void on_tube_vis::on_set(void* member_ptr)
 	// playback controls
 	if(m.is(playback.active) && playback.active) {
 		playback.timer.add_time();
-		render.style.max_t =
-			render.style.max_t >= (float)playback.tend ? (float)playback.tstart : render.style.max_t;
+		/*client.playback_t =
+			client.playback_t >= (float)playback.tend ? (float)playback.tstart : client.playback_t;*/
+		render.style.max_t = client.use_natural_progression ? client.playback_t : render.style.max_t;
 		const auto& ds = traj_mgr.dataset(0);
 		const auto& pos = ds.positions();
 		const auto& traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
-		playback.follow_last_nid = !run_as_service ? find_sample(pos.attrib, traj_range, render.style.max_t) : 0;
+		playback.follow_last_nid = !run_as_service ? find_sample(pos.attrib, traj_range, client.playback_t) : 0;
 	}
 	if(m.is(playback.follow_traj)) {
 		const auto& ds = traj_mgr.dataset(0);
 		const auto& pos = ds.positions();
 		const auto& traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
-		playback.follow_last_nid = !run_as_service ? find_sample(pos.attrib, traj_range, render.style.max_t) : 0;
+		playback.follow_last_nid = !run_as_service ? find_sample(pos.attrib, traj_range, client.playback_t) : 0;
 	}
 
 	// widget controls
@@ -2598,18 +2600,21 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	{
 		const double prev = playback.time_active;
 		playback.timer.add_time();
-		render.style.max_t = render.style.max_t + float((playback.time_active-prev)*playback.speed);
-		update_member(&render.style.max_t);
+		client.playback_t = client.playback_t + float((playback.time_active-prev)*playback.speed);
 
-		if (render.style.max_t >= playback.tend)
+		if (client.playback_t >= playback.tend)
 		{
 			if (playback.repeat)
-				render.style.max_t = (float)playback.tstart;
+				client.playback_t = (float)playback.tstart;
 			else {
-				render.style.max_t = (float)playback.tend;
+				client.playback_t = (float)playback.tend;
 				playback.active = false;
 				update_member(&playback.active);
 			}
+		}
+		if (client.use_natural_progression) {
+			render.style.max_t = client.playback_t;
+			update_member(&render.style.max_t);
 		}
 		if (playback.follow && playback.active)
 		{
@@ -2617,13 +2622,13 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 			const auto &[pos_attrib, pos_data] = ds.positions();
 			const auto &traj_range = ds.trajectories(pos_attrib)[playback.follow_traj];
 			const unsigned nid = find_sample_linear(
-				pos_attrib, traj_range, render.style.max_t, playback.follow_last_nid
+				pos_attrib, traj_range, client.playback_t, playback.follow_last_nid
 			),
 			nid_next = std::min(nid+1, traj_range.i0+traj_range.n-1);
 			const float t0 = pos_data.timestamps[nid];
 			view_ptr->set_focus(cgv::math::lerp(
 				ds.mapped_position(nid), ds.mapped_position(nid_next),
-				(render.style.max_t-t0) / (pos_data.timestamps[nid_next]-t0)
+				(client.playback_t-t0) / (pos_data.timestamps[nid_next]-t0)
 			));
 		}
 
@@ -3192,9 +3197,11 @@ void on_tube_vis::update_attribute_bindings(void)
 
 		// update min/max timestamps
 		auto &[tmin, tmax] = render.style.data_t_minmax;
-		float pct = (render.style.max_t-tmin) / (tmax-tmin);
+		float pct = (client.playback_t-tmin) / (tmax-tmin);
 		render.style.data_t_minmax = client.data->t_minmax;
-		render.style.max_t = cgv::math::clamp(tmin + pct*(tmax-tmin), tmin, tmax);
+		client.playback_t = cgv::math::clamp(tmin + pct*(tmax-tmin), tmin, tmax);
+		render.style.max_t = client.use_natural_progression ? client.playback_t : tmax;
+		update_member(&render.style.max_t);
 		playback.tstart = tmin;
 		playback.tend = tmax;
 		playback.follow_traj = std::min(
