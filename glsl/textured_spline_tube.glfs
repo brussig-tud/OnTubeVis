@@ -31,7 +31,7 @@
 #define ATTRIB_MODE 0
 
 #define FLT_EPS 1.19209290e-07
-const float CAPPINESS_THR=32*sqrt(FLT_EPS);
+const float CAPPINESS_THR=sqrt(FLT_EPS);
 #define POS_INF 3e+37
 #define NEG_INF -3e+37
 #define N0 3

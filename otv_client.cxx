@@ -729,7 +729,6 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 	//const float radius = vis_setup.trajs[traj_id].radius;
 	const auto &vis = otv_instance->render.visualizations[0];
 	const auto &ds = otv_instance->traj_mgr.dataset(0);
-	const float radius = ds.trajectories(ds.positions().attrib)[traj_id].med_radius;
 	const auto &lm = vis.manager.ref_glyph_attribute_mappings()[layer];
 	const auto &lcfg = vis.config.layer_configs[layer];
 	const auto &src_indices = lm.get_attrib_indices();
@@ -765,6 +764,20 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 			}
 			return std::move(data);
 
+		case GT_CIRCLE:
+			for (const auto &glyph: glyphs)
+			{
+				data.emplace_back(glyph.s);
+				data.emplace_back(.0f); // debug flag, not used when streaming
+				constexpr unsigned vattrib_idx__color=1, vattrib_idx__radius=2;
+				const auto &gd = *otv__upcast_CircleData(&glyph);
+				if (src_indices[vattrib_idx__color] >= 0)
+					data.emplace_back(gd.color);
+				if (src_indices[vattrib_idx__radius] >= 0)
+					data.emplace_back(gd.radius);
+			}
+			return std::move(data);
+
 		case GT_RECTANGLE:
 			for (const auto &glyph: glyphs)
 			{
@@ -778,6 +791,25 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 					data.emplace_back(gd.half_width);
 				if (src_indices[vattrib_idx__height] >= 0)
 					data.emplace_back(gd.half_height);
+			}
+			return std::move(data);
+
+		case GT_TRIANGLE:
+			for (const auto &glyph: glyphs)
+			{
+				data.emplace_back(glyph.s);
+				data.emplace_back(.0f); // debug flag, not used when streaming
+				constexpr unsigned vattrib_idx__color=1, vattrib_idx__width=2, vattrib_idx__height=3,
+				                   vattrib_idx__orientation=4;
+				const auto &gd = *otv__upcast_IsoscelesTriangleData(&glyph);
+				if (src_indices[vattrib_idx__color] >= 0)
+					data.emplace_back(gd.color);
+				if (src_indices[vattrib_idx__width] >= 0)
+					data.emplace_back(gd.width);
+				if (src_indices[vattrib_idx__height] >= 0)
+					data.emplace_back(gd.height);
+				if (src_indices[vattrib_idx__orientation] >= 0)
+					data.emplace_back(gd.orientation);
 			}
 			return std::move(data);
 
@@ -795,8 +827,6 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 			}
 			return std::move(data);
 
-		case GT_TRIANGLE:
-		case GT_CIRCLE:
 		case GT_WEDGE:
 		case GT_ARC_FLAT:
 		case GT_ARC_ROUNDED:

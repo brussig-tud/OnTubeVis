@@ -48,8 +48,7 @@ OTV_API OTV_GlyphInfo otv__construct_SurfaceColorInfo (
 	return gi;
 }
 
-OTV_API OTV_GlyphInfo otv__construct_empty_SurfaceColorInfo (void)
-{
+OTV_API OTV_GlyphInfo otv__construct_empty_SurfaceColorInfo (void) {
 	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_SurfaceColorInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
 	return gi;
 }
@@ -72,8 +71,7 @@ OTV_API OTV_GlyphData otv__construct_SurfaceColorData (const float s, const floa
 	return gd;
 }
 
-OTV_API OTV_GlyphData otv__construct_empty_SurfaceColorData (void)
-{
+OTV_API OTV_GlyphData otv__construct_empty_SurfaceColorData (void) {
 	constexpr OTV_GlyphData gd{
 		uint32_t((sizeof(OTV_SurfaceColorData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
 	};
@@ -106,8 +104,7 @@ OTV_API OTV_GlyphInfo otv__construct_LinePlotInfo (
 	return gi;
 }
 
-OTV_API OTV_GlyphInfo otv__construct_empty_LinePlotInfo (void)
-{
+OTV_API OTV_GlyphInfo otv__construct_empty_LinePlotInfo (void) {
 	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_LinePlotInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
 	return gi;
 }
@@ -131,8 +128,7 @@ OTV_API OTV_GlyphData otv__construct_LinePlotData (const float s, const uint32_t
 	return gd;
 }
 
-OTV_API OTV_GlyphData otv__construct_empty_LinePlotData (void)
-{
+OTV_API OTV_GlyphData otv__construct_empty_LinePlotData (void) {
 	constexpr OTV_GlyphData gd{
 		uint32_t((sizeof(OTV_LinePlotData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
 	};
@@ -164,8 +160,7 @@ OTV_API OTV_GlyphInfo otv__construct_CircleInfo (
 	return gi;
 }
 
-OTV_API OTV_GlyphInfo otv__construct_empty_CircleInfo (void)
-{
+OTV_API OTV_GlyphInfo otv__construct_empty_CircleInfo (void) {
 	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_CircleInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
 	return gi;
 }
@@ -189,8 +184,7 @@ OTV_API OTV_GlyphData otv__construct_CircleData (float s, const float color, con
 	return gd;
 }
 
-OTV_API OTV_GlyphData otv__construct_empty_CircleData (void)
-{
+OTV_API OTV_GlyphData otv__construct_empty_CircleData (void) {
 	constexpr OTV_GlyphData gd{
 		uint32_t((sizeof(OTV_CircleData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
 	};
@@ -233,8 +227,7 @@ OTV_API OTV_GlyphInfo otv__construct_RectangleInfo (
 	return gi;
 }
 
-OTV_API OTV_GlyphInfo otv__construct_empty_RectangleInfo (void)
-{
+OTV_API OTV_GlyphInfo otv__construct_empty_RectangleInfo (void) {
 	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_RectangleInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
 	return gi;
 }
@@ -260,8 +253,7 @@ OTV_API OTV_GlyphData otv__construct_RectangleData (
 	return gd;
 }
 
-OTV_API OTV_GlyphData otv__construct_empty_RectangleData (void)
-{
+OTV_API OTV_GlyphData otv__construct_empty_RectangleData (void) {
 	constexpr OTV_GlyphData gd{
 		uint32_t((sizeof(OTV_RectangleData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
 	};
@@ -305,9 +297,10 @@ OTV_API OTV_GlyphInfo otv__construct_IsoscelesTriangleInfo (
 	return gi;
 }
 
-OTV_API OTV_GlyphInfo otv__construct_empty_IsoscelesTriangleInfo (void)
-{
-	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_IsoscelesTriangleInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
+OTV_API OTV_GlyphInfo otv__construct_empty_IsoscelesTriangleInfo (void) {
+	constexpr OTV_GlyphInfo gi{
+		uint32_t((sizeof(OTV_IsoscelesTriangleInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))
+	};
 	return gi;
 }
 
@@ -333,8 +326,7 @@ OTV_API OTV_GlyphData otv__construct_IsoscelesTriangleData (
 	return gd;
 }
 
-OTV_API OTV_GlyphData otv__construct_empty_IsoscelesTriangleData (void)
-{
+OTV_API OTV_GlyphData otv__construct_empty_IsoscelesTriangleData (void) {
 	constexpr OTV_GlyphData gd{
 		uint32_t((sizeof(OTV_IsoscelesTriangleData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
 	};
@@ -353,7 +345,7 @@ OTV_API OTV_Vec2 otv__instantiate_IsoscelesTriangle (
 	const float traj_radius, const OTV_IsoscelesTriangleInfo *info, const OTV_IsoscelesTriangleData *data
 ){
 	const float hw =
-		  traj_radius * /* v (circumferential) coordinate goes from -2..2 */.5f
+		  traj_radius * /* v (circumferential) coordinate goes from -2..2 */.25f
 		* std::max(
 		  	(info->static_flags&ITI_STATIC_WIDTH ? info->width : data->width),
 		  	(info->static_flags&ITI_STATIC_HEIGHT ? info->height : data->height)
@@ -380,8 +372,7 @@ OTV_API OTV_GlyphInfo otv__construct_SignBlobInfo (
 	return gi;
 }
 
-OTV_API OTV_GlyphInfo otv__construct_empty_SignBlobInfo (void)
-{
+OTV_API OTV_GlyphInfo otv__construct_empty_SignBlobInfo (void) {
 	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_SignBlobInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
 	return gi;
 }
@@ -406,8 +397,7 @@ OTV_API OTV_GlyphData otv__construct_SignBlobData (
 	return gd;
 }
 
-OTV_API OTV_GlyphData otv__construct_empty_SignBlobData (void)
-{
+OTV_API OTV_GlyphData otv__construct_empty_SignBlobData (void) {
 	constexpr OTV_GlyphData gd{
 		uint32_t((sizeof(OTV_SignBlobData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
 	};

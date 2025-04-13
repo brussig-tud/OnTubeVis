@@ -29,22 +29,32 @@ namespace layer {
 
 struct WidthProperty {
 	float value;
-	inline operator float& (){ return value; }
+	inline operator float& () { return value; }
 };
 
 struct HeightProperty {
 	float value;
-	inline operator float& (){ return value; }
+	inline operator float& () { return value; }
+};
+
+struct RadiusProperty {
+	float value;
+	inline operator float& () { return value; }
+};
+
+struct OrientationProperty {
+	float value;
+	inline operator float& () { return value; }
 };
 
 struct ValueProperty {
 	float value;
-	inline operator float& (){ return value; }
+	inline operator float& () { return value; }
 };
 
 struct ColormapProperty {
 	OTV_ColorMap type;
-	inline operator OTV_ColorMap& (){ return type; }
+	inline operator OTV_ColorMap& () { return type; }
 };
 
 

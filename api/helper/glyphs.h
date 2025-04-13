@@ -32,7 +32,9 @@ bool check_glyph_instance_type (const OTV_GlyphType type, const OTV_GlyphData &g
 	static const std::map<OTV_GlyphType, OTV_GlyphData> ref = {
 		{OTV_GlyphType::SurfaceColor, otv__construct_empty_SurfaceColorData()},
 		{OTV_GlyphType::LinePlot, otv__construct_empty_LinePlotData()},
+		{OTV_GlyphType::Circle, otv__construct_empty_CircleData()},
 		{OTV_GlyphType::Rect, otv__construct_empty_RectangleData()},
+		{OTV_GlyphType::IsoscelesTriangle, otv__construct_empty_IsoscelesTriangleData()},
 		{OTV_GlyphType::SignBlob, otv__construct_empty_SignBlobData()}
 	};
 	return ref.at(type).N == glyph.N;
@@ -56,6 +58,17 @@ std::string fmt_glyph_instance (const OTV_LayerConfig &config, const OTV_GlyphDa
 			break;
 		}
 
+		case OTV_GlyphType::Circle: {
+			const auto &cfg = *otv__upcast_CircleInfo(&config.static_params);
+			const auto &r = *otv__upcast_CircleData(&glyph);
+			str << ", color:";
+			if (cfg.static_flags & CI_STATIC_COLOR)  str << "<static>";
+			else                                     str << r.color;
+			str << ", radius:";
+			if (cfg.static_flags & CI_STATIC_RADIUS) str << "<static>";
+			else                                     str << r.radius;
+			break;
+		}
 		case OTV_GlyphType::Rect: {
 			const auto &cfg = *otv__upcast_RectangleInfo(&config.static_params);
 			const auto &r = *otv__upcast_RectangleData(&glyph);
@@ -68,6 +81,23 @@ std::string fmt_glyph_instance (const OTV_LayerConfig &config, const OTV_GlyphDa
 			str << ", half_height:";
 			if (cfg.static_flags & RI_STATIC_HEIGHT) str << "<static>";
 			else                                     str << r.half_height;
+			break;
+		}
+		case OTV_GlyphType::IsoscelesTriangle: {
+			const auto &cfg = *otv__upcast_IsoscelesTriangleInfo(&config.static_params);
+			const auto &r = *otv__upcast_IsoscelesTriangleData(&glyph);
+			str << ", color:";
+			if (cfg.static_flags & ITI_STATIC_COLOR)       str << "<static>";
+			else                                           str << r.color;
+			str << ", width:";
+			if (cfg.static_flags & ITI_STATIC_WIDTH)       str << "<static>";
+			else                                           str << r.width;
+			str << ", height:";
+			if (cfg.static_flags & ITI_STATIC_HEIGHT)      str << "<static>";
+			else                                           str << r.height;
+			str << ", orientation:";
+			if (cfg.static_flags & ITI_STATIC_ORIENTATION) str << "<static>";
+			else                                           str << r.orientation;
 			break;
 		}
 		case OTV_GlyphType::SignBlob: {

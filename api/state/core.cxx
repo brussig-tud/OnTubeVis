@@ -421,9 +421,15 @@ OTV_API OTV_Vec2 otv__instantiate_Glyph (const uint32_t traj_id, const uint32_t 
 			return {0, 0};
 
 		// Discrete glyphs
+		case OTV_GlyphType::Circle:
+			return otv__instantiate_Circle(traj.radius, (OTV_CircleInfo*)&lcfg.static_params,
+			                                  (OTV_CircleData*)data);
 		case OTV_GlyphType::Rect:
 			return otv__instantiate_Rectangle(traj.radius, (OTV_RectangleInfo*)&lcfg.static_params,
 			                                  (OTV_RectangleData*)data);
+		case OTV_GlyphType::IsoscelesTriangle:
+			return otv__instantiate_IsoscelesTriangle(traj.radius, (OTV_IsoscelesTriangleInfo*)&lcfg.static_params,
+			                                  (OTV_IsoscelesTriangleData*)data);
 		case OTV_GlyphType::SignBlob:
 			return otv__instantiate_SignBlob(traj.radius, (OTV_SignBlobInfo*)&lcfg.static_params,
 			                                 (OTV_SignBlobData*)data);

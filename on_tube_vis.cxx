@@ -928,6 +928,53 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				break;
 			}
 
+			case OTV_GlyphType::Circle:
+			{
+				// prelude
+				// - hardcoded meta/attribute indices
+				constexpr unsigned metaattrib_idx__outline=0, vattrib_idx__color=1, vattrib_idx__radius=2;
+				// - upcasted access to static glyph parameters
+				const auto &gi = *otv__upcast_CircleInfo(&layer_src.static_params);
+				// - the source map helper
+				vattrib_source_map_type vattrib_source_map;
+
+				// construct GAM
+				glyph_attribute_mapping m;
+				m.set_name("Circle");
+				// - type
+				m.set_glyph_type(GlyphType::GT_CIRCLE);
+				// - outline
+				m.set_attrib_out_range(metaattrib_idx__outline, {0.f, layer_src.outline});
+				// - color
+				if (gi.static_flags & OTV_CircleInfoStaticFlags::CI_STATIC_COLOR) {
+					m.set_attrib_color(vattrib_idx__color, rgb(gi.rgb.r, gi.rgb.g, gi.rgb.b));
+				}
+				else {
+					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
+					m.set_color_source_index(vattrib_idx__color, cmidx);
+					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
+						stream_ds, bufsize, m.get_attrib_out_range(vattrib_idx__color)
+					);
+					vattrib_source_map.emplace(vattrib_idx__color, streamid);
+					//m.set_attrib_source_index(vattrib_idx__color, streamid);
+				}
+				// - radius
+				const auto radius_range = vec2(0, 2);
+				if (gi.static_flags & OTV_CircleInfoStaticFlags::CI_STATIC_RADIUS)
+					m.set_attrib_out_range(vattrib_idx__radius, {0.f, gi.radius});
+				else {
+					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
+						stream_ds, bufsize, radius_range
+					);
+					m.set_attrib_in_range(vattrib_idx__radius, radius_range);
+					m.set_attrib_out_range(vattrib_idx__radius, radius_range);
+					vattrib_source_map.emplace(vattrib_idx__radius, streamid);
+					//m.set_attrib_source_index(vattrib_idx__length, streamid);
+				}
+				layer_gams.emplace_back(gam_info{std::move(m), std::move(vattrib_source_map)});
+				break;
+			}
+
 			case OTV_GlyphType::Rect:
 			{
 				// prelude
@@ -988,6 +1035,79 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				break;
 			}
 
+			case OTV_GlyphType::IsoscelesTriangle:
+			{
+				// prelude
+				// - hardcoded meta/attribute indices
+				constexpr unsigned metaattrib_idx__outline=0, vattrib_idx__color=1, vattrib_idx__width=2,
+				                   vattrib_idx__height=3, vattrib_idx__orientation=4;
+				// - upcasted access to static glyph parameters
+				const auto &gi = *otv__upcast_IsoscelesTriangleInfo(&layer_src.static_params);
+				// - the source map helper
+				vattrib_source_map_type vattrib_source_map;
+
+				// construct GAM
+				glyph_attribute_mapping m;
+				m.set_name("Triangle");
+				// - type
+				m.set_glyph_type(GlyphType::GT_TRIANGLE);
+				// - outline
+				m.set_attrib_out_range(metaattrib_idx__outline, {0.f, layer_src.outline});
+				// - color
+				if (gi.static_flags & OTV_IsoscelesTriangleInfoStaticFlags::ITI_STATIC_COLOR) {
+					m.set_attrib_color(vattrib_idx__color, rgb(gi.rgb.r, gi.rgb.g, gi.rgb.b));
+				}
+				else {
+					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
+					m.set_color_source_index(vattrib_idx__color, cmidx);
+					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
+						stream_ds, bufsize, m.get_attrib_out_range(vattrib_idx__color)
+					);
+					vattrib_source_map.emplace(vattrib_idx__color, streamid);
+					//m.set_attrib_source_index(vattrib_idx__color, streamid);
+				}
+				// - base width
+				const auto width_height_range = vec2(0, 2);
+				if (gi.static_flags & OTV_IsoscelesTriangleInfoStaticFlags::ITI_STATIC_WIDTH)
+					m.set_attrib_out_range(vattrib_idx__width, {0.f, gi.width});
+				else {
+					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
+						stream_ds, bufsize, width_height_range
+					);
+					m.set_attrib_in_range(vattrib_idx__width, width_height_range);
+					m.set_attrib_out_range(vattrib_idx__width, width_height_range);
+					vattrib_source_map.emplace(vattrib_idx__width, streamid);
+					//m.set_attrib_source_index(vattrib_idx__width, streamid);
+				}
+				// - height
+				if (gi.static_flags & OTV_IsoscelesTriangleInfoStaticFlags::ITI_STATIC_HEIGHT)
+					m.set_attrib_out_range(vattrib_idx__height, {0.f, gi.height});
+				else {
+					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
+						stream_ds, bufsize, width_height_range
+					);
+					m.set_attrib_in_range(vattrib_idx__height, width_height_range);
+					m.set_attrib_out_range(vattrib_idx__height, width_height_range);
+					vattrib_source_map.emplace(vattrib_idx__height, streamid);
+					//m.set_attrib_source_index(vattrib_idx__height, streamid);
+				}
+				// - orientation
+				const auto orientation_range = vec2(-180, 180);
+				if (gi.static_flags & OTV_IsoscelesTriangleInfoStaticFlags::ITI_STATIC_ORIENTATION)
+					m.set_attrib_out_range(vattrib_idx__orientation, {0.f, gi.orientation});
+				else {
+					const auto &streamid = stream_ds_helper::add_streaming_dummy_attrib(
+						stream_ds, bufsize, orientation_range
+					);
+					m.set_attrib_in_range(vattrib_idx__orientation, orientation_range);
+					m.set_attrib_out_range(vattrib_idx__orientation, orientation_range);
+					vattrib_source_map.emplace(vattrib_idx__orientation, streamid);
+					//m.set_attrib_source_index(vattrib_idx__orientation, streamid);
+				}
+				layer_gams.emplace_back(gam_info{std::move(m), std::move(vattrib_source_map)});
+				break;
+			}
+
 			case OTV_GlyphType::SignBlob:
 			{
 				// prelude
@@ -1037,16 +1157,6 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				layer_gams.emplace_back(gam_info{std::move(m), std::move(vattrib_source_map)});
 				break;
 			}
-
-
-			case OTV_GlyphType::Circle:
-			case OTV_GlyphType::IsoscelesTriangle:
-				cgv::gui::get_gui_driver()->message(
-					std::string("Visualization setup contains unimplemented glyph type: ")
-						+ otv__string_from_GlyphType(layer_src.type)+"\n"
-					"OnTubeVis will now most likely crash."
-				);
-				assert(false && "INTERNAL LOGIC ERROR: Unimplemented glyph type in visualization setup!");
 
 			default:
 				assert(false && "INTERNAL LOGIC ERROR: Unknown glyph type in visualization setup!");

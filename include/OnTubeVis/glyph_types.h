@@ -232,7 +232,7 @@ typedef struct OTV_GlyphData
  */
 typedef struct OTV_SurfaceColorInfo
 {
-	/// @brief The number of 32bit static properties of a surface color layer. Must be 2 always.
+	/// @brief The number of 32bit static properties of a surface color layer. Must be 6 always.
 	const uint32_t N;
 
 	/// @brief The surface color in case a static color is assigned.
@@ -331,7 +331,7 @@ typedef struct OTV_LinePlotData
  */
 typedef struct OTV_CircleInfo
 {
-	/// @brief The number of 32bit static properties of a circle layer. Must be 7 always.
+	/// @brief The number of 32bit static properties of a circle layer. Must be 6 always.
 	const uint32_t N;
 
 	/// @brief The glyph color in case a static color is assigned.
@@ -467,7 +467,7 @@ typedef struct OTV_RectangleData
  */
 typedef struct OTV_IsoscelesTriangleInfo
 {
-	/// @brief The number of 32bit static properties of a rectangle glyph layer. Must be 7 always.
+	/// @brief The number of 32bit static properties of a rectangle glyph layer. Must be 8 always.
 	const uint32_t N;
 
 	/// @brief The glyph color in case a static color is assigned.
@@ -513,7 +513,7 @@ typedef struct OTV_IsoscelesTriangleData
 {
 	/**
 	 * @brief
-	 *		The number of 32bit dynamic properties (excluding arc length @c s) of a rectangle glyph layer. Must be 3
+	 *		The number of 32bit dynamic properties (excluding arc length @c s) of a rectangle glyph layer. Must be 4
 	 *		always.
 	 */
 	const uint32_t N;

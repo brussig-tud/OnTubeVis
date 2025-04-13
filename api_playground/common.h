@@ -69,6 +69,54 @@ struct SurfaceColorLayer
 	{}
 };
 
+struct CircleLayer
+{
+	typedef OTV_CircleInfo Info;
+
+	OTV_LayerConfig config;
+	Info &info;
+
+	Info& init_info (void) {
+		return *otv__upcast_CircleInfo(&config.static_params);
+	}
+
+	inline CircleLayer(const CircleLayer &other) noexcept
+		: config(other.config), info(init_info())
+	{}
+
+	inline CircleLayer(CircleLayer &&other) noexcept
+		: config(std::move(other.config)), info(init_info())
+	{}
+
+	CircleLayer(const float outline, const OTV_Rgb &color)
+		: config{
+			.type=Circle, .outline=outline,
+			.static_params=otv__construct_CircleInfo(
+				/* rgb: */color, /* color_map (irgnored, see static flags): */UndefinedColormap,
+				/* radius (irgnored, see static flags): */0, /*static flags: */CI_STATIC_COLOR
+			)
+		}, info(init_info())
+	{}
+	CircleLayer(const float outline, const layer::RadiusProperty radius, const OTV_ColorMap colormap)
+		: config{
+			.type=Circle, .outline=outline,
+			.static_params=otv__construct_CircleInfo(
+				/* rgb (irgnored, see static flags): */otv__Rgb(0,0,0), /* color_map: */colormap,
+				/* radius: */radius.value, /*static flags: */CI_STATIC_RADIUS
+			)
+		}, info(init_info())
+	{}
+	CircleLayer(const float outline, const OTV_ColorMap colormap)
+		: config{
+			.type=Circle, .outline=outline,
+			.static_params=otv__construct_CircleInfo(
+				/* rgb (irgnored, see static flags): */otv__Rgb(0,0,0), /* color_map: */colormap,
+				/* radius (irgnored, see static flags): */0, /*static flags: */CI_STATIC_NONE
+			)
+		}, info(init_info())
+	{}
+};
+
 struct RectangleLayer
 {
 	typedef OTV_RectangleInfo Info;
@@ -158,6 +206,222 @@ struct RectangleLayer
 				/* rgb (irgnored, see static flags): */otv__Rgb(0,0,0), /* color_map: */colormap,
 				/* width (irgnored, see static flags): */0, /* height (irgnored, see static flags): */0,
 				/*static flags: */RI_STATIC_NONE
+			)
+		}, info(init_info())
+	{}
+};
+
+struct IsoscelesTriangleLayer
+{
+	typedef OTV_IsoscelesTriangleInfo Info;
+
+	OTV_LayerConfig config;
+	Info &info;
+
+	Info& init_info (void) {
+		return *otv__upcast_IsoscelesTriangleInfo(&config.static_params);
+	}
+
+	inline IsoscelesTriangleLayer(const IsoscelesTriangleLayer &other) noexcept
+		: config(other.config), info(init_info())
+	{}
+
+	inline IsoscelesTriangleLayer(IsoscelesTriangleLayer &&other) noexcept
+		: config(std::move(other.config)), info(init_info())
+	{}
+
+	IsoscelesTriangleLayer(const float outline, const OTV_Rgb &color)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb: */color, /* color_map (irgnored, see static flags): */UndefinedColormap,
+				/* width (irgnored, see static flags): */0, /* height (irgnored, see static flags): */0,
+				/* orientation (irgnored, see static flags): */0, /*static flags: */ITI_STATIC_COLOR
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(const float outline, const OTV_ColorMap colormap, const layer::WidthProperty width)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb (irgnored, see static flags): */otv__Rgb(0,0,0), /* color_map: */colormap,
+				/* width: */width.value, /* height (irgnored, see static flags): */0,
+				/* orientation (irgnored, see static flags): */0, /*static flags: */ITI_STATIC_WIDTH
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(const float outline, const OTV_ColorMap colormap, const layer::HeightProperty height)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb (irgnored, see static flags): */otv__Rgb(0,0,0), /* color_map: */colormap,
+				/* width (irgnored, see static flags): */0, /* height: */height.value,
+				/* orientation (irgnored, see static flags): */0,
+				/*static flags: */ITI_STATIC_HEIGHT
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(
+		const float outline, const OTV_ColorMap colormap, const layer::OrientationProperty orientation
+	)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb (irgnored, see static flags): */otv__Rgb(0,0,0), /* color_map: */colormap,
+				/* width (irgnored, see static flags): */0, /* height (irgnored, see static flags): */0,
+				/* orientation: */orientation.value, /*static flags: */ITI_STATIC_ORIENTATION
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(
+		const float outline, const OTV_ColorMap colormap, const layer::WidthProperty width,
+		const layer::HeightProperty height
+	)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb (irgnored, see static flags): */otv__Rgb(0,0,0), /* color_map: */colormap,
+				/* width: */width.value, /* height: */height.value, /* orientation (irgnored, see static flags): */0,
+				/*static flags: */static_cast<OTV_IsoscelesTriangleInfoStaticFlags>(ITI_STATIC_WIDTH | ITI_STATIC_HEIGHT)
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(const float outline, const OTV_Rgb &color, const layer::WidthProperty width)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb: */color, /* color_map (irgnored, see static flags): */UndefinedColormap,
+				/* width: */width.value, /* height (irgnored, see static flags): */0,
+				/* orientation (irgnored, see static flags): */0,
+				/*static flags: */static_cast<OTV_IsoscelesTriangleInfoStaticFlags>(ITI_STATIC_COLOR | ITI_STATIC_WIDTH)
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(const float outline, const OTV_Rgb &color, const layer::HeightProperty height)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb: */color, /* color_map (irgnored, see static flags): */UndefinedColormap,
+				/* width (irgnored, see static flags): */0, /* height: */height.value,
+				/* orientation (irgnored, see static flags): */0,
+				/*static flags: */static_cast<OTV_IsoscelesTriangleInfoStaticFlags>(ITI_STATIC_COLOR | ITI_STATIC_HEIGHT)
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(const float outline, const OTV_Rgb &color, const layer::OrientationProperty orientation)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb: */color, /* color_map (irgnored, see static flags): */UndefinedColormap,
+				/* width (irgnored, see static flags): */0, /* height (irgnored, see static flags): */0,
+				/* orientation: */orientation.value,
+				/*static flags: */static_cast<OTV_IsoscelesTriangleInfoStaticFlags>(
+					ITI_STATIC_COLOR | ITI_STATIC_ORIENTATION
+				)
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(
+		const float outline, const OTV_ColorMap colormap, const layer::WidthProperty width,
+		const layer::OrientationProperty orientation
+	)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb (irgnored, see static flags): */otv__Rgb(0,0,0), /* color_map: */colormap,
+				/* width: */width.value, /* height (irgnored, see static flags): */0,
+				/* orientation: */orientation.value,
+				/*static flags: */static_cast<OTV_IsoscelesTriangleInfoStaticFlags>(
+					ITI_STATIC_WIDTH | ITI_STATIC_ORIENTATION
+				)
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(
+		const float outline, const OTV_ColorMap colormap, const layer::HeightProperty height,
+		const layer::OrientationProperty orientation
+	)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb (irgnored, see static flags): */otv__Rgb(0,0,0), /* color_map: */colormap,
+				/* width (irgnored, see static flags): */0, /* height: */height.value,
+				/* orientation: */orientation.value,
+				/*static flags: */static_cast<OTV_IsoscelesTriangleInfoStaticFlags>(
+					ITI_STATIC_HEIGHT | ITI_STATIC_ORIENTATION
+				)
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(
+		const float outline, const OTV_ColorMap colormap, const layer::WidthProperty width,
+		const layer::HeightProperty height, const layer::OrientationProperty orientation
+	)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb (irgnored, see static flags): */otv__Rgb(0,0,0), /* color_map: */colormap,
+				/* width: */width.value, /* height: */height.value, /* orientation: */orientation.value,
+				/*static flags: */static_cast<OTV_IsoscelesTriangleInfoStaticFlags>(
+					ITI_STATIC_WIDTH | ITI_STATIC_HEIGHT | ITI_STATIC_ORIENTATION
+				)
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(
+		const float outline, const OTV_Rgb &color, const layer::WidthProperty width, const layer::HeightProperty height
+	)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb: */color, /* color_map (irgnored, see static flags): */UndefinedColormap,
+				/* width: */width.value, /* height: */height.value, /* orientation (irgnored, see static flags): */0,
+				/*static flags: */static_cast<OTV_IsoscelesTriangleInfoStaticFlags>(
+					ITI_STATIC_COLOR | ITI_STATIC_WIDTH | ITI_STATIC_HEIGHT
+				)
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(
+		const float outline, const OTV_Rgb &color, const layer::WidthProperty width,
+		const layer::OrientationProperty orientation
+	)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb: */color, /* color_map (irgnored, see static flags): */UndefinedColormap,
+				/* width: */width.value, /* height (irgnored, see static flags): */0,
+				/* orientation: */orientation.value,
+				/*static flags: */static_cast<OTV_IsoscelesTriangleInfoStaticFlags>(
+					ITI_STATIC_COLOR | ITI_STATIC_WIDTH | ITI_STATIC_ORIENTATION
+				)
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(
+		const float outline, const OTV_Rgb &color, const layer::HeightProperty height,
+		const layer::OrientationProperty orientation
+	)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb: */color, /* color_map (irgnored, see static flags): */UndefinedColormap,
+				/* width (irgnored, see static flags): */0, /* height: */height.value,
+				/* orientation: */orientation.value,
+				/*static flags: */static_cast<OTV_IsoscelesTriangleInfoStaticFlags>(
+					ITI_STATIC_COLOR | ITI_STATIC_HEIGHT | ITI_STATIC_ORIENTATION
+				)
+			)
+		}, info(init_info())
+	{}
+	IsoscelesTriangleLayer(const float outline, const OTV_ColorMap colormap)
+		: config{
+			.type=IsoscelesTriangle, .outline=outline,
+			.static_params=otv__construct_IsoscelesTriangleInfo(
+				/* rgb (irgnored, see static flags): */otv__Rgb(0,0,0), /* color_map: */colormap,
+				/* width (irgnored, see static flags): */0, /* height (irgnored, see static flags): */0,
+				/* orientation (irgnored, see static flags): */0,
+				/*static flags: */ITI_STATIC_NONE
 			)
 		}, info(init_info())
 	{}
