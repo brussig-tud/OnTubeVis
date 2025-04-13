@@ -150,6 +150,19 @@ typedef enum OTV_RectangleInfoStaticFlags {
 	RectangleInfoStaticFlags_FORCE32 = 0x7fffffff
 } OTV_RectangleInfoStaticFlags;
 
+/// @brief Enumeration of static parameter flags for @c OTV_IsoscelesTriangleInfo structs.
+typedef enum OTV_IsoscelesTriangleInfoStaticFlags {
+	// Since OnTubeVis API v0
+	ITI_STATIC_NONE = 0,
+	ITI_STATIC_COLOR = 1,
+	ITI_STATIC_WIDTH = 2,
+	ITI_STATIC_HEIGHT = 4,
+	ITI_STATIC_ORIENTATION = 8,
+
+	// Force enum to be 32 bits
+	IsoscelesTriangleInfoStaticFlags_FORCE32 = 0x7fffffff
+} OTV_IsoscelesTriangleInfoStaticFlags;
+
 /// @brief Enumeration of static parameter flags for @c OTV_SignBlobInfo structs.
 typedef enum OTV_SignBlobInfoStaticFlags {
 	// Since OnTubeVis API v0
@@ -444,6 +457,101 @@ typedef struct OTV_RectangleData
 
 
 ////
+// Rectangle
+
+/**
+ * @brief The info struct for the @c GlyphType::IsoscelesTriangle glyph.
+ *
+ * @see otv__construct_IsoscelesTriangleInfo()
+ * @see otv__construct_empty_IsoscelesTriangleInfo()
+ */
+typedef struct OTV_IsoscelesTriangleInfo
+{
+	/// @brief The number of 32bit static properties of a rectangle glyph layer. Must be 7 always.
+	const uint32_t N;
+
+	/// @brief The glyph color in case a static color is assigned.
+	OTV_Rgb rgb;
+
+	/// @brief The selected color map to query colors from if no static color is used.
+	OTV_ColorMap color_map;
+
+	/**
+	 * @brief
+	 *		The @a width of the isosceles triangle in multiples of the tube/ribbon radius in case a static value is to
+	 *		be used. At @ref #orientation @c 0 , the width runs perpendicular to the direction of travel.
+	 */
+	float width;
+
+	/**
+	 * @brief
+	 *		The @a height of the isosceles triangle in multiples of the tube/ribbon radius in case a static value is to
+	 *		be used. At @ref #orientation @c 0 , the height runs along the direction of travel.
+	 */
+	float height;
+
+	/**
+	* @brief
+	 *		The @a orientation angle (in °) of the isosceles triangle in case a static value is to be used. An angle of
+	 *		@c 0 means the unique angle (marking the "peak" of the triangle along its height vector) points in the
+	 *		direction of travel, with the orientation angle increasing in counter-clockwise direction.
+	 */
+	float orientation;
+
+	/// @brief Which of the dynamic glyph properties should statically assume the values defined in this info struct.
+	OTV_IsoscelesTriangleInfoStaticFlags static_flags;
+} OTV_IsoscelesTriangleInfo;
+
+/**
+ * @brief The data struct for the @c GlyphType::Rect glyph.
+ *
+ * @see otv__construct_IsoscelesTriangleData()
+ * @see otv__construct_empty_IsoscelesTriangleData()
+ * @see otv__instantiate_IsoscelesTriangle()
+ */
+typedef struct OTV_IsoscelesTriangleData
+{
+	/**
+	 * @brief
+	 *		The number of 32bit dynamic properties (excluding arc length @c s) of a rectangle glyph layer. Must be 3
+	 *		always.
+	 */
+	const uint32_t N;
+
+	/// @brief The arc length along the trajectory that the surface color control point is located.
+	float s;
+
+	/**
+	 * @brief
+	 *		A value in the range <c>0..1</c> to query the selected color map with in case a dynamic color is to be used.
+	 */
+	float color;
+
+	/**
+	 * @brief
+	 *		The @a width of the isosceles triangle in multiples of the tube/ribbon radius in case a dynamic value is to
+	 *		be used. At @ref #orientation @c 0 , the width runs perpendicular to the direction of travel.
+	 */
+	float width;
+
+	/**
+	 * @brief
+	 *		The @a height of the isosceles triangle in multiples of the tube/ribbon radius in case a dynamic value is to
+	 *		be used. At @ref #orientation @c 0 , the height runs along the direction of travel.
+	 */
+	float height;
+
+	/**
+	 * @brief
+	 *		The @a orientation angle (in °) of the isosceles triangle in case a dynamic value is to be used. An angle of
+	 *		@c 0 means the unique angle (marking the "peak" of the triangle along its height vector) points in the
+	 *		direction of travel, with the orientation angle increasing in counter-clockwise direction.
+	 */
+	float orientation;
+} OTV_IsoscelesTriangleData;
+
+
+////
 // SignBlob
 
 /**
@@ -527,9 +635,10 @@ typedef struct OTV_SignBlobData
  *
  * @return An instance of the @c OTV_SurfaceColorInfo struct, downcasted to the generic @c OTV_GlyphInfo.
  *
- * @note It is necessary to return a generic @c OTV_GlyphInfo view on the created instance because of limitations
- * of the C language. If you need access to the object in its concrete @c OTV_SurfaceColorInfo form, you can upcast it
- * using @c otv__upcast_SurfaceColorInfo().
+ * @note
+ *		It is necessary to return a generic @c OTV_GlyphInfo view on the created instance because of limitations of the
+ *		C language. If you need access to the object in its concrete @c OTV_SurfaceColorInfo form, you can upcast it
+ *		using @c otv__upcast_SurfaceColorInfo().
  */
 OTV_API OTV_GlyphInfo otv__construct_SurfaceColorInfo (
 	OTV_Rgb rgb, const OTV_ColorMap color_map, const OTV_InterpolationMode interpolation_mode,
@@ -538,7 +647,9 @@ OTV_API OTV_GlyphInfo otv__construct_SurfaceColorInfo (
 #endif
 
 /// @brief The function pointer type for the @c otv__construct_SurfaceColorInfo() function.
-typedef OTV_GlyphInfo(*otv__construct_SurfaceColorInfo_funct)(const OTV_ColorMap, const OTV_InterpolationMode);
+typedef OTV_GlyphInfo(*otv__construct_SurfaceColorInfo_funct)(
+	OTV_Rgb, const OTV_ColorMap, const OTV_InterpolationMode, const OTV_SurfaceColorInfoStaticFlags
+);
 
 #ifdef OTV_NO_PROTOTYPES
 /// @copydoc otv__construct_SurfaceColorInfo()
@@ -630,9 +741,10 @@ extern otv__downcast_SurfaceColorInfo_funct otv__downcast_SurfaceColorInfo;
  *
  * @return An instance of the @c OTV_SurfaceColorData struct, downcasted to the generic @c OTV_GlyphData.
  *
- * @note It is necessary to return a generic @c OTV_GlyphData view on the created instance because of limitations
- * of the C language. If you need access to the object in its concrete @c OTV_SurfaceColorData form, you can upcast it
- * using @c otv__upcast_SurfaceColorData().
+ * @note
+ *		It is necessary to return a generic @c OTV_GlyphData view on the created instance because of limitations of the
+ *		C language. If you need access to the object in its concrete @c OTV_SurfaceColorData form, you can upcast it
+ *		using @c otv__upcast_SurfaceColorData().
  */
 OTV_API OTV_GlyphData otv__construct_SurfaceColorData (const float s, const float color);
 #endif
@@ -733,9 +845,10 @@ extern otv__downcast_SurfaceColorData_funct otv__downcast_SurfaceColorData;
  *
  * @return An instance of the @c OTV_LinePlotInfo struct, downcasted to the generic @c OTV_GlyphInfo.
  *
- * @note It is necessary to return a generic @c OTV_GlyphInfo view on the created instance because of limitations
- * of the C language. If you need access to the object in its concrete @c OTV_LinePlotInfo form, you can upcast it
- * using @c otv__upcast_LinePlotInfo().
+ * @note
+ *		It is necessary to return a generic @c OTV_GlyphInfo view on the created instance because of limitations of the
+ *		C language. If you need access to the object in its concrete @c OTV_LinePlotInfo form, you can upcast it using
+ *		@c otv__upcast_LinePlotInfo().
  */
 OTV_API OTV_GlyphInfo otv__construct_LinePlotInfo (
 	const OTV_InterpolationMode interpolation_mode, const uint32_t num_subplots, const OTV_Rgb subplot_colors[]
@@ -838,9 +951,10 @@ extern otv__downcast_LinePlotInfo_funct otv__downcast_LinePlotInfo;
  *
  * @return An instance of the @c OTV_LinePlotData struct, downcasted to the generic @c OTV_GlyphData.
  *
- * @note It is necessary to return a generic @c OTV_GlyphData view on the created instance because of limitations
- * of the C language. If you need access to the object in its concrete @c OTV_LinePlotData form, you can upcast it
- * using @c otv__upcast_LinePlotData().
+ * @note
+ *		It is necessary to return a generic @c OTV_GlyphData view on the created instance because of limitations of the
+ *		C language. If you need access to the object in its concrete @c OTV_LinePlotData form, you can upcast it using
+ *		@c otv__upcast_LinePlotData().
  */
 OTV_API OTV_GlyphData otv__construct_LinePlotData (const float s, const uint32_t num_values, const float values[]);
 #endif
@@ -940,9 +1054,10 @@ extern otv__downcast_LinePlotData_funct otv__downcast_LinePlotData;
  *
  * @return An instance of the @c OTV_CircleInfo struct, downcasted to the generic @c OTV_GlyphInfo.
  *
- * @note It is necessary to return a generic @c OTV_GlyphInfo view on the created instance because of limitations
- * of the C language. If you need access to the object in its concrete @c OTV_CircleInfo form, you can upcast it
- * using @c otv__upcast_CircleInfo().
+ * @note
+ *		It is necessary to return a generic @c OTV_GlyphInfo view on the created instance because of limitations of the
+ *		C language. If you need access to the object in its concrete @c OTV_CircleInfo form, you can upcast it using
+ *		@c otv__upcast_CircleInfo().
  */
 OTV_API OTV_GlyphInfo otv__construct_CircleInfo (
 	const OTV_Rgb rgb, const OTV_ColorMap color_map, const float radius, const OTV_CircleInfoStaticFlags static_flags
@@ -951,7 +1066,7 @@ OTV_API OTV_GlyphInfo otv__construct_CircleInfo (
 
 /// @brief The function pointer type for the @c otv__construct_CircleInfo() function.
 typedef OTV_GlyphInfo(*otv__construct_CircleInfo_funct)(
-	const OTV_ColorMap color_map, const OTV_InterpolationMode interpolation_mode
+	const OTV_Rgb, const OTV_ColorMap, const float, const OTV_CircleInfoStaticFlags
 );
 
 #ifdef OTV_NO_PROTOTYPES
@@ -989,11 +1104,11 @@ extern otv__construct_empty_CircleInfo_funct otv__construct_empty_CircleInfo;
 /**
  * @brief Upcasts a @c OTV_GlyphInfo struct to a @c OTV_CircleInfo.
  *
- * @param line_plot_info The @c OTV_GlyphInfo to upcast.
+ * @param circle_info The @c OTV_GlyphInfo to upcast.
  *
  * @return The upcasted @c OTV_CircleInfo view on the given @c OTV_GlyphInfo.
  */
-OTV_API OTV_CircleInfo* otv__upcast_CircleInfo (const OTV_GlyphInfo *line_plot_info);
+OTV_API OTV_CircleInfo* otv__upcast_CircleInfo (const OTV_GlyphInfo *circle_info);
 #endif
 
 /// @brief The function pointer type for the @c otv__upcast_CircleInfo() function.
@@ -1012,11 +1127,11 @@ extern otv__upcast_CircleInfo_funct otv__upcast_CircleInfo;
 /**
  * @brief Downcasts a @c OTV_CircleInfo struct to a @c OTV_GlyphInfo.
  *
- * @param line_plot_info The @c OTV_CircleInfo to downcast.
+ * @param circle_info The @c OTV_CircleInfo to downcast.
  *
  * @return The downcasted @c OTV_GlyphInfo view on the given @c OTV_CircleInfo.
  */
-OTV_API OTV_GlyphInfo* otv__downcast_CircleInfo (const OTV_CircleInfo *line_plot_info);
+OTV_API OTV_GlyphInfo* otv__downcast_CircleInfo (const OTV_CircleInfo *circle_info);
 #endif
 
 /// @brief The function pointer type for the @c otv__downcast_CircleInfo() function.
@@ -1045,9 +1160,10 @@ extern otv__downcast_CircleInfo_funct otv__downcast_CircleInfo;
  *
  * @return An instance of the @c OTV_CircleData struct, downcasted to the generic @c OTV_GlyphData.
  *
- * @note It is necessary to return a generic @c OTV_GlyphData view on the created instance because of limitations
- * of the C language. If you need access to the object in its concrete @c OTV_CircleData form, you can upcast it
- * using @c otv__upcast_CircleData().
+ * @note
+ *		It is necessary to return a generic @c OTV_GlyphData view on the created instance because of limitations of the
+ *		C language. If you need access to the object in its concrete @c OTV_CircleData form, you can upcast it using
+ *		@c otv__upcast_CircleData().
  */
 OTV_API OTV_GlyphData otv__construct_CircleData (const float s, const float color, const float radius);
 #endif
@@ -1177,9 +1293,10 @@ extern otv__instantiate_Circle_funct otv__instantiate_Circle;
  *
  * @return An instance of the @c OTV_RectangleInfo struct, downcasted to the generic @c OTV_GlyphInfo.
  *
- * @note It is necessary to return a generic @c OTV_GlyphInfo view on the created instance because of limitations
- * of the C language. If you need access to the object in its concrete @c OTV_RectangleInfo form, you can upcast it
- * using @c otv__upcast_RectangleInfo().
+ * @note
+ *		It is necessary to return a generic @c OTV_GlyphInfo view on the created instance because of limitations of the
+ *		C language. If you need access to the object in its concrete @c OTV_RectangleInfo form, you can upcast it using
+ *		@c otv__upcast_RectangleInfo().
  */
 OTV_API OTV_GlyphInfo otv__construct_RectangleInfo (
 	const OTV_Rgb rgb, const OTV_ColorMap color_map, const float half_width, const float half_height,
@@ -1189,7 +1306,7 @@ OTV_API OTV_GlyphInfo otv__construct_RectangleInfo (
 
 /// @brief The function pointer type for the @c otv__construct_RectangleInfo() function.
 typedef OTV_GlyphInfo(*otv__construct_RectangleInfo_funct)(
-	const OTV_ColorMap color_map, const OTV_InterpolationMode interpolation_mode
+	const OTV_Rgb, const OTV_ColorMap, const float, const float, const OTV_RectangleInfoStaticFlags
 );
 
 #ifdef OTV_NO_PROTOTYPES
@@ -1227,11 +1344,11 @@ extern otv__construct_empty_RectangleInfo_funct otv__construct_empty_RectangleIn
 /**
  * @brief Upcasts a @c OTV_GlyphInfo struct to a @c OTV_RectangleInfo.
  *
- * @param line_plot_info The @c OTV_GlyphInfo to upcast.
+ * @param rectangle_info The @c OTV_GlyphInfo to upcast.
  *
  * @return The upcasted @c OTV_RectangleInfo view on the given @c OTV_GlyphInfo.
  */
-OTV_API OTV_RectangleInfo* otv__upcast_RectangleInfo (const OTV_GlyphInfo *line_plot_info);
+OTV_API OTV_RectangleInfo* otv__upcast_RectangleInfo (const OTV_GlyphInfo *rectangle_info);
 #endif
 
 /// @brief The function pointer type for the @c otv__upcast_RectangleInfo() function.
@@ -1250,11 +1367,11 @@ extern otv__upcast_RectangleInfo_funct otv__upcast_RectangleInfo;
 /**
  * @brief Downcasts a @c OTV_RectangleInfo struct to a @c OTV_GlyphInfo.
  *
- * @param line_plot_info The @c OTV_RectangleInfo to downcast.
+ * @param rectangle_info The @c OTV_RectangleInfo to downcast.
  *
  * @return The downcasted @c OTV_GlyphInfo view on the given @c OTV_RectangleInfo.
  */
-OTV_API OTV_GlyphInfo* otv__downcast_RectangleInfo (const OTV_RectangleInfo *line_plot_info);
+OTV_API OTV_GlyphInfo* otv__downcast_RectangleInfo (const OTV_RectangleInfo *rectangle_info);
 #endif
 
 /// @brief The function pointer type for the @c otv__downcast_RectangleInfo() function.
@@ -1284,9 +1401,10 @@ extern otv__downcast_RectangleInfo_funct otv__downcast_RectangleInfo;
  *
  * @return An instance of the @c OTV_RectangleData struct, downcasted to the generic @c OTV_GlyphData.
  *
- * @note It is necessary to return a generic @c OTV_GlyphData view on the created instance because of limitations
- * of the C language. If you need access to the object in its concrete @c OTV_RectangleData form, you can upcast it
- * using @c otv__upcast_RectangleData().
+ * @note
+ *		It is necessary to return a generic @c OTV_GlyphData view on the created instance because of limitations of the
+ *		C language. If you need access to the object in its concrete @c OTV_RectangleData form, you can upcast it using
+ *		@c otv__upcast_RectangleData().
  */
 OTV_API OTV_GlyphData otv__construct_RectangleData (
 	const float s, const float color, const float half_width, const float half_height
@@ -1401,6 +1519,257 @@ extern otv__instantiate_Rectangle_funct otv__instantiate_Rectangle;
 
 ////
 // ####################################################################################################################
+// OTV_IsoscelesTriangleInfo
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__construct_IsoscelesTriangleInfo
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Constructs an instance of the @c OTV_IsoscelesTriangleInfo struct that will be correctly up- and downcastable.
+ *
+ * @param rgb The value for the field @c OTV_IsoscelesTriangleInfo::rgb
+ * @param color_map The value for the field @c OTV_IsoscelesTriangleInfo::color_map
+ * @param width The value for the field @c OTV_IsoscelesTriangleInfo::width
+ * @param height The value for the field @c OTV_IsoscelesTriangleInfo::height
+ * @param orientation The value for the field @c OTV_IsoscelesTriangleInfo::orientation
+ * @param static_flags The value for the field @c OTV_IsoscelesTriangleInfo::static_flags
+ *
+ * @return An instance of the @c OTV_IsoscelesTriangleInfo struct, downcasted to the generic @c OTV_GlyphInfo.
+ *
+ * @note
+ *		It is necessary to return a generic @c OTV_GlyphInfo view on the created instance because of limitations of the
+ *		C language. If you need access to the object in its concrete @c OTV_IsoscelesTriangleInfo form, you can upcast
+ *		it using @c otv__upcast_IsoscelesTriangleInfo().
+ */
+OTV_API OTV_GlyphInfo otv__construct_IsoscelesTriangleInfo (
+	const OTV_Rgb rgb, const OTV_ColorMap color_map, const float width, const float height, const float orientation,
+	const OTV_IsoscelesTriangleInfoStaticFlags static_flags
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__construct_IsoscelesTriangleInfo() function.
+typedef OTV_GlyphInfo(*otv__construct_IsoscelesTriangleInfo_funct)(
+	const OTV_Rgb, const OTV_ColorMap, const float, const float, const float, const OTV_IsoscelesTriangleInfoStaticFlags
+);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__construct_IsoscelesTriangleInfo()
+extern otv__construct_IsoscelesTriangleInfo_funct otv__construct_IsoscelesTriangleInfo;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__construct_empty_IsoscelesTriangleInfo
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @copybrief otv__construct_IsoscelesTriangleInfo()
+ * All but the constant @c N will be left uninitialized.
+ *
+ * @copydetails otv__construct_IsoscelesTriangleInfo()
+ */
+OTV_API OTV_GlyphInfo otv__construct_empty_IsoscelesTriangleInfo (void);
+#endif
+
+/// @brief The function pointer type for the @c otv__construct_empty_IsoscelesTriangleInfo() function.
+typedef OTV_GlyphInfo(*otv__construct_empty_IsoscelesTriangleInfo_funct)(void);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__construct_empty_IsoscelesTriangleInfo()
+extern otv__construct_empty_IsoscelesTriangleInfo_funct otv__construct_empty_IsoscelesTriangleInfo;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__upcast_IsoscelesTriangleInfo
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Upcasts a @c OTV_GlyphInfo struct to a @c OTV_IsoscelesTriangleInfo.
+ *
+ * @param isosceles_triangle_info The @c OTV_GlyphInfo to upcast.
+ *
+ * @return The upcasted @c OTV_IsoscelesTriangleInfo view on the given @c OTV_GlyphInfo.
+ */
+OTV_API OTV_IsoscelesTriangleInfo* otv__upcast_IsoscelesTriangleInfo (const OTV_GlyphInfo *isosceles_triangle_info);
+#endif
+
+/// @brief The function pointer type for the @c otv__upcast_IsoscelesTriangleInfo() function.
+typedef OTV_IsoscelesTriangleInfo*(*otv__upcast_IsoscelesTriangleInfo_funct)(const OTV_GlyphInfo*);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__upcast_IsoscelesTriangleInfo()
+extern otv__upcast_IsoscelesTriangleInfo_funct otv__upcast_IsoscelesTriangleInfo;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__downcast_IsoscelesTriangleInfo
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Downcasts a @c OTV_IsoscelesTriangleInfo struct to a @c OTV_GlyphInfo.
+ *
+ * @param isosceles_triangle_info The @c OTV_IsoscelesTriangleInfo to downcast.
+ *
+ * @return The downcasted @c OTV_GlyphInfo view on the given @c OTV_IsoscelesTriangleInfo.
+ */
+OTV_API OTV_GlyphInfo* otv__downcast_IsoscelesTriangleInfo (const OTV_IsoscelesTriangleInfo *isosceles_triangle_info);
+#endif
+
+/// @brief The function pointer type for the @c otv__downcast_IsoscelesTriangleInfo() function.
+typedef OTV_GlyphInfo*(*otv__downcast_IsoscelesTriangleInfo_funct)(const OTV_IsoscelesTriangleInfo*);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__downcast_IsoscelesTriangleInfo()
+extern otv__downcast_IsoscelesTriangleInfo_funct otv__downcast_IsoscelesTriangleInfo;
+#endif
+
+
+////
+// ####################################################################################################################
+// OTV_IsoscelesTriangleData
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__construct_IsoscelesTriangleData
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Constructs an instance of the @c OTV_IsoscelesTriangleData struct that will be correctly up- and downcastable.
+ *
+ * @param s The value for the field @c OTV_IsoscelesTriangleData::s
+ * @param color The value for the field @c OTV_IsoscelesTriangleData::color
+ * @param width The value for the field @c OTV_IsoscelesTriangleData::width
+ * @param height The value for the field @c OTV_IsoscelesTriangleData::height
+ * @param orientation The value for the field @c OTV_IsoscelesTriangleData::orientation
+ *
+ * @return An instance of the @c OTV_IsoscelesTriangleData struct, downcasted to the generic @c OTV_GlyphData.
+ *
+ * @note
+ *		It is necessary to return a generic @c OTV_GlyphData view on the created instance because of limitations of the
+ *		C language. If you need access to the object in its concrete @c OTV_IsoscelesTriangleData form, you can upcast
+ *		it using @c otv__upcast_IsoscelesTriangleData().
+ */
+OTV_API OTV_GlyphData otv__construct_IsoscelesTriangleData (
+	const float s, const float color, const float width, const float height, const float orientation
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__construct_IsoscelesTriangleData() function.
+typedef OTV_GlyphData(*otv__construct_IsoscelesTriangleData_funct)(
+    const float, const float, const float, const float, const float
+);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__construct_IsoscelesTriangleData()
+extern otv__construct_IsoscelesTriangleData_funct otv__construct_IsoscelesTriangleData;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__construct_empty_IsoscelesTriangleData
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @copybrief otv__construct_IsoscelesTriangleData()
+ * All but the constant @c N will be left uninitialized.
+ *
+ * @copydetails otv__construct_IsoscelesTriangleData()
+ */
+OTV_API OTV_GlyphData otv__construct_empty_IsoscelesTriangleData (void);
+#endif
+
+/// @brief The function pointer type for the @c otv__construct_empty_IsoscelesTriangleData() function.
+typedef OTV_GlyphData(*otv__construct_empty_IsoscelesTriangleData_funct)(void);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__construct_empty_IsoscelesTriangleData()
+extern otv__construct_empty_IsoscelesTriangleData_funct otv__construct_empty_IsoscelesTriangleData;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__upcast_IsoscelesTriangleData
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Upcasts a @c OTV_GlyphData struct to a @c OTV_IsoscelesTriangleData.
+ *
+ * @param isosceles_triangle_data The @c OTV_GlyphData to upcast.
+ *
+ * @return The upcasted @c OTV_IsoscelesTriangleData view on the given @c OTV_GlyphData.
+ */
+OTV_API OTV_IsoscelesTriangleData* otv__upcast_IsoscelesTriangleData (const OTV_GlyphData *isosceles_triangle_data);
+#endif
+
+/// @brief The function pointer type for the @c otv__upcast_IsoscelesTriangleData() function.
+typedef OTV_IsoscelesTriangleData*(*otv__upcast_IsoscelesTriangleData_funct)(const OTV_GlyphData*);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__upcast_IsoscelesTriangleData()
+extern otv__upcast_IsoscelesTriangleData_funct otv__upcast_IsoscelesTriangleData;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__downcast_IsoscelesTriangleData
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Downcasts a @c OTV_IsoscelesTriangleData struct to a @c OTV_GlyphData.
+ *
+ * @param isosceles_triangle_data The @c OTV_IsoscelesTriangleData to downcast.
+ *
+ * @return The downcasted @c OTV_GlyphData view on the given @c OTV_IsoscelesTriangleData.
+ */
+OTV_API OTV_GlyphData* otv__downcast_IsoscelesTriangleData (const OTV_IsoscelesTriangleData *isosceles_triangle_data);
+#endif
+
+/// @brief The function pointer type for the @c otv__downcast_IsoscelesTriangleData() function.
+typedef OTV_GlyphData*(*otv__downcast_IsoscelesTriangleData_funct)(const OTV_IsoscelesTriangleData*);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__downcast_IsoscelesTriangleData()
+extern otv__downcast_IsoscelesTriangleData_funct otv__downcast_IsoscelesTriangleData;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__instantiate_IsoscelesTriangle
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief
+ *		Instantiates the given Isosceles Triangle glyph to calculate its geometry and returns its extents along the
+ *		trajectory.
+ *
+ * @param traj_radius The radius of the trajectory on which to instantiate the Isosceles Triangle.
+ * @param info The static glyph parameters to use during instantiation.
+ * @param data The data to instantiate the Isosceles Triangle with.
+ *
+ * @return
+ *		The extents of the given Isosceles Triangle glyph relative to its anchor position. @c OTV_Vec2::x will contain
+ *		the radius in trailing direction of the trajectory, and @c OTV_Vec2::y the radius in leading direction.
+ */
+OTV_API OTV_Vec2 otv__instantiate_IsoscelesTriangle (
+	const float traj_radius, const OTV_IsoscelesTriangleInfo *info, const OTV_IsoscelesTriangleData *data
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__instantiate_IsoscelesTriangle() function.
+typedef OTV_Vec2(*otv__instantiate_IsoscelesTriangle_funct)(
+	const float, const OTV_IsoscelesTriangleInfo*, const OTV_IsoscelesTriangleData*
+);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__instantiate_IsoscelesTriangle()
+extern otv__instantiate_IsoscelesTriangle_funct otv__instantiate_IsoscelesTriangle;
+#endif
+
+
+////
+// ####################################################################################################################
 // OTV_SignBlobInfo
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1418,9 +1787,10 @@ extern otv__instantiate_Rectangle_funct otv__instantiate_Rectangle;
  *
  * @return An instance of the @c OTV_SignBlobInfo struct, downcasted to the generic @c OTV_GlyphInfo.
  *
- * @note It is necessary to return a generic @c OTV_GlyphInfo view on the created instance because of limitations
- * of the C language. If you need access to the object in its concrete @c OTV_SignBlobInfo form, you can upcast it
- * using @c otv__upcast_SignBlobInfo().
+ * @note
+ *		It is necessary to return a generic @c OTV_GlyphInfo view on the created instance because of limitations of the
+ *		C language. If you need access to the object in its concrete @c OTV_SignBlobInfo form, you can upcast it using
+ *		@c otv__upcast_SignBlobInfo().
  */
 OTV_API OTV_GlyphInfo otv__construct_SignBlobInfo (
 	const OTV_Rgb rgb, const OTV_ColorMap color_map, const float radius, const float value,
@@ -1430,7 +1800,7 @@ OTV_API OTV_GlyphInfo otv__construct_SignBlobInfo (
 
 /// @brief The function pointer type for the @c otv__construct_SignBlobInfo() function.
 typedef OTV_GlyphInfo(*otv__construct_SignBlobInfo_funct)(
-	const OTV_ColorMap color_map, const OTV_InterpolationMode interpolation_mode
+	const OTV_Rgb, const OTV_ColorMap, const float, const float, const OTV_SignBlobInfoStaticFlags
 );
 
 #ifdef OTV_NO_PROTOTYPES
@@ -1468,11 +1838,11 @@ extern otv__construct_empty_SignBlobInfo_funct otv__construct_empty_SignBlobInfo
 /**
  * @brief Upcasts a @c OTV_GlyphInfo struct to a @c OTV_SignBlobInfo.
  *
- * @param line_plot_info The @c OTV_GlyphInfo to upcast.
+ * @param sign_blob_info The @c OTV_GlyphInfo to upcast.
  *
  * @return The upcasted @c OTV_SignBlobInfo view on the given @c OTV_GlyphInfo.
  */
-OTV_API OTV_SignBlobInfo* otv__upcast_SignBlobInfo (const OTV_GlyphInfo *line_plot_info);
+OTV_API OTV_SignBlobInfo* otv__upcast_SignBlobInfo (const OTV_GlyphInfo *sign_blob_info);
 #endif
 
 /// @brief The function pointer type for the @c otv__upcast_SignBlobInfo() function.
@@ -1491,11 +1861,11 @@ extern otv__upcast_SignBlobInfo_funct otv__upcast_SignBlobInfo;
 /**
  * @brief Downcasts a @c OTV_SignBlobInfo struct to a @c OTV_GlyphInfo.
  *
- * @param line_plot_info The @c OTV_SignBlobInfo to downcast.
+ * @param sign_blob_info The @c OTV_SignBlobInfo to downcast.
  *
  * @return The downcasted @c OTV_GlyphInfo view on the given @c OTV_SignBlobInfo.
  */
-OTV_API OTV_GlyphInfo* otv__downcast_SignBlobInfo (const OTV_SignBlobInfo *line_plot_info);
+OTV_API OTV_GlyphInfo* otv__downcast_SignBlobInfo (const OTV_SignBlobInfo *sign_blob_info);
 #endif
 
 /// @brief The function pointer type for the @c otv__downcast_SignBlobInfo() function.
@@ -1524,9 +1894,10 @@ extern otv__downcast_SignBlobInfo_funct otv__downcast_SignBlobInfo;
  *
  * @return An instance of the @c OTV_SignBlobData struct, downcasted to the generic @c OTV_GlyphData.
  *
- * @note It is necessary to return a generic @c OTV_GlyphData view on the created instance because of limitations
- * of the C language. If you need access to the object in its concrete @c OTV_SignBlobData form, you can upcast it
- * using @c otv__upcast_SignBlobData().
+ * @note
+ *		It is necessary to return a generic @c OTV_GlyphData view on the created instance because of limitations of the
+ *		C language. If you need access to the object in its concrete @c OTV_SignBlobData form, you can upcast it using
+ *		@c otv__upcast_SignBlobData().
  */
 OTV_API OTV_GlyphData otv__construct_SignBlobData (const float s, const float color, const float value);
 #endif

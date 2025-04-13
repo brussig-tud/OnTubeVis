@@ -4,6 +4,9 @@
 // Includes
 //
 
+// C++ STL
+#include <algorithm>
+
 // Public interface
 #include <OnTubeVis/OnTubeVis.h>
 
@@ -279,6 +282,82 @@ OTV_API OTV_Vec2 otv__instantiate_Rectangle (
 	const float hw =
 		  traj_radius * /* v (circumferential) coordinate goes from -2..2 */.5f
 		* (info->static_flags&RI_STATIC_WIDTH ? info->half_width : data->half_width);
+	return {-hw, hw};
+}
+
+
+////
+// IsoscelesTriangle
+
+// --- ...Info ----------------------------------------------------------
+OTV_API OTV_GlyphInfo otv__construct_IsoscelesTriangleInfo (
+	const OTV_Rgb rgb, const OTV_ColorMap color_map, const float width, const float height, const float orientation,
+	const OTV_IsoscelesTriangleInfoStaticFlags static_flags
+){
+	OTV_GlyphInfo gi = otv__construct_empty_IsoscelesTriangleInfo();
+	auto &ret = *(OTV_IsoscelesTriangleInfo*)&gi;
+	ret.rgb = rgb;
+	ret.color_map = color_map;
+	ret.width = width;
+	ret.height = height;
+	ret.orientation = orientation;
+	ret.static_flags = static_flags;
+	return gi;
+}
+
+OTV_API OTV_GlyphInfo otv__construct_empty_IsoscelesTriangleInfo (void)
+{
+	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_IsoscelesTriangleInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
+	return gi;
+}
+
+OTV_API OTV_IsoscelesTriangleInfo* otv__upcast_IsoscelesTriangleInfo (const OTV_GlyphInfo *line_plot_info) {
+	return (OTV_IsoscelesTriangleInfo*)const_cast<OTV_GlyphInfo*>(line_plot_info);
+}
+
+OTV_API OTV_GlyphInfo* otv__downcast_IsoscelesTriangleInfo (const OTV_IsoscelesTriangleInfo *line_plot_info) {
+	return (OTV_GlyphInfo*)const_cast<OTV_IsoscelesTriangleInfo*>(line_plot_info);
+}
+
+// --- ...Data ----------------------------------------------------------
+OTV_API OTV_GlyphData otv__construct_IsoscelesTriangleData (
+	const float s, const float color, const float width, const float height, const float orientation
+){
+	OTV_GlyphData gd = otv__construct_empty_IsoscelesTriangleData();
+	auto &ret = *(OTV_IsoscelesTriangleData*)&gd;
+	ret.s = s;
+	ret.color = color;
+	ret.width = width;
+	ret.height = height;
+	ret.orientation = orientation;
+	return gd;
+}
+
+OTV_API OTV_GlyphData otv__construct_empty_IsoscelesTriangleData (void)
+{
+	constexpr OTV_GlyphData gd{
+		uint32_t((sizeof(OTV_IsoscelesTriangleData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
+	};
+	return gd;
+}
+
+OTV_API OTV_IsoscelesTriangleData* otv__upcast_IsoscelesTriangleData (const OTV_GlyphData *rectangle_data) {
+	return (OTV_IsoscelesTriangleData*)const_cast<OTV_GlyphData*>(rectangle_data);
+}
+
+OTV_API OTV_GlyphData* otv__downcast_IsoscelesTriangleData (const OTV_IsoscelesTriangleData *rectangle_data) {
+	return (OTV_GlyphData*)const_cast<OTV_IsoscelesTriangleData*>(rectangle_data);
+}
+
+OTV_API OTV_Vec2 otv__instantiate_IsoscelesTriangle (
+	const float traj_radius, const OTV_IsoscelesTriangleInfo *info, const OTV_IsoscelesTriangleData *data
+){
+	const float hw =
+		  traj_radius * /* v (circumferential) coordinate goes from -2..2 */.5f
+		* std::max(
+		  	(info->static_flags&ITI_STATIC_WIDTH ? info->width : data->width),
+		  	(info->static_flags&ITI_STATIC_HEIGHT ? info->height : data->height)
+		  );
 	return {-hw, hw};
 }
 
