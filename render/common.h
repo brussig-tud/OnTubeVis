@@ -54,13 +54,12 @@ enum GridMode {
 /// tube shading settings
 struct tube_shading_settings
 {
+	// grid-related
 	struct grid_parameters {
 		cgv::vec2 scaling;
 		float thickness;
 		float blend_factor;
 	};
-
-	// grid-related
 	cgv::rgba grid_color;
 	GridMode grid_mode = GM_NONE;
 	cgv::type::DummyEnum grid_normal_settings;
@@ -75,6 +74,7 @@ struct tube_shading_settings
 
 	// streaming-related
 	bool alternative_ring_buffer = false;
+	float playback_t = std::numeric_limits<float>::infinity();
 
 	[[nodiscard]] cgv::render::shader_define_map build_tube_shading_defines (
 		const glyph_layer_manager::configuration &glyph_layers_config, bool debug_highlight_segments=false

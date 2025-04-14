@@ -1627,3 +1627,10 @@ vec4 otv_shade_fragment (
 
 	return subp_color;
 }
+
+vec4 otv_shade_playback_cursor (in float u_pos, in float u_width, in vec2 uv, in vec4 pre_shaded_color) {
+	float dist = length(u_pos - uv.s);
+	if (dist < u_width)
+	return vec4(1,0,1,1);
+	return pre_shaded_color;
+}

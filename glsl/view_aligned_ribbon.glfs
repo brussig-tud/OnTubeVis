@@ -228,6 +228,7 @@ vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
 	in float depth, in float specular_factor
 );
+vec4 otv_shade_playback_cursor (in float u_pos, in float u_width, in vec2 uv, in vec4 pre_shaded_color);
 // *** end of interface of otv_shading.glsl *******************************
 
 
@@ -268,9 +269,11 @@ vec4 otv_shade_fragment (
 #define DBG_VISUALIZE_LEAF_BBOXES 0
 
 
+#define POS_INF 3e+37
 uniform float radius_scale;
 uniform vec4 viewport;
 uniform float max_t;
+uniform float playback_t=POS_INF;
 uniform float linearity_thr = .015625;
 uniform float screwiness_thr = .9375;
 uniform float subdiv_abort_thr = 512;
@@ -672,6 +675,7 @@ void main()
 	stack[0].t = vec2(0, 1);
 
 	// Determine curve parameter after which to discard intersections according to user-requested max time
+	const float t_playback = (playback_t - n0_t)/(n1_t - n0_t);
 	float t_max_cubic = (max_t - n0_t)/(n1_t - n0_t);
 	float t_max = t_offset_fs > 0.0 ? 2*(t_max_cubic - 0.5) : t_max_cubic + t_max_cubic;
 
@@ -906,10 +910,12 @@ void main()
 		// Output shading results
 		//finish_fragment(color, depth);
 		#if FORWARD_SHADING == 1
+			float u = alen(t_seg);
 			color.rgb = otv_shade_fragment(
-				color.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(alen(t_seg), v), segment_id_fs,  pos_eye.xyz,
+				color.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(u, v), segment_id_fs,  pos_eye.xyz,
 				normal, tangent, gl_FragDepth, /*specular_factor: */1
 			).rgb;
+			col = otv_shade_playback_cursor(alen(t_playback), .125*n0.pos_rad.w, vec2(u,v), col);
 			color_out = vec4(pow(color.rgb, 1.0/gamma3), color.a);
 		#else
 			frag_albedo = uvec4(

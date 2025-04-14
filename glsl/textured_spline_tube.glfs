@@ -53,6 +53,7 @@ vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
 	in float depth, in float specular_factor
 );
+vec4 otv_shade_playback_cursor (in float u_pos, in float u_width, in vec2 uv, in vec4 pre_shaded_color);
 // *** end of interface of otv_shading.glsl *******************************
 
 struct TubeNode {
@@ -92,6 +93,7 @@ uniform float radius_scale;
 uniform vec3 cyclopic_eye;
 uniform vec4 viewport;
 uniform float max_t;
+uniform float playback_t=POS_INF;
 uniform float cap_clip_distance;
 
 uniform vec3 gamma3 = vec3(2.2);
@@ -950,6 +952,7 @@ void main()
 #endif
 
 	// determine tmax threshold within this segment's parameter space
+	const float l_playback = (playback_t - n0_t)/(n1_t - n0_t);
 	const float l_max_cubic = (max_t - n0_t)/(n1_t - n0_t);
 	const float l_max = l_offset_fs > 0.0 ? 2*(l_max_cubic - 0.5) : l_max_cubic + l_max_cubic;
 	Hit hit = EvalSplineISect(direction,
@@ -1016,10 +1019,12 @@ void main()
 
 		//frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(col)), spline_t, v, intBitsToFloat(segment_id_fs));
 #if FORWARD_SHADING == 1
+		float u = alen(spline_t);
 		col.rgb = otv_shade_fragment(
-			col.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(alen(spline_t), spline_t>=l_max_cubic ? 2.193f : v),
+			col.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(u, spline_t>=l_max_cubic ? 2.193f : v),
 			segment_id_fs, hit.hp.xyz, hit.normal, tangent, gl_FragDepth, /*specular_factor: */1
 		).rgb;
+		col = otv_shade_playback_cursor(alen(l_playback), .125*n0.pos_rad.w, vec2(u,v), col);
 		color_out = vec4(pow(col.rgb, 1.0/gamma3), col.a);
 #else
 		frag_albedo = uvec4(

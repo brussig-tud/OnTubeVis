@@ -247,7 +247,7 @@ void otv_client::commit_session (void)
 {
 	// Transition out of setup state
 	OTV_VisSetupHandle setup = session.finish_setup();
-	otv__extrapol_progression(setup, OTV_ExtrapolProgression::Natural); // <- we force this for now
+	otv__extrapol_progression(setup, OTV_ExtrapolProgression::Instant); // <- we force this for now
 
 	// Add trajectories to setup
 	for (unsigned i=0; i<trajectories.size(); i++) {

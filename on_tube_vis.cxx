@@ -1190,6 +1190,8 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 	session_starting = false;
 	session_active = true;
 	session_first_node = true;
+	playback.active = true;          // TODO: needed to advance the time cursor even when instant extrapolation display
+	update_member(&playback.active); //       is configured to be instant
 }
 
 
@@ -1586,6 +1588,7 @@ void on_tube_vis::on_set(void* member_ptr)
 		/*client.playback_t =
 			client.playback_t >= (float)playback.tend ? (float)playback.tstart : client.playback_t;*/
 		render.style.max_t = client.use_natural_progression ? client.playback_t : render.style.max_t;
+		tube_shading.playback_t = client.use_natural_progression ? tube_shading.playback_t : client.playback_t;
 		const auto& ds = traj_mgr.dataset(0);
 		const auto& pos = ds.positions();
 		const auto& traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
@@ -2638,7 +2641,9 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	}
 
 	// Handle extrapolations.
-	client.extrapol_mgr.update();
+	client.extrapol_mgr.update(
+		client.use_natural_progression ? std::numeric_limits<float>::infinity() : client.playback_t
+	);
 
 	if(benchmark.requested) {
 		if(!misc_cfg.instant_redraw_proxy) {

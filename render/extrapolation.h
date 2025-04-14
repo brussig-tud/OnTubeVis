@@ -314,7 +314,7 @@ struct extrapolation_manager
 	bool update_needed (void) const;
 
 	/// Update internal state required for rendering, e.g. to update animations.
-	void update (void);
+	void update (const float playback_t);
 
 	/// Draw the managed extrapolations in their current state.
 	void draw_extrapolations (cgv::render::context &ctx, const cgv::vec3 &eye_pos);

@@ -867,7 +867,8 @@ bool extrapolation_manager::update_needed (void) const {
 	return state.update_needed;
 }
 
-void extrapolation_manager::update (void) {
+void extrapolation_manager::update (const float playback_t) {
+	render.tube_shading.playback_t = playback_t;
 	state.update_needed = false;
 }
 

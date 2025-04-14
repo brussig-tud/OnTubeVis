@@ -89,6 +89,9 @@ void tube_shading_settings::set_uniforms (
 	for(const auto& p : glyph_layers_config.mapping_parameters)
 		prog.set_uniform(ctx, p.first, *p.second);
 
+	// set playback cursor position
+	prog.set_uniform(ctx, "playback_t", playback_t);
+
 	// map global settings
 	prog.set_uniform(
 		ctx, "use_curvature_correction", (
