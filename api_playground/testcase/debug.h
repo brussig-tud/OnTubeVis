@@ -46,7 +46,7 @@ auto debug_setup (void)
 	return OTVConfiguration(
 		"debug", 3, 0.5f, 3, OTV_ExtrapolProgression::Instant,
 		SurfaceColorLayer(Rainbow, Linear),
-		CircleLayer(.03125f, otv__Rgb(1,0,1)),
+		CircleLayer(.03125f, Acton),
 		IsoscelesTriangleLayer(
 			.03125f, otv__Rgb(1,0,1), layer::WidthProperty{0.75},
 			layer::HeightProperty{1.25f}/*, layer::OrientationProperty{157.5}*/
@@ -112,6 +112,52 @@ void debug_run (const DebugConfig &config)
 		);
 	}
 	stream::GlyphsStreamer t1l0_stream(t1l0, 1, 0);
+
+	// Isosceles Triangle layer
+	stream::Glyphs t1l1;
+	/* 1st segment */ {
+		const auto &seg = traj1.segment(0);
+		float time = .125f;
+		t1l1.add(
+			time,
+			otv__construct_CircleData(seg.s_from_time(time), 0, .5f)
+			);
+		time = 0.95f;
+		t1l1.add(
+			time,
+			otv__construct_CircleData(seg.s_from_time(time), .25f, .75f)
+		);
+	}
+	/* 2nd segment */ {
+		const auto &seg = traj1.segment(1);
+		float time = 4/3.f;
+		t1l1.add(
+			time,
+			otv__construct_CircleData(seg.s_from_time(time), .5f, 0.9f)
+			);
+		time = 1.99f;
+		t1l1.add(
+			time,
+			otv__construct_CircleData(seg.s_from_time(time), .75f, 2/3.f)
+		);
+	}
+	/* 3rd segment */ {
+		const auto &seg = traj1.segment(/*2*/1).extrapol(0);
+		float time = 2.75f;
+		t1l1.add(
+			time,
+			otv__construct_CircleData(seg.s_from_time(time), 1, 1/3.f)
+			);
+	}
+	/* beyond traj */ {
+		const auto &seg = traj1.segment(/*2*/1).extrapol(/*0*/1);
+		float time = 3 + 1/3.f;
+		t1l1.add(
+			time,
+			otv__construct_CircleData(seg.s_from_time(time), .5f, .5f)
+		);
+	}
+	stream::GlyphsStreamer t1l1_stream(t1l1, 1, 2);
 
 	// Isosceles Triangle layer
 	stream::Glyphs t1l2;
@@ -199,6 +245,7 @@ void debug_run (const DebugConfig &config)
 	// Build event stream
 	data.set_node_stream(1, std::move(traj1));
 	data.set_glyph_stream(1, 0, std::move(t1l0));
+	data.set_glyph_stream(1, 1, std::move(t1l1));
 	data.set_glyph_stream(1, 2, std::move(t1l2));
 	const auto event_stream = stream::EventSequence::compile(data);
 
