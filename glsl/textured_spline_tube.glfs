@@ -53,7 +53,9 @@ vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
 	in float depth, in float specular_factor
 );
-vec4 otv_shade_playback_cursor (in float u_pos, in float u_width, in vec2 uv, in vec4 pre_shaded_color);
+vec4 otv_shade_cursor (
+	in float u_pos, in float u_half_width, in vec2 uv, in vec4 cursor_color, in vec4 pre_shaded_color
+);
 // *** end of interface of otv_shading.glsl *******************************
 
 struct TubeNode {
@@ -967,7 +969,7 @@ void main()
 #endif
 
 	float spline_t = hit.l * 0.5 + l_offset_fs;
-	hit.cap = hit.cap && abs(dot(qtangent, hit.normal)) > CAPPINESS_THR;
+	float cappiness = hit.cap ? abs(dot(qtangent, hit.normal)) : 0;// > CAPPINESS_THR;
 	//const bool is_last_seg = seg_to_traj[segment_id_fs].y == -1;
 	#if FORWARD_SHADING == 1
  		if (hit.cap && spline_t<l_max_cubic)
@@ -1024,7 +1026,8 @@ void main()
 			col.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(u, spline_t>=l_max_cubic ? 2.193f : v),
 			segment_id_fs, hit.hp.xyz, hit.normal, tangent, gl_FragDepth, /*specular_factor: */1
 		).rgb;
-		col = otv_shade_playback_cursor(alen(l_playback), .125*n0.pos_rad.w, vec2(u,v), col);
+		if (l_playback < POS_INF)
+			col = otv_shade_cursor(alen(l_playback), .125*n0.pos_rad.w, vec2(u,v), vec4(1,0,1,1), col);
 		color_out = vec4(pow(col.rgb, 1.0/gamma3), col.a);
 #else
 		frag_albedo = uvec4(

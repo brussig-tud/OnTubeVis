@@ -1628,9 +1628,27 @@ vec4 otv_shade_fragment (
 	return subp_color;
 }
 
-vec4 otv_shade_playback_cursor (in float u_pos, in float u_width, in vec2 uv, in vec4 pre_shaded_color) {
-	float dist = length(u_pos - uv.s);
-	if (dist < u_width)
-	return vec4(1,0,1,1);
-	return pre_shaded_color;
+vec4 otv_shade_cursor (
+	in float u_pos, in float u_half_width, in vec2 uv, in vec4 cursor_color, in vec4 pre_shaded_color
+){
+	// Constants
+	#define CURSOR_TRAIL_LENGTH 7.5
+	#define CURSOR_TRAIL_SHADING_OFFSET 3.5
+
+	// Evaluate anti-aliased cursor SDF
+	const float sdf = abs(u_pos-uv.s) - u_half_width;
+	const float antialias_width = antialias_radius*fwidth(sdf);
+	const float x_aa = smoothstep(-antialias_width, antialias_width, sdf); // pre-filtering
+
+	// Shade leading part
+	if (uv.s > u_pos)
+		return mix(cursor_color, pre_shaded_color, x_aa);
+
+	// Shade trailing part
+	const float x_trail = clamp(
+		  (uv.s - /* u_min: */u_pos+CURSOR_TRAIL_LENGTH*u_half_width)
+		/ ((CURSOR_TRAIL_LENGTH+CURSOR_TRAIL_SHADING_OFFSET) * u_half_width),
+		0, 1
+	);
+	return mix(cursor_color, mix(pre_shaded_color, cursor_color, x_trail), x_aa);
 }

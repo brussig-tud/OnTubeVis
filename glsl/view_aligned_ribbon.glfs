@@ -228,7 +228,9 @@ vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
 	in float depth, in float specular_factor
 );
-vec4 otv_shade_playback_cursor (in float u_pos, in float u_width, in vec2 uv, in vec4 pre_shaded_color);
+vec4 otv_shade_cursor (
+	in float u_pos, in float u_half_width, in vec2 uv, in vec4 cursor_color, in vec4 pre_shaded_color
+);
 // *** end of interface of otv_shading.glsl *******************************
 
 
@@ -600,6 +602,7 @@ void main()
 	// Init stack
 	// - retrieve segment curve data
 	uvec2 nids = node_ids[segment_id_fs];
+	float ref_rad;
 	#if ATTRIB_MODE > 0
 		#if ATTRIB_MODE & 2
 			// Re-declare the two color values since we don't have them as attribute inputs
@@ -611,6 +614,7 @@ void main()
 			// Fetch nodes from attribute buffers
 			node_data_type n0 = nodes[nids.x], n1 = nodes[nids.y];
 			n0_t=n0.t.x; n1_t=n1.t.x;
+			ref_rad = n0.pos_rad.w;
 
 			// Transform to eye-space, split and put onto stack as root task directly, without creating and converting from a
 			// Hermite curve first
@@ -650,6 +654,7 @@ void main()
 		stack[0].curve = mat4x3(curve_fs);
 		stack[0].radius = vec4(curve_fs[0].w, curve_fs[1].w, curve_fs[2].w, curve_fs[3].w);
 		float n0_t=nodes[nids.x].t.x, n1_t=nodes[nids.y].t.x;
+		ref_rad = nodes[nids.x].pos_rad.w;
 	#endif
 	// - if applicable, immediatly transform according to chosen constant bbox coordinate system
 	#if BBOX_COORD_SYSTEM!=1
@@ -915,7 +920,8 @@ void main()
 				color.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(u, v), segment_id_fs,  pos_eye.xyz,
 				normal, tangent, gl_FragDepth, /*specular_factor: */1
 			).rgb;
-			col = otv_shade_playback_cursor(alen(t_playback), .125*n0.pos_rad.w, vec2(u,v), col);
+			if (t_playback < POS_INF)
+				color = otv_shade_cursor(alen(t_playback), .125*ref_rad, vec2(u,v), vec4(1,0,1,1), color);
 			color_out = vec4(pow(color.rgb, 1.0/gamma3), color.a);
 		#else
 			frag_albedo = uvec4(

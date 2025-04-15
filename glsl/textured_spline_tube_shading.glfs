@@ -1,5 +1,6 @@
 #version 440
 #define M_PI 3.14159265359
+#define POS_INF 3e+37
 
 #define DEBUG_SEGMENTS 0
 
@@ -44,6 +45,9 @@ vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
 	in float depth, in float specular_factor
 );
+vec4 otv_shade_cursor (
+	in float u_pos, in float u_half_width, in vec2 uv, in vec4 cursor_color, in vec4 pre_shaded_color
+);
 // *** end of interface of otv_shading.glsl *******************************
 
 
@@ -53,6 +57,34 @@ layout (binding = 2) uniform sampler2D normal_tex;
 layout (binding = 3) uniform sampler2D tangent_tex;
 layout (binding = 4) uniform sampler2D depth_tex;
 
+
+////
+// --- BEGIN: trajectory geometry - we only really need this to shade the time cursor ---------------------------------
+/*struct node_data_type {
+	vec4 pos_rad;
+	vec4 color;
+	vec4 tangent;
+	vec4 t; // only uses .x component to store t, yzw are reserved for future use
+};
+
+// node attribute buffer
+layout(std430, binding = 0) readonly buffer data_buffer {
+	node_data_type nodes[];
+};
+
+// arclen approximations SBO
+layout (std430, binding = 1) readonly buffer arclen_buffer {
+	mat4 b[]; // 4 cubic beziers packed into columns of mat4
+};
+
+// node index pair buffer
+layout(std430, binding = 2) readonly buffer nid_buffer {
+	uvec2 node_ids[];
+};*/
+// --- END: trajectory geometry ---------------------------------------------------------------------------------------
+////
+
+
 // general rendering parameters
 uniform vec3 gamma3 = vec3(2.2);
 
@@ -61,11 +93,36 @@ uniform bool  holographic_raycast;
 uniform float viewport_width;
 uniform float framebuf_width;
 
+// time cursor for streaming vis
+uniform float playback_t=POS_INF;
+
 in vec2 texcoord_fs;
 
 out vec4 frag_color;
 
 
+/*// arclength evaluation
+float eval_cubic_bezier(float t, vec4 cp)
+{
+	const vec4 monomials = vec4(1.0, t, t*t, t*t*t);
+	const mat4 Mc = mat4(
+	1, -3,  3, -1,
+	0,  3, -6,  3,
+	0,  0,  3, -3,
+	0,  0,  0,  1
+	);
+	return dot(monomials, Mc * cp);
+}
+float alen (in uint segid, in float t)
+{
+	const float t4 = t+t+t+t;
+	const int seg = max(int(min(t4, 3)), 0);
+	const float t_inner = t4 - seg;
+	return eval_cubic_bezier(t_inner, b[segid][seg]);
+}*/
+
+
+// shader entry point
 void main()
 {
 	const uint num_subpixels = holographic_raycast ? 3 : 1;
@@ -92,6 +149,15 @@ void main()
 	vec2 texcoord = vec2(uintBitsToFloat(albedo_texcoord_seg.y), uintBitsToFloat(albedo_texcoord_seg.z));
 	int segment_id = int(albedo_texcoord_seg.w); // "guaranteed to preserve the bit pattern"
 
+	/*// extract cap-ness
+	bool not_cap;
+	if (texcoord.t > 8) {
+		texcoord.t -= 10;
+		not_cap = false;
+	}
+	else
+		not_cap = true;*/
+
 	vec3 pos_eye = texture(position_tex, fb_uv).xyz;
 	vec3 normal_eye = texture(normal_tex, fb_uv).xyz;
 	vec3 tangent_eye = texture(tangent_tex, fb_uv).xyz;
@@ -103,9 +169,21 @@ void main()
 		// TODO: these fragments are never drawn to the screen (because depth is one)
 		subp_color = vec4(vec3(0.0), 1.0);
 	} else {
+		// Shade tube surface (-> on-tube visualizations)
 		subp_color = otv_shade_fragment(
 			color, texcoord, segment_id, pos_eye, normal_eye, tangent_eye, depth, specular_factor
 		);
+
+		/*// Shade the time cursor
+		// - retrieve required geometry information
+		const node_data_type n0 = nodes[node_ids[segment_id].x];
+		const node_data_type n1 = nodes[node_ids[segment_id].y];
+		// - determine cursor position and shade
+		const float t_playback = (playback_t - n0.t.x) / (n1.t.x - n0.t.x);
+		//if (not_cap)
+			subp_color = otv_shade_cursor(
+				alen(segment_id, t_playback), .125*n0.pos_rad.w, texcoord, vec4(1,0,1,1), subp_color
+			);*/
 	}
 
 	subp_color.rgb = pow(subp_color.rgb, 1.0/gamma3);

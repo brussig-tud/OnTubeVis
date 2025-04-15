@@ -1585,8 +1585,6 @@ void on_tube_vis::on_set(void* member_ptr)
 	// playback controls
 	if(m.is(playback.active) && playback.active) {
 		playback.timer.add_time();
-		/*client.playback_t =
-			client.playback_t >= (float)playback.tend ? (float)playback.tstart : client.playback_t;*/
 		render.style.max_t = client.use_natural_progression ? client.playback_t : render.style.max_t;
 		tube_shading.playback_t = client.use_natural_progression ? tube_shading.playback_t : client.playback_t;
 		const auto& ds = traj_mgr.dataset(0);
@@ -2615,10 +2613,13 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 				update_member(&playback.active);
 			}
 		}
+		tube_shading.playback_t = client.playback_t;
+
 		if (client.use_natural_progression) {
 			render.style.max_t = client.playback_t;
 			update_member(&render.style.max_t);
 		}
+
 		if (playback.follow && playback.active)
 		{
 			const auto &ds = traj_mgr.dataset(0);
@@ -3655,8 +3656,13 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			density_tex.enable(ctx, 5);
 		color_map_mgr.ref_texture().enable(ctx, 6);
 
-		// bind seg-to-traj buffer
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, render.seg_to_traj.as_span().handle());
+		// bind geometry buffers we also need during shading
+		glBindBufferBase/*sBase*/(GL_SHADER_STORAGE_BUFFER, 0, /*4, std::array{
+			render.node_buffer.as_span().handle(),
+			render.t_to_s.handle(),
+			gl::get_gl_id(node_idx_buffer_ptr->handle),
+			*/render.seg_to_traj.as_span().handle()/*
+		}.data()*/);
 
 		// bind range attribute SBOs of active glyph layers
 		bool active_sbos[4] = { false, false, false, false };

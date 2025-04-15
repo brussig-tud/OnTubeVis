@@ -13,7 +13,6 @@
 
 // C++ STL
 #include <iostream>
-#include <thread>
 #define _M_PI 3.14159265358979323846fM_PI
 #define M_PI _M_PI
 
@@ -81,7 +80,7 @@ int main (int argc, char** argv)
 	// Execute a test case
 
 	// Collect test configuration
-	auto config = testcase::/*nominal_setup*/debug_setup();
+	auto config = testcase::nominal_setup/*debug_setup*/();
 
 	// Set up visualization
 	VisSetup setup(otv__create_VisSetup(config.name.c_str()));
@@ -96,7 +95,7 @@ int main (int argc, char** argv)
 	}
 
 	// Run the test case
-	testcase::/*nominal_run*/debug_run(config);
+	testcase::nominal_run/*debug_run*/(config);
 
 
 	////
