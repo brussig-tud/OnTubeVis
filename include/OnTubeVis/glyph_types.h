@@ -340,7 +340,7 @@ typedef struct OTV_CircleInfo
 	/// @brief The selected color map to query colors from if no static color is used.
 	OTV_ColorMap color_map;
 
-	/// The @a radius of the circle in multiples of half the tube radius, in case a static radius is to be used.
+	/// The @a radius of the circle in multiples of the tube/ribbon radius, in case a static value is to be used.
 	float radius;
 
 	/// @brief Which of the dynamic glyph properties should statically assume the values defined in this info struct.
@@ -372,7 +372,7 @@ typedef struct OTV_CircleData
 	 */
 	float color;
 
-	/// The @a radius of the circle in multiples of half the tube radius, in case a dynamic radius is to be used.
+	/// The @a radius of the circle in multiples of the tube/ribbon radius, in case a dynamic value is to be used.
 	float radius;
 } OTV_CircleData;
 
