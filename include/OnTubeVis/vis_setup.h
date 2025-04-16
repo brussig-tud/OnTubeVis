@@ -49,7 +49,7 @@ typedef OTV_VisSetup *OTV_VisSetupHandle;
 /**
  * @brief The enumeration of time progression modes for the display of trajectory extrapolations.
  *
- * @see otv__set_extrapol_progression()
+ * @see otv__extrapol_progression()
  */
 typedef enum OTV_ExtrapolProgression
 {
@@ -219,7 +219,7 @@ extern otv__geo_reference_funct otv__geo_reference;
  * @brief
  *		Set the amount of Hermite spline segments that should be used for smooth extrapolation of the trajectory while
  *		waiting for new @link otv__stream_spline_node_and_extrapol spline nodes @endlink to arrive. Setting this to 0
- *		disables extrapolation display entirely.
+ *		(the default) disables extrapolation display entirely.
  *
  * In the time between submission of spline nodes, which can (and ideally should) be streamed relatively infrequent
  * (≤ 1/s) to utilize the expressiveness of cubic curves, an extrapolation can be displayed. This enables @a (a) smooth,
@@ -231,12 +231,8 @@ extern otv__geo_reference_funct otv__geo_reference;
  * and submitted to the API. Depending on the sophistication that clients want in their prediction, the number of
  * extrapolated segments can be adjusted to account for more complex paths.
  *
- * When a new measurement arrives, implementations are expected to subdivide the current segment of the extrapolation at
- * the exact time of the measurement, and smoothly morph the resulting set of extrapolated segments onto the actually
- * measured new segment. Exactly how this happens is up to the implementation.
- *
  * @param vis_setup The visualization setup to set the extrapolation length for.
- * @param num_segments The desired length of the trajectory extrapolations, in segments.
+ * @param num_segments The desired length of the trajectory extrapolations, in segments (default: 0).:
  */
 OTV_API void otv__extrapolation_length (OTV_VisSetupHandle vis_setup, const uint32_t num_segments);
 #endif
