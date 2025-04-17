@@ -4,6 +4,12 @@
 #include <bitset>
 #include <optional>
 
+// CGV framework
+#include <cgv/render/context.h>
+
+// CGV framework OpenGL library
+#include "libs/cgv_gl/gl/gl_time_query.h"
+
 // CGV framework GPU algorithms
 #include <cgv_gpgpu/visibility_sort.h>
 
@@ -30,7 +36,15 @@ struct on_tube_visualization {
 
 struct render_state
 {
-public:
+	/// Duration type used for nanosecond timings.
+	typedef std::chrono::duration<double, std::nano> duration_ns;
+
+	/// Duration type used for microsecond timings.
+	typedef std::chrono::duration<double, std::micro> duration_us;
+
+	/// Duration type used for millisecond timings.
+	typedef std::chrono::duration<double, std::milli> duration_ms;
+
 	/// GPU data required to render a glyph layer.
 	struct glyph_layer {
 		/// The range of glyphs on each segment, relative to the base index of the trajectory's
@@ -43,6 +57,37 @@ public:
 		/// capacity then has to be one less.
 		gpumem::memory_pool<> attribs {};
 	};
+
+	/// helper struct for statistics collection
+	struct stats_struct
+	{
+		stats_collector<duration_ms> node_commit_times;
+		stats_collector<duration_ms> glyph_commit_times;
+		stats_collector<duration_ms> traj_trim_times;
+		stats_collector<duration_ms> buffer_flush_times;
+
+		/// Convenience method to trigger processing for all collected statistics at once.
+		void process (void) {
+			/*node_commit_times.process();
+			glyph_commit_times.process();
+			traj_trim_times.process();*/
+			buffer_flush_times.process();
+		}
+
+		/// Convenience method for printing out the collacted stats (@ref #process() should have already been called).
+		void print (std::ostream &os) const
+		{
+			os << std::endl << ">>> RENDER STATS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" << std::endl
+			   << "-- Timings ------------------------------" << std::endl;
+			/*node_commit_times.print(os, "node_commit_times");
+			glyph_commit_times.print(os, "glyph_commit_times");
+			traj_trim_times.print(os, "traj_trim_times");*/
+			buffer_flush_times.print(os, "buffer_flush_times");
+			/*os << std::endl << "-- Counters -----------------------------" << std::endl;
+			os << "       num_updates: "<<num_updates << "\n";*/
+			os << std::endl << "<<< \\END RENDER STATS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" << std::endl;
+		}
+	} stats;
 
 	/// render style for the textured spline tubes
 	cgv::render::textured_spline_tube_render_style style;
@@ -94,23 +139,23 @@ public:
 	/// Stores which glyph layers are updated and rendered.
 	std::bitset<max_glyph_layers> active_glyph_layers = 0;
 
+	/// GPU timer object for benchmarking
+	cgv::render::gl::gl_time_query flush_time_query, render_time_query;
+
 
 	/// Create, register and return an empty trajectory.
-	trajectory& add_trajectory()
-	{
+	trajectory& add_trajectory() {
 		trajectories.push_back({static_cast<trajectory::id_type>(trajectories.size()), *this});
 		return trajectories.back();
 	}
 
 	/// Return the trajectory with a given ID, or `nullptr` if the ID is not in use.
-	[[nodiscard]] trajectory *try_get_trajectory(trajectory::id_type id)
-	{
+	[[nodiscard]] trajectory *try_get_trajectory(trajectory::id_type id) {
 		return id < trajectories.size() ? &trajectories[id] : nullptr;
 	}
 
 	/// Implements `otv__stream_spline_node`.
-	void enqueue_node (trajectory::id_type trajectory, const node_attribs &node, const cgv::mat4 *t_to_s)
-	{
+	void enqueue_node (trajectory::id_type trajectory, const node_attribs &node, const cgv::mat4 *t_to_s) {
 		_node_queue.push_back({node, t_to_s ? *t_to_s : cgv::mat4{}, trajectory});
 	}
 
@@ -135,6 +180,7 @@ public:
 	/// Allocate memory for rendering up to `max_nodes` trajectory nodes, while adding up to
 	/// `reserve_nodes` new ones each frame.
 	[[nodiscard]] bool create_geom_buffers (
+		cgv::render::context &ctx,
 		gpumem::size_type max_nodes,
 		gpumem::size_type reserve_nodes
 	);
@@ -220,7 +266,7 @@ private:
 	std::unique_ptr<gpumem::index_type[]> _next_segment;
 
 	/// Fill the GPU buffer with nodes from the queue, creating segments where applicable.
-	void append_nodes ();
+	bool append_nodes ();
 
 	/// Logically delete old nodes until the render buffer has capacity for at least `reserve_nodes`
 	/// new nodes as well as any nodes that could not be added this frame.

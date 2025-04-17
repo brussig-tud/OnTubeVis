@@ -115,15 +115,15 @@ float trajectory::arclength (void) const {
 	return _last_segment_idx != nil ? *_render.t_to_s[_last_segment_idx].end() : 0;
 }
 
-
-void trajectory::update_glyphs ()
+bool trajectory::update_glyphs ()
 {
 	// Nothing to do if no layers changed.
 	if (_needs_glyph_update == 0) {
-		return;
+		return false;
 	}
 
 	const auto self = this;
+	bool did_something = false;
 	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer)
 	{
 		#ifndef NDEBUG
@@ -136,6 +136,7 @@ void trajectory::update_glyphs ()
 			return;
 		}
 		auto &layer {_layers[layer_idx]};
+		did_something |= true;
 
 		// Check whether the GPU buffer can fit all glyphs in the read buffer.
 		auto const capacity {layer.glyph_attribs.free_capacity()};
@@ -271,6 +272,9 @@ void trajectory::update_glyphs ()
 			_needs_glyph_update ^= 1 << layer_idx;
 		}
 	});
+
+	// Done!
+	return did_something;
 }
 
 void trajectory::on_delete_segment (gpumem::index_type seg_idx)

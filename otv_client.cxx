@@ -593,16 +593,16 @@ void otv_client::update ()
 
 	// Flush changes to extrapolation
 	const bool extrapol_flush_result = extrapol_mgr.flush_changes();
-	const extrapolation_manager::duration_ms overall_update_ms(sw.get_elapsed_time()*1000);
+	const extrapolation_manager::duration_ms full_update_ms(sw.get_elapsed_time()*1000);
 	#if DEBUG_OUTPUT
 		std::clog << "otv_client::update(): flushing extrapolations - "<<(extrapol_flush_result ? "OK\n":"FAILURE\n")
-		          << "otv_client::update(): took "<<overall_update_ms.count()<<"ms\n";
+		          << "otv_client::update(): took "<<full_update_ms.count()<<"ms\n";
 	#endif
 
 	// Update stats
 	if (streamed_something) {
 		++stats.num_updates;
-		stats.overall_updates.add_measurement(overall_update_ms);
+		stats.full_update_times.add_measurement(full_update_ms);
 		stats.nodes_per_update.add_measurement((float)num_nodes_pushed);
 		stats.glyphs_per_update.add_measurement((float)num_glyphs_pushed);
 	}

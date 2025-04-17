@@ -147,15 +147,16 @@ struct otv_client
 	} session;
 
 	/// helper struct for statistics collection
-	struct stats_struct {
+	struct stats_struct
+	{
 		unsigned num_updates = 0;
-		stats_collector<extrapolation_manager::duration_ms> overall_updates;
+		stats_collector<extrapolation_manager::duration_ms> full_update_times;
 		stats_collector<float> nodes_per_update;
 		stats_collector<float> glyphs_per_update;
 
 		/// Convenience method to trigger processing for all collected statistics at once.
 		void process (void) {
-			overall_updates.process();
+			full_update_times.process();
 			nodes_per_update.process();
 			glyphs_per_update.process();
 		}
@@ -165,7 +166,7 @@ struct otv_client
 		{
 			os << std::endl << ">>> CLIENT STATS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" << std::endl
 			   << "-- Timings ------------------------------" << std::endl;
-			overall_updates.print(os, "frame_update_time");
+			full_update_times.print(os, "full_update_time");
 			nodes_per_update.print(os, "nodes_per_update");
 			glyphs_per_update.print(os, "glyphs_per_update");
 			os << std::endl << "-- Counters -----------------------------" << std::endl;

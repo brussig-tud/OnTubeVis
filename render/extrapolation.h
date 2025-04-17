@@ -213,7 +213,7 @@ struct extrapolation_manager
 		cgv::gpgpu::visibility_sort sorter;
 
 		/// The first time query object for benchmarking.
-		cgv::render::gl::gl_time_query time_query;
+		cgv::render::gl::gl_time_query sort_time_query, draw_time_query, flush_time_query;
 
 		/// OpenGL fence object to sync buffer flushes with rendering
 		//GLsync draw_fence = nullptr;
@@ -246,7 +246,7 @@ struct extrapolation_manager
 		unsigned num_glyphs_comitted = 0;
 
 		/// Segment sorting timings.
-		stats_collector<duration_ms> sort_times, draw_times, render_times, replace_times, push_times;
+		stats_collector<duration_ms> sort_times, draw_times, render_times, flush_times, replace_times, push_times;
 
 		/// Reset all counters to 0.
 		void reset (void) {
@@ -260,6 +260,7 @@ struct extrapolation_manager
 			sort_times.process();
 			draw_times.process();
 			render_times.process();
+			flush_times.process();
 			replace_times.process();
 			push_times.process();
 		}
@@ -272,6 +273,7 @@ struct extrapolation_manager
 			sort_times.print(os, "segment_sort");
 			draw_times.print(os, "segment_draw");
 			render_times.print(os, "total_render");
+			flush_times.print(os, "buffer_flush_times");
 			replace_times.print(os, "replace");
 			push_times.print(os, "glyph_push");
 			os << std::endl << "-- Counters -----------------------------" << std::endl;

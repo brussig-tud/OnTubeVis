@@ -110,8 +110,9 @@ public:
 		queue.push_back(glyphs);
 	}
 
-	/// Add newly visible glyph attibutes from the host queue to the render buffer.
-	void update_glyphs ();
+	/// Add newly visible glyph attibutes from the host queue to the render buffer. Returns @c true if it actually did
+	/// something.
+	bool update_glyphs ();
 
 	/// Must be called when a node belonging to this trajectory is removed from the render buffer.
 	void on_delete_node (gpumem::index_type node_idx) noexcept

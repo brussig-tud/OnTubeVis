@@ -9,7 +9,11 @@ namespace otv {
 void render_state::update ()
 {
 	// Upload nodes from the host queue to the render buffer.
-	append_nodes();
+	bool flushing_something = append_nodes();
+
+	// Upload glyphs from the host queue to the render buffer.
+	for (auto &trajectory : trajectories)
+		flushing_something |= trajectory.update_glyphs();
 
 	// Logically delete old nodes from the render buffer.
 	// Since old data may still be in use by a draw call, it cannot be overwritten yet.
@@ -17,23 +21,26 @@ void render_state::update ()
 
 	auto new_segments = segment_buffer.flush_range();
 
+	// Flush geometry buffers
+	flush_time_query.begin();
 	std::ignore = node_buffer.flush();
 	std::ignore = segment_buffer.flush();
 	std::ignore = seg_to_traj.flush_wrapping(new_segments);
 	std::ignore = t_to_s.flush_wrapping(new_segments);
 
+	// Flush glyph buffers
 	for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
 		std::ignore = layer.ranges.flush_wrapping(new_segments);
 	});
-
-	// Upload glyphs from the host queue to the render buffer.
 	for (auto &trajectory : trajectories) {
-		trajectory.update_glyphs();
 		std::ignore = trajectory.flush_glyph_attribs();
 	}
+	auto time_ns = duration_ns(flush_time_query.end());
+	if (flushing_something)
+		stats.buffer_flush_times.add_measurement(std::chrono::duration_cast<duration_ms>(time_ns));
 }
 
-void render_state::append_nodes ()
+bool render_state::append_nodes ()
 {
 	// During the previous frame, `trim_trajectories` should have freed the configured amount of
 	// capacity.
@@ -55,9 +62,10 @@ void render_state::append_nodes ()
 	}
 
 	// Push nodes to the GPU buffer, creating segments where applicable.
-	for (const auto &node : _node_queue) {
+	bool did_something = false;
+	/*for (const auto &node : _node_queue) {
 		try_get_trajectory(node.trajectory)->append_node(node.node, &node.t_to_s);
-	}
+	}*/
 
 	// All nodes in the backlog have been processed, remove them from the queue and swap buffers.
 	_node_queue.flush();
@@ -72,7 +80,10 @@ void render_state::append_nodes ()
 	for (auto node {_node_queue.begin()}; node != end; ++node) {
 		try_get_trajectory(node->trajectory)->append_node(node->node, &node->t_to_s);
 		_node_queue.pop();
+		did_something = true;
 	}
+
+	return did_something;
 }
 
 void render_state::trim_trajectories ()
@@ -130,8 +141,15 @@ void render_state::trim_trajectories ()
 	}
 }
 
-bool render_state::create_geom_buffers (gpumem::size_type max_nodes, gpumem::size_type reserve_nodes)
-{
+bool render_state::create_geom_buffers (
+	cgv::render::context &ctx, gpumem::size_type max_nodes, gpumem::size_type reserve_nodes
+){
+	// Make sure the timer objects are created
+	if (!flush_time_query.is_initialized())
+		flush_time_query.init(ctx);
+	if (!render_time_query.is_initialized())
+		render_time_query.init(ctx);
+
 	// Store desired margin.
 	this->reserve_nodes = reserve_nodes;
 

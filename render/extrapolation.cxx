@@ -96,8 +96,12 @@ bool extrapolation_manager::create_geom_buffers (
 	cgv::render::context &ctx, unsigned num_trajectories, unsigned num_segments
 ){
 	// Make sure the timer objects are created
-	if (!render.time_query.is_initialized())
-		render.time_query.init(ctx);
+	if (!render.sort_time_query.is_initialized())
+		render.sort_time_query.init(ctx);
+	if (!render.draw_time_query.is_initialized())
+		render.draw_time_query.init(ctx);
+	if (!render.flush_time_query.is_initialized())
+		render.flush_time_query.init(ctx);
 
 	// Make sure we don't leak resources when any single one of the steps fails
 	auto _ = finalizer([this] {
@@ -900,6 +904,7 @@ bool extrapolation_manager::flush_changes (void)
 
 	// Perform flushes
 	bool result = true;
+	render.flush_time_query.begin();
 	if (flush_nodes)
 		result &= geom.nodes_arena.flush_all();
 	if (flush_t_to_s)
@@ -909,6 +914,11 @@ bool extrapolation_manager::flush_changes (void)
 			result &= glyphs.ranges_arena[l].flush_all();
 		if (flush_glyphs[l])
 			result &= glyphs.glyph_attribs_arena[l].flush_all();
+	}
+	/* take flush time */ {
+		const auto time_ns = duration_ns(render.flush_time_query.end());
+		if (state.dirty_flags)
+			stats.flush_times.add_measurement(std::chrono::duration_cast<duration_ms>(time_ns));
 	}
 
 	// Update state
@@ -947,14 +957,14 @@ void extrapolation_manager::draw_extrapolations(
 	const auto node_id_buf = render.tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
 
 	// Sort segments back-to-front for (mostly) correct transparency
-	render.time_query.begin();
+	render.sort_time_query.begin();
 	render.sorter.execute(
 		ctx, geom.nodes_arena.as_vertex_buffer(), *geom.segment_idx_buf_ptr,
 		eye_pos, view_dir, node_id_buf
 	);
 	/* take sort time */ {
 		const auto time_ms = std::chrono::duration_cast<duration_ms>(
-			duration_ns(render.time_query.end())
+			duration_ns(render.sort_time_query.end())
 		);
 		stats.sort_times.add_measurement(time_ms);
 	}
@@ -983,11 +993,11 @@ void extrapolation_manager::draw_extrapolations(
 	);
 
 	// Draw
-	render.time_query.begin();
+	render.draw_time_query.begin();
 	render.tstr.render(ctx, 0, geom.node_indices.size());
 	/* take draw time */ {
 		const auto time_ms = std::chrono::duration_cast<duration_ms>(
-			duration_ns(render.time_query.end())
+			duration_ns(render.draw_time_query.end())
 		);
 		stats.draw_times.add_measurement(time_ms);
 	}
