@@ -150,10 +150,14 @@ struct otv_client
 	struct stats_struct {
 		unsigned num_updates = 0;
 		stats_collector<extrapolation_manager::duration_ms> overall_updates;
+		stats_collector<float> nodes_per_update;
+		stats_collector<float> glyphs_per_update;
 
 		/// Convenience method to trigger processing for all collected statistics at once.
 		void process (void) {
 			overall_updates.process();
+			nodes_per_update.process();
+			glyphs_per_update.process();
 		}
 
 		/// Convenience method for printing out the collacted stats (@ref #process() should have already been called).
@@ -161,7 +165,9 @@ struct otv_client
 		{
 			os << std::endl << ">>> CLIENT STATS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" << std::endl
 			   << "-- Timings ------------------------------" << std::endl;
-			overall_updates.print(os, "per_frame_update_time");
+			overall_updates.print(os, "frame_update_time");
+			nodes_per_update.print(os, "nodes_per_update");
+			glyphs_per_update.print(os, "glyphs_per_update");
 			os << std::endl << "-- Counters -----------------------------" << std::endl;
 			os << "       num_updates: "<<num_updates << "\n";
 			os << std::endl << "<<< \\END CLIENT STATS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" << std::endl;

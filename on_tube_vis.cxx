@@ -1771,14 +1771,14 @@ bool on_tube_vis::on_exit_request()
 		client.extrapol_mgr.stats.process();
 		client.extrapol_mgr.stats.print(std::clog);
 
-		// internal client
+		// restore output settings
+		std::clog.flags(flags_bak);
+
+		// internal client (will use default output settings)
 		if (!run_as_service) {
 			client.stats.process();
 			client.stats.print(std::clog);
 		}
-
-		// restore output settings
-		std::clog.flags(flags_bak);
 	}
 
 	// TODO: does not seem to fire when window is maximized?

@@ -5,6 +5,7 @@
 #include <ostream>
 #include <numeric>
 #include <algorithm>
+#include <chrono>
 #include <optional>
 
 
@@ -216,9 +217,19 @@ auto median_of_range (It begin, It end)
 
 /// A simple statistics collector.
 template <class Quantity>
-struct stats_collector {
+struct stats_collector
+{
+	typedef Quantity quantity_type;
 	std::vector<Quantity> measurements;
 	Quantity avg, median, min, max, lower_quartile, upper_quartile;
+
+	static inline double to_number (const Quantity &quantity) {
+		return (double)quantity;
+	}
+	static inline const std::string& quantity_unit (void) {
+		static const std::string unit = "";
+		return unit;
+	}
 
 	stats_collector(unsigned expected_num_measurements=86400 /* <- 144Hz sample rate for 10 minutes */) {
 		measurements.reserve(expected_num_measurements);
@@ -266,11 +277,48 @@ struct stats_collector {
 	void print (std::ostream &os, const std::string &label) const
 	{
 		os << '['<<label<<"]:\n"
-		   << "\tavg:    "<<avg.count()<< " ms\n"
-		   << "\tmin:    "<<min.count()<< " ms\n"
-		   << "\tmax:    "<<max.count()<< " ms\n"
-		   << "\tmedian: "<<median.count()<< " ms\n"
-		   << "\tQ_25:   "<<lower_quartile.count()<<" ms\n"
-		   << "\tQ_75:   "<<upper_quartile.count()<<" ms" << std::endl;
+		   << "\tavg:    "<<to_number(avg)<<' '<<quantity_unit() << "\n"
+		   << "\tmin:    "<<to_number(min)<<' '<<quantity_unit() << "\n"
+		   << "\tmax:    "<<to_number(max)<<' '<<quantity_unit() << "\n"
+		   << "\tmedian: "<<to_number(median)<<' '<<quantity_unit() << "\n"
+		   << "\tQ_25:   "<<to_number(lower_quartile)<<' '<<quantity_unit() << "\n"
+		   << "\tQ_75:   "<<to_number(upper_quartile)<<' '<<quantity_unit() << std::endl;
 	}
 };
+
+template<>
+inline double stats_collector<std::chrono::duration<double, std::nano>>::to_number(const quantity_type &quantity) {
+	return quantity.count();
+}
+template<>
+inline const std::string& stats_collector<std::chrono::duration<double, std::nano>>::quantity_unit(void) {
+	static const std::string unit = "ns";
+	return unit;
+}
+template<>
+inline double stats_collector<std::chrono::duration<double, std::micro>>::to_number(const quantity_type &quantity) {
+	return quantity.count();
+}
+template<>
+inline const std::string& stats_collector<std::chrono::duration<double, std::micro>>::quantity_unit(void) {
+	static const std::string unit = "µs";
+	return unit;
+}
+template<>
+inline double stats_collector<std::chrono::duration<double, std::milli>>::to_number(const quantity_type &quantity) {
+	return quantity.count();
+}
+template<>
+inline const std::string& stats_collector<std::chrono::duration<double, std::milli>>::quantity_unit(void) {
+	static const std::string unit = "ms";
+	return unit;
+}
+template<>
+inline double stats_collector<std::chrono::duration<double>>::to_number(const quantity_type &quantity) {
+	return quantity.count();
+}
+template<>
+inline const std::string& stats_collector<std::chrono::duration<double>>::quantity_unit(void) {
+	static const std::string unit = "s";
+	return unit;
+}

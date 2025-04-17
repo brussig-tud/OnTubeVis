@@ -506,12 +506,11 @@ void otv_client::precompute_extrapolations (void)
 
 void otv_client::update ()
 {
-	#define DEBUG_OUTPUT 1
-
 	// wait for the session to be ready if necessary (adds a very small constant overhead every update once the session
 	// actually is ready)
 	session.wait_init_ready();
 
+	#define DEBUG_OUTPUT 1
 	#if DEBUG_OUTPUT
 		cgv::utils::stopwatch sw(/* silent: */true);
 		std::clog << "otv_client::update(): starting update for t="<<playback_t<<"s\n";
@@ -519,6 +518,7 @@ void otv_client::update ()
 
 	// extend all trajectories based on the animation time, emulating streaming
 	bool streamed_something = false;
+	unsigned num_nodes_pushed = 0, num_glyphs_pushed = 0;
 	for (auto &traj : trajectories)
 	{
 		// traj init
@@ -531,6 +531,7 @@ void otv_client::update ()
 			const auto begin {cur_range.i0};
 			const auto end   {cur_range.end()};
 			const unsigned stride = target_traj.ref.glyph_to_attrib_count(layer_idx, glyph_count_type{1});
+			num_glyphs_pushed += cur_range.n.value;
 
 			// skip glyphs we already submitted when handling the previous segment
 			auto glyphs_attribs = ro_range {
@@ -574,8 +575,7 @@ void otv_client::update ()
 
 			// append a node, potentially creating a new segment
 			enqueue_node(target_traj, new_node, t_to_s, extrapols[node_idx]);
-
-			//render.for_each_active_glyph_layer(enqueue_glyphs);
+			++num_nodes_pushed;
 
 			if (t_to_s == nullptr) {
 				// submit first segment glyphs
@@ -603,6 +603,8 @@ void otv_client::update ()
 	if (streamed_something) {
 		++stats.num_updates;
 		stats.overall_updates.add_measurement(overall_update_ms);
+		stats.nodes_per_update.add_measurement((float)num_nodes_pushed);
+		stats.glyphs_per_update.add_measurement((float)num_glyphs_pushed);
 	}
 }
 void otv_client::enqueue_node (
