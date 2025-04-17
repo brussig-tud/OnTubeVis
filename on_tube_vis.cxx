@@ -1761,9 +1761,16 @@ void on_tube_vis::quit() {
 
 bool on_tube_vis::on_exit_request()
 {
+	// collect statistics
+	if (true) {
+		client.extrapol_mgr.stats.process();
+		client.extrapol_mgr.stats.print(std::clog);
+	}
+
 	// TODO: does not seem to fire when window is maximized?
 	if (run_as_service)
 		return false;
+
 #ifndef _DEBUG
 	if(layer_config_has_unsaved_changes) {
 		return cgv::gui::question("The glyph layer configuration has unsaved changes. Are you sure you want to quit?");
@@ -1772,8 +1779,8 @@ bool on_tube_vis::on_exit_request()
 	return true;
 }
 
-bool on_tube_vis::save_layer_configuration(const std::string& file_name) {
-
+bool on_tube_vis::save_layer_configuration(const std::string& file_name)
+{
 	const auto& visualization = render.visualizations.front();
 
 	// collect settings
@@ -1786,8 +1793,8 @@ bool on_tube_vis::save_layer_configuration(const std::string& file_name) {
 	return layer_configuration_io::write_layer_configuration(file_name, visualization.variables, visualization.manager, color_map_mgr, settings);
 }
 
-bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
-
+bool on_tube_vis::read_layer_configuration(const std::string& file_name)
+{
 	auto& visualization = render.visualizations.front();
 
 	std::map<std::string, std::string> settings;
@@ -1819,7 +1826,8 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 	return false;
 }
 
-void on_tube_vis::update_glyph_layer_managers() {
+void on_tube_vis::update_glyph_layer_managers()
+{
 	if(!traj_mgr.has_data()) {
 		std::cout << "Warning: update_glyph_layer_managers - trajectory manager has no data" << std::endl;
 		return;

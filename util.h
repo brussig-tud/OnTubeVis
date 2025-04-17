@@ -1,6 +1,10 @@
 #pragma once
 
+#include <cassert>
 #include <cstdint>
+#include <ostream>
+#include <numeric>
+#include <algorithm>
 #include <optional>
 
 
@@ -188,3 +192,85 @@ inline OTV_HermiteNode transform_hermite_node (
 	};
 }
 #endif
+
+
+/// Calculate the median of the given range of elements as well as its index, and return both as a pair.
+template <class It>
+auto median_of_range (It begin, It end)
+{
+	// The type of the quantity pointed to by the iterators
+	typedef std::remove_reference_t<decltype(*begin)> Quantity;
+
+	const size_t size = std::distance(begin, end);
+	if (size == 0)
+		return std::make_pair(Quantity(0), 0); // Handle empty range
+
+	const auto size_half = size/2;
+	if (size%2 == 0) {
+		const auto mid_right = begin + size_half;
+		const auto mid_left = mid_right - 1;
+		return std::make_pair((*mid_left + *mid_right)/2, (int)size_half-1);
+	}
+	return  std::make_pair(*(begin + size/2), (int)size_half);
+}
+
+/// A simple statistics collector.
+template <class Quantity>
+struct stats_collector {
+	std::vector<Quantity> measurements;
+	Quantity avg, median, min, max, lower_quartile, upper_quartile;
+
+	stats_collector(unsigned expected_num_measurements=86400 /* <- 144Hz sample rate for 10 minutes */) {
+		measurements.reserve(expected_num_measurements);
+	}
+
+	void add_measurement (const Quantity &measurement) {
+		measurements.emplace_back(measurement);
+	}
+	void add_measurement (Quantity &&measurement) {
+		measurements.emplace_back(std::move(measurement));
+	}
+
+	void process (void)
+	{
+		// Sanity check if we even have enough samples to do measningful statistics.
+		assert(measurements.size() > 7);
+
+		// Sort measurments for robust statistics
+		std::sort(measurements.begin(), measurements.end());
+
+		// Get the average.
+		ro_range calc_range{measurements.begin(), measurements.end()};
+		avg = std::accumulate(calc_range.begin, calc_range.end, Quantity(0)) / measurements.size();
+
+		// Get min/max
+		min = *std::min_element(calc_range.begin, calc_range.end);
+		max = *std::max_element(calc_range.begin, calc_range.end);
+
+		// Get the median.
+		const size_t num = measurements.size();
+		const auto &[median, middle_idx] = median_of_range(
+			calc_range.begin, calc_range.end
+		);
+		this->median = median;
+
+		// Get the quartiles
+		// - Q1: median of first half
+		calc_range.end = calc_range.begin + middle_idx;
+		lower_quartile = median_of_range(calc_range.begin, calc_range.end).first;
+		// - Q3: median of second half
+		calc_range = ro_range{calc_range.end, measurements.end()};
+		upper_quartile = median_of_range(calc_range.begin, calc_range.end).first;
+	}
+
+	void print (std::ostream &os, const std::string &label) const
+	{
+		os << '['<<label<<"]:\n"
+		   << "\tavg:    "<<avg.count() << "\n"
+		   << "\tmin:    "<<min.count() << "\n"
+		   << "\tmax:    "<<max.count() << "\n"
+		   << "\tmedian: "<<median.count() << "\n"
+		   << "\tQ_25:   "<<lower_quartile.count() << "\n"
+		   << "\tQ_75:   "<<upper_quartile.count() << std::endl;
+	}
+};

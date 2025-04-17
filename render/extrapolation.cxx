@@ -95,7 +95,7 @@ void extrapolation_manager::clear(void)
 bool extrapolation_manager::create_geom_buffers (
 	cgv::render::context &ctx, unsigned num_trajectories, unsigned num_segments
 ){
-	// Make sure the timer object is created
+	// Make sure the timer objects are created
 	if (!render.time_query.is_initialized())
 		render.time_query.init(ctx);
 
@@ -275,6 +275,9 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (
 void extrapolation_manager::replace_extrapolation (
 	unsigned traj_id, const node_attribs &last_measured_node, const std::vector<extrapol::node> &extrapolation
 ){
+	// Start timing the CPU duration of the replacement
+	const auto start_time = std::chrono::high_resolution_clock::now();
+
 	// Retrieve trajectory
 	auto &traj = trajectories[traj_id];
 
@@ -340,6 +343,12 @@ void extrapolation_manager::replace_extrapolation (
 
 	// Done! Update stats and return
 	++stats.num_replacements;
+	/* take elapsed CPU time */ {
+		const auto time_ms = std::chrono::duration_cast<duration_ms>(
+			std::chrono::high_resolution_clock::now() - start_time
+		);
+		stats.replace_times.add_measurement(time_ms);
+	}
 }
 
 template <class Iter>
@@ -349,6 +358,9 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	// Nothing to do if there are no glyphs
 	if (glyph_attribs.is_empty())
 		return glyph_attribs;
+
+	// Start timing the CPU duration of the placement
+	const auto start_time = std::chrono::high_resolution_clock::now();
 
 	// Convenience shorthands
 	auto &traj = trajectories[traj_id];
@@ -412,17 +424,15 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	assert(layer.glyph_attribs.size() % stride == 0); // sanity check
 	const auto actually_on_extrapol = ro_range{on_extrapol.begin+discarded.num_skipped, on_extrapol.end};
 	assert(actually_on_extrapol.end == on_extrapol.end);
+	const unsigned actually_on_extrapol_len = actually_on_extrapol.length();
+	assert(actually_on_extrapol_len == on_extrapol.length()-discarded.num_skipped);
+	const unsigned num_new_glyphs = actually_on_extrapol_len/stride;
 	#ifndef NDEBUG
-		const unsigned actually_on_extrapol_len = actually_on_extrapol.length();
-		assert(actually_on_extrapol_len == on_extrapol.length()-discarded.num_skipped);
-		const unsigned num_new_glyphs = otv_render.trajectories[traj_id].attrib_to_glyph_count(
-			l, actually_on_extrapol_len
-		).value;
-		assert(num_new_glyphs == actually_on_extrapol_len/stride);
-		if (discarded.num_overwritten > 0) {
+		assert(
+			num_new_glyphs == otv_render.trajectories[traj_id].attrib_to_glyph_count(l, actually_on_extrapol_len).value
+		);
+		if (discarded.num_overwritten > 0)
 			assert(num_new_glyphs > 0);
-			std::clog.flush();
-		}
 	#endif
 
 	// Indicate that flush of glyph-related arenas will be required
@@ -500,7 +510,13 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	}
 	#endif
 
-	// Done!
+	// Done! Update stats and return
+	/* take elapsed CPU time */ {
+		const auto time_ns = std::chrono::duration_cast<duration_ns>(
+			std::chrono::high_resolution_clock::now() - start_time
+		);
+		stats.push_times.add_measurement(std::chrono::duration_cast<duration_ms>(time_ns));
+	}
 	return ro_range{actually_on_extrapol.begin, actually_on_extrapol.end};
 }
 template ro_range<std_vector_float_iter> extrapolation_manager::consider_glyphs (
@@ -934,9 +950,10 @@ void extrapolation_manager::draw_extrapolations(
 		eye_pos, view_dir, node_id_buf
 	);
 	/* take sort time */ {
-		const auto time_ms = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(
-			std::chrono::duration<double, std::nano>(render.time_query.end())
+		const auto time_ms = std::chrono::duration_cast<duration_ms>(
+			duration_ns(render.time_query.end())
 		);
+		stats.sort_times.add_measurement(time_ms);
 		std::clog << "draw_extrapolations(): visibility sorting took "<<time_ms.count()<<"ms\n";
 	}
 
@@ -965,16 +982,25 @@ void extrapolation_manager::draw_extrapolations(
 		ctx, render.tstr.ref_prog(), render.style, otv_render.visualizations[0].config
 	);
 
-	// Draw and clean up
+	// Draw
 	render.time_query.begin();
 	render.tstr.render(ctx, 0, geom.node_indices.size());
-	/* take render time */ {
-		const auto time_ms = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(
-			std::chrono::duration<double, std::nano>(render.time_query.end())
+	/* take draw time */ {
+		const auto time_ms = std::chrono::duration_cast<duration_ms>(
+			duration_ns(render.time_query.end())
 		);
-		std::clog << "draw_extrapolations(): rendering took "<<time_ms.count()<<"ms\n";
+		stats.draw_times.add_measurement(time_ms);
+		std::clog << "draw_extrapolations(): drawing took "<<time_ms.count()<<"ms\n";
 	}
 	render.tstr.disable_attribute_array_manager(ctx, render.aam);
+
+	// Infer total render time
+	/* take draw time */ {
+		const auto time_ms =
+			stats.sort_times.measurements.back() + stats.draw_times.measurements.back();
+		stats.render_times.add_measurement(time_ms);
+		std::clog << "draw_extrapolations(): overall rendering took "<<time_ms.count()<<"ms\n";
+	}
 
 	// Insert sync point for potential buffer flushes
 	/*if (render.draw_fence) {

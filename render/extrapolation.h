@@ -10,6 +10,7 @@
 
 // Local includes
 #include "glyph_layer_manager.h"
+#include "cgv/utils/stopwatch.h"
 #include "render/common.h"
 #include "render/trajectory.h"
 #include "render/state.h"
@@ -126,6 +127,15 @@ namespace extrapol
 
 struct extrapolation_manager
 {
+	/// Duration type used for nanosecond timings.
+	typedef std::chrono::duration<double, std::nano> duration_ns;
+
+	/// Duration type used for microsecond timings.
+	typedef std::chrono::duration<double, std::micro> duration_us;
+
+	/// Duration type used for millisecond timings.
+	typedef std::chrono::duration<double, std::milli> duration_ms;
+
 	/// Reference to the OnTubeVis render state
 	render_state &otv_render;
 
@@ -202,7 +212,7 @@ struct extrapolation_manager
 		/// The GPU sorter for sorting the extrapolated segments back-to-front.
 		cgv::gpgpu::visibility_sort sorter;
 
-		/// The time query object for benchmarking.
+		/// The first time query object for benchmarking.
 		cgv::render::gl::gl_time_query time_query;
 
 		/// OpenGL fence object to sync buffer flushes with rendering
@@ -224,21 +234,54 @@ struct extrapolation_manager
 
 	/// Statistics container
 	struct stats_struct {
-		/// How many times an extrapolation was replaced (causing re-mapping of glyphs)
+		/// How many times an extrapolation was replaced (causing re-mapping of glyphs).
 		unsigned num_replacements = 0;
-		/// How many times a single glyph was pushed
+		/// How many times a single glyph was pushed.
 		unsigned num_single_glyph_pushes = 0;
-		/// How many times a set of 2 or more glyphs were pushed
+		/// How many times a set of 2 or more glyphs were pushed.
 		unsigned num_multi_glyph_pushes = 0;
-		/// How many unique glyphs were pushed in total
+		/// How many unique glyphs were pushed in total.
 		unsigned num_glyphs_pushed = 0;
-		/// How many unique glyphs were committed to an extrapolation in total
+		/// How many unique glyphs were committed to an extrapolation in total.
 		unsigned num_glyphs_comitted = 0;
+
+		/// Segment sorting timings.
+		stats_collector<duration_us> sort_times, draw_times, render_times, replace_times, push_times;
 
 		/// Reset all counters to 0.
 		void reset (void) {
 			num_replacements = num_single_glyph_pushes = num_multi_glyph_pushes = num_glyphs_pushed
 			= num_glyphs_comitted = 0;
+		}
+
+		/// Convenience method to trigger processing for all collected statistics at once.
+		void process (void)
+		{
+			sort_times.process();
+			draw_times.process();
+			render_times.process();
+			replace_times.process();
+			push_times.process();
+		}
+
+		/// Convenience method for printing out the collacted stats (@ref #process() should have already been called).
+		void print (std::ostream &os) const
+		{
+			os << std::endl << ">>> EXTRAPOLATION STATS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" << std::endl
+			   << "-- Timings ------------------------------" << std::endl;
+			sort_times.print(os, "segment_sort");
+			draw_times.print(os, "segment_draw");
+			render_times.print(os, "total_render");
+			replace_times.print(os, "replace");
+			push_times.print(os, "glyph_push");
+			os << std::endl << "-- Counters -----------------------------" << std::endl;
+			os << "       num_replacements: "<<num_replacements << "\n"
+			   << "num_single_glyph_pushes: "<<num_single_glyph_pushes << "\n"
+			   << " num_multi_glyph_pushes: "<<num_multi_glyph_pushes << "\n"
+			   << "               == total: "<<num_single_glyph_pushes+num_multi_glyph_pushes << "\n"
+			   << "      num_glyphs_pushed: "<<num_glyphs_pushed << "\n"
+			   << "    num_glyphs_comitted: "<<num_glyphs_comitted << "\n";
+			os << std::endl << "<<< \\END EXTRAPOLATION STATS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" << std::endl;
 		}
 	} stats;
 
