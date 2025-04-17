@@ -348,10 +348,8 @@ void extrapolation_manager::replace_extrapolation (
 	// Done! Update stats and return
 	++stats.num_replacements;
 	/* take elapsed CPU time */ {
-		const auto time_ms = std::chrono::duration_cast<duration_ms>(
-			std::chrono::high_resolution_clock::now() - start_time
-		);
-		stats.replace_times.add_measurement(time_ms);
+		const auto time = std::chrono::high_resolution_clock::now() - start_time;
+		stats.replace_times.add_measurement(time);
 	}
 }
 
@@ -516,10 +514,8 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 
 	// Done! Update stats and return
 	/* take elapsed CPU time */ {
-		const auto time_ns = std::chrono::duration_cast<duration_ns>(
-			std::chrono::high_resolution_clock::now() - start_time
-		);
-		stats.push_times.add_measurement(std::chrono::duration_cast<duration_ms>(time_ns));
+		const auto time = std::chrono::high_resolution_clock::now() - start_time;
+		stats.push_times.add_measurement(time);
 	}
 	return ro_range{actually_on_extrapol.begin, actually_on_extrapol.end};
 }
@@ -963,10 +959,8 @@ void extrapolation_manager::draw_extrapolations(
 		eye_pos, view_dir, node_id_buf
 	);
 	/* take sort time */ {
-		const auto time_ms = std::chrono::duration_cast<duration_ms>(
-			duration_ns(render.sort_time_query.end())
-		);
-		stats.sort_times.add_measurement(time_ms);
+		const auto time_ns = duration_ns(render.sort_time_query.end());
+		stats.sort_times.add_measurement(time_ns);
 	}
 
 	// Set up draw call
@@ -996,18 +990,16 @@ void extrapolation_manager::draw_extrapolations(
 	render.draw_time_query.begin();
 	render.tstr.render(ctx, 0, geom.node_indices.size());
 	/* take draw time */ {
-		const auto time_ms = std::chrono::duration_cast<duration_ms>(
-			duration_ns(render.draw_time_query.end())
-		);
-		stats.draw_times.add_measurement(time_ms);
+		const auto time_ns = duration_ns(render.draw_time_query.end());
+		stats.draw_times.add_measurement(time_ns);
 	}
 	render.tstr.disable_attribute_array_manager(ctx, render.aam);
 
 	// Infer total render time
 	/* take draw time */ {
-		const auto time_ms =
+		const auto time =
 			stats.sort_times.measurements.back() + stats.draw_times.measurements.back();
-		stats.render_times.add_measurement(time_ms);
+		stats.render_times.add_measurement(time);
 	}
 
 	// Insert sync point for potential buffer flushes
