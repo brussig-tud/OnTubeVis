@@ -37,7 +37,7 @@ void render_state::update ()
 	}
 	auto time_ns = duration_ns(flush_time_query.end());
 	if (flushing_something)
-		stats.buffer_flush_times.add_measurement(std::chrono::duration_cast<duration_ms>(time_ns));
+		stats.buffer_flush_times.add_measurement(time_ns);
 }
 
 bool render_state::append_nodes ()

@@ -64,7 +64,7 @@ struct render_state
 		stats_collector<duration_ms> node_commit_times;
 		stats_collector<duration_ms> glyph_commit_times;
 		stats_collector<duration_ms> traj_trim_times;
-		stats_collector<duration_ms> buffer_flush_times;
+		stats_collector<duration_ns> buffer_flush_times;
 
 		/// Convenience method to trigger processing for all collected statistics at once.
 		void process (void) {

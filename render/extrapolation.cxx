@@ -918,7 +918,7 @@ bool extrapolation_manager::flush_changes (void)
 	/* take flush time */ {
 		const auto time_ns = duration_ns(render.flush_time_query.end());
 		if (state.dirty_flags)
-			stats.flush_times.add_measurement(std::chrono::duration_cast<duration_ms>(time_ns));
+			stats.flush_times.add_measurement(time_ns);
 	}
 
 	// Update state
