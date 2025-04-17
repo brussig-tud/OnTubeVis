@@ -266,11 +266,11 @@ struct stats_collector {
 	void print (std::ostream &os, const std::string &label) const
 	{
 		os << '['<<label<<"]:\n"
-		   << "\tavg:    "<<avg.count() << "\n"
-		   << "\tmin:    "<<min.count() << "\n"
-		   << "\tmax:    "<<max.count() << "\n"
-		   << "\tmedian: "<<median.count() << "\n"
-		   << "\tQ_25:   "<<lower_quartile.count() << "\n"
-		   << "\tQ_75:   "<<upper_quartile.count() << std::endl;
+		   << "\tavg:    "<<avg.count()<< " ms\n"
+		   << "\tmin:    "<<min.count()<< " ms\n"
+		   << "\tmax:    "<<max.count()<< " ms\n"
+		   << "\tmedian: "<<median.count()<< " ms\n"
+		   << "\tQ_25:   "<<lower_quartile.count()<<" ms\n"
+		   << "\tQ_75:   "<<upper_quartile.count()<<" ms" << std::endl;
 	}
 };

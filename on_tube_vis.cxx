@@ -1763,8 +1763,14 @@ bool on_tube_vis::on_exit_request()
 {
 	// collect statistics
 	if (true) {
+		// calculate extrapolation statistics
 		client.extrapol_mgr.stats.process();
+
+		// output collected statistics
+		const auto flags_bak = std::clog.flags();
+		std::clog << std::fixed;
 		client.extrapol_mgr.stats.print(std::clog);
+		std::clog.flags(flags_bak);
 	}
 
 	// TODO: does not seem to fire when window is maximized?

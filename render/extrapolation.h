@@ -246,7 +246,7 @@ struct extrapolation_manager
 		unsigned num_glyphs_comitted = 0;
 
 		/// Segment sorting timings.
-		stats_collector<duration_us> sort_times, draw_times, render_times, replace_times, push_times;
+		stats_collector<duration_ms> sort_times, draw_times, render_times, replace_times, push_times;
 
 		/// Reset all counters to 0.
 		void reset (void) {
