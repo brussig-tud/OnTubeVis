@@ -1763,13 +1763,21 @@ bool on_tube_vis::on_exit_request()
 {
 	// collect statistics
 	if (true) {
-		// calculate extrapolation statistics
-		client.extrapol_mgr.stats.process();
-
-		// output collected statistics
+		// configure output
 		const auto flags_bak = std::clog.flags();
 		std::clog << std::fixed;
+
+		// extrapolations
+		client.extrapol_mgr.stats.process();
 		client.extrapol_mgr.stats.print(std::clog);
+
+		// internal client
+		if (!run_as_service) {
+			client.stats.process();
+			client.stats.print(std::clog);
+		}
+
+		// restore output settings
 		std::clog.flags(flags_bak);
 	}
 

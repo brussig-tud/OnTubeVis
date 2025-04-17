@@ -146,6 +146,28 @@ struct otv_client
 		}
 	} session;
 
+	/// helper struct for statistics collection
+	struct stats_struct {
+		unsigned num_updates = 0;
+		stats_collector<extrapolation_manager::duration_ms> overall_updates;
+
+		/// Convenience method to trigger processing for all collected statistics at once.
+		void process (void) {
+			overall_updates.process();
+		}
+
+		/// Convenience method for printing out the collacted stats (@ref #process() should have already been called).
+		void print (std::ostream &os) const
+		{
+			os << std::endl << ">>> CLIENT STATS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" << std::endl
+			   << "-- Timings ------------------------------" << std::endl;
+			overall_updates.print(os, "per_frame_update_time");
+			os << std::endl << "-- Counters -----------------------------" << std::endl;
+			os << "       num_updates: "<<num_updates << "\n";
+			os << std::endl << "<<< \\END CLIENT STATS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" << std::endl;
+		}
+	} stats;
+
 
 	/// the render "servers" (one each for real and extrapolated) used by the client.
 	render_state &render;

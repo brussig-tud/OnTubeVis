@@ -518,6 +518,7 @@ void otv_client::update ()
 	#endif
 
 	// extend all trajectories based on the animation time, emulating streaming
+	bool streamed_something = false;
 	for (auto &traj : trajectories)
 	{
 		// traj init
@@ -554,9 +555,9 @@ void otv_client::update ()
 			++node_idx
 		){
 			// only add data up to the current playback time
-			if (data->timestamps[node_idx] > playback_t) {
+			if (data->timestamps[node_idx] > playback_t)
 				break;
-			}
+			streamed_something = true;
 
 			// construct first GPU node
 			const auto col = data->colors[node_idx];
@@ -592,10 +593,17 @@ void otv_client::update ()
 
 	// Flush changes to extrapolation
 	const bool extrapol_flush_result = extrapol_mgr.flush_changes();
+	const extrapolation_manager::duration_ms overall_update_ms(sw.get_elapsed_time()*1000);
 	#if DEBUG_OUTPUT
 		std::clog << "otv_client::update(): flushing extrapolations - "<<(extrapol_flush_result ? "OK\n":"FAILURE\n")
-		          << "otv_client::update(): took "<<sw.get_elapsed_time()*1000<<"ms\n";
+		          << "otv_client::update(): took "<<overall_update_ms.count()<<"ms\n";
 	#endif
+
+	// Update stats
+	if (streamed_something) {
+		++stats.num_updates;
+		stats.overall_updates.add_measurement(overall_update_ms);
+	}
 }
 void otv_client::enqueue_node (
 	trajectory_ref target, const node_attribs &node, const cgv::mat4 *t_to_s,

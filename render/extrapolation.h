@@ -281,7 +281,7 @@ struct extrapolation_manager
 			   << "               == total: "<<num_single_glyph_pushes+num_multi_glyph_pushes << "\n"
 			   << "      num_glyphs_pushed: "<<num_glyphs_pushed << "\n"
 			   << "    num_glyphs_comitted: "<<num_glyphs_comitted << "\n";
-			os << std::endl << "<<< \\END EXTRAPOLATION STATS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" << std::endl;
+			os << std::endl << "<<< \\END EXTRAPOLATION STATS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" << std::endl;
 		}
 	} stats;
 

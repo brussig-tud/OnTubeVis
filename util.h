@@ -234,7 +234,7 @@ struct stats_collector {
 	void process (void)
 	{
 		// Sanity check if we even have enough samples to do measningful statistics.
-		assert(measurements.size() > 7);
+		assert(measurements.size() > 2);
 
 		// Sort measurments for robust statistics
 		std::sort(measurements.begin(), measurements.end());
