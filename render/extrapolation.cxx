@@ -726,6 +726,7 @@ unsigned extrapolation_manager::assign_glyphs (
 	////
 	// Prelude
 
+	// Determine counts, strides, indices etc.
 	const auto &layer_ref = trajectories[traj_id].layers[layer];
 	const unsigned num_segments = ranges_out.length();
 	const auto num_glyphs = (unsigned)otv_render.trajectories.front().attrib_to_glyph_count(
@@ -940,10 +941,12 @@ void extrapolation_manager::draw_extrapolations(
 	// Pull in up-to-date render style settings -- FIXME: this should be push rather than pull
 	update_render_style(otv_render.style);
 
-	// Sort segments back-to-front for (mostly) correct transparency
+	// Obtain handles to buffers we don't directly manage
 	render.tstr.enable_attribute_array_manager(ctx, render.aam);
 	geom.segment_idx_buf_ptr = render.tstr.get_index_buffer_ptr(render.aam);
 	const auto node_id_buf = render.tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
+
+	// Sort segments back-to-front for (mostly) correct transparency
 	render.time_query.begin();
 	render.sorter.execute(
 		ctx, geom.nodes_arena.as_vertex_buffer(), *geom.segment_idx_buf_ptr,
@@ -954,7 +957,6 @@ void extrapolation_manager::draw_extrapolations(
 			duration_ns(render.time_query.end())
 		);
 		stats.sort_times.add_measurement(time_ms);
-		std::clog << "draw_extrapolations(): visibility sorting took "<<time_ms.count()<<"ms\n";
 	}
 
 	// Set up draw call
@@ -973,9 +975,7 @@ void extrapolation_manager::draw_extrapolations(
 	for (unsigned nl=setup.num_layers; nl<4; ++nl)
 		buffer_handles[5 + nl*2] = buffer_handles[4 + nl*2] = 0;
 	buffer_handles[4 + 8] = glyphs.traj_glyph_mem_arena.data_memory.handle();
-	glBindBuffersBase(
-		GL_SHADER_STORAGE_BUFFER, 0, 13, buffer_handles
-	);
+	glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 13, buffer_handles);
 
 	// Set uniforms
 	render.tube_shading.set_uniforms(
@@ -990,7 +990,6 @@ void extrapolation_manager::draw_extrapolations(
 			duration_ns(render.time_query.end())
 		);
 		stats.draw_times.add_measurement(time_ms);
-		std::clog << "draw_extrapolations(): drawing took "<<time_ms.count()<<"ms\n";
 	}
 	render.tstr.disable_attribute_array_manager(ctx, render.aam);
 
@@ -999,7 +998,6 @@ void extrapolation_manager::draw_extrapolations(
 		const auto time_ms =
 			stats.sort_times.measurements.back() + stats.draw_times.measurements.back();
 		stats.render_times.add_measurement(time_ms);
-		std::clog << "draw_extrapolations(): overall rendering took "<<time_ms.count()<<"ms\n";
 	}
 
 	// Insert sync point for potential buffer flushes
