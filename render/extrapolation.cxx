@@ -85,6 +85,9 @@ void extrapolation_manager::clear(void)
 	geom.t_to_s_arena.destroy();
 	geom.nodes_arena.destroy();
 	geom.node_indices.clear();
+
+	// Reset stats
+	stats.reset();
 }
 
 
@@ -92,6 +95,10 @@ void extrapolation_manager::clear(void)
 bool extrapolation_manager::create_geom_buffers (
 	cgv::render::context &ctx, unsigned num_trajectories, unsigned num_segments
 ){
+	// Make sure the timer object is created
+	if (!render.time_query.is_initialized())
+		render.time_query.init(ctx);
+
 	// Make sure we don't leak resources when any single one of the steps fails
 	auto _ = finalizer([this] {
 		this->clear();
@@ -331,8 +338,8 @@ void extrapolation_manager::replace_extrapolation (
 		);
 	}
 
-	// Done!
-	return;
+	// Done! Update stats and return
+	++stats.num_replacements;
 }
 
 template <class Iter>
@@ -349,6 +356,12 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 
 	// First, retrieve general information about the layer
 	const unsigned stride = setup.glyph_attrib_counts[l];
+
+	// Count pushed glyphs for the statistics
+	const unsigned num_pushed_glyphs = glyph_attribs.length()/stride;
+	stats.num_glyphs_pushed += num_pushed_glyphs;
+	stats.num_multi_glyph_pushes += num_pushed_glyphs > 1;
+	stats.num_single_glyph_pushes += num_pushed_glyphs == 1;
 
 	// Trim glyphs that precede the range covered by the extrapolation (this can happen due to network issues or if they
 	// were submitted late by the client for whatever reason)
@@ -468,6 +481,9 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 		ro_range{traj.t_to_s.begin()+layer.newest_seg_with_glyphs, traj.t_to_s.end()},
 		traj_id, l, actually_on_extrapol, num_glyphs_before
 	);
+
+	// Update stats about actually committed glyphs
+	stats.num_glyphs_comitted += num_new_glyphs;
 
 	#ifndef NDEBUG
 	/* final sanity checks */ {
@@ -912,10 +928,17 @@ void extrapolation_manager::draw_extrapolations(
 	render.tstr.enable_attribute_array_manager(ctx, render.aam);
 	geom.segment_idx_buf_ptr = render.tstr.get_index_buffer_ptr(render.aam);
 	const auto node_id_buf = render.tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
+	render.time_query.begin();
 	render.sorter.execute(
 		ctx, geom.nodes_arena.as_vertex_buffer(), *geom.segment_idx_buf_ptr,
 		eye_pos, view_dir, node_id_buf
 	);
+	/* take sort time */ {
+		const auto time_ms = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(
+			std::chrono::duration<double, std::nano>(render.time_query.end())
+		);
+		std::clog << "draw_extrapolations(): visibility sorting took "<<time_ms.count()<<"ms\n";
+	}
 
 	// Set up draw call
 	render.tstr.set_render_style(render.style);
@@ -943,7 +966,14 @@ void extrapolation_manager::draw_extrapolations(
 	);
 
 	// Draw and clean up
+	render.time_query.begin();
 	render.tstr.render(ctx, 0, geom.node_indices.size());
+	/* take render time */ {
+		const auto time_ms = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(
+			std::chrono::duration<double, std::nano>(render.time_query.end())
+		);
+		std::clog << "draw_extrapolations(): rendering took "<<time_ms.count()<<"ms\n";
+	}
 	render.tstr.disable_attribute_array_manager(ctx, render.aam);
 
 	// Insert sync point for potential buffer flushes

@@ -5,6 +5,9 @@
 // C++ STL
 #include <chrono>
 
+// CGV Framework
+#include "libs/cgv_gl/gl/gl_time_query.h"
+
 // Local includes
 #include "glyph_layer_manager.h"
 #include "render/common.h"
@@ -184,20 +187,23 @@ struct extrapolation_manager
 
 	/// Render state for the extrapolations.
 	struct {
-		/// textured spline tube renderer
+		/// Textured spline tube renderer.
 		cgv::render::textured_spline_tube_renderer tstr;
 
-		/// render style for the textured spline tubes
+		/// Render style for the textured spline tubes.
 		cgv::render::textured_spline_tube_render_style style;
 
-		/// the tube shading configuration for the forward renderer
+		/// The tube shading configuration for the forward renderer.
 		tube_shading_settings tube_shading;
 
-		/// custom attribute array manager for binding the ring buffers to the renderer
+		/// Custom attribute array manager for binding the ring buffers to the renderer.
 		cgv::render::attribute_array_manager aam;
 
-		/// the GPU sorter for sorting the extrapolated segments back-to-front
+		/// The GPU sorter for sorting the extrapolated segments back-to-front.
 		cgv::gpgpu::visibility_sort sorter;
+
+		/// The time query object for benchmarking.
+		cgv::render::gl::gl_time_query time_query;
 
 		/// OpenGL fence object to sync buffer flushes with rendering
 		//GLsync draw_fence = nullptr;
@@ -215,6 +221,26 @@ struct extrapolation_manager
 		bool update_needed = false;
 		std::chrono::time_point<std::chrono::high_resolution_clock> last_frame_timepoint;
 	} state;
+
+	/// Statistics container
+	struct stats_struct {
+		/// How many times an extrapolation was replaced (causing re-mapping of glyphs)
+		unsigned num_replacements = 0;
+		/// How many times a single glyph was pushed
+		unsigned num_single_glyph_pushes = 0;
+		/// How many times a set of 2 or more glyphs were pushed
+		unsigned num_multi_glyph_pushes = 0;
+		/// How many unique glyphs were pushed in total
+		unsigned num_glyphs_pushed = 0;
+		/// How many unique glyphs were committed to an extrapolation in total
+		unsigned num_glyphs_comitted = 0;
+
+		/// Reset all counters to 0.
+		void reset (void) {
+			num_replacements = num_single_glyph_pushes = num_multi_glyph_pushes = num_glyphs_pushed
+			= num_glyphs_comitted = 0;
+		}
+	} stats;
 
 	extrapolation_manager(render_state &otv_render_state);
 
