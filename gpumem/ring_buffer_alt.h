@@ -17,6 +17,27 @@
 
 namespace otv::gpumem {
 
+struct shim_vertex_buffer : public cgv::render::vertex_buffer
+{
+	shim_vertex_buffer(
+		cgv::render::VertexBufferType type=cgv::render::VBT_STORAGE,
+		cgv::render::VertexBufferUsage usage=cgv::render::VBU_STATIC_DRAW
+	) : vertex_buffer(type, usage)
+	{}
+
+	/// create the shim for the given existing (valid) OpenGL handle assuming the provided memory size in bytes.
+	void create(GLuint existing_gl_handle, size_t _size_in_bytes) {
+		handle = cgv::render::gl::get_handle(existing_gl_handle);
+		size_in_bytes = _size_in_bytes;
+	}
+
+	/// Forgets about the wrapped OpenGL handle.
+	void destruct (void) {
+		handle = nullptr;
+		size_in_bytes = 0;
+	}
+};
+
 struct ring_buffer_meta
 {
 	/// Index of the start element in the backing buffer object. This is needed for shader-side access, as there all
@@ -480,6 +501,9 @@ struct ring_buffer_arena
 	/// The GPU-side buffer serving as backing memory for the actual ring buffer contents
 	array<Elem, Alloc> data_memory;
 
+	/// A shim vertex buffer representing the same GPU memory as @ref #data_memory.
+	shim_vertex_buffer data_vertex_buffer{/* type: */cgv::render::VBT_VERTICES, /* usage: */ cgv::render::VBU_STATIC_DRAW};
+
 	/// The list of ring buffers in the arena
 	std::vector<ring_buffer_alt<Elem>> ring_buffers;
 
@@ -527,6 +551,10 @@ struct ring_buffer_arena
 			ring_buffers.emplace_back(meta_span, data_span);
 		}
 
+		// Construct the shim vertex buffers
+		//meta_vertex_buffer.create(meta_memory.handle(), num_buffers*sizeof(ring_buffer_meta));
+		data_vertex_buffer.create(data_memory.handle(), data_buffer_size*sizeof(Elem));
+
 		// Done!
 		return _.disarm(success);
 	}
@@ -535,9 +563,15 @@ struct ring_buffer_arena
 	/// in the ring buffers will be called (as they should be trivially destructible by contract, see @ref
 	/// gpumem::ring_buffer_alt ).
 	void destroy (void) {
+		data_vertex_buffer.destruct();
 		ring_buffers.clear();
 		data_memory.destroy();
 		meta_memory.destroy();
+	}
+
+	/// Reference a shim vertex_buffer object representing the same GPU memory that backs the @a data part of the arena.
+	[[nodiscard]] const cgv::render::vertex_buffer& as_vertex_buffer (void) const {
+		return data_vertex_buffer;
 	}
 
 	/// Report the number of ring buffers in the arena

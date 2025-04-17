@@ -2768,7 +2768,7 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		//glDepthMask(GL_FALSE);
-			client.extrapol_mgr.draw_extrapolations(ctx, view_ptr->get_eye());
+			client.extrapol_mgr.draw_extrapolations(ctx, view_ptr->get_eye(), view_ptr->get_view_dir());
 		glPopAttrib();
 		// - disable textures
 		if (tube_shading.ao_style.enable)

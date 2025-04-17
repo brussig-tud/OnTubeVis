@@ -46,6 +46,29 @@ void compute_path (
 
 } // namespace extrapol
 
+extrapolation_manager::extrapolation_manager (render_state &otv_render_state) : otv_render(otv_render_state)
+{
+	// Apply render style
+	update_render_style(otv_render.style);
+
+	// Set up GPU visibility sorter
+	render.sorter.set_sort_order(cgv::gpgpu::visibility_sort::SO_DESCENDING);
+	render.sorter.set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent; vec4 t;");
+	render.sorter.set_auxiliary_type_override("uint a_idx; uint b_idx;");
+	static const std::string key_definition =
+		R"(aux_type indices = aux_values[idx]; \
+		data_type a = data[indices.a_idx]; \
+		data_type b = data[indices.b_idx]; \
+		vec3 pa = a.pos_rad.xyz; \
+		vec3 pb = b.pos_rad.xyz; \
+		\
+		vec3 x = 0.5*(pa + pb); \
+		vec3 eye_to_pos = x - eye_pos; \
+		float ddv = dot(eye_to_pos, view_dir); \
+		float key = (ddv < 0.0 ? -1.0 : 1.0) * dot(eye_to_pos, eye_to_pos);)";
+	render.sorter.set_key_definition_override(key_definition);
+}
+
 void extrapolation_manager::clear(void)
 {
 	// Glyph-related
@@ -62,7 +85,6 @@ void extrapolation_manager::clear(void)
 	geom.t_to_s_arena.destroy();
 	geom.nodes_arena.destroy();
 	geom.node_indices.clear();
-	//geom.segment_indices.clear();
 }
 
 
@@ -82,9 +104,9 @@ bool extrapolation_manager::create_geom_buffers (
 
 	// Create GPU ring buffer arenas
 	const unsigned num_nodes = num_segments+1;
-	const bool success =    geom.nodes_arena.create(num_trajectories, num_nodes)
-	                     && geom.t_to_s_arena.create(num_trajectories, num_segments)
-	                     && geom.seg_to_traj_arena.create(num_trajectories, num_segments);
+	bool success =    geom.nodes_arena.create(num_trajectories, num_nodes)
+	               && geom.t_to_s_arena.create(num_trajectories, num_segments)
+	               && geom.seg_to_traj_arena.create(num_trajectories, num_segments);
 
 	// Distribute per-trajectory ringbuffers and create indices in the process
 	trajectories.reserve(num_trajectories);
@@ -138,6 +160,9 @@ bool extrapolation_manager::create_geom_buffers (
 	);
 	render.tstr.set_indices(ctx, segment_indices);
 	render.tstr.disable_attribute_array_manager(ctx, render.aam);
+
+	// (re-)init visibility sorter
+	success &= render.sorter.init(ctx, geom.node_indices.size());
 
 	// Done!
 	return _.disarm(success);
@@ -821,16 +846,17 @@ unsigned extrapolation_manager::assign_glyphs (
 bool extrapolation_manager::flush_changes (void)
 {
 	// Determine the arenas we need to flush
-	const bool flush_nodes = state.dirty_flags & state.SEGMENTS_DIRTY,
-	           flush_t_to_s = state.dirty_flags & state.SEGMENTS_DIRTY,
-	           flush_ranges[4] = {
-	           	bool(state.dirty_flags & state.RANGES0_DIRTY), bool(state.dirty_flags & state.RANGES1_DIRTY),
-	           	bool(state.dirty_flags & state.RANGES2_DIRTY), bool(state.dirty_flags & state.RANGES3_DIRTY)
-	           },
-	           flush_glyphs[4] = {
-	           	bool(state.dirty_flags & state.GLYPHS0_DIRTY), bool(state.dirty_flags & state.GLYPHS1_DIRTY),
-	           	bool(state.dirty_flags & state.GLYPHS2_DIRTY), bool(state.dirty_flags & state.GLYPHS3_DIRTY)
-	           };
+	const bool
+		flush_nodes = state.dirty_flags & state.SEGMENTS_DIRTY,
+		flush_t_to_s = state.dirty_flags & state.SEGMENTS_DIRTY,
+		flush_ranges[4] = {
+			bool(state.dirty_flags & state.RANGES0_DIRTY), bool(state.dirty_flags & state.RANGES1_DIRTY),
+			bool(state.dirty_flags & state.RANGES2_DIRTY), bool(state.dirty_flags & state.RANGES3_DIRTY)
+		},
+		flush_glyphs[4] = {
+			bool(state.dirty_flags & state.GLYPHS0_DIRTY), bool(state.dirty_flags & state.GLYPHS1_DIRTY),
+			bool(state.dirty_flags & state.GLYPHS2_DIRTY), bool(state.dirty_flags & state.GLYPHS3_DIRTY)
+		};
 
 	// Wait for extrapolation rendering to complete
 	/*if (render.draw_fence) {
@@ -872,21 +898,28 @@ void extrapolation_manager::update (const float playback_t) {
 	state.update_needed = false;
 }
 
-void extrapolation_manager::draw_extrapolations(cgv::render::context &ctx, const cgv::vec3 &eye_pos)
-{
+void extrapolation_manager::draw_extrapolations(
+	cgv::render::context &ctx, const cgv::vec3 &eye_pos, const cgv::vec3 &view_dir
+){
 	// Do nothing if no data
 	if (geom.node_indices.empty())
 		return;
 
-	// Pull in up-to-date render style settings
-	// FIXME: this should be push rather than pull
+	// Pull in up-to-date render style settings -- FIXME: this should be push rather than pull
 	update_render_style(otv_render.style);
+
+	// Sort segments back-to-front for (mostly) correct transparency
+	render.tstr.enable_attribute_array_manager(ctx, render.aam);
+	geom.segment_idx_buf_ptr = render.tstr.get_index_buffer_ptr(render.aam);
+	const auto node_id_buf = render.tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
+	render.sorter.execute(
+		ctx, geom.nodes_arena.as_vertex_buffer(), *geom.segment_idx_buf_ptr,
+		eye_pos, view_dir, node_id_buf
+	);
 
 	// Set up draw call
 	render.tstr.set_render_style(render.style);
 	render.tstr.set_cyclopic_eye(eye_pos);
-	render.tstr.enable_attribute_array_manager(ctx, render.aam);
-	const auto node_id_buf = render.tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
 	GLuint buffer_handles[13] = {
 		geom.nodes_arena.data_memory.handle(),
 		geom.t_to_s_arena.data_memory.handle(),

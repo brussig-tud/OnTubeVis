@@ -164,7 +164,8 @@ struct extrapolation_manager
 		/// The static (except for visibility sorting) index buffer
 		std::vector<std::pair<uint32_t, uint32_t>> node_indices;
 
-		//std::vector<unsigned> segment_indices;
+		/// Pointer to the internally managed (by the t.s.t. renderer) index buffer, for visibility sorting
+		const cgv::render::vertex_buffer *segment_idx_buf_ptr = nullptr;
 	} geom;
 
 	/// Members related to the glyph data on extrapolated trajectories
@@ -195,6 +196,9 @@ struct extrapolation_manager
 		/// custom attribute array manager for binding the ring buffers to the renderer
 		cgv::render::attribute_array_manager aam;
 
+		/// the GPU sorter for sorting the extrapolated segments back-to-front
+		cgv::gpgpu::visibility_sort sorter;
+
 		/// OpenGL fence object to sync buffer flushes with rendering
 		//GLsync draw_fence = nullptr;
 	} render;
@@ -212,9 +216,7 @@ struct extrapolation_manager
 		std::chrono::time_point<std::chrono::high_resolution_clock> last_frame_timepoint;
 	} state;
 
-	extrapolation_manager(render_state &otv_render_state) : otv_render(otv_render_state) {
-		update_render_style(otv_render.style);
-	}
+	extrapolation_manager(render_state &otv_render_state);
 
 	~extrapolation_manager (void) {
 		clear();
@@ -317,7 +319,7 @@ struct extrapolation_manager
 	void update (const float playback_t);
 
 	/// Draw the managed extrapolations in their current state.
-	void draw_extrapolations (cgv::render::context &ctx, const cgv::vec3 &eye_pos);
+	void draw_extrapolations (cgv::render::context &ctx, const cgv::vec3 &eye_pos, const cgv::vec3 &view_dir);
 };
 
 
