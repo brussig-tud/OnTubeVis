@@ -2814,6 +2814,10 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 
 void on_tube_vis::after_finish(context& ctx)
 {
+	// Read back all timer queries we dispatched over the frame
+	render.collect_timer_queries();
+	client.extrapol_mgr.collect_timer_queries();
+
 	if (benchmark.running)
 	{
 		++benchmark.total_frames;

@@ -61,10 +61,12 @@ struct render_state
 	/// helper struct for statistics collection
 	struct stats_struct
 	{
+		unsigned num_updates = 0;
+
 		stats_collector<duration_ms> node_commit_times;
 		stats_collector<duration_ms> glyph_commit_times;
 		stats_collector<duration_ms> traj_trim_times;
-		stats_collector<duration_ns> buffer_flush_times;
+		stats_collector<duration_us> buffer_flush_times;
 
 		/// Convenience method to trigger processing for all collected statistics at once.
 		void process (void) {
@@ -83,11 +85,12 @@ struct render_state
 			glyph_commit_times.print(os, "glyph_commit_times");
 			traj_trim_times.print(os, "traj_trim_times");*/
 			buffer_flush_times.print(os, "buffer_flush_times");
-			/*os << std::endl << "-- Counters -----------------------------" << std::endl;
-			os << "       num_updates: "<<num_updates << "\n";*/
+			os << std::endl << "-- Counters -----------------------------" << std::endl;
+			os << "       num_updates: "<<num_updates << "\n";
 			os << std::endl << "<<< \\END RENDER STATS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" << std::endl;
 		}
 	} stats;
+	bool flushed_something = false;
 
 	/// render style for the textured spline tubes
 	cgv::render::textured_spline_tube_render_style style;
@@ -238,6 +241,9 @@ struct render_state
 			return extents.y() - extents.x();
 		});
 	}
+
+	/// Collect all timer queries that were inserted over the course of the current frame.
+	void collect_timer_queries (void);
 
 private:
 	friend class trajectory;

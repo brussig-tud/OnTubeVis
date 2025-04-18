@@ -879,6 +879,7 @@ unsigned extrapolation_manager::assign_glyphs (
 bool extrapolation_manager::flush_changes (void)
 {
 	// Determine the arenas we need to flush
+	state.flushed_something = false;
 	const bool
 		flush_nodes = state.dirty_flags & state.SEGMENTS_DIRTY,
 		flush_t_to_s = state.dirty_flags & state.SEGMENTS_DIRTY,
@@ -900,21 +901,25 @@ bool extrapolation_manager::flush_changes (void)
 
 	// Perform flushes
 	bool result = true;
-	render.flush_time_query.begin();
-	if (flush_nodes)
-		result &= geom.nodes_arena.flush_all();
-	if (flush_t_to_s)
-		result &= geom.t_to_s_arena.flush_all();
-	for (unsigned l=0; l<4; l++) {
-		if (flush_ranges[l])
-			result &= glyphs.ranges_arena[l].flush_all();
-		if (flush_glyphs[l])
-			result &= glyphs.glyph_attribs_arena[l].flush_all();
-	}
-	/* take flush time */ {
-		const auto time_ns = duration_ns(render.flush_time_query.end());
-		if (state.dirty_flags)
-			stats.flush_times.add_measurement(time_ns);
+	if (state.dirty_flags)
+	{
+		glFlush();  // Flushing the pipeline is the only way to
+		glFinish(); // time buffer uploads unfortunately :/
+		render.flush_time_query.begin_scope();
+		if (flush_nodes)
+			result &= geom.nodes_arena.flush_all();
+		if (flush_t_to_s)
+			result &= geom.t_to_s_arena.flush_all();
+		for (unsigned l=0; l<4; l++) {
+			if (flush_ranges[l])
+				result &= glyphs.ranges_arena[l].flush_all();
+			if (flush_glyphs[l])
+				result &= glyphs.glyph_attribs_arena[l].flush_all();
+		}
+		glFlush();
+		glFinish();
+		render.flush_time_query.end_scope();
+		state.flushed_something = true;
 	}
 
 	// Update state
@@ -948,22 +953,20 @@ void extrapolation_manager::draw_extrapolations(
 	update_render_style(otv_render.style);
 
 	// Obtain handles to buffers we don't directly manage
+	render.sort_time_query.begin_scope();
 	render.tstr.enable_attribute_array_manager(ctx, render.aam);
 	geom.segment_idx_buf_ptr = render.tstr.get_index_buffer_ptr(render.aam);
 	const auto node_id_buf = render.tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
 
 	// Sort segments back-to-front for (mostly) correct transparency
-	render.sort_time_query.begin();
 	render.sorter.execute(
 		ctx, geom.nodes_arena.as_vertex_buffer(), *geom.segment_idx_buf_ptr,
 		eye_pos, view_dir, node_id_buf
 	);
-	/* take sort time */ {
-		const auto time_ns = duration_ns(render.sort_time_query.end());
-		stats.sort_times.add_measurement(time_ns);
-	}
+	render.sort_time_query.end_scope();
 
 	// Set up draw call
+	render.draw_time_query.begin_scope();
 	render.tstr.set_render_style(render.style);
 	render.tstr.set_cyclopic_eye(eye_pos);
 	GLuint buffer_handles[13] = {
@@ -987,20 +990,9 @@ void extrapolation_manager::draw_extrapolations(
 	);
 
 	// Draw
-	render.draw_time_query.begin();
 	render.tstr.render(ctx, 0, geom.node_indices.size());
-	/* take draw time */ {
-		const auto time_ns = duration_ns(render.draw_time_query.end());
-		stats.draw_times.add_measurement(time_ns);
-	}
 	render.tstr.disable_attribute_array_manager(ctx, render.aam);
-
-	// Infer total render time
-	/* take draw time */ {
-		const auto time =
-			stats.sort_times.measurements.back() + stats.draw_times.measurements.back();
-		stats.render_times.add_measurement(time);
-	}
+	render.draw_time_query.end_scope();
 
 	// Insert sync point for potential buffer flushes
 	/*if (render.draw_fence) {
@@ -1008,6 +1000,28 @@ void extrapolation_manager::draw_extrapolations(
 		glDeleteSync(render.draw_fence);
 	}
 	render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);*/
+}
+
+void extrapolation_manager::collect_timer_queries (void)
+{
+	// take flush time
+	if (state.flushed_something) {
+		const auto time_ns = duration_ns(render.flush_time_query.collect());
+		stats.flush_times.add_measurement(time_ns);
+	}
+	/* take sort time */ {
+		const auto time_ns = duration_ns(render.sort_time_query.collect());
+		stats.sort_times.add_measurement(time_ns);
+	}
+	/* take draw time */ {
+		const auto time_ns = duration_ns(render.draw_time_query.collect());
+		stats.draw_times.add_measurement(time_ns);
+	}
+	/* infer total render time */ {
+		const auto time =
+			stats.sort_times.measurements.back() + stats.draw_times.measurements.back();
+		stats.render_times.add_measurement(time);
+	}
 }
 
 

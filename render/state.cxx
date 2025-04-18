@@ -9,11 +9,11 @@ namespace otv {
 void render_state::update ()
 {
 	// Upload nodes from the host queue to the render buffer.
-	bool flushing_something = append_nodes();
+	flushed_something = append_nodes();
 
 	// Upload glyphs from the host queue to the render buffer.
 	for (auto &trajectory : trajectories)
-		flushing_something |= trajectory.update_glyphs();
+		flushed_something |= trajectory.update_glyphs();
 
 	// Logically delete old nodes from the render buffer.
 	// Since old data may still be in use by a draw call, it cannot be overwritten yet.
@@ -22,7 +22,9 @@ void render_state::update ()
 	auto new_segments = segment_buffer.flush_range();
 
 	// Flush geometry buffers
-	flush_time_query.begin();
+	glFlush();  // Flushing the pipeline is the only way to
+	glFinish(); // time buffer uploads unfortunately :/
+	flush_time_query.begin_scope();
 	std::ignore = node_buffer.flush();
 	std::ignore = segment_buffer.flush();
 	std::ignore = seg_to_traj.flush_wrapping(new_segments);
@@ -35,9 +37,12 @@ void render_state::update ()
 	for (auto &trajectory : trajectories) {
 		std::ignore = trajectory.flush_glyph_attribs();
 	}
-	auto time_ns = duration_ns(flush_time_query.end());
-	if (flushing_something)
-		stats.buffer_flush_times.add_measurement(time_ns);
+	glFlush();
+	glFinish();
+	flush_time_query.end_scope();
+	stats.num_updates += flushed_something;
+	if (flushed_something)
+		std::clog << "render_state updates: "<<stats.num_updates << std::endl;
 }
 
 bool render_state::append_nodes ()
@@ -219,6 +224,15 @@ bool render_state::create_glyph_layer (
 
 	// Allocate memory for each segment's glyph range.
 	return glyphs[layer].ranges.create(segment_buffer.as_span().length());
+}
+
+void render_state::collect_timer_queries (void)
+{
+	// take flush time
+	if (flushed_something) {
+		auto time_ns = duration_ns(flush_time_query.collect());
+		stats.buffer_flush_times.add_measurement(time_ns);
+	}
 }
 
 } // namespace otv

@@ -118,9 +118,8 @@ float trajectory::arclength (void) const {
 bool trajectory::update_glyphs ()
 {
 	// Nothing to do if no layers changed.
-	if (_needs_glyph_update == 0) {
+	if (_needs_glyph_update == 0)
 		return false;
-	}
 
 	const auto self = this;
 	bool did_something = false;
@@ -136,7 +135,6 @@ bool trajectory::update_glyphs ()
 			return;
 		}
 		auto &layer {_layers[layer_idx]};
-		did_something |= true;
 
 		// Check whether the GPU buffer can fit all glyphs in the read buffer.
 		auto const capacity {layer.glyph_attribs.free_capacity()};
@@ -152,6 +150,7 @@ bool trajectory::update_glyphs ()
 
 			const auto diff {layer.attrib_queue.length() - capacity};
 			layer.attrib_queue.pop(diff);
+			did_something = true;
 
 			#ifdef _DEBUG
 				std::clog << _id << '.' << int{layer_idx} << ": Drop "
@@ -163,6 +162,7 @@ bool trajectory::update_glyphs ()
 		while (layer.current_segment != nil)
 		{
 			auto &range {shared_layer.ranges[layer.current_segment]};
+			did_something = true;
 
 			// Initialize new segments.
 			if (layer.segment_is_new) {

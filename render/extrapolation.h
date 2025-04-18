@@ -230,6 +230,8 @@ struct extrapolation_manager
 		uint16_t dirty_flags = 0;
 		bool update_needed = false;
 		std::chrono::time_point<std::chrono::high_resolution_clock> last_frame_timepoint;
+
+		bool flushed_something = false;
 	} state;
 
 	/// Statistics container
@@ -247,7 +249,7 @@ struct extrapolation_manager
 
 		/// Segment sorting timings.
 		stats_collector<duration_ms> sort_times, draw_times, render_times, replace_times, push_times;
-		stats_collector<duration_ns> flush_times;
+		stats_collector<duration_us> flush_times;
 
 		/// Reset all counters to 0.
 		void reset (void) {
@@ -392,6 +394,9 @@ struct extrapolation_manager
 
 	/// Draw the managed extrapolations in their current state.
 	void draw_extrapolations (cgv::render::context &ctx, const cgv::vec3 &eye_pos, const cgv::vec3 &view_dir);
+
+	/// Collect all timer queries that were inserted over the course of the current frame.
+	void collect_timer_queries (void);
 };
 
 

@@ -212,7 +212,7 @@ auto median_of_range (It begin, It end)
 		const auto mid_left = mid_right - 1;
 		return std::make_pair((*mid_left + *mid_right)/2, (int)size_half-1);
 	}
-	return  std::make_pair(*(begin + size/2), (int)size_half);
+	return  std::make_pair(*(begin + size_half), (int)size_half);
 }
 
 /// A simple statistics collector.
@@ -244,8 +244,9 @@ struct stats_collector
 
 	void process (void)
 	{
-		// Sanity check if we even have enough samples to do measningful statistics.
-		assert(measurements.size() > 2);
+		// Don't crash if no data was collected.
+		if (measurements.empty())
+			return;
 
 		// Sort measurments for robust statistics
 		std::sort(measurements.begin(), measurements.end());
@@ -285,7 +286,6 @@ struct stats_collector
 		   << "\tQ_75:   "<<to_number(upper_quartile)<<' '<<quantity_unit() << std::endl;
 	}
 };
-
 template<>
 inline double stats_collector<std::chrono::duration<double, std::nano>>::to_number(const quantity_type &quantity) {
 	return quantity.count();
