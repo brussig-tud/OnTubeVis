@@ -8,20 +8,36 @@ namespace otv {
 
 void render_state::update ()
 {
-	// Upload nodes from the host queue to the render buffer.
+	// Upload nodes from the host queue to the render buffer
 	flushed_something = append_nodes();
 
-	// Upload glyphs from the host queue to the render buffer.
-	for (auto &trajectory : trajectories)
-		flushed_something |= trajectory.update_glyphs();
+	// Upload glyphs from the host queue to the render buffer
+	const auto start_time = std::chrono::high_resolution_clock::now();
+	unsigned glyphs_processed=0, glyphs_discarded=0; {
+		for (auto &trajectory : trajectories) {
+			const auto [_glyphs_processed, _glyphs_discarded] = trajectory.update_glyphs();
+			glyphs_processed += _glyphs_processed;
+			glyphs_discarded += _glyphs_discarded;
+		}
+	}
+	flushed_something |= glyphs_processed;
 
-	// Logically delete old nodes from the render buffer.
-	// Since old data may still be in use by a draw call, it cannot be overwritten yet.
+	// Log glyph management stats
+	if (glyphs_processed) {
+		const auto time = std::chrono::high_resolution_clock::now() - start_time;
+		stats.glyph_commit_times.add_measurement(time);
+		stats.glyphs_per_push.add_measurement((float)glyphs_processed);
+		const unsigned num_glyphs_comitted = glyphs_processed - glyphs_discarded;
+		stats.num_glyphs_pushed += glyphs_processed;
+		stats.num_glyphs_committed += num_glyphs_comitted;
+	}
+
+	// Logically delete old nodes from the render buffer
+	// Since old data may still be in use by a draw call, it cannot be overwritten yet
 	trim_trajectories();
 
-	auto new_segments = segment_buffer.flush_range();
-
 	// Flush geometry buffers
+	auto new_segments = segment_buffer.flush_range();
 	glFlush();  // Flushing the pipeline is the only way to
 	glFinish(); // time buffer uploads unfortunately :/
 	flush_time_query.begin_scope();
@@ -34,15 +50,12 @@ void render_state::update ()
 	for_each_active_glyph_layer([&](const auto layer_idx, const auto &layer) {
 		std::ignore = layer.ranges.flush_wrapping(new_segments);
 	});
-	for (auto &trajectory : trajectories) {
+	for (auto &trajectory : trajectories)
 		std::ignore = trajectory.flush_glyph_attribs();
-	}
 	glFlush();
 	glFinish();
 	flush_time_query.end_scope();
 	stats.num_updates += flushed_something;
-	if (flushed_something)
-		std::clog << "render_state updates: "<<stats.num_updates << std::endl;
 }
 
 bool render_state::append_nodes ()
@@ -50,6 +63,9 @@ bool render_state::append_nodes ()
 	// During the previous frame, `trim_trajectories` should have freed the configured amount of
 	// capacity.
 	assert(node_buffer.free_capacity() >= reserve_nodes);
+
+	// Start measuring time
+	const auto start_time = std::chrono::high_resolution_clock::now();
 
 	// Check whether the GPU buffer can now fit all nodes that could not be pushed on the previous
 	// frame.
@@ -68,9 +84,6 @@ bool render_state::append_nodes ()
 
 	// Push nodes to the GPU buffer, creating segments where applicable.
 	bool did_something = false;
-	/*for (const auto &node : _node_queue) {
-		try_get_trajectory(node.trajectory)->append_node(node.node, &node.t_to_s);
-	}*/
 
 	// All nodes in the backlog have been processed, remove them from the queue and swap buffers.
 	_node_queue.flush();
@@ -82,10 +95,20 @@ bool render_state::append_nodes ()
 		static_cast<std::size_t>(node_buffer.free_capacity())
 	)};
 
+	unsigned nodes_comitted = 0;
 	for (auto node {_node_queue.begin()}; node != end; ++node) {
 		try_get_trajectory(node->trajectory)->append_node(node->node, &node->t_to_s);
 		_node_queue.pop();
+		++nodes_comitted;
 		did_something = true;
+	}
+
+	// Done! Update stats and return
+	if (did_something) {
+		const auto time = std::chrono::high_resolution_clock::now() - start_time;
+		stats.node_commit_times.add_measurement(time);
+		stats.num_nodes_committed += nodes_comitted;
+		stats.nodes_per_commit.add_measurement((float)nodes_comitted);
 	}
 
 	return did_something;
@@ -105,6 +128,8 @@ void render_state::trim_trajectories ()
 		node_buffer.capacity()
 	)};
 
+	const auto start_time = std::chrono::high_resolution_clock::now();
+	const bool trimmed = free_capacity < target_capacity;
 	while (free_capacity < target_capacity)
 	{
 		// Draw calls are over a contiguous (except for wrap-around) range of segments, so segments
@@ -143,6 +168,13 @@ void render_state::trim_trajectories ()
 			node_buffer.pop_front();
 			++free_capacity;
 		}
+	}
+
+	// Done! Update stats and return
+	if (trimmed) {
+		const auto time = std::chrono::high_resolution_clock::now() - start_time;
+		stats.traj_trim_times.add_measurement(time);
+		++stats.num_trims;
 	}
 }
 

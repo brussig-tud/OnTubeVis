@@ -110,9 +110,10 @@ public:
 		queue.push_back(glyphs);
 	}
 
-	/// Add newly visible glyph attibutes from the host queue to the render buffer. Returns @c true if it actually did
-	/// something.
-	bool update_glyphs ();
+	/// Add newly visible glyph attibutes from the host queue to the render buffer. Returns both the number of glyphs
+	/// that were processed (first value) as well as the number of glyphs among those that were discarded at the tail
+	/// end because they didn't fit in the buffer (second value).
+	std::pair<unsigned, unsigned> update_glyphs (void);
 
 	/// Must be called when a node belonging to this trajectory is removed from the render buffer.
 	void on_delete_node (gpumem::index_type node_idx) noexcept

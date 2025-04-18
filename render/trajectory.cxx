@@ -115,14 +115,14 @@ float trajectory::arclength (void) const {
 	return _last_segment_idx != nil ? *_render.t_to_s[_last_segment_idx].end() : 0;
 }
 
-bool trajectory::update_glyphs ()
+std::pair<unsigned, unsigned> trajectory::update_glyphs (void)
 {
 	// Nothing to do if no layers changed.
 	if (_needs_glyph_update == 0)
-		return false;
+		return {0, 0};
 
 	const auto self = this;
-	bool did_something = false;
+	unsigned glyphs_processed=0, glyphs_discarded=0;
 	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer)
 	{
 		#ifndef NDEBUG
@@ -150,7 +150,10 @@ bool trajectory::update_glyphs ()
 
 			const auto diff {layer.attrib_queue.length() - capacity};
 			layer.attrib_queue.pop(diff);
-			did_something = true;
+			assert(diff % _glyph_sizes[layer_idx] == 0);
+			const auto num_glyphs = diff/_glyph_sizes[layer_idx];
+			glyphs_processed += num_glyphs;
+			glyphs_discarded += num_glyphs;
 
 			#ifdef _DEBUG
 				std::clog << _id << '.' << int{layer_idx} << ": Drop "
@@ -162,7 +165,6 @@ bool trajectory::update_glyphs ()
 		while (layer.current_segment != nil)
 		{
 			auto &range {shared_layer.ranges[layer.current_segment]};
-			did_something = true;
 
 			// Initialize new segments.
 			if (layer.segment_is_new) {
@@ -197,6 +199,8 @@ bool trajectory::update_glyphs ()
 				}
 
 				seg_attribs.begin += _glyph_sizes[layer_idx];
+				++glyphs_processed;
+				++glyphs_discarded;
 			}
 
 			// By now, we know if the layer is a plot
@@ -251,6 +255,13 @@ bool trajectory::update_glyphs ()
 				? layer.buffer_size
 				: glyph_count_type{0};
 
+			/* Keep track of how many glyphs we just processed */ {
+				const auto num_attribs = std::distance(seg_attribs.begin, seg_attribs.end);
+				assert(num_attribs % _glyph_sizes[layer_idx] == 0);
+				const auto num_glyphs = num_attribs/_glyph_sizes[layer_idx];
+				glyphs_processed += num_glyphs;
+			}
+
 			// Move attributes from queue to render buffer.
 			layer.glyph_attribs.push_back(seg_attribs);
 			layer.attrib_queue.pop(seg_attribs.length());
@@ -274,7 +285,7 @@ bool trajectory::update_glyphs ()
 	});
 
 	// Done!
-	return did_something;
+	return {glyphs_processed, glyphs_discarded};
 }
 
 void trajectory::on_delete_segment (gpumem::index_type seg_idx)
@@ -282,7 +293,8 @@ void trajectory::on_delete_segment (gpumem::index_type seg_idx)
 	// The trajectory now starts at the next segment.
 	_first_segment_idx = _render._next_segment[seg_idx];
 
-	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer) {
+	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer)
+	{
 		auto                          &layer     {_layers[layer_idx]};
 		index_range<glyph_count_type> next_range;
 
@@ -314,11 +326,11 @@ void trajectory::on_delete_segment (gpumem::index_type seg_idx)
 void trajectory::trim_glyphs ()
 {
 	// If there are no glyphs to be uploaded, there is no need to make space.
-	if (_needs_glyph_update == 0) {
+	if (_needs_glyph_update == 0)
 		return;
-	}
 
-	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer) {
+	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer)
+	{
 		// Only check layers that actually have new glyphs ready to be uploaded.
 		if (! (_needs_glyph_update & 1 << layer_idx)) {
 			return;
@@ -330,10 +342,8 @@ void trajectory::trim_glyphs ()
 		// one attribute, which is automatically added by the ring buffer implementation.
 		// This partial padding glyph is subtracted so that all calculations are done for complete
 		// glyphs.
-		auto free_capacity {
-			layer.glyph_attribs.free_capacity() - _glyph_sizes[layer_idx] + 1
-		};
-		const auto target_capacity {std::min(
+		auto free_capacity {layer.glyph_attribs.free_capacity() - _glyph_sizes[layer_idx] + 1};
+		const auto target_capacity { std::min(
 			static_cast<gpumem::size_type>(layer.attrib_queue.length()),
 			layer.glyph_attribs.capacity() - _glyph_sizes[layer_idx] + 1
 		)};
