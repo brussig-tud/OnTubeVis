@@ -221,10 +221,14 @@ struct stats_collector
 {
 	typedef Quantity quantity_type;
 	std::vector<Quantity> measurements;
-	Quantity avg, median, min, max, lower_quartile, upper_quartile;
+	double avg;
+	Quantity median, min, max, lower_quartile, upper_quartile;
 
 	static inline double to_number (const Quantity &quantity) {
 		return (double)quantity;
+	}
+	static inline auto number_format (void) {
+		return std::dec;
 	}
 	static inline const std::string& quantity_unit (void) {
 		static const std::string unit = "";
@@ -253,7 +257,9 @@ struct stats_collector
 
 		// Get the average.
 		ro_range calc_range{measurements.begin(), measurements.end()};
-		avg = std::accumulate(calc_range.begin, calc_range.end, Quantity(0)) / measurements.size();
+		avg = to_number(
+			std::accumulate(calc_range.begin, calc_range.end, Quantity(0)) / measurements.size()
+		);
 
 		// Get min/max
 		min = *std::min_element(calc_range.begin, calc_range.end);
@@ -277,13 +283,15 @@ struct stats_collector
 
 	void print (std::ostream &os, const std::string &label) const
 	{
+		const auto flags_bak = os.flags();
 		os << '['<<label<<"]:\n"
-		   << "\tavg:    "<<to_number(avg)<<' '<<quantity_unit() << "\n"
+		   << "\tavg:    "<<avg<<number_format()<<' '<<quantity_unit() << "\n"
 		   << "\tmin:    "<<to_number(min)<<' '<<quantity_unit() << "\n"
 		   << "\tmax:    "<<to_number(max)<<' '<<quantity_unit() << "\n"
 		   << "\tmedian: "<<to_number(median)<<' '<<quantity_unit() << "\n"
 		   << "\tQ_25:   "<<to_number(lower_quartile)<<' '<<quantity_unit() << "\n"
 		   << "\tQ_75:   "<<to_number(upper_quartile)<<' '<<quantity_unit() << std::endl;
+		os.flags(flags_bak);
 	}
 };
 template<>

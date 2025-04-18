@@ -1761,38 +1761,26 @@ void on_tube_vis::quit() {
 
 bool on_tube_vis::on_exit_request()
 {
-	// collect statistics
-	if (true) {
-		// configure output
-		const auto flags_bak = std::clog.flags();
-		std::clog << std::fixed;
-
-		// regular trajectories
-		render.stats.process();
-		render.stats.print(std::clog);
-
-		// extrapolations
-		client.extrapol_mgr.stats.process();
-		client.extrapol_mgr.stats.print(std::clog);
-
-		// restore output settings
-		std::clog.flags(flags_bak);
-
-		// internal client (will use default output settings)
-		if (!run_as_service) {
-			client.stats.process();
-			client.stats.print(std::clog);
-		}
+	// calculate and print statistics
+	// - regular trajectories
+	render.stats.process();
+	render.stats.print(std::clog);
+	// - extrapolations
+	client.extrapol_mgr.stats.process();
+	client.extrapol_mgr.stats.print(std::clog);
+	// - internal client
+	if (!run_as_service) {
+		client.stats.process();
+		client.stats.print(std::clog);
 	}
 
 	// TODO: does not seem to fire when window is maximized?
 	if (run_as_service)
 		return false;
 
-#ifndef _DEBUG
-	if(layer_config_has_unsaved_changes) {
+#ifdef NDEBUG
+	if(layer_config_has_unsaved_changes)
 		return cgv::gui::question("The glyph layer configuration has unsaved changes. Are you sure you want to quit?");
-	}
 #endif
 	return true;
 }
@@ -3291,12 +3279,14 @@ void on_tube_vis::update_attribute_bindings(void)
 			for (const auto &traj : trajs)
 				num_nodes += traj.n;
 		}
+		otv::gpumem::size_type avg_num_nodes {num_nodes/num_trajectories};
 
 		// Allocate ring buffers.
+		const auto segments_capacity = avg_num_nodes*num_trajectories/16;
 		if (// - actual trajectories
 		    !(
 		    	render.create_geom_buffers(ctx,
-		    		/* number of maximally renderable elements */ num_nodes, // 100 * num_trajectories
+		    		/* number of maximally renderable elements */ segments_capacity/*num_nodes*/, // 100 * num_trajectories
 		    		/* number of additional elements reserved at the end of the ringbuffer where new stuff can be added
 		    		   without having to wait for the current frame to finish rendering */ num_trajectories
 		    	)
