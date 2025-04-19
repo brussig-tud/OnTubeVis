@@ -512,7 +512,7 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 				on_set(&tube_shading.ao_style.enable);
 				handled = true;
 				break;
-			case 'B':
+			/*case 'B':
 				if(modifiers == cgv::gui::EM_CTRL) {
 					if(benchmark.running) {
 						std::cout << "Aborting benchmark..." << std::endl;
@@ -527,7 +527,7 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 					on_set(&show_bbox);
 				}
 				handled = true;
-				break;
+				break;*/
 			case 'G':
 				tube_shading.grid_mode = static_cast<GridMode>((static_cast<int>(tube_shading.grid_mode) + 1) % 4);
 				on_set(&tube_shading.grid_mode);
@@ -577,6 +577,15 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 					handled = true;
 				}
 			#endif
+				break;
+			case 'V':
+				/* toggle vsync */ {
+					const auto ctx_as_base =  dynamic_cast<base*>(get_context());
+					const bool new_state =   !ctx_as_base->get<bool>("vsync");
+					ctx_as_base->set("vsync", new_state);
+					std::clog << "vsync "<<(new_state?"on":"off") << std::endl;
+					handled = true;
+				}
 				break;
 		#ifdef RTX_SUPPORT
 			case 'P':
@@ -1994,6 +2003,13 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 bool on_tube_vis::init (cgv::render::context &ctx)
 {
+	// First of all, disable VSync so TAA works well
+	 dynamic_cast<base&>(ctx).set("vsync", false);
+
+	// Show navigator by default
+	show_navigator = true;
+	on_set(&show_navigator);
+
 	// increase reference count of the renderers by one
 	auto &tstr = ref_textured_spline_tube_renderer(ctx, 1);
 	auto &vr = ref_volume_renderer(ctx, 1);
@@ -3282,11 +3298,11 @@ void on_tube_vis::update_attribute_bindings(void)
 		otv::gpumem::size_type avg_num_nodes {num_nodes/num_trajectories};
 
 		// Allocate ring buffers.
-		const auto segments_capacity = avg_num_nodes*num_trajectories/16;
+		const auto segments_capacity = avg_num_nodes*num_trajectories/8;
 		if (// - actual trajectories
 		    !(
 		    	render.create_geom_buffers(ctx,
-		    		/* number of maximally renderable elements */ /*segments_capacity*/num_nodes, // 100 * num_trajectories
+		    		/* number of maximally renderable elements */ segments_capacity/*num_nodes*/, // 100 * num_trajectories
 		    		/* number of additional elements reserved at the end of the ringbuffer where new stuff can be added
 		    		   without having to wait for the current frame to finish rendering */ num_trajectories
 		    	)
