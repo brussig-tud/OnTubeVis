@@ -528,6 +528,22 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 				}
 				handled = true;
 				break;*/
+			case 'E':
+				// toggle extrapolation progression mode
+				if (client.num_extrapol_segments)
+				{
+					if (client.use_natural_progression) {
+						render.style.max_t =
+							run_as_service ? std::numeric_limits<float>::max() : render.style.data_t_minmax.second;
+						client.use_natural_progression = false;
+					}
+					else {
+						render.style.max_t = client.playback_t;
+						client.use_natural_progression = true;
+					}
+					handled = true;
+				}
+				break;
 			case 'G':
 				tube_shading.grid_mode = static_cast<GridMode>((static_cast<int>(tube_shading.grid_mode) + 1) % 4);
 				on_set(&tube_shading.grid_mode);
