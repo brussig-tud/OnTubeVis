@@ -33,6 +33,7 @@
 // Testcases
 #include "testcase/debug.h"
 #include "testcase/nominal.h"
+#include "testcase/triangles.h"
 
 // Local includes
 #include "../util.h"
@@ -80,7 +81,9 @@ int main (int argc, char** argv)
 	// Execute a test case
 
 	// Collect test configuration
-	auto config = testcase::/*nominal_setup*/debug_setup();
+	//auto config = testcase::nominal_setup();
+	auto config = testcase::debug_setup();
+	//auto config = testcase::triangles_setup();
 
 	// Set up visualization
 	VisSetup setup(otv__create_VisSetup(config.name.c_str()));
@@ -95,7 +98,9 @@ int main (int argc, char** argv)
 	}
 
 	// Run the test case
-	testcase::/*nominal_run*/debug_run(config);
+	//testcase::nominal_run(config);
+	testcase::debug_run(config);
+	//testcase::triangles_run(config);
 
 
 	////

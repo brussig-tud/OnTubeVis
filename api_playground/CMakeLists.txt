@@ -16,6 +16,7 @@ add_executable(api_playground
 	stream/nodes.h
 	testcase/debug.h
 	testcase/nominal.h
+	testcase/triangles.h
 )
 
 target_include_directories(api_playground PRIVATE ${CMAKE_CURRENT_LIST_DIR})
@@ -37,10 +38,3 @@ set_target_properties(api_playground PROPERTIES C_STANDARD_REQUIRED TRUE)
 set_target_properties(api_playground PROPERTIES CXX_STANDARD 20)
 set_target_properties(api_playground PROPERTIES CXX_STANDARD_REQUIRED ON)
 target_compile_features(api_playground PUBLIC cxx_std_20)
-
-# Make sure the OnTubeVis library (and all other libraries we depend on, for that matter) end up next to our
-# api_example build artifact
-#add_custom_command(TARGET api_example POST_BUILD
-#	COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:api_example> $<TARGET_RUNTIME_DLLS:api_example>
-#	COMMAND_EXPAND_LISTS
-#)

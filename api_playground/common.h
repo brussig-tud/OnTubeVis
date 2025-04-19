@@ -69,6 +69,66 @@ struct SurfaceColorLayer
 	{}
 };
 
+struct LinePlotLayer
+{
+	typedef OTV_LinePlotInfo Info;
+
+	OTV_LayerConfig config;
+	Info &info;
+
+	Info& init_info (void) {
+		return *otv__upcast_LinePlotInfo(&config.static_params);
+	}
+
+	inline LinePlotLayer(const SurfaceColorLayer &other) noexcept
+		: config(other.config), info(init_info())
+	{}
+
+	inline LinePlotLayer(LinePlotLayer &&other) noexcept
+		: config(std::move(other.config)), info(init_info())
+	{}
+
+	LinePlotLayer(const float outline, const OTV_InterpolationMode &interpolation_mode, const OTV_Rgb &color0)
+		: config{
+			.type=LinePlot, .outline=0,
+			.static_params=otv__construct_LinePlotInfo(interpolation_mode, 1, &color0)
+		}, info(init_info())
+	{}
+	LinePlotLayer(
+		const float outline, const OTV_InterpolationMode &interpolation_mode, const OTV_Rgb &color0,
+		const OTV_Rgb &color1
+	)
+		: config{
+			.type=LinePlot, .outline=0,
+			.static_params=otv__construct_LinePlotInfo(
+				interpolation_mode, 2, std::array{color0, color1}.data()
+			)
+		}, info(init_info())
+	{}
+	LinePlotLayer(
+		const float outline, const OTV_InterpolationMode &interpolation_mode, const OTV_Rgb &color0,
+		const OTV_Rgb &color1, const OTV_Rgb &color2
+	)
+		: config{
+			.type=LinePlot, .outline=0,
+			.static_params=otv__construct_LinePlotInfo(
+				interpolation_mode, 3, std::array{color0, color1, color2}.data()
+			)
+		}, info(init_info())
+	{}
+	LinePlotLayer(
+		const float outline, const OTV_InterpolationMode &interpolation_mode, const OTV_Rgb &color0,
+		const OTV_Rgb &color1, const OTV_Rgb &color2, const OTV_Rgb &color3
+	)
+		: config{
+			.type=LinePlot, .outline=0,
+			.static_params=otv__construct_LinePlotInfo(
+				interpolation_mode, 4, std::array{color0, color1, color2, color3}.data()
+			)
+		}, info(init_info())
+	{}
+};
+
 struct CircleLayer
 {
 	typedef OTV_CircleInfo Info;

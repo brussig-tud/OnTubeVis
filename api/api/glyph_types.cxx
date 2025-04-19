@@ -37,8 +37,7 @@
 OTV_API OTV_GlyphInfo otv__construct_SurfaceColorInfo (
 	OTV_Rgb rgb, const OTV_ColorMap color_map, const OTV_InterpolationMode interpolation_mode,
 	const OTV_SurfaceColorInfoStaticFlags static_flags
-)
-{
+){
 	OTV_GlyphInfo gi = otv__construct_empty_SurfaceColorInfo();
 	auto &ret = *(OTV_SurfaceColorInfo*)&gi;
 	ret.rgb = rgb;
@@ -93,8 +92,7 @@ OTV_API OTV_GlyphData* otv__downcast_SurfaceColorData (const OTV_SurfaceColorDat
 // --- ...Info ----------------------------------------------------------
 OTV_API OTV_GlyphInfo otv__construct_LinePlotInfo (
 	const OTV_InterpolationMode interpolation_mode, const uint32_t num_subplots, const OTV_Rgb subplot_colors[]
-)
-{
+){
 	OTV_GlyphInfo gi = otv__construct_empty_LinePlotInfo();
 	auto &ret = *(OTV_LinePlotInfo*)&gi;
 	ret.interpolation_mode = interpolation_mode;

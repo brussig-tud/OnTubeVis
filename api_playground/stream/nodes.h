@@ -93,7 +93,8 @@ struct Nodes
 		cgv::vec3 tan;
 	};
 
-	struct Segment {
+	struct Segment
+	{
 		const std::pair<unsigned, unsigned> nidx;
 		const OTV_HermiteNode &n0;
 		const OTV_HermiteNode &n1;
@@ -110,9 +111,15 @@ struct Nodes
 		[[nodiscard]] inline float t (const float time) const {
 			return (time-n0.time) / (n1.time-n0.time);
 		}
+
+		[[nodiscard]] inline float time_from_t (const float t) const {
+			return n0.time + t*(n1.time-n0.time);
+		}
+
 		[[nodiscard]] inline float s (const float t) const {
 			return otv__eval_arclen(&t_to_s, t);
 		}
+
 		[[nodiscard]] inline float s_from_time (const float time) const {
 			return s(t(time));
 		}
