@@ -331,9 +331,11 @@ void on_tube_vis::handle_args (std::vector<std::string> &args)
 	bool dataset_found = false, service_option_notfound = true;
 	for (unsigned i=0; i<(unsigned)args.size(); i++)
 	{
-		if (args[i].rfind("option:", 0) == 0) {
+		if (args[i].rfind("option:", 0) == 0)
+		{
 			if (service_option_notfound && args[i].substr(7) == "service") {
 				run_as_service = true;
+				taa.set_enabled(true); // <- enable TAA by default when in service mode
 				service_option_notfound = false;
 				arg_ids.emplace_back(i);
 			}
