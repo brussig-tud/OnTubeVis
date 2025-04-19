@@ -3286,7 +3286,7 @@ void on_tube_vis::update_attribute_bindings(void)
 		if (// - actual trajectories
 		    !(
 		    	render.create_geom_buffers(ctx,
-		    		/* number of maximally renderable elements */ segments_capacity/*num_nodes*/, // 100 * num_trajectories
+		    		/* number of maximally renderable elements */ /*segments_capacity*/num_nodes, // 100 * num_trajectories
 		    		/* number of additional elements reserved at the end of the ringbuffer where new stuff can be added
 		    		   without having to wait for the current frame to finish rendering */ num_trajectories
 		    	)

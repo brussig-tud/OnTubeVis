@@ -122,7 +122,7 @@ std::pair<unsigned, unsigned> trajectory::update_glyphs (void)
 		return {0, 0};
 
 	const auto self = this;
-	unsigned glyphs_processed=0, glyphs_discarded=0;
+	unsigned glyphs_processed=0, glyphs_processed_check=0, glyphs_discarded=0;
 	_render.for_each_active_glyph_layer([&](const auto layer_idx, const auto &shared_layer)
 	{
 		#ifndef NDEBUG
@@ -153,6 +153,7 @@ std::pair<unsigned, unsigned> trajectory::update_glyphs (void)
 			assert(diff % _glyph_sizes[layer_idx] == 0);
 			const auto num_glyphs = diff/_glyph_sizes[layer_idx];
 			glyphs_processed += num_glyphs;
+			glyphs_processed_check += num_glyphs;
 			glyphs_discarded += num_glyphs;
 
 			#ifdef _DEBUG
@@ -200,6 +201,7 @@ std::pair<unsigned, unsigned> trajectory::update_glyphs (void)
 
 				seg_attribs.begin += _glyph_sizes[layer_idx];
 				++glyphs_processed;
+				++glyphs_processed_check;
 				++glyphs_discarded;
 			}
 
@@ -217,15 +219,20 @@ std::pair<unsigned, unsigned> trajectory::update_glyphs (void)
 				if (glyph_center - std::max(glyph_radius, 0.0f) > seg_s_max) {
 					range_end = range.end();
 					if (is_plot && layer.last_glyph_center<seg_s_max) {
-						range.n += glyph_count_type{1};
-						seg_attribs.end += _glyph_sizes[layer_idx];
+						range.n += glyph_count_type{1};                    // include one more for smooth inter-
+						layer.next_segment_range.n += glyph_count_type{1}; // segment interpolation
+						seg_attribs.end += _glyph_sizes[layer_idx]; ++glyphs_processed_check;
 						layer.last_glyph_center = glyph_center;
+						layer.last_glyph_idx = range.end()-glyph_count_type{1};
 					}
 					break;
 				}
 
 				// Otherwise count the glyph.
 				range.n += glyph_count_type{1};
+				const auto prev_lasdt_idx = layer.last_glyph_idx;
+				layer.last_glyph_idx = range.n ? range.end()-glyph_count_type{1} : layer.last_glyph_idx;
+				assert(layer.last_glyph_idx == prev_lasdt_idx+glyph_count_type{1});
 
 				// If the glyph also overlaps the next segment, count it there as well.
 				if (glyph_radius < 0)
@@ -236,6 +243,7 @@ std::pair<unsigned, unsigned> trajectory::update_glyphs (void)
 				// Next glyph.
 				layer.last_glyph_center = glyph_center;
 				seg_attribs.end += _glyph_sizes[layer_idx];
+				glyphs_processed_check++;
 
 				// Processed all glyphs in the queue.
 				if (seg_attribs.end == layer.attrib_queue.end()) {
@@ -250,7 +258,7 @@ std::pair<unsigned, unsigned> trajectory::update_glyphs (void)
 
 			// Calculate the initial glyph range of this trajectory's next segment, consisting of
 			// all glyphs shared with the current segment.
-			layer.next_segment_range.i0  = range_end - layer.next_segment_range.n;
+			layer.next_segment_range.i0  = range.end() - layer.next_segment_range.n;
 			layer.next_segment_range.i0 -= layer.next_segment_range.i0 >= layer.buffer_size
 				? layer.buffer_size
 				: glyph_count_type{0};
@@ -261,6 +269,7 @@ std::pair<unsigned, unsigned> trajectory::update_glyphs (void)
 				const auto num_glyphs = num_attribs/_glyph_sizes[layer_idx];
 				glyphs_processed += num_glyphs;
 			}
+			assert(glyphs_processed == glyphs_processed_check);
 
 			// Move attributes from queue to render buffer.
 			layer.glyph_attribs.push_back(seg_attribs);

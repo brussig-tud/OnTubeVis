@@ -122,6 +122,10 @@ struct glyph_count_type {
 		: value {value}
 	{}
 
+	[[nodiscard]] constexpr explicit operator bool () const noexcept {
+		return value;
+	}
+
 // Implement operators by applying them to the raw value.
 #define OTV_GLYPH_COUNT_BINARY_OP(op, result_type) \
 	[[nodiscard]] friend constexpr result_type operator op ( \

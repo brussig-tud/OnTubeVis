@@ -157,6 +157,7 @@ private:
 		/// The glyph center of the last added glyph. Required to resolve inter-segment ambiguities for plots when a
 		/// control point lies directly on a Hermite node.
 		float last_glyph_center = -std::numeric_limits<float>::infinity();
+		glyph_count_type last_glyph_idx{-1};
 
 		/// The size, not capacity, of this layer's glyph buffer.
 		glyph_count_type buffer_size;
