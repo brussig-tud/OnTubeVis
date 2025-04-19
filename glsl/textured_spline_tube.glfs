@@ -1023,7 +1023,7 @@ void main()
 #if FORWARD_SHADING == 1
 		float u = alen(spline_t);
 		col.rgb = otv_shade_fragment(
-			col.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(u, spline_t>=l_max_cubic ? 2.193f : v),
+			col.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(u, spline_t>=l_max_cubic ? 2 : v),
 			segment_id_fs, hit.hp.xyz, hit.normal, tangent, gl_FragDepth, /*specular_factor: */1
 		).rgb;
 		if (l_playback < POS_INF)
