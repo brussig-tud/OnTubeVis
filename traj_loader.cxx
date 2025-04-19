@@ -2094,8 +2094,7 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 					continue;
 				const unsigned idx_traj_offset = (unsigned)impl.rd.indices.size();
 				impl.rd.indices.push_back(idx_base+traj.i0); unsigned idx=impl.rd.indices.back()+1;
-				for (unsigned i=1; i<traj.n-1; i++)
-				{
+				for (unsigned i=1; i<traj.n-1; i++) {
 					impl.rd.indices.push_back(idx);
 					impl.rd.indices.push_back(idx); // twice to gain line-list semantics
 					idx++;
@@ -2159,8 +2158,7 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 					traj_radii.emplace_back(impl.rd.radii[impl.rd.indices[traj.i0+i]]);
 				traj_radii.emplace_back(impl.rd.radii[impl.rd.indices[traj.i0+traj.n-1]]);
 				std::sort(traj_radii.begin(), traj_radii.end());
-				if (traj_radii.size()%2 == 0)
-				{
+				if (traj_radii.size()%2 == 0) {
 					const auto mid = traj_radii.size()/2;
 					traj.med_radius = float(traj_radii[mid-1]+traj_radii[mid]) / 2.f;
 				}
@@ -2170,8 +2168,7 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 			}
 			// - (2) dataset median radius
 			std::sort(med_radii.begin(), med_radii.end());
-			if (med_radii.size()%2 == 0)
-			{
+			if (med_radii.size()%2 == 0) {
 				const auto mid = med_radii.size()/2;
 				ds_info.irange.med_radius = float(med_radii[mid-1]+med_radii[mid]) / 2.f;
 			}
@@ -2193,12 +2190,8 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 }
 
 template <class flt_type>
-const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_render_data (void) const
-{
-	// default return value representing dirty state situations
-	static const render_data ood;
-
-	// return actual render data if current, and empty dummy if dirty / out-of-date
+const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_render_data (void) const {
+	static const render_data ood; // default return value representing dirty state situations
 	return pimpl->dirty ? ood : pimpl->rd;
 }
 
@@ -2214,7 +2207,7 @@ unsigned find_sample(const traj_attribute<flt_type> &attrib, const range &traj, 
 	flt_type t0 = timestamps[i0], tc = timestamps[ic], t1 =timestamps[i1];
 	while (w > 1)
 	{
-		if (timestamp <= t0 || timestamp >= 1)
+		if (timestamp <= t0 || timestamp >= t1)
 			return timestamp < t1 ? i0 : i1;
 		if (timestamp < tc) {
 			i1 = ic;
@@ -2242,7 +2235,7 @@ unsigned find_sample_linear (const traj_attribute<flt_type> &attrib, const range
 		for (unsigned i=hint+1; i<traj.i0+traj.n; i++)
 			if (timestamps[i] > timestamp)
 				return i-1;
-		return traj.n-1;
+		return traj.i0+traj.n-1;
 	}
 	for (signed i=signed(hint)-1; ((unsigned)i)>=traj.i0; i--)
 		if (timestamps[i] < timestamp)

@@ -360,7 +360,8 @@ void on_tube_vis::handle_args (std::vector<std::string> &args)
 	}
 }
 
-void on_tube_vis::clear(cgv::render::context &ctx) {
+void on_tube_vis::clear(cgv::render::context &ctx)
+{
 	// decrease reference count of the renderers by one
 	ref_textured_spline_tube_renderer(ctx, -1);
 	ref_volume_renderer(ctx, -1);
@@ -2572,7 +2573,8 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	ensure_initial_dataset(ctx);
 
 	// update color and mapping legends if necessary
-	if (update_legends) {
+	if (update_legends)
+	{
 		color_legend_mgr.compose(
 			ctx, traj_mgr.dataset(0), color_map_mgr, render.visualizations.front().manager.ref_glyph_attribute_mappings()
 		);
@@ -2600,8 +2602,10 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		if(tf_editor_ptr)
 		{
 			auto& cmcs = color_map_mgr.ref_color_maps();
-			for(auto& cmc : cmcs) {
-				if(cmc.name == "imola") {
+			for(auto& cmc : cmcs)
+			{
+				if(cmc.name == "imola")
+				{
 					for(const auto& p : cmc.cm.ref_color_points())
 						volume_tf.add_color_point(p.first, p.second);
 
@@ -2677,10 +2681,11 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 				pos_attrib, traj_range, client.playback_t, playback.follow_last_nid
 			),
 			nid_next = std::min(nid+1, traj_range.i0+traj_range.n-1);
+			playback.follow_last_nid = nid;
 			const float t0 = pos_data.timestamps[nid];
 			view_ptr->set_focus(cgv::math::lerp(
 				ds.mapped_position(nid), ds.mapped_position(nid_next),
-				(client.playback_t-t0) / (pos_data.timestamps[nid_next]-t0)
+				nid != nid_next ? (client.playback_t-t0)/(pos_data.timestamps[nid_next]-t0) : 0
 			));
 		}
 
@@ -2830,9 +2835,6 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 	if(!dnd.text.empty())
 		draw_dnd(ctx);
 }
-
-/*void on_tube_vis::finish_frame(context &ctx)
-{}*/
 
 void on_tube_vis::after_finish(context& ctx)
 {

@@ -529,8 +529,7 @@ public:
 				traj_attribute<real_type> ret(1);
 				const auto &data = get_data<real>();
 				auto &ret_data = ret.template get_data<real_type>();
-				for (unsigned i=0; i<num(); i++)
-				{
+				for (unsigned i=0; i<num(); i++) {
 					const auto &sample = data[i];
 					ret_data.append(sample.val, sample.t);
 				}
@@ -541,8 +540,7 @@ public:
 				traj_attribute<real_type> ret(2);
 				const auto &data = get_data<Vec2>();
 				auto &ret_data = ret.template get_data<target_atype::Vec2>();
-				for (unsigned i=0; i<num(); i++)
-				{
+				for (unsigned i=0; i<num(); i++) {
 					const auto &sample = data[i];
 					ret_data.append(sample.val, sample.t);
 				}
@@ -553,8 +551,7 @@ public:
 				traj_attribute<real_type> ret(3);
 				const auto &data = get_data<Vec3>();
 				auto &ret_data = ret.template get_data<target_atype::Vec3>();
-				for (unsigned i=0; i<num(); i++)
-				{
+				for (unsigned i=0; i<num(); i++) {
 					const auto &sample = data[i];
 					ret_data.append(sample.val, sample.t);
 				}
@@ -565,8 +562,7 @@ public:
 				traj_attribute<real_type> ret(4);
 				const auto &data = get_data<Vec4>();
 				auto &ret_data = ret.template get_data<target_atype::Vec4>();
-				for (unsigned i=0; i<num(); i++)
-				{
+				for (unsigned i=0; i<num(); i++) {
 					const auto &sample = data[i];
 					ret_data.append(sample.val, sample.t);
 				}
@@ -595,7 +591,6 @@ class attrib_transform
 	// interfacing
 	friend class visual_attribute_mapping<flt_type>;
 	friend struct visual_attribute_mapping<flt_type>::attrib_reference;
-
 
 public:
 

@@ -200,4 +200,5 @@ private:
 	static_assert(std::numeric_limits<decltype(_needs_glyph_update)>::digits >= max_glyph_layers);
 };
 
+
 } // namespace otv
