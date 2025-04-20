@@ -87,10 +87,13 @@ struct Nodes
 {
 	typedef std::map<float, unsigned> Sequence;
 
-	struct Event {
+	struct EventData {
 		float t;
 		cgv::vec3 pos;
 		cgv::vec3 tan;
+	};
+	struct Event : public EventData {
+		std::optional<EventData> extrapol_ref;
 	};
 
 	struct Segment
@@ -163,15 +166,25 @@ struct Nodes
 		assert(num_nodes > 1 && "stream::Nodes::compile() needs at least two nodes to form a trajectory!");
 
 		// prepare the fictitious -1st node for computing the initial extrapolation when no complete segment exists yet
-		const auto fictitious_prev_node = [&] {
-			const auto &tan = events.front().tan;
-			const auto p = events.front().pos - tan;
-			return OTV_HermiteNode{
-				.time = events.front().t - 1,
-				.position = otv__Vec3(p.x(), p.y(), p.z()), .tangent = otv__Vec3(tan.x(), tan.y(), tan.z())
-			};
-		}();
-		const auto fictitious_prev_segment_sigma = -events.front().tan.length();
+		const auto fictitious_prev_node = events.front().extrapol_ref.has_value() ?
+			  [&] {
+			  	const auto &ref = events.front().extrapol_ref.value();
+			  	return OTV_HermiteNode{
+			  		.time = ref.t, .position = otv__Vec3(ref.pos.x(), ref.pos.y(), ref.pos.z()),
+			  		.tangent = otv__Vec3(ref.tan.x(), ref.tan.y(), ref.tan.z())
+			  	};
+			  }()
+			: [&] {
+			  	const auto &tan = events.front().tan;
+			  	const auto p = events.front().pos - tan;
+			  	return OTV_HermiteNode{
+			  		.time = events.front().t - 1,
+			  		.position = otv__Vec3(p.x(), p.y(), p.z()), .tangent = otv__Vec3(tan.x(), tan.y(), tan.z())
+			  	};
+			  }();
+		const auto fictitious_prev_segment_sigma = -(
+			events.front().pos - reinterpret_cast<const cgv::vec3&>(fictitious_prev_node.position)
+		).length();
 		constexpr float fictitious_alen_tolerance = 4*std::numeric_limits<float>::epsilon();
 
 		// Prepare storage for the computed extrapolations

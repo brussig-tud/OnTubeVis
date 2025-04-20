@@ -60,12 +60,17 @@ void debug_run (const DebugConfig &config)
 
 	// Base trajectory (will be identical except for translation)
 	auto traj1 = stream::Nodes::compile(config, {
-		stream::Nodes::Event{.0f, cgv::vec3(0,0,0), cgv::vec3(2,0,0)},
+		stream::Nodes::Event{
+			.0f, cgv::vec3(0,0,0), cgv::vec3(2,0,0),
+			stream::Nodes::Event{
+				-8, {-2, 0, 0},  {2, 0, 0}
+			}
+		},
 		stream::Nodes::Event{8.f, cgv::vec3(2,0.25f,0.125f), cgv::vec3(2,0,0)},
 		stream::Nodes::Event{16.f, cgv::vec3(4,.125f,-.125f), cgv::vec3(2,0,0)},
 		stream::Nodes::Event{24.f, cgv::vec3(6,-.125f,0), cgv::vec3(2,0,0)}
 	});
-	stream::NodesStreamer traj1_stream(traj1, 0);
+	stream::NodesStreamer traj1_stream(traj1, 1);
 
 	// Line plot layer
 	stream::Glyphs t1l0;
@@ -149,42 +154,16 @@ void debug_run (const DebugConfig &config)
 	}
 	stream::GlyphsStreamer t1l0_stream(t1l0, 1, 0);
 
-	/*traj1_stream.stream_up_to_time(1);
+	/*// Manually stream stuff to be able to debug
+	traj1_stream.stream_up_to_time(10);
+	t1l0_stream.stream_up_to_time(20);
 
 	std::cerr << "[ENTER]" << std::endl; getchar();
-	t1l0_stream.stream_up_to_time(0);
+	traj1_stream.stream_up_to_time(20);
+	t1l0_stream.stream_up_to_time(40);
 
 	std::cerr << "[ENTER]" << std::endl; getchar();
-	t1l0_stream.stream_up_to_time(1);
-	std::cerr << "[ENTER]" << std::endl; getchar();
-	t1l0_stream.stream_up_to_time(2);
-
-	std::cerr << "[ENTER]" << std::endl; getchar();
-	t1l0_stream.stream_up_to_time(3);
-	std::cerr << "[ENTER]" << std::endl; getchar();
-	t1l0_stream.stream_up_to_time(4);
-
-	std::cerr << "[ENTER]" << std::endl; getchar();
-	t1l0_stream.stream_up_to_time(5);
-
-
-	std::cerr << "[ENTER]" << std::endl; getchar();
-	t1l1_stream.stream_up_to_time(1);
-	std::cerr << "[ENTER]" << std::endl; getchar();
-	t1l1_stream.stream_up_to_time(2);
-	std::cerr << "[ENTER]" << std::endl; getchar();
-	t1l1_stream.stream_up_to_time(3);
-	std::cerr << "[ENTER]" << std::endl; getchar();
-	t1l1_stream.stream_up_to_time(4);
-
-	std::cerr << "[ENTER]" << std::endl; getchar();
-	traj1_stream.stream_up_to_time(2);
-
-	std::cerr << "[ENTER]" << std::endl; getchar();
-	t1l1_stream.stream_up_to_time(5);
-
-	std::cerr << "[ENTER]" << std::endl; getchar();
-	traj1_stream.stream_up_to_time(3);*/
+	traj1_stream.stream_up_to_time(20);*/
 
 	// Build event stream
 	data.set_node_stream(1, std::move(traj1));

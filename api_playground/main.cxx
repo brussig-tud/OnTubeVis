@@ -57,6 +57,7 @@ int shutdown_otv (void)
 		std::clog << "OnTubeVis service exited with code "<<status.exit_code << std::endl;
 		return status.exit_code;
 	}
+
 	// Something went wrong...
 	std::clog << "OnTubeVis service did not honor shutdown request!" << std::endl;
 	std::clog << "Performing unclean shutdown." << std::endl;
@@ -82,8 +83,8 @@ int main (int argc, char** argv)
 
 	// Collect test configuration
 	//auto config = testcase::nominal_setup();
-	auto config = testcase::debug_setup();
-	//auto config = testcase::triangles_setup();
+	auto config = testcase::triangles_setup();
+	//auto config = testcase::debug_setup();
 
 	// Set up visualization
 	VisSetup setup(otv__create_VisSetup(config.name.c_str()));
@@ -99,8 +100,8 @@ int main (int argc, char** argv)
 
 	// Run the test case
 	//testcase::nominal_run(config);
-	testcase::debug_run(config);
-	//testcase::triangles_run(config);
+	testcase::triangles_run(config);
+	//testcase::debug_run(config);
 
 
 	////
