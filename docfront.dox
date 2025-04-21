@@ -64,6 +64,7 @@ int main (int argc, char** argv)
 			)
 		};
 		otv__add_layer(test_setup, &new_layer);
+		otv__layer_color_source(test_setup, /* layer: */0, /* min_val: */0, /* max_val: */100, "Some Quantity");
 	}
 
 	// Add two trajectories
@@ -80,6 +81,9 @@ int main (int argc, char** argv)
 			)
 		};
 		otv__add_layer(test_setup, &new_layer);
+		otv__layer_value_source(
+			test_setup, /* layer: */1, /* value_id: */0, /* min_val: */-3, /* max_val: */3, "Signed Quantity"
+		);
 	}
 
 	// Now we add another trajectory. It will inherit the already set-up layers.
@@ -105,7 +109,7 @@ int main (int argc, char** argv)
 	/* Stream test glyphs (trajectory segment not yet there) */ {
 		// First sign blob on layer 1
 		OTV_GlyphData sign_blob = otv__construct_SignBlobData(
-			/* s: */0.5f, /* color: (configured to be static)*/0, /* value: */.5f
+			/* s: */0.5f, /* color: (configured to be static)*/0, /* value: */2.25f
 		);
 		OTV_Vec2 extents = otv__instantiate_Glyph(traj_ids[1], 1, &sign_blob);
 		printf("Streaming new sign blob - extents relative to anchor are [%f..%f]\n", extents.x, extents.y);
@@ -131,7 +135,7 @@ int main (int argc, char** argv)
 
 		// Stream a second sign blob glyph (first trajectory segment still missing its end node)
 		OTV_GlyphData sign_blob = otv__construct_SignBlobData(
-			/* s: */2.f, /* color: (configured to be static)*/0, /* value: */.125f
+			/* s: */2.f, /* color: (configured to be static)*/0, /* value: */.25f
 		);
 		OTV_Vec2 extents = otv__instantiate_Glyph(traj_ids[1], 1, &sign_blob);
 		printf(
@@ -154,7 +158,7 @@ int main (int argc, char** argv)
 		sleep(1);
 
 		// Stream a second surface color sample on layer 0
-		OTV_GlyphData surface_color = otv__construct_SurfaceColorData(/* s: */2, /* color: */1);
+		OTV_GlyphData surface_color = otv__construct_SurfaceColorData(/* s: */2, /* color: */100);
 		extents = otv__instantiate_Glyph(traj_ids[1], 0, &surface_color);
 		printf(
 			"Streaming new surface color sample - free space to previous one is %f\n",
@@ -166,7 +170,7 @@ int main (int argc, char** argv)
 	}
 
 	/* Stream a third surface color sample on layer 0 */ {
-		OTV_GlyphData surface_color = otv__construct_SurfaceColorData(/* s: */3.95, /* color: */0.5);
+		OTV_GlyphData surface_color = otv__construct_SurfaceColorData(/* s: */3.95, /* color: */50);
 		const OTV_Vec2 extents = otv__instantiate_Glyph(traj_ids[1], 0, &surface_color);
 		printf(
 			"Streaming new surface color sample - free space to previous one is %f\n",
@@ -179,7 +183,7 @@ int main (int argc, char** argv)
 
 	/* Stream a third sign blob glyph (falls onto the now complete first segment) */ {
 		const OTV_GlyphData sign_blob = otv__construct_SignBlobData(
-			/* s: */3.75f, /* color: (configured to be static)*/0, /* value: */-.75f
+			/* s: */3.75f, /* color: (configured to be static)*/0, /* value: */-1.25f
 		);
 		const OTV_Vec2 extents = otv__instantiate_Glyph(traj_ids[1], 1, &sign_blob);
 		printf(

@@ -86,28 +86,12 @@ int main (int argc, char** argv)
 			)
 		};
 		otv__add_layer(test_setup, &new_layer);
-		otv__layer_color_source(test_setup, /* layer: */0, 0, 100,"Unsigned Quantity");
+		otv__layer_color_source(test_setup, /* layer: */0, /* min_val: */0, /* max_val: */100, "Some Quantity");
 	}
 
 	// Add two trajectories
 	traj_ids[0] = otv__add_trajectory(test_setup, /* radius: */.5f);
 	traj_ids[1] = otv__add_trajectory(test_setup, /* radius: */.5f);
-
-	/* Add a circle layer. It will be added to all existing trajectories also. */ {
-		OTV_LayerConfig new_layer = {
-			.type=IsoscelesTriangle, .outline=.03125f,
-			.static_params=otv__construct_IsoscelesTriangleInfo(
-				/* color: (not used here, see 'static_flags')*/otv__Rgb(0, 0, 0), /* color_map: */Vik,
-				/* width: (not used here, see 'static_flags')*/0, /* height: */1.75f,
-				/* orientation: (not used here, see 'static_flags')*/0, /* static_flags: */ITI_STATIC_HEIGHT
-			)
-		};
-		otv__add_layer(test_setup, &new_layer);
-		otv__layer_color_source(test_setup, /* layer: */1, -2, 2, "Signed Quantity");
-		otv__layer_width_source(test_setup, /* layer: */1, 0, 3, "Unsigned Quantity");
-		otv__layer_height_source(test_setup, /* layer: */1, 0, 10, "Unsigned Quantity");
-		otv__layer_orientation_source(test_setup, /* layer: */1, -6, 6, "Signed Quantity");
-	}
 
 	/* Add a sign blob layer. It will be added to all existing trajectories also. */ {
 		OTV_LayerConfig new_layer = {
@@ -120,7 +104,7 @@ int main (int argc, char** argv)
 		};
 		otv__add_layer(test_setup, &new_layer);
 		otv__layer_value_source(
-			test_setup, /* layer: */2, /* value_id: */0, -10, 10, "Signed Quantity"
+			test_setup, /* layer: */1, /* value_id: */0, /* min_val: */-3, /* max_val: */3, "Signed Quantity"
 		);
 	}
 
@@ -147,12 +131,12 @@ int main (int argc, char** argv)
 	/* Stream test glyphs (trajectory segment not yet there) */ {
 		// First sign blob on layer 1
 		OTV_GlyphData sign_blob = otv__construct_SignBlobData(
-			/* s: */0.5f, /* color: (configured to be static)*/0, /* value: */5
+			/* s: */0.5f, /* color: (configured to be static)*/0, /* value: */2.25f
 		);
-		OTV_Vec2 extents = otv__instantiate_Glyph(traj_ids[1], 2, &sign_blob);
+		OTV_Vec2 extents = otv__instantiate_Glyph(traj_ids[1], 1, &sign_blob);
 		printf("Streaming new sign blob - extents relative to anchor are [%f..%f]\n", extents.x, extents.y);
 		last_border[1] = sign_blob.s + extents.y;
-		otv__stream_glyph(traj_ids[1], /* layer: */2, &sign_blob);
+		otv__stream_glyph(traj_ids[1], /* layer: */1, &sign_blob);
 
 		// First surface color sample on layer 0
 		OTV_GlyphData surface_color = otv__construct_SurfaceColorData(/* s: */0, /* color: */0);
@@ -161,15 +145,6 @@ int main (int argc, char** argv)
 		       extents.x, extents.y);
 		last_border[0] = surface_color.s+extents.y;
 		otv__stream_glyph(traj_ids[1], /* layer: */0, &surface_color);
-
-		// First triangle on layer 1
-		OTV_GlyphData triangle = otv__construct_IsoscelesTriangleData(
-			/* s: */1, /* color: */-1.25f, /* width: */1, /* height: */1.75f, /* orientation: */-1
-		);
-		extents = otv__instantiate_Glyph(traj_ids[1], 1, &triangle);
-		printf("Streaming new triangle - extents relative to anchor are [%f..%f]\n", extents.x, extents.y);
-		last_border[1] = triangle.s + extents.y;
-		otv__stream_glyph(traj_ids[1], /* layer: */1, &triangle);
 	}
 
 	/* Stream a test trajectory */ {
@@ -182,24 +157,15 @@ int main (int argc, char** argv)
 
 		// Stream a second sign blob glyph (first trajectory segment still missing its end node)
 		OTV_GlyphData sign_blob = otv__construct_SignBlobData(
-			/* s: */2.f, /* color: (configured to be static)*/0, /* value: */1.25f
+			/* s: */2.f, /* color: (configured to be static)*/0, /* value: */.25f
 		);
-		OTV_Vec2 extents = otv__instantiate_Glyph(traj_ids[1], 2, &sign_blob);
+		OTV_Vec2 extents = otv__instantiate_Glyph(traj_ids[1], 1, &sign_blob);
 		printf(
 			"Streaming new sign blob - free space to previous one is %f\n", sign_blob.s+extents.x - last_border[1]
 		);
 		last_border[1] = sign_blob.s+extents.y;
-		otv__stream_glyph(traj_ids[1], /* layer: */2, &sign_blob);
+		otv__stream_glyph(traj_ids[1], /* layer: */1, &sign_blob);
 		sleep(1);
-
-		// Stream a second triangle (first trajectory segment still missing its end node)
-		OTV_GlyphData triangle = otv__construct_IsoscelesTriangleData(
-			/* s: */2.5f, /* color: */1.75f, /* width: */2, /* height: */1.75f, /* orientation: */3
-		);
-		extents = otv__instantiate_Glyph(traj_ids[1], 1, &triangle);
-		printf("Streaming new triangle - extents relative to anchor are [%f..%f]\n", extents.x, extents.y);
-		last_border[1] = triangle.s + extents.y;
-		otv__stream_glyph(traj_ids[1], /* layer: */1, &triangle);
 
 		// 2nd node
 		const OTV_HermiteNode n0 = n; // we need to keep a copy of the first node for computing arc length
@@ -239,15 +205,15 @@ int main (int argc, char** argv)
 
 	/* Stream a third sign blob glyph (falls onto the now complete first segment) */ {
 		const OTV_GlyphData sign_blob = otv__construct_SignBlobData(
-			/* s: */3.75f, /* color: (configured to be static)*/0, /* value: */-7.5f
+			/* s: */3.75f, /* color: (configured to be static)*/0, /* value: */-1.25f
 		);
-		const OTV_Vec2 extents = otv__instantiate_Glyph(traj_ids[1], 2, &sign_blob);
+		const OTV_Vec2 extents = otv__instantiate_Glyph(traj_ids[1], 1, &sign_blob);
 		printf(
 			"Streaming new sign blob  - free space to previous one is %f\n",
 			sign_blob.s+extents.x - last_border[1]
 		);
 		last_border[1] = sign_blob.s+extents.y;
-		otv__stream_glyph(traj_ids[1], /* layer: */2, &sign_blob);
+		otv__stream_glyph(traj_ids[1], /* layer: */1, &sign_blob);
 		sleep(1);
 	}
 
