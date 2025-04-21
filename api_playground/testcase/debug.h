@@ -79,7 +79,7 @@ void debug_run (const DebugConfig &config)
 		const auto seg = traj1.segment(0);
 		for (unsigned sample=0; sample<num_samples; ++sample) {
 			const float t = .25f/float(num_samples) + sample/float(num_samples), s = seg.s(t);
-			const float x = t*4*std::numbers::pi_v<float>;
+			const float x = t*4*M_PI;
 			const std::array v{ .5f+.5f*std::cos(x), .5f+.5f*std::sin(x) };
 			t1l0.add(
 				seg.time_from_t(t),
@@ -92,7 +92,7 @@ void debug_run (const DebugConfig &config)
 		const auto seg = traj1.segment(1);
 		for (unsigned sample=0; sample<num_samples; ++sample) {
 			const float t = .25f/float(num_samples) + sample/float(num_samples), s = seg.s(t);
-			const float x = t*4*std::numbers::pi_v<float>;
+			const float x = t*4*M_PI;
 			const std::array v{ .5f+.5f*std::cos(x), .5f+.5f*std::sin(x) };
 			t1l0.add(
 				seg.time_from_t(t),
@@ -105,7 +105,7 @@ void debug_run (const DebugConfig &config)
 		const auto seg = traj1.segment(2);
 		for (unsigned sample=0; sample<num_samples; ++sample) {
 			const float t = .25f/float(num_samples) + sample/float(num_samples), s = seg.s(t);
-			const float x = t*4*std::numbers::pi_v<float>;
+			const float x = t*4*M_PI;
 			const std::array v{ .5f+.5f*std::cos(x), .5f+.5f*std::sin(x) };
 			t1l0.add(
 				seg.time_from_t(t),
@@ -118,7 +118,7 @@ void debug_run (const DebugConfig &config)
 		const auto seg = traj1.segment(2).extrapol(0);
 		for (unsigned sample=0; sample<num_samples; ++sample) {
 			const float t = .25f/float(num_samples) + sample/float(num_samples), s = seg.s(t);
-			const float x = t*4*std::numbers::pi_v<float>;
+			const float x = t*4*M_PI;
 			const std::array v{ .5f+.5f*std::cos(x), .5f+.5f*std::sin(x) };
 			t1l0.add(
 				seg.time_from_t(t),
@@ -131,7 +131,7 @@ void debug_run (const DebugConfig &config)
 		const auto seg = traj1.segment(2).extrapol(1);
 		for (unsigned sample=0; sample<num_samples; ++sample) {
 			const float t = .25f/float(num_samples) + sample/float(num_samples), s = seg.s(t);
-			const float x = t*4*std::numbers::pi_v<float>;
+			const float x = t*4*M_PI;
 			const std::array v{ .5f+.5f*std::cos(x), .5f+.5f*std::sin(x) };
 			t1l0.add(
 				seg.time_from_t(t),
@@ -144,7 +144,7 @@ void debug_run (const DebugConfig &config)
 		const auto seg = traj1.segment(2).extrapol(2);
 		for (unsigned sample=0; sample<num_samples; ++sample) {
 			const float t = .25f/float(num_samples) + sample/float(num_samples), s = seg.s(t);
-			const float x = t*4*std::numbers::pi_v<float>;
+			const float x = t*4*M_PI;
 			const std::array v{ .5f+.5f*std::cos(x), .5f+.5f*std::sin(x) };
 			t1l0.add(
 				seg.time_from_t(t),
