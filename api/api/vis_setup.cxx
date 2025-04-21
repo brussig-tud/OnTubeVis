@@ -62,9 +62,65 @@ OTV_API bool otv__add_layer (OTV_VisSetupHandle vis_setup, const OTV_LayerConfig
 
 	// Add the new layer
 	auto &new_layer = vs.layers.emplace_back(*config);
+	vs.layer_sources.emplace_back();
 	std::clog << "otv__add_layer: added layer of type '"<<otv__string_from_GlyphType(new_layer.type)<<"'" << std::endl
 	          << " - setup for '"+vs.name+"' now has "<<vs.layers.size()<<" layer(s)." << std::endl;
 	return true;
+}
+
+OTV_API void otv__layer_color_source (
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+){
+	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Color] = {min_val, max_val, desc};
+}
+
+OTV_API void otv__layer_height_source (
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+){
+	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Height] = {min_val, max_val, desc};
+}
+
+OTV_API void otv__layer_orientation_source (
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+){
+	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Orientation] = {min_val, max_val, desc};
+}
+
+OTV_API void otv__layer_radius_source (
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+){
+	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Radius] = {min_val, max_val, desc};
+}
+
+OTV_API void otv__layer_value_source (
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const unsigned value_id, const float min_val,
+	const float max_val, const char *const desc
+){
+	switch (value_id)
+	{
+		case 0:
+			((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Value0] = {min_val, max_val, desc};
+			return;
+		case 1:
+			((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Value1] = {min_val, max_val, desc};
+			return;
+		case 2:
+			((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Value2] = {min_val, max_val, desc};
+			return;
+		case 3:
+			((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Value3] = {min_val, max_val, desc};
+			return;
+		default:
+			/* do_nothing() */; // will crash below
+	}
+	std::cerr << std::endl << "FATAL ERROR: value ids must be between [0..3], got "<<value_id<<'!'
+	          << std::endl << std::endl;
+}
+
+OTV_API void otv__layer_width_source (
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+){
+	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Width] = {min_val, max_val, desc};
 }
 
 OTV_API void otv__geo_reference (OTV_VisSetupHandle vis_setup, const double latitude, const double longitude) {

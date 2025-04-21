@@ -130,7 +130,7 @@ void triangles_run (const TriangleConfig &config)
 	}
 	/* 2nd segment */ {
 		const auto &seg = traj1.segment(1);
-		float time = 4/3.f;
+		float time = 1.5f;
 		t1l1.add(
 			time,
 			otv__construct_CircleData(seg.s_from_time(time), .5f, 0.9f)
@@ -176,7 +176,7 @@ void triangles_run (const TriangleConfig &config)
 	}
 	/* 2nd segment */ {
 		const auto &seg = traj1.segment(1);
-		float time = 4/3.f;
+		float time = 1.5f;
 		t1l2.add(
 			time,
 			otv__construct_IsoscelesTriangleData(seg.s_from_time(time), .5f, 0.75f, .75f, 0)

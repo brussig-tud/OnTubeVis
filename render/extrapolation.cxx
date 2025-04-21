@@ -1000,6 +1000,8 @@ void extrapolation_manager::draw_extrapolations(
 		glDeleteSync(render.draw_fence);
 	}
 	render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);*/
+
+	state.rendered_something = true;
 }
 
 void extrapolation_manager::collect_timer_queries (void)
@@ -1009,18 +1011,20 @@ void extrapolation_manager::collect_timer_queries (void)
 		const auto time_ns = duration_ns(render.flush_time_query.collect());
 		stats.flush_times.add_measurement(time_ns);
 	}
-	/* take sort time */ {
-		const auto time_ns = duration_ns(render.sort_time_query.collect());
-		stats.sort_times.add_measurement(time_ns);
-	}
-	/* take draw time */ {
-		const auto time_ns = duration_ns(render.draw_time_query.collect());
-		stats.draw_times.add_measurement(time_ns);
-	}
-	/* infer total render time */ {
-		const auto time =
-			stats.sort_times.measurements.back() + stats.draw_times.measurements.back();
-		stats.render_times.add_measurement(time);
+	if (state.rendered_something) {
+		/* take sort time */ {
+			const auto time_ns = duration_ns(render.sort_time_query.collect());
+			stats.sort_times.add_measurement(time_ns);
+		}
+		/* take draw time */ {
+			const auto time_ns = duration_ns(render.draw_time_query.collect());
+			stats.draw_times.add_measurement(time_ns);
+		}
+		/* infer total render time */ {
+			const auto time =
+				stats.sort_times.measurements.back() + stats.draw_times.measurements.back();
+			stats.render_times.add_measurement(time);
+		}
 	}
 }
 

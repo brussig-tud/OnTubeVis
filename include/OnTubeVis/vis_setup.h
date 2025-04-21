@@ -179,6 +179,232 @@ extern otv__add_layer_funct otv__add_layer;
 
 
 // --------------------------------------------------------------------------------------------------------------------
+// otv__layer_color_source
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Set the source of the dynamic @c color attribute used by this layer (if in use).
+ *
+ * If glyphs/plots on this layer don't use this attribute for instantiation, the source information will simply be
+ * ignored. Attributes that did not get a source set explicitly but @a are used will be assigned a generic source by the
+ * implementation.
+ *
+ * @param vis_setup The visualization setup to add the layer to.
+ * @param layer The index of the layer to set the attribute source for.
+ * @param min_val
+ *		The inclusive lower bound of the mapping window the source values underwent for instantiating glyphs on this
+ *		layer.
+ * @param max_val
+ *		The inclusive upper bound of the mapping window the source values underwent for instantiating glyphs on this
+ *		layer.
+ * @param desc A short descriptive name indicating the source of the attribute's values.
+ */
+OTV_API void otv__layer_color_source (
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__layer_color_source() function.
+typedef bool(*otv__layer_color_source_funct)(
+	OTV_VisSetupHandle, const unsigned, const float, const float, const char *const
+);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__layer_color_source()
+extern otv__layer_color_source_funct otv__layer_color_source;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__layer_height_source
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Set the source of the dynamic @c height attribute used by this layer (if in use).
+ *
+ * If glyphs/plots on this layer don't use this attribute for instantiation, the source information will simply be
+ * ignored. Attributes that did not get a source set explicitly but @a are used will be assigned a generic source by the
+ * implementation.
+ *
+ * @param vis_setup The visualization setup to add the layer to.
+ * @param layer The index of the layer to set the attribute source for.
+ * @param min_val
+ *		The inclusive lower bound of the mapping window the source values underwent for instantiating glyphs on this
+ *		layer.
+ * @param max_val
+ *		The inclusive upper bound of the mapping window the source values underwent for instantiating glyphs on this
+ *		layer.
+ * @param desc A short descriptive name indicating the source of the attribute's values.
+ */
+OTV_API void otv__layer_height_source (
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__layer_height_source() function.
+typedef bool(*otv__layer_height_source_funct)(
+	OTV_VisSetupHandle, const unsigned, const float, const float, const char *const
+);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__layer_height_source()
+extern otv__layer_height_source_funct otv__layer_height_source;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__layer_orientation_source
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Set the source of the dynamic @c orientation attribute used by this layer (if in use).
+ *
+ * If glyphs/plots on this layer don't use this attribute for instantiation, the source information will simply be
+ * ignored. Attributes that did not get a source set explicitly but @a are used will be assigned a generic source by the
+ * implementation.
+ *
+ * @param vis_setup The visualization setup to add the layer to.
+ * @param layer The index of the layer to set the attribute source for.
+ * @param min_val
+ *		The inclusive lower bound of the mapping window the source values underwent for instantiating glyphs on this
+ *		layer.
+ * @param max_val
+ *		The inclusive upper bound of the mapping window the source values underwent for instantiating glyphs on this
+ *		layer.
+ * @param desc A short descriptive name indicating the source of the attribute's values.
+ */
+OTV_API void otv__layer_orientation_source (
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__layer_orientation_source() function.
+typedef bool(*otv__layer_orientation_source_funct)(
+	OTV_VisSetupHandle, const unsigned, const float, const float, const char *const
+);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__layer_orientation_source()
+extern otv__layer_orientation_source_funct otv__layer_orientation_source;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__layer_radius_source
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Set the source of the dynamic @c radius attribute used by this layer (if in use).
+ *
+ * If glyphs/plots on this layer don't use this attribute for instantiation, the source information will simply be
+ * ignored. Attributes that did not get a source set explicitly but @a are used will be assigned a generic source by the
+ * implementation.
+ *
+ * @param vis_setup The visualization setup to add the layer to.
+ * @param layer The index of the layer to set the attribute source for.
+ * @param min_val
+ *		The inclusive lower bound of the mapping window the source values underwent for instantiating glyphs on this
+ *		layer.
+ * @param max_val
+ *		The inclusive upper bound of the mapping window the source values underwent for instantiating glyphs on this
+ *		layer.
+ * @param desc A short descriptive name indicating the source of the attribute's values.
+ */
+OTV_API void otv__layer_radius_source (
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__layer_radius_source() function.
+typedef bool(*otv__layer_radius_source_funct)(
+	OTV_VisSetupHandle, const unsigned, const float, const float, const char *const
+);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__layer_radius_source()
+extern otv__layer_radius_source_funct otv__layer_radius_source;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__layer_value_source
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Set the source of one of the 4 dynamic @c value attributes used by this layer (if in use).
+ *
+ * Currently, @c SignBlob glyphs support value @c 0 and @c LinePlot supports values @c 0..3 .
+ *
+ * If glyphs/plots on this layer don't use this attribute for instantiation, the source information will simply be
+ * ignored. Attributes that did not get a source set explicitly but @a are used will be assigned a generic source by the
+ * implementation.
+ *
+ * @param vis_setup The visualization setup to add the layer to.
+ * @param layer The index of the layer to set the attribute source for.
+ * @param value_id The ID of the value attribute to set the source for (must be in the range of @c 0..3)
+ * @param min_val
+ *		The inclusive lower bound of the mapping window the source values underwent for instantiating glyphs on this
+ *		layer.
+ * @param max_val
+ *		The inclusive upper bound of the mapping window the source values underwent for instantiating glyphs on this
+ *		layer.
+ * @param desc A short descriptive name indicating the source of the attribute's values.
+ */
+OTV_API void otv__layer_value_source (
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const unsigned value_id, const float min_val,
+	const float max_val, const char *const desc
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__layer_value_source() function.
+typedef bool(*otv__layer_value_source_funct)(
+	OTV_VisSetupHandle, const unsigned, const float, const float, const char *const
+);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__layer_value_source()
+extern otv__layer_value_source_funct otv__layer_value_source;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__layer_width_source
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief Set the source of the dynamic @c width attribute used by this layer (if in use).
+ *
+ * If glyphs/plots on this layer don't use this attribute for instantiation, the source information will simply be
+ * ignored. Attributes that did not get a source set explicitly but @a are used will be assigned a generic source by the
+ * implementation.
+ *
+ * @param vis_setup The visualization setup to add the layer to.
+ * @param layer The index of the layer to set the attribute source for.
+ * @param min_val
+ *		The inclusive lower bound of the mapping window the source values underwent for instantiating glyphs on this
+ *		layer.
+ * @param max_val
+ *		The inclusive upper bound of the mapping window the source values underwent for instantiating glyphs on this
+ *		layer.
+ * @param desc A short descriptive name indicating the source of the attribute's values.
+ */
+OTV_API void otv__layer_width_source (
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+);
+#endif
+
+/// @brief The function pointer type for the @c otv__layer_width_source() function.
+typedef bool(*otv__layer_width_source_funct)(
+	OTV_VisSetupHandle, const unsigned, const float, const float, const char *const
+);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__layer_width_source()
+extern otv__layer_width_source_funct otv__layer_width_source;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
 // otv__geo_reference
 
 #ifndef OTV_NO_PROTOTYPES

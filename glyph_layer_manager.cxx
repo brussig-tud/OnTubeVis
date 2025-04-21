@@ -53,6 +53,11 @@ void glyph_layer_manager::set_visualization_variables(std::shared_ptr<const visu
 		gam.set_visualization_variables(visualization_variables);
 }
 
+visualization_variables_info& glyph_layer_manager::ref_visualization_variables() {
+	return *const_cast<visualization_variables_info*>(visualization_variables.get());
+}
+
+
 const std::string glyph_layer_manager::configuration::constant_float_parameter_name_prefix = "glyph_cf_param";
 const std::string glyph_layer_manager::configuration::constant_color_parameter_name_prefix = "glyph_cc_param";
 const std::string glyph_layer_manager::configuration::mapped_parameter_name_prefix = "glyph_m_param";

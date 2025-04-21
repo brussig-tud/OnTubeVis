@@ -231,7 +231,11 @@ struct extrapolation_manager
 		bool update_needed = false;
 		std::chrono::time_point<std::chrono::high_resolution_clock> last_frame_timepoint;
 
+		// controls whether we need to fetch timer queries
+		// we performed a buffer flush
 		bool flushed_something = false;
+		// we rendered something
+		bool rendered_something = false;
 	} state;
 
 	/// Statistics container

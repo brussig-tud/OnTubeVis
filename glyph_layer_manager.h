@@ -179,6 +179,8 @@ public:
 
 	void set_visualization_variables(std::shared_ptr<const visualization_variables_info> variables);
 
+	visualization_variables_info& ref_visualization_variables();
+
 	const configuration& get_configuration();
 
 	ActionType action_type();

@@ -54,7 +54,7 @@ std::string fmt_glyph_instance (const OTV_LayerConfig &config, const OTV_GlyphDa
 		case OTV_GlyphType::LinePlot: {
 			const auto &lp = *otv__upcast_LinePlotData(&glyph);
 			for (unsigned i=0; i<4; i++)
-				str << ", color"<<i<<':'<<lp.values;
+				str << ", value"<<i<<':'<<lp.values;
 			break;
 		}
 
@@ -75,12 +75,12 @@ std::string fmt_glyph_instance (const OTV_LayerConfig &config, const OTV_GlyphDa
 			str << ", color:";
 			if (cfg.static_flags & RI_STATIC_COLOR)  str << "<static>";
 			else                                     str << r.color;
-			str << ", half_width:";
+			str << ", width:";
 			if (cfg.static_flags & RI_STATIC_WIDTH)  str << "<static>";
-			else                                     str << r.half_width;
-			str << ", half_height:";
+			else                                     str << r.width;
+			str << ", height:";
 			if (cfg.static_flags & RI_STATIC_HEIGHT) str << "<static>";
-			else                                     str << r.half_height;
+			else                                     str << r.height;
 			break;
 		}
 		case OTV_GlyphType::IsoscelesTriangle: {

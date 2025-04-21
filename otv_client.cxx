@@ -808,9 +808,9 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 				if (src_indices[vattrib_idx__color] >= 0)
 					data.emplace_back(gd.color);
 				if (src_indices[vattrib_idx__length] >= 0)
-					data.emplace_back(gd.half_width);
+					data.emplace_back(gd.width);
 				if (src_indices[vattrib_idx__height] >= 0)
-					data.emplace_back(gd.half_height);
+					data.emplace_back(gd.height);
 			}
 			return std::move(data);
 

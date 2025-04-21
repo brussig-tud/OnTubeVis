@@ -212,15 +212,15 @@ OTV_API OTV_Vec2 otv__instantiate_Circle (
 
 // --- ...Info ----------------------------------------------------------
 OTV_API OTV_GlyphInfo otv__construct_RectangleInfo (
-	const OTV_Rgb rgb, const OTV_ColorMap color_map, const float half_width, const float half_height,
+	const OTV_Rgb rgb, const OTV_ColorMap color_map, const float width, const float height,
 	const OTV_RectangleInfoStaticFlags static_flags
 ){
 	OTV_GlyphInfo gi = otv__construct_empty_RectangleInfo();
 	auto &ret = *(OTV_RectangleInfo*)&gi;
 	ret.rgb = rgb;
 	ret.color_map = color_map;
-	ret.half_width = half_width;
-	ret.half_height = half_height;
+	ret.width = width;
+	ret.height = height;
 	ret.static_flags = static_flags;
 	return gi;
 }
@@ -240,14 +240,14 @@ OTV_API OTV_GlyphInfo* otv__downcast_RectangleInfo (const OTV_RectangleInfo *lin
 
 // --- ...Data ----------------------------------------------------------
 OTV_API OTV_GlyphData otv__construct_RectangleData (
-	const float s, const float color, const float half_width, const float half_height
+	const float s, const float color, const float width, const float height
 ){
 	OTV_GlyphData gd = otv__construct_empty_RectangleData();
 	auto &ret = *(OTV_RectangleData*)&gd;
 	ret.s = s;
 	ret.color = color;
-	ret.half_width = half_width;
-	ret.half_height = half_height;
+	ret.width = width;
+	ret.height = height;
 	return gd;
 }
 
@@ -269,9 +269,7 @@ OTV_API OTV_GlyphData* otv__downcast_RectangleData (const OTV_RectangleData *rec
 OTV_API OTV_Vec2 otv__instantiate_Rectangle (
 	const float traj_radius, const OTV_RectangleInfo *info, const OTV_RectangleData *data
 ){
-	const float hw =
-		  traj_radius * /* v (circumferential) coordinate goes from -2..2 */.5f
-		* (info->static_flags&RI_STATIC_WIDTH ? info->half_width : data->half_width);
+	const float hw = traj_radius * (info->static_flags&RI_STATIC_WIDTH ? info->width : data->width)*.5f;
 	return {-hw, hw};
 }
 

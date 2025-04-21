@@ -15,9 +15,9 @@
 // C++ STL
 #include <vector>
 #include <string>
+#include <map>
 #include <unordered_map>
 #include <atomic>
-#include <mutex>
 #include <optional>
 
 // Public interface
@@ -97,25 +97,38 @@ struct trajectory_setup {
 	float radius;
 };
 
+enum class VisualAttribute : unsigned {
+	Color, Height, Orientation, Radius, Value0, Value1, Value2, Value3, Width
+};
+typedef VisualAttribute VAttrib;
+
+struct VisualAttributeSource {
+	float min_val;
+	float max_val;
+	std::string desc;
+};
+typedef std::map<VisualAttribute, VisualAttributeSource> VAttribSources;
+
 struct VisSetup
 {
 	VisSetup(const std::string &name) : name(name) {}
 
 	VisSetup(const VisSetup &other)
-		: name(other.name), counter(other.counter.load()), layers(other.layers), trajs(other.trajs),
-		  georef(other.georef), num_extrapol_segments(other.num_extrapol_segments),
-		  use_natural_progression(other.use_natural_progression)
+		: name(other.name), counter(other.counter.load()), layers(other.layers),
+		  layer_sources(other.layer_sources), trajs(other.trajs), georef(other.georef),
+		  num_extrapol_segments(other.num_extrapol_segments), use_natural_progression(other.use_natural_progression)
 	{}
 
 	VisSetup(VisSetup &&other) noexcept
 		: name(std::move(other.name)), counter(other.counter.load()), layers(std::move(other.layers)),
-		  trajs(std::move(other.trajs)), georef(other.georef), num_extrapol_segments(other.num_extrapol_segments),
-		  use_natural_progression(other.use_natural_progression)
+		  layer_sources(std::move(other.layer_sources)), trajs(std::move(other.trajs)), georef(other.georef),
+		  num_extrapol_segments(other.num_extrapol_segments), use_natural_progression(other.use_natural_progression)
 	{}
 
 	std::string name;
 	std::atomic<uint32_t> counter{0};
 	std::vector<OTV_LayerConfig> layers;
+	std::vector<VAttribSources> layer_sources;
 	std::vector<trajectory_setup> trajs;
 
 	std::optional<cgv::dvec2> georef;
@@ -128,6 +141,8 @@ struct VisSetup
 		layers.clear();
 		for (const auto &l : other.layers)
 			layers.emplace_back(l);
+		for (const auto &ls : other.layer_sources)
+			layer_sources.emplace_back(ls);
 		trajs = other.trajs;
 		return *this;
 	}
@@ -137,6 +152,7 @@ struct VisSetup
 		name = std::move(other.name);
 		counter.store(other.counter.load());
 		layers = std::move(other.layers);
+		layer_sources = std::move(other.layer_sources);
 		trajs = std::move(other.trajs);
 		return *this;
 	}
