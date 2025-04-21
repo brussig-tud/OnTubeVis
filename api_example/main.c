@@ -86,7 +86,10 @@ int main (int argc, char** argv)
 			)
 		};
 		otv__add_layer(test_setup, &new_layer);
-		otv__layer_color_source(test_setup, /* layer: */0, /* min_val: */0, /* max_val: */100, "Some Quantity");
+		otv__layer_color_source(
+			test_setup, /* layer: */0, /* in_range: */otv__Interval(0, 100),
+			"Some Quantity"
+		);
 	}
 
 	// Add two trajectories
@@ -104,7 +107,8 @@ int main (int argc, char** argv)
 		};
 		otv__add_layer(test_setup, &new_layer);
 		otv__layer_value_source(
-			test_setup, /* layer: */1, /* value_id: */0, /* min_val: */-3, /* max_val: */3, "Signed Quantity"
+			test_setup, /* layer: */1, /* value_id: */0,
+			/* in_range: */otv__Interval(-3, 3), "Signed Quantity"
 		);
 	}
 

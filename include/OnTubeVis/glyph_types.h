@@ -266,7 +266,11 @@ typedef struct OTV_SurfaceColorData
 	/// @brief The arc length along the trajectory that the surface color control point is located.
 	float s;
 
-	/// @brief A value in the range <c>0..1</c> to query the selected color map with.
+	/**
+	 * @brief
+	 *		A value in the @link otv__layer_color_source configured @endlink input range (default: <c>0..1</c>) to query
+	 *		the selected color map with.
+	 */
 	float color;
 } OTV_SurfaceColorData;
 
@@ -313,8 +317,9 @@ typedef struct OTV_LinePlotData
 
 	/**
 	 * @brief
-	 *		The values in the range <c>0..1</c> for each sub plot. Only the first @a n values need to be set when the
-	 *		corresponding layer defines @a n @link OTV_LinePlotInfo::num_subplots sub plots @endlink.
+	 *		The values in the@link otv__layer_value_source configured @endlink input range (default: <c>0..1</c>) for
+	 *		each sub plot. Only the first @a n values need to be set when the corresponding layer defines @a n
+	 *		@link OTV_LinePlotInfo::num_subplots sub plots @endlink.
 	 */
 	float values[4];
 } OTV_LinePlotData;
@@ -368,11 +373,16 @@ typedef struct OTV_CircleData
 
 	/**
 	 * @brief
-	 *		A value in the range <c>0..1</c> to query the selected color map with in case a dynamic color is to be used.
+	 *		A value in the @link otv__layer_color_source configured @endlink input range (default: <c>0..1</c>) to query
+	 *		the selected color map with.
 	 */
 	float color;
 
-	/// The @a radius of the circle in multiples of the tube/ribbon radius, in case a dynamic value is to be used.
+	/**
+	 * @brief
+	 *		The @a radius of the circle in the @link otv__layer_radius_source configured @endlink input range (default:
+	 *		<c>0..1</c>) in case a dynamic value is to be used.
+	 */
 	float radius;
 } OTV_CircleData;
 
@@ -433,26 +443,29 @@ typedef struct OTV_RectangleData
 
 	/**
 	 * @brief
-	 *		A value in the range <c>0..1</c> to query the selected color map with in case a dynamic color is to be used.
+	 *		A value in the @link otv__layer_color_source configured @endlink input range (default: <c>0..1</c>) to query
+	 *		the selected color map with.
 	 */
 	float color;
 
 	/**
 	 * @brief
-	 *		The @a width of the rectangle in multiples of the tube/ribbon radius in case a dynamic value is to be used.
+	 *		The @a width of the rectangle in the @link otv__layer_width_source configured @endlink input range (default:
+	 *		<c>0..2</c>) in case a dynamic value is to be used.
 	 */
 	float width;
 
 	/**
 	 * @brief
-	 *		The @a height of the rectangle in multiples of the tube/ribbon radius in case a dynamic value is to be used.
+	 *		The @a height of the rectangle in the @link otv__layer_height_source configured @endlink input range
+	 *		(default: <c>0..2</c>) in case a dynamic value is to be used.
 	 */
 	float height;
 } OTV_RectangleData;
 
 
 ////
-// Rectangle
+// IsoscelesTriangle
 
 /**
  * @brief The info struct for the @c GlyphType::IsoscelesTriangle glyph.
@@ -518,29 +531,33 @@ typedef struct OTV_IsoscelesTriangleData
 
 	/**
 	 * @brief
-	 *		A value in the range <c>0..1</c> to query the selected color map with in case a dynamic color is to be used.
+	 *		A value in the @link otv__layer_color_source configured @endlink input range (default: <c>0..1</c>) to query
+	 *		the selected color map with.
 	 */
 	float color;
 
 	/**
 	 * @brief
-	 *		The @a width of the isosceles triangle in multiples of the tube/ribbon radius in case a dynamic value is to
-	 *		be used. At @ref #orientation @c 0 , the width runs perpendicular to the direction of travel.
+	 *		The @a width of the isosceles triangle in the @link otv__layer_width_source configured @endlink input range
+	 *		(default: <c>0..2</c>) in case a dynamic value is to be used. At neutral @ref #orientation, the width runs
+	 *		perpendicular to the direction of travel.
 	 */
 	float width;
 
 	/**
 	 * @brief
-	 *		The @a height of the isosceles triangle in multiples of the tube/ribbon radius in case a dynamic value is to
-	 *		be used. At @ref #orientation @c 0 , the height runs along the direction of travel.
+	 *		The @a height of the isosceles triangle in the @link otv__layer_height_source configured @endlink input
+	 *		range (default: <c>0..2</c>) in case a dynamic value is to be used. At neutral @ref #orientation, the height
+	 *		runs along the direction of travel.
 	 */
 	float height;
 
 	/**
 	 * @brief
-	 *		The @a orientation angle (in °) of the isosceles triangle in case a dynamic value is to be used. An angle of
-	 *		@c 0 means the unique angle (marking the "peak" of the triangle along its height vector) points in the
-	 *		direction of travel, with the orientation angle increasing in counter-clockwise direction.
+	 *		The @a orientation of the isosceles triangle in the @link otv__layer_orientation_source configured @endlink
+	 *		input range (default: <c>-180..180</c>) in case a dynamic value is to be used. A value exactly in the middle
+	 *		of the input range means the "peak" of the triangle (along its height vector) will point in the direction of
+	 *		travel, with the orientation angle increasing counter-clockwise.
 	 */
 	float orientation;
 } OTV_IsoscelesTriangleData;
@@ -566,7 +583,7 @@ typedef struct OTV_SignBlobInfo
 	/// @brief The selected color map to query colors from if no static color is used.
 	OTV_ColorMap color_map;
 
-	// The radius of the glyph instances (always stays fixed for sign blobs) in multiples of half the tube radius.
+	/// @brief The radius of the glyph instances (always stays fixed for sign blobs) in multiples of the tube radius.
 	float radius;
 
 	/// @brief The @a value of the sign blob in the range <c>-1..1</c> in case a static value is to be used.
@@ -597,11 +614,17 @@ typedef struct OTV_SignBlobData
 
 	/**
 	 * @brief
-	 *		A value in the range <c>0..1</c> to query the selected color map with in case a dynamic color is to be used.
+	 *		A value in the @link otv__layer_color_source configured @endlink input range (default: <c>-1..1</c>) to
+	 *		query the selected color map with.
 	 */
 	float color;
 
-	/// @brief The @a value of the sign blob in the range <c>-1..1</c> in case a dynamic value is to be used.
+	/**
+	 * @brief
+	 *		The values in the @link otv__layer_value_source configured @endlink input range (default: <c>-1..1</c>) for
+	 *		each sub plot. Only the first @a n values need to be set when the corresponding layer defines @a n
+	 *		@link OTV_LinePlotInfo::num_subplots sub plots @endlink.
+	 */
 	float value;
 } OTV_SignBlobData;
 

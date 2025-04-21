@@ -29,3 +29,7 @@ OTV_API OTV_Vec4 otv__Vec4 (const float x, const float y, const float z, const f
 OTV_API OTV_Rgb otv__Rgb (const float r, const float g, const float b) {
 	return {r, g, b};
 }
+
+OTV_API OTV_Interval otv__Interval (const float min, const float max) {
+	return {min, max};
+}

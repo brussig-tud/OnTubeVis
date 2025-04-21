@@ -69,58 +69,62 @@ OTV_API bool otv__add_layer (OTV_VisSetupHandle vis_setup, const OTV_LayerConfig
 }
 
 OTV_API void otv__layer_color_source (
-	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const OTV_Interval in_range, const char *const desc
 ){
-	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Color] = {min_val, max_val, desc};
+	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Color] = {in_range.min, in_range.max, desc};
 }
 
 OTV_API void otv__layer_height_source (
-	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const OTV_Interval in_range, const OTV_Interval out_range,
+	const char *const desc
 ){
-	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Height] = {min_val, max_val, desc};
+	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Height] = {in_range.min, in_range.max, desc};
 }
 
 OTV_API void otv__layer_orientation_source (
-	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const OTV_Interval in_range, const OTV_Interval out_range,
+	const char *const desc
 ){
-	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Orientation] = {min_val, max_val, desc};
+	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Orientation] = {in_range.min, in_range.max, desc};
 }
 
 OTV_API void otv__layer_radius_source (
-	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const OTV_Interval in_range, const OTV_Interval out_range,
+	const char *const desc
 ){
-	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Radius] = {min_val, max_val, desc};
+	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Radius] = {in_range.min, in_range.max, desc};
 }
 
 OTV_API void otv__layer_value_source (
-	OTV_VisSetupHandle vis_setup, const unsigned layer, const unsigned value_id, const float min_val,
-	const float max_val, const char *const desc
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const unsigned value_id, const OTV_Interval in_range,
+	const char *const desc
 ){
 	switch (value_id)
 	{
 		case 0:
-			((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Value0] = {min_val, max_val, desc};
+			((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Value0] = {in_range.min, in_range.max, desc};
 			return;
 		case 1:
-			((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Value1] = {min_val, max_val, desc};
+			((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Value1] = {in_range.min, in_range.max, desc};
 			return;
 		case 2:
-			((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Value2] = {min_val, max_val, desc};
+			((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Value2] = {in_range.min, in_range.max, desc};
 			return;
 		case 3:
-			((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Value3] = {min_val, max_val, desc};
+			((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Value3] = {in_range.min, in_range.max, desc};
 			return;
+
 		default:
 			/* do_nothing() */; // will crash below
 	}
-	std::cerr << std::endl << "FATAL ERROR: value ids must be between [0..3], got "<<value_id<<'!'
-	          << std::endl << std::endl;
+	throw std::runtime_error("FATAL ERROR: value ids must be between [0..3], got "+std::to_string(value_id)+"!");
 }
 
 OTV_API void otv__layer_width_source (
-	OTV_VisSetupHandle vis_setup, const unsigned layer, const float min_val, const float max_val, const char *const desc
+	OTV_VisSetupHandle vis_setup, const unsigned layer, const OTV_Interval in_range, const OTV_Interval out_range,
+	const char *const desc
 ){
-	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Width] = {min_val, max_val, desc};
+	((VisSetup*)vis_setup)->layer_sources[layer][VAttrib::Width] = {in_range.min, in_range.max, desc};
 }
 
 OTV_API void otv__geo_reference (OTV_VisSetupHandle vis_setup, const double latitude, const double longitude) {

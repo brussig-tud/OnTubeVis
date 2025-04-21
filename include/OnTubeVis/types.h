@@ -80,6 +80,20 @@ typedef struct OTV_Rgb
 	float b;
 } OTV_Rgb;
 
+/**
+ * @brief A convenience struct for representing an inclusive interval.
+ *
+ * @see otv__Interval()
+ */
+typedef struct OTV_Interval
+{
+	/// @brief The @a minimum number in the interval, i.e. its lower bound.
+	float min;
+
+	/// @brief The @a maximum number in the interval, i.e. its upper bound.
+	float max;
+} OTV_Interval;
+
 
 
 //////
@@ -192,6 +206,32 @@ typedef OTV_Rgb(*otv__Rgb_funct)(const float, const float, const float);
 #ifdef OTV_NO_PROTOTYPES
 /// @copydoc otv__Rgb()
 extern otv__Rgb_funct otv__Rgb;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// otv__Interval
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief
+ *		Constructs an instance of the @c OTV_Interval struct for convenient on-the-fly construction as a pass-by-value
+ *		argument to other functions.
+ *
+ * @param min The value for the field @c OTV_Interval::min
+ * @param max The value for the field @c OTV_Interval::max
+ *
+ * @return An instance of the @c OTV_Interval struct.
+ */
+OTV_API OTV_Interval otv__Interval (const float min, const float max);
+#endif
+
+/// @brief The function pointer type for the @c otv__Interval() function.
+typedef OTV_Rgb(*otv__Interval_funct)(const float, const float);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__Interval()
+extern otv__Interval_funct otv__Interval;
 #endif
 
 
