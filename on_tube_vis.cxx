@@ -2888,7 +2888,6 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 		glPushAttrib(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		//glDepthMask(GL_FALSE);
 			client.extrapol_mgr.draw_extrapolations(ctx, view_ptr->get_eye(), view_ptr->get_view_dir());
 		glPopAttrib();
 		// - disable textures
@@ -2925,7 +2924,8 @@ void on_tube_vis::after_finish(context& ctx)
 
 		view_ptr->rotate(0.0, cgv::math::deg2rad(360.0 * alpha), depth);
 
-		if(seconds_since_start >= benchmark_time) {
+		if(seconds_since_start >= benchmark_time)
+		{
 			benchmark.running = false;
 			benchmark.requested = false;
 			update_member(&benchmark.requested);

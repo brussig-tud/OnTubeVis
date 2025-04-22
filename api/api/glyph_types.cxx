@@ -340,13 +340,12 @@ OTV_API OTV_GlyphData* otv__downcast_IsoscelesTriangleData (const OTV_IsoscelesT
 OTV_API OTV_Vec2 otv__instantiate_IsoscelesTriangle (
 	const float traj_radius, const OTV_IsoscelesTriangleInfo *info, const OTV_IsoscelesTriangleData *data
 ){
-	const float
-		angle_deg = info->static_flags&ITI_STATIC_ORIENTATION ? info->orientation : data->orientation,
-		angle = angle_deg/180.f * (float)M_PI,
-		vec_w = info->static_flags&ITI_STATIC_WIDTH ? info->width : data->width,
-		vec_h = info->static_flags&ITI_STATIC_HEIGHT ? info->height : data->height,
-		effective_w = std::abs(std::sin(angle) * vec_w), effective_h = std::abs(std::cos(angle) * vec_h),
-		hw = traj_radius * std::max(effective_w, effective_h)*.5f;
+	const float angle_deg = info->static_flags&ITI_STATIC_ORIENTATION ? info->orientation : data->orientation,
+	            angle = angle_deg/180.f * (float)M_PI,
+	            vec_w = info->static_flags&ITI_STATIC_WIDTH ? info->width : data->width,
+	            vec_h = info->static_flags&ITI_STATIC_HEIGHT ? info->height : data->height,
+	            effective_w = std::abs(std::sin(angle) * vec_w), effective_h = std::abs(std::cos(angle) * vec_h),
+	            hw = traj_radius * std::max(effective_w, effective_h)*.5f;
 	return {-hw, hw};
 }
 
