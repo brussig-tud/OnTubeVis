@@ -2885,7 +2885,7 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 			density_tex.enable(ctx, 5);
 		color_map_mgr.ref_texture().enable(ctx, 6);
 		// - draw with alpha blending
-		glPushAttrib(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glPushAttrib(GL_COLOR_BUFFER_BIT);
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			client.extrapol_mgr.draw_extrapolations(ctx, view_ptr->get_eye(), view_ptr->get_view_dir());
