@@ -487,14 +487,14 @@ typedef struct OTV_IsoscelesTriangleInfo
 	/**
 	 * @brief
 	 *		The @a width of the isosceles triangle in multiples of the tube/ribbon radius in case a static value is to
-	 *		be used. At @ref #orientation @c 0 , the width runs perpendicular to the direction of travel.
+	 *		be used. At neutral @ref #orientation, the width runs perpendicular to the direction of travel.
 	 */
 	float width;
 
 	/**
 	 * @brief
 	 *		The @a height of the isosceles triangle in multiples of the tube/ribbon radius in case a static value is to
-	 *		be used. At @ref #orientation @c 0 , the height runs along the direction of travel.
+	 *		be used. At neutral @ref #orientation, the height runs along the direction of travel.
 	 */
 	float height;
 
