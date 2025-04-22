@@ -853,11 +853,12 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 	// prelude
 	// - helper function to either retrieve a vattrib source if it exists or return a generic source instead
 	const auto get_vattrib_source = [](
-		const VAttribSources &sources, const VisualAttribute vattrib, const vec2 &default_range
+		const VAttribSources &sources, const VisualAttribute vattrib, const vec2 &default_in_range,
+		const vec2 &default_out_range
 	){
 		const auto it = sources.find(vattrib);
 		return it==sources.end() ?
-			  VisualAttributeSource{default_range.x(), default_range.y(), ""}
+			  VisualAttributeSource{default_in_range, default_out_range, ""}
 			: it->second;
 	};
 	// - helper function to retrieve the correct VAttrib::Value... enum given a 0-based index
@@ -943,17 +944,15 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 					m.set_attrib_color(vattrib_idx__color, rgb(gi.rgb.r, gi.rgb.g, gi.rgb.b));
 				else {
 					const auto &vattrib_src =
-						get_vattrib_source(attrib_sources, VAttrib::Color, range01);
-					const auto vattrib_range = vec2(vattrib_src.min_val, vattrib_src.max_val);
+						get_vattrib_source(attrib_sources, VAttrib::Color, range01, {});
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
 					const auto &streamid = get_or_add_dummy_attrib(
-						stream_ds, vattrib_src.desc, bufsize, range01
+						stream_ds, vattrib_src.desc, bufsize, vattrib_src.in
 					);
 					vattrib_source_map.emplace(vattrib_idx__color, streamid);
-					m.set_attrib_in_range(vattrib_idx__color, vattrib_range);
+					m.set_attrib_in_range(vattrib_idx__color, vattrib_src.in);
 					m.set_attrib_out_range(vattrib_idx__color, range01);
-					//m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
 				layer_gams.emplace_back(gam_info{std::move(m), std::move(vattrib_source_map)});
 				break;
@@ -988,17 +987,16 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 					m.set_attrib_color(
 						base_vattrib_idx, rgb(subplot_color.r, subplot_color.g, subplot_color.b)
 					);
-					const auto &vattrib_src =
-						get_vattrib_source(attrib_sources, get_vattrib_value(i), range01);
-					const auto vattrib_range = vec2(vattrib_src.min_val, vattrib_src.max_val);
+					const auto &vattrib_src = get_vattrib_source(
+						attrib_sources, get_vattrib_value(i), range01, {}
+					);
 					const auto &streamid = get_or_add_dummy_attrib(
-						stream_ds, vattrib_src.desc, bufsize, range01
+						stream_ds, vattrib_src.desc, bufsize, vattrib_src.in
 					);
 					const auto val_vattrib_idx = base_vattrib_idx+1;
-					m.set_attrib_in_range(val_vattrib_idx, vattrib_range);
+					m.set_attrib_in_range(val_vattrib_idx, vattrib_src.in);
 					m.set_attrib_out_range(val_vattrib_idx, range01);
 					vattrib_source_map.emplace(val_vattrib_idx, streamid);
-					//m.set_attrib_source_index(val_vattrib_idx, streamid);
 				}
 				layer_gams.emplace_back(gam_info{std::move(m), std::move(vattrib_source_map)});
 				break;
@@ -1027,32 +1025,29 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				}
 				else {
 					const auto &vattrib_src =
-						get_vattrib_source(attrib_sources, VAttrib::Color, range01);
-					const auto vattrib_range = vec2(vattrib_src.min_val, vattrib_src.max_val);
+						get_vattrib_source(attrib_sources, VAttrib::Color, range01, {});
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
 					const auto &streamid = get_or_add_dummy_attrib(
-						stream_ds, vattrib_src.desc, bufsize, range01
+						stream_ds, vattrib_src.desc, bufsize, vattrib_src.in
 					);
 					vattrib_source_map.emplace(vattrib_idx__color, streamid);
-					m.set_attrib_in_range(vattrib_idx__color, vattrib_range);
+					m.set_attrib_in_range(vattrib_idx__color, vattrib_src.in);
 					m.set_attrib_out_range(vattrib_idx__color, range01);
-					//m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
 				// - radius
 				if (gi.static_flags & OTV_CircleInfoStaticFlags::CI_STATIC_RADIUS)
 					m.set_attrib_out_range(vattrib_idx__radius, {0.f, gi.radius});
 				else {
-					const auto &vattrib_src =
-						get_vattrib_source(attrib_sources, VAttrib::Radius, range01);
-					const auto vattrib_range = vec2(vattrib_src.min_val, vattrib_src.max_val);
-					const auto &streamid = get_or_add_dummy_attrib(
-						stream_ds, vattrib_src.desc, bufsize, range01
+					const auto &vattrib_src = get_vattrib_source(
+						attrib_sources, VAttrib::Radius, range01, range01
 					);
-					m.set_attrib_in_range(vattrib_idx__radius, vattrib_range);
-					m.set_attrib_out_range(vattrib_idx__radius, range01);
+					const auto &streamid = get_or_add_dummy_attrib(
+						stream_ds, vattrib_src.desc, bufsize, vattrib_src.in
+					);
+					m.set_attrib_in_range(vattrib_idx__radius, vattrib_src.in);
+					m.set_attrib_out_range(vattrib_idx__radius, vattrib_src.out);
 					vattrib_source_map.emplace(vattrib_idx__radius, streamid);
-					//m.set_attrib_source_index(vattrib_idx__length, streamid);
 				}
 				layer_gams.emplace_back(gam_info{std::move(m), std::move(vattrib_source_map)});
 				break;
@@ -1082,47 +1077,43 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				}
 				else {
 					const auto &vattrib_src =
-						get_vattrib_source(attrib_sources, VAttrib::Color, range01);
-					const auto vattrib_range = vec2(vattrib_src.min_val, vattrib_src.max_val);
+						get_vattrib_source(attrib_sources, VAttrib::Color, range01, {});
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
 					const auto &streamid = get_or_add_dummy_attrib(
-						stream_ds, vattrib_src.desc, bufsize, range01
+						stream_ds, vattrib_src.desc, bufsize, vattrib_src.in
 					);
 					vattrib_source_map.emplace(vattrib_idx__color, streamid);
-					m.set_attrib_in_range(vattrib_idx__color, vattrib_range);
+					m.set_attrib_in_range(vattrib_idx__color, vattrib_src.in);
 					m.set_attrib_out_range(vattrib_idx__color, range01);
-					//m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
 				// - length
 				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_WIDTH)
 					m.set_attrib_out_range(vattrib_idx__length, {0.f, gi.width});
 				else {
-					const auto &vattrib_src =
-						get_vattrib_source(attrib_sources, VAttrib::Width, range02);
-					const auto vattrib_range = vec2(vattrib_src.min_val, vattrib_src.max_val);
-					const auto &streamid = get_or_add_dummy_attrib(
-						stream_ds, vattrib_src.desc, bufsize, range02
+					const auto &vattrib_src = get_vattrib_source(
+						attrib_sources, VAttrib::Width, range02, range02
 					);
-					m.set_attrib_in_range(vattrib_idx__length, vattrib_range);
-					m.set_attrib_out_range(vattrib_idx__length, range02);
+					const auto &streamid = get_or_add_dummy_attrib(
+						stream_ds, vattrib_src.desc, bufsize, vattrib_src.in
+					);
+					m.set_attrib_in_range(vattrib_idx__length, vattrib_src.in);
+					m.set_attrib_out_range(vattrib_idx__length, vattrib_src.out);
 					vattrib_source_map.emplace(vattrib_idx__length, streamid);
-					//m.set_attrib_source_index(vattrib_idx__length, streamid);
 				}
 				// - height
 				if (gi.static_flags & OTV_RectangleInfoStaticFlags::RI_STATIC_HEIGHT)
 					m.set_attrib_out_range(vattrib_idx__height, {0.f, gi.height});
 				else {
-					const auto &vattrib_src =
-						get_vattrib_source(attrib_sources, VAttrib::Height, range02);
-					const auto vattrib_range = vec2(vattrib_src.min_val, vattrib_src.max_val);
-					const auto &streamid = get_or_add_dummy_attrib(
-						stream_ds, vattrib_src.desc, bufsize, range02
+					const auto &vattrib_src = get_vattrib_source(
+						attrib_sources, VAttrib::Height, range02, range02
 					);
-					m.set_attrib_in_range(vattrib_idx__height, vattrib_range);
-					m.set_attrib_out_range(vattrib_idx__height, range02);
+					const auto &streamid = get_or_add_dummy_attrib(
+						stream_ds, vattrib_src.desc, bufsize, vattrib_src.in
+					);
+					m.set_attrib_in_range(vattrib_idx__height, vattrib_src.in);
+					m.set_attrib_out_range(vattrib_idx__height, vattrib_src.out);
 					vattrib_source_map.emplace(vattrib_idx__height, streamid);
-					//m.set_attrib_source_index(vattrib_idx__height, streamid);
 				}
 				layer_gams.emplace_back(gam_info{std::move(m), std::move(vattrib_source_map)});
 				break;
@@ -1152,62 +1143,58 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				}
 				else {
 					const auto &vattrib_src =
-						get_vattrib_source(attrib_sources, VAttrib::Color, range01);
-					const auto vattrib_range = vec2(vattrib_src.min_val, vattrib_src.max_val);
+						get_vattrib_source(attrib_sources, VAttrib::Color, range01, {});
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
 					const auto &streamid = get_or_add_dummy_attrib(
-						stream_ds, vattrib_src.desc, bufsize, range01
+						stream_ds, vattrib_src.desc, bufsize, vattrib_src.in
 					);
 					vattrib_source_map.emplace(vattrib_idx__color, streamid);
-					m.set_attrib_in_range(vattrib_idx__color, vattrib_range);
+					m.set_attrib_in_range(vattrib_idx__color, vattrib_src.in);
 					m.set_attrib_out_range(vattrib_idx__color, range01);
-					//m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
 				// - base width
 				if (gi.static_flags & OTV_IsoscelesTriangleInfoStaticFlags::ITI_STATIC_WIDTH)
 					m.set_attrib_out_range(vattrib_idx__width, {0.f, gi.width});
 				else {
-					const auto &vattrib_src =
-						get_vattrib_source(attrib_sources, VAttrib::Width, range02);
-					const auto vattrib_range = vec2(vattrib_src.min_val, vattrib_src.max_val);
-					const auto &streamid = get_or_add_dummy_attrib(
-						stream_ds, vattrib_src.desc, bufsize, range02
+					const auto &vattrib_src = get_vattrib_source(
+						attrib_sources, VAttrib::Width, range02, range02
 					);
-					m.set_attrib_in_range(vattrib_idx__width, vattrib_range);
-					m.set_attrib_out_range(vattrib_idx__width, range02);
+					const auto &streamid = get_or_add_dummy_attrib(
+						stream_ds, vattrib_src.desc, bufsize, vattrib_src.in
+					);
+					m.set_attrib_in_range(vattrib_idx__width, vattrib_src.in);
+					m.set_attrib_out_range(vattrib_idx__width, vattrib_src.out);
 					vattrib_source_map.emplace(vattrib_idx__width, streamid);
-					//m.set_attrib_source_index(vattrib_idx__width, streamid);
 				}
 				// - height
 				if (gi.static_flags & OTV_IsoscelesTriangleInfoStaticFlags::ITI_STATIC_HEIGHT)
 					m.set_attrib_out_range(vattrib_idx__height, {0.f, gi.height});
 				else {
-					const auto &vattrib_src =
-						get_vattrib_source(attrib_sources, VAttrib::Height, range02);
-					const auto vattrib_range = vec2(vattrib_src.min_val, vattrib_src.max_val);
-					const auto &streamid = get_or_add_dummy_attrib(
-						stream_ds, vattrib_src.desc, bufsize, range02
+					const auto &vattrib_src = get_vattrib_source(
+						attrib_sources, VAttrib::Height, range02, range02
 					);
-					m.set_attrib_in_range(vattrib_idx__height, vattrib_range);
-					m.set_attrib_out_range(vattrib_idx__height, range02);
+					const auto &streamid = get_or_add_dummy_attrib(
+						stream_ds, vattrib_src.desc, bufsize, vattrib_src.in
+					);
+					m.set_attrib_in_range(vattrib_idx__height, vattrib_src.in);
+					m.set_attrib_out_range(vattrib_idx__height, vattrib_src.out);
 					vattrib_source_map.emplace(vattrib_idx__height, streamid);
-					//m.set_attrib_source_index(vattrib_idx__height, streamid);
 				}
 				// - orientation
 				if (gi.static_flags & OTV_IsoscelesTriangleInfoStaticFlags::ITI_STATIC_ORIENTATION)
 					m.set_attrib_out_range(vattrib_idx__orientation, {0.f, gi.orientation});
 				else {
-					const auto &vattrib_src =
-						get_vattrib_source(attrib_sources, VAttrib::Orientation, {-180, 180});
-					const auto vattrib_range = vec2(vattrib_src.min_val, vattrib_src.max_val);
+					const auto &vattrib_src = get_vattrib_source(
+						attrib_sources, VAttrib::Orientation, {-180, 180},
+						{-180, 180}
+					);
 					const auto &streamid = get_or_add_dummy_attrib(
-					stream_ds, vattrib_src.desc, bufsize, {-180, 180}
+					stream_ds, vattrib_src.desc, bufsize, vattrib_src.in
 				);
-					m.set_attrib_in_range(vattrib_idx__orientation, vattrib_range);
-					m.set_attrib_out_range(vattrib_idx__orientation, {-180, 180});
+					m.set_attrib_in_range(vattrib_idx__orientation, vattrib_src.in);
+					m.set_attrib_out_range(vattrib_idx__orientation, vattrib_src.out);
 					vattrib_source_map.emplace(vattrib_idx__orientation, streamid);
-					//m.set_attrib_source_index(vattrib_idx__orientation, streamid);
 				}
 				layer_gams.emplace_back(gam_info{std::move(m), std::move(vattrib_source_map)});
 				break;
@@ -1238,33 +1225,31 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 					m.set_attrib_color(vattrib_idx__color, rgb(gi.rgb.r, gi.rgb.g, gi.rgb.b));
 				}
 				else {
-					const auto &vattrib_src =
-						get_vattrib_source(attrib_sources, VAttrib::Color, range_m11);
-					const auto vattrib_range = vec2(vattrib_src.min_val, vattrib_src.max_val);
+					const auto &vattrib_src = get_vattrib_source(
+						attrib_sources, VAttrib::Color, range_m11, {}
+					);
 					const unsigned cmidx = otv::colormap_api_enum_to_internal_id(color_map_mgr, gi.color_map);
 					m.set_color_source_index(vattrib_idx__color, cmidx);
 					const auto &streamid = get_or_add_dummy_attrib(
-						stream_ds, vattrib_src.desc, bufsize, range_m11
+						stream_ds, vattrib_src.desc, bufsize, vattrib_src.in
 					);
 					vattrib_source_map.emplace(vattrib_idx__color, streamid);
-					m.set_attrib_in_range(vattrib_idx__color, vattrib_range);
+					m.set_attrib_in_range(vattrib_idx__color, vattrib_src.in);
 					m.set_attrib_out_range(vattrib_idx__color, range01);
-					//m.set_attrib_source_index(vattrib_idx__color, streamid);
 				}
 				// - value
 				if (gi.static_flags & OTV_SignBlobInfoStaticFlags::SBI_STATIC_VALUE)
 					m.set_attrib_out_range(vattrib_idx__value, {0.f, gi.value});
 				else {
-					const auto &vattrib_src =
-						get_vattrib_source(attrib_sources, VAttrib::Value0, range_m11);
-					const auto vattrib_range = vec2(vattrib_src.min_val, vattrib_src.max_val);
-					const auto &streamid = get_or_add_dummy_attrib(
-						stream_ds, vattrib_src.desc, bufsize, range_m11
+					const auto &vattrib_src = get_vattrib_source(
+						attrib_sources, VAttrib::Value0, range_m11, {}
 					);
-					m.set_attrib_in_range(vattrib_idx__value, vattrib_range);
+					const auto &streamid = get_or_add_dummy_attrib(
+						stream_ds, vattrib_src.desc, bufsize, vattrib_src.in
+					);
+					m.set_attrib_in_range(vattrib_idx__value, vattrib_src.in);
 					m.set_attrib_out_range(vattrib_idx__value, range_m11);
 					vattrib_source_map.emplace(vattrib_idx__value, streamid);
-					//m.set_attrib_source_index(vattrib_idx__value, streamid);
 				}
 				layer_gams.emplace_back(gam_info{std::move(m), std::move(vattrib_source_map)});
 				break;
@@ -1295,28 +1280,15 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 	auto &vis = render.visualizations.front();
 	for (const auto &layer_gam : layer_gams)
 	{
-		// ugly, dirty hack: surgically modify the visualization variables according to the in-ranges set from the API
-		/*std::clog << layer_gam.vattrib_source_map.size() << "\n";
-		auto visvar = vis.manager.ref_visualization_variables();
-		for (auto it=layer_gam.vattrib_source_map.begin(); it!=layer_gam.vattrib_source_map.end(); ++it) {
-			const auto vattr_id = it->first; const auto &src_attrib = it->second;
-			const auto in_range = *(vec2*)&layer_gam.gam.ref_attrib_mapping_values()[vattr_id];
-			unsigned idx = ds.get_liner_attrib_index(src_attrib);
-			const_cast<vec2&>(visvar.ref_attribute_ranges()[idx]) = in_range;
-		}*/
-
 		// commit layer
-		vis.manager.add_glyph_attribute_mapping(/*std::move(*/layer_gam.gam/*)*/);
+		vis.manager.add_glyph_attribute_mapping(layer_gam.gam); // <- not moved, we'll need it one last time below
+
+		// undo in-ranged being changed to source attibute min/max by add_glyph_attribute_mapping() above
 		auto &tgt_gam = const_cast<glyph_attribute_mapping&>(vis.manager.ref_glyph_attribute_mappings().back());
 		for (auto it=layer_gam.vattrib_source_map.begin(); it!=layer_gam.vattrib_source_map.end(); ++it) {
-			const unsigned vattr_id = it->first;
-			const auto in_range = *(vec2*)&layer_gam.gam.ref_attrib_mapping_values()[vattr_id];
-			tgt_gam.set_attrib_in_range(vattr_id, in_range);
+			const auto in_range = *(vec2*)&layer_gam.gam.ref_attrib_mapping_values()[it->first];
+			tgt_gam.set_attrib_in_range(it->first, in_range);
 		}
-		/*const_cast<decltype(layer_gam.gam)&>(vis.manager.ref_glyph_attribute_mappings().back())
-			.set_visualization_variables(
-				std::make_shared<visualization_variables_info>(std::move(visvar))
-			);*/
 	}
 	vis.manager.notify_configuration_change();
 

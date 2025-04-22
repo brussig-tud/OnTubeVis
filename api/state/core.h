@@ -103,8 +103,8 @@ enum class VisualAttribute : unsigned {
 typedef VisualAttribute VAttrib;
 
 struct VisualAttributeSource {
-	float min_val;
-	float max_val;
+	cgv::vec2 in;
+	cgv::vec2 out;
 	std::string desc;
 };
 typedef std::map<VisualAttribute, VisualAttributeSource> VAttribSources;

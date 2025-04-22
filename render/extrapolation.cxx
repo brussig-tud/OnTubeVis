@@ -1011,7 +1011,8 @@ void extrapolation_manager::collect_timer_queries (void)
 		const auto time_ns = duration_ns(render.flush_time_query.collect());
 		stats.flush_times.add_measurement(time_ns);
 	}
-	if (state.rendered_something) {
+	if (state.rendered_something)
+	{
 		/* take sort time */ {
 			const auto time_ns = duration_ns(render.sort_time_query.collect());
 			stats.sort_times.add_measurement(time_ns);
@@ -1025,6 +1026,7 @@ void extrapolation_manager::collect_timer_queries (void)
 				stats.sort_times.measurements.back() + stats.draw_times.measurements.back();
 			stats.render_times.add_measurement(time);
 		}
+		state.rendered_something = false;
 	}
 }
 
