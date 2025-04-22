@@ -309,7 +309,7 @@ inline double stats_collector<std::chrono::duration<double, std::micro>>::to_num
 }
 template<>
 inline const std::string& stats_collector<std::chrono::duration<double, std::micro>>::quantity_unit(void) {
-	static const std::string unit = "µs";
+	static const std::string unit = "Âµs";
 	return unit;
 }
 template<>
