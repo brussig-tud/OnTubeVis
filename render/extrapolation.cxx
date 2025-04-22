@@ -46,6 +46,7 @@ void compute_path (
 
 } // namespace extrapol
 
+
 extrapolation_manager::extrapolation_manager (render_state &otv_render_state) : otv_render(otv_render_state)
 {
 	// Apply render style
@@ -89,8 +90,6 @@ void extrapolation_manager::clear(void)
 	// Reset stats
 	stats.reset();
 }
-
-
 
 bool extrapolation_manager::create_geom_buffers (
 	cgv::render::context &ctx, unsigned num_trajectories, unsigned num_segments
@@ -288,7 +287,8 @@ void extrapolation_manager::replace_extrapolation (
 	// Replace geometry buffer contents
 	const auto num_segments = traj.t_to_s.capacity();
 	assert(num_segments == (unsigned)extrapolation.size());
-	traj.nodes.contents[0] = last_measured_node;traj.nodes.contents[0].color.w() = extrapolation.front().hnode.color.w();
+	traj.nodes.contents[0] = last_measured_node;
+	traj.nodes.contents[0].color.w() = extrapolation.front().hnode.color.w();
 	for (unsigned i=0; i<num_segments; i++) {
 		traj.nodes.contents[i+1] = extrapolation[i].hnode;
 		traj.t_to_s.contents[i] = extrapolation[i].t_to_s;

@@ -226,7 +226,7 @@ RCC    rcc_create_z (const vec3 orig, const vec3 dir);
 // *** begin interface of otv_shading.glsl ********************************
 vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
-	in float depth, in float specular_factor
+	in float depth, in float specular_factor, in float max_glyph_s
 );
 vec4 otv_shade_cursor (
 	in float u_pos, in float u_half_width, in vec2 uv, in vec4 cursor_color, in vec4 pre_shaded_color
@@ -915,13 +915,13 @@ void main()
 		// Output shading results
 		//finish_fragment(color, depth);
 		#if FORWARD_SHADING == 1
-			float u = alen(t_seg);
+			float u = alen(t_seg), s_playback = t_playback < POS_INF ? alen(t_playback) : POS_INF;
 			color.rgb = otv_shade_fragment(
 				color.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(u, v), segment_id_fs,  pos_eye.xyz,
-				normal, tangent, gl_FragDepth, /*specular_factor: */1
+				normal, tangent, gl_FragDepth, /*specular_factor: */1, /* max_glyph_s: */s_playback
 			).rgb;
 			if (t_playback < POS_INF)
-				color = otv_shade_cursor(alen(t_playback), .125*ref_rad, vec2(u,v), vec4(1,0,1,1), color);
+				color = otv_shade_cursor(s_playback, .125*ref_rad, vec2(u,v), vec4(1,0,1,1), color);
 			color_out = vec4(pow(color.rgb, 1.0/gamma3), color.a);
 		#else
 			frag_albedo = uvec4(

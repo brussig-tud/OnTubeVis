@@ -465,7 +465,7 @@ void otv_client::precompute_extrapolations (void)
 			const auto col = data->colors[node_idx];
 			const node_attribs cur_node {
 				{data->positions[node_idx], data->radii[node_idx]},
-				{col.R(), col.G(), col.B(), 1},
+				255.f*cgv::vec4{col.R(), col.G(), col.B(), 1},
 				data->tangents[node_idx],
 				{data->timestamps[node_idx], 0, 0, 0}
 			};
@@ -564,7 +564,7 @@ void otv_client::update ()
 			const auto col = data->colors[node_idx];
 			const node_attribs new_node {
 				{data->positions[node_idx], data->radii[node_idx]},
-				{col.R(), col.G(), col.B(), 1},
+				255.f*cgv::vec4{col.R(), col.G(), col.B(), 1},
 				data->tangents[node_idx],
 				{data->timestamps[node_idx], 0, 0, 0}
 			};

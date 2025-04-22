@@ -18,15 +18,19 @@
 #define CONSTANT_COLOR_UNIFORM_COUNT 0
 #define MAPPING_PARAMETER_UNIFORM_COUNT 0
 #define L0_VISIBLE 1
+#define L0_IS_PLOT false
 #define L0_MAPPED_ATTRIB_COUNT 0
 #define L0_GLYPH_DEFINITION
 #define L1_VISIBLE 1
+#define L1_IS_PLOT false
 #define L1_MAPPED_ATTRIB_COUNT 0
 #define L1_GLYPH_DEFINITION
 #define L2_VISIBLE 1
+#define L2_IS_PLOT false
 #define L2_MAPPED_ATTRIB_COUNT 0
 #define L2_GLYPH_DEFINITION
 #define L3_VISIBLE 1
+#define L3_IS_PLOT false
 #define L3_MAPPED_ATTRIB_COUNT 0
 #define L3_GLYPH_DEFINITION
 
@@ -169,27 +173,29 @@ int abs_index (in int glyph_idx, in TRAJECTORY_ID_T trajectory, in uint layer)
 
 struct closest_glyphs_info {
 	int prev, next, id;
-	float dp, dn, d;
+	float dp, dn, d, s;
 };
 
 #define DEF_CLOSEST_SAMPLES(I, ranges, glyphs) \
-bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info closest) { \
+bool get_closest_samples##I(in int segid, in float s_query, in float s_frag, out closest_glyphs_info closest) { \
 	const irange          segment = ranges[segid]; \
 	const TRAJECTORY_ID_T traj    = seg_to_traj[segid].x; \
 	if (segment.n > 0) { \
 		irange rng = segment; \
 		while (rng.n > 1) { \
 			const int mid_n = rng.n/2, mid = rng.i0+mid_n; \
-			if (glyphs[abs_index(mid, traj, I)].s > s) rng.n = mid_n; \
+			if (glyphs[abs_index(mid, traj, I)].s > s_query) rng.n = mid_n; \
 			else { rng.i0 = rng.i0 + mid_n; rng.n  = rng.n  - mid_n; } \
 		} \
 		closest.prev = abs_index(rng.i0, traj, I); \
 		closest.next = rng.i0 < segment.i0+segment.n-1 ? abs_index(rng.i0+1, traj, I) : abs_index(rng.i0, traj, I); \
-		closest.dp = s - glyphs[closest.prev].s; \
-		closest.dn = glyphs[closest.next].s - s; \
+		const float s_prev = glyphs[closest.prev].s, s_next = glyphs[closest.next].s; \
+		closest.dp = s_frag - s_prev; \
+		closest.dn = s_next - s_frag; \
 		const bool n_lt_p = closest.dn < closest.dp; \
 		closest.id = n_lt_p ? closest.next : closest.prev; \
 		closest.d  = n_lt_p ? closest.dn : closest.dp; \
+		closest.s  = n_lt_p ? s_next : s_prev; \
 		return true; \
 	} \
 	return false; \
@@ -1455,7 +1461,7 @@ vec3 rainbow(float t)
 
 vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
-	in float depth, in float specular_factor
+	in float depth, in float specular_factor, in float max_glyph_s
 ){
 	vec4 subp_color;
 	vec2 uv = texcoord;
@@ -1477,20 +1483,15 @@ vec4 otv_shade_fragment (
 #if L0_VISIBLE > 0 && L0_MAPPED_ATTRIB_COUNT > 0
 	{
 		closest_glyphs_info closest;
-		vec2 glyphuv = uv;
-		const uint traj_id = seg_to_traj[segment_id].x;
-		const uint layer = 0;
-		const irange tgm = get_traj_glyph_mem(traj_id, layer);
-		const uint testidx = abs_index(3, traj_id, layer);
-		glyph_desc0 testglyph = glyphs0[testidx];
-
-		if (get_closest_samples0(segment_id, glyphuv.s, closest)) {
+		if (   get_closest_samples0(segment_id, L0_IS_PLOT ? uv.s : min(uv.s, max_glyph_s), uv.s, closest)
+		    && (L0_IS_PLOT || closest.s <= max_glyph_s))
+		{
 			glyph_desc0 glyph = glyphs0[closest.id];
 
-			glyphuv = vec2(
+			vec2 glyphuv = vec2(
 				(closest.dp <= closest.dn ? closest.dp : -closest.dn)
 				* length_scale, // <-- ToDo: replace with automatic uv re-projection method
-				glyphuv.t
+				uv.t
 			);
 
 			float non_outline_factor = 1;
@@ -1508,14 +1509,15 @@ vec4 otv_shade_fragment (
 #if L1_VISIBLE > 0 && L1_MAPPED_ATTRIB_COUNT > 0
 	{
 		closest_glyphs_info closest;
-		vec2 glyphuv = uv;
-		if (get_closest_samples1(segment_id, glyphuv.s, closest)) {
+		if (   get_closest_samples1(segment_id, L1_IS_PLOT ? uv.s : min(uv.s, max_glyph_s), uv.s, closest)
+		    && (L1_IS_PLOT || closest.s <= max_glyph_s))
+		{
 			glyph_desc1 glyph = glyphs1[closest.id];
 
-			glyphuv = vec2(
+			vec2 glyphuv = vec2(
 				(closest.dp <= closest.dn ? closest.dp : -closest.dn)
 				* length_scale, // <-- ToDo: replace with automatic uv re-projection method
-				glyphuv.t
+				uv.t
 			);
 
 			float non_outline_factor = 1;
@@ -1528,14 +1530,15 @@ vec4 otv_shade_fragment (
 #if L2_VISIBLE > 0 && L2_MAPPED_ATTRIB_COUNT > 0
 	{
 		closest_glyphs_info closest;
-		vec2 glyphuv = uv;
-		if (get_closest_samples2(segment_id, glyphuv.s, closest)) {
+		if (   get_closest_samples2(segment_id, L2_IS_PLOT ? uv.s : min(uv.s, max_glyph_s), uv.s, closest)
+		    && (L2_IS_PLOT || closest.s <= max_glyph_s))
+		{
 			glyph_desc2 glyph = glyphs2[closest.id];
 
-			glyphuv = vec2(
+			vec2 glyphuv = vec2(
 				(closest.dp <= closest.dn ? closest.dp : -closest.dn)
 				* length_scale, // <-- ToDo: replace with automatic uv re-projection method
-				glyphuv.t
+				uv.t
 			);
 
 			float non_outline_factor = 1;
@@ -1548,14 +1551,15 @@ vec4 otv_shade_fragment (
 #if L3_VISIBLE > 0 && L3_MAPPED_ATTRIB_COUNT > 0
 	{
 		closest_glyphs_info closest;
-		vec2 glyphuv = uv;
-		if (get_closest_samples3(segment_id, glyphuv.s, closest)) {
+		if (   get_closest_samples3(segment_id, L3_IS_PLOT ? uv.s : min(uv.s, max_glyph_s), uv.s, closest)
+		    && (L3_IS_PLOT || closest.s <= max_glyph_s))
+		{
 			glyph_desc3 glyph = glyphs3[closest.id];
 
-			glyphuv = vec2(
+			vec2 glyphuv = vec2(
 				(closest.dp <= closest.dn ? closest.dp : -closest.dn)
 				* length_scale, // <-- ToDo: replace with automatic uv re-projection method
-				glyphuv.t
+				uv.t
 			);
 
 			float non_outline_factor = 1;

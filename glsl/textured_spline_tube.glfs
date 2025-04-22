@@ -51,7 +51,7 @@ mat3 get_inverse_normal_matrix();
 // *** begin interface of otv_shading.glsl ********************************
 vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
-	in float depth, in float specular_factor
+	in float depth, in float specular_factor, in float max_glyph_s
 );
 vec4 otv_shade_cursor (
 	in float u_pos, in float u_half_width, in vec2 uv, in vec4 cursor_color, in vec4 pre_shaded_color
@@ -1021,13 +1021,14 @@ void main()
 
 		//frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(col)), spline_t, v, intBitsToFloat(segment_id_fs));
 #if FORWARD_SHADING == 1
-		float u = alen(spline_t);
+		float u = alen(spline_t), s_playback = l_playback < POS_INF ? alen(l_playback) : POS_INF;
 		col.rgb = otv_shade_fragment(
 			col.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(u, spline_t>=l_max_cubic ? 2 : v),
-			segment_id_fs, hit.hp.xyz, hit.normal, tangent, gl_FragDepth, /*specular_factor: */1
+			segment_id_fs, hit.hp.xyz, hit.normal, tangent, gl_FragDepth, /*specular_factor: */1,
+			/* max_glyph_s: */s_playback
 		).rgb;
 		if (l_playback < POS_INF)
-			col = otv_shade_cursor(alen(l_playback), .125*n0.pos_rad.w, vec2(u,v), vec4(1,0,1,1), col);
+			col = otv_shade_cursor(s_playback, .125*n0.pos_rad.w, vec2(u,v), vec4(1,0,1,1), col);
 		color_out = vec4(pow(col.rgb, 1.0/gamma3), col.a);
 #else
 		frag_albedo = uvec4(
