@@ -851,16 +851,6 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 	}
 
 	// prelude
-	// - helper function to either retrieve a vattrib source if it exists or return a generic source instead
-	const auto get_vattrib_source = [](
-		const VAttribSources &sources, const VisualAttribute vattrib, const vec2 &default_in_range,
-		const vec2 &default_out_range
-	){
-		const auto it = sources.find(vattrib);
-		return it==sources.end() ?
-			  VisualAttributeSource{default_in_range, default_out_range, ""}
-			: it->second;
-	};
 	// - helper function to retrieve the correct VAttrib::Value... enum given a 0-based index
 	const auto get_vattrib_value = [](const unsigned i)
 	{

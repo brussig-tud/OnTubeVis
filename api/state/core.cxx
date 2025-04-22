@@ -30,6 +30,7 @@
 
 std::string streaming_dataset::name;
 std::vector<OTV_LayerConfig> streaming_dataset::layers;
+std::vector<VAttribSources> streaming_dataset::layer_sources;
 std::vector<trajectory> streaming_dataset::trajectories;
 std::unordered_map<uint32_t, unsigned> streaming_dataset::traj_id_map;
 
@@ -66,6 +67,7 @@ struct new_session_command : public command
 		otv_instance->start_new_streaming_session(setup);
 		streaming_dataset::name = std::move(setup.name);
 		streaming_dataset::layers = std::move(setup.layers);
+		streaming_dataset::layer_sources = std::move(setup.layer_sources);
 		streaming_dataset::trajectories = std::move(trajectories);
 		streaming_dataset::traj_id_map = std::move(traj_id_map);;
 		return notify_result(true);
@@ -422,17 +424,63 @@ OTV_API OTV_Vec2 otv__instantiate_Glyph (const uint32_t traj_id, const uint32_t 
 
 		// Discrete glyphs
 		case OTV_GlyphType::Circle:
-			return otv__instantiate_Circle(traj.radius, (OTV_CircleInfo*)&lcfg.static_params,
-			                                  (OTV_CircleData*)data);
+		{
+			// Apply mapping windows
+			const auto &attr_sources = streaming_dataset::layer_sources[layer];
+			const auto radius_src = get_vattrib_source(
+				attr_sources, VAttrib::Radius, {0, 1}, {0, 1}
+			);
+			OTV_CircleData mapped_data = *(OTV_CircleData*)data;
+			mapped_data.radius = map_attrib_value(radius_src.in, radius_src.out, mapped_data.radius);
+
+			// Instantiate
+			return otv__instantiate_Circle(traj.radius, (OTV_CircleInfo*)&lcfg.static_params, &mapped_data);
+		}
 		case OTV_GlyphType::Rect:
-			return otv__instantiate_Rectangle(traj.radius, (OTV_RectangleInfo*)&lcfg.static_params,
-			                                  (OTV_RectangleData*)data);
+		{
+			// Apply mapping windows
+			const auto &attr_sources = streaming_dataset::layer_sources[layer];
+			const auto width_src = get_vattrib_source(
+				attr_sources, VAttrib::Width, {0, 2}, {0, 2}
+			);
+			const auto height_src = get_vattrib_source(
+				attr_sources, VAttrib::Height, {0, 2}, {0, 2}
+			);
+			OTV_RectangleData mapped_data = *(OTV_RectangleData*)data;
+			mapped_data.width = map_attrib_value(width_src.in, width_src.out, mapped_data.width);
+			mapped_data.height = map_attrib_value(height_src.in, height_src.out, mapped_data.height);
+
+			// Instantiate
+			return otv__instantiate_Rectangle(traj.radius, (OTV_RectangleInfo*)&lcfg.static_params, &mapped_data);
+		}
 		case OTV_GlyphType::IsoscelesTriangle:
-			return otv__instantiate_IsoscelesTriangle(traj.radius, (OTV_IsoscelesTriangleInfo*)&lcfg.static_params,
-			                                  (OTV_IsoscelesTriangleData*)data);
+		{
+			// Apply mapping windows
+			const auto &attr_sources = streaming_dataset::layer_sources[layer];
+			const auto width_src = get_vattrib_source(
+				attr_sources, VAttrib::Width, {0, 2}, {0, 2}
+			);
+			const auto height_src = get_vattrib_source(
+				attr_sources, VAttrib::Height, {0, 2}, {0, 2}
+			);
+			const auto orientation_src = get_vattrib_source(
+				attr_sources, VAttrib::Orientation, {-180, 180}, {-180, 180}
+			);
+			OTV_IsoscelesTriangleData mapped_data = *(OTV_IsoscelesTriangleData*)data;
+			mapped_data.width = map_attrib_value(width_src.in, width_src.out, mapped_data.width);
+			mapped_data.height = map_attrib_value(height_src.in, height_src.out, mapped_data.height);
+			mapped_data.orientation = map_attrib_value(orientation_src.in, orientation_src.out, mapped_data.orientation);
+
+			// Instantiate
+			return otv__instantiate_IsoscelesTriangle(
+				traj.radius, (OTV_IsoscelesTriangleInfo*)&lcfg.static_params, &mapped_data
+			);
+		}
 		case OTV_GlyphType::SignBlob:
-			return otv__instantiate_SignBlob(traj.radius, (OTV_SignBlobInfo*)&lcfg.static_params,
-			                                 (OTV_SignBlobData*)data);
+			return otv__instantiate_SignBlob(
+				traj.radius, (OTV_SignBlobInfo*)&lcfg.static_params, (OTV_SignBlobData*)data
+			);
+
 		default:
 			/* do_nothing() */;
 	}

@@ -5,6 +5,7 @@
 //
 
 // C++ STL
+#include <cmath>
 #include <algorithm>
 
 // Public interface
@@ -200,9 +201,7 @@ OTV_API OTV_GlyphData* otv__downcast_CircleData (const OTV_CircleData *circle_da
 OTV_API OTV_Vec2 otv__instantiate_Circle (
 	const float traj_radius, const OTV_CircleInfo *info, const OTV_CircleData *data
 ){
-	const float hw =
-		  traj_radius * /* v (circumferential) coordinate goes from -2..2 */.5f
-		* (info->static_flags&CI_STATIC_RADIUS ? info->radius : data->radius);
+	const float hw = traj_radius * (info->static_flags&CI_STATIC_RADIUS ? info->radius : data->radius);
 	return {-hw, hw};
 }
 
@@ -340,12 +339,13 @@ OTV_API OTV_GlyphData* otv__downcast_IsoscelesTriangleData (const OTV_IsoscelesT
 OTV_API OTV_Vec2 otv__instantiate_IsoscelesTriangle (
 	const float traj_radius, const OTV_IsoscelesTriangleInfo *info, const OTV_IsoscelesTriangleData *data
 ){
-	const float hw =
-		  traj_radius * /* v (circumferential) coordinate goes from -2..2 */.25f
-		* std::max(
-		  	(info->static_flags&ITI_STATIC_WIDTH ? info->width : data->width),
-		  	(info->static_flags&ITI_STATIC_HEIGHT ? info->height : data->height)
-		  );
+	const float
+		angle_deg = info->static_flags&ITI_STATIC_ORIENTATION ? info->orientation : data->orientation,
+		angle = angle_deg/180.f * (float)M_PI,
+		vec_w = info->static_flags&ITI_STATIC_WIDTH ? info->width : data->width,
+		vec_h = info->static_flags&ITI_STATIC_HEIGHT ? info->height : data->height,
+		effective_w = std::abs(std::sin(angle) * vec_w), effective_h = std::abs(std::cos(angle) * vec_h),
+		hw = traj_radius * std::max(effective_w, effective_h)*.5f;
 	return {-hw, hw};
 }
 
@@ -411,7 +411,7 @@ OTV_API OTV_GlyphData* otv__downcast_SignBlobData (const OTV_SignBlobData *sign_
 OTV_API OTV_Vec2 otv__instantiate_SignBlob (
 	const float traj_radius, const OTV_SignBlobInfo *info, const OTV_SignBlobData *
 ){
-	const float hw = traj_radius  *  /* v (circumferential) coordinate goes from -2..2 */0.5 * info->radius;
+	const float hw = traj_radius * info->radius;
 	return {-hw, hw};
 }
 

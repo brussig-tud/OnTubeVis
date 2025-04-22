@@ -109,6 +109,21 @@ struct VisualAttributeSource {
 };
 typedef std::map<VisualAttribute, VisualAttributeSource> VAttribSources;
 
+inline VisualAttributeSource get_vattrib_source (
+	const VAttribSources &sources, const VisualAttribute vattrib, const cgv::vec2 &default_in_range,
+	const cgv::vec2 &default_out_range
+){
+	const auto it = sources.find(vattrib);
+	return it==sources.end() ?
+		  VisualAttributeSource{default_in_range, default_out_range, ""}
+		: it->second;
+}
+
+inline float map_attrib_value (const cgv::vec2 &in_range, const cgv::vec2 &out_range, const float value) {
+	const float t = std::clamp((value - in_range.x())/(in_range.y() - in_range.x()), 0.0f, 1.0f);
+	return cgv::math::lerp(out_range.x(), out_range.y(), t);
+}
+
 struct VisSetup
 {
 	VisSetup(const std::string &name) : name(name) {}
@@ -162,6 +177,7 @@ struct VisSetup
 struct streaming_dataset {
 	static std::string name;
 	static std::vector<OTV_LayerConfig> layers;
+	static std::vector<VAttribSources> layer_sources;
 	static std::vector<trajectory> trajectories;
 	static std::unordered_map<uint32_t, unsigned> traj_id_map;
 };
