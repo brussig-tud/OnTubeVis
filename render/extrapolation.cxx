@@ -275,7 +275,7 @@ bool extrapolation_manager::create_glyph_and_per_layer_buffers (
 	return _.disarm(success);
 }
 
-void extrapolation_manager::replace_extrapolation (
+hires_duration_type extrapolation_manager::replace_extrapolation (
 	unsigned traj_id, const node_attribs &last_measured_node, const std::vector<extrapol::node> &extrapolation
 ){
 	// Start timing the CPU duration of the replacement
@@ -347,18 +347,17 @@ void extrapolation_manager::replace_extrapolation (
 		);
 	}
 
-	// Done! Update stats and return
+	// Update stats and return
 	stats.glyphs_per_replace.add_measurement(total_relinked_glyphs);
 	++stats.num_replacements;
-	/* take elapsed CPU time */ {
-		const auto time = std::chrono::high_resolution_clock::now() - start_time;
-		stats.replace_times.add_measurement(time);
-	}
+	const auto time = std::chrono::high_resolution_clock::now() - start_time;
+	stats.replace_times.add_measurement(time);
+	return time;
 }
 
 template <class Iter>
 ro_range<Iter> extrapolation_manager::consider_glyphs (
-	unsigned traj_id, unsigned l, const ro_range<Iter> &glyph_attribs
+	unsigned traj_id, unsigned l, const ro_range<Iter> &glyph_attribs, hires_duration_type &consumed_time
 ){
 	// Nothing to do if there are no glyphs
 	if (glyph_attribs.is_empty())
@@ -517,19 +516,19 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	#endif
 
 	// Done! Update stats and return
-	/* take elapsed CPU time */ {
-		const auto time = std::chrono::high_resolution_clock::now() - start_time;
-		stats.glyph_push_times.add_measurement(time);
-	}
+	consumed_time = std::chrono::high_resolution_clock::now() - start_time;
+	stats.glyph_push_times.add_measurement(consumed_time);
 	return ro_range{actually_on_extrapol.begin, actually_on_extrapol.end};
 }
 template ro_range<std_vector_float_iter> extrapolation_manager::consider_glyphs (
-	unsigned, unsigned, const ro_range<std_vector_float_iter>&
+	unsigned, unsigned, const ro_range<std_vector_float_iter>&, hires_duration_type&
 );
 template ro_range<std_deque_float_iter> extrapolation_manager::consider_glyphs (
-	unsigned, unsigned, const ro_range<std_deque_float_iter>&
+	unsigned, unsigned, const ro_range<std_deque_float_iter>&, hires_duration_type&
 );
-template ro_range<float*> extrapolation_manager::consider_glyphs (unsigned, unsigned, const ro_range<float*>&);
+template ro_range<float*> extrapolation_manager::consider_glyphs (
+	unsigned, unsigned, const ro_range<float*>&, hires_duration_type&
+);
 
 template <class Iter>
 ro_range<Iter> extrapolation_manager::skip_glyphs_before (

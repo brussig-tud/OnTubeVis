@@ -9,6 +9,12 @@
 #include <optional>
 
 
+/// The duration type for the platform high-resolution clock
+typedef decltype(
+	std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now()
+) hires_duration_type;
+
+
 /// A right-open range [begin, end).
 template <class Iter>
 struct ro_range

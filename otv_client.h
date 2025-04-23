@@ -150,12 +150,15 @@ struct otv_client
 	struct stats_struct
 	{
 		unsigned num_updates = 0;
-		stats_collector<extrapolation_manager::duration_ms> full_update_times;
+		stats_collector<extrapolation_manager::duration_ms>
+			total_extrapol_replace_times, total_extrapol_glyph_push_times, full_update_times;
 		stats_collector<float> nodes_per_update;
 		stats_collector<float> glyphs_per_update;
 
 		/// Convenience method to trigger processing for all collected statistics at once.
 		void process (void) {
+			total_extrapol_replace_times.process();
+			total_extrapol_glyph_push_times.process();
 			full_update_times.process();
 			nodes_per_update.process();
 			glyphs_per_update.process();
@@ -166,7 +169,8 @@ struct otv_client
 		{
 			os << std::endl << ">>> CLIENT STATS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" << std::endl
 			   << "-- Timings ------------------------------" << std::endl;
-			full_update_times.print(os, "full_update_time");
+			total_extrapol_replace_times.print(os, "extrapol_replace_times");
+			total_extrapol_glyph_push_times.print(os, "extrapol_glyph_push_times");
 			nodes_per_update.print(os, "nodes_per_update");
 			glyphs_per_update.print(os, "glyphs_per_update");
 			os << std::endl << "-- Counters -----------------------------" << std::endl;
@@ -235,7 +239,7 @@ struct otv_client
 	}
 
 	/// perform necessary logic to enqueue a node.
-	void enqueue_node (
+	hires_duration_type enqueue_node (
 		trajectory_ref target, const node_attribs &node, const cgv::mat4 *t_to_s,
 		const std::vector<extrapol::node> &extrapol
 	);
@@ -243,7 +247,9 @@ struct otv_client
 	/// perform necessary logic to enqueue glyphs. Returns the sub-range of the input range that currently need to be
 	/// displayed on an extrapolation.
 	template <class Iter>
-	ro_range<Iter> enqueue_glyphs (trajectory_ref traj, unsigned layer, const ro_range<Iter> &glyph_data);
+	ro_range<Iter> enqueue_glyphs (
+		trajectory_ref traj, unsigned layer, const ro_range<Iter> &glyph_data, hires_duration_type &consumed_time
+	);
 
 	/// for service mode: enqueue a new hermite node to be uploaded to the GPU ring buffer of the indicated trajectory
 	/// NOTE: argument `node` will be updated with the color and radius (plus derivative) of the selected trajectory, so

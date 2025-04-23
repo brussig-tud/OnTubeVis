@@ -341,7 +341,7 @@ struct extrapolation_manager
 	);
 
 	/// Fully replace the current extrapolation for the given trajectory
-	void replace_extrapolation (
+	hires_duration_type replace_extrapolation (
 		unsigned traj_id, const node_attribs &last_measured_node, const std::vector<extrapol::node> &extrapolation
 	);
 
@@ -358,7 +358,9 @@ struct extrapolation_manager
 	///		most recent real segment pending new position measurements, so the returned sub range should be empty ≥90%
 	///		of the time. If not, clients should check their node/glyph submission logic.
 	template <class Iter>
-	ro_range<Iter> consider_glyphs (unsigned traj_id, unsigned layer, const ro_range<Iter> &glyph_attribs);
+	ro_range<Iter> consider_glyphs (
+		unsigned traj_id, unsigned layer, const ro_range<Iter> &glyph_attribs, hires_duration_type &consumed_time
+	);
 
 	/// Return the sub-range of the range @a glyph_attribs on @a layer that have influence after (and including)
 	/// @a s_min, searching from the front.

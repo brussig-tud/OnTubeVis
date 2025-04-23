@@ -510,11 +510,14 @@ void otv_client::update ()
 	// actually is ready)
 	session.wait_init_ready();
 
+	// prepare timing logic
 	#define DEBUG_OUTPUT 1
 	#if DEBUG_OUTPUT
 		cgv::utils::stopwatch sw(/* silent: */true);
 		std::clog << "otv_client::update(): starting update for t="<<playback_t<<"s\n";
 	#endif
+	typedef decltype(std::chrono::high_resolution_clock::now()-std::chrono::high_resolution_clock::now()) duration_type;
+	hires_duration_type total_replace_duration{0}, total_glyph_push_duration{0};
 
 	// extend all trajectories based on the animation time, emulating streaming
 	bool streamed_something = false;
@@ -542,9 +545,11 @@ void otv_client::update ()
 				glyphs_attribs.begin += stride;
 
 			// submit new unique glyphs
+			hires_duration_type glyph_push_duration;
 			const auto glyph_attribs_on_extrapol = this->enqueue_glyphs(
-				target_traj, layer_idx, glyphs_attribs
+				target_traj, layer_idx, glyphs_attribs, glyph_push_duration
 			);
+			total_glyph_push_duration += glyph_push_duration;
 
 			// update last_s
 			traj.last_s[layer_idx] = cur_range.n.value ? *(glyphs_attribs.end-stride) : traj.last_s[layer_idx];
@@ -574,7 +579,7 @@ void otv_client::update ()
 			const cgv::mat4 *t_to_s {target_traj.ref.is_empty() ? nullptr : &arclen_data.t_to_s.at(traj.segment_idx)};
 
 			// append a node, potentially creating a new segment
-			enqueue_node(target_traj, new_node, t_to_s, extrapols[node_idx]);
+			total_replace_duration += enqueue_node(target_traj, new_node, t_to_s, extrapols[node_idx]);
 			++num_nodes_pushed;
 
 			if (t_to_s == nullptr) {
@@ -602,30 +607,36 @@ void otv_client::update ()
 	// Update stats
 	if (streamed_something) {
 		++stats.num_updates;
+		stats.total_extrapol_replace_times.add_measurement(total_replace_duration);
+		stats.total_extrapol_glyph_push_times.add_measurement(total_glyph_push_duration);
 		stats.full_update_times.add_measurement(full_update_ms);
 		stats.nodes_per_update.add_measurement((float)num_nodes_pushed);
 		stats.glyphs_per_update.add_measurement((float)num_glyphs_pushed);
 	}
 }
-void otv_client::enqueue_node (
+
+hires_duration_type otv_client::enqueue_node (
 	trajectory_ref target, const node_attribs &node, const cgv::mat4 *t_to_s,
 	const std::vector<extrapol::node> &extrapol
 ){
 	render.enqueue_node(target.id, node, t_to_s);
 	if (num_extrapol_segments)
-		extrapol_mgr.replace_extrapolation(target.id, node, extrapol);
+		return extrapol_mgr.replace_extrapolation(target.id, node, extrapol);
+	return hires_duration_type{0};
 }
 
 template <class Iter>
-ro_range<Iter> otv_client::enqueue_glyphs (trajectory_ref traj, unsigned layer, const ro_range<Iter> &glyph_data)
-{
+ro_range<Iter> otv_client::enqueue_glyphs (
+	trajectory_ref traj, unsigned layer, const ro_range<Iter> &glyph_data, hires_duration_type &consumed_time
+){
 	// Enqueue glyphs to "regular" trajectories
 	traj.ref.enqueue_glyphs(layer, glyph_data);
 
 	// Also submit the glyphs to the extrapolation manager for consideration if extrapolation display is enabled
 	const auto glyphs_on_extrapol = [&]() -> ro_range<Iter> {
 		if (num_extrapol_segments)
-			return extrapol_mgr.consider_glyphs(traj.id, layer, glyph_data);
+			return extrapol_mgr.consider_glyphs(traj.id, layer, glyph_data, consumed_time);
+		consumed_time = hires_duration_type{0};
 		return extrapol_mgr.skip_glyphs_before(layer, traj.ref.arclength(), glyph_data);
 	}();
 
@@ -634,12 +645,14 @@ ro_range<Iter> otv_client::enqueue_glyphs (trajectory_ref traj, unsigned layer, 
 	return glyphs_on_extrapol;
 }
 template ro_range<std_vector_float_iter> otv_client::enqueue_glyphs (
-	trajectory_ref, unsigned, const ro_range<std_vector_float_iter>&
+	trajectory_ref, unsigned, const ro_range<std_vector_float_iter>&, hires_duration_type &consumed_time
 );
 template ro_range<std_deque_float_iter> otv_client::enqueue_glyphs (
-	trajectory_ref, unsigned, const ro_range<std_deque_float_iter>&
+	trajectory_ref, unsigned, const ro_range<std_deque_float_iter>&, hires_duration_type &consumed_time
 );
-template ro_range<float*> otv_client::enqueue_glyphs (trajectory_ref, unsigned, const ro_range<float*>&);
+template ro_range<float*> otv_client::enqueue_glyphs (
+	trajectory_ref, unsigned, const ro_range<float*>&, hires_duration_type &consumed_time
+);
 
 void otv_client::service_push_spline_node (
 	unsigned traj_id, node_attribs &&node, const cgv::mat4 *t_to_s, std::vector<extrapol::node> &&extrapol
@@ -721,7 +734,8 @@ void otv_client::service_push_glyphs (unsigned traj_id, unsigned layer, std::vec
 	}
 	const auto &data = glyph_data.begin();
 	const auto data_range = ro_range{data, data + glyph_data.size()};
-	enqueue_glyphs(find_trajectory(traj_id), layer, data_range);
+	hires_duration_type dummy;
+	enqueue_glyphs(find_trajectory(traj_id), layer, data_range, dummy);
 	//playback_t = std::max(playback_t, glyph.t);
 }
 
