@@ -106,9 +106,9 @@ bool render_state::append_nodes ()
 	// Done! Update stats and return
 	if (did_something) {
 		const auto time = std::chrono::high_resolution_clock::now() - start_time;
-		stats.node_commit_times.add_measurement(time);
-		stats.num_nodes_committed += nodes_comitted;
-		stats.nodes_per_commit.add_measurement((float)nodes_comitted);
+		stats.node_push_times.add_measurement(time);
+		stats.num_nodes_pushed += nodes_comitted;
+		stats.nodes_per_push.add_measurement((float)nodes_comitted);
 	}
 
 	return did_something;

@@ -252,8 +252,9 @@ struct extrapolation_manager
 		unsigned num_glyphs_comitted = 0;
 
 		/// Segment sorting timings.
-		stats_collector<duration_ms> sort_times, draw_times, render_times, replace_times, push_times;
+		stats_collector<duration_ms> sort_times, draw_times, render_times, replace_times, glyph_push_times;
 		stats_collector<duration_us> flush_times;
+		stats_collector<float> glyphs_per_replace, glyphs_per_push;
 
 		/// Reset all counters to 0.
 		void reset (void) {
@@ -269,7 +270,9 @@ struct extrapolation_manager
 			render_times.process();
 			flush_times.process();
 			replace_times.process();
-			push_times.process();
+			glyphs_per_replace.process();
+			glyph_push_times.process();
+			glyphs_per_push.process();
 		}
 
 		/// Convenience method for printing out the collacted stats (@ref #process() should have already been called).
@@ -282,7 +285,9 @@ struct extrapolation_manager
 			render_times.print(os, "total_render");
 			flush_times.print(os, "buffer_flush_times");
 			replace_times.print(os, "replace");
-			push_times.print(os, "glyph_push");
+			glyphs_per_replace.print(os, "relinked_glyphs_per_replace");
+			glyph_push_times.print(os, "glyph_push");
+			glyphs_per_push.print(os, "glyphs_per_push");
 			os << std::endl << "-- Counters -----------------------------" << std::endl;
 			os << "       num_replacements: "<<num_replacements << "\n"
 			   << "num_single_glyph_pushes: "<<num_single_glyph_pushes << "\n"

@@ -298,6 +298,7 @@ void extrapolation_manager::replace_extrapolation (
 	state.dirty_flags = state.dirty_flags | state.SEGMENTS_DIRTY;
 
 	// Update per-layer range maps for current set of glyphs
+	unsigned total_relinked_glyphs = 0;
 	for (unsigned l=0; l<setup.num_layers; l++)
 	{
 		// Convenience shorthand
@@ -307,6 +308,7 @@ void extrapolation_manager::replace_extrapolation (
 		const unsigned stride = setup.glyph_attrib_counts[l];
 
 		// First, find the oldest glyph we need to still include
+		total_relinked_glyphs += layer.glyph_attribs.size()/stride;
 		auto on_extrapol = skip_glyphs_before(
 			l, extrapolation.front().t_to_s[0], ro_range{layer.glyph_attribs.begin(), layer.glyph_attribs.end()}
 		);
@@ -346,6 +348,7 @@ void extrapolation_manager::replace_extrapolation (
 	}
 
 	// Done! Update stats and return
+	stats.glyphs_per_replace.add_measurement(total_relinked_glyphs);
 	++stats.num_replacements;
 	/* take elapsed CPU time */ {
 		const auto time = std::chrono::high_resolution_clock::now() - start_time;
@@ -373,6 +376,7 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 
 	// Count pushed glyphs for the statistics
 	const unsigned num_pushed_glyphs = glyph_attribs.length()/stride;
+	stats.glyphs_per_push.add_measurement(num_pushed_glyphs);
 	stats.num_glyphs_pushed += num_pushed_glyphs;
 	stats.num_multi_glyph_pushes += num_pushed_glyphs > 1;
 	stats.num_single_glyph_pushes += num_pushed_glyphs == 1;
@@ -515,7 +519,7 @@ ro_range<Iter> extrapolation_manager::consider_glyphs (
 	// Done! Update stats and return
 	/* take elapsed CPU time */ {
 		const auto time = std::chrono::high_resolution_clock::now() - start_time;
-		stats.push_times.add_measurement(time);
+		stats.glyph_push_times.add_measurement(time);
 	}
 	return ro_range{actually_on_extrapol.begin, actually_on_extrapol.end};
 }

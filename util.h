@@ -224,6 +224,7 @@ struct stats_collector
 	double avg;
 	Quantity median, min, max, lower_quartile, upper_quartile;
 
+
 	static inline double to_number (const Quantity &quantity) {
 		return (double)quantity;
 	}
@@ -235,9 +236,11 @@ struct stats_collector
 		return unit;
 	}
 
+
 	stats_collector(unsigned expected_num_measurements=86400 /* <- 144Hz sample rate for 10 minutes */) {
 		measurements.reserve(expected_num_measurements);
 	}
+
 
 	void add_measurement (const Quantity &measurement) {
 		measurements.emplace_back(measurement);
@@ -255,10 +258,14 @@ struct stats_collector
 		// Sort measurments for robust statistics
 		std::sort(measurements.begin(), measurements.end());
 
-		// Get the average.
+		// Exclude zeros
 		ro_range calc_range{measurements.begin(), measurements.end()};
+		if (*calc_range.begin == Quantity(0) && calc_range.length() > 5)
+			++calc_range.begin;
+
+		// Calculate average.
 		avg = to_number(
-			std::accumulate(calc_range.begin, calc_range.end, Quantity(0)) / measurements.size()
+			std::accumulate(calc_range.begin, calc_range.end, Quantity(0)) / calc_range.length()
 		);
 
 		// Get min/max
@@ -266,7 +273,6 @@ struct stats_collector
 		max = *std::max_element(calc_range.begin, calc_range.end);
 
 		// Get the median.
-		const size_t num = measurements.size();
 		const auto &[median, middle_idx] = median_of_range(
 			calc_range.begin, calc_range.end
 		);
@@ -274,10 +280,10 @@ struct stats_collector
 
 		// Get the quartiles
 		// - Q1: median of first half
-		calc_range.end = calc_range.begin + middle_idx;
+		calc_range.end = calc_range.begin + middle_idx+1;
 		lower_quartile = median_of_range(calc_range.begin, calc_range.end).first;
 		// - Q3: median of second half
-		calc_range = ro_range{calc_range.end, measurements.end()};
+		calc_range = ro_range{calc_range.end-1, measurements.end()};
 		upper_quartile = median_of_range(calc_range.begin, calc_range.end).first;
 	}
 

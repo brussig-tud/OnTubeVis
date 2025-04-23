@@ -62,13 +62,13 @@ struct render_state
 	struct stats_struct
 	{
 		unsigned num_updates = 0;
-		unsigned num_nodes_committed = 0;
+		unsigned num_nodes_pushed = 0;
 		unsigned num_glyphs_pushed = 0;
 		unsigned num_glyphs_committed = 0;
 		unsigned num_trims = 0;
 
-		stats_collector<float> nodes_per_commit;
-		stats_collector<duration_ms> node_commit_times;
+		stats_collector<float> nodes_per_push;
+		stats_collector<duration_ms> node_push_times;
 		stats_collector<float> glyphs_per_push;
 		stats_collector<duration_ms> glyph_commit_times;
 		stats_collector<duration_ms> traj_trim_times;
@@ -76,8 +76,8 @@ struct render_state
 
 		/// Convenience method to trigger processing for all collected statistics at once.
 		void process (void) {
-			nodes_per_commit.process();
-			node_commit_times.process();
+			nodes_per_push.process();
+			node_push_times.process();
 			glyphs_per_push.process();
 			glyph_commit_times.process();
 			traj_trim_times.process();
@@ -89,15 +89,15 @@ struct render_state
 		{
 			os << std::endl << ">>> RENDER STATS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" << std::endl
 			   << "-- Timings ------------------------------" << std::endl;
-			nodes_per_commit.print(os, "nodes_per_commit");
-			node_commit_times.print(os, "node_commit_times");
+			nodes_per_push.print(os, "nodes_per_push");
+			node_push_times.print(os, "node_push_times");
 			glyphs_per_push.print(os, "glyphs_per_push");
 			glyph_commit_times.print(os, "glyph_commit_times");
 			traj_trim_times.print(os, "traj_trim_times");
 			buffer_flush_times.print(os, "buffer_flush_times");
 			os << std::endl << "-- Counters -----------------------------" << std::endl;
 			os << "       num_updates: "<<num_updates << "\n";
-			os << "   nodes_committed: "<<num_nodes_committed << "\n";
+			os << "   nodes_committed: "<<num_nodes_pushed << "\n";
 			os << "     glyphs_pushed: "<<num_glyphs_pushed << "\n";
 			os << "  glyphs_committed: "<<num_glyphs_committed << "\n";
 			os << "         num_trims: "<<num_trims << "\n";
