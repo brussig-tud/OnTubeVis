@@ -3438,6 +3438,8 @@ void on_tube_vis::update_attribute_bindings(void)
 				);
 			}
 		}
+		client.collected_extrapols_data.reserve(client.trajectories.size());
+		client.collected_extrapols_register.resize(client.trajectories.size());
 
 		// With all geometry and topology complete, pre-compute the trajectory extrapolations that the internal client
 		// will submit to the streaming interface

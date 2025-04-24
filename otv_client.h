@@ -171,6 +171,7 @@ struct otv_client
 			   << "-- Timings ------------------------------" << std::endl;
 			total_extrapol_replace_times.print(os, "extrapol_replace_times");
 			total_extrapol_glyph_push_times.print(os, "extrapol_glyph_push_times");
+			full_update_times.print(os, "full_update_times");
 			nodes_per_update.print(os, "nodes_per_update");
 			glyphs_per_update.print(os, "glyphs_per_update");
 			os << std::endl << "-- Counters -----------------------------" << std::endl;
@@ -178,6 +179,12 @@ struct otv_client
 			os << std::endl << "<<< \\END CLIENT STATS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" << std::endl;
 		}
 	} stats;
+
+	/// helper struct for logging a single extrapolation replacement instance
+	struct extrapol_replacement {
+		unsigned traj_id, node_idx;
+		node_attribs node;
+	};
 
 
 	/// the render "servers" (one each for real and extrapolated) used by the client.
@@ -209,6 +216,11 @@ struct otv_client
 	/// data specific to each trajectory.
 	std::vector<trajectory> trajectories;
 
+	/// persistently allocated memory for logging necessary per-trajectory extrapolation replacements - data
+	std::vector<extrapol_replacement> collected_extrapols_data;
+
+	/// persistently allocated memory for logging necessary per-trajectory extrapolation replacements - register
+	std::vector<extrapol_replacement*> collected_extrapols_register;
 
 	/// construct with reference to trajectory render data
 	otv_client(render_state &render) : render(render), extrapol_mgr(render)

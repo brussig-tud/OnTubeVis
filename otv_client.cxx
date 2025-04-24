@@ -511,15 +511,18 @@ void otv_client::update ()
 	session.wait_init_ready();
 
 	// prepare timing logic
-	#define DEBUG_OUTPUT 1
+	cgv::utils::stopwatch sw(/* silent: */true);
+	#define DEBUG_OUTPUT 0
 	#if DEBUG_OUTPUT
-		cgv::utils::stopwatch sw(/* silent: */true);
 		std::clog << "otv_client::update(): starting update for t="<<playback_t<<"s\n";
 	#endif
 	typedef decltype(std::chrono::high_resolution_clock::now()-std::chrono::high_resolution_clock::now()) duration_type;
-	hires_duration_type total_replace_duration{0}, total_glyph_push_duration{0};
+	hires_duration_type total_glyph_push_duration{0};
 
 	// extend all trajectories based on the animation time, emulating streaming
+	auto &extrapol_replace_data = collected_extrapols_data;
+	auto &extrapol_replace_register = collected_extrapols_register;
+	extrapol_replace_data.clear();
 	bool streamed_something = false;
 	unsigned num_nodes_pushed = 0, num_glyphs_pushed = 0;
 	for (auto &traj : trajectories)
@@ -567,11 +570,14 @@ void otv_client::update ()
 
 			// construct first GPU node
 			const auto col = data->colors[node_idx];
-			const node_attribs new_node {
-				{data->positions[node_idx], data->radii[node_idx]},
-				255.f*cgv::vec4{col.R(), col.G(), col.B(), 1},
-				data->tangents[node_idx],
-				{data->timestamps[node_idx], 0, 0, 0}
+			const auto &new_node = extrapol_replacement{
+				target_traj.id, node_idx,
+				node_attribs{
+					{data->positions[node_idx], data->radii[node_idx]},
+					255.f*cgv::vec4{col.R(), col.G(), col.B(), 1},
+					data->tangents[node_idx],
+					{data->timestamps[node_idx], 0, 0, 0}
+				}
 			};
 
 			// the first node of each trajectory does not create a segment, so there is no arc
@@ -579,8 +585,17 @@ void otv_client::update ()
 			const cgv::mat4 *t_to_s {target_traj.ref.is_empty() ? nullptr : &arclen_data.t_to_s.at(traj.segment_idx)};
 
 			// append a node, potentially creating a new segment
-			total_replace_duration += enqueue_node(target_traj, new_node, t_to_s, extrapols[node_idx]);
+			render.enqueue_node(new_node.traj_id, new_node.node, t_to_s);
+			//total_replace_duration += enqueue_node(target_traj, new_node, t_to_s, extrapols[node_idx]);
 			++num_nodes_pushed;
+
+			// update extrapolation replacement for this trajectory
+			if (extrapol_replace_register[target_traj.id])
+				*extrapol_replace_register[target_traj.id] = std::move(new_node);
+			else {
+				auto &replace_data = extrapol_replace_data.emplace_back(std::move(new_node));
+				extrapol_replace_register[target_traj.id] = &replace_data;
+			}
 
 			if (t_to_s == nullptr) {
 				// submit first segment glyphs
@@ -596,19 +611,36 @@ void otv_client::update ()
 		}
 	}
 
+	// Now perform all collected extrapolations
+	if (num_extrapol_segments && !extrapol_replace_data.empty())
+	{
+		hires_duration_type total_replace_duration{0};
+		for (auto &registered_replacement : extrapol_replace_data) {
+			total_replace_duration += extrapol_mgr.replace_extrapolation(
+				registered_replacement.traj_id, registered_replacement.node, extrapols[registered_replacement.node_idx]
+			);
+			extrapol_replace_register[registered_replacement.traj_id] = nullptr;
+		}
+		stats.total_extrapol_replace_times.add_measurement(total_replace_duration);
+		#if DEBUG_OUTPUT
+			std::clog << "otv_client::update(): replaced "<<extrapol_replace_data.size()<<" extrapolations in "
+			          << stats.total_extrapol_replace_times.measurements.back().count()<<"ms\n";
+		#endif
+	}
+
 	// Flush changes to extrapolation
 	const bool extrapol_flush_result = extrapol_mgr.flush_changes();
 	const extrapolation_manager::duration_ms full_update_ms(sw.get_elapsed_time()*1000);
 	#if DEBUG_OUTPUT
 		std::clog << "otv_client::update(): flushing extrapolations - "<<(extrapol_flush_result ? "OK\n":"FAILURE\n")
-		          << "otv_client::update(): took "<<full_update_ms.count()<<"ms\n";
+		          << "otv_client::update(): full update took "<<full_update_ms.count()<<"ms\n";
 	#endif
 
 	// Update stats
 	if (streamed_something) {
 		++stats.num_updates;
-		stats.total_extrapol_replace_times.add_measurement(total_replace_duration);
-		stats.total_extrapol_glyph_push_times.add_measurement(total_glyph_push_duration);
+		if (total_glyph_push_duration.count() > 0)
+			stats.total_extrapol_glyph_push_times.add_measurement(total_glyph_push_duration);
 		stats.full_update_times.add_measurement(full_update_ms);
 		stats.nodes_per_update.add_measurement((float)num_nodes_pushed);
 		stats.glyphs_per_update.add_measurement((float)num_glyphs_pushed);

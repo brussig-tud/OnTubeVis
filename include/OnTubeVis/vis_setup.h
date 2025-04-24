@@ -408,12 +408,12 @@ extern otv__layer_width_source_funct otv__layer_width_source;
 #ifndef OTV_NO_PROTOTYPES
 /**
  * @brief
- *		Provide a geo reference for the trajectory data. Implementations may act on this by e.g. displaying map data, 3D
- *		buildings etc. around the trajectories.
+ *		Provide a geo reference in WGS84 lat/long coordinates for the trajectory data. Implementations may act on this
+ *		e.g. by displaying map data, 3D buildings etc. around the trajectories.
  *
  * When a geo reference is provided for a @link OTV_VisSetup visualization setup @endlink, then all 3D coordinates
- * submitted to the API under this setup will be interpreted as being Cartesian coordinates with unit 1 meter, obtained
- * from transforming @a UTM/WGS84 coordinates using this reference point for the Cartesian origin <code>(0,0,0)</code>.
+ * submitted to the API under this setup will be interpreted as being Cartesian coordinates with unit 1 meter, with the
+ * provided geo reference located in the Cartesian origin <c>(0, 0, 0)</c>.
  *
  * @note
  *		The API does not define what exactly implementations should do with the geographic reference, or if they should
