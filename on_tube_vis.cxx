@@ -837,6 +837,10 @@ struct stream_ds_helper : public traj_format_handler<float>
 
 		return new_stream.attrib;
 	}
+
+	static void set_geo_reference (traj_dataset<float> &dataset, const cgv::dvec2 &latlong) {
+		geo_reference(dataset).emplace(latlong);
+	}
 };
 
 
@@ -1258,6 +1262,10 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 			l.gam.set_attrib_source_index(vattrib_source.first, src_idx);
 		}
 	}
+
+	// set the geo reference (if any)
+	/*if (vis_setup.georef.has_value())
+		stream_ds_helper::set_geo_reference(stream_ds, vis_setup.georef.value());*/
 
 	// commit the streaming dummy dataset
 	traj_mgr.clear();

@@ -146,7 +146,7 @@ OTV_API void otv__layer_width_source (
 }
 
 OTV_API void otv__geo_reference (OTV_VisSetupHandle vis_setup, const double latitude, const double longitude) {
-	((VisSetup*)vis_setup)->georef->set(latitude, longitude);
+	((VisSetup*)vis_setup)->georef.emplace(latitude, longitude);
 }
 
 OTV_API void otv__extrapolation_length (OTV_VisSetupHandle vis_setup, const uint32_t num_segments) {

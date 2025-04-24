@@ -136,7 +136,7 @@ struct VisSetup
 
 	VisSetup(VisSetup &&other) noexcept
 		: name(std::move(other.name)), counter(other.counter.load()), layers(std::move(other.layers)),
-		  layer_sources(std::move(other.layer_sources)), trajs(std::move(other.trajs)), georef(other.georef),
+		  layer_sources(std::move(other.layer_sources)), trajs(std::move(other.trajs)), georef(std::move(other.georef)),
 		  num_extrapol_segments(other.num_extrapol_segments), use_natural_progression(other.use_natural_progression)
 	{}
 
@@ -159,6 +159,7 @@ struct VisSetup
 		for (const auto &ls : other.layer_sources)
 			layer_sources.emplace_back(ls);
 		trajs = other.trajs;
+		georef = other.georef;
 		return *this;
 	}
 
@@ -169,6 +170,7 @@ struct VisSetup
 		layers = std::move(other.layers);
 		layer_sources = std::move(other.layer_sources);
 		trajs = std::move(other.trajs);
+		georef = std::move(other.georef);
 		return *this;
 	}
 };

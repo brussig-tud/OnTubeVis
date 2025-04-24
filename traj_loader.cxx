@@ -1134,7 +1134,7 @@ struct traj_dataset<flt_type>::Impl
 		  minmax_pos_ts(std::numeric_limits<real>::infinity(), -std::numeric_limits<real>::infinity())
 	{}
 	Impl(const Impl *other)
-		: name(other->name), data_source(other->data_source), attribs(other->attribs),
+		: name(other->name), data_source(other->data_source), georef(other->georef), attribs(other->attribs),
 		  attrmap(other->attrmap), avg_seg_len(other->avg_seg_len), minmax_pos_ts(other->minmax_pos_ts)
 	{
 		const auto &pos_ref = attrmap.map().at(VisualAttrib::POSITION);
@@ -1145,6 +1145,7 @@ struct traj_dataset<flt_type>::Impl
 	{
 		name = other->name;
 		data_source = other->data_source;
+		georef = other->georef;
 		attribs = other->attribs;
 		attrmap = other->attrmap;
 		avg_seg_len = other->avg_seg_len;
@@ -1157,6 +1158,7 @@ struct traj_dataset<flt_type>::Impl
 	{
 		name.clear();
 		data_source.clear();
+		georef.reset();
 		positions = nullptr;
 		attribs.clear();
 		attrmap.clear();
