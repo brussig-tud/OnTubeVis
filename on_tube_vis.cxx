@@ -1263,10 +1263,6 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 		}
 	}
 
-	// set the geo reference (if any)
-	/*if (vis_setup.georef.has_value())
-		stream_ds_helper::set_geo_reference(stream_ds, vis_setup.georef.value());*/
-
 	// commit the streaming dummy dataset
 	traj_mgr.clear();
 	traj_mgr.add_dataset(std::move(stream_ds));

@@ -10,6 +10,9 @@
 #include <iostream>
 #include <limits>
 
+// 3rd party libs
+#include <WGS84toCartesian.hpp>
+
 // Public interface
 #include <OnTubeVis/OnTubeVis.h>
 
@@ -33,6 +36,7 @@ std::vector<OTV_LayerConfig> streaming_dataset::layers;
 std::vector<VAttribSources> streaming_dataset::layer_sources;
 std::vector<trajectory> streaming_dataset::trajectories;
 std::unordered_map<uint32_t, unsigned> streaming_dataset::traj_id_map;
+std::optional<latlon> streaming_dataset::georef;
 
 
 ////
@@ -69,7 +73,10 @@ struct new_session_command : public command
 		streaming_dataset::layers = std::move(setup.layers);
 		streaming_dataset::layer_sources = std::move(setup.layer_sources);
 		streaming_dataset::trajectories = std::move(trajectories);
-		streaming_dataset::traj_id_map = std::move(traj_id_map);;
+		streaming_dataset::traj_id_map = std::move(traj_id_map);
+		streaming_dataset::georef = map_optional(setup.georef, [](const cgv::dvec2 &wgs84pos) {
+			return latlon{wgs84pos.x(), wgs84pos.y()};
+		});
 		return notify_result(true);
 	}
 };
@@ -529,6 +536,15 @@ OTV_API OTV_SegmentArclen otv__compute_arclen (
 
 OTV_API float otv__eval_arclen (const OTV_SegmentArclen *s, const float t) {
 	return arclen::eval(*(cgv::mat4*)s->coeffs, t);
+}
+
+OTV_API OTV_Vec3 otv__latlon_height_to_cartesian (const double latitude, const double longitude, const double height)
+{
+	const auto &georef = streaming_dataset::georef.value();
+	const auto mercator = wgs84::toCartesian(
+		georef, latlon{latitude, longitude}
+	);
+	return {(float)mercator[0], float(height), -(float)mercator[1]};
 }
 
 OTV_API void otv__compute_extrapol (

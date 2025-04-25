@@ -439,6 +439,35 @@ extern otv__eval_arclen_funct otv__eval_arclen;
 
 
 // --------------------------------------------------------------------------------------------------------------------
+// otv__latlon_height_to_cartesian
+
+#ifndef OTV_NO_PROTOTYPES
+/**
+ * @brief
+ *		Obtain the Cartesian coordinates for the given set of latitude/longitude and height-above-ground values. This is
+ *		only available if a @link otv__geo_reference geo reference @endlink has been configured during setup.
+ *
+ * @param latitude The latitude of the position.
+ * @param longitude The longitude of the position
+ * @param height The height above ground of the position.
+ *
+ * @return
+ *		The Cartesian coordinates corresponding the provided position, with the <em>height above ground</em> in the @c y
+ *		component.
+ */
+OTV_API OTV_Vec3 otv__latlon_height_to_cartesian (const double latitude, const double longitude, const double height);
+#endif
+
+/// @brief The function pointer type for the @c otv__latlon_height_to_cartesian() function.
+typedef void(*otv__latlon_height_to_cartesian_funct)(const double, const double, const double);
+
+#ifdef OTV_NO_PROTOTYPES
+/// @copydoc otv__latlon_height_to_cartesian()
+extern otv__latlon_height_to_cartesian_funct otv__latlon_height_to_cartesian;
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
 // otv__compute_extrapol
 
 #ifndef OTV_NO_PROTOTYPES

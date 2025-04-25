@@ -176,12 +176,14 @@ struct VisSetup
 };
 
 // ToDo: REMOVE ME once node/glyph streaming is properly implemented
+typedef std::array<double, 2> latlon;
 struct streaming_dataset {
 	static std::string name;
 	static std::vector<OTV_LayerConfig> layers;
 	static std::vector<VAttribSources> layer_sources;
 	static std::vector<trajectory> trajectories;
 	static std::unordered_map<uint32_t, unsigned> traj_id_map;
+	static std::optional<latlon> georef;
 };
 
 
