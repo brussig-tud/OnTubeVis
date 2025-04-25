@@ -413,7 +413,8 @@ extern otv__layer_width_source_funct otv__layer_width_source;
  *
  * When a geo reference is provided for a @link OTV_VisSetup visualization setup @endlink, then all 3D coordinates
  * submitted to the API under this setup will be interpreted as being Cartesian coordinates with unit 1 meter, with the
- * provided geo reference located in the Cartesian origin <c>(0, 0, 0)</c>.
+ * provided geo reference located in the Cartesian origin <c>(0, 0, 0)</c>. Furthermore, the reference point is assumed
+ * to be located at exactly <b>ground level</b> at this geographical location.
  *
  * @note
  *		The API does not define what exactly implementations should do with the geographic reference, or if they should
