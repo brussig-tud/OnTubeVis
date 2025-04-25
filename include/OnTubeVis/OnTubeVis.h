@@ -452,7 +452,7 @@ extern otv__eval_arclen_funct otv__eval_arclen;
  * @param height The height above the @link otv__geo_reference reference location @endlink, in meters.
  *
  * @return
- *		The Cartesian coordinates corresponding the provided position, with the <em>height</em> in the @c y
+ *		The Cartesian coordinates corresponding to the provided location, with the <em>height</em> in the @c y
  *		component. All components are in meters from the @link otv__geo_reference reference position @endlink.
  */
 OTV_API OTV_Vec3 otv__latlon_height_to_cartesian (const double latitude, const double longitude, const double height);
