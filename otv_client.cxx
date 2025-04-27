@@ -548,7 +548,7 @@ void otv_client::update ()
 				glyphs_attribs.begin += stride;
 
 			// submit new unique glyphs
-			hires_duration_type glyph_push_duration;
+			hires_duration_type glyph_push_duration{0};
 			const auto glyph_attribs_on_extrapol = this->enqueue_glyphs(
 				target_traj, layer_idx, glyphs_attribs, glyph_push_duration
 			);
