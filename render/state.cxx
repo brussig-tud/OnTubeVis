@@ -258,12 +258,18 @@ bool render_state::create_glyph_layer (
 	return glyphs[layer].ranges.create(segment_buffer.as_span().length());
 }
 
-void render_state::collect_timer_queries (void)
+void render_state::collect_timer_queries (const bool collect_render)
 {
 	// take flush time
 	if (flushed_something) {
-		auto time_ns = duration_ns(flush_time_query.collect());
+		const auto time_ns = duration_ns(flush_time_query.collect());
 		stats.buffer_flush_times.add_measurement(time_ns);
+	}
+
+	// take render time
+	if (collect_render) {
+		auto time_ns = duration_ns(render_time_query.collect());
+		stats.render_times.add_measurement(time_ns);
 	}
 }
 

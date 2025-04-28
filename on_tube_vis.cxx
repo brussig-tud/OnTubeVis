@@ -2909,9 +2909,12 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 
 void on_tube_vis::after_finish(context& ctx)
 {
-	// Read back all timer queries we dispatched over the frame
+	// read back all timer queries we dispatched over the frame
 	if (session_active) {
-		render.collect_timer_queries();
+		// evaluate criterion for capturing render time
+		const float buffer_vacancy =
+			render.node_buffer.free_capacity() / float(render.node_buffer.capacity());
+		render.collect_timer_queries(buffer_vacancy < 0.5f);
 		client.extrapol_mgr.collect_timer_queries();
 	}
 
@@ -3628,6 +3631,8 @@ void on_tube_vis::draw_dnd(context& ctx) {
 void on_tube_vis::draw_trajectories(context& ctx)
 {
 	// common init
+	// - place timer query
+	render.render_time_query.begin_scope();
 	// - view-related info
 	const vec3 &cyclopic_eye = view_ptr->get_eye();
 	const vec3 &view_dir = view_ptr->get_view_dir();
@@ -3835,6 +3840,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		color_map_mgr.ref_texture().disable(ctx);
 
 		prog.disable(ctx);
+		render.render_time_query.end_scope();
 
 		// Synchronization - after this code, the memory consumed by the previous frame's tube rendering commands will
 		// be safe to write to again.

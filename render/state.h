@@ -73,15 +73,18 @@ struct render_state
 		stats_collector<duration_ms> glyph_commit_times;
 		stats_collector<duration_ms> traj_trim_times;
 		stats_collector<duration_us> buffer_flush_times;
+		stats_collector<duration_ms> render_times;
 
 		/// Convenience method to trigger processing for all collected statistics at once.
-		void process (void) {
+		void process (void)
+		{
 			nodes_per_push.process();
 			node_push_times.process();
 			glyphs_per_push.process();
 			glyph_commit_times.process();
 			traj_trim_times.process();
 			buffer_flush_times.process();
+			render_times.process();
 		}
 
 		/// Convenience method for printing out the collacted stats (@ref #process() should have already been called).
@@ -95,6 +98,7 @@ struct render_state
 			glyph_commit_times.print(os, "glyph_commit_times");
 			traj_trim_times.print(os, "traj_trim_times");
 			buffer_flush_times.print(os, "buffer_flush_times");
+			render_times.print(os, "render_times");
 			os << std::endl << "-- Counters -----------------------------" << std::endl;
 			os << "       num_updates: "<<num_updates << "\n";
 			os << "   nodes_committed: "<<num_nodes_pushed << "\n";
@@ -257,7 +261,7 @@ struct render_state
 	}
 
 	/// Collect all timer queries that were inserted over the course of the current frame.
-	void collect_timer_queries (void);
+	void collect_timer_queries (const bool collect_render);
 
 private:
 	friend class trajectory;
