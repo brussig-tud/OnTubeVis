@@ -473,7 +473,8 @@ extern otv__latlon_height_to_cartesian_funct otv__latlon_height_to_cartesian;
 #ifndef OTV_NO_PROTOTYPES
 /**
  * @brief
- *		Create a primitive extrapolation of the desired length given one reference Hermite segment to extrapolate from.
+ *		Create a primitive extrapolation with the desired number of segments given one reference Hermite segment to
+ *		extrapolate from.
  *
  * It is up to the implementation how the extrapolation is done exactly. The OnTubeVis desktop application currently
  * just adds perfectly straight segments with the same velocity as the end node of the provided segment.
