@@ -1025,7 +1025,7 @@ void main()
 		col.rgb = otv_shade_fragment(
 			col.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(u, spline_t>=l_max_cubic ? 2 : v),
 			segment_id_fs, hit.hp.xyz, hit.normal, tangent, gl_FragDepth, /*specular_factor: */1,
-			/* max_glyph_s: */POS_INF//s_playback
+			/* max_glyph_s: POS_INF*/s_playback
 		).rgb;
 		if (l_playback < POS_INF)
 			col = otv_shade_cursor(s_playback, .125*n0.pos_rad.w, vec2(u,v), vec4(1,0,1,1), col);
