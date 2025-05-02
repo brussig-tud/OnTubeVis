@@ -114,7 +114,7 @@ void on_tube_vis::on_register()
 	#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
 		// disable TAA by default with maptiles (as that is not perfectly integrated yet) - can be switched back on via
 		// hotkey, GUI or config file though
-		taa.set_enabled(false);
+		//taa.set_enabled(false);
 
 		// make sure maptiles plugin does nothing at all before we actually need it
 		maptiles_interfacer::disable();
