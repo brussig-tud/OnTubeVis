@@ -128,6 +128,8 @@ void on_tube_vis::on_register()
 
 on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(this)
 {
+	taa.set_enabled(true); // <- enable TAA by default
+
 	// adjust geometry and grid style defaults
 	render.style.material.set_brdf_type(
 		(cgv::media::illum::BrdfType)(cgv::media::illum::BrdfType::BT_STRAUSS_DIFFUSE
@@ -393,6 +395,9 @@ void on_tube_vis::clear(cgv::render::context &ctx)
 bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 {
 	return
+		rh.reflect_member("buf_size_fract", buf_size_fract) &&
+		rh.reflect_member("glyph_buf_mult", glyph_buf_mult) &&
+		rh.reflect_member("playback_speed", playback.speed) &&
 		rh.reflect_member("datapath", datapath_helper.file_name) &&
 		rh.reflect_member("layer_config_file", layer_config_file_helper.file_name) && // ToDo: figure out proper reflection name
 		rh.reflect_member("show_hidden_glyphs", debug.show_hidden_glyphs) &&
@@ -1324,11 +1329,18 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 	                                                       // buffer, so it has to be exactly 1.
 	                                                       // TODO: should be determined _after_ applying a layer
 	                                                       //       config, since we will know the exact values by then
-	for (const auto &attrib_entry : attribs) {
+	for (const auto &attrib_entry : attribs)
+	{
 		const auto &attrib = attrib_entry.second;
 		const auto &trajs = ds.trajectories(attrib);
-		for (const auto &traj : trajs)
-			session_glyphbuf_size = std::max(session_glyphbuf_size, traj.n*session_sample_count_factor);
+		const auto &P_trajs = ds.trajectories(ds.positions().attrib);
+		for (unsigned i=0; i<trajs.size(); ++i) {
+			const unsigned traj_num_segs = P_trajs[i].n - 1;
+			session_glyphbuf_size = std::max(
+				session_glyphbuf_size,
+				std::max(unsigned(traj_num_segs*glyph_buf_mult), trajs[i].n)*session_sample_count_factor
+			);
+		}
 	}
 
 	// print out attribute statistics
@@ -3395,7 +3407,7 @@ void on_tube_vis::update_attribute_bindings(void)
 		otv::gpumem::size_type avg_num_nodes {num_nodes/num_trajectories};
 
 		// Allocate ring buffers.
-		const auto segments_capacity = avg_num_nodes*num_trajectories/8;
+		const unsigned segments_capacity = avg_num_nodes*num_trajectories * buf_size_fract;
 		if (// - actual trajectories
 		    !(
 		    	render.create_geom_buffers(ctx,

@@ -369,6 +369,8 @@ protected:
 public:
 	float override_cap_clip_distance_proxy;
 	std::optional<float> override_cap_clip_distance;
+	float buf_size_fract = 1;
+	float glyph_buf_mult = 8;
 	otv::render_state render;
 	otv::otv_client  client{render};
 	bool streaming_start_extrapol = false;

@@ -6,6 +6,12 @@ type(fltk_viewer_window):theme=dark
 type(on_tube_vis):datapath="./testdata/cps_drone.csv"
 // - initial glyph layer config
 type(on_tube_vis):layer_config_file="./testdata/cps_drone_apiGlyphs.xml"
+// - what fraction of segments should fit in case of internally streamed datasets (default: 100%)
+type(on_tube_vis):buf_size_fract=1
+// - how many more glyphs than segments should fit into the per-traj-and-layer glyph buffers (default: 8)
+type(on_tube_vis):glyph_buf_mult=8
+// - playback speed of recorded or generated data
+type(on_tube_vis):playback_speed=1
 
 // Optimized cap clip distance for streaming of low number of trajectories
 type(on_tube_vis):override_cap_clip_distance=1024
