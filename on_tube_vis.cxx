@@ -128,7 +128,8 @@ void on_tube_vis::on_register()
 
 on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(this)
 {
-	taa.set_enabled(true); // <- enable TAA by default
+	// enable TAA by default
+	taa.set_enabled(true);
 
 	// adjust geometry and grid style defaults
 	render.style.material.set_brdf_type(
@@ -3404,14 +3405,13 @@ void on_tube_vis::update_attribute_bindings(void)
 			for (const auto &traj : trajs)
 				num_nodes += traj.n;
 		}
-		otv::gpumem::size_type avg_num_nodes {num_nodes/num_trajectories};
 
 		// Allocate ring buffers.
-		const unsigned segments_capacity = avg_num_nodes*num_trajectories * buf_size_fract;
+		const unsigned nodes_capacity = traj_mgr.dataset(0).positions().attrib.num() * buf_size_fract;
 		if (// - actual trajectories
 		    !(
 		    	render.create_geom_buffers(ctx,
-		    		/* number of maximally renderable elements */ segments_capacity/*num_nodes*/, // 100 * num_trajectories
+		    		/* number of maximally renderable elements */ nodes_capacity,
 		    		/* number of additional elements reserved at the end of the ringbuffer where new stuff can be added
 		    		   without having to wait for the current frame to finish rendering */ num_trajectories
 		    	)
