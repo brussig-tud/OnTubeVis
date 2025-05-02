@@ -918,7 +918,7 @@ void main()
 			float u = alen(t_seg), s_playback = t_playback < POS_INF ? alen(t_playback) : POS_INF;
 			color.rgb = otv_shade_fragment(
 				color.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(u, v), segment_id_fs,  pos_eye.xyz,
-				normal, tangent, gl_FragDepth, /*specular_factor: */1, /* max_glyph_s: POS_INF*/s_playback
+				normal, tangent, gl_FragDepth, /*specular_factor: */1, /* max_glyph_s: */POS_INF //s_playback
 			).rgb;
 			if (t_playback < POS_INF)
 				color = otv_shade_cursor(s_playback, .125*ref_rad, vec2(u,v), vec4(1,0,1,1), color);
