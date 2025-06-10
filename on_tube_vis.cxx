@@ -1386,7 +1386,7 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 	tube_shading_defines = tube_shading.build_tube_shading_defines(
 		render.visualizations.front().config, debug.highlight_segments
 	);
-	shaders.reload(ctx, "tube_shading", tube_shading_defines);
+	shaders.reload(ctx, "tube_shading", { tube_shading_defines });
 
 	// reset glyph layer configuration file
 	layer_config_file_helper.set_file_name("");
@@ -1438,7 +1438,7 @@ bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 		tube_shading_defines = tube_shading.build_tube_shading_defines(
 			render.visualizations.front().config, debug.highlight_segments
 		);
-		shaders.reload(ctx, "tube_shading", tube_shading_defines);
+		shaders.reload(ctx, "tube_shading", { tube_shading_defines });
 
 		compile_glyph_attribs();
 
@@ -1557,7 +1557,7 @@ void on_tube_vis::on_set(void* member_ptr)
 		if(defines != tube_shading_defines) {
 			context& ctx = *get_context();
 			tube_shading_defines = defines;
-			shaders.reload(ctx, "tube_shading", tube_shading_defines);
+			shaders.reload(ctx, "tube_shading", { tube_shading_defines });
 			client.extrapol_mgr.update_tube_shading(tube_shading, render.visualizations.front().config);
 		}
 	}
@@ -2127,6 +2127,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	success &= density_volume.init(ctx, 0);
 
+	/*
 	render.sorter.set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent; vec4 t;");
 	render.sorter.set_auxiliary_type_override("uint a_idx; uint b_idx;");
 
@@ -2143,6 +2144,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 		float key = (ddv < 0.0 ? -1.0 : 1.0) * dot(eye_to_pos, eye_to_pos);)";
 
 	render.sorter.set_key_definition_override(key_definition);
+	*/
 
 	// Initialize the last sort position and direction to zero to force a sorting step before the first draw call
 	last_sort_pos = vec3(0.0f);
@@ -3384,8 +3386,8 @@ void on_tube_vis::update_attribute_bindings(void)
 		tstr.set_indices(ctx, segment_indices);
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
-		if(!render.sorter.init(ctx, client.data->indices.size() / 2))
-			std::cout << "Could not initialize gpu sorter" << std::endl;
+		//if(!render.sorter.init(ctx, client.data->indices.size() / 2))
+		//	std::cout << "Could not initialize gpu sorter" << std::endl;
 
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 

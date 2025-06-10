@@ -157,7 +157,7 @@ namespace cgv { // @<
 			/// update shader defines based on render style
 			void update_defines(shader_define_map& defines);
 			/// build rounded cone program
-			bool build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines);
+			bool build_shader_program(context& ctx, shader_program& prog, const shader_compile_options& defines);
 
 		public:
 			/// initializes position_is_center to true 

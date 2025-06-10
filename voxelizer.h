@@ -6,7 +6,7 @@
 #include <cgv/render/shader_library.h>
 #include <cgv/render/vertex_buffer.h>
 #include <cgv_gl/gl/gl_context.h>
-#include <cgv_gpgpu/clamp_texture.h>
+#include <cgv_gpgpu/for_each_texture.h>
 #include <cgv_gpgpu/fill_texture.h>
 #include <cgv_gpgpu/mipmap.h>
 
@@ -24,7 +24,7 @@ public:
 protected:
 	cgv::render::shader_program voxelize_prog;
 	
-	cgv::gpgpu::clamp_texture clamp_kernel;
+	cgv::gpgpu::for_each_texture clamp_kernel;
 	cgv::gpgpu::fill_texture fill_kernel;
 	cgv::gpgpu::mipmap mipmap_kernel;
 

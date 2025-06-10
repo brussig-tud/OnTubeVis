@@ -5,7 +5,7 @@ bool voxelizer::load_shader_programs(cgv::render::context& ctx) {
 	bool res = true;
 	std::string where = "voxelizer::load_shader_programs()";
 
-	res = res && cgv::render::shader_library::load(ctx, voxelize_prog, "voxelize", true, where);
+	res = res && cgv::render::shader_library::load(ctx, voxelize_prog, "voxelize", where);
 
 	return res;
 }
@@ -17,12 +17,10 @@ bool voxelizer::init(cgv::render::context& ctx, size_t count) {
 	if(!load_shader_programs(ctx))
 		success = false;
 
-	clamp_kernel.set_texture_format("r32f");
-	fill_kernel.set_value(vec4(0.0f));
-
-	success &= clamp_kernel.init(ctx);
-	success &= fill_kernel.init(ctx);
-	success &= mipmap_kernel.init(ctx);
+	std::string clamp = "element = clamp(element, 0, 1);";
+	success &= clamp_kernel.init(ctx, cgv::render::TT_3D, clamp);
+	success &= fill_kernel.init(ctx, cgv::render::TT_3D);
+	success &= mipmap_kernel.init(ctx, cgv::render::TT_3D);
 
 	return success;
 }
@@ -176,14 +174,7 @@ void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj
 		return;
 	}
 
-	// uncomment for benchmarking
-	/*GLuint time_query = 0;
-	GLuint64 elapsed_time;
-	glGenQueries(1, &time_query);
-
-	glBeginQuery(GL_TIME_ELAPSED, time_query);*/
-
-	fill_kernel.execute(ctx, tex);
+	fill_kernel.dispatch(ctx, tex, vec4(0.0f));
 
 	tex.bind_as_image(ctx, 0, 0, false, 0, cgv::render::AccessType::AT_READ_WRITE);
 
@@ -211,26 +202,8 @@ void voxelizer::compute_density_volume_gpu(cgv::render::context& ctx, const traj
 	voxelize_prog.disable(ctx);
 
 	// clamp the values to [0,1]
-	clamp_kernel.execute(ctx, tex);
+	clamp_kernel.dispatch(ctx, tex);
 
 	// calculate the mipmap via a compute shader
-	mipmap_kernel.execute(ctx, tex);
-
-	// uncomment for benchmarking
-	/*glEndQuery(GL_TIME_ELAPSED);
-
-	GLint done = false;
-	while(!done) {
-		glGetQueryObjectiv(time_query, GL_QUERY_RESULT_AVAILABLE, &done);
-	}
-	glGetQueryObjectui64v(time_query, GL_QUERY_RESULT, &elapsed_time);
-
-	std::cout << "done in " << (elapsed_time / 1000000.0f) / 1000.0f << " s" << std::endl;
-
-	accumulated_time += elapsed_time / (1000000.0f);
-	++runs;
-
-	if(runs > 10) {
-		std::cout << "done in " << accumulated_time/static_cast<float>(runs) << " ms" << std::endl;
-	}*/
+	mipmap_kernel.dispatch(ctx, tex);
 }

@@ -51,23 +51,6 @@ extrapolation_manager::extrapolation_manager (render_state &otv_render_state) : 
 {
 	// Apply render style
 	update_render_style(otv_render.style);
-
-	// Set up GPU visibility sorter
-	render.sorter.set_sort_order(cgv::gpgpu::visibility_sort::SO_DESCENDING);
-	render.sorter.set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent; vec4 t;");
-	render.sorter.set_auxiliary_type_override("uint a_idx; uint b_idx;");
-	static const std::string key_definition =
-		R"(aux_type indices = aux_values[idx]; \
-		data_type a = data[indices.a_idx]; \
-		data_type b = data[indices.b_idx]; \
-		vec3 pa = a.pos_rad.xyz; \
-		vec3 pb = b.pos_rad.xyz; \
-		\
-		vec3 x = 0.5*(pa + pb); \
-		vec3 eye_to_pos = x - eye_pos; \
-		float ddv = dot(eye_to_pos, view_dir); \
-		float key = (ddv < 0.0 ? -1.0 : 1.0) * dot(eye_to_pos, eye_to_pos);)";
-	render.sorter.set_key_definition_override(key_definition);
 }
 
 void extrapolation_manager::clear(void)
@@ -171,8 +154,45 @@ bool extrapolation_manager::create_geom_buffers (
 	render.tstr.set_indices(ctx, segment_indices);
 	render.tstr.disable_attribute_array_manager(ctx, render.aam);
 
-	// (re-)init visibility sorter
-	success &= render.sorter.init(ctx, geom.node_indices.size());
+	// Set up and initialize GPU visibility sorter or resize if it is already initialized
+	if(render.sorter.is_initialized()) {
+		render.sorter.resize(ctx, geom.node_indices.size());
+	} else {
+		// Define the data type of a segment node
+		sl::data_type node_type = { "node_type", {
+			{ sl::Type::kVec4, "pos_rad" },
+			{ sl::Type::kVec4, "color" },
+			{ sl::Type::kVec4, "tangent" },
+			{ sl::Type::kVec4, "t" },
+		} };
+
+		// Define an array of type uvec2 with variable size to use in the node indices buffer
+		sl::named_variable node_indices = { sl::Type::kUVec2, "node_indices", sl::varsize };
+
+		// Define arguments used for the key generation step of the sorting
+		cgv::gpgpu::argument_definitions key_arguments = {
+			{ sl::Type::kVec3, "u_eye_pos" },
+			{ sl::Type::kVec3, "u_view_dir" },
+			{ sl::tag::buffer{}, node_indices, "node_index_buffer" , { sl::MemoryQualifier::kReadOnly } }
+		};
+
+		// Define a function that takes in node pairs and returns distances based on the passed arguments
+		static const std::string key_transform =
+			R"(uvec2 indices = node_indices[index];
+			node_type a = data_in[indices.x];
+			node_type b = data_in[indices.y];
+			vec3 pa = a.pos_rad.xyz;
+			vec3 pb = b.pos_rad.xyz;
+
+			vec3 x = 0.5*(pa + pb);
+			vec3 eye_to_pos = x - u_eye_pos;
+			float ddv = dot(eye_to_pos, u_view_dir);
+			return (ddv < 0.0 ? -1.0 : 1.0) * dot(eye_to_pos, eye_to_pos);)";
+
+		// Initialize the sorter with the given data types and key arguments/transform. Use descending order to sort most distant elements last,
+		// which is needed for back-to-front rendering.
+		success &= render.sorter.init(ctx, node_type, sl::Type::kUInt, geom.node_indices.size(), key_arguments, key_transform, cgv::gpgpu::SortOrder::kDescending);
+	}
 
 	// Done!
 	return _.disarm(success);
@@ -961,11 +981,15 @@ void extrapolation_manager::draw_extrapolations(
 	geom.segment_idx_buf_ptr = render.tstr.get_index_buffer_ptr(render.aam);
 	const auto node_id_buf = render.tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
 
-	// Sort segments back-to-front for (mostly) correct transparency
-	render.sorter.execute(
-		ctx, geom.nodes_arena.as_vertex_buffer(), *geom.segment_idx_buf_ptr,
-		eye_pos, view_dir, node_id_buf
-	);
+	// Bind the actual parameters to arguments. Argument names must match the ones used to initialize the sorter.
+	cgv::gpgpu::argument_binding_list sort_arguments = {
+		{ "u_eye_pos", eye_pos },
+		{ "u_view_dir", view_dir },
+		{ "node_index_buffer", node_id_buf }
+	};
+
+	render.sorter.execute(ctx, geom.nodes_arena.as_vertex_buffer(), geom.node_indices.size(), *geom.segment_idx_buf_ptr, sort_arguments);
+	
 	render.sort_time_query.end_scope();
 
 	// Set up draw call
