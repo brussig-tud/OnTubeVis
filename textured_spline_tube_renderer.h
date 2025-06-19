@@ -53,7 +53,7 @@ namespace cgv { // @<
 			enum LinePrimitive
 			{
 				LP_TUBE_RUSSIG = 0,                         // use intersector for swept-sphere spline tubes by Russig et al.
-				LP_TUBE_PHANTOM = 1,                        // use swept-disc Phantom Ray Hair intersector by Reshetov and Lübke
+				LP_TUBE_PHANTOM = 1,                        // use swept-disc Phantom Ray Hair intersector by Reshetov and Lï¿½bke
 				LP_RIBBON_RAYCASTED = 2,                    // use raycasted view-aligned ribbon
 				LP_RIBBON_GEOMETRY = 3                      // use geometry-shader based triangle-strip tessellated view-aligned ribbon (ignores bounding geometry style options)
 			} line_primitive;
@@ -153,7 +153,7 @@ namespace cgv { // @<
 			/// update shader defines based on render style
 			void update_defines(shader_define_map& defines);
 			/// build rounded cone program
-			bool build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines);
+			bool build_shader_program(context& ctx, shader_program& prog, const shader_compile_options &defines);
 
 		public:
 			/// initializes position_is_center to true 

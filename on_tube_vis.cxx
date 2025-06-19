@@ -1324,6 +1324,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	success &= density_volume.init(ctx, 0);
 
+	/*
 	render.sorter.set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent; vec4 t;");
 	render.sorter.set_auxiliary_type_override("uint a_idx; uint b_idx;");
 
@@ -1340,6 +1341,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 		float key = (ddv < 0.0 ? -1.0 : 1.0) * dot(eye_to_pos, eye_to_pos);)";
 
 	render.sorter.set_key_definition_override(key_definition);
+	*/
 
 	// Initialize the last sort position and direction to zero to force a sorting step before the first draw call
 	last_sort_pos = vec3(0.0f);
@@ -2418,8 +2420,8 @@ void on_tube_vis::update_attribute_bindings(void) {
 		tstr.set_indices(ctx, segment_indices);
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
-		if(!render.sorter.init(ctx, render.data->indices.size() / 2))
-			std::cout << "Could not initialize gpu sorter" << std::endl;
+		//if(!render.sorter.init(ctx, render.data->indices.size() / 2))
+		//	std::cout << "Could not initialize gpu sorter" << std::endl;
 
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
@@ -2669,7 +2671,11 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		if(debug.sort && do_sort && !debug.force_initial_order) {
 			// measure sort time
 			//render.sorter.begin_time_query();
-			render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, cyclopic_eye, view_dir, node_idx_buffer_ptr);
+			//render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, , view_dir, );
+			cgv::gpgpu::argument_binding_list sort_arguments = {
+				{ "u_eye_pos", cyclopic_eye }, { "u_view_dir", view_dir }, { "node_index_buffer", node_idx_buffer_ptr }
+			};
+			render.sorter.execute(ctx, render.render_sbo, render.data->indices.size(), *segment_idx_buffer_ptr, sort_arguments);
 			//benchmark.sort_time_total += render.sorter.end_time_query();
 			++benchmark.num_sorts;
 		}
