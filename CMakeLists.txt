@@ -198,8 +198,9 @@ if (ENABLE_OPTIX_SUPPORT)
 		optixtracer_textured_spline_tube.h
 	)
 endif()
-# - resources (we'll likely get away with just globbing them)
+# - resources
 file(GLOB_RECURSE IMAGES RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.png" "*.bmp")
+list(FILTER IMAGES EXCLUDE REGEX "^doc") # we'll have to remove the /doc folder if it exits
 
 # decide on the view interactor to use
 if (ENABLE_HOLOGRAPHY)
