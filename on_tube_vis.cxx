@@ -2668,7 +2668,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		}
 
 		// sort the segment indices
-		if(debug.sort && do_sort && !debug.force_initial_order) {
+		if(false && debug.sort && do_sort && !debug.force_initial_order) {
 			// measure sort time
 			//render.sorter.begin_time_query();
 			//render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, , view_dir, );
