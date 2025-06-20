@@ -222,7 +222,9 @@ cgv_add_target(OnTubeVis
 		cgv_os cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d cgv_app cgv_post cgv_gpgpu
 		${OPTIONAL_DEPENDENCIES} 
 
-	LINKTIME_PLUGIN_DEPENDENCIES cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
+	LINKTIME_PLUGIN_DEPENDENCIES
+		cg_fltk # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
+		crg_stereo_view  # <-- we're directly using exported symbols from the crg_stereo_view plugin
 
 	ADDITIONAL_INCLUDE_PATHS ${ADDITIONAL_INCLUDE_PATHS}
 

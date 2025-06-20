@@ -1810,10 +1810,14 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		update_legends = false;
 	}
 
-	// keep the framebuffer up to date with the viewport size
-	fbc.ensure(ctx);
-	
-	taa.ensure(ctx);
+	// query the current viewport dimensions as this is needed for multiple draw methods
+	glGetIntegerv(GL_VIEWPORT, viewport);
+
+	/* keep the framebuffer up to date with the viewport size */ {
+		const ivec2 &dims = *(ivec2*)&viewport[2];
+		fbc.ensure_size(ctx, dims);
+		taa.ensure_fb_size(ctx, dims);
+	}
 
 #ifdef RTX_SUPPORT
 	// ###############################
@@ -1836,8 +1840,6 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	// ###  END:  OptiX integration
 	// ###############################
 #endif
-	// query the current viewport dimensions as this is needed for multiple draw methods
-	glGetIntegerv(GL_VIEWPORT, viewport);
 
 	if (playback.active)
 	{
@@ -1921,7 +1923,7 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 	// draw dataset using selected render mode
 	if(traj_mgr.has_data())
 	{
-		taa.begin(ctx);
+		taa.begin(ctx, false);
 
 		int debug_idx_count = static_cast<int>(render.data->indices.size());
 		if(debug.limit_render_count)
@@ -1971,7 +1973,7 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 		if (show_bbox)
 			bbox_rd.render(ctx);
 
-		taa.end(ctx);
+		taa.end(ctx, false);
 	}
 	
 	// display drag-n-drop information, if a dnd operation is in progress
@@ -2616,8 +2618,11 @@ void on_tube_vis::draw_trajectories(context& ctx)
 {
 	// common init
 	// - view-related info
-	const vec3 &cyclopic_eye = view_ptr->get_eye();
-	const vec3 &view_dir = view_ptr->get_view_dir();
+	const auto *sview_ptr = dynamic_cast<stereo_view*>(view_ptr);
+	const auto *sview_interactor =  dynamic_cast<const stereo_view_interactor*>(sview_ptr);
+	const float stereo_mult = sview_interactor->is_stereo_enabled() ? float(int(ctx.get_render_pass())*2 - 1) : .0f;
+	const vec3 cyclopic_eye = cgv::math::inv(ctx.get_modelview_matrix())*vec4(0,0,0,1);
+	const vec3 view_dir = cgv::math::inv(ctx.get_modelview_matrix())*vec4(0,0,1,1) - vec4(cyclopic_eye, 1)/*view_ptr->get_view_dir()*/;
 	const vec3 &view_up_dir = view_ptr->get_view_up_dir();
 
 	vec2 viewport_size(
@@ -2642,7 +2647,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 #endif
 	{
 		// enable drawing framebuffer
-		fbc.enable(ctx);
+		fbc.enable(ctx, false);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		// render tubes
@@ -2682,7 +2687,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		tstr.set_cyclopic_eye(cyclopic_eye);
 		tstr.set_view_dir(view_dir);
-		tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
+		tstr.set_viewport(vec4(/*(float)viewport[0]*/.0f, /*(float)viewport[1]*/.0f, (float)viewport[2], (float)viewport[3]));
 		tstr.set_render_style(render.style);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 
@@ -2704,7 +2709,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
 		// disable the drawing framebuffer
-		fbc.disable(ctx);
+		fbc.disable(ctx, false);
 	}
 #ifdef RTX_SUPPORT
 	else
