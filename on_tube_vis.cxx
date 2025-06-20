@@ -2687,7 +2687,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		tstr.set_cyclopic_eye(cyclopic_eye);
 		tstr.set_view_dir(view_dir);
-		tstr.set_viewport(vec4(/*(float)viewport[0]*/.0f, /*(float)viewport[1]*/.0f, (float)viewport[2], (float)viewport[3]));
+		//tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
+		tstr.set_viewport(vec4(.0f, .0f,(float)fbc.get_size().x(),(float)fbc.get_size().y()));
 		tstr.set_render_style(render.style);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 
@@ -2793,7 +2794,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		#else
 			prog.set_uniform(ctx, "holographic_raycast", false);
 		#endif
-		prog.set_uniform(ctx, "viewport_width", (float)ctx.get_width());
+		prog.set_uniform(ctx, "viewport_width", (float)viewport[2]/*ctx.get_width()*/);
 		const auto fb_size = fbc.get_size();
 		prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
 

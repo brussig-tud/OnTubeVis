@@ -903,7 +903,7 @@ void main()
 
 #if USE_VIEW_SPACE_POSITION == 0
 	// transform fragment coordinates from window coordinates to clip coordinates
-    vec4 coord = gl_FragCoord 
+    vec4 coord = /*vec4(gl_FragCoord.x-viewport.x, gl_FragCoord.y-viewport.y, gl_FragCoord.z, gl_FragCoord.w)//*/gl_FragCoord
         * vec4(2.0 / viewport.z, 2.0 / viewport.w, 2.0, 0.0) 
         + vec4(-1.0, -1.0, -1.0, 1.0);
 
