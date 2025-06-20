@@ -163,9 +163,13 @@ namespace cgv { // @<
 			/// call this after last render/draw call to ensure that no other users of renderer change attribute arrays of given manager
 			void disable_attribute_array_manager(const context& ctx, attribute_array_manager& aam);
 			///
-			void set_cyclopic_eye(const vec3 & cyclopic_eye_pos) { this->cyclopic_eye = cyclopic_eye_pos; }
+			void set_cyclopic_eye(const vec3 &cyclopic_eye_pos) {
+				cyclopic_eye = cyclopic_eye_pos;
+			}
 			///
-			void set_view_dir(const vec3& view_dir) { this->view_dir = view_dir; }
+			void set_view_dir(const vec3 &view_dir) {
+				this->view_dir = view_dir;
+			}
 			///
 			void set_viewport(const vec4& viewport) { this->viewport = viewport; }
 			/// set additional defines that do not depend on the style

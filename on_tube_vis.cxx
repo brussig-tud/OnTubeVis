@@ -1923,7 +1923,9 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 	// draw dataset using selected render mode
 	if(traj_mgr.has_data())
 	{
-		taa.begin(ctx, false);
+		const auto &sview_interactor = *dynamic_cast<stereo_view_interactor*>(view_ptr);
+		if (!sview_interactor.is_stereo_enabled())
+			taa.begin(ctx, false);
 
 		int debug_idx_count = static_cast<int>(render.data->indices.size());
 		if(debug.limit_render_count)
@@ -1973,7 +1975,8 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 		if (show_bbox)
 			bbox_rd.render(ctx);
 
-		taa.end(ctx, false);
+		if (!sview_interactor.is_stereo_enabled())
+			taa.end(ctx, false);
 	}
 	
 	// display drag-n-drop information, if a dnd operation is in progress
@@ -2618,17 +2621,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 {
 	// common init
 	// - view-related info
-	const auto *sview_ptr = dynamic_cast<stereo_view*>(view_ptr);
-	const auto *sview_interactor =  dynamic_cast<const stereo_view_interactor*>(sview_ptr);
-	const float stereo_mult = sview_interactor->is_stereo_enabled() ? float(int(ctx.get_render_pass())*2 - 1) : .0f;
-	const vec3 cyclopic_eye = cgv::math::inv(ctx.get_modelview_matrix())*vec4(0,0,0,1);
-	const vec3 view_dir = cgv::math::inv(ctx.get_modelview_matrix())*vec4(0,0,1,1) - vec4(cyclopic_eye, 1)/*view_ptr->get_view_dir()*/;
+	auto &sview_interactor = *dynamic_cast<stereo_view_interactor*>(view_ptr);
+	const vec3 cyclopic_eye = view_ptr->get_eye();
+	const vec3 view_dir = view_ptr->get_view_dir();
 	const vec3 &view_up_dir = view_ptr->get_view_up_dir();
-
-	vec2 viewport_size(
-		static_cast<float>(fbc.ref_frame_buffer().get_width()),
-		static_cast<float>(fbc.ref_frame_buffer().get_height())
-	);
 	// - spline stube renderer setup relevant to deferred shading pass
 	auto &tstr = ref_textured_spline_tube_renderer(ctx);
 	tstr.set_render_style(render.style);
@@ -2646,6 +2642,12 @@ void on_tube_vis::draw_trajectories(context& ctx)
 	if (!optix.enabled || !optix.initialized)
 #endif
 	{
+		// push viewport
+		const cgv::ivec4 vp_bak(viewport[0], viewport[1], viewport[2], viewport[3]);
+		const cgv::ivec4 vp_offscreen = cgv::ivec4(0, 0, fbc.get_size().x(), fbc.get_size().y());
+		if (sview_interactor.is_stereo_enabled())
+			ctx.set_viewport(vp_offscreen);
+
 		// enable drawing framebuffer
 		fbc.enable(ctx, false);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -2688,8 +2690,9 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		tstr.set_cyclopic_eye(cyclopic_eye);
 		tstr.set_view_dir(view_dir);
 		//tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
-		tstr.set_viewport(vec4(.0f, .0f,(float)fbc.get_size().x(),(float)fbc.get_size().y()));
+		tstr.set_viewport(vec4(vp_offscreen));
 		tstr.set_render_style(render.style);
+
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 
 		int count = static_cast<int>(render.data->indices.size() / 2);
@@ -2711,6 +2714,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		// disable the drawing framebuffer
 		fbc.disable(ctx, false);
+
+		// pop viewport
+		if (sview_interactor.is_stereo_enabled())
+			ctx.set_viewport(vp_bak);
 	}
 #ifdef RTX_SUPPORT
 	else
