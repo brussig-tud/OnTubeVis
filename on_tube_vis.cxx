@@ -1815,8 +1815,18 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 
 	/* keep the framebuffer up to date with the viewport size */ {
 		const ivec2 &dims = *(ivec2*)&viewport[2];
-		fbc.ensure_size(ctx, dims);
+		fbc.set_size(dims);
+		fbc.ensure(ctx);
 		taa.ensure_fb_size(ctx, dims);
+		#ifdef RTX_SUPPORT
+			optix.fb.albedo = fbc.attachment_texture_ptr("albedo");
+			optix.fb.position = fbc.attachment_texture_ptr("position");
+			optix.fb.normal = fbc.attachment_texture_ptr("normal");
+			optix.fb.tangent = fbc.attachment_texture_ptr("tangent");
+			optix.fb.depth.set_resolution(0, dims.x());
+			optix.fb.depth.set_resolution(1, dims.y());
+			optix.fb.depth.ensure_state(ctx);
+		#endif
 	}
 
 #ifdef RTX_SUPPORT
