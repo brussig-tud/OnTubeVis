@@ -101,9 +101,28 @@ set(SOURCES
 		# - FastGL library
 		3rd/fastgl/fastgl.cpp
 
+		# API implementation
+		api/api/glyph_types.cxx
+		api/api/modmain.cxx
+		api/api/types.cxx
+		api/api/vis_setup.cxx
+		api/helper/module_handling.cxx
+		api/state/core.cxx
+		api/state/streaming.cxx
+
 		# arclength helpers
 		arclength/bezier.cpp
 		arclength/hermite.cpp
+
+		# Data format handlers.
+		fmt/bcc.cxx
+		fmt/bezdat.cxx
+		fmt/csv.cxx
+		fmt/obd.cxx
+		fmt/sepia.cxx
+		fmt/tasc.cxx
+		fmt/tellocsv.cxx
+		fmt/tgen.cxx
 
 		# GPU-accessible memory.
 		gpumem/memory_pool.cxx
@@ -114,39 +133,22 @@ set(SOURCES
 		render/state.cxx
 		render/trajectory.cxx
 
-		# API implementation
-		api/api/glyph_types.cxx
-		api/api/modmain.cxx
-		api/api/types.cxx
-		api/api/vis_setup.cxx
-		api/helper/module_handling.cxx
-		api/state/core.cxx
-		api/state/streaming.cxx
-
 		# main app
 		ambient_occlusion_style.cxx
 		arclen_helper.cxx
 		attrib_handle_manager.cxx
-		bcc_handler.cxx
-		bezdat_handler.cxx
 		color_legend_manager.cxx
 		color_map_manager.cxx
 		color_map_viewer.cxx
-		csv_handler.cxx
 		gl_util.cxx
 		glyph_attribute_mapping.cxx
 		glyph_layer_manager.cxx
 		mapping_legend.cxx
-		obd_handler.cxx
 		on_tube_vis.cxx
 		otv_client.cxx
 		regulargrid.cxx
-		sepia_handler.cxx
-		tasc_handler.cxx
 		textured_spline_tube_renderer.cxx
-		tgen_handler.cxx
 		traj_loader.cxx
-		tellocsv_handler.cxx
 		voxelizer.cxx
 )
 # - C/C++ headers
@@ -160,11 +162,28 @@ set(HEADERS
 		# - Wgs84mercator geoid utility header-only library
 		3rd/wgs84mercator/WGS84toCartesian.hpp
 
+		# API implementation
+		api/helper/glyphs.h
+		api/helper/module_handling.h
+		api/state/core.h
+		api/state/streaming.h
+		api/util/cppstream.h
+
 		# arclength helpers
 		arclength/bezier.h
 		arclength/hermite.h
 		arclength/PolynomialRegression.h
 		arclength/v3.h
+
+		# Data format handlers.
+		fmt/bcc.h
+		fmt/bezdat.h
+		fmt/csv.h
+		fmt/obd.h
+		fmt/sepia.h
+		fmt/tasc.h
+		fmt/tellocsv.h
+		fmt/tgen.h
 
 		# GPU-accessible memory.
 		gpumem/alloc.h
@@ -180,19 +199,6 @@ set(HEADERS
 		gpumem/span.h
 		gpumem/span.inl
 
-		# Trajectory rendering.
-		render/common.h
-		render/extrapolation.h
-		render/state.h
-		render/trajectory.h
-
-		# API implementation
-		api/helper/glyphs.h
-		api/helper/module_handling.h
-		api/state/core.h
-		api/state/streaming.h
-		api/util/cppstream.h
-
 		# Public API
 		include/OnTubeVis/config.h
 		include/OnTubeVis/glyph_types.h
@@ -200,17 +206,19 @@ set(HEADERS
 		include/OnTubeVis/types.h
 		include/OnTubeVis/vis_setup.h
 
+		# Trajectory rendering.
+		render/common.h
+		render/extrapolation.h
+		render/state.h
+		render/trajectory.h
+
 		# main app
 		ambient_occlusion_style.h
 		arclen_helper.h
 		attrib_handle_manager.h
-		bcc_handler.h
-		bezdat_handler.h
 		color_legend_manager.h
 		color_map_manager.h
 		color_map_viewer.h
-		csv_handler.h
-		csv_handler_detail.h
 		curveutils.h
 		demo.h
 		gl_util.h
@@ -222,17 +230,12 @@ set(HEADERS
 		hermite_spline_tube.h
 		layer_config_io.h
 		mapping_legend.h
-		obd_handler.h
 		on_tube_vis.h
 		otv_client.h
 		quadratic_bezier_tube.h
 		regulargrid.h
-		sepia_handler.h
-		tasc_handler.h
 		textured_spline_tube_renderer.h
-		tgen_handler.h
 		traj_loader.h
-		tellocsv_handler.h
 		util.h
 		voxel_grid.h
 		voxelizer.h

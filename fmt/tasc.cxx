@@ -24,12 +24,14 @@
 #include <WGS84toCartesian.hpp>
 
 // implemented header
-#include "tasc_handler.h"
+#include "tasc.h"
 
 // local includes
-#include "csv_handler.h"
-#include "csv_handler_detail.h"
+#include "csv.h"
+#include "csv_detail.h"
 
+
+namespace otv::fmt {
 
 // the desired minimum time between position samples (typically, in seconds)
 #define TASC_MIN_TIME_BETWEEN_POS_SAMPLES 1
@@ -60,7 +62,7 @@
 // Private implementation details
 
 template <class flt_type>
-struct tasc_handler<flt_type>::Impl
+struct tasc<flt_type>::Impl
 {
 	template <class T>
 	using attrib_info = typename traj_dataset<flt_type>::template attrib_info<T>;
@@ -197,21 +199,21 @@ struct tasc_handler<flt_type>::Impl
 // Class implementation
 
 template <class flt_type>
-const std::string& tasc_handler<flt_type>::format_name (void) const
+const std::string& tasc<flt_type>::format_name (void) const
 {
 	static const std::string fmt_name = "TASC JSON";
 	return fmt_name;
 }
 
 template <class flt_type>
-const std::vector<std::string>& tasc_handler<flt_type>::handled_extensions (void) const
+const std::vector<std::string>& tasc<flt_type>::handled_extensions (void) const
 {
 	static const std::vector<std::string> exts = {"json", "tasc"};
 	return exts;
 }
 
 template <class flt_type>
-bool tasc_handler<flt_type>::can_handle (std::istream &contents) const
+bool tasc<flt_type>::can_handle (std::istream &contents) const
 {
 	const stream_pos_guard g(contents);
 	nlohmann::json j;
@@ -240,7 +242,7 @@ bool tasc_handler<flt_type>::can_handle (std::istream &contents) const
 }
 
 template <class flt_type>
-traj_dataset<flt_type> tasc_handler<flt_type>::read (
+traj_dataset<flt_type> tasc<flt_type>::read (
 	std::istream &contents, DatasetOrigin source, const std::string &path
 ){
 	// Check file type
@@ -250,8 +252,8 @@ traj_dataset<flt_type> tasc_handler<flt_type>::read (
 	const std::string ws = " \t\r";
 	const bool ensemble = [&]() -> bool {
 		const stream_pos_guard g(contents);
-		return    csv_handler<flt_type>::Impl::read_next_nonempty_line(&line, &tokens, ws, contents, &fields) > 1
-		       && fields[0].compare("TASC-OTV") == 0 && csv_handler<flt_type>::Impl::parse_field(fields[1]) > 0;
+		return    csv<flt_type>::Impl::read_next_nonempty_line(&line, &tokens, ws, contents, &fields) > 1
+		       && fields[0].compare("TASC-OTV") == 0 && csv<flt_type>::Impl::parse_field(fields[1]) > 0;
 	}();
 
 	// prepare dataset container object and attribute storage
@@ -273,7 +275,7 @@ traj_dataset<flt_type> tasc_handler<flt_type>::read (
 		// parse file and log parameters
 		while (!contents.eof())
 		{
-			const unsigned num_tokens = csv_handler<flt_type>::Impl::read_next_nonempty_line(&line, &tokens, ws, contents, &fields);
+			const unsigned num_tokens = csv<flt_type>::Impl::read_next_nonempty_line(&line, &tokens, ws, contents, &fields);
 			if (Impl::line_is_comment(line))
 				continue;
 
@@ -350,13 +352,15 @@ traj_dataset<flt_type> tasc_handler<flt_type>::read (
 // Explicit template instantiations
 
 // Only float and double variants are intended
-template class tasc_handler<float>;
-template class tasc_handler<double>;
+template class tasc<float>;
+template class tasc<double>;
 
 
 ////
 // Object registration
 
 // Register both float and double handlers
-cgv::base::object_registration<tasc_handler<float> >  flt_tasc_reg("TASC trajectory handler (float)");
-cgv::base::object_registration<tasc_handler<double> > dbl_tasc_reg("TASC trajectory handler (double)");
+cgv::base::object_registration<tasc<float> >  flt_tasc_reg("TASC trajectory handler (float)");
+cgv::base::object_registration<tasc<double> > dbl_tasc_reg("TASC trajectory handler (double)");
+
+} // namespace otv::fmt

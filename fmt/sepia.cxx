@@ -25,8 +25,10 @@
 #include <WGS84toCartesian.hpp>
 
 // implemented header
-#include "sepia_handler.h"
+#include "sepia.h"
 
+
+namespace otv::fmt {
 
 /////
 // Some constant defines
@@ -231,12 +233,12 @@ struct trajectory
 // Class implementation
 
 template <class flt_type>
-struct sepia_handler<flt_type>::Impl {
+struct sepia<flt_type>::Impl {
 	// types
 	typedef flt_type real;
-	typedef sepia_handler::Vec2 Vec2;
-	typedef sepia_handler::Vec3 Vec3;
-	typedef sepia_handler::Vec4 Vec4;
+	typedef sepia::Vec2 Vec2;
+	typedef sepia::Vec3 Vec3;
+	typedef sepia::Vec4 Vec4;
 
 	// fields
 	static const visual_attribute_mapping<real> attrmap;
@@ -671,9 +673,9 @@ struct sepia_handler<flt_type>::Impl {
 		if (cgv::utils::to_lower(fields[0].c_str()+1).compare(name) == 0)
 		{
 			if (fields.size() > 1)
-				std::cerr << "[sepia_handler] WARNING: switch '"<<name<<"' has additional arguments specified, ignoring! Line: "<<line << std::endl;
+				std::cerr << "[fmt::sepia] WARNING: switch '"<<name<<"' has additional arguments specified, ignoring! Line: "<<line << std::endl;
 			*out = true;
-			return true; 
+			return true;
 		}
 		return false;
 	}
@@ -692,13 +694,13 @@ struct sepia_handler<flt_type>::Impl {
 			if (fields.size() >= 2 && parse_value(&(out->val), fields[1]))
 			{
 				if (fields.size() > 2)
-					std::cerr << "[sepia_handler] WARNING: property '"<<name<<"' has additional arguments specified, ignoring! Line: "<<line << std::endl;
+					std::cerr << "[fmt::sepia] WARNING: property '"<<name<<"' has additional arguments specified, ignoring! Line: "<<line << std::endl;
 				if (out->encountered)
-					std::cerr << "[sepia_handler] WARNING: property '"<<name<<"' specified more than once! Using new value: "<<out->val << std::endl;
+					std::cerr << "[fmt::sepia] WARNING: property '"<<name<<"' specified more than once! Using new value: "<<out->val << std::endl;
 				out->encountered = true;
 			}
 			else
-				std::cerr << "[sepia_handler] WARNING: '"<<name<<"' value could not be parsed! Line: "<<line << std::endl;
+				std::cerr << "[fmt::sepia] WARNING: '"<<name<<"' value could not be parsed! Line: "<<line << std::endl;
 
 			// we were responsible for this field, so return 'true' even in case we couldn't parse it
 			return true;
@@ -720,13 +722,13 @@ struct sepia_handler<flt_type>::Impl {
 			{
 				out->val.set(c0, c1);
 				if (fields.size() > 4)
-					std::cerr << "[sepia_handler] WARNING: property '"<<name<<"' has additional arguments specified, ignoring! Line: "<<line << std::endl;
+					std::cerr << "[fmt::sepia] WARNING: property '"<<name<<"' has additional arguments specified, ignoring! Line: "<<line << std::endl;
 				if (out->encountered)
-					std::cerr << "[sepia_handler] WARNING: property '"<<name<<"' specified more than once! Using new value: "<<out->val << std::endl;
+					std::cerr << "[fmt::sepia] WARNING: property '"<<name<<"' specified more than once! Using new value: "<<out->val << std::endl;
 				out->encountered = true;
 			}
 			else
-				std::cerr << "[sepia_handler] WARNING: '"<<name<<"' value could not be parsed! Line: "<<line << std::endl;
+				std::cerr << "[fmt::sepia] WARNING: '"<<name<<"' value could not be parsed! Line: "<<line << std::endl;
 
 			// we were responsible for this field, so return 'true' even in case we couldn't parse it
 			return true;
@@ -748,7 +750,7 @@ struct sepia_handler<flt_type>::Impl {
 			if (fields.size() > 2)
 			{
 				if (fields.size() > 4)
-					std::cerr << "[sepia_handler] WARNING: too many columns in '"<<name<<"' sample! Line: "<<line << std::endl;
+					std::cerr << "[fmt::sepia] WARNING: too many columns in '"<<name<<"' sample! Line: "<<line << std::endl;
 				double ts_local;
 				if (Impl::parse_value(&ts_local, fields[0]) && Impl::parse_value(out, fields[2]))
 				{
@@ -756,7 +758,7 @@ struct sepia_handler<flt_type>::Impl {
 					return 1;
 				}
 			}
-			std::cerr << "[sepia_handler] WARNING: '"<<name<<"' value could not be parsed! Line: "<<line << std::endl;
+			std::cerr << "[fmt::sepia] WARNING: '"<<name<<"' value could not be parsed! Line: "<<line << std::endl;
 
 			// we were responsible for this field, so return non-zero even in case we couldn't parse it
 			return 2;
@@ -776,7 +778,7 @@ struct sepia_handler<flt_type>::Impl {
 			if (fields.size() > 2)
 			{
 				if (fields.size() > 4)
-					std::cerr << "[sepia_handler] WARNING: too many columns in '"<<name<<"' sample! Line: "<<line << std::endl;
+					std::cerr << "[fmt::sepia] WARNING: too many columns in '"<<name<<"' sample! Line: "<<line << std::endl;
 				double ts_local;
 				real val;
 				if (Impl::parse_value(&ts_local, fields[0]) && Impl::parse_value(&val, fields[2]))
@@ -787,17 +789,17 @@ struct sepia_handler<flt_type>::Impl {
 						if (unit.compare("g") == 0)
 							val *= real(9.8067);
 						else
-							std::cerr << "[sepia_handler] WARNING: unknown unit specified for '"<<name<<"', committing value as-is. Line: "<<line << std::endl;
+							std::cerr << "[fmt::sepia] WARNING: unknown unit specified for '"<<name<<"', committing value as-is. Line: "<<line << std::endl;
 					}
 					else
-						std::cerr << "[sepia_handler] WARNING: no unit specified for '"<<name<<"', committing value as-is. Line: "<<line << std::endl;
+						std::cerr << "[fmt::sepia] WARNING: no unit specified for '"<<name<<"', committing value as-is. Line: "<<line << std::endl;
 					// commit values
-					*ts = ts_local; 
+					*ts = ts_local;
 					out->val = val;
 					return 1;
 				}
 			}
-			std::cerr << "[sepia_handler] WARNING: '"<<name<<"' value could not be parsed! Line: "<<line << std::endl;
+			std::cerr << "[fmt::sepia] WARNING: '"<<name<<"' value could not be parsed! Line: "<<line << std::endl;
 
 			// we were responsible for this field, so return non-zero even in case we couldn't parse it
 			return 2;
@@ -820,7 +822,7 @@ struct sepia_handler<flt_type>::Impl {
 				attrib.emplace(ts_local, (T)reg);
 			else
 			{
-				std::cerr << "[sepia_handler] WARNING: duplicate sample timestamp in attribute '"<<name<<"', overwriting previous value" << std::endl;
+				std::cerr << "[fmt::sepia] WARNING: duplicate sample timestamp in attribute '"<<name<<"', overwriting previous value" << std::endl;
 				it->second = (T)reg;
 			}
 			return 1;
@@ -865,11 +867,11 @@ struct sepia_handler<flt_type>::Impl {
 
 			/// unknown declaration, print warning
 			else
-				std::cerr << "[sepia_handler] WARNING: unknown property: '"<<fields[0]<<"', ignoring" << std::endl;
+				std::cerr << "[fmt::sepia] WARNING: unknown property: '"<<fields[0]<<"', ignoring" << std::endl;
 		}
 		if (contents.eof())
 		{
-			std::cerr << "[sepia_handler] ERROR: reached end-of-file before any actual data!" << std::endl;
+			std::cerr << "[fmt::sepia] ERROR: reached end-of-file before any actual data!" << std::endl;
 			return trajectory<real>();
 		}
 
@@ -1028,7 +1030,7 @@ struct sepia_handler<flt_type>::Impl {
 				// some logic to make sure we print this warning only once
 				if (unknowns.find(fields[1]) == unknowns.end())
 				{
-					std::cerr << "[sepia_handler] WARNING: unknown sample type: '"<<fields[1]<<"', ignoring" << std::endl;
+					std::cerr << "[fmt::sepia] WARNING: unknown sample type: '"<<fields[1]<<"', ignoring" << std::endl;
 					unknowns.emplace(fields[1]);
 				}
 			}
@@ -1068,19 +1070,19 @@ struct sepia_handler<flt_type>::Impl {
 	}
 };
 template <class flt_type>
-const visual_attribute_mapping<flt_type> sepia_handler<flt_type>::Impl::attrmap({
+const visual_attribute_mapping<flt_type> sepia<flt_type>::Impl::attrmap({
 	{VisualAttrib::POSITION, {SEPIA_POSITION_ATTRIB_NAME}}, {VisualAttrib::RADIUS, {SEPIA_RADIUS_ATTRIB_NAME}}
 });
 
 template <class flt_type>
-const std::string& sepia_handler<flt_type>::format_name (void) const
+const std::string& sepia<flt_type>::format_name (void) const
 {
 	static const std::string fmt_name = "SePIA";
 	return fmt_name;
 }
 
 template <class flt_type>
-bool sepia_handler<flt_type>::can_handle (std::istream &contents) const
+bool sepia<flt_type>::can_handle (std::istream &contents) const
 {
 	std::string str;
 	const stream_pos_guard g(contents);
@@ -1098,7 +1100,7 @@ bool sepia_handler<flt_type>::can_handle (std::istream &contents) const
 }
 
 template <class flt_type>
-traj_dataset<flt_type> sepia_handler<flt_type>::read (
+traj_dataset<flt_type> sepia<flt_type>::read (
 	std::istream &contents, DatasetOrigin source, const std::string& path
 ){
 	// return value
@@ -1124,7 +1126,7 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 	{
 		// version check
 		if (!Impl::check_version(dsinfo.version))
-			std::cerr << "[sepia_handler] WARNING: trajectory format version "<<dsinfo.version<<" is unsupported!" << std::endl;
+			std::cerr << "[fmt::sepia] WARNING: trajectory format version "<<dsinfo.version<<" is unsupported!" << std::endl;
 
 		// delegate to individual trajectory loading code
 		trajs.emplace_back(Impl::load_trajectory(dsinfo.version, contents));
@@ -1146,18 +1148,18 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 				// sanity check
 				if (fields[0].size() < 2)
 				{
-					std::cerr << "[sepia_handler] WARNING: option specifier '!' encountered without option name, ignoring" << std::endl;
+					std::cerr << "[fmt::sepia] WARNING: option specifier '!' encountered without option name, ignoring" << std::endl;
 					continue;
 				}
 
 				// parse it
 				if      (Impl::collection_parse_switch(&consistent_timestamps, "consistent_timestamps", fields, line)) DO_NOTHING;
 				else if (Impl::collection_parse_switch(&retain_inconsistent_attribs, "retain_inconsistent_attribs", fields, line))
-					std::cerr << "[sepia_handler] WARNING: retaining of inconsistent attribute declarations across trajectories not yet implemented!" << std::endl;
+					std::cerr << "[fmt::sepia] WARNING: retaining of inconsistent attribute declarations across trajectories not yet implemented!" << std::endl;
 
 				// unknown declaration, print warning
 				else
-					std::cerr << "[sepia_handler] WARNING: unknown option: '"<<fields[0].c_str()+1<<"', ignoring" << std::endl;
+					std::cerr << "[fmt::sepia] WARNING: unknown option: '"<<fields[0].c_str()+1<<"', ignoring" << std::endl;
 			}
 			// handle trajectory file entry
 			else
@@ -1177,13 +1179,13 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 					}
 				}
 				if (trajfile_not_found)
-					std::cerr << "[sepia_handler] WARNING: trajectory file '"<<line<<"'could not be found, ignoring" << std::endl;
+					std::cerr << "[fmt::sepia] WARNING: trajectory file '"<<line<<"'could not be found, ignoring" << std::endl;
 			}
 		}
 		// - load individual trajectories
 		if (traj_files.empty())
 		{
-			std::cerr << "[sepia_handler] ERROR: trajectory collection does not specify any existent files!" << std::endl;
+			std::cerr << "[fmt::sepia] ERROR: trajectory collection does not specify any existent files!" << std::endl;
 			return std::move(ret);
 		}
 
@@ -1201,18 +1203,18 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 				if (dsinfo.type == DT::SINGLE)
 				{
 					if (!Impl::check_version(dsinfo.version))
-						std::cerr << "[sepia_handler] WARNING: trajectory file '"<<file<<"' uses unsupported format version "<<dsinfo.version << std::endl;
+						std::cerr << "[fmt::sepia] WARNING: trajectory file '"<<file<<"' uses unsupported format version "<<dsinfo.version << std::endl;
 					auto traj_new = Impl::load_trajectory(dsinfo.version, contents);
 					if (traj_new.loaded)
 						trajs.emplace_back(std::move(traj_new));
 					else
-						std::cerr << "[sepia_handler] WARNING: trajectory file '"<<file<<"' could not be loaded properly" << std::endl;
+						std::cerr << "[fmt::sepia] WARNING: trajectory file '"<<file<<"' could not be loaded properly" << std::endl;
 				}
 				else
-					std::cerr << "[sepia_handler] WARNING: file '"<<file<<"' does not appear to contain a SEPIA individual trajectory definition, ignoring" << std::endl;
+					std::cerr << "[fmt::sepia] WARNING: file '"<<file<<"' does not appear to contain a SEPIA individual trajectory definition, ignoring" << std::endl;
 			}
 			else
-				std::cerr << "[sepia_handler] WARNING: cannot open trajectory file '"<<file<<'\'' << std::endl;
+				std::cerr << "[fmt::sepia] WARNING: cannot open trajectory file '"<<file<<'\'' << std::endl;
 		}
 	}
 
@@ -1264,7 +1266,7 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 			if (consistent)
 				consistent_scalar_attribs.emplace(aname);
 			else
-				std::cerr << "[sepia_handler] throwing out inconsistent attribute '"<<aname<<"'!" << std::endl;
+				std::cerr << "[fmt::sepia] throwing out inconsistent attribute '"<<aname<<"'!" << std::endl;
 		}
 		for (const auto &aname : all_vec3_attribs)
 		{
@@ -1278,7 +1280,7 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 			if (consistent)
 				consistent_vec3_attribs.emplace(aname);
 			else
-				std::cerr << "[sepia_handler] throwing out inconsistent attribute '"<<aname<<"'!" << std::endl;
+				std::cerr << "[fmt::sepia] throwing out inconsistent attribute '"<<aname<<"'!" << std::endl;
 		}
 
 		// unify into common attribute trajectory structure
@@ -1368,13 +1370,15 @@ traj_dataset<flt_type> sepia_handler<flt_type>::read (
 // Explicit template instantiations
 
 // Only float and double variants are intended
-template struct sepia_handler<float>;
-template struct sepia_handler<double>;
+template struct sepia<float>;
+template struct sepia<double>;
 
 
 ////
 // Object registration
 
 // Register both float and double handlers
-cgv::base::object_registration<sepia_handler<float> > flt_sepia_reg("sepia trajectory handler (float)");
-cgv::base::object_registration<sepia_handler<double> > dbl_sepia_reg("sepia trajectory handler (double)");
+cgv::base::object_registration<sepia<float> > flt_sepia_reg("sepia trajectory handler (float)");
+cgv::base::object_registration<sepia<double> > dbl_sepia_reg("sepia trajectory handler (double)");
+
+} // namespace otv::fmt

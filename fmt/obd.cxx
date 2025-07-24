@@ -22,8 +22,10 @@
 #include <WGS84toCartesian.hpp>
 
 // implemented header
-#include "obd_handler.h"
+#include "obd.h"
 
+
+namespace otv::fmt {
 
 // identifyier to use for position data
 #define OBD_MERCATOR_SCALEDOWN_FACTOR 64
@@ -48,21 +50,21 @@
 
 
 template <class flt_type>
-const std::string& obd_handler<flt_type>::format_name (void) const
+const std::string& obd<flt_type>::format_name (void) const
 {
 	static const std::string fmt_name = "OBD";
 	return fmt_name;
 }
 
 template <class flt_type>
-const std::vector<std::string>& obd_handler<flt_type>::handled_extensions (void) const
+const std::vector<std::string>& obd<flt_type>::handled_extensions (void) const
 {
 	static const std::vector<std::string> exts = {"ppcdf", "ipcdf"};
 	return exts;
 }
 
 template <class flt_type>
-bool obd_handler<flt_type>::can_handle (std::istream &contents) const
+bool obd<flt_type>::can_handle (std::istream &contents) const
 {
 	const stream_pos_guard g(contents); // do we need this??? [Benjamin] I guess not (at least not anymore), but would have to verify a few things to make sure it's safe to remove
 	nlohmann::json j;
@@ -127,7 +129,7 @@ struct bool_info
 };
 
 template <class flt_type>
-traj_dataset<flt_type> obd_handler<flt_type>::read(
+traj_dataset<flt_type> obd<flt_type>::read(
 	std::istream &contents, DatasetOrigin source, const std::string &path
 ){
 	size_t nr_objects = 0;
@@ -374,13 +376,15 @@ traj_dataset<flt_type> obd_handler<flt_type>::read(
 // Explicit template instantiations
 
 // Only float and double variants are intended
-template struct obd_handler<float>;
-template struct obd_handler<double>;
+template struct obd<float>;
+template struct obd<double>;
 
 
 ////
 // Object registration
 
 // Register both float and double handlers
-cgv::base::object_registration<obd_handler<float> >  flt_obd_reg("obd trajectory handler (float)");
-cgv::base::object_registration<obd_handler<double> > dbl_obd_reg("obd trajectory handler (double)");
+cgv::base::object_registration<obd<float> >  flt_obd_reg("obd trajectory handler (float)");
+cgv::base::object_registration<obd<double> > dbl_obd_reg("obd trajectory handler (double)");
+
+} // namespace otv::fmt

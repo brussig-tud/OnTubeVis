@@ -24,8 +24,10 @@
 #include <WGS84toCartesian.hpp>
 
 // implemented header
-#include "bcc_handler.h"
+#include "bcc.h"
 
+
+namespace otv::fmt {
 
 // identifyier to use for position data
 #define BCC_POSITION_ATTRIB_NAME "Position"
@@ -66,7 +68,7 @@ struct bcc_header {
 // Private implementation details
 
 template <class flt_type>
-struct bcc_handler<flt_type>::Impl
+struct bcc<flt_type>::Impl
 {};
 
 
@@ -74,21 +76,21 @@ struct bcc_handler<flt_type>::Impl
 // Class implementation
 
 template <class flt_type>
-const std::string& bcc_handler<flt_type>::format_name (void) const
+const std::string& bcc<flt_type>::format_name (void) const
 {
 	static const std::string fmt_name = "Binary Curve Collection";
 	return fmt_name;
 }
 
 template <class flt_type>
-const std::vector<std::string>& bcc_handler<flt_type>::handled_extensions (void) const
+const std::vector<std::string>& bcc<flt_type>::handled_extensions (void) const
 {
 	static const std::vector<std::string> exts = {"bcc"};
 	return exts;
 }
 
 template <class flt_type>
-bool bcc_handler<flt_type>::can_handle (std::istream &contents) const
+bool bcc<flt_type>::can_handle (std::istream &contents) const
 {
 	const stream_pos_guard g(contents);
 	bcc_header header;
@@ -97,7 +99,7 @@ bool bcc_handler<flt_type>::can_handle (std::istream &contents) const
 }
 
 template <class flt_type>
-traj_dataset<flt_type> bcc_handler<flt_type>::read (
+traj_dataset<flt_type> bcc<flt_type>::read (
 	std::istream &, DatasetOrigin source, const std::string &path
 ){
 	// prepare dataset container object and attribute storage
@@ -241,13 +243,15 @@ traj_dataset<flt_type> bcc_handler<flt_type>::read (
 // Explicit template instantiations
 
 // Only float and double variants are intended
-template class bcc_handler<float>;
-template class bcc_handler<double>;
+template class bcc<float>;
+template class bcc<double>;
 
 
 ////
 // Object registration
 
 // Register both float and double handlers
-cgv::base::object_registration<bcc_handler<float> >  flt_bcc_reg("BCC trajectory handler (float)");
-cgv::base::object_registration<bcc_handler<double> > dbl_bcc_reg("BCC trajectory handler (double)");
+cgv::base::object_registration<bcc<float> >  flt_bcc_reg("BCC trajectory handler (float)");
+cgv::base::object_registration<bcc<double> > dbl_bcc_reg("BCC trajectory handler (double)");
+
+} // namespace otv::fmt

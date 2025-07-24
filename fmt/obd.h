@@ -13,9 +13,11 @@
 #include "traj_loader.h"
 
 
+namespace otv::fmt {
+
 /// provides read capabilites for OBD (On-board diagnostics) logs.
 template <class flt_type>
-struct obd_handler : public traj_format_handler<flt_type>
+struct obd : public traj_format_handler<flt_type>
 {
 	/// real number type
 	typedef typename traj_format_handler<flt_type>::real real;
@@ -44,3 +46,5 @@ struct obd_handler : public traj_format_handler<flt_type>
 	/// parse the given stream containing the file contents and report whether any data was loaded
 	virtual traj_dataset<flt_type> read (std::istream &contents, DatasetOrigin source, const std::string &path);
 };
+
+} // namespace otv::fmt

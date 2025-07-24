@@ -20,8 +20,10 @@
 #include "regulargrid.h"
 
 // implemented header
-#include "bezdat_handler.h"
+#include "bezdat.h"
 
+
+namespace otv::fmt {
 
 /////
 // Some constant defines
@@ -71,7 +73,7 @@ template <class flt_type>
 struct bezdat_point
 {
 	typedef flt_type real;
-	typedef typename bezdat_handler<real>::Vec3 Vec3;
+	typedef typename otv::fmt::bezdat<real>::Vec3 Vec3;
 	Vec3 pos, color;
 	real radius;
 };
@@ -169,21 +171,21 @@ const visual_attribute_mapping<flt_type> Impl<flt_type>::attrmap({
 });
 
 template <class flt_type>
-const std::string& bezdat_handler<flt_type>::format_name (void) const
+const std::string& bezdat<flt_type>::format_name (void) const
 {
 	static const std::string fmt_name = "BezDat";
 	return fmt_name;
 }
 
 template <class flt_type>
-const std::vector<std::string>& bezdat_handler<flt_type>::handled_extensions(void) const
+const std::vector<std::string>& bezdat<flt_type>::handled_extensions(void) const
 {
 	static const std::vector<std::string> exts = { "bezdat" };
 	return exts;
 }
 
 template <class flt_type>
-bool bezdat_handler<flt_type>::can_handle (std::istream &contents) const
+bool bezdat<flt_type>::can_handle (std::istream &contents) const
 {
 	std::string str;
 	const stream_pos_guard g(contents);
@@ -200,7 +202,7 @@ bool bezdat_handler<flt_type>::can_handle (std::istream &contents) const
 }
 
 template <class flt_type>
-traj_dataset<flt_type> bezdat_handler<flt_type>::read (
+traj_dataset<flt_type> bezdat<flt_type>::read (
 	std::istream &contents, DatasetOrigin source, const std::string &path
 )
 {
@@ -448,7 +450,7 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (
 	traj_format_handler<flt_type>::name(ret) = cgv::utils::file::drop_extension(cgv::utils::file::get_file_name(path));
 
 	// print some stats
-	std::cout << "bezdat_handler: loading completed! Stats:" << std::endl
+	std::cout << "fmt::bezdat: loading completed! Stats:" << std::endl
 	          << "  "<<points.size()<<" .bezdat control points" << std::endl
 	          << "  "<<bsegs.size()<<" .bezdat curve segments" << std::endl
 	          << " --- converted to: ---" << std::endl
@@ -466,13 +468,15 @@ traj_dataset<flt_type> bezdat_handler<flt_type>::read (
 // Explicit template instantiations
 
 // Only float and double variants are intended
-template struct bezdat_handler<float>;
-template struct bezdat_handler<double>;
+template struct bezdat<float>;
+template struct bezdat<double>;
 
 
 ////
 // Object registration
 
 // Register both float and double handlers
-cgv::base::object_registration<bezdat_handler<float> > flt_bezdat_reg("bezdat trajectory handler (float)");
-cgv::base::object_registration<bezdat_handler<double> > dbl_bezdat_reg("bezdat trajectory handler (double)");
+cgv::base::object_registration<bezdat<float> > flt_bezdat_reg("bezdat trajectory handler (float)");
+cgv::base::object_registration<bezdat<double> > dbl_bezdat_reg("bezdat trajectory handler (double)");
+
+} // namespace otv::fmt

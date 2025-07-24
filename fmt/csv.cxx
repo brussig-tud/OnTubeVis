@@ -25,9 +25,11 @@
 #include "regulargrid.h"
 
 // implemented header
-#include "csv_handler.h"
-#include "csv_handler_detail.h"
+#include "csv.h"
+#include "csv_detail.h"
 
+
+namespace otv::fmt {
 
 ////
 // Class implementation - csv_descriptor
@@ -183,19 +185,19 @@ csv_descriptor::csv_properties csv_descriptor::infer_properties (const std::vect
 
 
 ////
-// Class implementation - csv_handler
+// Class implementation - csv
 
 template <class flt_type>
-csv_handler<flt_type>::csv_handler() : pimpl(nullptr)
+csv<flt_type>::csv() : pimpl(nullptr)
 {
 	pimpl = new Impl;
 }
 
 template <class flt_type>
-csv_handler<flt_type>::csv_handler(
+csv<flt_type>::csv(
 	const csv_descriptor &csv_desc, const visual_attribute_mapping<real> &vmap_hints
 )
-	: csv_handler()
+	: csv()
 {
 	// shortcut for saving one indirection
 	auto &impl = *pimpl;
@@ -208,10 +210,10 @@ csv_handler<flt_type>::csv_handler(
 }
 
 template <class flt_type>
-csv_handler<flt_type>::csv_handler(
+csv<flt_type>::csv(
 	csv_descriptor &&csv_desc, const visual_attribute_mapping<real> &vmap_hints
 )
-	: csv_handler()
+	: csv()
 {
 	// shortcut for saving one indirection
 	auto &impl = *pimpl;
@@ -224,19 +226,19 @@ csv_handler<flt_type>::csv_handler(
 }
 
 template <class flt_type>
-csv_handler<flt_type>::~csv_handler()
+csv<flt_type>::~csv()
 {
 	if (pimpl)
 		delete pimpl;
 }
 
 template <class flt_type>
-const std::string& csv_handler<flt_type>::format_name (void) const {
+const std::string& csv<flt_type>::format_name (void) const {
 	return pimpl->fmt_name;
 }
 
 template <class flt_type>
-const std::vector<std::string>& csv_handler<flt_type>::handled_extensions (void) const
+const std::vector<std::string>& csv<flt_type>::handled_extensions (void) const
 {
 	// for now, we don't claim any file extensions
 	// ToDo: add option to csv_descriptor to specify file extensions, which will then be reported to callers here
@@ -244,7 +246,7 @@ const std::vector<std::string>& csv_handler<flt_type>::handled_extensions (void)
 }
 
 template <class flt_type>
-void csv_handler<flt_type>::cleanup (void)
+void csv<flt_type>::cleanup (void)
 {
 	// shortcut for saving one indirection
 	auto &impl = *pimpl;
@@ -255,7 +257,7 @@ void csv_handler<flt_type>::cleanup (void)
 }
 
 template <class flt_type>
-bool csv_handler<flt_type>::can_handle (std::istream &contents) const
+bool csv<flt_type>::can_handle (std::istream &contents) const
 {
 	// shortcut for saving one indirection
 	auto &impl = *pimpl;
@@ -304,7 +306,7 @@ bool csv_handler<flt_type>::can_handle (std::istream &contents) const
 }
 
 template <class flt_type>
-traj_dataset<flt_type> csv_handler<flt_type>::read (
+traj_dataset<flt_type> csv<flt_type>::read (
 	std::istream &contents, DatasetOrigin source, const std::string &path
 )
 {
@@ -483,7 +485,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		} else {
 			t_mod = (real)(t = (real)P.size());
 		}
-	
+
 		// read in all declared attributes
 		for (auto &attrib : declared_attribs)
 		{
@@ -644,7 +646,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 
 	// print stats
 	const unsigned num_trajs = (unsigned)declared_attribs[props.pos_id].trajs.size();
-	std::cout << "csv_handler: loading completed! Stats:" << std::endl
+	std::cout << "fmt::csv: loading completed! Stats:" << std::endl
 	          << "  " << num_samples<<" samples" << std::endl
 	          << "  " << num_segs<<" segments" << std::endl
 	          << "  " << num_trajs<<(num_trajs>1?" trajectories":" trajectory") << std::endl
@@ -655,7 +657,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 }
 
 template <class flt_type>
-bool csv_handler<flt_type>::is_csv_descriptor_valid (const csv_descriptor &csv_desc)
+bool csv<flt_type>::is_csv_descriptor_valid (const csv_descriptor &csv_desc)
 {
 	bool pos_found=false, traj_id_found=false, timestamp_found=false;
 	for (const auto &attrib : csv_desc.attributes())
@@ -691,8 +693,8 @@ bool csv_handler<flt_type>::is_csv_descriptor_valid (const csv_descriptor &csv_d
 // Explicit template instantiations
 
 // Only float and double variants are intended
-template class csv_handler<float>;
-template class csv_handler<double>;
+template class csv<float>;
+template class csv<double>;
 
 
 ////
@@ -711,14 +713,14 @@ csv_imldevice_desc("IML device trajectory", ",", {
 );
 
 cgv::base::object_registration_2<
-	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>
+	csv<float>, csv_descriptor, visual_attribute_mapping<float>
 > csv_imluser_reg(
 	csv_imluser_desc,
 	visual_attribute_mapping<float>({
 		{VisualAttrib::POSITION, {
 			// we scale up the dataset to get more sensible numbers (mitigates floating point rounding errors etc.)
 			"position", attrib_transform<float>::vec3_to_vec3(
-				[](csv_handler<float>::Vec3 &out, const csv_handler<float>::Vec3 &in) {
+				[](csv<float>::Vec3 &out, const csv<float>::Vec3 &in) {
 					out = 128.f * in;
 				}
 			)
@@ -750,7 +752,7 @@ csv_imldevice_reg(
 			// study used a different coordinate system, also scale up to get more sensible numbers (mitigates
 			// floating point rounding errors etc.)
 			"position", attrib_transform<float>::vec3_to_vec3(
-				[](csv_handler<float>::Vec3 &out, const csv_handler<float>::Vec3 &in) {
+				[](csv<float>::Vec3 &out, const csv<float>::Vec3 &in) {
 					out.x() = -128 * in.x();
 					out.y() =  128 * in.y();
 					out.z() = -128 * in.z();
@@ -799,14 +801,14 @@ static const csv_descriptor csv_paraview_streamline_desc("Paraview Streamline", 
 //);
 
 cgv::base::object_registration_2<
-	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>
+	csv<float>, csv_descriptor, visual_attribute_mapping<float>
 > csv_paraview_streamline_reg(
 	csv_paraview_streamline_desc,
 	visual_attribute_mapping<float>({
 		{VisualAttrib::POSITION, {
 			// scale up dataset to make intersectors more numerically stable
 			"Position", attrib_transform<float>::vec3_to_vec3(
-				[](csv_handler<float>::Vec3& out, const csv_handler<float>::Vec3& in) {
+				[](csv<float>::Vec3& out, const csv<float>::Vec3& in) {
 					out = 100.f*in;
 				}
 			)
@@ -839,7 +841,7 @@ static const csv_descriptor csv_pkg_drone_streamline_desc("Delivery Drone Trajec
 );
 
 cgv::base::object_registration_2<
-	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>
+	csv<float>, csv_descriptor, visual_attribute_mapping<float>
 > csv_pkg_drone_streamline_reg(
 	csv_pkg_drone_streamline_desc,
 	visual_attribute_mapping<float>({
@@ -862,14 +864,14 @@ static const csv_descriptor csv_rtlola_desc("RTLola Trace", ",", {
 );
 
 cgv::base::object_registration_2<
-	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>
+	csv<float>, csv_descriptor, visual_attribute_mapping<float>
 > csv_rtlola_reg(
 	csv_rtlola_desc,
 	visual_attribute_mapping<float>({
 		{VisualAttrib::POSITION, {
 			// transform lat/long/alt to cartesian coordinates using mercator projection
 			"position", attrib_transform<float>::vec3_to_vec3(
-				[](csv_handler<float>::Vec3 &out, const csv_handler<float>::Vec3 &in) {
+				[](csv<float>::Vec3 &out, const csv<float>::Vec3 &in) {
 					typedef std::array<double, 2> latlong;
 					const static latlong refpos = {in.x(), in.y()};
 					//
@@ -899,12 +901,12 @@ cgv::base::object_registration_2<
 static const csv_descriptor csv_dbg_trace_desc("SimpleDebugTrace", ",", {
 	{ "time", {"time", true, 0}, CSV::TIMESTAMP },
 	{ "pos",  {{"pos_x", true, 1}, {"pos_y", true, 2}, {"pos_z", true, 3}}, CSV::POS },
-    { "vel",  {{"vel_x", true, 4}, {"vel_y", true, 5}, {"vel_z", true, 6}} },
+	{ "vel",  {{"vel_x", true, 4}, {"vel_y", true, 5}, {"vel_z", true, 6}} },
 	{ "attrib0", {"attrib0", true, 7}} }
 );
 
 cgv::base::object_registration_2<
-	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>
+	csv<float>, csv_descriptor, visual_attribute_mapping<float>
 > csv_dbg_trace_reg(
 	csv_dbg_trace_desc,
 	visual_attribute_mapping<float>({
@@ -918,11 +920,13 @@ cgv::base::object_registration_2<
 		}},
 		{VisualAttrib::TANGENT, {
 			"vel", attrib_transform<float>::vec3_to_vec4(
- 				[](csv_handler<float>::Vec4 &out, const csv_handler<float>::Vec3 &in) {
-					out = csv_handler<float>::Vec4(in, 0.f);
+				[](csv<float>::Vec4 &out, const csv<float>::Vec3 &in) {
+					out = csv<float>::Vec4(in, 0.f);
 				}
 			)
 		}}
-    }),
+	}),
 	"csv handler (float) - " + csv_dbg_trace_desc.name()
 );
+
+} // namespace otv::fmt

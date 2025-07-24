@@ -14,6 +14,8 @@
 #include "traj_loader.h"
 
 
+namespace otv::fmt {
+
 /// possible special semantics of attributes found in .csv column(s)
 enum class CSV_AttribSemantics
 {
@@ -313,7 +315,7 @@ public:
 /// description only) or cgv::base::object_registration_2 (if you also want to provide a specialized
 /// default visual attribute mapping suggestion)
 template <class flt_type>
-class csv_handler : public traj_format_handler<flt_type>
+class csv : public traj_format_handler<flt_type>
 {
 
 public:
@@ -352,7 +354,7 @@ protected:
 	virtual void cleanup (void);
 
 	/// default constructor
-	csv_handler();
+	csv();
 
 
 public:
@@ -362,17 +364,17 @@ public:
 	/// additional columns from being read in also - they will simply be read into additional generic
 	/// attributes. Also, specifying an expected column number for every attribute in the descriptor
 	/// will enable loading even in the absence of a header row.
-	csv_handler(const csv_descriptor &csv_desc, const visual_attribute_mapping<real> &vmap_hints={});
+	csv(const csv_descriptor &csv_desc, const visual_attribute_mapping<real> &vmap_hints={});
 
 	/// Constructs the handler for the given .csv description (move semantics). Note that the columns
 	/// mentioned by the descriptors are required for a file to be readable by this handler, but that
 	/// does not exclude additional columns from being read in also - they will simply be read into
 	/// additional generic attributes. Also, specifying an expected column number for every attribute
 	/// in the descriptor will enable loading even in the absence of a header row.
-	csv_handler(csv_descriptor &&csv_desc, const visual_attribute_mapping<real> &vmap_hints={});
+	csv(csv_descriptor &&csv_desc, const visual_attribute_mapping<real> &vmap_hints={});
 
 	/// the destructor
-	virtual ~csv_handler();
+	virtual ~csv();
 
 	/// reports the name "CSV - {desc}", where {desc} is the name of the csv descriptor schema
 	const std::string& format_name (void) const;
@@ -390,3 +392,5 @@ public:
 	/// cheap - does not catch all inconsistencies possible in a \ref csv_descriptor !
 	static bool is_csv_descriptor_valid (const csv_descriptor &csv_desc);
 };
+
+} // namespace otv::fmt

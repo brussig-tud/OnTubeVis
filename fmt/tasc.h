@@ -13,9 +13,11 @@
 #include "traj_loader.h"
 
 
+namespace otv::fmt {
+
 /// provides read capabilites for the TASC accident dataset.
 template <class flt_type>
-class tasc_handler : public traj_format_handler<flt_type>
+class tasc : public traj_format_handler<flt_type>
 {
 public:
 
@@ -66,3 +68,5 @@ protected:
 		return super::trajectories(ds, attrib);
 	}
 };
+
+} // namespace otv::fmt

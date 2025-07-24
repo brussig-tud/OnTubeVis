@@ -22,11 +22,13 @@
 #include <WGS84toCartesian.hpp>
 
 // local includes
-#include "csv_handler_detail.h"
+#include "csv_detail.h"
 
 // implemented header
-#include "tellocsv_handler.h"
+#include "tellocsv.h"
 
+
+namespace otv::fmt {
 
 // identifyier to use for position data
 #define TELLO_POSITION_ATTRIB_NAME "_position"
@@ -46,8 +48,8 @@
 // identifyier to use for timestamp attribute
 #define TELLO_TIME_ATTRIB_NAME "Flight Time (s)"
 
-// Declare the proper csv_handler implementation type
-#define DECLARE_CSV_IMPL_TYPE typedef typename csv_handler<real>::Impl CSVImpl
+// Declare the proper csv implementation type
+#define DECLARE_CSV_IMPL_TYPE typedef typename csv<real>::Impl CSVImpl
 
 
 ////
@@ -159,7 +161,7 @@ namespace {
 
 
 ////
-// Class implementation - tellocsv_handler
+// Class implementation - tellocsv
 
 struct TelloCSV
 {
@@ -230,14 +232,14 @@ struct TelloCSV
 };
 
 template <class flt_type>
-const std::string& tellocsv_handler<flt_type>::format_name (void) const
+const std::string& tellocsv<flt_type>::format_name (void) const
 {
 	static const std::string fmt_name = "Tello/CSV";
 	return fmt_name;
 }
 
 template <class flt_type>
-bool tellocsv_handler<flt_type>::can_handle (std::istream &contents) const
+bool tellocsv<flt_type>::can_handle (std::istream &contents) const
 {
 	// init
 	const stream_pos_guard g(contents);
@@ -271,7 +273,7 @@ bool tellocsv_handler<flt_type>::can_handle (std::istream &contents) const
 }
 
 template <class flt_type>
-traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
+traj_dataset<flt_type> tellocsv<flt_type>::read(
 	std::istream &contents, DatasetOrigin source, const std::string &path
 ){
 	////
@@ -463,13 +465,15 @@ traj_dataset<flt_type> tellocsv_handler<flt_type>::read(
 // Explicit template instantiations
 
 // Only float and double variants are intended
-template class tellocsv_handler<float>;
-template class tellocsv_handler<double>;
+template class tellocsv<float>;
+template class tellocsv<double>;
 
 
 ////
 // Object registration
 
 // Register both float and double handlers
-cgv::base::object_registration<tellocsv_handler<float> >  flt_tello_reg("Tello flight log handler (float)");
-cgv::base::object_registration<tellocsv_handler<double> > dbl_tello_reg("Tello flight log handler (double)");
+cgv::base::object_registration<tellocsv<float> >  flt_tello_reg("Tello flight log handler (float)");
+cgv::base::object_registration<tellocsv<double> > dbl_tello_reg("Tello flight log handler (double)");
+
+} // namespace otv::fmt

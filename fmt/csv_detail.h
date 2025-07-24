@@ -1,20 +1,22 @@
 #pragma once
 
 // parent module
-#include "csv_handler.h"
+#include "csv.h"
 
+
+namespace otv::fmt {
 
 ////
-// Class implementation - csv_handler
+// Class implementation - csv
 
 template <class flt_type>
-struct csv_handler<flt_type>::Impl
+struct csv<flt_type>::Impl
 {
 	// types
 	typedef flt_type real;
-	typedef typename csv_handler::Vec3 Vec3;
-	typedef typename csv_handler::Vec4 Vec4;
-	typedef typename csv_handler::Color Color;
+	typedef typename csv::Vec3 Vec3;
+	typedef typename csv::Vec4 Vec4;
+	typedef typename csv::Color Color;
 	struct declared_attrib
 	{
 		const csv_descriptor::attribute &desc;
@@ -48,9 +50,9 @@ struct csv_handler<flt_type>::Impl
 	// helper methods
 	void common_init (void)
 	{
-		desc_valid = csv_handler<flt_type>::is_csv_descriptor_valid(csv_desc);
+		desc_valid = csv<flt_type>::is_csv_descriptor_valid(csv_desc);
 		if (!desc_valid)
-			std::cerr << "csv_handler: WARNING - invalid description of .csv data structure supplied!"
+			std::cerr << "fmt::csv: WARNING - invalid description of .csv data structure supplied!"
 			          << std::endl << std::endl;
 	}
 	static traj_attribute<real>& ensure_traj (
@@ -102,7 +104,7 @@ struct csv_handler<flt_type>::Impl
 			}
 
 			default:
-				static_assert(true, "[csv_handler] !!!INCOMPATIBLE DATATYPES FOR CONCATENATION!!!");
+				static_assert(true, "[fmt::csv] !!!INCOMPATIBLE DATATYPES FOR CONCATENATION!!!");
 		}
 	}
 	bool check_header (const std::vector<std::string> &header_fields)
@@ -346,3 +348,5 @@ struct csv_handler<flt_type>::Impl
 		return 0;
 	}
 };
+
+} // namespace otv::fmt
