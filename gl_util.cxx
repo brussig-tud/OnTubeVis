@@ -31,7 +31,7 @@ bool check_gl_errors (std::string_view function)
 
 	// ...and all errors.
 	do {
-		std::cerr << sep << gluErrorString(error);
+		std::clog << sep << gluErrorString(error);
 		sep = ", "sv;
 	} while ((error = glGetError()));
 
