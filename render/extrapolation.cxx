@@ -3,7 +3,7 @@
 #include <numeric>
 
 // Local includes
-#include "arclen_helper.h"
+#include "arclen/main.h"
 #include "render/extrapolation.h"
 #include "state/core.h"
 
@@ -989,7 +989,7 @@ void extrapolation_manager::draw_extrapolations(
 	};
 
 	render.sorter.execute(ctx, geom.nodes_arena.as_vertex_buffer(), geom.node_indices.size(), *geom.segment_idx_buf_ptr, sort_arguments);
-	
+
 	render.sort_time_query.end_scope();
 
 	// Set up draw call

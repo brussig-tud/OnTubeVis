@@ -43,6 +43,9 @@
 #include <stdlib.h>
 #include <vector>
 
+
+namespace otv::arclen {
+
 template <class TYPE> class PolynomialRegression {
   public:
     PolynomialRegression();
@@ -158,3 +161,5 @@ bool PolynomialRegression<TYPE>::fitIt(const std::vector<TYPE> &x, const std::ve
 
     return true;
 }
+
+} // namespace otv::arclen

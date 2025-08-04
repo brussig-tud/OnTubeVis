@@ -14,15 +14,17 @@
 #include <cgv/math/functions.h>
 
 // arclength library
-#include "arclength/bezier.h"
-#include "arclength/hermite.h"
+#include "bezier.h"
+#include "hermite.h"
 
 // internal
 #include "curveutils.h"
 
 // implemented header
-#include "arclen_helper.h"
+#include "main.h"
 
+
+namespace otv::arclen {
 
 ////
 // Local types and variables
@@ -47,9 +49,6 @@ struct curve_segment
 
 ////
 // Class implementation - arclen
-
-// namespace open
-namespace arclen {
 
 template <class flt_type>
 cgv::math::fmat<flt_type, 4, 4> single_linear_t_to_s (flt_type dist, flt_type offset)

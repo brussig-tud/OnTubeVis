@@ -3,6 +3,9 @@
 #include <cmath>
 #include <cgv/math/fvec.h>
 
+
+namespace otv::arclen {
+
 template <typename FLOAT_TYPE> struct v3 {
   FLOAT_TYPE x = 0.0F;
   FLOAT_TYPE y = 0.0F;
@@ -108,3 +111,5 @@ v3<F1> operator/(const F2 scalar, const v3<F1> &v) {
   return v3<F1>(v.x / static_cast<F1>(scalar), v.y / static_cast<F1>(scalar),
                   v.z / static_cast<F1>(scalar));
 }
+
+} // namespace otv::arclen

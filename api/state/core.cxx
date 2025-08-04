@@ -527,7 +527,7 @@ OTV_API void otv__stream_spline_node_and_extrapol (
 OTV_API OTV_SegmentArclen otv__compute_arclen (
 	const OTV_HermiteNode *node0, const OTV_HermiteNode *node1, const float sigma
 ){
-	const cgv::mat4 alen = arclen::compute_single_t_to_s<float>(
+	const cgv::mat4 alen = otv::arclen::compute_single_t_to_s<float>(
 		*(cgv::vec3*)(float*)&node0->position, *(cgv::vec3*)(float*)&node0->tangent,
 		*(cgv::vec3*)(float*)&node1->position,*(cgv::vec3*)(float*)&node1->tangent, sigma
 	);
@@ -535,7 +535,7 @@ OTV_API OTV_SegmentArclen otv__compute_arclen (
 }
 
 OTV_API float otv__eval_arclen (const OTV_SegmentArclen *s, const float t) {
-	return arclen::eval(*(cgv::mat4*)s->coeffs, t);
+	return otv::arclen::eval(*(cgv::mat4*)s->coeffs, t);
 }
 
 OTV_API OTV_Vec3 otv__latlon_height_to_cartesian (const double latitude, const double longitude, const double height)

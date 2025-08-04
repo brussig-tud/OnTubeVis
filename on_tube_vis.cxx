@@ -47,9 +47,9 @@
 #include "api/util/cppstream.h"
 
 // Local includes
-#include "arclen_helper.h"
 #include "glyph_compiler.h"
 #include "layer_config_io.h"
+#include "arclen/main.h"
 #include "gpumem/memory_pool.inl"
 #include "gpumem/ring_buffer.inl"
 #ifdef RTX_SUPPORT
@@ -3364,7 +3364,7 @@ void on_tube_vis::update_attribute_bindings(void)
 		cgv::utils::stopwatch s(true);
 		std::cout << "Computing arclength parametrization... ";
 
-		client.arclen_data = arclen::compute_parametrization(traj_mgr);
+		client.arclen_data = otv::arclen::compute_parametrization(traj_mgr);
 
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 

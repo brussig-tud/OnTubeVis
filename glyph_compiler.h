@@ -4,9 +4,9 @@
 //#include <cgv/render/render_types.h>
 
 // local includes
-#include "arclen_helper.h"
 #include "traj_loader.h"
 #include "glyph_layer_manager.h"
+#include "arclen/main.h"
 #include "render/common.h"
 
 
@@ -147,7 +147,7 @@ protected:
 				if((seg == num_segments - 1 || min_t >= segtime.t0) && min_t <= segtime.t1) {
 					// compute segment-relative t and arclength
 					const float t_seg = (min_t - segtime.t0) / (segtime.t1 - segtime.t0),
-					            s = arclen::eval(alen[global_seg], t_seg);
+					            s = otv::arclen::eval(alen[global_seg], t_seg);
 
 					for(size_t i = 0; i < attrib_count; ++i) {
 						unsigned attrib_idx = attrib_indices[i];
@@ -403,7 +403,7 @@ protected:
 				if((seg == num_segments - 1 || sample_t >= segtime.t0) && sample_t <= segtime.t1) {
 					// compute segment-relative t and arclength
 					const float t_seg = (sample_t - segtime.t0) / (segtime.t1 - segtime.t0),
-					            s = arclen::eval(alen[global_seg], t_seg);
+					            s = otv::arclen::eval(alen[global_seg], t_seg);
 
 					// interpolate each mapped attribute value
 					for(size_t i = 0; i < attrib_count; ++i) {
@@ -510,7 +510,7 @@ protected:
 	}
 
 	// generate a glyph at uniformly spaced time steps by interpolating attributes
-	void compile_glyphs_front_equidistant(const traj_attribute<float> &P, const std::vector<range> &tube_trajs, const arclen::parametrization &param, const glyph_layer_manager::configuration::layer_configuration &layer_config, layer_compile_info &lci) {
+	void compile_glyphs_front_equidistant(const traj_attribute<float> &P, const std::vector<range> &tube_trajs, const otv::arclen::parametrization &param, const glyph_layer_manager::configuration::layer_configuration &layer_config, layer_compile_info &lci) {
 		// convenience shorthands
 		const size_t attrib_count = lci.attrib_count;
 		const auto& mapped_attribs = lci.mapped_attribs;
@@ -629,7 +629,7 @@ protected:
 				if((seg == num_segments - 1 || sample_t >= segtime.t0) && sample_t <= segtime.t1) {
 					// compute segment-relative t and arclength
 					const float t_seg = (sample_t - segtime.t0) / (segtime.t1 - segtime.t0),
-					            s = arclen::eval(param.t_to_s[global_seg], t_seg);
+					            s = otv::arclen::eval(param.t_to_s[global_seg], t_seg);
 
 					// interpolate each mapped attribute value
 					for(size_t i = 0; i < attrib_count; ++i) {
@@ -730,7 +730,7 @@ protected:
 				// - terminate immediatly if next sample point is beyond trajectory bound
 				if (next_seg >= num_segments) break;
 				// - query arclenght parametrization for segment t and offset to get actual global timestamp
-				const float sample_t_local = arclen::map(param.t_to_s[next_seg_global], param.s_to_t[next_seg_global], sample_s);
+				const float sample_t_local = otv::arclen::map(param.t_to_s[next_seg_global], param.s_to_t[next_seg_global], sample_s);
 				segtime = segment_time_get(P, tube_traj, next_seg);
 				sample_t = segtime.t0 + sample_t_local*(segtime.t1-segtime.t0);
 			}
@@ -747,7 +747,7 @@ protected:
 		}
 	}
 
-	void compile_glyph_layer(size_t layer_idx, const traj_dataset<float>& data_set, const arclen::parametrization &parametrization, const std::vector<std::string>& attrib_names, const glyph_layer_manager::configuration::layer_configuration& layer_config, const traj_attribute<float>& P, const std::vector<range>& tube_trajs) {
+	void compile_glyph_layer(size_t layer_idx, const traj_dataset<float>& data_set, const otv::arclen::parametrization &parametrization, const std::vector<std::string>& attrib_names, const glyph_layer_manager::configuration::layer_configuration& layer_config, const traj_attribute<float>& P, const std::vector<range>& tube_trajs) {
 
 		const AttributeSamplingStrategy sampling_strategy = layer_config.sampling_strategy;
 		layer_compile_info lci(layer_config.shape_ptr);
@@ -796,7 +796,7 @@ protected:
 		layer_timestamps[layer_idx] = lci.times;
 	}
 
-	void compile_glyph_attributes_impl(const traj_dataset<float> &data_set, const arclen::parametrization &parametrization, const glyph_layer_manager::configuration &layers_config) {
+	void compile_glyph_attributes_impl(const traj_dataset<float> &data_set, const otv::arclen::parametrization &parametrization, const glyph_layer_manager::configuration &layers_config) {
 		const auto &P = data_set.positions().attrib;
 		const auto &tube_trajs = data_set.trajectories(P);
 
@@ -840,7 +840,7 @@ public:
 	bool include_hidden_glyphs;
 	float length_scale;
 
-	bool compile_glyph_attributes(const traj_dataset<float> &data_set, const arclen::parametrization &parametrization, const glyph_layer_manager::configuration &layers_config) {
+	bool compile_glyph_attributes(const traj_dataset<float> &data_set, const otv::arclen::parametrization &parametrization, const glyph_layer_manager::configuration &layers_config) {
 		bool success = false;
 		layer_filled.clear();
 		layer_ranges.clear();

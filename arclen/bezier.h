@@ -7,6 +7,9 @@
 
 #include "v3.h"
 
+
+namespace otv::arclen {
+
 template <typename FLOAT_TYPE> struct Bezier;
 
 template <typename FLOAT_TYPE> struct aabb {
@@ -239,3 +242,5 @@ template <typename FLOAT_TYPE> struct Bezier {
     static Bezier<FLOAT_TYPE> fit_to_points(v3<FLOAT_TYPE> p0, v3<FLOAT_TYPE> p1, v3<FLOAT_TYPE> p2, v3<FLOAT_TYPE> p3,
                                             FLOAT_TYPE t1, FLOAT_TYPE t2);
 };
+
+} // namespace otv::arclen

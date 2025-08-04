@@ -13,7 +13,7 @@
 
 /// helper functions for generating arc length estimations and parametrizations for trajectories loaded
 /// via the trajectory manager
-namespace arclen
+namespace otv::arclen
 {
 	/// encapsulates t→s and s→t maps of an arclength parametrization of a Hermite spline, represented by
 	/// 4-segment cubic Bezier splines (stored in a 4x4 matrix) for each Hermite spline segment and mapping

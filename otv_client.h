@@ -5,10 +5,10 @@
 
 #include <OnTubeVis/OnTubeVis.h>
 
-#include "arclen_helper.h"
 #include "color_map_manager.h"
 #include "traj_loader.h"
 #include "util.h"
+#include "arclen/main.h"
 #include "render/trajectory.h"
 #include "render/extrapolation.h"
 

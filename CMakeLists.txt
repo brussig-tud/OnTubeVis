@@ -111,8 +111,9 @@ set(SOURCES
 		api/state/streaming.cxx
 
 		# arclength helpers
-		arclength/bezier.cpp
-		arclength/hermite.cpp
+		arclen/bezier.cpp
+		arclen/hermite.cpp
+		arclen/main.cxx
 
 		# Data format handlers.
 		fmt/bcc.cxx
@@ -135,7 +136,6 @@ set(SOURCES
 
 		# main app
 		ambient_occlusion_style.cxx
-		arclen_helper.cxx
 		attrib_handle_manager.cxx
 		color_legend_manager.cxx
 		color_map_manager.cxx
@@ -170,10 +170,11 @@ set(HEADERS
 		api/util/cppstream.h
 
 		# arclength helpers
-		arclength/bezier.h
-		arclength/hermite.h
-		arclength/PolynomialRegression.h
-		arclength/v3.h
+		arclen/bezier.h
+		arclen/hermite.h
+		arclen/main.h
+		arclen/PolynomialRegression.h
+		arclen/v3.h
 
 		# Data format handlers.
 		fmt/bcc.h
@@ -214,7 +215,6 @@ set(HEADERS
 
 		# main app
 		ambient_occlusion_style.h
-		arclen_helper.h
 		attrib_handle_manager.h
 		color_legend_manager.h
 		color_map_manager.h
