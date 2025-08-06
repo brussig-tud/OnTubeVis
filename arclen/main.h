@@ -1,6 +1,7 @@
 #pragma once
 
 // C++ STL
+#include <span>
 #include <vector>
 
 // CGV framework core
@@ -51,6 +52,16 @@ namespace otv::arclen
 
 	/// compute arclength approximation for all trajectory segments of all loaded datasets.
 	template <class flt_type> parametrization compute_parametrization (const traj_manager<flt_type> &mgr);
+
+	/// Compute a linear arclength parametrization for all segments in the given dataset.
+	/// Sufficiently accurate for densly sampled data, but much faster than the default computation.
+	template <class flt_type>
+	void linear_parametrization (
+		typename traj_manager<flt_type>::render_data const&,
+		typename traj_manager<flt_type>::render_data::dataset const&,
+		std::span<cgv::mat4> t_to_s,
+		std::span<cgv::mat4> s_to_t
+	);
 
 	/// create a GPU-side storage buffer holding the approximate t→s arclength mapping
 	cgv::render::vertex_buffer upload_renderdata (

@@ -1124,6 +1124,7 @@ struct traj_dataset<flt_type>::Impl
 	std::unordered_map<unsigned, std::vector<range>> trajs;
 	std::vector<range> empty_default_trajectories;
 	visual_attribute_mapping<flt_type> attrmap;
+	traj_manager<flt_type>::render_data::dataset::pfn_arclen arclen_fn = nullptr;
 	std::pair<real, real> minmax_pos_ts;
 	real avg_seg_len;
 
@@ -1340,6 +1341,12 @@ std::vector<range>& traj_dataset<flt_type>::trajectories (const traj_attribute<r
 }
 
 template <class flt_type>
+auto traj_dataset<flt_type>::arclen_fn () -> pfn_arclen&
+{
+	return pimpl->arclen_fn;
+}
+
+template <class flt_type>
 std::string& traj_dataset<flt_type>::name (void)
 {
 	return pimpl->name;
@@ -1471,7 +1478,7 @@ bool traj_dataset<flt_type>::set_mapping (const visual_attribute_mapping<real> &
 			return true;
 		}
 	}
-	return false; 
+	return false;
 }
 
 template <class flt_type>
@@ -1541,11 +1548,17 @@ std::vector<range>& traj_format_handler<flt_type>::trajectories (traj_dataset<re
 }
 
 template <class flt_type>
+auto traj_format_handler<flt_type>::arclen_fn (traj_dataset<real> &dataset) -> pfn_arclen&
+{
+	return dataset.arclen_fn();
+}
+
+template <class flt_type>
 const std::vector<std::string>& traj_format_handler<flt_type>::handled_extensions (void) const
 {
 	static const std::vector<std::string> empty;
 	return empty;
-}	
+}
 
 template <class flt_type>
 bool traj_format_handler<flt_type>::can_handle_file (const std::string &file_extension, std::istream &contents) const
@@ -2110,7 +2123,8 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 			}
 			impl.rd.datasets.emplace_back(typename traj_manager<flt_type>::render_data::dataset(
 				/* full dataset range */ { idx_base, (unsigned)impl.rd.indices.size()-idx_base },
-				/* individual trajectory ranges*/ std::move(traj_ranges)
+				/* individual trajectory ranges*/ std::move(traj_ranges),
+				dataset.arclen_fn()
 			));
 			auto &ds_info = impl.rd.datasets.back();
 

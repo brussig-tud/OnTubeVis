@@ -1,9 +1,9 @@
 
 // C++ STL
-#include <vector>
-#include <unordered_map>
 #include <algorithm>
+#include <execution>
 #include <utility>
+#include <vector>
 
 // OpenMP
 #ifdef OMP_SUPPORT
@@ -118,6 +118,18 @@ parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 	// approximate arclength for all datasets
 	for (const auto &dataset : rd.datasets)
 	{
+		// Trajectory format handlers can hook a function to compute the arclength parametrization.
+		// Otherwise the default implementation below is used.
+		if (dataset.arclen_fn) {
+			dataset.arclen_fn(
+				rd,
+				dataset,
+				std::span{t_to_s.data() + dataset.irange.i0/2, dataset.irange.n/2},
+				std::span{s_to_t.data() + dataset.irange.i0/2, dataset.irange.n/2}
+			);
+			continue;
+		}
+
 		// approximate arclength for each trajectory in order
 		#pragma omp parallel for
 		for (int traj_idx=0; traj_idx<dataset.trajs.size(); traj_idx++)
@@ -211,6 +223,43 @@ parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 	return {std::move(t_to_s), std::move(s_to_t)};
 }
 
+template <class flt_type>
+void linear_parametrization(
+	typename traj_manager<flt_type>::render_data const&          render,
+	typename traj_manager<flt_type>::render_data::dataset const& dataset,
+	std::span<cgv::mat4> t_to_s,
+	std::span<cgv::mat4> s_to_t
+) {
+	// Node indices of segments in this dataset.
+	auto const indices = std::span{render.indices.data() + dataset.irange.i0, dataset.irange.n};
+
+	// t to s:
+	#pragma omp parallel for
+	for (auto const& traj : dataset.trajs) {
+		// Total length of this trajectory.
+		auto len = flt_type{0};
+		// Node indices and arclength parametrization of segments in this trajectory.
+		auto const idcs = indices.subspan(traj.i0);
+		auto const t2s  = t_to_s.subspan(traj.i0/2);
+
+		// For every segment:
+		for (auto i = 0u; i < traj.n; i += 2) {
+			auto const seg_len =
+				(render.positions[idcs[i + 1]] - render.positions[idcs[i]]).length();
+			t2s[i/2] = single_linear_t_to_s(seg_len, len);
+			len     += seg_len;
+		}
+	};
+
+	// s to t: Local to each segment, thus identical for all.
+	std::fill(
+		std::execution::par_unseq,
+		s_to_t.begin(),
+		s_to_t.end(),
+		single_linear_t_to_s<flt_type>(1, 0)
+	);
+}
+
 cgv::render::vertex_buffer upload_renderdata (cgv::render::context& ctx, const std::vector<cgv::mat4> &approximations)
 {
 	// init new buffer object
@@ -250,6 +299,19 @@ template cgv::math::fmat<double, 4, 4> compute_single_t_to_s<double> (
 );
 template parametrization compute_parametrization<float>(const traj_manager<float>&);
 template parametrization compute_parametrization<double>(const traj_manager<double>&);
+
+template void linear_parametrization<float>(
+	traj_manager<float>::render_data const&,
+	traj_manager<float>::render_data::dataset const&,
+	std::span<cgv::mat4>,
+	std::span<cgv::mat4>
+);
+template void linear_parametrization<double>(
+	traj_manager<double>::render_data const&,
+	traj_manager<double>::render_data::dataset const&,
+	std::span<cgv::mat4>,
+	std::span<cgv::mat4>
+);
 
 // namespace close
 };
