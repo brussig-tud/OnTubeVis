@@ -3362,7 +3362,7 @@ void on_tube_vis::update_attribute_bindings(void)
 
 		// Recompute arclength parametrization
 		cgv::utils::stopwatch s(true);
-		std::cout << "Computing arclength parametrization... ";
+		std::cout << "Computing arclength parametrization... " << std::flush;
 
 		client.arclen_data = otv::arclen::compute_parametrization(traj_mgr);
 

@@ -3,9 +3,9 @@ type(fltk_viewer_window):theme=dark
 
 // Data
 // - dataset to load
-type(on_tube_vis):datapath="./testdata/cps_drone.csv"
+type(on_tube_vis):datapath="../data/jtf19/data/index.jtf19"
 // - initial glyph layer config
-type(on_tube_vis):layer_config_file="./testdata/cps_drone_apiGlyphs.xml"
+type(on_tube_vis):layer_config_file="../data/jtf19/glyphs.xml"
 // - what fraction of segments should fit in case of internally streamed datasets (default: 100%)
 type(on_tube_vis):buf_size_fract=1
 // - how many more glyphs than segments should fit into the per-traj-and-layer glyph buffers (default: 8)
