@@ -127,6 +127,7 @@ set(SOURCES
 		fmt/tgen.cxx
 
 		# GPU-accessible memory.
+		gpumem/buddy_alloc.cxx
 		gpumem/memory_pool.cxx
 
 		# Trajectory rendering.
@@ -192,6 +193,7 @@ set(HEADERS
 		gpumem/alloc.inl
 		gpumem/array.h
 		gpumem/array.inl
+		gpumem/buddy_alloc.h
 		gpumem/common.h
 		gpumem/memory_pool.h
 		gpumem/memory_pool.inl
