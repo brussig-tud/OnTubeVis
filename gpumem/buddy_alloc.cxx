@@ -6,7 +6,8 @@
 #include <iostream>
 #include <print>
 
-/// Marks messages from this file.
+
+/// Marks log messages from this file.
 #define LOG_TAG "\x1b[1m[buddy_alloc]\x1b[m"
 
 
@@ -16,7 +17,7 @@ namespace {
 
 /// Controls the amount of debug messages produced by the allocator.
 /// Ranges from 0 (no output) to 3 (full output).
-constexpr auto log_level = 2u;
+constexpr auto log_level = 1u;
 
 /// Print a message to `std::clog` using a C++ 20 format string.
 /// Does not append a newline.
@@ -62,7 +63,7 @@ buddy_alloc::buddy_alloc(std::span<std::byte> memory, uint8_t base_order)
 		);
 
 	if constexpr (log_level > 2)
-		log(LOG_TAG" Initialize available blocks.\n");
+		log("Initialize available blocks.\n");
 
 	// Start at the root block.
 	auto first_block = 1;
@@ -101,7 +102,7 @@ auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 	auto const req_order = required_order(num_bytes);
 
 	if constexpr (log_level > 1)
-		log(LOG_TAG"Allocating {} bytes in a block of order {}.\n", num_bytes, req_order);
+		log(LOG_TAG" Allocating {} bytes in a block of order {}.\n", num_bytes, req_order);
 
 	auto block = 1uz;
 	// The root node stores the order of the largest block currently available.
@@ -132,7 +133,7 @@ auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 		(block - (1 << (_max_order - req_order))) // Block index within level.
 		<< (_base_order + req_order - 1) // Times block size in bytes.
 	]);
-	if constexpr (log_level > 2) log(LOG_TAG" Allocated block {} at {}.\n", block, allocation);
+	if constexpr (log_level > 2) log("Allocated block {} at {}.\n", block, allocation);
 
 	// Check alignment.
 	if (reinterpret_cast<uintptr_t>(allocation) & (align - 1)) throw std::bad_alloc{};
@@ -175,7 +176,7 @@ void buddy_alloc::do_deallocate (void* ptr, size_t num_bytes, size_t align) noex
 		+ (offset >> (_base_order + order - 1)); // Offset within the level.
 
 	if constexpr (log_level > 2)
-		log(LOG_TAG" Allocated in block {}, order {}.\n", block, order);
+		log("Allocated in block {}, order {}.\n", block, order);
 
 	// A free block's capacity is equal to its order.
 	auto new_cap = _capacity[block] = order;

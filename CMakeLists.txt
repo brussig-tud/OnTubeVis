@@ -129,6 +129,7 @@ set(SOURCES
 		# GPU-accessible memory.
 		gpumem/buddy_alloc.cxx
 		gpumem/memory_pool.cxx
+		gpumem/pool_alloc.cxx
 
 		# Trajectory rendering.
 		render/common.cxx
@@ -197,6 +198,7 @@ set(HEADERS
 		gpumem/common.h
 		gpumem/memory_pool.h
 		gpumem/memory_pool.inl
+		gpumem/pool_alloc.h
 		gpumem/ring_buffer.h
 		gpumem/ring_buffer.inl
 		gpumem/ring_buffer_alt.h

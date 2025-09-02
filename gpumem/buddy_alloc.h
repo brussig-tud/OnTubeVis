@@ -46,7 +46,6 @@ private:
 	[[nodiscard]] auto do_allocate (size_t num_bytes, size_t align) -> void* override;
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_deallocate.html.
 	void do_deallocate (void*, size_t num_bytes, size_t align) noexcept override;
-
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_is_equal.html.
 	[[nodiscard]] auto do_is_equal (std::pmr::memory_resource const& other) const noexcept
 		-> bool override
