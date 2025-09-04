@@ -1,5 +1,6 @@
 #pragma once
 
+// C** STL
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -34,6 +35,11 @@ public:
 	pool_alloc(pool_alloc&&) = default;
 	auto operator= (pool_alloc&&) -> pool_alloc& = default;
 
+#ifndef NDEBUG
+	/// Check that all allocations have been freed when the instance is destroyed.
+	~pool_alloc() noexcept;
+#endif
+
 private:
 	/// A chunk of memory obtained from the parent allocator, subdivided into smaller blocks.
 	struct chunk {
@@ -55,7 +61,9 @@ private:
 	size_t _chunk_size {};
 	/// The smallest block that can be individually allocated has a size of 2 ^ `_min_order` bytes.
 	uint8_t _min_order {};
-	/// Requests for more than 2 ^ `_max_order` bytes are forwarded to the parent allocator.
+	/// The largest block that could fit into a chunk has a size of 2 ^ `_max_order` bytes.
+	/// Since there is no point in having chunks that contain only one block, any request for more
+	/// than half that size are forwarded to the parent allocator.
 	uint8_t _max_order {};
 
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_allocate.html.

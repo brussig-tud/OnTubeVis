@@ -1,10 +1,11 @@
-#include "buddy_alloc.h"
-
 // C++ STL
 #include <bit>
 #include <cassert>
 #include <iostream>
 #include <print>
+
+// implemented header
+#include "buddy_alloc.h"
 
 
 /// Marks log messages from this file.
@@ -93,6 +94,17 @@ buddy_alloc::buddy_alloc(std::span<std::byte> memory, uint8_t base_order)
 	}
 }
 
+#ifndef NDEBUG
+buddy_alloc::~buddy_alloc() noexcept
+{
+	// Check that all allocations have been freed.
+	if (_capacity && _allocated_bytes > 0)
+		log("\x1b[1;33m[warning]" LOG_TAG" Instance destroyed with {} bytes still allocated.\n",
+			_allocated_bytes
+		);
+}
+#endif
+
 auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 {
 	// Allocator must be initialized and not moved from.
@@ -138,6 +150,11 @@ auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 	// Check alignment.
 	if (reinterpret_cast<uintptr_t>(allocation) & (align - 1)) throw std::bad_alloc{};
 
+#ifndef NDEBUG
+	// Track memory usage.
+	_allocated_bytes += 1 << (_base_order + req_order - 1);
+#endif
+
 	// Mark the allocated block as occupied.
 	auto new_cap = _capacity[block] = 0;
 
@@ -168,6 +185,11 @@ void buddy_alloc::do_deallocate (void* ptr, size_t num_bytes, size_t align) noex
 
 	if constexpr (log_level > 1)
 		log(LOG_TAG" Free {} bytes at {}.\n", num_bytes, ptr);
+
+#ifndef NDEBUG
+	// Track memory usage.
+	_allocated_bytes -= 1 << (_base_order + order - 1);
+#endif
 
 	// Calculate which block the allocation corresponds to.
 	auto const offset = static_cast<size_t>(static_cast<std::byte*>(ptr) - _memory);

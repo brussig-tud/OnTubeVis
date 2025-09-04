@@ -16,6 +16,11 @@ class buddy_alloc : public std::pmr::memory_resource {
 private:
 	/// Start of the memory range managed by the allocator.
 	std::byte* _memory {};
+#ifndef NDEBUG
+	/// Combined size in bytes of all blocks currently in use.
+	/// Only used for a sanity check.
+	size_t _allocated_bytes {};
+#endif
 	/// Full and complete binary tree storing the order of the largest free block in each subtree.
 	/// The children of block n are found at indices 2n and 2n + 1, with the root at index 1.
 	/// Order 0 indicates a full block, order 1 a free block of size `_base_order` etc.
@@ -23,7 +28,7 @@ private:
 	/// The size of the smallest block (order 1) is 2 ^ `_base_order` bytes.
 	uint8_t _base_order {};
 	/// Order of the root block containing all other blocks.
-	/// The root block max be larger than the managed memory range.
+	/// The root block may be larger than the managed memory range.
 	uint8_t _max_order {};
 
 public:
@@ -40,6 +45,13 @@ public:
 	// Allow moving.
 	buddy_alloc(buddy_alloc&&) = default;
 	auto operator= (buddy_alloc&&) -> buddy_alloc& = default;
+
+#ifndef NDEBUG
+	/// Check that all allocations have been freed when the instance is destroyed.
+	/// Note, however, that since `buddy_alloc` does not own the memory it manages, any allocations
+	/// that do still exist remain valid and do not necessarily constitute an error.
+	~buddy_alloc() noexcept;
+#endif
 
 private:
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_allocate.html.

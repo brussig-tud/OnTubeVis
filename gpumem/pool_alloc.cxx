@@ -1,10 +1,11 @@
-#include "pool_alloc.h"
-
 // C++ STL
 #include <bit>
 #include <cassert>
 #include <iostream>
 #include <print>
+
+// implemented header
+#include "pool_alloc.h"
 
 
 /// Marks log messages from this file.
@@ -41,7 +42,7 @@ pool_alloc::pool_alloc (std::pmr::memory_resource& parent, size_t chunk_size, ui
 	: _parent {&parent}
 	// Blocks must be large enough to store a free-list pointer.
 	, _min_order {std::max<uint8_t>(min_order, std::bit_width(sizeof(void*) - 1)/*ceil(log2)*/)}
-	, _max_order {std::max<uint8_t>(std::bit_width(chunk_size) - 2/*floor(log2) - 1*/, 0)}
+	, _max_order {std::max<uint8_t>(std::bit_width(chunk_size) - 1/*floor(log2)*/, 0)}
 {
 	// Round down chunk size to the next multiple of the smallest block.
 	_chunk_size = (chunk_size >> _min_order) << _min_order;
@@ -51,15 +52,31 @@ pool_alloc::pool_alloc (std::pmr::memory_resource& parent, size_t chunk_size, ui
 			"\n\tChunk size: {} bytes"
 			"\n\tMin block:  {} bytes"
 			"\n\tMax block:  {} bytes\n",
-			_chunk_size, 1 << _min_order, 1 << _max_order
+			_chunk_size, 1 << _min_order, 1 << (_max_order - 1)
 		);
 
 	// Chunks must be large enough to store at least two blocks of the smallest size.
-	assert(_min_order <= _max_order);
+	assert(_min_order < _max_order);
 
 	// Create empty pool lists, since no chunks have been allocated.
-	_pools = std::make_unique<std::vector<chunk>[]>(_max_order - _min_order + 1);
+	_pools = std::make_unique<std::vector<chunk>[]>(_max_order - _min_order);
 }
+
+#ifndef NDEBUG
+pool_alloc::~pool_alloc() noexcept
+{
+	if (!_pools) return;
+
+	// Check whether any chunks, and therefore blocks, are still allocated.
+	// Remaining chunks are not freed; this leaks memory but avoids potential crashes from freeing
+	// objects still in use.
+	for (auto const& chunks : std::span{&_pools[0], static_cast<size_t>(_max_order - _min_order)})
+		if (!chunks.empty()) {
+			log("\x1b[1;31m[error]" LOG_TAG" Not all blocks have been freed.");
+			return;
+		}
+}
+#endif
 
 auto pool_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 {
@@ -73,7 +90,7 @@ auto pool_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 		log(LOG_TAG" Allocating {} bytes in a block of order {}.\n", num_bytes, order);
 
 	// Requests for more than half a chunk are forwarded to the parent allocator.
-	if (order > _max_order) {
+	if (order >= _max_order) {
 		if constexpr (log_level > 2) log("Delegated to parent.\n");
 		return _parent->allocate(num_bytes, align);
 	}
@@ -150,7 +167,7 @@ void pool_alloc::do_deallocate (void* ptr, size_t num_bytes, size_t align) noexc
 		log(LOG_TAG" Free {} bytes at {}.\n", num_bytes, ptr);
 
 	// Large allocations are handled by the parent.
-	if (order > _max_order) {
+	if (order >= _max_order) {
 		if constexpr (log_level > 2) log("Delegated to parent.\n");
 		return _parent->deallocate(ptr, num_bytes, align);
 	}
