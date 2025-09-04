@@ -154,11 +154,11 @@ struct finalizer
 
 /// A simple RAII-wrapper for some resource. Calls the specified cleanup function on the wrapped resource in its
 /// destructor.
-template <class ResourceHandle, void(*finalizer)(ResourceHandle)>
+template <class ResourceHandle, void(*finalizer)(ResourceHandle), ResourceHandle none = {}>
 struct RAII
 {
 	/// Handle for the wrapped resource.
-	ResourceHandle handle;
+	ResourceHandle handle = none;
 
 	// No default and copy construction/assignment.
 	RAII() = delete;
@@ -166,7 +166,25 @@ struct RAII
 	RAII& operator= (const ResourceHandle&) = delete;
 
 	/// The move constructor.
-	inline RAII(RAII &&other) = default;
+	inline RAII(RAII &&other)
+		: handle {std::move(other.handle)}
+	{
+		// Clear the previous owner to avoid double-free.
+		other.handle = none;
+	}
+
+	/// Move assignment.
+	inline RAII& operator= (RAII &&other)
+	{
+		// Make self-assignment a NOP.
+		if (&other == this) return *this;
+		// Release any currently held resource.
+		drop();
+		// Take the handle from its previous owner.
+		handle = std::move(other.handle);
+		other.handle = none;
+		return *this;
+	}
 
 	/// Construct by moving in the given resource.
 	inline RAII(ResourceHandle &&handle) : handle(std::move(handle))
@@ -179,9 +197,9 @@ struct RAII
 
 	/// Explicitly call the finalizer on the wrapped resource. Leaves the RAII wrapper in an undefined state.
 	inline void drop (void) {
-		if (handle) {
+		if (handle != none) {
 			finalizer(handle);
-			handle = nullptr;
+			handle = none;
 		}
 	}
 };
