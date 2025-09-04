@@ -423,6 +423,7 @@ auto jtf19<flt_type>::read(
 	// Configure dataset.
 	ds.set_mapping({{
 		{VisualAttrib::POSITION, {"position"}},
+		{VisualAttrib::TANGENT,  {"tangent"}},
 	}});
 	base::arclen_fn(ds) = otv::arclen::linear_parametrization<real>;
 	return ds;
@@ -525,6 +526,7 @@ void jtf19<flt_type>::gen_trajectories(
 
 	// Create attributes.
 	auto position    = base::template add_attribute<Vec3>(ds, "position");
+	auto tangent     = base::template add_attribute<Vec4>(ds, "tangent");
 	auto velocity    = base::template add_attribute<Vec3>(ds, "velocity");
 	auto orientation = base::template add_attribute<Vec4>(ds, "orientation");
 	auto max_axis    = base::template add_attribute<real>(ds, "max_axis");
@@ -558,7 +560,9 @@ void jtf19<flt_type>::gen_trajectories(
 
 		/// Actually store the last node in the dataset.
 		auto const push_node = [&]() {
-			position.data.append(prev_node.pos, sim.timestamps[prev_node.timestep]);
+			auto const time = sim.timestamps[prev_node.timestep];
+			position.data.append(prev_node.pos, time);
+			tangent.data.append({trace.velocity[prev_node.timestep], 0}, time);
 			// Other attributes are copied contiguously at the end of the trace.
 		};
 		/// Create a segment between the previous node and the current position, which becomes the
