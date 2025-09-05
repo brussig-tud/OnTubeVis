@@ -53,6 +53,12 @@ public:
 	~buddy_alloc() noexcept;
 #endif
 
+	/// Start of the memory range managed by this instance.
+	[[nodiscard]] constexpr auto data () const noexcept -> std::byte const*
+	{
+		return _memory;
+	}
+
 private:
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_allocate.html.
 	[[nodiscard]] auto do_allocate (size_t num_bytes, size_t align) -> void* override;

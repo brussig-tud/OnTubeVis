@@ -128,6 +128,7 @@ set(SOURCES
 
 		# GPU-accessible memory.
 		gpumem/buddy_alloc.cxx
+		gpumem/heap.cxx
 		gpumem/memory_pool.cxx
 		gpumem/pool_alloc.cxx
 
@@ -196,6 +197,7 @@ set(HEADERS
 		gpumem/array.inl
 		gpumem/buddy_alloc.h
 		gpumem/common.h
+		gpumem/heap.h
 		gpumem/memory_pool.h
 		gpumem/memory_pool.inl
 		gpumem/pool_alloc.h
