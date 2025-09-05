@@ -62,21 +62,22 @@ pool_alloc::pool_alloc (std::pmr::memory_resource& parent, size_t chunk_size, ui
 	_pools = std::make_unique<std::vector<chunk>[]>(_max_order - _min_order);
 }
 
-#ifndef NDEBUG
-pool_alloc::~pool_alloc() noexcept
+auto pool_alloc::operator= (pool_alloc&& src) noexcept -> pool_alloc&
 {
-	if (!_pools) return;
+	// Self-assignment is a NOP.
+	if (&src == this) return *this;
 
-	// Check whether any chunks, and therefore blocks, are still allocated.
-	// Remaining chunks are not freed; this leaks memory but avoids potential crashes from freeing
-	// objects still in use.
-	for (auto const& chunks : std::span{&_pools[0], static_cast<size_t>(_max_order - _min_order)})
-		if (!chunks.empty()) {
-			log("\x1b[1;31m[error]" LOG_TAG" Not all blocks have been freed.");
-			return;
-		}
+	// Clean up the current state.
+	clean_up();
+
+	// Move members.
+	_parent     = src._parent;
+	_pools      = std::move(src._pools);
+	_chunk_size = src._chunk_size;
+	_min_order  = src._min_order;
+	_max_order  = src._max_order;
+	return *this;
 }
-#endif
 
 auto pool_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 {
@@ -222,6 +223,25 @@ constexpr auto pool_alloc::required_order (size_t num_bytes) const noexcept -> u
 {
 	assert(num_bytes > 0);
 	return std::max<uint8_t>(std::bit_width(num_bytes - 1)/*ceil(log2)*/, _min_order);
+}
+
+void pool_alloc::clean_up () noexcept
+{
+#ifndef NDEBUG
+	if (!_pools) return;
+
+	// Check if there are any allocations that have not been freed
+	// Remaining chunks are not freed; this leaks memory but avoids potential crashes from freeing
+	// objects still in use.
+	auto allocated_bytes = 0uz;
+
+	for (auto order = _min_order; order < _max_order; ++order)
+		for (auto const& chunk : _pools[order - _min_order])
+			allocated_bytes += chunk.capacity * (1uz << order);
+
+	if (allocated_bytes > 0)
+		log("\x1b[1;31m[error]\x1b[m" LOG_TAG" {} bytes leaked.\n", allocated_bytes);
+#endif
 }
 
 } // namespace otv::gpumem

@@ -94,16 +94,24 @@ buddy_alloc::buddy_alloc(std::span<std::byte> memory, uint8_t base_order)
 	}
 }
 
-#ifndef NDEBUG
-buddy_alloc::~buddy_alloc() noexcept
+auto buddy_alloc::operator= (buddy_alloc&& src) noexcept -> buddy_alloc&
 {
-	// Check that all allocations have been freed.
-	if (_capacity && _allocated_bytes > 0)
-		log("\x1b[1;33m[warning]" LOG_TAG" Instance destroyed with {} bytes still allocated.\n",
-			_allocated_bytes
-		);
-}
+	// Self-assignment is a NOP.
+	if (&src == this) return *this;
+
+	// Clean up the current state.
+	clean_up();
+
+	// Move members.
+	_memory = src._memory;
+#ifndef NDEBUG
+	_allocated_bytes = src._allocated_bytes;
 #endif
+	_capacity   = std::move(src._capacity);
+	_base_order = src._base_order;
+	_max_order  = src._max_order;
+	return *this;
+}
 
 auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 {
@@ -238,6 +246,15 @@ constexpr auto buddy_alloc::required_order (size_t num_bytes) const noexcept -> 
 
 	auto const order = std::bit_width(num_bytes - 1); // ceil(log2 num_bytes)
 	return order <= _base_order ? 1 : order - _base_order + 1;
+}
+
+void buddy_alloc::clean_up () noexcept
+{
+#ifndef NDEBUG
+	// Check that all allocations have been freed.
+	if (_capacity && _allocated_bytes > 0)
+		log("\x1b[1;33m[warning]\x1b[m" LOG_TAG" {} bytes leaked.\n", _allocated_bytes);
+#endif
 }
 
 } // namespace otv::gpumem

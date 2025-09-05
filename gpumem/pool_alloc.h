@@ -33,12 +33,12 @@ public:
 
 	// Allow moving.
 	pool_alloc(pool_alloc&&) = default;
-	auto operator= (pool_alloc&&) -> pool_alloc& = default;
+	auto operator= (pool_alloc&&) noexcept -> pool_alloc&;
 
-#ifndef NDEBUG
-	/// Check that all allocations have been freed when the instance is destroyed.
-	~pool_alloc() noexcept;
-#endif
+	~pool_alloc() noexcept
+	{
+		clean_up();
+	}
 
 private:
 	/// A chunk of memory obtained from the parent allocator, subdivided into smaller blocks.
@@ -82,6 +82,9 @@ private:
 	/// `num_bytes` must not be 0.
 	/// A block of order n contains 2^n bytes.
 	[[nodiscard]] constexpr auto required_order (size_t num_bytes) const noexcept -> uint8_t;
+
+	/// Called before an instance is destroyed or replaced.
+	void clean_up () noexcept;
 };
 
 } // namespace otv::gpumem

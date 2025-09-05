@@ -44,14 +44,12 @@ public:
 
 	// Allow moving.
 	buddy_alloc(buddy_alloc&&) = default;
-	auto operator= (buddy_alloc&&) -> buddy_alloc& = default;
+	auto operator= (buddy_alloc&&) noexcept -> buddy_alloc&;
 
-#ifndef NDEBUG
-	/// Check that all allocations have been freed when the instance is destroyed.
-	/// Note, however, that since `buddy_alloc` does not own the memory it manages, any allocations
-	/// that do still exist remain valid and do not necessarily constitute an error.
-	~buddy_alloc() noexcept;
-#endif
+	~buddy_alloc() noexcept
+	{
+		clean_up();
+	}
 
 	/// Start of the memory range managed by this instance.
 	[[nodiscard]] constexpr auto data () const noexcept -> std::byte const*
@@ -76,6 +74,9 @@ private:
 	/// `num_bytes` must not be 0.
 	/// NOTE: The smallest blocks have order 1, so order 0 can be used to mark unavailable blocks.
 	[[nodiscard]] constexpr auto required_order (size_t num_bytes) const noexcept -> uint8_t;
+
+	/// Called before an instance is destroyed or replaced.
+	void clean_up () noexcept;
 };
 
 } // namespace otv::gpumem
