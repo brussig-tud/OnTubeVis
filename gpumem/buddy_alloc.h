@@ -52,7 +52,7 @@ public:
 	}
 
 	/// Start of the memory range managed by this instance.
-	[[nodiscard]] constexpr auto data () const noexcept -> std::byte const*
+	[[nodiscard]] constexpr auto data () const noexcept -> std::byte*
 	{
 		return _memory;
 	}

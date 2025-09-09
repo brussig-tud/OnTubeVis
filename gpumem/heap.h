@@ -63,7 +63,7 @@ public:
 	}
 
 	/// The mapped buffer memory managed by this instance.
-	[[nodiscard]] constexpr auto as_span () const noexcept -> span<const std::byte>
+	[[nodiscard]] constexpr auto as_span () const noexcept -> span<std::byte>
 	{
 		if (!_buddy_alloc) return {};
 		return {_buddy_alloc->data(), _buffer_size, _buffer.handle};
