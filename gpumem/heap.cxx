@@ -8,6 +8,7 @@
 namespace otv::gpumem {
 
 heap::heap(size_t buffer_size, uint8_t chunk_order, uint8_t min_order, sync_mode sync_mode)
+	: _buffer_size {static_cast<size_type>(buffer_size)}
 {
 	// Check parameters.
 	assert(min_order <= chunk_order && buffer_size >= 1 << chunk_order);
