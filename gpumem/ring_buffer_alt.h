@@ -11,8 +11,13 @@
 // C++ STL
 #include <numeric>
 
+// CGV framework
+#include <cgv/render/vertex_buffer.h>
+#include <cgv_gl/gl/gl_context.h>
+
 // Local includes
 #include "gpumem/alloc.h"
+#include "gpumem/array.inl"
 
 
 namespace otv::gpumem {
