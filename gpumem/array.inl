@@ -1,4 +1,4 @@
-#pragma
+#pragma once
 #include "array.h"
 
 #include "alloc.inl"
