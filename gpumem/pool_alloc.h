@@ -24,7 +24,7 @@ public:
 	[[nodiscard]] pool_alloc(
 		std::pmr::memory_resource& parent,
 		size_t  chunk_size,
-		uint8_t min_order
+		uint8_t min_order = 0
 	);
 
 	// Prevent copying.

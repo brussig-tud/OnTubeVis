@@ -2,17 +2,14 @@
 #include <gl_util.h>
 
 // implemented header
-#include "heap.h"
+#include "gpumem/heap.h"
 
 
 namespace otv::gpumem {
 
-heap::heap(size_t buffer_size, uint8_t chunk_order, uint8_t min_order, sync_mode sync_mode)
+heap::heap(size_t buffer_size, sync_mode sync_mode)
 	: _buffer_size {static_cast<size_type>(buffer_size)}
 {
-	// Check parameters.
-	assert(min_order <= chunk_order && buffer_size >= 1 << chunk_order);
-
 	// Create buffer.
 	glGenBuffers(1, &_buffer.handle);
 	glBindBuffer(GL_COPY_WRITE_BUFFER, _buffer.handle);
@@ -39,9 +36,10 @@ heap::heap(size_t buffer_size, uint8_t chunk_order, uint8_t min_order, sync_mode
 		)};
 
 	// Create allocators.
+	auto const chunk_order = std::min(std::bit_width(buffer_size) - 1/*floor(log2)*/, 12);
 	_buddy_alloc = std::make_unique<gpumem::buddy_alloc>(
 		std::span{static_cast<std::byte*>(mapping), buffer_size}, chunk_order);
-	_pool_alloc = {*_buddy_alloc, 1uz << chunk_order, min_order};
+	_pool_alloc = {*_buddy_alloc, 1uz << chunk_order};
 }
 
 void heap::free_buffer (GLuint handle)
