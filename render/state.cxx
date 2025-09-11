@@ -1,7 +1,9 @@
-#include "render/state.h"
-
+// local includes
 #include "gpumem/memory_pool.inl"
 #include "gpumem/ring_buffer.inl"
+
+// implemented header
+#include "render/state.h"
 
 
 namespace otv {
@@ -97,7 +99,23 @@ bool render_state::append_nodes ()
 
 	unsigned nodes_comitted = 0;
 	for (auto node {_node_queue.begin()}; node != end; ++node) {
-		try_get_trajectory(node->trajectory)->append_node(node->node, &node->t_to_s);
+		auto& traj = *try_get_trajectory(node->trajectory);
+
+		// Save the current end of the trajectory.
+		auto const prev_node     = traj.most_recent_node();
+		auto const prev_node_idx = traj.last_node_idx();
+
+		// Add the new node.
+		traj.append_node(node->node, &node->t_to_s);
+
+		// If this created a new segment, insert it into the hash grid.
+		if (traj.last_segment_idx() != trajectory::nil)
+			traj_grid.add_segment(
+				prev_node,
+				traj.most_recent_node(),
+				{static_cast<uint32_t>(prev_node_idx), static_cast<uint32_t>(traj.last_node_idx())}
+			);
+
 		_node_queue.pop();
 		++nodes_comitted;
 		did_something = true;
@@ -256,6 +274,14 @@ bool render_state::create_glyph_layer (
 
 	// Allocate memory for each segment's glyph range.
 	return glyphs[layer].ranges.create(segment_buffer.as_span().length());
+}
+
+void render_state::create_traj_grid (cgv::vec4 cell_size)
+{
+	// Allocate a coherently mapped 1 GiB buffer.
+	grid_mem  = {1 << 30, gpumem::heap::sync_mode::coherent};
+	// Initialize the grid with 2^12 buckets.
+	traj_grid = {grid_mem, traj_grid::dimensions::xyzt, cell_size, 12};
 }
 
 void render_state::collect_timer_queries (const bool collect_render)

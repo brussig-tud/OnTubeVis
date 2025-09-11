@@ -16,10 +16,12 @@
 // local includes
 #include "dbuf_queue.h"
 #include "glyph_layer_manager.h"
-#include "textured_spline_tube_renderer.h"
-#include "gpumem/ring_buffer.inl"
-#include "render/trajectory.h"
+#include "gpumem/heap.h"
+#include "gpumem/ring_buffer.h"
 #include "render/common.h"
+#include "render/traj_grid.h"
+#include "render/trajectory.h"
+#include "textured_spline_tube_renderer.h"
 
 
 namespace otv {
@@ -149,6 +151,12 @@ struct render_state
 	/// Render data and state specific to each trajectory.
 	std::vector<trajectory> trajectories;
 
+	/// GL buffer storing the trajectory grid.
+	gpumem::heap grid_mem {};
+	/// GPU-accessible 4D hash grid of trajectory intervals.
+	/// Used to calculate trajectory relationships with a spatio-temporal kernel on the GPU.
+	traj_grid traj_grid {};
+
 	/// Fence placed directly after the last draw command for synchronization with the GPU.
 	//GLsync draw_fence;
 
@@ -214,6 +222,9 @@ struct render_state
 		gpumem::size_type num_trajectories,
 		glyph_count_type  glyphs_per_trajectory
 	);
+
+	/// Initialize the trajectory hash grid.
+	void create_traj_grid (cgv::vec4 cell_size);
 
 	/// Calculate the extent of a glyph relative to its anchor point on the given layer along the trajectory, taking
 	/// into account the configured scale. Plot control points have flexible extents which cannot be determined in

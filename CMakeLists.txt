@@ -136,6 +136,7 @@ set(SOURCES
 		render/common.cxx
 		render/extrapolation.cxx
 		render/state.cxx
+		render/traj_grid.cxx
 		render/trajectory.cxx
 
 		# main app
@@ -218,6 +219,7 @@ set(HEADERS
 		render/common.h
 		render/extrapolation.h
 		render/state.h
+		render/traj_grid.h
 		render/trajectory.h
 
 		# main app

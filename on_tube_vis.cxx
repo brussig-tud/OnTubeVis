@@ -3461,6 +3461,10 @@ void on_tube_vis::update_attribute_bindings(void)
 			client.precompute_extrapolations();
 		}
 
+		// Initialize the trajectory hash grid.
+		auto const spatial_extent = cgv::math::max_value(bbox.get_extent());
+		render.create_traj_grid({cgv::vec3{spatial_extent / 128}, (tmax - tmin) / 128});
+
 		// Generate the density volume (uses GPU buffer data so we need to do this after upload)
 		create_density_volume(ctx, voxel_grid_resolution);
 	}

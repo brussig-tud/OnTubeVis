@@ -17,6 +17,9 @@ class trajectory {
 public:
 	using id_type = unsigned int;
 
+	/// Index value indicating the lack of an object.
+	static constexpr gpumem::index_type nil {-1};
+
 	/// Create a new trajectory.
 	trajectory(id_type id, render_state &render);
 
@@ -32,9 +35,16 @@ public:
 		return _glyph_sizes;
 	}
 
+	/// Absolute index of the last entry in the node buffer belonging to this trajectory.
 	[[nodiscard]] constexpr gpumem::index_type last_node_idx () const noexcept
 	{
 		return _last_node_idx;
+	}
+
+	/// Absolute index of the last entry in the segment buffer belonging to this trajectory.
+	[[nodiscard]] constexpr gpumem::index_type last_segment_idx () const noexcept
+	{
+		return _last_segment_idx;
 	}
 
 	[[nodiscard]] constexpr bool is_empty () const noexcept
@@ -165,9 +175,6 @@ private:
 		/// Indicates whether `current_segment` has changed since the last call to `update_glyphs`.
 		bool segment_is_new;
 	};
-
-	/// Index value indicating the lack of an object.
-	static constexpr gpumem::index_type nil {-1};
 
 	/// Data specific to each glyph layer.
 	per_layer<layer_data> _layers;
