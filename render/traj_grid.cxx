@@ -35,9 +35,9 @@ constexpr auto max_cuckoo_chain = 50u;
 } // namespace
 
 
-traj_grid::traj_grid(gpumem::heap& memory, dimensions dims, cgv::vec4 cell_size, uint8_t order)
-	: _memory     {&memory}
-	, _buckets    (1uz << order, &memory)
+traj_grid::traj_grid(gpumem::heap* memory, dimensions dims, cgv::vec4 cell_size, uint8_t order)
+	: _memory     {memory}
+	, _buckets    (1uz << order, gpumem::pmr_alloc{_memory})
 	, _scale      {cgv::vec4{1} / cell_size} // index = coords / cell_size
 	, _dimensions {dims}
 {}
@@ -85,7 +85,7 @@ auto traj_grid::get (index_t index) -> cell_t&
 
 			// Allocate new, empty buckets.
 			num_buckets *= 2;
-			_buckets     = decltype(_buckets)(num_buckets, _memory);
+			_buckets     = decltype(_buckets)(num_buckets, gpumem::pmr_alloc{_memory});
 			_num_cells   = 0;
 
 			// Reinsert all entries in the new buckets.

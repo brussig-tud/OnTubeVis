@@ -16,6 +16,7 @@
 #include <cgv/math/fvec.h>
 
 // local includes
+#include "gpumem/alloc.h"
 #include "gpumem/heap.h"
 #include "render/common.h"
 
@@ -40,7 +41,8 @@ public:
 	/// Create an empty grid.
 	[[nodiscard]] traj_grid() = default;
 	/// Create a grid with 2 ^ `order` hash buckets.
-	[[nodiscard]] traj_grid(gpumem::heap&, dimensions, cgv::vec4 cell_size, uint8_t order);
+	/// `memory` must not be null and must outlive the grid.
+	[[nodiscard]] traj_grid(gpumem::heap* memory, dimensions, cgv::vec4 cell_size, uint8_t order);
 
 	/// Update the grid with a new trajectory segment whose nodes are stored at `render_idcs` in the
 	/// render buffer.
@@ -122,7 +124,7 @@ private:
 	gpumem::heap* _memory {};
 	/// Hash table buckets each containing multiple slots for cells.
 	/// Length is a power of two.
-	std::pmr::vector<bucket_t> _buckets {};
+	std::vector<bucket_t, gpumem::pmr_alloc<bucket_t, gpumem::heap>> _buckets {};
 	/// Reciprocal of each grid cell's extent.
 	/// Multiply to map coordinates to cell (see `index`).
 	cgv::vec4 _scale {};

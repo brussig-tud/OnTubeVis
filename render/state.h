@@ -172,6 +172,12 @@ struct render_state
 	cgv::render::gl::gl_time_query flush_time_query, render_time_query;
 
 
+	render_state() = default;
+	// `traj_grid` points to `grid_mem`, instances must not be moved.
+	render_state(render_state&&) = delete;
+	auto operator= (render_state&&) = delete;
+
+
 	/// Create, register and return an empty trajectory.
 	trajectory& add_trajectory() {
 		trajectories.push_back({static_cast<trajectory::id_type>(trajectories.size()), *this});
