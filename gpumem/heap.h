@@ -16,7 +16,7 @@
 namespace otv::gpumem {
 
 /// Uses a single persistently mapped GL buffer as a `std::pmr::memory_resource`.
-class heap : public std::pmr::memory_resource {
+class heap final : public std::pmr::memory_resource {
 public:
 	/// Specifies how writes to the buffer by either host or GPU are made visible to the other.
 	/// Determines with which flags the buffer is mapped.
@@ -61,18 +61,18 @@ private:
 	RAII<GLuint, free_buffer> _buffer {0};
 
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_allocate.html.
-	[[nodiscard]] auto do_allocate (size_t num_bytes, size_t align) -> void* override
+	[[nodiscard]] auto do_allocate (size_t num_bytes, size_t align) -> void* final
 	{
 		return _pool_alloc.allocate(num_bytes, align);
 	}
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_deallocate.html.
-	void do_deallocate (void* ptr, size_t num_bytes, size_t align) noexcept override
+	void do_deallocate (void* ptr, size_t num_bytes, size_t align) noexcept final
 	{
 		return _pool_alloc.deallocate(ptr, num_bytes, align);
 	}
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_is_equal.html.
 	[[nodiscard]] auto do_is_equal (std::pmr::memory_resource const& other) const noexcept
-		-> bool override
+		-> bool final
 	{
 		return _pool_alloc.is_equal(other);
 	}

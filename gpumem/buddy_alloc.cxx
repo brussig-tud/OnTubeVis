@@ -153,7 +153,7 @@ auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 		(block - (1 << (_max_order - req_order))) // Block index within level.
 		<< (_base_order + req_order - 1) // Times block size in bytes.
 	]);
-	if constexpr (log_level > 2) log("Allocated block {} at {}.\n", block, allocation);
+	if constexpr (log_level > 1) log("Allocated block {} at {}.\n", block, allocation);
 
 	// Check alignment.
 	if (reinterpret_cast<uintptr_t>(allocation) & (align - 1)) throw std::bad_alloc{};

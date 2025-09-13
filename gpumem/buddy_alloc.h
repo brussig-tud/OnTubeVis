@@ -12,7 +12,7 @@ namespace otv::gpumem {
 /// Allocates from a span of memory using the buddy system due to Knowlton 1965.
 /// Bookkeeping is done outside the managed span using the default allocator.
 /// NOTE: The buddy allocator does not own, and therefore does not free, the memory it manages.
-class buddy_alloc : public std::pmr::memory_resource {
+class buddy_alloc final : public std::pmr::memory_resource {
 private:
 	/// Start of the memory range managed by the allocator.
 	std::byte* _memory {};
@@ -59,12 +59,12 @@ public:
 
 private:
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_allocate.html.
-	[[nodiscard]] auto do_allocate (size_t num_bytes, size_t align) -> void* override;
+	[[nodiscard]] auto do_allocate (size_t num_bytes, size_t align) -> void* final;
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_deallocate.html.
-	void do_deallocate (void*, size_t num_bytes, size_t align) noexcept override;
+	void do_deallocate (void*, size_t num_bytes, size_t align) noexcept final;
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_is_equal.html.
 	[[nodiscard]] auto do_is_equal (std::pmr::memory_resource const& other) const noexcept
-		-> bool override
+		-> bool final
 	{
 		// Allocations can only be freed by the instance that created them.
 		return &other == this;

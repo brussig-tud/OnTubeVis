@@ -15,7 +15,7 @@ namespace otv::gpumem {
 /// as pools of smaller, individually managed blocks.
 /// Larger allocation requests are delegeted directly to the parent.
 /// The size of each individually allocated block must be a power of two.
-class pool_alloc : public std::pmr::memory_resource {
+class pool_alloc final : public std::pmr::memory_resource {
 public:
 	/// A default-constructed instance has no parent and cannot perform any allocations.
 	pool_alloc() = default;
@@ -67,12 +67,12 @@ private:
 	uint8_t _max_order {};
 
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_allocate.html.
-	[[nodiscard]] auto do_allocate (size_t bytes, size_t align) -> void* override;
+	[[nodiscard]] auto do_allocate (size_t bytes, size_t align) -> void* final;
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_deallocate.html.
-	void do_deallocate (void*, size_t bytes, size_t align) noexcept override;
+	void do_deallocate (void*, size_t bytes, size_t align) noexcept final;
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_is_equal.html.
 	[[nodiscard]] auto do_is_equal (std::pmr::memory_resource const& other) const noexcept
-		-> bool override
+		-> bool final
 	{
 		// Allocations can only be freed by the instance that created them.
 		return &other == this;
