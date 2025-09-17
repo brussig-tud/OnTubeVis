@@ -3,6 +3,9 @@
 // Whether to perform shading immediatly rather than outputting to a g-buffer
 #define FORWARD_SHADING 0
 
+// How the trajectory grid is used to color trajectories.
+#define TRAJ_GRID_COLOR_FN 0
+
 // Whether to support conservative depth
 #define USE_CONSERVATIVE_DEPTH 0
 #if USE_CONSERVATIVE_DEPTH == 1
@@ -227,6 +230,9 @@ RCC    rcc_create_z (const vec3 orig, const vec3 dir);
 vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
 	in float depth, in float specular_factor, in float max_glyph_s
+	#if TRAJ_GRID_COLOR_FN != 0
+		, in float seg_t
+	#endif
 );
 vec4 otv_shade_cursor (
 	in float u_pos, in float u_half_width, in vec2 uv, in vec4 cursor_color, in vec4 pre_shaded_color
@@ -919,13 +925,16 @@ void main()
 			color.rgb = otv_shade_fragment(
 				color.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(u, v), segment_id_fs,  pos_eye.xyz,
 				normal, tangent, gl_FragDepth, /*specular_factor: */1, /* max_glyph_s: */POS_INF //s_playback
+				#if TRAJ_GRID_COLOR_FN != 0
+					, t_seg
+				#endif
 			).rgb;
 			if (t_playback < POS_INF)
 				color = otv_shade_cursor(s_playback, .125*ref_rad, vec2(u,v), vec4(1,0,1,1), color);
 			color_out = vec4(pow(color.rgb, 1.0/gamma3), color.a);
 		#else
 			frag_albedo = uvec4(
-				packUnorm4x8(color),
+				TRAJ_GRID_COLOR_FN == 0 ? packUnorm4x8(color) : floatBitsToUint(t_seg),
 				floatBitsToUint(alen(t_seg)),
 				floatBitsToUint(v),
 				segment_id_fs

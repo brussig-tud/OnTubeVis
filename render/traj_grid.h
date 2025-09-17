@@ -14,11 +14,19 @@
 
 // CGV framework
 #include <cgv/math/fvec.h>
+#include <cgv/render/shader_code.h>
 
 // local includes
 #include "gpumem/alloc.h"
 #include "gpumem/heap.h"
 #include "render/common.h"
+#include "render/traj_grid_shading.h"
+
+// forward declarations
+namespace cgv::render {
+	class context;
+	class shader_program;
+}
 
 
 namespace otv {
@@ -27,26 +35,33 @@ namespace otv {
 /// infinite regular grid, stored as a hash map in GPU-accessible memory.
 class traj_grid {
 public:
-	/// The coordinate system that defines a grid.
-	enum class dimensions : uint8_t {
+	/// The coordinate system that defines the grid.
+	constexpr static enum class dimensions : uint8_t {
 		xyz  = 3, // 3D spatial grid.
 		xyzt = 4, // 4D spatio-temporal grid.
-	};
-
-	/// The number of hash functions mapping cells to buckets, i.e. how many candidate buckets there
-	/// are to store each entry.
-	/// More functions allow higher load factors at the cost of increased query time.
-	constexpr static uint8_t num_hash_fns = 2;
+	} dimensions = dimensions::xyzt;
+	/// A vector in the space that the grid indexes.
+	using coord_t = std::conditional_t<dimensions == dimensions::xyz, cgv::vec3, cgv::vec4>;
 
 	/// Create an empty grid.
 	[[nodiscard]] traj_grid() = default;
 	/// Create a grid with 2 ^ `order` hash buckets.
 	/// `memory` must not be null and must outlive the grid.
-	[[nodiscard]] traj_grid(gpumem::heap* memory, dimensions, cgv::vec4 cell_size, uint8_t order);
+	[[nodiscard]] traj_grid(gpumem::heap* memory, coord_t cell_size, uint8_t order);
 
 	/// Update the grid with a new trajectory segment whose nodes are stored at `render_idcs` in the
 	/// render buffer.
 	void add_segment (node_attribs const& start, node_attribs const& end, cgv::uvec2 render_idcs);
+
+	/// Statically configure shaders through macros.
+	/// `buffer_binding` must be the index at which the GPU buffer used by this grid will be bound.
+	void set_shader_defines (
+		cgv::render::shader_define_map&,
+		GLuint buffer_binding,
+		traj_grid_shading const&
+	) const;
+	/// Dynamically configure shaders through uniforms.
+	void set_shader_uniforms (cgv::render::context&, cgv::render::shader_program&) const;
 
 private:
 	/// The interval of a trajectory segment that lies within a given grid cell.
@@ -59,8 +74,7 @@ private:
 	};
 
 	/// Key used to identify a cell in the grid.
-	/// In a 3D grid, the fourth component is always 0.
-	using index_t = cgv::ivec4;
+	using index_t = std::conditional_t<dimensions == dimensions::xyz, cgv::ivec3, cgv::ivec4>;
 
 	/// Hash of a cell index.
 	/// Like in Mega-KV (Zhang et al. 2015), only the signature is stored directly in the buckets
@@ -75,7 +89,7 @@ private:
 			/// The index identifying the cell.
 			alignas(16) index_t index;
 			/// Number of trajectory intervals in the cell.
-			uint32_t size;
+			alignas(16) uint32_t size;
 			/// Maximum number of intervals that fit in the current allocation.
 			uint32_t capacity;
 			/// Trajectory intervals within the cell.
@@ -90,7 +104,7 @@ private:
 
 		/// Check if a handle is not null.
 		[[nodiscard]] constexpr operator bool () const noexcept;
-		/// Check if two handles point to the same data, assuming they use the same memory resource.
+		/// Check if two handles point to the same data, assuming they reside in the same buffer.
 		[[nodiscard]] constexpr auto operator== (cell_t const&) const noexcept -> bool;
 
 		/// Dereference the handle to access the cell data.
@@ -102,12 +116,8 @@ private:
 		/// Allocate data with enough memory to store the requested number of intervals.
 		[[nodiscard]] static auto allocate (gpumem::heap&, uint32_t capacity) -> data_t&;
 
-		/// Offset of the data allocation within the heap buffer.
-		uint32_t _address = ~0;
-
-		/// Point this instance to the given data.
-		/// Does not free the current allocation.
-		void set (gpumem::span<std::byte> const& buffer, data_t&);
+		/// Offset of the data allocation within the grid buffer.
+		uint32_t _address = ~0u;
 	};
 
 	/// A slot in one of the hash table's buckets, storing a cell pointer and its index signature.
@@ -116,25 +126,27 @@ private:
 		signature_t signature;
 		cell_t      cell;
 	};
-	/// A bucket of the hash table, dimensioned to match GPU memory transfers.
-	using bucket_t = std::array<slot_t, 128 / sizeof(slot_t)>;
+	/// A bucket of the hash table, dimensioned and aligned to match GPU memory transfers.
+	struct bucket_t {
+		static constexpr auto size_bytes = 128uz;
+		static constexpr auto num_slots  = size_bytes / sizeof(slot_t);
+		alignas(size_bytes) std::array<slot_t, num_slots> slots;
+	};
 
 
-	/// The GPU buffer in which hash buckets and grid cells are stored.
+	/// The GPU buffer in which hash buckets and grid cells are dynamically allocated.
 	gpumem::heap* _memory {};
 	/// Hash table buckets each containing multiple slots for cells.
 	/// Length is a power of two.
 	std::vector<bucket_t, gpumem::pmr_alloc<bucket_t, gpumem::heap>> _buckets {};
 	/// Reciprocal of each grid cell's extent.
 	/// Multiply to map coordinates to cell (see `index`).
-	cgv::vec4 _scale {};
+	coord_t _scale {};
 	/// Random number generator used to determine which entry to displace from a full bucket when
 	/// inserting a new cell.
 	std::minstd_rand _rng {std::random_device{}()};
 	/// Counts cells stored in the grid for performance evaluation.
 	uint32_t _num_cells {};
-	/// Determines whether the grid partitions only space (3D) or also time (4D).
-	dimensions _dimensions {};
 
 	/// Access a cell by its index.
 	/// If the cell is not yet stored in the grid, it is created.
@@ -164,7 +176,8 @@ private:
 		struct index_hash_t {
 			[[nodiscard]] constexpr auto operator()(index_t const& idx) const noexcept -> size_t
 			{
-				return std::hash<std::bitset<128>>{}(*reinterpret_cast<std::bitset<128> const*>(&idx));
+				using index_bits = std::bitset<sizeof(index_t) * 8>;
+				return std::hash<index_bits>{}(*reinterpret_cast<index_bits const*>(&idx));
 			}
 		};
 

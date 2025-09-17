@@ -279,9 +279,9 @@ bool render_state::create_glyph_layer (
 void render_state::create_traj_grid (cgv::vec4 cell_size)
 {
 	// Allocate a coherently mapped 1 GiB buffer.
-	grid_mem  = {1 << 30, gpumem::heap::sync_mode::coherent};
+	grid_mem = {1 << 30, gpumem::heap::sync_mode::coherent};
 	// Initialize the grid with 2^12 buckets.
-	traj_grid = {&grid_mem, traj_grid::dimensions::xyzt, cell_size, 12};
+	traj_grid = {&grid_mem, cell_size, 12};
 }
 
 void render_state::collect_timer_queries (const bool collect_render)

@@ -147,8 +147,10 @@ namespace cgv { // @<
 			vec3 view_dir;
 			/// viewport rectangle (offset and size)
 			vec4 viewport;
+		public:
 			/// additional defines not dependant on the style and set from outside the renderer
 			shader_define_map additional_defines;
+		protected:
 			/// keep track of which line primitive was active the last time the renderer drew something
 			textured_spline_tube_render_style::LinePrimitive last_active_line_primitive;
 
@@ -160,7 +162,7 @@ namespace cgv { // @<
 			bool build_shader_program(context& ctx, shader_program& prog, const shader_compile_options& defines);
 
 		public:
-			/// initializes position_is_center to true 
+			/// initializes position_is_center to true
 			textured_spline_tube_renderer();
 			/// call this before setting attribute arrays to manage attribute array in given manager
 			void enable_attribute_array_manager(const context& ctx, attribute_array_manager& aam);
@@ -179,24 +181,24 @@ namespace cgv { // @<
 			///
 			template <typename T = float>
 			void set_node_id_array(const context& ctx, const std::vector<T>& node_ids) { has_node_ids = true; set_attribute_array(ctx, "node_ids", node_ids); }
-			/// 
+			///
 			template <typename T = float>
 			void set_node_id_array(const context& ctx, const T* node_ids, size_t nr_elements, unsigned stride_in_bytes = 0) { has_node_ids = true; set_attribute_array(ctx, "node_ids", node_ids, nr_elements, stride_in_bytes); }
 			///
 			template <typename T = float>
 			void set_radius_array(const context& ctx, const std::vector<T>& radii) { has_radii = true; set_attribute_array(ctx, "radius", radii); }
-			/// 
+			///
 			template <typename T = float>
 			void set_radius_array(const context& ctx, const T* radii, size_t nr_elements, unsigned stride_in_bytes = 0) { has_radii = true; set_attribute_array(ctx, "radius", radii, nr_elements, stride_in_bytes); }
 			///
 			template <typename T = float>
 			void set_tangent_array(const context& ctx, const std::vector<T>& tangents) { has_tangents = true; set_attribute_array(ctx, "tangent", tangents); }
-			/// 
+			///
 			template <typename T = float>
 			void set_tangent_array(const context& ctx, const T* tangents, size_t nr_elements, unsigned stride_in_bytes = 0) { has_tangents = true; set_attribute_array(ctx, "tangent", tangents, nr_elements, stride_in_bytes); }
 			///
 			bool validate_attributes(const context& ctx) const;
-			/// 
+			///
 			bool enable(context& ctx);
 			///
 			bool disable(context& ctx);
@@ -208,7 +210,7 @@ namespace cgv { // @<
 				context& ctx,
 				//const attribute_array_manager &aam,
 				const void *const *span_starts,
-				const GLsizei *span_lens, 
+				const GLsizei *span_lens,
 				GLsizei num_spans
 			);
 		};

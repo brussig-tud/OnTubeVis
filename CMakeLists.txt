@@ -137,6 +137,7 @@ set(SOURCES
 		render/extrapolation.cxx
 		render/state.cxx
 		render/traj_grid.cxx
+		render/traj_grid_shading.cxx
 		render/trajectory.cxx
 
 		# main app
@@ -220,6 +221,7 @@ set(HEADERS
 		render/extrapolation.h
 		render/state.h
 		render/traj_grid.h
+		render/traj_grid_shading.h
 		render/trajectory.h
 
 		# main app

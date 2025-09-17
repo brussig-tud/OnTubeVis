@@ -97,6 +97,21 @@ enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
 }
 }
 
+
+namespace {
+/// Bind indices used for SSBOs.
+namespace buffer_bindings {
+	constexpr GLuint nodes        = 0;
+	constexpr GLuint t_to_s       = 1;
+	constexpr GLuint node_idcs    = 2;
+	constexpr GLuint seg_to_traj  = 3;
+	constexpr GLuint glyphs_base  = 4;
+	constexpr GLuint glyph_memory = glyphs_base + max_glyph_layers*2;
+	constexpr GLuint grid_memory  = glyph_memory + 1;
+}
+}
+
+
 // Streaming API global state
 #include <3rd/fltk/include/fltk/events.h>
 
@@ -1386,7 +1401,17 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 	tube_shading_defines = tube_shading.build_tube_shading_defines(
 		render.visualizations.front().config, debug.highlight_segments
 	);
+	render.traj_grid.set_shader_defines(
+		tube_shading_defines,
+		buffer_bindings::grid_memory,
+		traj_grid_shading
+	);
 	shaders.reload(ctx, "tube_shading", { tube_shading_defines });
+	render.traj_grid.set_shader_defines(
+		ref_textured_spline_tube_renderer(ctx, 1).additional_defines,
+		buffer_bindings::grid_memory,
+		traj_grid_shading
+	);
 
 	// reset glyph layer configuration file
 	layer_config_file_helper.set_file_name("");
@@ -1438,7 +1463,17 @@ bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 		tube_shading_defines = tube_shading.build_tube_shading_defines(
 			render.visualizations.front().config, debug.highlight_segments
 		);
+		render.traj_grid.set_shader_defines(
+			tube_shading_defines,
+			buffer_bindings::grid_memory,
+			traj_grid_shading
+		);
 		shaders.reload(ctx, "tube_shading", { tube_shading_defines });
+		render.traj_grid.set_shader_defines(
+			ref_textured_spline_tube_renderer(ctx, 1).additional_defines,
+			buffer_bindings::grid_memory,
+			traj_grid_shading
+		);
 
 		compile_glyph_attribs();
 
@@ -1548,7 +1583,8 @@ void on_tube_vis::on_set(void* member_ptr)
 			tube_shading.grid_normal_settings,
 			tube_shading.grid_normal_inwards,
 			tube_shading.grid_normal_variant,
-			tube_shading.enable_fuzzy_grid
+			tube_shading.enable_fuzzy_grid,
+			traj_grid_shading.color_fn
 		)
 	){
 		shader_define_map defines = tube_shading.build_tube_shading_defines(
@@ -1557,7 +1593,17 @@ void on_tube_vis::on_set(void* member_ptr)
 		if(defines != tube_shading_defines) {
 			context& ctx = *get_context();
 			tube_shading_defines = defines;
+			render.traj_grid.set_shader_defines(
+				tube_shading_defines,
+				buffer_bindings::grid_memory,
+				traj_grid_shading
+			);
 			shaders.reload(ctx, "tube_shading", { tube_shading_defines });
+			render.traj_grid.set_shader_defines(
+				ref_textured_spline_tube_renderer(ctx, 1).additional_defines,
+				buffer_bindings::grid_memory,
+				traj_grid_shading
+			);
 			client.extrapol_mgr.update_tube_shading(tube_shading, render.visualizations.front().config);
 		}
 	}
@@ -3098,6 +3144,9 @@ void on_tube_vis::create_gui (void)
 	add_decorator("", "separator");
 	add_heading("Visualization");
 
+	// Base color
+	traj_grid_shading.build_gui(*this);
+
 	// Attribute mapping settings
 	for(unsigned ds = 0; ds < (unsigned)render.visualizations.size(); ds++) {
 		if(begin_tree_node("Attributes '" + traj_mgr.dataset(ds).name() + "'", render.visualizations[ds].manager, true)) {
@@ -3726,7 +3775,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		tstr.set_node_id_array(ctx, render.segment_buffer.as_span().data(), render.segment_buffer.as_span().length(), sizeof(uvec2));
 		// glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, render.node_buffer.handle());
 		// render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
-		glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 4, std::array{
+		glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, buffer_bindings::nodes, 4, std::array{
 			render.node_buffer.as_span().handle(),
 			render.t_to_s.handle(),
 			gl::get_gl_id(node_idx_buffer_ptr->handle), // <- streaming requires we always bind the node indices as SBO
@@ -3802,6 +3851,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		const auto fb_size = fbc.get_size();
 		prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
 
+		render.traj_grid.set_shader_uniforms(ctx, prog);
+
 		fbc.enable_attachment(ctx, "albedo", 0);
 		fbc.enable_attachment(ctx, "position", 1);
 		fbc.enable_attachment(ctx, "normal", 2);
@@ -3812,12 +3863,12 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		color_map_mgr.ref_texture().enable(ctx, 6);
 
 		// bind geometry buffers we also need during shading
-		glBindBufferBase/*sBase*/(GL_SHADER_STORAGE_BUFFER, 0, /*4, std::array{
+		glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, buffer_bindings::nodes, 4, std::array{
 			render.node_buffer.as_span().handle(),
-			render.t_to_s.handle(),
+			0u, // render.t_to_s.handle(),
 			gl::get_gl_id(node_idx_buffer_ptr->handle),
-			*/render.seg_to_traj.as_span().handle()/*
-		}.data()*/);
+			render.seg_to_traj.as_span().handle()
+		}.data());
 
 		// bind range attribute SBOs of active glyph layers
 		bool active_sbos[4] = { false, false, false, false };
@@ -3825,28 +3876,49 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
 				const auto attribs_handle {render.glyphs[i].attribs.as_span().handle()};
 				const auto aindex_handle  {render.glyphs[i].ranges.handle()};
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 4, attribs_handle);
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 5, aindex_handle);
+				glBindBuffersBase(
+					GL_SHADER_STORAGE_BUFFER,
+					buffer_bindings::glyphs_base + 2*(GLuint)i,
+					2,
+					std::array{attribs_handle, aindex_handle}.data()
+				);
 				active_sbos[i] = true;
 			}
 		}
 
-		// bind trajectory glyph memory range buffer
-		glBindBufferBase(
-			GL_SHADER_STORAGE_BUFFER, max_glyph_layers*2 + 4, render.traj_glyph_mem.handle()
+		// bind further ssbos
+		auto buffers_after_glyphs = std::array{
+			render.traj_glyph_mem.handle(),
+			render.grid_mem.as_span().handle(),
+		};
+		glBindBuffersBase(
+			GL_SHADER_STORAGE_BUFFER,
+			buffer_bindings::glyph_memory,
+			buffers_after_glyphs.size(),
+			buffers_after_glyphs.data()
 		);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 		// unbind all SBOs
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, 0);
+		glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 4, std::array{0u, 0u, 0u, 0u}.data());
 		for(size_t i=0; i<4; ++i) {
 			if(active_sbos[i]) {
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 4, 0);
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2*(GLuint)i + 5, 0);
+				glBindBuffersBase(
+					GL_SHADER_STORAGE_BUFFER,
+					buffer_bindings::glyphs_base + 2*(GLuint)i,
+					2,
+					std::array{0u, 0u}.data()
+				);
 			}
 		}
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, max_glyph_layers*2 + 4, 0);
+		buffers_after_glyphs.fill(0);
+		glBindBuffersBase(
+			GL_SHADER_STORAGE_BUFFER,
+			buffer_bindings::glyph_memory,
+			buffers_after_glyphs.size(),
+			buffers_after_glyphs.data()
+		);
 
 		fbc.disable_attachment(ctx, "albedo");
 		fbc.disable_attachment(ctx, "position");

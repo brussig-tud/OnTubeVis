@@ -1,6 +1,10 @@
 // C++ STL
 #include <print>
 
+// CGV framework
+#include <cgv/render/context.h>
+#include <cgv/render/shader_program.h>
+
 // local includes
 #include "gpumem/span.inl"
 
@@ -28,18 +32,46 @@ void log(std::format_string<Args...> fmt, Args&&... args)
 }
 
 
+/// In the shader, pointers are emulated with offsets into the grid buffer.
+/// This value determines the size in bytes of their minimal addressable unit.
+constexpr uint32_t shader_address_unit = 1u;
+
+/// The number of hash functions mapping cells to buckets, i.e. how many candidate buckets can store
+/// each entry.
+/// More functions allow higher load factors at the cost of increased query time.
+constexpr uint8_t num_hash_fns = 2;
+
 /// Maximum iterations to try when inserting a cell into the grid.
 /// Larger numbers allow for a higher load factor at the cost of longer worst-case insertion time.
 constexpr auto max_cuckoo_chain = 50u;
 
+
+/// Calculate the offset of `ptr` within the persistently mapped GPU `buffer` for use an address in
+/// the shader.
+[[nodiscard]] constexpr auto ptr_to_offset (gpumem::span<const std::byte> buffer, void const* ptr)
+	-> uint32_t
+{
+	uint32_t const offset = (reinterpret_cast<std::byte const*>(ptr) - buffer.data())
+		/ shader_address_unit;
+	assert(&buffer[offset * shader_address_unit] == ptr);
+	return offset;
+}
+
+/// Access memory at `offset` within `buffer` such that
+/// `offset_to_ptr(b, ptr_to_offset(b, p)) == p`.
+[[nodiscard]] constexpr auto offset_to_ptr (gpumem::span<std::byte> buffer, uint32_t offset)
+	-> void*
+{
+	return &buffer[offset * shader_address_unit];
+}
+
 } // namespace
 
 
-traj_grid::traj_grid(gpumem::heap* memory, dimensions dims, cgv::vec4 cell_size, uint8_t order)
+traj_grid::traj_grid(gpumem::heap* memory, coord_t cell_size, uint8_t order)
 	: _memory     {memory}
 	, _buckets    (1uz << order, gpumem::pmr_alloc{_memory})
-	, _scale      {cgv::vec4{1} / cell_size} // index = coords / cell_size
-	, _dimensions {dims}
+	, _scale      {coord_t{1} / cell_size} // index = coords / cell_size
 {}
 
 void traj_grid::add_segment (
@@ -53,6 +85,31 @@ void traj_grid::add_segment (
 	// Track the number of intervals in each cell.
 	if constexpr (validation::enabled) ++_validation.cell_load[index(start)];
 #endif
+}
+
+void traj_grid::set_shader_defines (
+	cgv::render::shader_define_map& d,
+	GLuint                          buffer_binding,
+	traj_grid_shading const&        shading
+) const {
+	using sc = cgv::render::shader_code;
+	sc::set_define(d, "TRAJ_GRID_BUFFER_BINDING",   buffer_binding,                      {});
+	sc::set_define(d, "TRAJ_GRID_ADDRESS_UNIT",     shader_address_unit,                 {});
+	sc::set_define(d, "TRAJ_GRID_NUM_HASH_FNS",     uint32_t{num_hash_fns},              {});
+	sc::set_define(d, "TRAJ_GRID_SLOTS_PER_BUCKET", bucket_t::num_slots,                 {});
+	sc::set_define(d, "TRAJ_GRID_CELL_HEADER_SIZE", offsetof(cell_t::data_t, intervals), {});
+	sc::set_define(d, "TRAJ_GRID_DIMENSIONS",       dimensions,                          {});
+	sc::set_define(d, "TRAJ_GRID_COLOR_FN",         shading.color_fn,                    {});
+}
+
+void traj_grid::set_shader_uniforms (cgv::render::context& c, cgv::render::shader_program& p) const
+{
+	auto ok = true
+	&& p.set_uniform(c, "traj_grid_scale",           _scale)
+	&& p.set_uniform(c, "traj_grid_buckets.address", ptr_to_offset(_memory->as_span().as_const(), _buckets.data()))
+	&& p.set_uniform(c, "traj_grid_buckets_mask",    static_cast<uint32_t>(_buckets.size() - 1))
+	;
+	assert(ok);
 }
 
 
@@ -74,7 +131,7 @@ auto traj_grid::get (index_t index) -> cell_t&
 		rehash:
 			// Print the current load factor to determine efficiency.
 			if constexpr (log_level > 0) {
-				auto const num_slots = num_buckets * std::tuple_size_v<bucket_t>;
+				auto const num_slots = num_buckets * bucket_t::num_slots;
 				log(LOG_TAG" Rehashing after insertion failed with {}/{} slots occupied "
 					"(load factor {:.2}).\n",
 					_num_cells,
@@ -90,7 +147,7 @@ auto traj_grid::get (index_t index) -> cell_t&
 
 			// Reinsert all entries in the new buckets.
 			for (auto& bucket : old_buckets)
-				for (auto& slot : bucket) {
+				for (auto& slot : bucket.slots) {
 					// Buckets are filled front to back, all following slots are empty.
 					if (!slot.cell) break;
 					// If insertion fails during a rehash (extremely unlikely), abort the current
@@ -104,15 +161,14 @@ auto traj_grid::get (index_t index) -> cell_t&
 auto traj_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 {
 	// Recurring constants.
-	auto const buffer              = _memory->as_span();
-	constexpr unsigned bucket_size = std::tuple_size_v<bucket_t>;
+	auto const buffer = _memory->as_span();
 
 	/// Hash the query index into its shorter signature for quick comparison.
 	auto const signature = this->signature(query);
 
 	struct {
-		bucket_t* slots {};
-		unsigned load   {~0u};
+		bucket_t* data {};
+		unsigned load  {~0u};
 	}
 	/// Tracks which of the buckets that the entry being inserted hashes to has the most free slots.
 	dest_bucket {};
@@ -124,7 +180,7 @@ auto traj_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 		auto load = 0u;
 
 		// Check all occupied slots.
-		for (auto& slot : bucket) {
+		for (auto& slot : bucket.slots) {
 			// Buckets are filled front to back and entries are never deleted, so if we find a free
 			// slot, all following ones must be free as well.
 			if (!slot.cell) break;
@@ -138,7 +194,7 @@ auto traj_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 #ifndef NDEBUG
 					// Check that it contains the expected number of trajectory intervals.
 					if constexpr (validation::enabled)
-						assert(_validation.cell_load[query] == slot.cell.get(buffer).size);
+						assert(slot.cell.get(buffer).size == _validation.cell_load[query]);
 #endif
 					return &slot.cell;
 				}
@@ -183,9 +239,9 @@ auto traj_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 	// Move entries until we find a free slot or some maximum number of iterations is reached.
 	for (auto i = 0u; i < max_cuckoo_chain; ++i) {
 		// If one of the candidate buckets has a free slot, store the entry and return.
-		if (dest_bucket.load < bucket_size) {
+		if (dest_bucket.load < bucket_t::num_slots) {
 			// Buckets are filled front to back.
-			auto& dest = (*dest_bucket.slots)[dest_bucket.load] = insert_entry;
+			auto& dest = dest_bucket.data->slots[dest_bucket.load] = insert_entry;
 			// The grid has grown by one cell.
 			++_num_cells;
 			// Ensure that the return value points to the new cell.
@@ -201,7 +257,9 @@ auto traj_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 		// If all candidate buckets are full, pick one by cycling through hash functions, then store
 		// the entry in a random slot.
 		auto& cuckoo_bucket = this->bucket(insert_entry.signature, (prev_fn + 1) % num_hash_fns);
-		auto& dest          = cuckoo_bucket[std::uniform_int_distribution{0u, bucket_size-1}(_rng)];
+		auto& dest          = cuckoo_bucket.slots[
+			std::uniform_int_distribution{0uz, bucket_t::num_slots - 1}(_rng)
+		];
 		// Remember where the new cell is stored.
 		if (insert_entry.cell == new_cell) new_entry = &dest.cell;
 		// Cuckoo the previous entry from the chosen slot.
@@ -217,14 +275,14 @@ auto traj_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 			// candidate buckets are full again.
 			if (&bucket == &cuckoo_bucket) {
 				prev_fn = fn;
-				assert(bucket.back().cell);
+				assert(bucket.slots.back().cell);
 				continue;
 			}
 
 			// Count the occupied slots in the bucket.
 			// Iterate back to front, since at this point buckets likely have only a few free slots.
-			unsigned load = bucket_size;
-			while (load > 0 && !bucket[load - 1].cell) --load;
+			unsigned load = bucket_t::num_slots;
+			while (load > 0 && !bucket.slots[load - 1].cell) --load;
 			if (load < dest_bucket.load) dest_bucket = {&bucket, load};
 		}
 	}
@@ -235,12 +293,10 @@ auto traj_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 
 constexpr auto traj_grid::index (node_attribs const& node) const noexcept -> index_t
 {
+	coord_t coords = node.pos_rad;
+	if constexpr (dimensions == dimensions::xyzt) coords.w() = node.t.x();
 	// Round such that cells are centered on their index.
-	return cgv::math::round(_scale * cgv::vec4{
-		cgv::vec3{node.pos_rad},
-		// 3D spatial grids ignore the last component.
-		_dimensions == dimensions::xyz ? 0 : node.t.x()
-	});
+	return cgv::math::round(_scale * coords);
 }
 
 constexpr auto traj_grid::signature (index_t index) const noexcept -> signature_t
@@ -256,7 +312,7 @@ constexpr auto traj_grid::signature (index_t index) const noexcept -> signature_
 	// Compared to the implementation by Jarzynski and Olano, `index` is rotated by one component.
 	uint32_t hash = index.x() + p5;
 
-	for (auto d = 1; d < static_cast<uint8_t>(_dimensions); ++d) {
+	for (auto d = 1u; d < static_cast<unsigned>(dimensions); ++d) {
 		hash += index[d] * p3;
 		hash  = p4 * ((hash << 17) | (hash >> 15));
 	}
@@ -268,14 +324,10 @@ constexpr auto traj_grid::signature (index_t index) const noexcept -> signature_
 
 auto traj_grid::bucket (signature_t signature, uint8_t hash_fn) noexcept -> bucket_t&
 {
-	uint32_t hash;
+	uint32_t hash = signature.value;
 
-	switch (hash_fn) {
-	case 0:
-		// Signatures are already hashed, so for the first function we use it unchanged.
-		hash = signature.value;
-		break;
-	default: {
+	// Signatures are already hashed, so for the first function we use it unchanged.
+	if (hash_fn != 0) {
 		// Otherwise the signature is hashed again using the PCG hash function by O'Neill 2014,
 		// as implemented by Jarzynski and Olano 2020.
 
@@ -290,8 +342,7 @@ auto traj_grid::bucket (signature_t signature, uint8_t hash_fn) noexcept -> buck
 		hash = signature.value * s[0] + s[1];
 		hash = ((hash >> ((hash >> 28) + 4)) ^ hash) * s[2];
 		hash = (hash >> 22) ^ hash;
-		break;
-	}};
+	};
 
 	// The number of buckets is a power of two, so the modulo simplifies to a bit-wise and.
 	return _buckets[hash & _buckets.size() - 1];
@@ -305,9 +356,11 @@ traj_grid::cell_t::cell_t(gpumem::heap& memory, index_t index)
 	auto const capacity =
 		(std::bit_ceil(offsetof(data_t, intervals[1])) - offsetof(data_t, intervals))
 		/ sizeof(interval_t);
-	// Allocate and initialize cell data on the GPU heap.
-	set(memory.as_span(), allocate(memory, capacity) =
-		{.index = index, .size = 0, .capacity = capacity});
+	// Allocate and initialize cell data in the GPU buffer.
+	_address = ptr_to_offset(
+		memory.as_span().as_const(),
+		&(allocate(memory, capacity) = {.index = index, .size = 0, .capacity = capacity})
+	);
 }
 
 constexpr auto traj_grid::cell_t::operator== (cell_t const& other) const noexcept -> bool
@@ -324,7 +377,7 @@ constexpr traj_grid::cell_t::operator bool () const noexcept
 
 auto traj_grid::cell_t::get (gpumem::span<std::byte> const& buffer) noexcept -> data_t&
 {
-	return *reinterpret_cast<data_t*>(&buffer[_address]);
+	return *reinterpret_cast<data_t*>(offset_to_ptr(buffer, _address));
 }
 
 void traj_grid::cell_t::add_interval (gpumem::heap& memory, interval_t interval)
@@ -363,14 +416,7 @@ void traj_grid::cell_t::add_interval (gpumem::heap& memory, interval_t interval)
 		alignof(data_t)
 	);
 	// Point to the new allocation.
-	set(memory.as_span(), new_data);
-}
-
-void traj_grid::cell_t::set (gpumem::span<std::byte> const& buffer, data_t& data)
-{
-	auto const offset = reinterpret_cast<std::byte*>(&data) - buffer.data();
-	_address          = offset;
-	assert(_address == offset && _address < buffer.length());
+	_address = ptr_to_offset(buffer.as_const(), &new_data);
 }
 
 auto traj_grid::cell_t::allocate (gpumem::heap& memory, uint32_t capacity) -> data_t&

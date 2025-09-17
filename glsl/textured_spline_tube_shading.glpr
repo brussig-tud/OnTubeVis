@@ -7,3 +7,4 @@ fragment_file:brdf.glsl
 fragment_file:bump_map.glfs
 fragment_file:surface_mod.glsl
 fragment_file:otv_shading.glsl
+fragment_file:otv_traj_grid.glsl

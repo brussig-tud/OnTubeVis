@@ -173,7 +173,7 @@ struct render_state
 
 
 	render_state() = default;
-	// `traj_grid` points to `grid_mem`, instances must not be moved.
+	// Instances must not be moved since `traj_grid` points to `grid_mem`.
 	render_state(render_state&&) = delete;
 	auto operator= (render_state&&) = delete;
 

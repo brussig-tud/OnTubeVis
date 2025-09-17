@@ -44,6 +44,7 @@
 #include "color_map_viewer.h"
 #include "mapping_legend.h"
 #include "render/state.h"
+#include "render/traj_grid_shading.h"
 #include "otv_client.h"
 #ifdef RTX_SUPPORT
 #include "optix_integration.h"
@@ -231,6 +232,7 @@ protected:
 
 	/// tube shading settings
 	tube_shading_settings tube_shading;
+	otv::traj_grid_shading traj_grid_shading;
 
 protected:
 	/// shader defines for the deferred shading pass
