@@ -18,7 +18,7 @@ void traj_grid_shading::build_gui (cgv::gui::provider& p)
 		"[debug] Temporal Index,"
 		"[debug] Index Hash,"
 		"[debug] Bucket Load,"
-		"[debug] Number of Interval'"
+		"[debug] Trajectory Interval'"
 	);
 }
 

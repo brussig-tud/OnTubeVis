@@ -49,9 +49,14 @@ public:
 	/// `memory` must not be null and must outlive the grid.
 	[[nodiscard]] traj_grid(gpumem::heap* memory, coord_t cell_size, uint8_t order);
 
-	/// Update the grid with a new trajectory segment whose nodes are stored at `render_idcs` in the
-	/// render buffer.
-	void add_segment (node_attribs const& start, node_attribs const& end, cgv::uvec2 render_idcs);
+	/// Update the grid with a new trajectory segment.
+	/// `start` and `end` must be stored at `node_idcs` in the render buffer.
+	void add_segment (
+		node_attribs const& start,
+		node_attribs const& end,
+		cgv::uvec2          node_idcs,
+		cgv::mat4 const&    t_to_s
+	);
 
 	/// Statically configure shaders through macros.
 	/// `buffer_binding` must be the index at which the GPU buffer used by this grid will be bound.
@@ -79,7 +84,7 @@ private:
 	/// Hash of a cell index.
 	/// Like in Mega-KV (Zhang et al. 2015), only the signature is stored directly in the buckets
 	/// of the hash tables to reduce memory transfers.
-	struct signature_t {uint32_t value;};
+	struct signature_t {uint32_t value = ~0u;};
 
 	/// Stores a grid cell's index and the trajectory intervals it contains as a dynamic array with
 	/// pointer semantics, meaning copies are shallow and allocations are not automatically freed.
@@ -147,7 +152,17 @@ private:
 	std::minstd_rand _rng {std::random_device{}()};
 	/// Counts cells stored in the grid for performance evaluation.
 	uint32_t _num_cells {};
+	/// Minimum arclength distance between sample points when inserting a segment into the grid.
+	float _sample_step_space;
+	/// Minimum timespan between sample points when inserting a segment into the grid.
+	[[no_unique_address]] std::conditional_t<
+		dimensions == dimensions::xyz,
+		decltype(std::ignore),
+		float
+	> _sample_step_time;
 
+	/// Find or create a cell by index, then insert a trajectory interval into that cell.
+	void add_interval (index_t, interval_t);
 	/// Access a cell by its index.
 	/// If the cell is not yet stored in the grid, it is created.
 	auto get (index_t) -> cell_t&;
@@ -157,8 +172,6 @@ private:
 	/// Returns a pointer to the queried entry in the table or nullptr if insertion failed.
 	auto find_or_insert (index_t, cell_t new_cell = {}) -> cell_t*;
 
-	/// Calculate the index of the cell containing the given node.
-	[[nodiscard]] constexpr auto index (node_attribs const&) const noexcept -> index_t;
 	/// Hash a cell index into a shorter signature with high entropy.
 	[[nodiscard]] constexpr auto signature (index_t) const noexcept -> signature_t;
 	/// The bucket in which a cell with the given signature is stored by `hash_fn`.

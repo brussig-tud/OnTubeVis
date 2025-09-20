@@ -64,6 +64,13 @@ struct span_t {
 	uint  len;
 };
 
+// Part of a trajectory segment contained in a single grid cell.
+struct interval_t {
+	uvec2 nodes;
+	vec2  range;
+};
+const uint sizeof_interval = 16; // bytes
+
 // SSBOs ###########################################################################################
 layout(std430, binding = 0) readonly buffer data_buffer {
 	node_data_type nodes[];
@@ -127,10 +134,10 @@ uint signature (index_t index)
 	// Prime constants.
 	const uint[] p = {2246822519, 3266489917, 668265263, 374761393};
 
-	uint sig = index[0] + p[3];
+	uint sig = uint(index[0]) + p[3];
 
 	for (uint d = 1; d < TRAJ_GRID_DIMENSIONS; ++d) {
-		sig += index[d] * p[1];
+		sig += uint(index[d]) * p[1];
 		sig  = p[2] * ((sig << 17) | (sig >> 15));
 	}
 	sig = p[0] * (sig ^ (sig >> 15));
@@ -214,28 +221,34 @@ span_t query (index_t index)
 	return span_t(null, 0u);
 }
 
+// Load one of the trajectory intervals in a cell from the grid buffer.
+interval_t load_interval (span_t intervals, uint index)
+{
+	uvec4 data = load4(offset_bytes(intervals.start, index * sizeof_interval));
+	return interval_t(data.xy, uintBitsToFloat(data.zw));
+}
+
 // Trajectories ====================================================================================
 // Calculate the trajectory coordinates at parameter t in [0, 1] of a given segment.
 coord_t trajectory_point (node_data_type start, node_data_type end, float t)
 {
-	// Position: Evaluate cubic Bézier curve using de Casteljau's algorithm.
-	vec3 a0 = start.pos_rad.xyz;
-	vec3 a1 = a0 + start.tangent.xyz;
-	vec3 a3 = end.pos_rad.xyz;
-	vec3 a2 = a3 - end.tangent.xyz;
+	// Spatial coordinates: Evaluate cubic Bézier curve.
+	mat4x3 bezier = {
+		start.pos_rad.xyz,
+		start.pos_rad.xyz + start.tangent.xyz,
+		  end.pos_rad.xyz -   end.tangent.xyz,
+		  end.pos_rad.xyz,
+	};
 
-	vec3 b0 = mix(a0, a1, t);
-	vec3 b1 = mix(a1, a2, t);
-	vec3 b2 = mix(a2, a3, t);
-
-	vec3 c0 = mix(b0, b1, t);
-	vec3 c1 = mix(b1, b2, t);
+	float t2 = t*t;
+	float s  = 1.0f - t;
+	float s2 = s*s;
 
 	return coord_t(
-		mix(c0, c1, t)
+		bezier * vec4(s2*s, 3*s2*t, 3*s*t2, t*t2)
 		#if TRAJ_GRID_DIMENSIONS != 3
 			// Time: linear interpolation.
-			, mix(start.t.x, end.t.x, t)
+			, s*start.t[0] + t*end.t[0]
 		#endif
 	);
 }
@@ -244,8 +257,6 @@ coord_t trajectory_point (node_data_type start, node_data_type end, float t)
 // Determine the color to use for a trajectory fragment using the trajectory grid.
 vec3 otv_traj_grid_color (int seg_id, float seg_t)
 {
-	if (isnan(seg_t)) return vec3(1, 0, 0);
-
 	// Color by local time.
 	if (color_fn == 2) return map_to_color(seg_t, 12);
 
@@ -270,11 +281,22 @@ vec3 otv_traj_grid_color (int seg_id, float seg_t)
 		uint fill = bucket_fill(bucket(signature(local_index), 1));
 		return map_to_color(float(fill) / slots_per_bucket, 12);
 	}
-	// Color by trajectory intervals per grid cell.
+	// Color by local trajectory interval.
 	if (color_fn == 7) {
-		span_t local_cell = query(local_index);
-		if (local_cell.start == null || local_cell.len == 0) return vec3(1, 0, 0);
-		return map_to_color(local_cell.len / 16.0, 12);
+		// Find the cell containing this fragment.
+		span_t local_intervals = query(local_index);
+		// Within that cell, find the interval containing the fragment.
+		for (uint i = 0; i < local_intervals.len; ++i) {
+			interval_t interval = load_interval(local_intervals, i);
+			float tmin          = interval.range[0];
+			float tmax          = interval.range[1];
+
+			if (interval.nodes == node_ids[seg_id] && seg_t >= tmin && seg_t <= tmax)
+				// Color by interval-local curve parameter.
+				return map_to_color((seg_t - tmin)/(tmax - tmin), 12);
+		}
+		// Highlight points not stored within their local cell.
+		return vec3(1, 0, 1);
 	}
-	return vec3(1, 0, 1);
+	return vec3(1);
 }

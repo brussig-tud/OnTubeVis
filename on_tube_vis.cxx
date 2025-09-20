@@ -3511,8 +3511,16 @@ void on_tube_vis::update_attribute_bindings(void)
 		}
 
 		// Initialize the trajectory hash grid.
+		// Cell size is chosen such that the number of segments per cell remains approximately
+		// constant.
+		{
 		auto const spatial_extent = cgv::math::max_value(bbox.get_extent());
-		render.create_traj_grid({cgv::vec3{spatial_extent / 128}, (tmax - tmin) / 128});
+		auto const resolution     = std::max(std::powf(num_nodes, 0.25f), 16.0f) * 5e-4f;
+		render.create_traj_grid({
+			cgv::vec3{spatial_extent * resolution},
+			(tmax - tmin) * resolution
+		});
+		}
 
 		// Generate the density volume (uses GPU buffer data so we need to do this after upload)
 		create_density_volume(ctx, voxel_grid_resolution);

@@ -113,7 +113,8 @@ bool render_state::append_nodes ()
 			traj_grid.add_segment(
 				prev_node,
 				traj.most_recent_node(),
-				{static_cast<uint32_t>(prev_node_idx), static_cast<uint32_t>(traj.last_node_idx())}
+				{static_cast<uint32_t>(prev_node_idx), static_cast<uint32_t>(traj.last_node_idx())},
+				node->t_to_s
 			);
 
 		_node_queue.pop();
@@ -280,8 +281,8 @@ void render_state::create_traj_grid (cgv::vec4 cell_size)
 {
 	// Allocate a coherently mapped 1 GiB buffer.
 	grid_mem = {1 << 30, gpumem::heap::sync_mode::coherent};
-	// Initialize the grid with 2^12 buckets.
-	traj_grid = {&grid_mem, cell_size, 12};
+	// Initialize the grid with 2^10 buckets.
+	traj_grid = {&grid_mem, cell_size, 10};
 }
 
 void render_state::collect_timer_queries (const bool collect_render)

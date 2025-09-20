@@ -14,13 +14,19 @@
 
 /// Marks log messages from this file.
 #define LOG_TAG "\x1b[1m[traj_grid]\x1b[m"
+/// Message severity.
+#define LOG_ERROR   "\x1b[1;31m[error]\x1b[m"
+#define LOG_WARNING "\x1b[1;33m[warning]\x1b[m"
 
 
 namespace otv {
 namespace {
 
+using cgv::vec3;
+using cgv::vec4;
+
 /// Controls the amount of debug messages produced by the grid.
-/// Ranges from 0 (no output) to 3 (full output).
+/// Ranges from 0 (no output) to 4 (full output).
 constexpr auto log_level = 2u;
 
 /// Print a message to `std::clog` using a C++ 20 format string.
@@ -69,22 +75,156 @@ constexpr auto max_cuckoo_chain = 50u;
 
 
 traj_grid::traj_grid(gpumem::heap* memory, coord_t cell_size, uint8_t order)
-	: _memory     {memory}
-	, _buckets    (1uz << order, gpumem::pmr_alloc{_memory})
-	, _scale      {coord_t{1} / cell_size} // index = coords / cell_size
-{}
+	: _memory            {memory}
+	, _buckets           (1uz << order, gpumem::pmr_alloc{_memory})
+	, _scale             {coord_t{1} / cell_size} // index = coords / cell_size
+	, _sample_step_space {cgv::math::min_value(vec3{cell_size}) * 0.05f}
+{
+	if constexpr (dimensions != dimensions::xyz) _sample_step_time = cell_size[3] * 0.05f;
+	if constexpr (log_level > 0) {
+		std::clog << LOG_TAG"Create instance.\n"
+			"\tBuckets:           "  << _buckets.size()    <<  "\n"
+			"\tCell size:         (" << cell_size          << ")\n"
+			"\tSpatial sampling:  "  << _sample_step_space <<  "\n";
+
+		if constexpr (dimensions != dimensions::xyz)
+			log("\tTemporal sampling: {}\n", _sample_step_time);
+	}
+}
 
 void traj_grid::add_segment (
 	node_attribs const& start,
 	node_attribs const& end,
-	cgv::uvec2          node_idcs
+	cgv::uvec2          node_idcs,
+	cgv::mat4 const&    t_to_s
 ) {
-	// TODO: Properly partition the segment into intervals.
-	get(index(start)).add_interval(*_memory, {node_idcs, {start.t.x(), end.t.x()}});
-#ifndef NDEBUG
-	// Track the number of intervals in each cell.
-	if constexpr (validation::enabled) ++_validation.cell_load[index(start)];
-#endif
+	/// Beginning and end of the segment, in grid coordinates.
+	auto const start_point = coord_t{vec4{vec3{start.pos_rad}, start.t[0]}} * _scale;
+	auto const end_point   = coord_t{vec4{vec3{  end.pos_rad},   end.t[0]}} * _scale;
+	/// Grid cell in which the segment begins.
+	auto const start_index = round(start_point);
+
+	if constexpr (log_level > 2)
+		std::clog << LOG_TAG" Add segment (" << start_point << ") to (" << end_point << ")\n";
+
+	/// Cubic Bézier curve defining the segment's spatial components, scaled to grid coordinates.
+	auto const [b0, b1, b2, b3] = std::array{
+		vec3{start_point},
+		vec3{start.pos_rad + start.tangent} * vec3{_scale},
+		vec3{  end.pos_rad -   end.tangent} * vec3{_scale},
+		vec3{end_point},
+	};
+	// If all control points lie in the same cell, that cell contains the entire segment.
+	if (
+		start_index == round(end_point)
+		// Tangent points only have spatial coordinates.
+		&& vec3{start_index} == round(b1)
+		&& vec3{start_index} == round(b2)
+	) {
+		add_interval(start_index, {node_idcs, {0, 1}});
+		return;
+	}
+
+	/// Spatial and temporal extent of the segment.
+	auto const arclen   = t_to_s[15] - t_to_s[0];
+	auto const duration = dimensions == dimensions::xyz ? 0.0f : end.t[0] - start.t[0];
+	/// Bounds on how much the curve parameter is increased with every sample.
+	// The actual maximum step size is max_step/2.
+	auto const max_step = coord_t{1} / (coord_t{vec4{vec3{arclen}, duration}} * _scale);
+	auto const min_step = std::min({
+		min_value(max_step),
+		// Assume a constant average speed.
+		_sample_step_space / arclen,
+		// Inline lambda required so the else branch compiles when dimensions == xyz.
+		[this]() {
+			if constexpr (dimensions == dimensions::xyz)
+				return std::numeric_limits<float>::infinity();
+			else return _sample_step_time;
+		}() / duration
+	});
+
+	if constexpr (log_level > 3)
+		std::clog <<
+			"\tArclength:    "  << arclen          <<  "\n"
+			"\tDuration:     "  << duration        <<  "\n"
+			"\tMin sampling: "  << min_step        <<  "\n"
+			"\tMax sampling: (" << max_step * 0.5f << ")\n";
+
+	/// Start of the current interval.
+	auto tmin = 0.0f;
+
+	// Begin at the start node.
+	auto prev_t     = 0.0f;
+	auto prev_point = start_point;
+	auto prev_index = start_index;
+	// Sample the trajectory.
+	do {
+		/// Determine the next sample based on how close the last sample was to a grid plane.
+		auto const t = std::min(
+			prev_t + std::max(
+				// Bigger steps from samples near the center of their grid cell.
+				min_value(max_step * (coord_t{0.5f} - abs(prev_point - prev_index))),
+				min_step // Ensure progress.
+			),
+			1.0f // Limit to segment.
+		);
+
+		// Evaluate the segment for the current curve parameter.
+		auto const t2    = t*t;
+		auto const s     = 1.0f - t;
+		auto const s2    = s*s;
+		auto const point = coord_t{vec4{
+			// Spatial components: Evaluate cubic Bézier.
+			s2*s*b0 + 3*s2*t*b1 + 3*s*t2*b2 + t*t2*b3,
+			// Temporal component: Linear interpolation.
+			dimensions == dimensions::xyz ? 0.0f : s*start_point[3] + t*end_point[3]
+		}};
+
+		if constexpr (log_level > 3) std::clog << "t = " << t << ":\t (" << point << ")\n";
+
+		/// Grid cell containing the current sample.
+		auto const index = round(point);
+
+		// If the trajectory has crossed into another grid cell:
+		if (index != prev_index) {
+			/// Average difference in curve parameter between the previous sample and every inter-
+			/// section between trajectory and grid.
+			auto isect_offset = 0.0f;
+			auto isect_count  = -1; // Number of grid intersections - 1.
+
+			// Indices differ in at least one component, maybe multiple.
+			for (auto d = 0u; d < index.size(); ++d) {
+				if (prev_index[d] == index[d]) continue;
+				/// Coordinate of the hyper-plane separating the the two cells in dimension d.
+				/// If the step size is small enough that there should only ever be one crossing per
+				/// component.
+				auto grid_plane = 0.5f*prev_index[d] + 0.5f*index[d];
+
+				if (log_level > 1 && abs(index[d] - prev_index[d]) > 1)
+					std::clog << LOG_WARNING LOG_TAG" Skipping cell between (" << prev_index
+						<< ") and (" << index << ")\n";
+
+				// Linearly approximate the intersection between trajectory and grid.
+				isect_offset +=
+					(t - prev_t) * (grid_plane - prev_point[d])/(point[d] - prev_point[d]);
+				++isect_count;
+			}
+			assert(isect_count >= 0 && isect_count < index.size());
+			/// End the interval at the average of all grid crossings.
+			auto const tmax =
+				prev_t + isect_offset*std::array{1.0f, 0.5f, 1.0f/3, 0.25f}[isect_count];
+			// Store the interval in the grid.
+			add_interval(prev_index, {node_idcs, {tmin, tmax}});
+			// The next interval begins where the previous one ends.
+			tmin = tmax;
+		}
+		// Remember the current sample for the next iteration.
+		prev_t     = t;
+		prev_point = point;
+		prev_index = index;
+	} while (prev_t < 1.0f);
+	// Create a final interval up to the end of the segment.
+	add_interval(prev_index, {node_idcs, {tmin, 1.0}});
 }
 
 void traj_grid::set_shader_defines (
@@ -112,6 +252,19 @@ void traj_grid::set_shader_uniforms (cgv::render::context& c, cgv::render::shade
 	assert(ok);
 }
 
+
+void traj_grid::add_interval (index_t index, interval_t interval)
+{
+	if constexpr (log_level > 2)
+		std::clog << LOG_TAG" Add interval (" << interval.time << ") to cell (" << index << ").\n";
+
+	get(index).add_interval(*_memory, interval);
+
+#ifndef NDEBUG
+	// Track the number of intervals in each cell.
+	if constexpr (validation::enabled) ++_validation.cell_load[index];
+#endif
+}
 
 auto traj_grid::get (index_t index) -> cell_t&
 {
@@ -221,7 +374,11 @@ auto traj_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 		// validation map with zero trajectory intervals.
 		// This check is not performed when `new_cell` is given, since that only happens during
 		// rehashing, which does not affect the validation map.
-		if constexpr (validation::enabled) assert(_validation.cell_load[query] == 0);
+		if (validation::enabled && _validation.cell_load[query] != 0) {
+			std::clog << LOG_ERROR LOG_TAG" Could not find cell (" << query << ") "
+				"even though it has been added to the grid before.\n";
+			std::exit(EXIT_FAILURE);
+		}
 #endif
 	}
 
@@ -249,7 +406,7 @@ auto traj_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 			else assert(*new_entry == new_cell);
 
 			if constexpr (log_level > 2)
-				log(LOG_TAG" Inserted a cell after {} cuckoos.\n", i);
+				std::clog << LOG_TAG" Inserted cell (" << query << ") after " << i << " cuckoos.\n";
 
 			return new_entry;
 		}
@@ -286,17 +443,13 @@ auto traj_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 			if (load < dest_bucket.load) dest_bucket = {&bucket, load};
 		}
 	}
-
 	// If no free slot could be found in the given number of tries, the table must be resized.
+	// All cells in the table before this function call are reinserted into the new buckets.
+	// To this end, the last cell to be displaced is restored into the slot of the new cell.
+	// It will be in the wrong bucket with the wrong signature, but for rehashing that is OK.
+	// The new cell will be added to the expanded table after all previous entries have been moved.
+	*new_entry = insert_entry.cell;
 	return nullptr;
-}
-
-constexpr auto traj_grid::index (node_attribs const& node) const noexcept -> index_t
-{
-	coord_t coords = node.pos_rad;
-	if constexpr (dimensions == dimensions::xyzt) coords.w() = node.t.x();
-	// Round such that cells are centered on their index.
-	return cgv::math::round(_scale * coords);
 }
 
 constexpr auto traj_grid::signature (index_t index) const noexcept -> signature_t
@@ -310,10 +463,10 @@ constexpr auto traj_grid::signature (index_t index) const noexcept -> signature_
 	});
 
 	// Compared to the implementation by Jarzynski and Olano, `index` is rotated by one component.
-	uint32_t hash = index.x() + p5;
+	uint32_t hash = std::bit_cast<uint32_t>(index[0]) + p5;
 
-	for (auto d = 1u; d < static_cast<unsigned>(dimensions); ++d) {
-		hash += index[d] * p3;
+	for (auto d = 1u; d < index.size(); ++d) {
+		hash += std::bit_cast<uint32_t>(index[d]) * p3;
 		hash  = p4 * ((hash << 17) | (hash >> 15));
 	}
 
