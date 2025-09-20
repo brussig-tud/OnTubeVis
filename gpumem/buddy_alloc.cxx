@@ -52,11 +52,11 @@ buddy_alloc::buddy_alloc(std::span<std::byte> memory, uint8_t base_order)
 	auto const block_size = 1 << _base_order;
 
 	if constexpr (log_level > 0)
-		log(LOG_TAG" Create instance."
-			"\n\tRange:       {}..{} ({} bytes)"
-			"\n\tCapacity:    {} bytes"
-			"\n\tGranularity: {} bytes"
-			"\n\tLevels:      {}\n",
+		log(LOG_TAG" Create instance.\n"
+			"\tRange:       {}..{} ({} bytes)\n"
+			"\tCapacity:    {} bytes\n"
+			"\tGranularity: {} bytes\n"
+			"\tLevels:      {}\n",
 			static_cast<void*>(_memory), static_cast<void*>(&*memory.end()), memory.size(),
 			block_size * min_blocks,
 			block_size,

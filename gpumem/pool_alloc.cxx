@@ -48,10 +48,10 @@ pool_alloc::pool_alloc (std::pmr::memory_resource& parent, size_t chunk_size, ui
 	_chunk_size = (chunk_size >> _min_order) << _min_order;
 
 	if constexpr (log_level > 0)
-		log(LOG_TAG" Create instance."
-			"\n\tChunk size: {} bytes"
-			"\n\tMin block:  {} bytes"
-			"\n\tMax block:  {} bytes\n",
+		log(LOG_TAG" Create instance.\n"
+			"\tChunk size: {} bytes\n"
+			"\tMin block:  {} bytes\n"
+			"\tMax block:  {} bytes\n",
 			_chunk_size, 1 << _min_order, 1 << (_max_order - 1)
 		);
 
