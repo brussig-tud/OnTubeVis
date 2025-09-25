@@ -416,6 +416,7 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("playback_speed", playback.speed) &&
 		rh.reflect_member("datapath", datapath_helper.file_name) &&
 		rh.reflect_member("layer_config_file", layer_config_file_helper.file_name) && // ToDo: figure out proper reflection name
+		rh.reflect_member("trajectory_relation", rel_vis.function) &&
 		rh.reflect_member("show_hidden_glyphs", debug.show_hidden_glyphs) &&
 		rh.reflect_member("render_style", render.style) &&
 		rh.reflect_member("override_cap_clip_distance", override_cap_clip_distance_proxy) &&
@@ -1398,20 +1399,16 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 		client.commit_session();
 	ah_mgr.set_dataset(ds);
 
+	{
+	auto t = ds.minmax_position_timestamp();
+	rel_vis.set_defaults({bbox.get_extent(), t.second - t.first});
+	}
+
 	tube_shading_defines = tube_shading.build_tube_shading_defines(
 		render.visualizations.front().config, debug.highlight_segments
 	);
-	render.traj_grid.set_shader_defines(
-		tube_shading_defines,
-		buffer_bindings::grid_memory,
-		traj_grid_shading
-	);
+	set_rel_vis_defines(ctx);
 	shaders.reload(ctx, "tube_shading", { tube_shading_defines });
-	render.traj_grid.set_shader_defines(
-		ref_textured_spline_tube_renderer(ctx, 1).additional_defines,
-		buffer_bindings::grid_memory,
-		traj_grid_shading
-	);
 
 	// reset glyph layer configuration file
 	layer_config_file_helper.set_file_name("");
@@ -1446,6 +1443,16 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 #endif
 }
 
+void on_tube_vis::set_rel_vis_defines(cgv::render::context& ctx)
+{
+	auto& tstr_defines = ref_textured_spline_tube_renderer(ctx, 1).additional_defines;
+	render.hash_grid.set_defines(tstr_defines, buffer_bindings::grid_memory);
+	rel_vis.set_defines(tstr_defines);
+
+	render.hash_grid.set_defines(tube_shading_defines, buffer_bindings::grid_memory);
+	rel_vis.set_defines(tube_shading_defines);
+}
+
 bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 
 	auto& glyph_layer_mgr = render.visualizations.front().manager;
@@ -1463,17 +1470,8 @@ bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 		tube_shading_defines = tube_shading.build_tube_shading_defines(
 			render.visualizations.front().config, debug.highlight_segments
 		);
-		render.traj_grid.set_shader_defines(
-			tube_shading_defines,
-			buffer_bindings::grid_memory,
-			traj_grid_shading
-		);
+		set_rel_vis_defines(ctx);
 		shaders.reload(ctx, "tube_shading", { tube_shading_defines });
-		render.traj_grid.set_shader_defines(
-			ref_textured_spline_tube_renderer(ctx, 1).additional_defines,
-			buffer_bindings::grid_memory,
-			traj_grid_shading
-		);
 
 		compile_glyph_attribs();
 
@@ -1584,28 +1582,16 @@ void on_tube_vis::on_set(void* member_ptr)
 			tube_shading.grid_normal_inwards,
 			tube_shading.grid_normal_variant,
 			tube_shading.enable_fuzzy_grid,
-			traj_grid_shading.color_fn
+			rel_vis.function
 		)
 	){
-		shader_define_map defines = tube_shading.build_tube_shading_defines(
+		tube_shading_defines = tube_shading.build_tube_shading_defines(
 			render.visualizations.front().config, debug.highlight_segments
 		);
-		if(defines != tube_shading_defines) {
-			context& ctx = *get_context();
-			tube_shading_defines = defines;
-			render.traj_grid.set_shader_defines(
-				tube_shading_defines,
-				buffer_bindings::grid_memory,
-				traj_grid_shading
-			);
-			shaders.reload(ctx, "tube_shading", { tube_shading_defines });
-			render.traj_grid.set_shader_defines(
-				ref_textured_spline_tube_renderer(ctx, 1).additional_defines,
-				buffer_bindings::grid_memory,
-				traj_grid_shading
-			);
-			client.extrapol_mgr.update_tube_shading(tube_shading, render.visualizations.front().config);
-		}
+		context& ctx = *get_context();
+		client.extrapol_mgr.update_tube_shading(tube_shading, render.visualizations.front().config);
+		set_rel_vis_defines(ctx);
+		shaders.reload(ctx, "tube_shading", { tube_shading_defines });
 	}
 
 	// - debug render setting
@@ -3144,8 +3130,23 @@ void on_tube_vis::create_gui (void)
 	add_decorator("", "separator");
 	add_heading("Visualization");
 
-	// Base color
-	traj_grid_shading.build_gui(*this);
+	if (begin_tree_node("Trajectory Relation", rel_vis)) {
+		if (traj_mgr.has_data())
+		{
+		align("\a");
+		rel_vis.build_gui(
+			*this,
+			client.data->datasets[0].trajs.size(),
+			cgv::vec4{
+				bbox.get_extent(),
+				client.data->t_minmax.second - client.data->t_minmax.first
+			},
+			color_map_mgr.get_names()
+		);
+		align("\b");
+		}
+		end_tree_node(rel_vis);
+	}
 
 	// Attribute mapping settings
 	for(unsigned ds = 0; ds < (unsigned)render.visualizations.size(); ds++) {
@@ -3515,8 +3516,8 @@ void on_tube_vis::update_attribute_bindings(void)
 		// constant.
 		{
 		auto const spatial_extent = cgv::math::max_value(bbox.get_extent());
-		auto const resolution     = std::max(std::powf(num_nodes, 0.25f), 16.0f) * 5e-4f;
-		render.create_traj_grid({
+		auto const resolution     = std::max(std::powf(num_nodes, 0.25f), 16.0f) * 1e-3f;
+		render.create_hash_grid({
 			cgv::vec3{spatial_extent * resolution},
 			(tmax - tmin) * resolution
 		});
@@ -3859,7 +3860,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		const auto fb_size = fbc.get_size();
 		prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
 
-		render.traj_grid.set_shader_uniforms(ctx, prog);
+		render.hash_grid.set_uniforms(ctx, prog);
+		rel_vis.set_uniforms(ctx, prog);
 
 		fbc.enable_attachment(ctx, "albedo", 0);
 		fbc.enable_attachment(ctx, "position", 1);

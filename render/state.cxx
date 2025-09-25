@@ -105,12 +105,14 @@ bool render_state::append_nodes ()
 		auto const prev_node     = traj.most_recent_node();
 		auto const prev_node_idx = traj.last_node_idx();
 
+		// Store the trajectory ID as part of the node.
+		node->node.t[1] = node->trajectory;
 		// Add the new node.
 		traj.append_node(node->node, &node->t_to_s);
 
 		// If this created a new segment, insert it into the hash grid.
 		if (traj.last_segment_idx() != trajectory::nil)
-			traj_grid.add_segment(
+			hash_grid.add_segment(
 				prev_node,
 				traj.most_recent_node(),
 				{static_cast<uint32_t>(prev_node_idx), static_cast<uint32_t>(traj.last_node_idx())},
@@ -277,12 +279,12 @@ bool render_state::create_glyph_layer (
 	return glyphs[layer].ranges.create(segment_buffer.as_span().length());
 }
 
-void render_state::create_traj_grid (cgv::vec4 cell_size)
+void render_state::create_hash_grid (cgv::vec4 cell_size)
 {
 	// Allocate a coherently mapped 1 GiB buffer.
 	grid_mem = {1 << 30, gpumem::heap::sync_mode::coherent};
 	// Initialize the grid with 2^10 buckets.
-	traj_grid = {&grid_mem, cell_size, 10};
+	hash_grid = {&grid_mem, cell_size, 10};
 }
 
 void render_state::collect_timer_queries (const bool collect_render)

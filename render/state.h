@@ -19,7 +19,7 @@
 #include "gpumem/heap.h"
 #include "gpumem/ring_buffer.h"
 #include "render/common.h"
-#include "render/traj_grid.h"
+#include "render/hash_grid.h"
 #include "render/trajectory.h"
 #include "textured_spline_tube_renderer.h"
 
@@ -151,11 +151,11 @@ struct render_state
 	/// Render data and state specific to each trajectory.
 	std::vector<trajectory> trajectories;
 
-	/// GL buffer storing the trajectory grid.
+	/// GL buffer storing the hash grid.
 	gpumem::heap grid_mem {};
 	/// GPU-accessible 4D hash grid of trajectory intervals.
-	/// Used to calculate trajectory relationships with a spatio-temporal kernel on the GPU.
-	traj_grid traj_grid {};
+	/// Used to calculate relations between trajectories on the GPU.
+	hash_grid hash_grid {};
 
 	/// Fence placed directly after the last draw command for synchronization with the GPU.
 	//GLsync draw_fence;
@@ -173,7 +173,7 @@ struct render_state
 
 
 	render_state() = default;
-	// Instances must not be moved since `traj_grid` points to `grid_mem`.
+	// Instances must not be moved since `hash_grid` points to `grid_mem`.
 	render_state(render_state&&) = delete;
 	auto operator= (render_state&&) = delete;
 
@@ -230,7 +230,7 @@ struct render_state
 	);
 
 	/// Initialize the trajectory hash grid.
-	void create_traj_grid (cgv::vec4 cell_size);
+	void create_hash_grid (cgv::vec4 cell_size);
 
 	/// Calculate the extent of a glyph relative to its anchor point on the given layer along the trajectory, taking
 	/// into account the configured scale. Plot control points have flexible extents which cannot be determined in

@@ -11,8 +11,8 @@
 #define GRID_NORMAL_SETTINGS 0
 #define OUTLINE_INWARDS 0
 
-// How the trajectory grid is used to color trajectories.
-#define TRAJ_GRID_COLOR_FN 0
+// Trajectory relation to evaluate.
+#define TRAJ_REL_FUNCTION 0
 
 #define CONSTANT_FLOAT_UNIFORM_COUNT 0
 #define CONSTANT_COLOR_UNIFORM_COUNT 0
@@ -47,7 +47,7 @@ mat3 get_inverse_normal_matrix();
 vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
 	in float depth, in float specular_factor, in float max_glyph_s
-#if TRAJ_GRID_COLOR_FN != 0
+#if TRAJ_REL_FUNCTION != 0
 	, in float seg_t
 #endif
 );
@@ -151,7 +151,7 @@ void main()
 		texcoord_fs.y
 	);
 	uvec4 albedo_texcoord_seg = texture(albedo_tex, fb_uv);
-	vec3 color = TRAJ_GRID_COLOR_FN == 0 ? unpackUnorm4x8(albedo_texcoord_seg.x).rgb : vec3(1);
+	vec3 color = TRAJ_REL_FUNCTION == 0 ? unpackUnorm4x8(albedo_texcoord_seg.x).rgb : vec3(1);
 	vec2 texcoord = vec2(uintBitsToFloat(albedo_texcoord_seg.y), uintBitsToFloat(albedo_texcoord_seg.z));
 	int segment_id = int(albedo_texcoord_seg.w); // "guaranteed to preserve the bit pattern"
 
@@ -178,7 +178,7 @@ void main()
 		// Shade tube surface (-> on-tube visualizations)
 		subp_color = otv_shade_fragment(
 			color, texcoord, segment_id, pos_eye, normal_eye, tangent_eye, depth, specular_factor, POS_INF
-			#if TRAJ_GRID_COLOR_FN != 0
+			#if TRAJ_REL_FUNCTION != 0
 				, uintBitsToFloat(albedo_texcoord_seg.x)
 			#endif
 		);

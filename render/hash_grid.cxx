@@ -9,11 +9,11 @@
 #include "gpumem/span.inl"
 
 // implemented header
-#include "render/traj_grid.h"
+#include "render/hash_grid.h"
 
 
 /// Marks log messages from this file.
-#define LOG_TAG "\x1b[1m[traj_grid]\x1b[m"
+#define LOG_TAG "\x1b[1m[hash_grid]\x1b[m"
 /// Message severity.
 #define LOG_ERROR   "\x1b[1;31m[error]\x1b[m"
 #define LOG_WARNING "\x1b[1;33m[warning]\x1b[m"
@@ -74,15 +74,16 @@ constexpr auto max_cuckoo_chain = 50u;
 } // namespace
 
 
-traj_grid::traj_grid(gpumem::heap* memory, coord_t cell_size, uint8_t order)
+hash_grid::hash_grid(gpumem::heap* memory, vec4 cell_size, uint8_t order)
 	: _memory            {memory}
 	, _buckets           (1uz << order, gpumem::pmr_alloc{_memory})
+	, _cell_size         {cell_size}
 	, _scale             {coord_t{1} / cell_size} // index = coords / cell_size
 	, _sample_step_space {cgv::math::min_value(vec3{cell_size}) * 0.05f}
 {
 	if constexpr (dimensions != dimensions::xyz) _sample_step_time = cell_size[3] * 0.05f;
 	if constexpr (log_level > 0) {
-		std::clog << LOG_TAG"Create instance.\n"
+		std::clog << LOG_TAG" Create instance.\n"
 			"\tBuckets:           "  << _buckets.size()    <<  "\n"
 			"\tCell size:         (" << cell_size          << ")\n"
 			"\tSpatial sampling:  "  << _sample_step_space <<  "\n";
@@ -92,7 +93,7 @@ traj_grid::traj_grid(gpumem::heap* memory, coord_t cell_size, uint8_t order)
 	}
 }
 
-void traj_grid::add_segment (
+void hash_grid::add_segment (
 	node_attribs const& start,
 	node_attribs const& end,
 	cgv::uvec2          node_idcs,
@@ -121,13 +122,13 @@ void traj_grid::add_segment (
 		&& vec3{start_index} == round(b1)
 		&& vec3{start_index} == round(b2)
 	) {
-		add_interval(start_index, {node_idcs, {0, 1}});
+		add_interval(start_index, {node_idcs, {start.t[0], end.t[0]}});
 		return;
 	}
 
 	/// Spatial and temporal extent of the segment.
 	auto const arclen   = t_to_s[15] - t_to_s[0];
-	auto const duration = dimensions == dimensions::xyz ? 0.0f : end.t[0] - start.t[0];
+	auto const duration = end.t[0] - start.t[0];
 	/// Bounds on how much the curve parameter is increased with every sample.
 	// The actual maximum step size is max_step/2.
 	auto const max_step = coord_t{1} / (coord_t{vec4{vec3{arclen}, duration}} * _scale);
@@ -151,7 +152,7 @@ void traj_grid::add_segment (
 			"\tMax sampling: (" << max_step * 0.5f << ")\n";
 
 	/// Start of the current interval.
-	auto tmin = 0.0f;
+	auto min_time = start.t[0];
 
 	// Begin at the start node.
 	auto prev_t     = 0.0f;
@@ -180,7 +181,10 @@ void traj_grid::add_segment (
 			dimensions == dimensions::xyz ? 0.0f : s*start_point[3] + t*end_point[3]
 		}};
 
-		if constexpr (log_level > 3) std::clog << "t = " << t << ":\t (" << point << ")\n";
+		if constexpr (log_level > 3) {
+			log("{:5.1f}% {:f}", t * 100, (start.t[0] + t*duration));
+			std::clog << " (" << point << ")\n";
+		}
 
 		/// Grid cell containing the current sample.
 		auto const index = round(point);
@@ -211,12 +215,14 @@ void traj_grid::add_segment (
 			}
 			assert(isect_count >= 0 && isect_count < index.size());
 			/// End the interval at the average of all grid crossings.
-			auto const tmax =
-				prev_t + isect_offset*std::array{1.0f, 0.5f, 1.0f/3, 0.25f}[isect_count];
+			auto const max_time =
+				start.t[0]
+				+ (prev_t + isect_offset*std::array{1.0f, 0.5f, 1.0f/3, 0.25f}[isect_count])
+				* duration;
 			// Store the interval in the grid.
-			add_interval(prev_index, {node_idcs, {tmin, tmax}});
+			add_interval(prev_index, {node_idcs, {min_time, max_time}});
 			// The next interval begins where the previous one ends.
-			tmin = tmax;
+			min_time = max_time;
 		}
 		// Remember the current sample for the next iteration.
 		prev_t     = t;
@@ -224,36 +230,33 @@ void traj_grid::add_segment (
 		prev_index = index;
 	} while (prev_t < 1.0f);
 	// Create a final interval up to the end of the segment.
-	add_interval(prev_index, {node_idcs, {tmin, 1.0}});
+	add_interval(prev_index, {node_idcs, {min_time, end.t[0]}});
 }
 
-void traj_grid::set_shader_defines (
-	cgv::render::shader_define_map& d,
-	GLuint                          buffer_binding,
-	traj_grid_shading const&        shading
-) const {
+void hash_grid::set_defines (cgv::render::shader_define_map& d, GLuint buffer_binding) const
+{
 	using sc = cgv::render::shader_code;
-	sc::set_define(d, "TRAJ_GRID_BUFFER_BINDING",   buffer_binding,                      {});
-	sc::set_define(d, "TRAJ_GRID_ADDRESS_UNIT",     shader_address_unit,                 {});
-	sc::set_define(d, "TRAJ_GRID_NUM_HASH_FNS",     uint32_t{num_hash_fns},              {});
-	sc::set_define(d, "TRAJ_GRID_SLOTS_PER_BUCKET", bucket_t::num_slots,                 {});
-	sc::set_define(d, "TRAJ_GRID_CELL_HEADER_SIZE", offsetof(cell_t::data_t, intervals), {});
-	sc::set_define(d, "TRAJ_GRID_DIMENSIONS",       dimensions,                          {});
-	sc::set_define(d, "TRAJ_GRID_COLOR_FN",         shading.color_fn,                    {});
+	sc::set_define(d, "HASH_GRID_BUFFER_BINDING",   buffer_binding,                      {});
+	sc::set_define(d, "HASH_GRID_ADDRESS_UNIT",     shader_address_unit,                 {});
+	sc::set_define(d, "HASH_GRID_NUM_HASH_FNS",     uint32_t{num_hash_fns},              {});
+	sc::set_define(d, "HASH_GRID_SLOTS_PER_BUCKET", bucket_t::num_slots,                 {});
+	sc::set_define(d, "HASH_GRID_CELL_HEADER_SIZE", offsetof(cell_t::data_t, intervals), {});
+	sc::set_define(d, "HASH_GRID_DIMENSIONS",       dimensions,                          {});
 }
 
-void traj_grid::set_shader_uniforms (cgv::render::context& c, cgv::render::shader_program& p) const
+void hash_grid::set_uniforms (cgv::render::context& c, cgv::render::shader_program& p) const
 {
 	auto ok = true
-	&& p.set_uniform(c, "traj_grid_scale",           _scale)
-	&& p.set_uniform(c, "traj_grid_buckets.address", ptr_to_offset(_memory->as_span().as_const(), _buckets.data()))
-	&& p.set_uniform(c, "traj_grid_buckets_mask",    static_cast<uint32_t>(_buckets.size() - 1))
+	&& p.set_uniform(c, "hash_grid_cell_size",       _cell_size)
+	&& p.set_uniform(c, "hash_grid_scale",           _scale)
+	&& p.set_uniform(c, "hash_grid_buckets.address", ptr_to_offset(_memory->as_span().as_const(), _buckets.data()))
+	&& p.set_uniform(c, "hash_grid_buckets_mask",    static_cast<uint32_t>(_buckets.size() - 1))
 	;
 	assert(ok);
 }
 
 
-void traj_grid::add_interval (index_t index, interval_t interval)
+void hash_grid::add_interval (index_t index, interval_t interval)
 {
 	if constexpr (log_level > 2)
 		std::clog << LOG_TAG" Add interval (" << interval.time << ") to cell (" << index << ").\n";
@@ -266,7 +269,7 @@ void traj_grid::add_interval (index_t index, interval_t interval)
 #endif
 }
 
-auto traj_grid::get (index_t index) -> cell_t&
+auto hash_grid::get (index_t index) -> cell_t&
 {
 	while (true) {
 		// In the vast majority of cases, the cell is already stored in the table or can be
@@ -311,7 +314,7 @@ auto traj_grid::get (index_t index) -> cell_t&
 	}
 }
 
-auto traj_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
+auto hash_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 {
 	// Recurring constants.
 	auto const buffer = _memory->as_span();
@@ -452,7 +455,7 @@ auto traj_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 	return nullptr;
 }
 
-constexpr auto traj_grid::signature (index_t index) const noexcept -> signature_t
+constexpr auto hash_grid::signature (index_t index) const noexcept -> signature_t
 {
 	// Signatures are generated using the variable length xxhash32 algorithm by Collet 2012 as
 	// implemented by Jarzynski and Olano 2020.
@@ -475,7 +478,7 @@ constexpr auto traj_grid::signature (index_t index) const noexcept -> signature_
 	return {hash ^ (hash >> 16)};
 }
 
-auto traj_grid::bucket (signature_t signature, uint8_t hash_fn) noexcept -> bucket_t&
+auto hash_grid::bucket (signature_t signature, uint8_t hash_fn) noexcept -> bucket_t&
 {
 	uint32_t hash = signature.value;
 
@@ -502,7 +505,7 @@ auto traj_grid::bucket (signature_t signature, uint8_t hash_fn) noexcept -> buck
 }
 
 
-traj_grid::cell_t::cell_t(gpumem::heap& memory, index_t index)
+hash_grid::cell_t::cell_t(gpumem::heap& memory, index_t index)
 {
 	// Start with the smallest capacity > 0 such that the total size of the allocation is a power of
 	// two.
@@ -516,24 +519,24 @@ traj_grid::cell_t::cell_t(gpumem::heap& memory, index_t index)
 	);
 }
 
-constexpr auto traj_grid::cell_t::operator== (cell_t const& other) const noexcept -> bool
+constexpr auto hash_grid::cell_t::operator== (cell_t const& other) const noexcept -> bool
 {
 	// Pointer semantics.
 	return _address == other._address;
 }
 
-constexpr traj_grid::cell_t::operator bool () const noexcept
+constexpr hash_grid::cell_t::operator bool () const noexcept
 {
 	// Zero is a valid offset, so null pointers instead have all bits set.
 	return _address != ~0;
 }
 
-auto traj_grid::cell_t::get (gpumem::span<std::byte> const& buffer) noexcept -> data_t&
+auto hash_grid::cell_t::get (gpumem::span<std::byte> const& buffer) noexcept -> data_t&
 {
 	return *reinterpret_cast<data_t*>(offset_to_ptr(buffer, _address));
 }
 
-void traj_grid::cell_t::add_interval (gpumem::heap& memory, interval_t interval)
+void hash_grid::cell_t::add_interval (gpumem::heap& memory, interval_t interval)
 {
 	auto const buffer = memory.as_span();
 	auto& data        = get(buffer);
@@ -572,7 +575,7 @@ void traj_grid::cell_t::add_interval (gpumem::heap& memory, interval_t interval)
 	_address = ptr_to_offset(buffer.as_const(), &new_data);
 }
 
-auto traj_grid::cell_t::allocate (gpumem::heap& memory, uint32_t capacity) -> data_t&
+auto hash_grid::cell_t::allocate (gpumem::heap& memory, uint32_t capacity) -> data_t&
 {
 	return *reinterpret_cast<data_t*>(memory.allocate(
 		offsetof(data_t, intervals) + capacity*sizeof(interval_t),

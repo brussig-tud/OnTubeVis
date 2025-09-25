@@ -8,8 +8,8 @@
 #define USE_CUBIC_TANGENTS 1
 #define USE_VIEW_SPACE_POSITION 1
 
-// How the trajectory grid is used to color trajectories.
-#define TRAJ_GRID_COLOR_FN 0
+// Trajectory relation to evaluate.
+#define TRAJ_REL_FUNCTION 0
 
 #if USE_CONSERVATIVE_DEPTH == 1
 #extension GL_ARB_conservative_depth : enable
@@ -55,7 +55,7 @@ mat3 get_inverse_normal_matrix();
 vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
 	in float depth, in float specular_factor, in float max_glyph_s
-	#if TRAJ_GRID_COLOR_FN != 0
+	#if TRAJ_REL_FUNCTION != 0
 		, in float seg_t
 	#endif
 );
@@ -1032,7 +1032,7 @@ void main()
 			col.rgb*vec3(1/255.,1/255.,1/255.), /*texcoord: */vec2(u, spline_t>=l_max_cubic ? 2 : v),
 			segment_id_fs, hit.hp.xyz, hit.normal, tangent, gl_FragDepth, /*specular_factor: */1,
 			/* max_glyph_s: */POS_INF //s_playback
-			#if TRAJ_GRID_COLOR_FN != 0
+			#if TRAJ_REL_FUNCTION != 0
 				, spline_t
 			#endif
 		).rgb;
@@ -1041,7 +1041,7 @@ void main()
 		color_out = vec4(pow(col.rgb, 1.0/gamma3), col.a);
 #else
 		frag_albedo = uvec4(
-			TRAJ_GRID_COLOR_FN == 0 ? packUnorm4x8(col) : floatBitsToUint(spline_t),
+			TRAJ_REL_FUNCTION == 0 ? packUnorm4x8(col) : floatBitsToUint(spline_t),
 			floatBitsToUint(alen(spline_t)),
 			floatBitsToUint(/*hit.cap ? 2.193f : */v),
 			uint(segment_id_fs) // "guaranteed to preserve the bit pattern"

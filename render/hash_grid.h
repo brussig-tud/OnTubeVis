@@ -20,7 +20,6 @@
 #include "gpumem/alloc.h"
 #include "gpumem/heap.h"
 #include "render/common.h"
-#include "render/traj_grid_shading.h"
 
 // forward declarations
 namespace cgv::render {
@@ -33,7 +32,7 @@ namespace otv {
 
 /// An acceleration data structure storing which trajectory intervals lie in each cell of an
 /// infinite regular grid, stored as a hash map in GPU-accessible memory.
-class traj_grid {
+class hash_grid {
 public:
 	/// The coordinate system that defines the grid.
 	constexpr static enum class dimensions : uint8_t {
@@ -44,10 +43,10 @@ public:
 	using coord_t = std::conditional_t<dimensions == dimensions::xyz, cgv::vec3, cgv::vec4>;
 
 	/// Create an empty grid.
-	[[nodiscard]] traj_grid() = default;
+	[[nodiscard]] hash_grid() = default;
 	/// Create a grid with 2 ^ `order` hash buckets.
 	/// `memory` must not be null and must outlive the grid.
-	[[nodiscard]] traj_grid(gpumem::heap* memory, coord_t cell_size, uint8_t order);
+	[[nodiscard]] hash_grid(gpumem::heap* memory, coord_t cell_size, uint8_t order);
 
 	/// Update the grid with a new trajectory segment.
 	/// `start` and `end` must be stored at `node_idcs` in the render buffer.
@@ -60,13 +59,9 @@ public:
 
 	/// Statically configure shaders through macros.
 	/// `buffer_binding` must be the index at which the GPU buffer used by this grid will be bound.
-	void set_shader_defines (
-		cgv::render::shader_define_map&,
-		GLuint buffer_binding,
-		traj_grid_shading const&
-	) const;
+	void set_defines (cgv::render::shader_define_map&, GLuint buffer_binding) const;
 	/// Dynamically configure shaders through uniforms.
-	void set_shader_uniforms (cgv::render::context&, cgv::render::shader_program&) const;
+	void set_uniforms (cgv::render::context&, cgv::render::shader_program&) const;
 
 private:
 	/// The interval of a trajectory segment that lies within a given grid cell.
@@ -144,6 +139,7 @@ private:
 	/// Hash table buckets each containing multiple slots for cells.
 	/// Length is a power of two.
 	std::vector<bucket_t, gpumem::pmr_alloc<bucket_t, gpumem::heap>> _buckets {};
+	cgv::vec4 _cell_size {};
 	/// Reciprocal of each grid cell's extent.
 	/// Multiply to map coordinates to cell (see `index`).
 	coord_t _scale {};

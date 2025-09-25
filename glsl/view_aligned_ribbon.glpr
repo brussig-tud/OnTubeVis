@@ -14,4 +14,4 @@ fragment_file:transform.glsl
 fragment_file:curve_tools.glsl
 fragment_file:rcc.glsl
 fragment_file:otv_shading.glsl
-fragment_file:otv_traj_grid.glsl
+fragment_file:otv_trajectory_relations.glsl

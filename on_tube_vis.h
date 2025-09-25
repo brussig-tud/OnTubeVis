@@ -44,7 +44,7 @@
 #include "color_map_viewer.h"
 #include "mapping_legend.h"
 #include "render/state.h"
-#include "render/traj_grid_shading.h"
+#include "vis/trajectory_relation.h"
 #include "otv_client.h"
 #ifdef RTX_SUPPORT
 #include "optix_integration.h"
@@ -232,7 +232,7 @@ protected:
 
 	/// tube shading settings
 	tube_shading_settings tube_shading;
-	otv::traj_grid_shading traj_grid_shading;
+	otv::vis::trajectory_relation rel_vis;
 
 protected:
 	/// shader defines for the deferred shading pass
@@ -294,6 +294,9 @@ protected:
 		/// vertex buffer for the quad containing the map for the RTLola drone flight demo dataset
 		vertex_buffer rtlola_map_vbo;
 	} dataset;
+
+	/// Set shader defines for calculating and visualizing trajectory relations using the hash grid.
+	void set_rel_vis_defines(cgv::render::context&);
 
 public:
 	bool toggle_taa_proxy = true;

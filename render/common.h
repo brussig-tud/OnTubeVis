@@ -17,7 +17,7 @@ struct node_attribs {
 	cgv::vec4 pos_rad;
 	cgv::vec4 color;
 	cgv::vec4 tangent;
-	cgv::vec4 t; // only uses .x component to store t, yzw are reserved for future use
+	cgv::vec4 t; // time, trajectory ID, undefined, undefined
 
 	inline static node_attribs from_api_node (
 		const OTV_HermiteNode &node, const float radius, const cgv::vec4 &color

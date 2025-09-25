@@ -135,10 +135,12 @@ set(SOURCES
 		# Trajectory rendering.
 		render/common.cxx
 		render/extrapolation.cxx
+		render/hash_grid.cxx
 		render/state.cxx
-		render/traj_grid.cxx
-		render/traj_grid_shading.cxx
 		render/trajectory.cxx
+
+		# Visualizations.
+		vis/trajectory_relation.cxx
 
 		# main app
 		ambient_occlusion_style.cxx
@@ -219,10 +221,12 @@ set(HEADERS
 		# Trajectory rendering.
 		render/common.h
 		render/extrapolation.h
+		render/hash_grid.h
 		render/state.h
-		render/traj_grid.h
-		render/traj_grid_shading.h
 		render/trajectory.h
+
+		# Visualization.
+		vis/trajectory_relation.h
 
 		# main app
 		ambient_occlusion_style.h

@@ -14,8 +14,8 @@
 #define GRID_NORMAL_SETTINGS 0
 #define OUTLINE_INWARDS 0
 
-// How the trajectory grid is used to color trajectories.
-#define TRAJ_GRID_COLOR_FN 0
+// Trajectory relation to evaluate.
+#define TRAJ_REL_FUNCTION 0
 
 #define CONSTANT_FLOAT_UNIFORM_COUNT 0
 #define CONSTANT_COLOR_UNIFORM_COUNT 0
@@ -53,9 +53,9 @@ mat3 get_inverse_normal_matrix();
 vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color, int side, float specular_factor);
 ////***** end interface of surface.glsl ***********************************
 
-// *** begin interface of otv_traj_grid.glsl ********************************
-vec3 otv_traj_grid_color (int seg_id, float seg_t);
-// *** end interface of otv_traj_grid.glsl **********************************
+// *** begin interface of otv_trajectory_relations.glsl ********************************
+vec3 otv_shade_relation (int seg_id, float seg_t);
+// *** end interface of otv_trajectory_relations.glsl **********************************
 
 
 // texture samplers
@@ -1469,7 +1469,7 @@ vec3 rainbow(float t)
 vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
 	in float depth, in float specular_factor, in float max_glyph_s
-	#if TRAJ_GRID_COLOR_FN != 0
+	#if TRAJ_REL_FUNCTION != 0
 		, in float seg_t
 	#endif
 ){
@@ -1489,8 +1489,8 @@ vec4 otv_shade_fragment (
 
 	//subp_color = vec4(uv.s, uv.t, 0.0, 1.0);
 
-	#if TRAJ_GRID_COLOR_FN != 0
-		color = otv_traj_grid_color(segment_id, seg_t);
+	#if TRAJ_REL_FUNCTION != 0
+		color = otv_shade_relation(segment_id, seg_t);
 	#endif
 
 	// glyph layer 0
