@@ -46,7 +46,7 @@ public:
 	[[nodiscard]] hash_grid() = default;
 	/// Create a grid with 2 ^ `order` hash buckets.
 	/// `memory` must not be null and must outlive the grid.
-	[[nodiscard]] hash_grid(gpumem::heap* memory, coord_t cell_size, uint8_t order);
+	[[nodiscard]] hash_grid(gpumem::heap* memory, cgv::vec4 cell_size, uint8_t order);
 
 	/// Update the grid with a new trajectory segment.
 	/// `start` and `end` must be stored at `node_idcs` in the render buffer.

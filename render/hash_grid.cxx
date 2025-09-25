@@ -78,7 +78,7 @@ hash_grid::hash_grid(gpumem::heap* memory, vec4 cell_size, uint8_t order)
 	: _memory            {memory}
 	, _buckets           (1uz << order, gpumem::pmr_alloc{_memory})
 	, _cell_size         {cell_size}
-	, _scale             {coord_t{1} / cell_size} // index = coords / cell_size
+	, _scale             {coord_t{1} / coord_t{cell_size}} // index = coords / cell_size
 	, _sample_step_space {cgv::math::min_value(vec3{cell_size}) * 0.05f}
 {
 	if constexpr (dimensions != dimensions::xyz) _sample_step_time = cell_size[3] * 0.05f;
@@ -89,7 +89,11 @@ hash_grid::hash_grid(gpumem::heap* memory, vec4 cell_size, uint8_t order)
 			"\tSpatial sampling:  "  << _sample_step_space <<  "\n";
 
 		if constexpr (dimensions != dimensions::xyz)
-			log("\tTemporal sampling: {}\n", _sample_step_time);
+			log("\tTemporal sampling: {}\n", [&]() {
+				if constexpr (dimensions == dimensions::xyz)
+					return 0.0f;
+				else return _sample_step_time;
+			}());
 	}
 }
 
