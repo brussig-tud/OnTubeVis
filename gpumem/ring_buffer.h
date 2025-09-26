@@ -69,6 +69,18 @@ public:
 		return _memory.as_span();
 	}
 
+	/// Iterator at the oldest entry.
+	[[nodiscard]] constexpr auto begin () noexcept
+	{
+		return as_span().wrapping_iterator(front());
+	}
+
+	/// Iterator one past the newest entry.
+	[[nodiscard]] constexpr auto end () noexcept
+	{
+		return as_span().wrapping_iterator(back());
+	}
+
 	/// Return true iff the buffer contains no elements.
 	[[nodiscard]] constexpr bool is_empty () const noexcept
 	{

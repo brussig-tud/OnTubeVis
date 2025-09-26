@@ -44,6 +44,13 @@ public:
 			return *_elem;
 		}
 
+		/// Check whether two operators point to the same address.
+		/// They are not required to belong to the same span.
+		[[nodiscard]] constexpr bool operator== (wrapping_iterator_type other) const noexcept
+		{
+			return _elem == other._elem;
+		}
+
 		/// Calculate the index of the element at the current position, i.e. the iterator's offset
 		/// from the begin of the span.
 		[[nodiscard]] constexpr index_type index () const noexcept
