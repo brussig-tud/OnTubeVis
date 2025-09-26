@@ -267,9 +267,9 @@ void hash_grid::add_interval (index_t index, interval_t interval)
 
 	get(index).add_interval(*_memory, interval);
 
-#ifndef NDEBUG
+#if OTV_HASH_GRID_VALIDATION
 	// Track the number of intervals in each cell.
-	if constexpr (validation::enabled) ++_validation.cell_load[index];
+	++_validation.cell_fill[index];
 #endif
 }
 
@@ -351,10 +351,8 @@ auto hash_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 				auto const index = slot.cell.get(buffer).index;
 			 	if (index == query) {
 					// We have found the queried cell.
-#ifndef NDEBUG
-					// Check that it contains the expected number of trajectory intervals.
-					if constexpr (validation::enabled)
-						assert(slot.cell.get(buffer).size == _validation.cell_load[query]);
+#if OTV_HASH_GRID_VALIDATION
+					assert(slot.cell.get(buffer).size == _validation.cell_fill[query]);
 #endif
 					return &slot.cell;
 				}
@@ -376,12 +374,12 @@ auto hash_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 	else {
 		// If no cell has been given to insert, allocate a new one.
 		new_cell = cell_t{*_memory, query};
-#ifndef NDEBUG
+#if OTV_HASH_GRID_VALIDATION
 		// Check that the index really does not exist in the table, then insert it into the
 		// validation map with zero trajectory intervals.
 		// This check is not performed when `new_cell` is given, since that only happens during
 		// rehashing, which does not affect the validation map.
-		if (validation::enabled && _validation.cell_load[query] != 0) {
+		if (_validation.cell_fill[query] != 0) {
 			std::clog << LOG_ERROR LOG_TAG" Could not find cell (" << query << ") "
 				"even though it has been added to the grid before.\n";
 			std::exit(EXIT_FAILURE);

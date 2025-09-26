@@ -1,13 +1,21 @@
 #pragma once
 
+// Additional validation can be turned on or off independently from the standard debug flag.
+#ifndef OTV_HASH_GRID_VALIDATION
+#ifndef NDEBUG
+#define OTV_HASH_GRID_VALIDATION 1
+#else
+#define OTV_HASH_GRID_VALIDATION 0
+#endif
+#endif
+
 // C++ STL
 #include <array>
 #include <cstdint>
 #include <random>
 #include <vector>
 
-#ifndef NDEBUG
-// Required for optional validation.
+#if OTV_HASH_GRID_VALIDATION
 #include <bitset>
 #include <unordered_map>
 #endif
@@ -173,13 +181,9 @@ private:
 	/// The bucket in which a cell with the given signature is stored by `hash_fn`.
 	[[nodiscard]] auto bucket (signature_t, uint8_t hash_fn) noexcept -> bucket_t&;
 
-#ifndef NDEBUG
+#if OTV_HASH_GRID_VALIDATION
 	/// Test the implementation by mirroring operations with an STL container in host memory.
-	[[no_unique_address]] struct validation {
-		/// If set to false, no state will be mirrored, avoiding all associated runtime and memory
-		/// overhead.
-		static constexpr auto enabled = true;
-
+	struct validation {
 		/// Function object hashing grid indices for use in STL containers.
 		/// Uses a different hash function than the GPU grid.
 		struct index_hash_t {
@@ -191,11 +195,7 @@ private:
 		};
 
 		/// Stores the number of trajectory intervals in each grid cell.
-		[[no_unique_address]] std::conditional_t<
-			enabled,
-			std::unordered_map<index_t, uint32_t, index_hash_t>,
-			std::monostate
-		> cell_load {};
+		std::unordered_map<index_t, uint32_t, index_hash_t> cell_fill {};
 	} _validation;
 #endif
 };
