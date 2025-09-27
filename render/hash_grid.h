@@ -13,7 +13,7 @@
 #include <array>
 #include <cstdint>
 #include <random>
-#include <vector>
+#include <span>
 
 #if OTV_HASH_GRID_VALIDATION
 #include <bitset>
@@ -25,8 +25,7 @@
 #include <cgv/render/shader_code.h>
 
 // local includes
-#include "gpumem/alloc.h"
-#include "gpumem/heap.h"
+#include "pmr/base.h"
 #include "render/common.h"
 
 // forward declarations
@@ -39,7 +38,7 @@ namespace cgv::render {
 namespace otv {
 
 /// An acceleration data structure storing which trajectory intervals lie in each cell of an
-/// infinite regular grid, stored as a hash map in GPU-accessible memory.
+/// infinite regular grid, stored as a hash map that can be made accessible to the GPU.
 class hash_grid {
 public:
 	/// The coordinate system that defines the grid.
@@ -53,8 +52,22 @@ public:
 	/// Create an empty grid.
 	[[nodiscard]] hash_grid() = default;
 	/// Create a grid with 2 ^ `order` hash buckets.
-	/// `memory` must not be null and must outlive the grid.
-	[[nodiscard]] hash_grid(gpumem::heap* memory, cgv::vec4 cell_size, uint8_t order);
+	/// The memory region must not be null and must outlive the grid.
+	[[nodiscard]] hash_grid(pmr::memory_region*, cgv::vec4 cell_size, uint8_t order);
+
+	// Forbid copying.
+	hash_grid(hash_grid const&) = delete;
+	auto operator= (hash_grid const&) = delete;
+
+	// Allow moving.
+	[[nodiscard]] hash_grid(hash_grid&&) noexcept;
+	auto operator= (hash_grid&&) noexcept -> hash_grid&;
+
+	/// Free all allocated memory when an instance is destroyed.
+	~hash_grid() noexcept
+	{
+		free();
+	}
 
 	/// Update the grid with a new trajectory segment.
 	/// `start` and `end` must be stored at `node_idcs` in the render buffer.
@@ -70,6 +83,11 @@ public:
 	void set_defines (cgv::render::shader_define_map&, GLuint buffer_binding) const;
 	/// Dynamically configure shaders through uniforms.
 	void set_uniforms (cgv::render::context&, cgv::render::shader_program&) const;
+
+	/// Free all allocated memory, emptying the grid.
+	void free () noexcept;
+	/// Forget all entries without freeing associated memory.
+	void leak () noexcept;
 
 private:
 	/// The interval of a trajectory segment that lies within a given grid cell.
@@ -107,8 +125,8 @@ private:
 		/// Create a null handle.
 		[[nodiscard]] constexpr cell_t() noexcept {};
 		/// Allocate a new cell.
-		/// All future operations on the cell must use the same memory resource.
-		[[nodiscard]] cell_t(gpumem::heap& memory, index_t);
+		/// All future operations on the cell must use the same memory region.
+		[[nodiscard]] cell_t(pmr::memory_region&, index_t);
 
 		/// Check if a handle is not null.
 		[[nodiscard]] constexpr operator bool () const noexcept;
@@ -116,13 +134,15 @@ private:
 		[[nodiscard]] constexpr auto operator== (cell_t const&) const noexcept -> bool;
 
 		/// Dereference the handle to access the cell data.
-		[[nodiscard]] auto get (gpumem::span<std::byte> const& buffer) noexcept -> data_t&;
+		[[nodiscard]] auto get (std::span<std::byte>) noexcept -> data_t&;
 		/// Store a trajectory interval in the cell.
-		void add_interval (gpumem::heap& memory, interval_t);
+		void add_interval (pmr::memory_region&, interval_t);
+		/// Deallocate cell data.
+		void free (pmr::memory_region&) noexcept;
 
 	private:
 		/// Allocate data with enough memory to store the requested number of intervals.
-		[[nodiscard]] static auto allocate (gpumem::heap&, uint32_t capacity) -> data_t&;
+		[[nodiscard]] static auto allocate (pmr::memory_region&, uint32_t capacity) -> data_t&;
 
 		/// Offset of the data allocation within the grid buffer.
 		uint32_t _address = ~0u;
@@ -142,18 +162,35 @@ private:
 	};
 
 
-	/// The GPU buffer in which hash buckets and grid cells are dynamically allocated.
-	gpumem::heap* _memory {};
-	/// Hash table buckets each containing multiple slots for cells.
-	/// Length is a power of two.
-	std::vector<bucket_t, gpumem::pmr_alloc<bucket_t, gpumem::heap>> _buckets {};
-	cgv::vec4 _cell_size {};
-	/// Reciprocal of each grid cell's extent.
-	/// Multiply to map coordinates to cell (see `index`).
-	coord_t _scale {};
 	/// Random number generator used to determine which entry to displace from a full bucket when
 	/// inserting a new cell.
 	std::minstd_rand _rng {std::random_device{}()};
+	/// The memory resource in which hash buckets and grid cells are dynamically allocated.
+	pmr::memory_region* _memory {};
+	/// Hash table buckets each containing multiple slots for cells.
+	/// Length is a power of two.
+	std::span<bucket_t> _buckets;
+#if OTV_HASH_GRID_VALIDATION
+	/// Test the implementation by mirroring operations with an STL container.
+	struct {
+		/// Function object hashing grid indices for use in STL containers.
+		/// Uses a different hash function than the main table.
+		struct index_hash_t {
+			[[nodiscard]] constexpr auto operator()(index_t const& idx) const noexcept -> size_t
+			{
+				using index_bits = std::bitset<sizeof(index_t) * 8>;
+				return std::hash<index_bits>{}(*reinterpret_cast<index_bits const*>(&idx));
+			}
+		};
+
+		/// Stores the number of trajectory intervals in each grid cell.
+		std::unordered_map<index_t, uint32_t, index_hash_t> cell_fill {};
+	} _validation;
+#endif
+	/// Reciprocal of each grid cell's extent.
+	cgv::vec4 _cell_size {};
+	/// Multiply to map coordinates to cell (see `index`).
+	coord_t _scale {};
 	/// Counts cells stored in the grid for performance evaluation.
 	uint32_t _num_cells {};
 	/// Minimum arclength distance between sample points when inserting a segment into the grid.
@@ -165,6 +202,10 @@ private:
 		float
 	> _sample_step_time;
 
+	/// Allocate a contiguous span of buckets, initializing all slots as empty.
+	[[nodiscard]] auto allocate_buckets (uint32_t count) -> std::span<bucket_t>;
+	/// Deallocate buckets without freeing the cells they contain.
+	void free_buckets (std::span<bucket_t>) noexcept;
 	/// Find or create a cell by index, then insert a trajectory interval into that cell.
 	void add_interval (index_t, interval_t);
 	/// Access a cell by its index.
@@ -180,24 +221,6 @@ private:
 	[[nodiscard]] constexpr auto signature (index_t) const noexcept -> signature_t;
 	/// The bucket in which a cell with the given signature is stored by `hash_fn`.
 	[[nodiscard]] auto bucket (signature_t, uint8_t hash_fn) noexcept -> bucket_t&;
-
-#if OTV_HASH_GRID_VALIDATION
-	/// Test the implementation by mirroring operations with an STL container in host memory.
-	struct validation {
-		/// Function object hashing grid indices for use in STL containers.
-		/// Uses a different hash function than the GPU grid.
-		struct index_hash_t {
-			[[nodiscard]] constexpr auto operator()(index_t const& idx) const noexcept -> size_t
-			{
-				using index_bits = std::bitset<sizeof(index_t) * 8>;
-				return std::hash<index_bits>{}(*reinterpret_cast<index_bits const*>(&idx));
-			}
-		};
-
-		/// Stores the number of trajectory intervals in each grid cell.
-		std::unordered_map<index_t, uint32_t, index_hash_t> cell_fill {};
-	} _validation;
-#endif
 };
 
 } // namespace otv

@@ -16,7 +16,7 @@
 // local includes
 #include "dbuf_queue.h"
 #include "glyph_layer_manager.h"
-#include "gpumem/heap.h"
+#include "gpumem/heap_buffer.h"
 #include "gpumem/ring_buffer.h"
 #include "render/common.h"
 #include "render/hash_grid.h"
@@ -152,7 +152,7 @@ struct render_state
 	std::vector<trajectory> trajectories;
 
 	/// GL buffer storing the hash grid.
-	gpumem::heap grid_mem {};
+	std::unique_ptr<gpumem::heap_buffer> grid_mem {};
 	/// GPU-accessible 4D hash grid of trajectory intervals.
 	/// Used to calculate relations between trajectories on the GPU.
 	hash_grid hash_grid {};
@@ -229,8 +229,9 @@ struct render_state
 		glyph_count_type  glyphs_per_trajectory
 	);
 
-	/// Initialize the trajectory hash grid.
-	void create_hash_grid (cgv::vec4 cell_size);
+	/// Create a new trajectory hash grid and insert all segments.
+	/// Any previous grid is replaced.
+	void build_hash_grid (cgv::vec4 cell_size);
 
 	/// Calculate the extent of a glyph relative to its anchor point on the given layer along the trajectory, taking
 	/// into account the configured scale. Plot control points have flexible extents which cannot be determined in

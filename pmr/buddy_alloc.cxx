@@ -5,14 +5,14 @@
 #include <print>
 
 // implemented header
-#include "buddy_alloc.h"
+#include "pmr/buddy_alloc.h"
 
 
 /// Marks log messages from this file.
 #define LOG_TAG "\x1b[1m[buddy_alloc]\x1b[m"
 
 
-namespace otv::gpumem {
+namespace otv::pmr {
 
 namespace {
 
@@ -32,7 +32,7 @@ void log(std::format_string<Args...> fmt, Args&&... args)
 
 
 buddy_alloc::buddy_alloc(std::span<std::byte> memory, uint8_t base_order)
-	: _memory     {memory.data()}
+	: memory_region{memory}
 	, _base_order {base_order}
 {
 	/// Number of 1-blocks that fit within the managed memory.
@@ -57,14 +57,41 @@ buddy_alloc::buddy_alloc(std::span<std::byte> memory, uint8_t base_order)
 			"\tCapacity:    {} bytes\n"
 			"\tGranularity: {} bytes\n"
 			"\tLevels:      {}\n",
-			static_cast<void*>(_memory), static_cast<void*>(&*memory.end()), memory.size(),
+			static_cast<void*>(_span.data()), static_cast<void*>(&*memory.end()), memory.size(),
 			block_size * min_blocks,
 			block_size,
 			_max_order
 		);
 
-	if constexpr (log_level > 2)
-		log("Initialize available blocks.\n");
+	// Initialize blocks as free.
+	clear();
+}
+
+auto buddy_alloc::operator= (buddy_alloc&& src) noexcept -> buddy_alloc&
+{
+	// Self-assignment is a NOP.
+	if (&src == this) return *this;
+
+	// Clean up the current state.
+	clean_up();
+
+	// Move members.
+	_span = src._span;
+#ifndef NDEBUG
+	_allocated_bytes = src._allocated_bytes;
+#endif
+	_capacity   = std::move(src._capacity);
+	_base_order = src._base_order;
+	_max_order  = src._max_order;
+	return *this;
+}
+
+void buddy_alloc::clear ()
+{
+	if constexpr (log_level > 0) log(LOG_TAG" Free all blocks.\n");
+
+	/// Number of 1-blocks that fit within the managed memory.
+	auto const min_blocks = _span.size() >> _base_order;
 
 	// Start at the root block.
 	auto first_block = 1;
@@ -92,25 +119,10 @@ buddy_alloc::buddy_alloc(std::span<std::byte> memory, uint8_t base_order)
 		// The next level starts at the left child of the current layer's first node.
 		first_block *= 2;
 	}
-}
 
-auto buddy_alloc::operator= (buddy_alloc&& src) noexcept -> buddy_alloc&
-{
-	// Self-assignment is a NOP.
-	if (&src == this) return *this;
-
-	// Clean up the current state.
-	clean_up();
-
-	// Move members.
-	_memory = src._memory;
 #ifndef NDEBUG
-	_allocated_bytes = src._allocated_bytes;
+	_allocated_bytes = 0;
 #endif
-	_capacity   = std::move(src._capacity);
-	_base_order = src._base_order;
-	_max_order  = src._max_order;
-	return *this;
 }
 
 auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
@@ -149,7 +161,7 @@ auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 	}
 
 	// Allocate the block we ended up at.
-	auto const allocation = static_cast<void*>(&_memory[
+	auto const allocation = static_cast<void*>(&_span[
 		(block - (1 << (_max_order - req_order))) // Block index within level.
 		<< (_base_order + req_order - 1) // Times block size in bytes.
 	]);
@@ -200,7 +212,7 @@ void buddy_alloc::do_deallocate (void* ptr, size_t num_bytes, size_t align) noex
 #endif
 
 	// Calculate which block the allocation corresponds to.
-	auto const offset = static_cast<size_t>(static_cast<std::byte*>(ptr) - _memory);
+	auto const offset = static_cast<size_t>(static_cast<std::byte*>(ptr) - _span.data());
 	auto block        =
 		(1 << (_max_order - order)) // Number of higher-order blocks.
 		+ (offset >> (_base_order + order - 1)); // Offset within the level.
@@ -257,4 +269,4 @@ void buddy_alloc::clean_up () noexcept
 #endif
 }
 
-} // namespace otv::gpumem
+} // namespace otv::pmr

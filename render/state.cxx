@@ -279,12 +279,30 @@ bool render_state::create_glyph_layer (
 	return glyphs[layer].ranges.create(segment_buffer.as_span().length());
 }
 
-void render_state::create_hash_grid (cgv::vec4 cell_size)
+void render_state::build_hash_grid (cgv::vec4 cell_size)
 {
-	// Allocate a coherently mapped 1 GiB buffer.
-	grid_mem = {1 << 30, gpumem::heap::sync_mode::coherent};
-	// Initialize the grid with 2^10 buckets.
-	hash_grid = {&grid_mem, cell_size, 10};
+	if (grid_mem) {
+		// Free all memory allocated by the current grid.
+		hash_grid.leak();
+		grid_mem->clear();
+	} else {
+		// Allocate a coherently mapped 1 GiB GL buffer.
+		grid_mem = std::make_unique<gpumem::heap_buffer>(1 << 30, gpumem::sync_mode::coherent, 64);
+	}
+
+	// Create a new hash grid.
+	hash_grid = {grid_mem.get(), cell_size, 10};
+
+	// Insert all segments into the new grid.
+	for (auto const& segment : segment_buffer) {
+		auto const idx = &segment - segment_buffer.as_span().data();
+		hash_grid.add_segment(
+			node_buffer.as_span()[segment[0]],
+			node_buffer.as_span()[segment[1]],
+			segment,
+			t_to_s[idx]
+		);
+	}
 }
 
 void render_state::collect_timer_queries (const bool collect_render)

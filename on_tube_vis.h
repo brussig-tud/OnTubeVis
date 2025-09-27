@@ -234,6 +234,9 @@ protected:
 	tube_shading_settings tube_shading;
 	otv::vis::trajectory_relation rel_vis;
 
+	/// Trajectory hash grid settings.
+	cgv::vec4 hash_grid_cell_size;
+
 protected:
 	/// shader defines for the deferred shading pass
 	shader_define_map tube_shading_defines;
@@ -295,8 +298,10 @@ protected:
 		vertex_buffer rtlola_map_vbo;
 	} dataset;
 
+	/// Create a new trajectory hash grid with current parameters, then insert all segments.
+	void rebuild_hash_grid ();
 	/// Set shader defines for calculating and visualizing trajectory relations using the hash grid.
-	void set_rel_vis_defines(cgv::render::context&);
+	void set_rel_vis_defines (cgv::render::context&);
 
 public:
 	bool toggle_taa_proxy = true;

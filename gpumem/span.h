@@ -1,9 +1,12 @@
 #pragma once
 
+// C++ STL
 #include <cstddef>
+#include <span>
 
+// local includes
 #include "util.h"
-#include "common.h"
+#include "gpumem/common.h"
 
 
 namespace otv::gpumem {
@@ -94,6 +97,14 @@ public:
 		return *this;
 	}
 
+	/// Convert to a C++ 20 `std::span`.
+	[[nodiscard]] constexpr std::span<Elem> to_std () const noexcept
+	{
+		auto const length = static_cast<size_t>(_length);
+		assert(static_cast<size_type>(length) == _length);
+		return {_data, length};
+	}
+
 	/// Return the address of the first element.
 	/// `nullptr` for a null span.
 	[[nodiscard]] constexpr elem_type *data () const noexcept
@@ -124,6 +135,12 @@ public:
 	[[nodiscard]] span<const elem_type> as_const () const noexcept
 	{
 		return {_data, _length, _handle};
+	}
+
+	/// Allow implicit conversion to read-only.
+	[[nodiscard]] operator span<const elem_type> () const noexcept
+	{
+		return as_const();
 	}
 
 	/// Create a span over the same memory accessed though `reinterpret_cast`.

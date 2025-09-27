@@ -5,14 +5,14 @@
 #include <print>
 
 // implemented header
-#include "pool_alloc.h"
+#include "pmr/pool_alloc.h"
 
 
 /// Marks log messages from this file.
 #define LOG_TAG "\x1b[1m[pool_alloc]\x1b[m"
 
 
-namespace otv::gpumem {
+namespace otv::pmr {
 
 namespace {
 
@@ -38,8 +38,8 @@ void log(std::format_string<Args...> fmt, Args&&... args)
 } // namespace
 
 
-pool_alloc::pool_alloc (std::pmr::memory_resource& parent, size_t chunk_size, uint8_t min_order)
-	: _parent {&parent}
+pool_alloc::pool_alloc (std::pmr::memory_resource* parent, size_t chunk_size, uint8_t min_order)
+	: _parent {parent}
 	// Blocks must be large enough to store a free-list pointer.
 	, _min_order {std::max<uint8_t>(min_order, std::bit_width(sizeof(void*) - 1)/*ceil(log2)*/)}
 	, _max_order {std::max<uint8_t>(std::bit_width(chunk_size) - 1/*floor(log2)*/, 0)}
@@ -77,6 +77,12 @@ auto pool_alloc::operator= (pool_alloc&& src) noexcept -> pool_alloc&
 	_min_order  = src._min_order;
 	_max_order  = src._max_order;
 	return *this;
+}
+
+void pool_alloc::leak ()
+{
+	if (log_level > 0) log(LOG_TAG" Leak all chunks.\n");
+	for (auto* pool = &_pools[0]; pool < &_pools[_max_order - _min_order]; ++pool) pool->clear();
 }
 
 auto pool_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
@@ -244,4 +250,4 @@ void pool_alloc::clean_up () noexcept
 #endif
 }
 
-} // namespace otv::gpumem
+} // namespace otv::pmr

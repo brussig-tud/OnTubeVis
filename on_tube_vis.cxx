@@ -233,7 +233,7 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 
 	// setup datapath input control
 	datapath_helper = cgv::gui::file_helper(this, "Open Trajectory Data", cgv::gui::file_helper::Mode::kOpen);
-	datapath_helper.add_multi_filter("All Trajectory Files", {"bezdat", "csv", "sepia", "ppcdf", "ipcdf", "tgen", "json", "tasc", "bcc"});
+	datapath_helper.add_multi_filter("All Trajectory Files", {"bezdat", "csv", "sepia", "ppcdf", "ipcdf", "tgen", "json", "tasc", "bcc", "jtf19"});
 	datapath_helper.add_filter("Bezier Splines", "bezdat");
 	datapath_helper.add_filter("CSV", "csv");
 	datapath_helper.add_filter("Sepia Trajectories", "sepia");
@@ -243,6 +243,7 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 	datapath_helper.add_filter("TASC accident trajectories", "json");
 	datapath_helper.add_filter("TASC simulation ensemble", "tasc");
 	datapath_helper.add_filter("Binary Curve Collection", "bcc");
+	datapath_helper.add_filter("Ellipsoid Particle Simulation", "jtf19");
 	datapath_helper.add_filter_for_all_files();
 
 	// fill help message info
@@ -1443,7 +1444,12 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 #endif
 }
 
-void on_tube_vis::set_rel_vis_defines(cgv::render::context& ctx)
+void on_tube_vis::rebuild_hash_grid ()
+{
+	render.build_hash_grid(hash_grid_cell_size);
+}
+
+void on_tube_vis::set_rel_vis_defines (cgv::render::context& ctx)
 {
 	auto& tstr_defines = ref_textured_spline_tube_renderer(ctx, 1).additional_defines;
 	render.hash_grid.set_defines(tstr_defines, buffer_bindings::grid_memory);
@@ -1583,8 +1589,7 @@ void on_tube_vis::on_set(void* member_ptr)
 			tube_shading.grid_normal_variant,
 			tube_shading.enable_fuzzy_grid,
 			rel_vis.function
-		)
-	){
+	)){
 		tube_shading_defines = tube_shading.build_tube_shading_defines(
 			render.visualizations.front().config, debug.highlight_segments
 		);
@@ -3134,6 +3139,26 @@ void on_tube_vis::create_gui (void)
 		if (traj_mgr.has_data())
 		{
 		align("\a");
+		add_decorator("Hash Grid", "heading", "level=2");
+		auto const extent = bbox.get_extent();
+		add_member_control(this, "Cell size x", hash_grid_cell_size[0], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true", extent[0] * 0.1f)
+		);
+		add_member_control(this, "Cell size y", hash_grid_cell_size[1], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true", extent[1] * 0.1f)
+		);
+		add_member_control(this, "Cell size z", hash_grid_cell_size[2], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true", extent[2] * 0.1f)
+		);
+		add_member_control(this, "Cell size t", hash_grid_cell_size[3], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true", extent[3] * 0.1f)
+		);
+		connect_copy(
+			add_button("Rebuild")->click,
+			cgv::signal::rebind(this, &on_tube_vis::rebuild_hash_grid)
+		);
+
+		add_decorator("Shading", "heading", "level=2");
 		rel_vis.build_gui(
 			*this,
 			client.data->datasets[0].trajs.size(),
@@ -3147,6 +3172,7 @@ void on_tube_vis::create_gui (void)
 		}
 		end_tree_node(rel_vis);
 	}
+	add_decorator("", "separator");
 
 	// Attribute mapping settings
 	for(unsigned ds = 0; ds < (unsigned)render.visualizations.size(); ds++) {
@@ -3517,10 +3543,11 @@ void on_tube_vis::update_attribute_bindings(void)
 		{
 		auto const spatial_extent = cgv::math::max_value(bbox.get_extent());
 		auto const resolution     = std::max(std::powf(num_nodes, 0.25f), 16.0f) * 1e-3f;
-		render.create_hash_grid({
+		hash_grid_cell_size       = cgv::vec4{
 			cgv::vec3{spatial_extent * resolution},
 			(tmax - tmin) * resolution
-		});
+		};
+		rebuild_hash_grid();
 		}
 
 		// Generate the density volume (uses GPU buffer data so we need to do this after upload)
@@ -3899,7 +3926,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		// bind further ssbos
 		auto buffers_after_glyphs = std::array{
 			render.traj_glyph_mem.handle(),
-			render.grid_mem.as_span().handle(),
+			render.grid_mem->handle(),
 		};
 		glBindBuffersBase(
 			GL_SHADER_STORAGE_BUFFER,

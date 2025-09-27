@@ -8,7 +8,7 @@
 #include <vector>
 
 
-namespace otv::gpumem {
+namespace otv::pmr {
 
 /// A segmented storage fixed-size block allocator that adapts a coarse parent allocator to
 /// efficiently provide many smaller allocations by using chunks of memory obtained from the parent
@@ -22,7 +22,7 @@ public:
 	/// Create a pool allocator that obtains chunks no larger than `chunk_size` bytes from `parent`
 	/// and divides them into blocks no smaller than 2 ^ `min_order` bytes.
 	[[nodiscard]] pool_alloc(
-		std::pmr::memory_resource& parent,
+		std::pmr::memory_resource* parent,
 		size_t  chunk_size,
 		uint8_t min_order = 0
 	);
@@ -39,6 +39,10 @@ public:
 	{
 		clean_up();
 	}
+
+	/// Forget all allocated chunks without returning them to the parent allocator.
+	/// Allocations from this instance remain valid, but can no longer be freed by it.
+	void leak ();
 
 private:
 	/// A chunk of memory obtained from the parent allocator, subdivided into smaller blocks.
@@ -87,4 +91,4 @@ private:
 	void clean_up () noexcept;
 };
 
-} // namespace otv::gpumem
+} // namespace otv::pmr

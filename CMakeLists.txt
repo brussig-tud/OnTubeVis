@@ -127,10 +127,13 @@ set(SOURCES
 		fmt/tgen.cxx
 
 		# GPU-accessible memory.
-		gpumem/buddy_alloc.cxx
-		gpumem/heap.cxx
+		gpumem/heap_buffer.cxx
 		gpumem/memory_pool.cxx
-		gpumem/pool_alloc.cxx
+
+		# Polymorphic memory resources.
+		pmr/buddy_alloc.cxx
+		pmr/heap.cxx
+		pmr/pool_alloc.cxx
 
 		# Trajectory rendering.
 		render/common.cxx
@@ -199,12 +202,10 @@ set(HEADERS
 		gpumem/alloc.inl
 		gpumem/array.h
 		gpumem/array.inl
-		gpumem/buddy_alloc.h
 		gpumem/common.h
-		gpumem/heap.h
+		gpumem/heap_buffer.h
 		gpumem/memory_pool.h
 		gpumem/memory_pool.inl
-		gpumem/pool_alloc.h
 		gpumem/ring_buffer.h
 		gpumem/ring_buffer.inl
 		gpumem/ring_buffer_alt.h
@@ -217,6 +218,13 @@ set(HEADERS
 		include/OnTubeVis/OnTubeVis.h
 		include/OnTubeVis/types.h
 		include/OnTubeVis/vis_setup.h
+
+		# Polymorphic memory resources.
+		pmr/allocator.h
+		pmr/base.h
+		pmr/buddy_alloc.h
+		pmr/heap.h
+		pmr/pool_alloc.h
 
 		# Trajectory rendering.
 		render/common.h
@@ -262,9 +270,10 @@ set (SHADERS
 		glsl/curve_tools.glsl
 		glsl/optix_display.glfs
 		glsl/optix_display.glpr
+		glsl/otv_shading.glsl
+		glsl/otv_trajectory_relations.glsl
 		glsl/rcc.glsl
 		glsl/surface_mod.glsl
-		glsl/otv_shading.glsl
 		glsl/textured_line_primitive.glvs
 		glsl/textured_spline_ribbon.glfs
 		glsl/textured_spline_ribbon.glgs

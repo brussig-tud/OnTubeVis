@@ -3,19 +3,48 @@
 // C++ STL
 #include <cstdint>
 #include <memory>
-#include <memory_resource>
-#include <span>
+
+// local includes
+#include "pmr/base.h"
 
 
-namespace otv::gpumem {
+namespace otv::pmr {
 
 /// Allocates from a span of memory using the buddy system due to Knowlton 1965.
 /// Bookkeeping is done outside the managed span using the default allocator.
 /// NOTE: The buddy allocator does not own, and therefore does not free, the memory it manages.
-class buddy_alloc final : public std::pmr::memory_resource {
+class buddy_alloc : public memory_region {
+public:
+	/// Create a buddy allocator that manages no memory.
+	[[nodiscard]] buddy_alloc() = default;
+	/// Create a buddy allocator that manages the given memory in blocks of 2^n bytes, where
+	/// n >= `base_order`.
+	[[nodiscard]] buddy_alloc(std::span<std::byte>, uint8_t base_order);
+
+	// Prevent copying.
+	buddy_alloc(buddy_alloc const&) = delete;
+	auto operator= (buddy_alloc const&) -> buddy_alloc& = delete;
+
+	// Allow moving.
+	buddy_alloc(buddy_alloc&&) = default;
+	auto operator= (buddy_alloc&&) noexcept -> buddy_alloc&;
+
+	~buddy_alloc() noexcept
+	{
+		clean_up();
+	}
+
+	/// The smallest block this instance can allocate has a size of `2 ^ base_order()` bytes.
+	[[nodiscard]] constexpr auto base_order () const noexcept -> uint8_t
+	{
+		return _base_order;
+	}
+
+	/// Free all allocations from this instance.
+	/// Allocations remain valid, but can no longer be freed.
+	void clear ();
+
 private:
-	/// Start of the memory range managed by the allocator.
-	std::byte* _memory {};
 #ifndef NDEBUG
 	/// Combined size in bytes of all blocks currently in use.
 	/// Only used for a sanity check.
@@ -31,40 +60,12 @@ private:
 	/// The root block may be larger than the managed memory range.
 	uint8_t _max_order {};
 
-public:
-	/// Create a buddy allocator that manages no memory.
-	[[nodiscard]] buddy_alloc() = default;
-	/// Create a buddy allocator that manages the given memory in blocks of 2^n bytes, where
-	/// n >= `base_order`.
-	[[nodiscard]] buddy_alloc(std::span<std::byte> memory, uint8_t base_order);
-
-	// Prevent copying.
-	buddy_alloc(buddy_alloc const&) = delete;
-	auto operator= (buddy_alloc const&) -> buddy_alloc& = delete;
-
-	// Allow moving.
-	buddy_alloc(buddy_alloc&&) = default;
-	auto operator= (buddy_alloc&&) noexcept -> buddy_alloc&;
-
-	~buddy_alloc() noexcept
-	{
-		clean_up();
-	}
-
-	/// Start of the memory range managed by this instance.
-	[[nodiscard]] constexpr auto data () const noexcept -> std::byte*
-	{
-		return _memory;
-	}
-
-private:
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_allocate.html.
-	[[nodiscard]] auto do_allocate (size_t num_bytes, size_t align) -> void* final;
+	[[nodiscard]] auto do_allocate (size_t num_bytes, size_t align) -> void*;
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_deallocate.html.
-	void do_deallocate (void*, size_t num_bytes, size_t align) noexcept final;
+	void do_deallocate (void*, size_t num_bytes, size_t align) noexcept;
 	/// See https://en.cppreference.com/w/cpp/memory/memory_resource/do_is_equal.html.
-	[[nodiscard]] auto do_is_equal (std::pmr::memory_resource const& other) const noexcept
-		-> bool final
+	[[nodiscard]] auto do_is_equal (std::pmr::memory_resource const& other) const noexcept -> bool
 	{
 		// Allocations can only be freed by the instance that created them.
 		return &other == this;
@@ -79,4 +80,4 @@ private:
 	void clean_up () noexcept;
 };
 
-} // namespace otv::gpumem
+} // namespace otv::pmr

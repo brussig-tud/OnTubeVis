@@ -5,9 +5,6 @@
 #include <cgv/render/context.h>
 #include <cgv/render/shader_program.h>
 
-// local includes
-#include "gpumem/span.inl"
-
 // implemented header
 #include "render/hash_grid.h"
 
@@ -40,7 +37,7 @@ void log(std::format_string<Args...> fmt, Args&&... args)
 
 /// In the shader, pointers are emulated with offsets into the grid buffer.
 /// This value determines the size in bytes of their minimal addressable unit.
-constexpr uint32_t shader_address_unit = 1u;
+constexpr uint32_t address_unit = 1u;
 
 /// The number of hash functions mapping cells to buckets, i.e. how many candidate buckets can store
 /// each entry.
@@ -52,31 +49,35 @@ constexpr uint8_t num_hash_fns = 2;
 constexpr auto max_cuckoo_chain = 50u;
 
 
-/// Calculate the offset of `ptr` within the persistently mapped GPU `buffer` for use an address in
-/// the shader.
-[[nodiscard]] constexpr auto ptr_to_offset (gpumem::span<const std::byte> buffer, void const* ptr)
+/// Calculate the offset of `ptr` within the memory region for use an address in shaders.
+[[nodiscard]] constexpr auto ptr_to_offset (std::span<const std::byte> region, void const* ptr)
 	-> uint32_t
 {
-	uint32_t const offset = (reinterpret_cast<std::byte const*>(ptr) - buffer.data())
-		/ shader_address_unit;
-	assert(&buffer[offset * shader_address_unit] == ptr);
+	uint32_t const offset = (reinterpret_cast<std::byte const*>(ptr) - region.data())
+		/ address_unit;
+	assert(
+		   ptr >= &*region.begin()
+		&& ptr  < &*region.end()
+		&& &region[offset * address_unit] == ptr
+	);
 	return offset;
 }
 
-/// Access memory at `offset` within `buffer` such that
+/// Access memory at `offset` within `region` such that
 /// `offset_to_ptr(b, ptr_to_offset(b, p)) == p`.
-[[nodiscard]] constexpr auto offset_to_ptr (gpumem::span<std::byte> buffer, uint32_t offset)
+[[nodiscard]] constexpr auto offset_to_ptr (std::span<std::byte> region, uint32_t offset)
 	-> void*
 {
-	return &buffer[offset * shader_address_unit];
+	assert(offset * address_unit < region.size());
+	return &region[offset * address_unit];
 }
 
 } // namespace
 
 
-hash_grid::hash_grid(gpumem::heap* memory, vec4 cell_size, uint8_t order)
+hash_grid::hash_grid(pmr::memory_region* memory, vec4 cell_size, uint8_t order)
 	: _memory            {memory}
-	, _buckets           (1uz << order, gpumem::pmr_alloc{_memory})
+	, _buckets           {allocate_buckets(1u << order)}
 	, _cell_size         {cell_size}
 	, _scale             {coord_t{1} / coord_t{cell_size}} // index = coords / cell_size
 	, _sample_step_space {cgv::math::min_value(vec3{cell_size}) * 0.05f}
@@ -95,6 +96,49 @@ hash_grid::hash_grid(gpumem::heap* memory, vec4 cell_size, uint8_t order)
 				else return _sample_step_time;
 			}());
 	}
+}
+
+hash_grid::hash_grid(hash_grid&& src) noexcept
+	: _rng     {std::move(src._rng)}
+	, _memory  {std::move(src._memory)}
+	, _buckets {std::move(src._buckets)}
+#if OTV_HASH_GRID_VALIDATION
+	, _validation {std::move(src._validation)}
+#endif
+	, _cell_size         {std::move(src._cell_size)}
+	, _scale             {std::move(src._scale)}
+	, _num_cells         {std::move(src._num_cells)}
+	, _sample_step_space {std::move(src._sample_step_space)}
+	, _sample_step_time  {std::move(src._sample_step_time)}
+{
+	// Take ownership of all allocations.
+	src._buckets = {};
+}
+
+auto hash_grid::operator= (hash_grid&& src) noexcept -> hash_grid&
+{
+	// Self-assignment is a NOP.
+	if (&src == this) return *this;
+
+	// Free any current buckets and cells.
+	free();
+
+	// Move member variables.
+	_rng     = std::move(src._rng);
+	_memory  = std::move(src._memory);
+	_buckets = std::move(src._buckets);
+#if OTV_HASH_GRID_VALIDATION
+	_validation = std::move(src._validation);
+#endif
+	_cell_size         = std::move(src._cell_size);
+	_scale             = std::move(src._scale);
+	_num_cells         = std::move(src._num_cells);
+	_sample_step_space = std::move(src._sample_step_space);
+	_sample_step_time  = std::move(src._sample_step_time);
+
+	// Take ownership of allocations.
+	src._buckets = {};
+	return *this;
 }
 
 void hash_grid::add_segment (
@@ -241,7 +285,7 @@ void hash_grid::set_defines (cgv::render::shader_define_map& d, GLuint buffer_bi
 {
 	using sc = cgv::render::shader_code;
 	sc::set_define(d, "HASH_GRID_BUFFER_BINDING",   buffer_binding,                      {});
-	sc::set_define(d, "HASH_GRID_ADDRESS_UNIT",     shader_address_unit,                 {});
+	sc::set_define(d, "HASH_GRID_ADDRESS_UNIT",     address_unit,                        {});
 	sc::set_define(d, "HASH_GRID_NUM_HASH_FNS",     uint32_t{num_hash_fns},              {});
 	sc::set_define(d, "HASH_GRID_SLOTS_PER_BUCKET", bucket_t::num_slots,                 {});
 	sc::set_define(d, "HASH_GRID_CELL_HEADER_SIZE", offsetof(cell_t::data_t, intervals), {});
@@ -250,15 +294,57 @@ void hash_grid::set_defines (cgv::render::shader_define_map& d, GLuint buffer_bi
 
 void hash_grid::set_uniforms (cgv::render::context& c, cgv::render::shader_program& p) const
 {
+	auto const memory = _memory->span();
 	auto ok = true
 	&& p.set_uniform(c, "hash_grid_cell_size",       _cell_size)
 	&& p.set_uniform(c, "hash_grid_scale",           _scale)
-	&& p.set_uniform(c, "hash_grid_buckets.address", ptr_to_offset(_memory->as_span().as_const(), _buckets.data()))
+	&& p.set_uniform(c, "hash_grid_buckets.address", ptr_to_offset(memory, _buckets.data()))
 	&& p.set_uniform(c, "hash_grid_buckets_mask",    static_cast<uint32_t>(_buckets.size() - 1))
 	;
 	assert(ok);
 }
 
+void hash_grid::free () noexcept
+{
+	// Free cell allocations.
+	for (auto& bucket : _buckets)
+		for (auto& slot : bucket.slots) {
+			if (!slot.cell) break;
+			slot.cell.free(*_memory);
+		}
+	free_buckets(_buckets);
+
+#if OTV_HASH_GRID_VALIDATION
+	_validation.cell_fill = {};
+#endif
+}
+
+void hash_grid::leak () noexcept
+{
+	_buckets = {};
+#if OTV_HASH_GRID_VALIDATION
+	_validation.cell_fill = {};
+#endif
+}
+
+
+auto hash_grid::allocate_buckets (uint32_t count) -> std::span<bucket_t>
+{
+	assert(std::has_single_bit(count));
+	return std::span{
+		new(static_cast<bucket_t*>(
+			_memory->allocate(count * sizeof(bucket_t),
+			alignof(bucket_t))
+		)) bucket_t[count],
+		count
+	};
+}
+
+void hash_grid::free_buckets (std::span<bucket_t> buckets) noexcept
+{
+	if (buckets.data())
+		_memory->deallocate(buckets.data(), buckets.size_bytes(), alignof(bucket_t));
+}
 
 void hash_grid::add_interval (index_t index, interval_t interval)
 {
@@ -282,16 +368,14 @@ auto hash_grid::get (index_t index) -> cell_t&
 		// In the unlikely event that a new cell cannot be inserted, more buckets must be allocated.
 
 		/// Save the contents of the table.
-		auto old_buckets = std::move(_buckets);
-		/// Size of the current table.
-		auto num_buckets  = old_buckets.size();
-		auto const buffer = _memory->as_span();
+		auto const old_buckets = _buckets;
 
 		// Rebuild the table with double capacity.
+		auto const region = _memory->span();
 		rehash:
 			// Print the current load factor to determine efficiency.
 			if constexpr (log_level > 0) {
-				auto const num_slots = num_buckets * bucket_t::num_slots;
+				auto const num_slots = _buckets.size() * bucket_t::num_slots;
 				log(LOG_TAG" Rehashing after insertion failed with {}/{} slots occupied "
 					"(load factor {:.2}).\n",
 					_num_cells,
@@ -301,9 +385,8 @@ auto hash_grid::get (index_t index) -> cell_t&
 			}
 
 			// Allocate new, empty buckets.
-			num_buckets *= 2;
-			_buckets     = decltype(_buckets)(num_buckets, gpumem::pmr_alloc{_memory});
-			_num_cells   = 0;
+			_buckets   = allocate_buckets(_buckets.size() * 2);
+			_num_cells = 0;
 
 			// Reinsert all entries in the new buckets.
 			for (auto& bucket : old_buckets)
@@ -312,8 +395,13 @@ auto hash_grid::get (index_t index) -> cell_t&
 					if (!slot.cell) break;
 					// If insertion fails during a rehash (extremely unlikely), abort the current
 					// attempt and try again with yet more buckets.
-					if (!find_or_insert(slot.cell.get(buffer).index, slot.cell)) goto rehash;
+					if (!find_or_insert(slot.cell.get(region).index, slot.cell)) {
+						free_buckets(_buckets);
+						goto rehash;
+					}
 				}
+
+		free_buckets(old_buckets);
 		// Once all previous entries have been restored, reattempt to insert the new index.
 	}
 }
@@ -321,7 +409,7 @@ auto hash_grid::get (index_t index) -> cell_t&
 auto hash_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 {
 	// Recurring constants.
-	auto const buffer = _memory->as_span();
+	auto const region = _memory->span();
 
 	/// Hash the query index into its shorter signature for quick comparison.
 	auto const signature = this->signature(query);
@@ -348,11 +436,11 @@ auto hash_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 				// Since many indices map to the same signature, we must load the index of the
 				// possible match for an exact comparison.
 				// In practice, a good hash makes signature collisions unlikely.
-				auto const index = slot.cell.get(buffer).index;
+				auto const index = slot.cell.get(region).index;
 			 	if (index == query) {
 					// We have found the queried cell.
 #if OTV_HASH_GRID_VALIDATION
-					assert(slot.cell.get(buffer).size == _validation.cell_fill[query]);
+					assert(slot.cell.get(region).size == _validation.cell_fill[query]);
 #endif
 					return &slot.cell;
 				}
@@ -370,7 +458,7 @@ auto hash_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 
 	if (new_cell)
 		// Check that the given cell actually matches the query index.
-		assert(new_cell.get(buffer).index == query);
+		assert(new_cell.get(region).index == query);
 	else {
 		// If no cell has been given to insert, allocate a new one.
 		new_cell = cell_t{*_memory, query};
@@ -507,16 +595,16 @@ auto hash_grid::bucket (signature_t signature, uint8_t hash_fn) noexcept -> buck
 }
 
 
-hash_grid::cell_t::cell_t(gpumem::heap& memory, index_t index)
+hash_grid::cell_t::cell_t(pmr::memory_region& memory, index_t index)
 {
 	// Start with the smallest capacity > 0 such that the total size of the allocation is a power of
 	// two.
 	auto const capacity =
 		(std::bit_ceil(offsetof(data_t, intervals[1])) - offsetof(data_t, intervals))
 		/ sizeof(interval_t);
-	// Allocate and initialize cell data in the GPU buffer.
+	// Allocate and initialize cell data.
 	_address = ptr_to_offset(
-		memory.as_span().as_const(),
+		memory.span(),
 		&(allocate(memory, capacity) = {.index = index, .size = 0, .capacity = capacity})
 	);
 }
@@ -533,15 +621,15 @@ constexpr hash_grid::cell_t::operator bool () const noexcept
 	return _address != ~0;
 }
 
-auto hash_grid::cell_t::get (gpumem::span<std::byte> const& buffer) noexcept -> data_t&
+auto hash_grid::cell_t::get (std::span<std::byte> region) noexcept -> data_t&
 {
-	return *reinterpret_cast<data_t*>(offset_to_ptr(buffer, _address));
+	return *reinterpret_cast<data_t*>(offset_to_ptr(region, _address));
 }
 
-void hash_grid::cell_t::add_interval (gpumem::heap& memory, interval_t interval)
+void hash_grid::cell_t::add_interval (pmr::memory_region& memory, interval_t interval)
 {
-	auto const buffer = memory.as_span();
-	auto& data        = get(buffer);
+	auto const region = memory.span();
+	auto& data        = get(region);
 	// Load header.
 	auto const [index, size, capacity, _] = data;
 
@@ -574,10 +662,20 @@ void hash_grid::cell_t::add_interval (gpumem::heap& memory, interval_t interval)
 		alignof(data_t)
 	);
 	// Point to the new allocation.
-	_address = ptr_to_offset(buffer.as_const(), &new_data);
+	_address = ptr_to_offset(memory.span(), &new_data);
 }
 
-auto hash_grid::cell_t::allocate (gpumem::heap& memory, uint32_t capacity) -> data_t&
+void hash_grid::cell_t::free (pmr::memory_region& memory) noexcept
+{
+	auto& data = get(memory.span());
+	memory.deallocate(
+		&data,
+		offsetof(data_t, intervals) + data.capacity * sizeof(interval_t),
+		alignof(data_t)
+	);
+}
+
+auto hash_grid::cell_t::allocate (pmr::memory_region& memory, uint32_t capacity) -> data_t&
 {
 	return *reinterpret_cast<data_t*>(memory.allocate(
 		offsetof(data_t, intervals) + capacity*sizeof(interval_t),
