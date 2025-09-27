@@ -26,7 +26,7 @@ struct trajectory_relation {
 	/// Color marking special trajectory parts.
 	cgv::rgb highlight_color {1, 0, 1};
 	/// Color of trajectories for which no relation value is calculated.
-	cgv::rgb background_color {0.5};
+	cgv::rgb background_color {1.0f/3};
 	/// Relations are calculated between points no further apart than `radius[0]` in space and
 	/// `radius[1]` in time.
 	cgv::vec2 radius {1};
@@ -38,6 +38,11 @@ struct trajectory_relation {
 	struct {int32_t index;} color_map {12/*imola*/};
 	/// ID of the "reference trajectory" whose meaning depends on `direction`.
 	uint32_t reference_trajectory {0};
+	/// Determines whether the relation is averaged (true) or accumulated (false) over time.
+	bool normalize {true};
+	/// Determines whether the relation is mapped onto the color scale linearly (false) or
+	/// logarithmically (true).
+	bool log_scale {false};
 
 	enum class direction : uint8_t {
 		/// Only evaluate the relation for the reference trajectory.

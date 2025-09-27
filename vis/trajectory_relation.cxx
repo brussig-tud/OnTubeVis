@@ -56,9 +56,11 @@ void trajectory_relation::build_gui (
 	p.add_member_control(b, "Reference Traj.", reference_trajectory, "value_slider",
 		std::format("min=0;max={};step=1;ticks=true", num_trajectories - 1)
 	);
+	p.add_member_control(b, "Normalize", normalize, "check");
 	p.add_member_control(b, "Color Scale", color_map, "dropdown", p.concat_enum_def(color_maps));
 	p.add_member_control(b, "Scale Begin", color_range[0], "value_slider", "ticks=true;log=true");
 	p.add_member_control(b, "Scale End", color_range[1], "value_slider", "ticks=true;log=true");
+	p.add_member_control(b, "Log Scale", log_scale, "check");
 	p.add_member_control(b, "Highlight", highlight_color);
 	p.add_member_control(b, "Background", background_color);
 }
@@ -85,8 +87,10 @@ void trajectory_relation::set_uniforms (
 	&& p.set_uniform(c, "traj_rel_sample_rate",      sample_rate)
 	&& p.set_uniform(c, "traj_rel_direction",        static_cast<uint32_t>(direction))
 	&& p.set_uniform(c, "traj_rel_ref_traj",         reference_trajectory)
+	&& p.set_uniform(c, "traj_rel_normalize",        normalize)
 	&& p.set_uniform(c, "traj_rel_color_map",        color_map.index)
 	&& p.set_uniform(c, "traj_rel_color_range",      color_range)
+	&& p.set_uniform(c, "traj_rel_log_scale",        log_scale)
 	&& p.set_uniform(c, "traj_rel_highlight_color",  highlight_color)
 	&& p.set_uniform(c, "traj_rel_background_color", background_color)
 	;

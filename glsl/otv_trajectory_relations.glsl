@@ -104,8 +104,10 @@ uniform vec2    traj_rel_radius;
 uniform float   traj_rel_sample_rate;
 uniform uint    traj_rel_direction;
 uniform uint    traj_rel_ref_traj;
+uniform bool    traj_rel_normalize;
 uniform int     traj_rel_color_map;
 uniform vec2    traj_rel_color_range;
+uniform bool    traj_rel_log_scale;
 uniform vec3    traj_rel_highlight_color;
 uniform vec3    traj_rel_background_color;
 
@@ -432,16 +434,24 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 	}
 
 	// Normalize the relation value.
+	float norm_time = traj_rel_normalize ? traj_rel_radius[0] : 1;
+
 	switch (relation) {
 	case 1: // Distance.
-		result /= (traj_rel_radius[0] * traj_rel_radius[1]);
+		result /= (traj_rel_radius[0] * norm_time);
 		break;
 	case debug + 6: // Skipped cells.
 		result /= float(dot(max_cell - min_cell + 1, coord_t(1)));
 		break;
 	}
 
-	// CMap the relation value to a color.
+	// Map the relation value to a color.
 	vec2 range = traj_rel_color_range;
-	return map_to_color((result - range[0])/(range[1] - range[0]), traj_rel_color_map);
+
+	if (traj_rel_log_scale)
+		result = log(9 * (result - range[0])/(range[1] - range[0]) + 1);
+	else
+		result = (result - range[0])/(range[1] - range[0]);
+
+	return map_to_color(result, traj_rel_color_map);
 }
