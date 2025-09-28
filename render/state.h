@@ -229,9 +229,9 @@ struct render_state
 		glyph_count_type  glyphs_per_trajectory
 	);
 
-	/// Create a new trajectory hash grid and insert all segments.
+	/// Create a new trajectory hash grid and insert all rendered segments.
 	/// Any previous grid is replaced.
-	void build_hash_grid (cgv::vec4 cell_size);
+	void build_hash_grid (hash_grid::params const&);
 
 	/// Calculate the extent of a glyph relative to its anchor point on the given layer along the trajectory, taking
 	/// into account the configured scale. Plot control points have flexible extents which cannot be determined in

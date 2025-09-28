@@ -35,9 +35,10 @@ void trajectory_relation::build_gui (
 		"[debug] Bucket Load,"
 		"[debug] Trajectory Interval,"
 		"[debug] Skipped Cells,"
-		"[debug] Evaluated Cells,"
-		"[debug] Evaluated Intervals,"
-		"[debug] Evaluated Samples'"
+		"[debug] Queried Cells,"
+		"[debug] Intervals Found,"
+		"[debug] Sampled Points,"
+		"[debug] Contributing Samples'"
 	);
 	p.add_member_control(b, "Spatial Radius", radius[0], "value_slider",
 		std::format("min=0;max={};ticks=true;log=true", cgv::vec3{data_extent}.length() * 0.1f)
@@ -85,7 +86,7 @@ void trajectory_relation::set_uniforms (
 	auto ok = true
 	&& p.set_uniform(c, "traj_rel_radius",           radius)
 	&& p.set_uniform(c, "traj_rel_sample_rate",      sample_rate)
-	&& p.set_uniform(c, "traj_rel_direction",        static_cast<uint32_t>(direction))
+	&& p.set_uniform(c, "traj_rel_direction.value",  static_cast<uint32_t>(direction))
 	&& p.set_uniform(c, "traj_rel_ref_traj",         reference_trajectory)
 	&& p.set_uniform(c, "traj_rel_normalize",        normalize)
 	&& p.set_uniform(c, "traj_rel_color_map",        color_map.index)
@@ -113,6 +114,7 @@ auto get_reflection_traits(enum otv::vis::trajectory_relation::function const&)
 		"dbg_num_cells,"
 		"dbg_num_intervals,"
 		"dbg_num_samples,"
+		"dbg_num_evals,"
 	};
 }
 

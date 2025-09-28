@@ -235,7 +235,10 @@ protected:
 	otv::vis::trajectory_relation rel_vis;
 
 	/// Trajectory hash grid settings.
-	cgv::vec4 hash_grid_cell_size;
+	otv::hash_grid::params hash_grid_params {
+		.cell_size = {},
+		.layout    = otv::hash_grid::layout::xyzt,
+	};
 
 protected:
 	/// shader defines for the deferred shading pass
@@ -298,8 +301,8 @@ protected:
 		vertex_buffer rtlola_map_vbo;
 	} dataset;
 
-	/// Create a new trajectory hash grid with current parameters, then insert all segments.
-	void rebuild_hash_grid ();
+	/// Create a new trajectory hash grid with the current parameters, then insert all segments.
+	void build_hash_grid ();
 	/// Set shader defines for calculating and visualizing trajectory relations using the hash grid.
 	void set_rel_vis_defines (cgv::render::context&);
 

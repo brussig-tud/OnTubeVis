@@ -1444,9 +1444,16 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 #endif
 }
 
-void on_tube_vis::rebuild_hash_grid ()
+void on_tube_vis::build_hash_grid ()
 {
-	render.build_hash_grid(hash_grid_cell_size);
+	// Recreate grid.
+	render.build_hash_grid(hash_grid_params);
+	// Update shaders.
+	auto& ctx = *get_context();
+	set_rel_vis_defines(ctx);
+	shaders.reload(ctx, "tube_shading", { tube_shading_defines });
+	// Show new state.
+	post_redraw();
 }
 
 void on_tube_vis::set_rel_vis_defines (cgv::render::context& ctx)
@@ -3140,22 +3147,33 @@ void on_tube_vis::create_gui (void)
 		{
 		align("\a");
 		add_decorator("Hash Grid", "heading", "level=2");
+		add_member_control(this, "Layout", hash_grid_params.layout, "dropdown", "enums='"
+			"3D,Strided 3D,4D'"
+		);
 		auto const extent = bbox.get_extent();
-		add_member_control(this, "Cell size x", hash_grid_cell_size[0], "value_slider",
+		add_member_control(this, "Cell size x", hash_grid_params.cell_size[0], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", extent[0] * 0.1f)
 		);
-		add_member_control(this, "Cell size y", hash_grid_cell_size[1], "value_slider",
+		add_member_control(this, "Cell size y", hash_grid_params.cell_size[1], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", extent[1] * 0.1f)
 		);
-		add_member_control(this, "Cell size z", hash_grid_cell_size[2], "value_slider",
+		add_member_control(this, "Cell size z", hash_grid_params.cell_size[2], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", extent[2] * 0.1f)
 		);
-		add_member_control(this, "Cell size t", hash_grid_cell_size[3], "value_slider",
+		add_member_control(this, "Cell size t", hash_grid_params.cell_size[3], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", extent[3] * 0.1f)
 		);
+		add_member_control(this, "Sample step space", hash_grid_params.sample_step[0],
+			"value_slider",
+			std::format("min=0;max={};log=true;ticks=true", min_value(vec3{extent}) * 0.01f)
+		);
+		add_member_control(this, "Sample step time", hash_grid_params.sample_step[1],
+			"value_slider",
+			std::format("min=0;max={};log=true;ticks=true", extent[3] * 0.01f)
+		);
 		connect_copy(
-			add_button("Rebuild")->click,
-			cgv::signal::rebind(this, &on_tube_vis::rebuild_hash_grid)
+			add_button("OK")->click,
+			cgv::signal::rebind(this, &on_tube_vis::build_hash_grid)
 		);
 
 		add_decorator("Shading", "heading", "level=2");
@@ -3541,13 +3559,15 @@ void on_tube_vis::update_attribute_bindings(void)
 		// Cell size is chosen such that the number of segments per cell remains approximately
 		// constant.
 		{
-		auto const spatial_extent = cgv::math::max_value(bbox.get_extent());
-		auto const resolution     = std::max(std::powf(num_nodes, 0.25f), 16.0f) * 1e-3f;
-		hash_grid_cell_size       = cgv::vec4{
+		auto const spatial_extent  = cgv::math::max_value(bbox.get_extent());
+		auto const resolution      = std::max(std::powf(num_nodes, 0.25f), 16.0f) * 1e-3f;
+		hash_grid_params.cell_size = cgv::vec4{
 			cgv::vec3{spatial_extent * resolution},
 			(tmax - tmin) * resolution
 		};
-		rebuild_hash_grid();
+		hash_grid_params.sample_step =
+			vec2{hash_grid_params.cell_size[0], hash_grid_params.cell_size[3]} * 0.1f;
+		build_hash_grid();
 		}
 
 		// Generate the density volume (uses GPU buffer data so we need to do this after upload)

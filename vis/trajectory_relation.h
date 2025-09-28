@@ -67,7 +67,8 @@ struct trajectory_relation {
 		dbg_skipped_cells,  // Number of cells in query AABB but outside query radius.
 		dbg_num_cells,      // Number of cells within the query radius.
 		dbg_num_intervals,  // Number of trajectory intervals within queried cells.
-		dbg_num_samples,    // Number of evaluated trajectory samples.
+		dbg_num_samples,    // Number of sampled trajectory points.
+		dbg_num_evals,      // Number of trajectory samples within the query radius.
 	}
 	/// The value to visualize.
 	function {};

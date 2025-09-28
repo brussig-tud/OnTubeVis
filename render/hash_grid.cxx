@@ -19,6 +19,7 @@
 namespace otv {
 namespace {
 
+using cgv::vec2;
 using cgv::vec3;
 using cgv::vec4;
 
@@ -49,6 +50,12 @@ constexpr uint8_t num_hash_fns = 2;
 constexpr auto max_cuckoo_chain = 50u;
 
 
+/// How many components of a 4D point determine its grid index.
+[[nodiscard]] constexpr auto index_dims (otv::hash_grid::layout layout) noexcept -> uint8_t
+{
+	return layout == otv::hash_grid::layout::xyz ? 3 : 4;
+}
+
 /// Calculate the offset of `ptr` within the memory region for use an address in shaders.
 [[nodiscard]] constexpr auto ptr_to_offset (std::span<const std::byte> region, void const* ptr)
 	-> uint32_t
@@ -75,26 +82,28 @@ constexpr auto max_cuckoo_chain = 50u;
 } // namespace
 
 
-hash_grid::hash_grid(pmr::memory_region* memory, vec4 cell_size, uint8_t order)
-	: _memory            {memory}
-	, _buckets           {allocate_buckets(1u << order)}
-	, _cell_size         {cell_size}
-	, _scale             {coord_t{1} / coord_t{cell_size}} // index = coords / cell_size
-	, _sample_step_space {cgv::math::min_value(vec3{cell_size}) * 0.05f}
+hash_grid::hash_grid(pmr::memory_region* memory, params const& params, uint8_t order)
+	: _memory    {memory}
+	, _buckets   {allocate_buckets(1u << order)}
+	, _cell_size {params.layout == layout::xyz
+		// A 3D grid is equivalent to a 4D grid with infinite cell extent in time.
+		? vec4{vec3{params.cell_size}, std::numeric_limits<float>::infinity()}
+		: params.cell_size
+	}
+	, _scale       {vec4{1} / _cell_size} // index = round(point / _cell_size)
+	, _sample_step {max(params.sample_step, vec2{0.001})}
+	, _layout      {params.layout}
 {
-	if constexpr (dimensions != dimensions::xyz) _sample_step_time = cell_size[3] * 0.05f;
 	if constexpr (log_level > 0) {
+		using std::operator""sv;
+		auto const layout_name = std::array{"3D"sv, "Strided 3D"sv, "4D"sv}
+			[static_cast<size_t>(_layout)];
 		std::clog << LOG_TAG" Create instance.\n"
-			"\tBuckets:           "  << _buckets.size()    <<  "\n"
-			"\tCell size:         (" << cell_size          << ")\n"
-			"\tSpatial sampling:  "  << _sample_step_space <<  "\n";
-
-		if constexpr (dimensions != dimensions::xyz)
-			log("\tTemporal sampling: {}\n", [&]() {
-				if constexpr (dimensions == dimensions::xyz)
-					return 0.0f;
-				else return _sample_step_time;
-			}());
+			"\tLayout:      "  << layout_name     <<  "\n"
+			"\tBuckets:     "  << _buckets.size() <<  "\n"
+			"\tCell size:   (" << _cell_size      << ")\n"
+			"\tSample step: "  << _sample_step[0] <<  " (space), "
+			                   << _sample_step[1] <<  " (time)\n";
 	}
 }
 
@@ -105,11 +114,11 @@ hash_grid::hash_grid(hash_grid&& src) noexcept
 #if OTV_HASH_GRID_VALIDATION
 	, _validation {std::move(src._validation)}
 #endif
-	, _cell_size         {std::move(src._cell_size)}
-	, _scale             {std::move(src._scale)}
-	, _num_cells         {std::move(src._num_cells)}
-	, _sample_step_space {std::move(src._sample_step_space)}
-	, _sample_step_time  {std::move(src._sample_step_time)}
+	, _cell_size   {std::move(src._cell_size)}
+	, _scale       {std::move(src._scale)}
+	, _sample_step {std::move(src._sample_step)}
+	, _num_cells   {std::move(src._num_cells)}
+	, _layout      {std::move(src._layout)}
 {
 	// Take ownership of all allocations.
 	src._buckets = {};
@@ -130,11 +139,11 @@ auto hash_grid::operator= (hash_grid&& src) noexcept -> hash_grid&
 #if OTV_HASH_GRID_VALIDATION
 	_validation = std::move(src._validation);
 #endif
-	_cell_size         = std::move(src._cell_size);
-	_scale             = std::move(src._scale);
-	_num_cells         = std::move(src._num_cells);
-	_sample_step_space = std::move(src._sample_step_space);
-	_sample_step_time  = std::move(src._sample_step_time);
+	_cell_size   = std::move(src._cell_size);
+	_scale       = std::move(src._scale);
+	_sample_step = std::move(src._sample_step);
+	_num_cells   = std::move(src._num_cells);
+	_layout      = std::move(src._layout);
 
 	// Take ownership of allocations.
 	src._buckets = {};
@@ -148,8 +157,8 @@ void hash_grid::add_segment (
 	cgv::mat4 const&    t_to_s
 ) {
 	/// Beginning and end of the segment, in grid coordinates.
-	auto const start_point = coord_t{vec4{vec3{start.pos_rad}, start.t[0]}} * _scale;
-	auto const end_point   = coord_t{vec4{vec3{  end.pos_rad},   end.t[0]}} * _scale;
+	auto const start_point = vec4{vec3{start.pos_rad}, start.t[0]} * _scale;
+	auto const end_point   = vec4{vec3{  end.pos_rad},   end.t[0]} * _scale;
 	/// Grid cell in which the segment begins.
 	auto const start_index = round(start_point);
 
@@ -179,18 +188,12 @@ void hash_grid::add_segment (
 	auto const duration = end.t[0] - start.t[0];
 	/// Bounds on how much the curve parameter is increased with every sample.
 	// The actual maximum step size is max_step/2.
-	auto const max_step = coord_t{1} / (coord_t{vec4{vec3{arclen}, duration}} * _scale);
-	auto const min_step = std::min({
+	auto const max_step = _cell_size / vec4{vec3{arclen}, duration};
+	auto const min_step = std::min(
 		min_value(max_step),
 		// Assume a constant average speed.
-		_sample_step_space / arclen,
-		// Inline lambda required so the else branch compiles when dimensions == xyz.
-		[this]() {
-			if constexpr (dimensions == dimensions::xyz)
-				return std::numeric_limits<float>::infinity();
-			else return _sample_step_time;
-		}() / duration
-	});
+		min_value(_sample_step / vec2{arclen, duration})
+	);
 
 	if constexpr (log_level > 3)
 		std::clog <<
@@ -212,7 +215,7 @@ void hash_grid::add_segment (
 		auto const t = std::min(
 			prev_t + std::max(
 				// Bigger steps from samples near the center of their grid cell.
-				min_value(max_step * (coord_t{0.5f} - abs(prev_point - prev_index))),
+				min_value(max_step * (vec4{0.5f} - abs(prev_point - prev_index))),
 				min_step // Ensure progress.
 			),
 			1.0f // Limit to segment.
@@ -222,12 +225,12 @@ void hash_grid::add_segment (
 		auto const t2    = t*t;
 		auto const s     = 1.0f - t;
 		auto const s2    = s*s;
-		auto const point = coord_t{vec4{
+		auto const point = vec4{
 			// Spatial components: Evaluate cubic Bézier.
 			s2*s*b0 + 3*s2*t*b1 + 3*s*t2*b2 + t*t2*b3,
 			// Temporal component: Linear interpolation.
-			dimensions == dimensions::xyz ? 0.0f : s*start_point[3] + t*end_point[3]
-		}};
+			s*start_point[3] + t*end_point[3]
+		};
 
 		if constexpr (log_level > 3) {
 			log("{:5.1f}% {:f}", t * 100, (start.t[0] + t*duration));
@@ -245,7 +248,7 @@ void hash_grid::add_segment (
 			auto isect_count  = -1; // Number of grid intersections - 1.
 
 			// Indices differ in at least one component, maybe multiple.
-			for (auto d = 0u; d < index.size(); ++d) {
+			for (auto d = 0u; d < index_dims(_layout); ++d) {
 				if (prev_index[d] == index[d]) continue;
 				/// Coordinate of the hyper-plane separating the the two cells in dimension d.
 				/// If the step size is small enough that there should only ever be one crossing per
@@ -289,7 +292,7 @@ void hash_grid::set_defines (cgv::render::shader_define_map& d, GLuint buffer_bi
 	sc::set_define(d, "HASH_GRID_NUM_HASH_FNS",     uint32_t{num_hash_fns},              {});
 	sc::set_define(d, "HASH_GRID_SLOTS_PER_BUCKET", bucket_t::num_slots,                 {});
 	sc::set_define(d, "HASH_GRID_CELL_HEADER_SIZE", offsetof(cell_t::data_t, intervals), {});
-	sc::set_define(d, "HASH_GRID_DIMENSIONS",       dimensions,                          {});
+	sc::set_define(d, "HASH_GRID_LAYOUT",           _layout,                             {});
 }
 
 void hash_grid::set_uniforms (cgv::render::context& c, cgv::render::shader_program& p) const
@@ -558,7 +561,7 @@ constexpr auto hash_grid::signature (index_t index) const noexcept -> signature_
 	// Compared to the implementation by Jarzynski and Olano, `index` is rotated by one component.
 	uint32_t hash = std::bit_cast<uint32_t>(index[0]) + p5;
 
-	for (auto d = 1u; d < index.size(); ++d) {
+	for (auto d = 1u; d < index_dims(_layout); ++d) {
 		hash += std::bit_cast<uint32_t>(index[d]) * p3;
 		hash  = p4 * ((hash << 17) | (hash >> 15));
 	}

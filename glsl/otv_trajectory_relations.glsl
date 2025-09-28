@@ -1,5 +1,34 @@
 #version 430 core
 
+// Enums ###########################################################################################
+// Determines for which pairs of trajectories the relation is visualized.
+struct direction_t {uint value;};
+const direction_t dir_ref_to_all = {0};
+const direction_t dir_all_to_ref = {1};
+const direction_t dir_all_to_all = {2};
+
+// The value to visualize.
+struct function_t {uint value;};
+const function_t fn_none               = {0};
+const function_t fn_distance           = {1 + fn_none.value};
+const function_t fn_dbg_seg_t          = {1 + fn_distance.value};
+const function_t fn_dbg_index_xyz      = {1 + fn_dbg_seg_t.value};
+const function_t fn_dbg_index_t        = {1 + fn_dbg_index_xyz.value};
+const function_t fn_dbg_signature      = {1 + fn_dbg_index_t.value};
+const function_t fn_dbg_bucket_load    = {1 + fn_dbg_signature.value};
+const function_t fn_dbg_local_interval = {1 + fn_dbg_bucket_load.value};
+const function_t fn_dbg_skipped_cells  = {1 + fn_dbg_local_interval.value};
+const function_t fn_dbg_num_cells      = {1 + fn_dbg_skipped_cells.value};
+const function_t fn_dbg_num_intervals  = {1 + fn_dbg_num_cells.value};
+const function_t fn_dbg_num_samples    = {1 + fn_dbg_num_intervals.value};
+const function_t fn_dbg_num_evals      = {1 + fn_dbg_num_samples.value};
+
+/// Describes which dimensions the hash grid indexes and how it is organized in memory.
+struct layout_t {uint value;};
+const layout_t layout_xyz   = {0};
+const layout_t layout_t_xyz = {1};
+const layout_t layout_xyzt  = {2};
+
 // Static configuration ############################################################################
 // Default values are provided only for linting and must be replaced at runtime.
 #define HASH_GRID_BUFFER_BINDING   0
@@ -7,16 +36,17 @@
 #define HASH_GRID_NUM_HASH_FNS     0
 #define HASH_GRID_SLOTS_PER_BUCKET 0
 #define HASH_GRID_CELL_HEADER_SIZE 0
-#define HASH_GRID_DIMENSIONS       0
+#define HASH_GRID_LAYOUT           0
 #define TRAJ_REL_FUNCTION          0
 
-const uint buffer_binding   = HASH_GRID_BUFFER_BINDING;
-const uint address_unit     = HASH_GRID_ADDRESS_UNIT;
-const uint num_hash_fns     = HASH_GRID_NUM_HASH_FNS;
-const uint slots_per_bucket = HASH_GRID_SLOTS_PER_BUCKET;
-const uint cell_header_size = HASH_GRID_CELL_HEADER_SIZE;
-const uint dimensions       = HASH_GRID_DIMENSIONS;
-const uint relation         = TRAJ_REL_FUNCTION;
+// Index at which the SSBO containing the hash grid is bound.
+const uint       buffer_binding   = HASH_GRID_BUFFER_BINDING;
+const uint       address_unit     = HASH_GRID_ADDRESS_UNIT;
+const uint       num_hash_fns     = HASH_GRID_NUM_HASH_FNS;
+const uint       slots_per_bucket = HASH_GRID_SLOTS_PER_BUCKET;
+const uint       cell_header_size = HASH_GRID_CELL_HEADER_SIZE;
+const layout_t   grid_layout      = {HASH_GRID_LAYOUT};
+const function_t function         = {TRAJ_REL_FUNCTION};
 
 // Types ###########################################################################################
 struct node_data_type {
@@ -33,7 +63,7 @@ struct ptr_t {
 const ptr_t null = {~0u};
 
 // The space that the hash grid indexes.
-#if HASH_GRID_DIMENSIONS == 3
+#if HASH_GRID_LAYOUT == layout_xyz
 	#define coord_t vec3
 	#define index_t ivec3
 #else
@@ -69,14 +99,6 @@ struct interval_t {
 };
 const uint sizeof_interval = 16; // in bytes
 
-const uint rel_dir_ref_to_all = 0;
-const uint rel_dir_all_to_ref = 1;
-const uint rel_dir_all_to_all = 2;
-
-// Constants #######################################################################################
-// Relations with this index or higher show debug information or stats.
-const uint debug = 2;
-
 // SSBOs ###########################################################################################
 layout(std430, binding = 0) readonly buffer data_buffer {
 	node_data_type nodes[];
@@ -96,20 +118,20 @@ layout(binding = HASH_GRID_BUFFER_BINDING) readonly buffer hash_grid_buffer4 {
 };
 
 // Uniforms ########################################################################################
-uniform vec4    hash_grid_cell_size;
-uniform coord_t hash_grid_scale; // == 1 / hash_grid_cell_size
-uniform ptr_t   hash_grid_buckets;
-uniform uint    hash_grid_buckets_mask;
-uniform vec2    traj_rel_radius;
-uniform float   traj_rel_sample_rate;
-uniform uint    traj_rel_direction;
-uniform uint    traj_rel_ref_traj;
-uniform bool    traj_rel_normalize;
-uniform int     traj_rel_color_map;
-uniform vec2    traj_rel_color_range;
-uniform bool    traj_rel_log_scale;
-uniform vec3    traj_rel_highlight_color;
-uniform vec3    traj_rel_background_color;
+uniform vec4        hash_grid_cell_size;
+uniform vec4        hash_grid_scale; // == 1 / hash_grid_cell_size
+uniform ptr_t       hash_grid_buckets;
+uniform uint        hash_grid_buckets_mask;
+uniform vec2        traj_rel_radius;
+uniform float       traj_rel_sample_rate;
+uniform direction_t traj_rel_direction;
+uniform uint        traj_rel_ref_traj;
+uniform bool        traj_rel_normalize;
+uniform int         traj_rel_color_map;
+uniform vec2        traj_rel_color_range;
+uniform bool        traj_rel_log_scale;
+uniform vec3        traj_rel_highlight_color;
+uniform vec3        traj_rel_background_color;
 
 // External functions ##############################################################################
 // Defined in otv_shading.glsl.
@@ -141,7 +163,7 @@ uvec4 load4 (ptr_t ptr)
 // Calculate the index of the cell containing a given point.
 index_t cell_index (coord_t coords)
 {
-	return index_t(round(coords * hash_grid_scale));
+	return index_t(round(coords * coord_t(hash_grid_scale)));
 }
 
 // Hash a cell index into a 32-bit signature using xxhash32 as implemented by Jarzynski and Olano
@@ -149,11 +171,11 @@ index_t cell_index (coord_t coords)
 uint signature (index_t index)
 {
 	// Prime constants.
-	const uint[] p = {2246822519, 3266489917, 668265263, 374761393};
+	const uint[] p = {2246822519u, 3266489917u, 668265263u, 374761393u};
 
 	uint sig = uint(index[0]) + p[3];
 
-	for (uint d = 1; d < dimensions; ++d) {
+	for (uint d = 1; d < (grid_layout == layout_xyzt ? 4 : 3); ++d) {
 		sig += uint(index[d]) * p[1];
 		sig  = p[2] * ((sig << 17) | (sig >> 15));
 	}
@@ -172,7 +194,7 @@ ptr_t bucket (uint signature, uint hash_fn)
 
 		// Choose the seed.
 		uvec3 s = uvec3[](
-			uvec3(747796405, 2891336453, 277803737)
+			uvec3(747796405u, 2891336453u, 277803737u)
 		)[hash_fn - 1];
 
 		hash = signature * s[0] + s[1];
@@ -284,7 +306,7 @@ float eval_relation (vec4 ref_point, interval_t interval)
 
 	// Determine how often the interval should be sampled.
 	float num_samples = ceil(timespan * traj_rel_sample_rate);
-	if (relation == debug + 9) return num_samples;
+	if (function == fn_dbg_num_samples) return num_samples;
 
 	// Divide the evaluated range into equal steps.
 	float time_scale  = 1.0 / (n1.t[0] - n0.t[0]);
@@ -306,11 +328,15 @@ float eval_relation (vec4 ref_point, interval_t interval)
 		if (dot(offset, offset) > traj_rel_radius[0]*traj_rel_radius[0]) continue;
 
 		// Evaluate the relation.
-		switch (relation) {
-		case 1: // Distance.
+		switch (function.value) {
+		case fn_distance.value:
 			result += traj_rel_radius[0] - distance(ref_point.xyz, sample_point);
+		case fn_dbg_num_evals.value:
+			result += 1;
 		}
 	}
+
+	if (function == fn_dbg_num_evals) return result;
 
 	// Average samples and weight by time.
 	return result * sampling * timespan;
@@ -325,39 +351,39 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 	node_data_type end   = nodes[node_ids[seg_id][1]];
 
 	// If only the reference trajectory is to be shaded, mark all others as background.
-	if (traj_rel_direction == rel_dir_ref_to_all && start.t[1] != traj_rel_ref_traj)
+	if (traj_rel_direction == dir_ref_to_all && start.t[1] != traj_rel_ref_traj)
 		return traj_rel_background_color;
 	// Mark the reference trajectory.
-	if (traj_rel_direction == rel_dir_all_to_ref && start.t[1] == traj_rel_ref_traj)
+	if (traj_rel_direction == dir_all_to_ref && start.t[1] == traj_rel_ref_traj)
 		return traj_rel_highlight_color;
 
 	// Color by local time.
-	if (relation == debug) return map_to_color(seg_t, traj_rel_color_map);
+	if (function == fn_dbg_seg_t) return map_to_color(seg_t, traj_rel_color_map);
 
 	// Calculate data-space coordinates and grid cell at the given trajectory point.
 	vec4 local_point    = trajectory_point(start, end, seg_t);
 	index_t local_index = cell_index(coord_t(local_point));
 
 	// Color by grid cell (spatial).
-	if (relation == debug + 1)
+	if (function == fn_dbg_index_xyz)
 		return local_point.xyz * hash_grid_scale.xyz - local_index.xyz + 0.5;
-	#if HASH_GRID_DIMENSIONS != 3
+	#if HASH_GRID_LAYOUT != layout_xyz
 		// Color by grid cell (temporal).
-		if (relation == debug + 2)
+		if (function == fn_dbg_index_t)
 			return map_to_color(
 				local_point[3] * hash_grid_scale[3] - local_index[3] + 0.5,
 				traj_rel_color_map
 			);
 	#endif
 	// Color by cell hash.
-	if (relation == debug + 3) return map_to_color(signature(local_index) / float(~0u), 19);
+	if (function == fn_dbg_signature) return map_to_color(signature(local_index) / float(~0u), 19);
 	// Color by hash bucket load.
-	if (relation == debug + 4) {
+	if (function == fn_dbg_bucket_load) {
 		uint fill = bucket_fill(bucket(signature(local_index), 1));
 		return map_to_color(float(fill) / slots_per_bucket, traj_rel_color_map);
 	}
 	// Color by local trajectory interval.
-	if (relation == debug + 5) {
+	if (function == fn_dbg_local_interval) {
 		// Find the cell containing this fragment.
 		span_t local_intervals = query(local_index);
 		// Within that cell, find the interval containing the fragment.
@@ -387,14 +413,14 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 	// Value of the relation at the local point.
 	float result = 0;
 
-#if HASH_GRID_DIMENSIONS != 3
+#if HASH_GRID_LAYOUT != layout_xyz
 	for (int time = min_cell[3]; time <= max_cell[3]; ++time)
 #endif
 	for (int z = min_cell.z; z <= max_cell.z; ++z)
 	for (int y = min_cell.y; y <= max_cell.y; ++y)
 	for (int x = min_cell.x; x <= max_cell.x; ++x) {
 		index_t index = {x, y, z
-			#if HASH_GRID_DIMENSIONS != 3
+			#if HASH_GRID_LAYOUT != layout_xyz
 				, time
 			#endif
 		};
@@ -402,18 +428,18 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 		// Skip cells within the AABB, but outside the evaluation radius.
 		vec3 offset = local_point.xyz - index.xyz*hash_grid_cell_size.xyz;
 		if (dot(offset, offset) > max_cell_dist2) {
-			if (relation == debug + 6) ++result;
+			if (function == fn_dbg_skipped_cells) ++result;
 			continue;
 		}
 
 		// Look up trajectory contents in the hash map.
 		span_t intervals = query(index);
 
-		switch (relation) {
-		case debug + 7:
+		switch (function.value) {
+		case fn_dbg_num_cells.value:
 			result += float(intervals.len != 0);
 			continue;
-		case debug + 8:
+		case fn_dbg_num_intervals.value:
 			result += intervals.len;
 			continue;
 		}
@@ -424,23 +450,23 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 
 			if (
 				// Only evaluate intervals of the reference trajectory.
-				   traj_rel_direction == rel_dir_all_to_ref
+				   traj_rel_direction == dir_all_to_ref
 				&& nodes[interval.nodes[0]].t[1] == traj_rel_ref_traj
 				// Evaluate all intervals on different trajectories.
-				|| traj_rel_direction != rel_dir_all_to_ref
+				|| traj_rel_direction != dir_all_to_ref
 				&& nodes[interval.nodes[0]].t[1] != start.t[1]
 			) result += eval_relation(local_point, interval);
 		}
 	}
 
 	// Normalize the relation value.
-	float norm_time = traj_rel_normalize ? traj_rel_radius[0] : 1;
+	float norm_time = traj_rel_normalize ? 2*traj_rel_radius[1] : 1;
 
-	switch (relation) {
-	case 1: // Distance.
+	switch (function.value) {
+	case fn_distance.value: // Distance.
 		result /= (traj_rel_radius[0] * norm_time);
 		break;
-	case debug + 6: // Skipped cells.
+	case fn_dbg_skipped_cells.value: // Skipped cells.
 		result /= float(dot(max_cell - min_cell + 1, coord_t(1)));
 		break;
 	}
@@ -449,7 +475,9 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 	vec2 range = traj_rel_color_range;
 
 	if (traj_rel_log_scale)
-		result = log(9 * (result - range[0])/(range[1] - range[0]) + 1);
+		// log base 10.
+		result = log2(9 * (result - range[0])/(range[1] - range[0]) + 1)
+			/ 3.32192809489 /*log2(10)*/;
 	else
 		result = (result - range[0])/(range[1] - range[0]);
 

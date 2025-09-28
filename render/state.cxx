@@ -279,7 +279,7 @@ bool render_state::create_glyph_layer (
 	return glyphs[layer].ranges.create(segment_buffer.as_span().length());
 }
 
-void render_state::build_hash_grid (cgv::vec4 cell_size)
+void render_state::build_hash_grid (hash_grid::params const& params)
 {
 	if (grid_mem) {
 		// Free all memory allocated by the current grid.
@@ -291,7 +291,7 @@ void render_state::build_hash_grid (cgv::vec4 cell_size)
 	}
 
 	// Create a new hash grid.
-	hash_grid = {grid_mem.get(), cell_size, 10};
+	hash_grid = {grid_mem.get(), params, 10};
 
 	// Insert all segments into the new grid.
 	for (auto const& segment : segment_buffer) {

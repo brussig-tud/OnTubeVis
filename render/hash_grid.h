@@ -41,19 +41,33 @@ namespace otv {
 /// infinite regular grid, stored as a hash map that can be made accessible to the GPU.
 class hash_grid {
 public:
-	/// The coordinate system that defines the grid.
-	constexpr static enum class dimensions : uint8_t {
-		xyz  = 3, // 3D spatial grid.
-		xyzt = 4, // 4D spatio-temporal grid.
-	} dimensions = dimensions::xyzt;
-	/// A vector in the space that the grid indexes.
-	using coord_t = std::conditional_t<dimensions == dimensions::xyz, cgv::vec3, cgv::vec4>;
+	/// Describes which dimensions a grid indexes and how it is organized in memory.
+	/// Regardless of layout, queries are always spatiotemporal 4D vectors (x, y, z, t).
+	enum class layout : uint8_t {
+		xyz,   // Single 3D spatial grid, time is ignored (infinite cell size).
+		t_xyz, // Separate 3D spatial grids for each time index.
+		xyzt,  // Single 4D spatiotemporal grid.
+	};
+
+	/// Fundamental aspects of a grid's structure that cannot be changed after construction.
+	struct params {
+		/// The extent of each grid cell in the dimensions (x, y, z, t).
+		/// For 3D grids (`layout == xyz`) the time component is implicitely infinite.
+		cgv::vec4 cell_size {1};
+		/// Minimum distance in (arclength, time) between trajectory samples used to determine in
+		/// which grid cells a trajectory segment lies.
+		/// Smaller steps yield more accurate results at the expense of slower insertions and slower
+		/// evaluation of relations due to more, smaller intervals.
+		cgv::vec2 sample_step {0.1};
+		/// Describes which dimensions the grid indexes and how it is organized in memory.
+		layout layout {layout::xyzt};
+	};
 
 	/// Create an empty grid.
 	[[nodiscard]] hash_grid() = default;
 	/// Create a grid with 2 ^ `order` hash buckets.
 	/// The memory region must not be null and must outlive the grid.
-	[[nodiscard]] hash_grid(pmr::memory_region*, cgv::vec4 cell_size, uint8_t order);
+	[[nodiscard]] hash_grid(pmr::memory_region*, params const&, uint8_t order);
 
 	// Forbid copying.
 	hash_grid(hash_grid const&) = delete;
@@ -99,8 +113,8 @@ private:
 		cgv::vec2 time;
 	};
 
-	/// Key used to identify a cell in the grid.
-	using index_t = std::conditional_t<dimensions == dimensions::xyz, cgv::ivec3, cgv::ivec4>;
+	/// Spatiotemporal vector (x, y, z, t) used to identify a cell in the grid.
+	using index_t = cgv::ivec4;
 
 	/// Hash of a cell index.
 	/// Like in Mega-KV (Zhang et al. 2015), only the signature is stored directly in the buckets
@@ -187,20 +201,17 @@ private:
 		std::unordered_map<index_t, uint32_t, index_hash_t> cell_fill {};
 	} _validation;
 #endif
-	/// Reciprocal of each grid cell's extent.
+	/// Extent of each grid cell.
 	cgv::vec4 _cell_size {};
-	/// Multiply to map coordinates to cell (see `index`).
-	coord_t _scale {};
+	/// Points are mapped to cell indices by `index = round(point * _scale)`.
+	/// Reciprocal of `_cell_size`.
+	cgv::vec4 _scale {};
+	/// Minimum distance (arclength, time) between sample points when adding a segment to the grid.
+	cgv::vec2 _sample_step;
 	/// Counts cells stored in the grid for performance evaluation.
 	uint32_t _num_cells {};
-	/// Minimum arclength distance between sample points when inserting a segment into the grid.
-	float _sample_step_space;
-	/// Minimum timespan between sample points when inserting a segment into the grid.
-	[[no_unique_address]] std::conditional_t<
-		dimensions == dimensions::xyz,
-		decltype(std::ignore),
-		float
-	> _sample_step_time;
+	/// Describes which dimensions the grid indexes and how it is organized in memory.
+	layout _layout;
 
 	/// Allocate a contiguous span of buckets, initializing all slots as empty.
 	[[nodiscard]] auto allocate_buckets (uint32_t count) -> std::span<bucket_t>;
