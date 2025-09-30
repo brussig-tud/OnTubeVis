@@ -32,30 +32,7 @@ struct trajectory_relation {
 	cgv::vec2 radius {1};
 	/// Relation values mapped onto the endpoints of the color scale.
 	cgv::vec2 color_range {0, 1};
-	/// Trajectory evaluations per unit of time to calculate relation.
-	float sample_rate {1};
-	/// Color scale used to visualize the relation value.
-	struct {int32_t index;} color_map {12/*imola*/};
-	/// ID of the "reference trajectory" whose meaning depends on `direction`.
-	uint32_t reference_trajectory {0};
-	/// Determines whether the relation is averaged (true) or accumulated (false) over time.
-	bool normalize {true};
-	/// Determines whether the relation is mapped onto the color scale linearly (false) or
-	/// logarithmically (true).
-	bool log_scale {false};
-
-	enum class direction : uint8_t {
-		/// Only evaluate the relation for the reference trajectory.
-		ref_to_all,
-		/// Evaluate the relation with the reference trajectory.
-		all_to_ref,
-		/// Evaluate the relation for every pair of trajectories.
-		all_to_all,
-	}
-	/// Determines for which pairs of trajectories the relation is visualized.
-	direction {direction::all_to_ref};
-
-	enum class function : uint8_t {
+	enum class function : uint32_t { // uint8_t causes problems with CGV GUI.
 		none,               // No visualization.
 		distance,           // Euclidean spatial distance between trajectories.
 		dbg_seg_t,          // Segment-local curve parameter.
@@ -72,6 +49,27 @@ struct trajectory_relation {
 	}
 	/// The value to visualize.
 	function {};
+	enum class direction : uint32_t { // uint8_t causes problems with CGV GUI.
+		/// Only evaluate the relation for the reference trajectory.
+		ref_to_all,
+		/// Evaluate the relation with the reference trajectory.
+		all_to_ref,
+		/// Evaluate the relation for every pair of trajectories.
+		all_to_all,
+	}
+	/// Determines for which pairs of trajectories the relation is visualized.
+	direction {direction::all_to_ref};
+	/// Trajectory evaluations per unit of time to calculate relation.
+	float sample_rate {1};
+	/// Color scale used to visualize the relation value.
+	struct {int32_t index;} color_map {12/*imola*/};
+	/// ID of the "reference trajectory" whose meaning depends on `direction`.
+	uint32_t reference_trajectory {0};
+	/// Determines whether the relation is averaged (true) or accumulated (false) over time.
+	bool normalize {true};
+	/// Determines whether the relation is mapped onto the color scale linearly (false) or
+	/// logarithmically (true).
+	bool log_scale {false};
 
 	/// Generate GUI elements to control member variables.
 	void build_gui (

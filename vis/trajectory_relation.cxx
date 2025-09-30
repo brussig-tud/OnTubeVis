@@ -68,8 +68,8 @@ void trajectory_relation::build_gui (
 
 void trajectory_relation::set_defaults (cgv::vec4 extent)
 {
-	radius[0]   = cgv::vec3{extent}.length() * 0.005f;
-	radius[1]   = extent[3] * 0.005f;
+	radius[0]   = cgv::vec3{extent}.length() * 0.01f;
+	radius[1]   = extent[3] * 0.01f;
 	sample_rate = 1e3f / extent[3];
 }
 

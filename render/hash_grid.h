@@ -43,7 +43,7 @@ class hash_grid {
 public:
 	/// Describes which dimensions a grid indexes and how it is organized in memory.
 	/// Regardless of layout, queries are always spatiotemporal 4D vectors (x, y, z, t).
-	enum class layout : uint8_t {
+	enum class layout : uint32_t { // uint8_t causes problems with CGV GUI.
 		xyz,   // Single 3D spatial grid, time is ignored (infinite cell size).
 		t_xyz, // Separate 3D spatial grids for each time index.
 		xyzt,  // Single 4D spatiotemporal grid.

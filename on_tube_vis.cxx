@@ -1400,17 +1400,6 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 		client.commit_session();
 	ah_mgr.set_dataset(ds);
 
-	{
-	auto t = ds.minmax_position_timestamp();
-	rel_vis.set_defaults({bbox.get_extent(), t.second - t.first});
-	}
-
-	tube_shading_defines = tube_shading.build_tube_shading_defines(
-		render.visualizations.front().config, debug.highlight_segments
-	);
-	set_rel_vis_defines(ctx);
-	shaders.reload(ctx, "tube_shading", { tube_shading_defines });
-
 	// reset glyph layer configuration file
 	layer_config_file_helper.set_file_name("");
 	layer_config_has_unsaved_changes = false;
@@ -1453,6 +1442,7 @@ void on_tube_vis::build_hash_grid ()
 	set_rel_vis_defines(ctx);
 	shaders.reload(ctx, "tube_shading", { tube_shading_defines });
 	// Show new state.
+	taa.reset();
 	post_redraw();
 }
 
@@ -3150,7 +3140,10 @@ void on_tube_vis::create_gui (void)
 		add_member_control(this, "Layout", hash_grid_params.layout, "dropdown", "enums='"
 			"3D,Strided 3D,4D'"
 		);
-		auto const extent = bbox.get_extent();
+		auto const extent = vec4{
+			bbox.get_extent(),
+			client.data->t_minmax.second - client.data->t_minmax.first
+		};
 		add_member_control(this, "Cell size x", hash_grid_params.cell_size[0], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", extent[0] * 0.1f)
 		);
@@ -3165,11 +3158,13 @@ void on_tube_vis::create_gui (void)
 		);
 		add_member_control(this, "Sample step space", hash_grid_params.sample_step[0],
 			"value_slider",
-			std::format("min=0;max={};log=true;ticks=true", min_value(vec3{extent}) * 0.01f)
+			std::format("min=0;max={};log=true;ticks=true",
+				min_value(hash_grid_params.cell_size) * 0.2f
+			)
 		);
 		add_member_control(this, "Sample step time", hash_grid_params.sample_step[1],
 			"value_slider",
-			std::format("min=0;max={};log=true;ticks=true", extent[3] * 0.01f)
+			std::format("min=0;max={};log=true;ticks=true", hash_grid_params.cell_size[3] * 0.2f)
 		);
 		connect_copy(
 			add_button("OK")->click,
@@ -3559,14 +3554,15 @@ void on_tube_vis::update_attribute_bindings(void)
 		// Cell size is chosen such that the number of segments per cell remains approximately
 		// constant.
 		{
-		auto const spatial_extent  = cgv::math::max_value(bbox.get_extent());
+		auto const extent = bbox.get_extent();
+		rel_vis.set_defaults({extent, tmax - tmin});
 		auto const resolution      = std::max(std::powf(num_nodes, 0.25f), 16.0f) * 1e-3f;
 		hash_grid_params.cell_size = cgv::vec4{
-			cgv::vec3{spatial_extent * resolution},
+			cgv::vec3{max_value(extent) * resolution},
 			(tmax - tmin) * resolution
 		};
 		hash_grid_params.sample_step =
-			vec2{hash_grid_params.cell_size[0], hash_grid_params.cell_size[3]} * 0.1f;
+			vec2{hash_grid_params.cell_size[0], hash_grid_params.cell_size[3]} * 0.05f;
 		build_hash_grid();
 		}
 

@@ -232,7 +232,7 @@ protected:
 
 	/// tube shading settings
 	tube_shading_settings tube_shading;
-	otv::vis::trajectory_relation rel_vis;
+	otv::vis::trajectory_relation rel_vis {};
 
 	/// Trajectory hash grid settings.
 	otv::hash_grid::params hash_grid_params {
