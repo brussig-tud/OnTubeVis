@@ -161,6 +161,9 @@ void hash_grid::add_segment (
 	cgv::uvec2          node_idcs,
 	cgv::mat4 const&    t_to_s
 ) {
+	// Check that the arclength parametrization is plausible.
+	assert(!isnan(t_to_s[0]) && t_to_s[0] <= t_to_s[15]);
+
 	/// Beginning and end of the segment, in grid coordinates.
 	auto const start_point = vec4{vec3{start.pos_rad}, start.t[0]} * _scale;
 	auto const end_point   = vec4{vec3{  end.pos_rad},   end.t[0]} * _scale;
@@ -199,6 +202,8 @@ void hash_grid::add_segment (
 		// Assume a constant average speed.
 		min_value(_sample_step / vec2{arclen, duration})
 	);
+	// Check plausibility.
+	assert(min_step > 1e-6 && min_step < 1e6);
 
 	if constexpr (log_level > 3)
 		std::clog <<

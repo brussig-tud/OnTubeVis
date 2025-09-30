@@ -189,7 +189,11 @@ struct render_state
 
 	/// Implements `otv__stream_spline_node`.
 	void enqueue_node (trajectory::id_type trajectory, const node_attribs &node, const cgv::mat4 *t_to_s) {
-		_node_queue.push_back({node, t_to_s ? *t_to_s : cgv::mat4{}, trajectory});
+		_node_queue.push_back({
+			node,
+			t_to_s ? *t_to_s : cgv::mat4{std::numeric_limits<float>::signaling_NaN()},
+			trajectory
+		});
 	}
 
 	/// Upload new data from the host to the GPU and prune old geometry.
