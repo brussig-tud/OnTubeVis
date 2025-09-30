@@ -582,7 +582,9 @@ void otv_client::update ()
 
 			// the first node of each trajectory does not create a segment, so there is no arc
 			// length parametrization
-			const cgv::mat4 *t_to_s {target_traj.ref.is_empty() ? nullptr : &arclen_data.t_to_s.at(traj.segment_idx)};
+			cgv::mat4 *t_to_s = isnan(traj.last_s[0])
+				? nullptr
+				: &arclen_data.t_to_s.at(traj.segment_idx);
 
 			// append a node, potentially creating a new segment
 			render.enqueue_node(new_node.traj_id, new_node.node, t_to_s);
@@ -597,17 +599,18 @@ void otv_client::update ()
 				extrapol_replace_register[target_traj.id] = &replace_data;
 			}
 
-			if (t_to_s == nullptr) {
+			if (!t_to_s)
+				// This was the first node in the trajectory, all future nodes will create segments.
+				traj.last_s[0] = -std::numeric_limits<float>::infinity();
+			else { // The node created a segment.
+				// advance the playback index and already submit the _next_ segment's glyphs, so they show up on the
+				// extrapolation
+				++traj.segment_idx;
+				if (node_idx >= traj.node_idcs.end-1) // <- make sure there _is_ a next semgment
+					continue;
 				// submit first segment glyphs
-				render.for_each_active_glyph_layer(enqueue_glyphs);
-				continue;
 			}
-
-			// advance the playback index and already submit the _next_ segment's glyphs, so they show up on the
-			// extrapolation
-			++traj.segment_idx;
-			if (node_idx < traj.node_idcs.end-1) // <- make sure there _is_ a next semgment
-				render.for_each_active_glyph_layer(enqueue_glyphs);
+			render.for_each_active_glyph_layer(enqueue_glyphs);
 		}
 	}
 

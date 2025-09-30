@@ -57,8 +57,10 @@ struct otv_client
 		/// Bookkeeping the most recently submitted s positions enables filtering out duplicated references and submit
 		/// unique glyphs only, as the submission interface requires (this information will be properly recreated
 		/// behind the interface, including re-routing to extrapolations).
+		/// The first entry is initialized as NaN to indicate that this trajectory has not submitted any nodes to the
+		/// render server yet. After enqueuing the first node, the entry is set to -inf like the others.
 		float last_s[4] = {
-			-std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity(),
+			std::numeric_limits<float>::signaling_NaN(), -std::numeric_limits<float>::infinity(),
 			-std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity()
 		};
 
