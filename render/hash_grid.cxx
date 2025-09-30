@@ -49,79 +49,78 @@ constexpr uint8_t num_hash_fns = 2;
 /// Larger numbers allow for a higher load factor at the cost of longer worst-case insertion time.
 constexpr auto max_cuckoo_chain = 50u;
 
-
-/// How many components of a 4D point determine its grid index.
-[[nodiscard]] constexpr auto index_dims (otv::hash_grid::layout layout) noexcept -> uint8_t
-{
-	return layout == otv::hash_grid::layout::xyz ? 3 : 4;
-}
-
-/// Calculate the offset of `ptr` within the memory region for use an address in shaders.
-[[nodiscard]] constexpr auto ptr_to_offset (std::span<const std::byte> region, void const* ptr)
-	-> uint32_t
-{
-	uint32_t const offset = (reinterpret_cast<std::byte const*>(ptr) - region.data())
-		/ address_unit;
-	assert(
-		   ptr >= &*region.begin()
-		&& ptr  < &*region.end()
-		&& &region[offset * address_unit] == ptr
-	);
-	return offset;
-}
-
-/// Access memory at `offset` within `region` such that
-/// `offset_to_ptr(b, ptr_to_offset(b, p)) == p`.
-[[nodiscard]] constexpr auto offset_to_ptr (std::span<std::byte> region, uint32_t offset)
-	-> void*
-{
-	assert(offset * address_unit < region.size());
-	return &region[offset * address_unit];
-}
-
 } // namespace
 
 
-hash_grid::hash_grid(pmr::memory_region* memory, params const& params, uint8_t order)
+hash_grid::hash_grid(pmr::memory_region* memory, params const& params, uint32_t initial_buckets)
 	: _memory    {memory}
-	, _buckets   {allocate_buckets(1u << order)}
 	, _cell_size {params.layout == layout::xyz
 		// A 3D grid is equivalent to a 4D grid with infinite cell extent in time.
 		? vec4{vec3{params.cell_size}, std::numeric_limits<float>::infinity()}
 		: params.cell_size
 	}
-	, _scale       {vec4{1} / _cell_size} // index = round(point / _cell_size)
-	, _sample_step {max(params.sample_step, vec2{0.001})}
-	, _layout      {params.layout}
+	, _scale           {vec4{1} / _cell_size} // index = round(point / _cell_size)
+	, _sample_step     {max(params.sample_step, vec2{0.001})}
+	, _layout          {params.layout}
+	, _initial_buckets {static_cast<uint8_t>(
+		std::bit_width(std::max(initial_buckets, 1u) - 1)) // ceil(log2)
+	}
 {
+	auto const region = memory->span();
+
+	// Check that every address allocated by the memory resource can be represented as a 32 bit
+	// offset.
+	auto const address_limit = (static_cast<size_t>(address_unit) << 32) - 1;
+	if (region.size() >= address_limit)
+		throw std::runtime_error{std::format(
+			"{} byte memory region exceeds the hash grid's address limit of {} bytes.",
+			region.size(),
+			address_limit
+		)};
+
+	// Initialize tables.
+	if (_layout == layout::t_xyz) {
+		auto const capacity = 16;
+		_data.tables = {
+			{region, allocate<span_t<bucket_t>>(capacity).first(0)}, // Length 0.
+			ptr_t{region, allocate<int32_t>(capacity).data()},
+			capacity
+		};
+	} else {
+		auto const buckets = allocate<bucket_t>(1u << _initial_buckets);
+		std::ranges::uninitialized_default_construct(buckets);
+		_data.buckets = {region, buckets};
+	}
+
 	if constexpr (log_level > 0) {
 		using std::operator""sv;
 		auto const layout_name = std::array{"3D"sv, "Strided 3D"sv, "4D"sv}
 			[static_cast<size_t>(_layout)];
 		std::clog << LOG_TAG" Create instance.\n"
-			"\tLayout:      "  << layout_name     <<  "\n"
-			"\tBuckets:     "  << _buckets.size() <<  "\n"
-			"\tCell size:   (" << _cell_size      << ")\n"
-			"\tSample step: "  << _sample_step[0] <<  " (space), "
-			                   << _sample_step[1] <<  " (time)\n";
+			"\tLayout:          "  << layout_name              <<  "\n"
+			"\tCell size:       (" << _cell_size               << ")\n"
+			"\tSample step:     "  << _sample_step[0]          <<  " (space), "
+			                       << _sample_step[1]          <<  " (time)\n"
+			"\tInitial buckets: "  << (1u << _initial_buckets) <<  "\n";
 	}
 }
 
 hash_grid::hash_grid(hash_grid&& src) noexcept
 	: _rng     {std::move(src._rng)}
 	, _memory  {std::move(src._memory)}
-	, _buckets {std::move(src._buckets)}
+	, _data    {std::move(src._data)}
 #if OTV_HASH_GRID_VALIDATION
 	, _validation {std::move(src._validation)}
 #endif
-	, _cell_size   {std::move(src._cell_size)}
-	, _scale       {std::move(src._scale)}
-	, _sample_step {std::move(src._sample_step)}
-	, _num_cells   {std::move(src._num_cells)}
-	, _layout      {std::move(src._layout)}
+	, _cell_size       {std::move(src._cell_size)}
+	, _scale           {std::move(src._scale)}
+	, _sample_step     {std::move(src._sample_step)}
+	, _layout          {std::move(src._layout)}
+	, _initial_buckets {std::move(src._initial_buckets)}
 {
-	// Take ownership of all allocations.
-	src._buckets = {};
+	// Take ownership of tables.
+	if (_layout == layout::t_xyz) src._data.tables = {};
+	else src._data.buckets = {};
 }
 
 auto hash_grid::operator= (hash_grid&& src) noexcept -> hash_grid&
@@ -129,25 +128,31 @@ auto hash_grid::operator= (hash_grid&& src) noexcept -> hash_grid&
 	// Self-assignment is a NOP.
 	if (&src == this) return *this;
 
-	// Free any current buckets and cells.
+	// Free any current tables.
 	free();
 
 	// Move member variables.
-	_rng     = std::move(src._rng);
-	_memory  = std::move(src._memory);
-	_buckets = std::move(src._buckets);
+	_rng    = std::move(src._rng);
+	_memory = std::move(src._memory);
+	_data   = std::move(src._data);
 #if OTV_HASH_GRID_VALIDATION
 	_validation = std::move(src._validation);
 #endif
-	_cell_size   = std::move(src._cell_size);
-	_scale       = std::move(src._scale);
-	_sample_step = std::move(src._sample_step);
-	_num_cells   = std::move(src._num_cells);
-	_layout      = std::move(src._layout);
+	_cell_size       = std::move(src._cell_size);
+	_scale           = std::move(src._scale);
+	_sample_step     = std::move(src._sample_step);
+	_layout          = std::move(src._layout);
+	_initial_buckets = std::move(src._initial_buckets);
 
-	// Take ownership of allocations.
-	src._buckets = {};
+	// Take ownership of tables.
+	if (_layout == layout::t_xyz) src._data.tables = {};
+	else src._data.buckets = {};
 	return *this;
+}
+
+hash_grid::~hash_grid() noexcept
+{
+	free();
 }
 
 void hash_grid::add_segment (
@@ -248,7 +253,7 @@ void hash_grid::add_segment (
 			auto isect_count  = -1; // Number of grid intersections - 1.
 
 			// Indices differ in at least one component, maybe multiple.
-			for (auto d = 0u; d < index_dims(_layout); ++d) {
+			for (auto d = 0u; d < (_layout == layout::xyz ? 3u : 4u); ++d) {
 				if (prev_index[d] == index[d]) continue;
 				/// Coordinate of the hyper-plane separating the the two cells in dimension d.
 				/// If the step size is small enough that there should only ever be one crossing per
@@ -299,54 +304,77 @@ void hash_grid::set_uniforms (cgv::render::context& c, cgv::render::shader_progr
 {
 	auto const memory = _memory->span();
 	auto ok = true
-	&& p.set_uniform(c, "hash_grid_cell_size",       _cell_size)
-	&& p.set_uniform(c, "hash_grid_scale",           _scale)
-	&& p.set_uniform(c, "hash_grid_buckets.address", ptr_to_offset(memory, _buckets.data()))
-	&& p.set_uniform(c, "hash_grid_buckets_mask",    static_cast<uint32_t>(_buckets.size() - 1))
+	&& p.set_uniform(c, "hash_grid_cell_size", _cell_size)
+	&& p.set_uniform(c, "hash_grid_scale",     _scale)
+	// All members of `_data` have a common `span_t` subsequence, so reading `buckets` is always
+	// valid.
+	&& p.set_uniform(c, "hash_grid_data.start.address", _data.buckets.start.address)
+	&& p.set_uniform(c, "hash_grid_data.len",           _data.buckets.len)
 	;
+	if (_layout == layout::t_xyz)
+		ok &= p.set_uniform(c, "hash_grid_timesteps.address", _data.tables.timesteps.address);
 	assert(ok);
 }
 
 void hash_grid::free () noexcept
 {
-	// Free cell allocations.
-	for (auto& bucket : _buckets)
-		for (auto& slot : bucket.slots) {
-			if (!slot.cell) break;
-			slot.cell.free(*_memory);
-		}
-	free_buckets(_buckets);
-
+	// No tables allocated, nothing to do.
+	if (!_data.buckets.start) {
 #if OTV_HASH_GRID_VALIDATION
-	_validation.cell_fill = {};
+		assert(_validation.cell_fill.empty());
 #endif
+		return;
+	}
+
+	// Traverse tables to free cells.
+	auto const region = _memory->span();
+	auto const tables = _layout == layout::t_xyz
+		? _data.tables.buckets.get(region)
+		: std::span{&_data.buckets, 1};
+
+	for (auto const& table : tables) {
+		auto const buckets = table.get(region);
+		for (auto& bucket : buckets)
+			for (auto& slot : bucket.slots) {
+				if (!slot.cell.data) break;
+				slot.cell.free(*_memory);
+			}
+		free(buckets);
+	}
+
+	// Mark as empty.
+	leak();
 }
 
 void hash_grid::leak () noexcept
 {
-	_buckets = {};
+	// Forget tables.
+	if (_layout == layout::t_xyz) _data.tables = {};
+	else _data.buckets = {};
+
+	// The grid is now empty.
 #if OTV_HASH_GRID_VALIDATION
 	_validation.cell_fill = {};
 #endif
 }
 
 
-auto hash_grid::allocate_buckets (uint32_t count) -> std::span<bucket_t>
+template <class T>
+auto hash_grid::allocate (uint32_t count) -> std::span<T>
 {
-	assert(std::has_single_bit(count));
 	return std::span{
-		new(static_cast<bucket_t*>(
-			_memory->allocate(count * sizeof(bucket_t),
-			alignof(bucket_t))
-		)) bucket_t[count],
+		static_cast<T*>(
+			_memory->allocate(count * sizeof(T),
+			alignof(T))
+		),
 		count
 	};
 }
 
-void hash_grid::free_buckets (std::span<bucket_t> buckets) noexcept
+template <class T>
+void hash_grid::free (std::span<T> alloc) noexcept
 {
-	if (buckets.data())
-		_memory->deallocate(buckets.data(), buckets.size_bytes(), alignof(bucket_t));
+	_memory->deallocate(alloc.data(), alloc.size_bytes(), alignof(T));
 }
 
 void hash_grid::add_interval (index_t index, interval_t interval)
@@ -354,7 +382,7 @@ void hash_grid::add_interval (index_t index, interval_t interval)
 	if constexpr (log_level > 2)
 		std::clog << LOG_TAG" Add interval (" << interval.time << ") to cell (" << index << ").\n";
 
-	get(index).add_interval(*_memory, interval);
+	cell(index).add_interval(*_memory, interval);
 
 #if OTV_HASH_GRID_VALIDATION
 	// Track the number of intervals in each cell.
@@ -362,54 +390,145 @@ void hash_grid::add_interval (index_t index, interval_t interval)
 #endif
 }
 
-auto hash_grid::get (index_t index) -> cell_t&
+auto hash_grid::cell (index_t index) -> cell_t&
 {
+	auto const region = _memory->span();
+	// Find or create the table for this timestep.
+	auto& table = this->table(index[3]);
+	// Access its buckets.
+	auto buckets = table.get(region);
+
 	while (true) {
 		// In the vast majority of cases, the cell is already stored in the table or can be
 		// inserted into the existing buckets.
-		if (auto const cell = find_or_insert(index)) return *cell;
+		if (auto const cell = find_or_insert(buckets, index)) return *cell;
 		// In the unlikely event that a new cell cannot be inserted, more buckets must be allocated.
 
 		/// Save the contents of the table.
-		auto const old_buckets = _buckets;
+		auto const old_buckets = buckets;
 
 		// Rebuild the table with double capacity.
-		auto const region = _memory->span();
 		rehash:
-			// Print the current load factor to determine efficiency.
-			if constexpr (log_level > 0) {
-				auto const num_slots = _buckets.size() * bucket_t::num_slots;
-				log(LOG_TAG" Rehashing after insertion failed with {}/{} slots occupied "
-					"(load factor {:.2}).\n",
-					_num_cells,
-					num_slots,
-					static_cast<float>(_num_cells) / num_slots
-				);
-			}
-
-			// Allocate new, empty buckets.
-			_buckets   = allocate_buckets(_buckets.size() * 2);
-			_num_cells = 0;
+			// Allocate new buckets and initialize them as empty.
+			buckets = allocate<bucket_t>(buckets.size() * 2);
+			std::ranges::uninitialized_default_construct(buckets);
+			// Store the new pointer.
+			table = {region, buckets};
 
 			// Reinsert all entries in the new buckets.
+			auto num_cells = 0uz;
 			for (auto& bucket : old_buckets)
 				for (auto& slot : bucket.slots) {
+					// Count cells to determine load factor.
+					++num_cells;
 					// Buckets are filled front to back, all following slots are empty.
-					if (!slot.cell) break;
+					if (!slot.cell.data) break;
 					// If insertion fails during a rehash (extremely unlikely), abort the current
 					// attempt and try again with yet more buckets.
-					if (!find_or_insert(slot.cell.get(region).index, slot.cell)) {
-						free_buckets(_buckets);
+					if (!find_or_insert(buckets, slot.cell.data.get(region)->index, slot.cell)) {
+						free(buckets);
 						goto rehash;
 					}
 				}
 
-		free_buckets(old_buckets);
+		if constexpr (log_level > 0) {
+			// Print the load factor before resizing to determine efficiency.
+			auto const num_slots = old_buckets.size() * bucket_t::num_slots;
+			log(LOG_TAG" Resizing hash table after insertion failed with {}/{} slots occupied "
+				"(load factor {:.2}).\n",
+				num_cells,
+				num_slots,
+				static_cast<float>(num_cells) / num_slots
+			);
+		}
+
+		// Free the previous allocation.
+		free(old_buckets);
+
 		// Once all previous entries have been restored, reattempt to insert the new index.
 	}
 }
 
-auto hash_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
+auto hash_grid::table (int32_t timestep) -> span_t<bucket_t>&
+{
+	// Only strided grids have more than one table.
+	if (_layout != layout::t_xyz) return _data.buckets;
+
+	auto const region = _memory->span();
+
+	// Obtain a view over all allocated tables, not just valid ones.
+	auto bucket_vec   = std::span{_data.tables.buckets.start.get(region), _data.tables.capacity};
+	auto timestep_vec = std::span{_data.tables.timesteps.get(region),     _data.tables.capacity};
+	// Number of tables that have actually been initialized.
+	auto const num_tables = _data.tables.buckets.len;
+
+	// Search for the requested timestep.
+	auto const ts_iter = std::ranges::lower_bound(timestep_vec.first(num_tables), timestep);
+	auto const ts_idx  = std::distance(timestep_vec.begin(), ts_iter);
+	// If it exists, return the corresponding buckets.
+	if (ts_idx < num_tables && *ts_iter == timestep) return bucket_vec[ts_idx];
+
+	// Otherwise, a new table must be allocated.
+	auto const num_buckets = 1u << _initial_buckets;
+	if (log_level > 1) log(LOG_TAG" Allocate {} buckets for timestep {}.\n", num_buckets, timestep);
+
+	auto const new_buckets = allocate<bucket_t>(num_buckets);
+	std::ranges::uninitialized_default_construct(new_buckets);
+	++_data.tables.buckets.len;
+
+	// The first table must be handled specially,
+	if (num_tables == 0) {
+		std::construct_at(&timestep_vec[0], timestep);
+		return *std::construct_at(&bucket_vec[0], region, new_buckets);
+	}
+
+	// If there is free capacity, shift elements to make room for the new table.
+	if (num_tables < _data.tables.capacity) {
+		std::construct_at(&timestep_vec[num_tables], std::move(timestep_vec[num_tables - 1]));
+		std::shift_right(ts_iter, timestep_vec.begin() + num_tables, 1);
+		*ts_iter = timestep;
+
+		std::construct_at(&bucket_vec[num_tables], std::move(bucket_vec[num_tables - 1]));
+		std::shift_right(bucket_vec.begin() + ts_idx, bucket_vec.begin() + num_tables, 1);
+		return bucket_vec[ts_idx] = {region, new_buckets};
+	}
+
+	// Otherwise, reallocate the table vector with double capacity.
+	_data.tables.capacity *= 2;
+
+	if (log_level > 1)
+		log(LOG_TAG" Grow table vector from capacity {} to {}.\n",
+			bucket_vec.size(),
+			_data.tables.capacity
+		);
+
+	// Move timesteps, splicing the new entry inbetween.
+	auto const new_timestep_vec = allocate<int32_t>(_data.tables.capacity);
+	std::uninitialized_move_n(timestep_vec.begin(), ts_idx, new_timestep_vec.begin());
+	std::construct_at(&new_timestep_vec[ts_idx], timestep);
+	std::uninitialized_move(
+		timestep_vec.begin() + ts_idx,
+		timestep_vec.end(),
+		new_timestep_vec.begin() + ts_idx + 1
+	);
+	_data.tables.timesteps = {region, new_timestep_vec.data()};
+
+	// Move tables, leaving room for the new one.
+	auto const new_bucket_vec = allocate<span_t<bucket_t>>(_data.tables.capacity);
+	std::uninitialized_move_n(bucket_vec.begin(), ts_idx, new_bucket_vec.begin());
+	auto& result = *std::construct_at(&new_bucket_vec[ts_idx], span_t{region, new_buckets});
+	std::uninitialized_move(
+		bucket_vec.begin() + ts_idx,
+		bucket_vec.end(),
+		new_bucket_vec.begin() + ts_idx + 1
+	);
+	_data.tables.buckets.start = {region, new_bucket_vec.data()};
+
+	return result;
+}
+
+auto hash_grid::find_or_insert (std::span<bucket_t> buckets, index_t query, cell_t new_cell)
+	-> cell_t*
 {
 	// Recurring constants.
 	auto const region = _memory->span();
@@ -426,7 +545,7 @@ auto hash_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 
 	// Check all buckets the queried cell hashes to.
 	for (uint8_t fn = 0; fn < num_hash_fns; ++fn) {
-		auto& bucket = this->bucket(signature, fn);
+		auto& bucket = this->bucket(buckets, signature, fn);
 		/// Count the number of occupied slots in this bucket.
 		auto load = 0u;
 
@@ -434,16 +553,16 @@ auto hash_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 		for (auto& slot : bucket.slots) {
 			// Buckets are filled front to back and entries are never deleted, so if we find a free
 			// slot, all following ones must be free as well.
-			if (!slot.cell) break;
+			if (!slot.cell.data) break;
 			if (slot.signature.value == signature.value) {
 				// Since many indices map to the same signature, we must load the index of the
 				// possible match for an exact comparison.
 				// In practice, a good hash makes signature collisions unlikely.
-				auto const index = slot.cell.get(region).index;
+				auto const index = slot.cell.data.get(region)->index;
 			 	if (index == query) {
 					// We have found the queried cell.
 #if OTV_HASH_GRID_VALIDATION
-					assert(slot.cell.get(region).size == _validation.cell_fill[query]);
+					assert(slot.cell.data.get(region)->size == _validation.cell_fill[query]);
 #endif
 					return &slot.cell;
 				}
@@ -459,9 +578,9 @@ auto hash_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 	}
 	// If the index cannot be found in the table, insert it.
 
-	if (new_cell)
+	if (new_cell.data)
 		// Check that the given cell actually matches the query index.
-		assert(new_cell.get(region).index == query);
+		assert(new_cell.data.get(region)->index == query);
 	else {
 		// If no cell has been given to insert, allocate a new one.
 		new_cell = cell_t{*_memory, query};
@@ -495,11 +614,9 @@ auto hash_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 		if (dest_bucket.load < bucket_t::num_slots) {
 			// Buckets are filled front to back.
 			auto& dest = dest_bucket.data->slots[dest_bucket.load] = insert_entry;
-			// The grid has grown by one cell.
-			++_num_cells;
 			// Ensure that the return value points to the new cell.
-			if (insert_entry.cell == new_cell) new_entry = &dest.cell;
-			else assert(*new_entry == new_cell);
+			if (insert_entry.cell.data == new_cell.data) new_entry = &dest.cell;
+			else assert(new_entry->data == new_cell.data);
 
 			if constexpr (log_level > 2)
 				std::clog << LOG_TAG" Inserted cell (" << query << ") after " << i << " cuckoos.\n";
@@ -509,33 +626,37 @@ auto hash_grid::find_or_insert (index_t query, cell_t new_cell) -> cell_t*
 
 		// If all candidate buckets are full, pick one by cycling through hash functions, then store
 		// the entry in a random slot.
-		auto& cuckoo_bucket = this->bucket(insert_entry.signature, (prev_fn + 1) % num_hash_fns);
-		auto& dest          = cuckoo_bucket.slots[
+		auto& cuckoo_bucket = this->bucket(
+			buckets,
+			insert_entry.signature,
+			(prev_fn + 1) % num_hash_fns
+		);
+		auto& dest = cuckoo_bucket.slots[
 			std::uniform_int_distribution{0uz, bucket_t::num_slots - 1}(_rng)
 		];
 		// Remember where the new cell is stored.
-		if (insert_entry.cell == new_cell) new_entry = &dest.cell;
+		if (insert_entry.cell.data == new_cell.data) new_entry = &dest.cell;
 		// Cuckoo the previous entry from the chosen slot.
 		std::swap(dest, insert_entry);
 
 		// Find the best bucket to store the displaced entry.
 		dest_bucket = {};
 		for (uint8_t fn = 0; fn < num_hash_fns; ++fn) {
-			auto& bucket = this->bucket(insert_entry.signature, fn);
+			auto& bucket = this->bucket(buckets, insert_entry.signature, fn);
 
 			// We know that the bucket the entry was displaced from is full already.
 			// Remember the associated hsah function, so we know which one to try next if all
 			// candidate buckets are full again.
 			if (&bucket == &cuckoo_bucket) {
 				prev_fn = fn;
-				assert(bucket.slots.back().cell);
+				assert(bucket.slots.back().cell.data);
 				continue;
 			}
 
 			// Count the occupied slots in the bucket.
 			// Iterate back to front, since at this point buckets likely have only a few free slots.
 			unsigned load = bucket_t::num_slots;
-			while (load > 0 && !bucket.slots[load - 1].cell) --load;
+			while (load > 0 && !bucket.slots[load - 1].cell.data) --load;
 			if (load < dest_bucket.load) dest_bucket = {&bucket, load};
 		}
 	}
@@ -561,7 +682,7 @@ constexpr auto hash_grid::signature (index_t index) const noexcept -> signature_
 	// Compared to the implementation by Jarzynski and Olano, `index` is rotated by one component.
 	uint32_t hash = std::bit_cast<uint32_t>(index[0]) + p5;
 
-	for (auto d = 1u; d < index_dims(_layout); ++d) {
+	for (auto d = 1u; d < (_layout == layout::xyzt ? 4 : 3); ++d) {
 		hash += std::bit_cast<uint32_t>(index[d]) * p3;
 		hash  = p4 * ((hash << 17) | (hash >> 15));
 	}
@@ -571,7 +692,8 @@ constexpr auto hash_grid::signature (index_t index) const noexcept -> signature_
 	return {hash ^ (hash >> 16)};
 }
 
-auto hash_grid::bucket (signature_t signature, uint8_t hash_fn) noexcept -> bucket_t&
+auto hash_grid::bucket (std::span<bucket_t> buckets, signature_t signature, uint8_t hash_fn)
+	noexcept -> bucket_t&
 {
 	uint32_t hash = signature.value;
 
@@ -594,7 +716,54 @@ auto hash_grid::bucket (signature_t signature, uint8_t hash_fn) noexcept -> buck
 	};
 
 	// The number of buckets is a power of two, so the modulo simplifies to a bit-wise and.
-	return _buckets[hash & _buckets.size() - 1];
+	return buckets[hash & buckets.size() - 1];
+}
+
+
+template <class T>
+constexpr hash_grid::ptr_t<T>::ptr_t(memory_region region, T* ptr) noexcept
+	: address {
+		static_cast<uint32_t>(reinterpret_cast<std::byte*>(ptr) - region.data())
+		/ address_unit
+	}
+{
+	// Check that the pointer lies within the region and its offset can be represented in 32 bits.
+	assert(get(region) == ptr);
+}
+
+template <class T>
+constexpr hash_grid::ptr_t<T>::operator bool() const noexcept
+{
+	return address != ~0u;
+}
+
+template <class T>
+constexpr auto hash_grid::ptr_t<T>::operator== (ptr_t other) const noexcept -> bool
+{
+	return address == other.address;
+}
+
+template <class T>
+constexpr auto hash_grid::ptr_t<T>::get (memory_region region) const noexcept -> T*
+{
+	assert(address * address_unit < region.size());
+	return reinterpret_cast<T*>(&region[address * address_unit]);
+}
+
+
+template <class T>
+constexpr hash_grid::span_t<T>::span_t(memory_region region, std::span<T> span) noexcept
+	: start {region, span.data()}
+	, len   {static_cast<uint32_t>(span.size())}
+{
+	// Check that the length can be represented with 32 bits.
+	assert(len == span.size());
+}
+
+template <class T>
+constexpr auto hash_grid::span_t<T>::get (memory_region region) const noexcept -> std::span<T>
+{
+	return {start.get(region), len};
 }
 
 
@@ -606,39 +775,22 @@ hash_grid::cell_t::cell_t(pmr::memory_region& memory, index_t index)
 		(std::bit_ceil(offsetof(data_t, intervals[1])) - offsetof(data_t, intervals))
 		/ sizeof(interval_t);
 	// Allocate and initialize cell data.
-	_address = ptr_to_offset(
+	data = {
 		memory.span(),
-		&(allocate(memory, capacity) = {.index = index, .size = 0, .capacity = capacity})
-	);
-}
-
-constexpr auto hash_grid::cell_t::operator== (cell_t const& other) const noexcept -> bool
-{
-	// Pointer semantics.
-	return _address == other._address;
-}
-
-constexpr hash_grid::cell_t::operator bool () const noexcept
-{
-	// Zero is a valid offset, so null pointers instead have all bits set.
-	return _address != ~0;
-}
-
-auto hash_grid::cell_t::get (std::span<std::byte> region) noexcept -> data_t&
-{
-	return *reinterpret_cast<data_t*>(offset_to_ptr(region, _address));
+		&(*allocate(memory, capacity) = {.index = index, .size = 0, .capacity = capacity})
+	};
 }
 
 void hash_grid::cell_t::add_interval (pmr::memory_region& memory, interval_t interval)
 {
 	auto const region = memory.span();
-	auto& data        = get(region);
+	auto& data        = *this->data.get(region);
 	// Load header.
 	auto const [index, size, capacity, _] = data;
 
 	// If the allocation has spare capacity, append the new interval.
 	if (size < capacity) {
-		data.intervals[data.size++] = interval;
+		std::construct_at(&data.intervals[data.size++], interval);
 		return;
 	}
 
@@ -652,11 +804,11 @@ void hash_grid::cell_t::add_interval (pmr::memory_region& memory, interval_t int
 	if constexpr (log_level > 2)
 		log(LOG_TAG" Growing cell from capacity {} to {}.\n", capacity, new_capacity);
 
-	auto& new_data = allocate(memory, new_capacity) = {index, size + 1, new_capacity};
+	auto& new_data = *allocate(memory, new_capacity) = {index, size + 1, new_capacity};
 	// Copy previous intervals.
-	std::memcpy(new_data.intervals, data.intervals, size * sizeof(interval_t));
+	std::uninitialized_move_n(data.intervals, size, new_data.intervals);
 	// Append the new interval.
-	new_data.intervals[size] = interval;
+	std::construct_at(&new_data.intervals[size], interval);
 
 	// Free the previous allocation.
 	memory.deallocate(
@@ -665,12 +817,12 @@ void hash_grid::cell_t::add_interval (pmr::memory_region& memory, interval_t int
 		alignof(data_t)
 	);
 	// Point to the new allocation.
-	_address = ptr_to_offset(memory.span(), &new_data);
+	this->data = {region, &new_data};
 }
 
 void hash_grid::cell_t::free (pmr::memory_region& memory) noexcept
 {
-	auto& data = get(memory.span());
+	auto& data = *this->data.get(memory.span());
 	memory.deallocate(
 		&data,
 		offsetof(data_t, intervals) + data.capacity * sizeof(interval_t),
@@ -678,12 +830,12 @@ void hash_grid::cell_t::free (pmr::memory_region& memory) noexcept
 	);
 }
 
-auto hash_grid::cell_t::allocate (pmr::memory_region& memory, uint32_t capacity) -> data_t&
+auto hash_grid::cell_t::allocate (pmr::memory_region& memory, uint32_t capacity) -> data_t*
 {
-	return *reinterpret_cast<data_t*>(memory.allocate(
+	return std::construct_at(static_cast<data_t*>(memory.allocate(
 		offsetof(data_t, intervals) + capacity*sizeof(interval_t),
 		alignof(data_t)
-	));
+	)));
 }
 
 } // namespace otv

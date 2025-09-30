@@ -63,11 +63,12 @@ public:
 		layout layout {layout::xyzt};
 	};
 
-	/// Create an empty grid.
+	/// Create a grid with no backing memory, so it cannot store anything.
 	[[nodiscard]] hash_grid() = default;
-	/// Create a grid with 2 ^ `order` hash buckets.
+	/// Create an empty grid that can allocate memory from the given region.
 	/// The memory region must not be null and must outlive the grid.
-	[[nodiscard]] hash_grid(pmr::memory_region*, params const&, uint8_t order);
+	/// New tables are created with at least `initial_buckets` buckets.
+	[[nodiscard]] hash_grid(pmr::memory_region*, params const&, uint32_t initial_buckets);
 
 	// Forbid copying.
 	hash_grid(hash_grid const&) = delete;
@@ -78,10 +79,7 @@ public:
 	auto operator= (hash_grid&&) noexcept -> hash_grid&;
 
 	/// Free all allocated memory when an instance is destroyed.
-	~hash_grid() noexcept
-	{
-		free();
-	}
+	~hash_grid() noexcept;
 
 	/// Update the grid with a new trajectory segment.
 	/// `start` and `end` must be stored at `node_idcs` in the render buffer.
@@ -114,12 +112,40 @@ private:
 	};
 
 	/// Spatiotemporal vector (x, y, z, t) used to identify a cell in the grid.
+	/// Depending on the grid's layout, the time component may be ignored in certain contexts.
 	using index_t = cgv::ivec4;
 
 	/// Hash of a cell index.
 	/// Like in Mega-KV (Zhang et al. 2015), only the signature is stored directly in the buckets
 	/// of the hash tables to reduce memory transfers.
 	struct signature_t {uint32_t value = ~0u;};
+
+	/// The range in which `_memory` allocates grid data.
+	using memory_region = std::span<std::byte>;
+
+	/// A pointer represented as a 32 bit offset into `_memory` for use in shaders.
+	template <class T>
+	struct ptr_t {
+		/// Offset into `_memory` as a multiple of `address_unit` bytes.
+		/// Since 0 is a valid allocation, null pointers are represented as ~0.
+		uint32_t address {~0u};
+
+		/// Create a null pointer.
+		[[nodiscard]] constexpr ptr_t() noexcept = default;
+		/// Convert a native pointer to an offset.
+		/// The pointer must lie within the memory region, and all future operations on this
+		/// instance must use the same region.
+		[[nodiscard]] constexpr ptr_t(memory_region, T*) noexcept;
+
+		/// `false` iff this instance is null.
+		[[nodiscard]] constexpr operator bool () const noexcept;
+		/// Check if two pointers refer to the same data, assuming they use the same memory region.
+		[[nodiscard]] constexpr auto operator== (ptr_t) const noexcept -> bool;
+
+		/// Convert from offset to native pointer.
+		/// Must be called with the same memory region that the instance was created with.
+		[[nodiscard]] constexpr auto get (memory_region) const noexcept -> T*;
+	};
 
 	/// Stores a grid cell's index and the trajectory intervals it contains as a dynamic array with
 	/// pointer semantics, meaning copies are shallow and allocations are not automatically freed.
@@ -136,19 +162,15 @@ private:
 			interval_t intervals[];
 		};
 
+		/// Pointer to the allocation within `_memory` that stores the data for this cell.
+		ptr_t<data_t> data;
+
 		/// Create a null handle.
-		[[nodiscard]] constexpr cell_t() noexcept {};
+		[[nodiscard]] constexpr cell_t() noexcept {}
 		/// Allocate a new cell.
 		/// All future operations on the cell must use the same memory region.
 		[[nodiscard]] cell_t(pmr::memory_region&, index_t);
 
-		/// Check if a handle is not null.
-		[[nodiscard]] constexpr operator bool () const noexcept;
-		/// Check if two handles point to the same data, assuming they reside in the same buffer.
-		[[nodiscard]] constexpr auto operator== (cell_t const&) const noexcept -> bool;
-
-		/// Dereference the handle to access the cell data.
-		[[nodiscard]] auto get (std::span<std::byte>) noexcept -> data_t&;
 		/// Store a trajectory interval in the cell.
 		void add_interval (pmr::memory_region&, interval_t);
 		/// Deallocate cell data.
@@ -156,10 +178,7 @@ private:
 
 	private:
 		/// Allocate data with enough memory to store the requested number of intervals.
-		[[nodiscard]] static auto allocate (pmr::memory_region&, uint32_t capacity) -> data_t&;
-
-		/// Offset of the data allocation within the grid buffer.
-		uint32_t _address = ~0u;
+		[[nodiscard]] static auto allocate (pmr::memory_region&, uint32_t capacity) -> data_t*;
 	};
 
 	/// A slot in one of the hash table's buckets, storing a cell pointer and its index signature.
@@ -175,15 +194,62 @@ private:
 		alignas(size_bytes) std::array<slot_t, num_slots> slots;
 	};
 
+	/// Nullable pointer to a contiguous array with dynamic extent, stored as 32 bit integers for
+	/// use in shaders.
+	template <class T>
+	struct alignas(8) span_t {
+		/// Offset of the first entry within the memory region.
+		ptr_t<T> start {};
+		/// Number of elements in the array.
+		uint32_t len {0};
+
+		/// Create a null instance.
+		[[nodiscard]] constexpr span_t() noexcept = default;
+		/// Convert a native `std::span` to 32 bit offsets.
+		/// The span must lie entirely within the memory region, and all future operations on this
+		/// instance must use the same region.
+		[[nodiscard]] constexpr span_t(memory_region, std::span<T>) noexcept;
+
+		/// Convert from offsets to native span.
+		/// The memory region must the same one that the instance was created with.
+		[[nodiscard]] constexpr auto get (memory_region) const noexcept -> std::span<T>;
+	};
+
 
 	/// Random number generator used to determine which entry to displace from a full bucket when
 	/// inserting a new cell.
 	std::minstd_rand _rng {std::random_device{}()};
 	/// The memory resource in which hash buckets and grid cells are dynamically allocated.
 	pmr::memory_region* _memory {};
-	/// Hash table buckets each containing multiple slots for cells.
-	/// Length is a power of two.
-	std::span<bucket_t> _buckets;
+	union {
+		/// Hash table buckets each containing multiple slots for cells.
+		/// Length is a power of two.
+		/// Used by all layouts except `t_xyz`.
+		span_t<bucket_t> buckets {};
+		struct {
+			/// Hash buckets per timestep, in ascending order.
+			/// The length of every table is a power of two.
+			span_t<span_t<bucket_t>> buckets {};
+			/// Array storing the temporal index values that the entries of `buckets` correspond to.
+			/// Has the same length as `buckets`.
+			ptr_t<int32_t> timesteps {};
+			/// Allocation size in elements of both `buckets` and `timesteps`.
+			/// Only the first `buckets.len` elements are valid.
+			uint32_t capacity {0};
+		}
+		/// Separate hash tables for each timestep stored as a struct of arrays.
+		/// Used by layout `t_xyz`.
+		tables;
+
+		// Ensure that all variants have a common `span_t` subsequence.
+		static_assert(std::is_layout_compatible_v<decltype(buckets), decltype(tables.buckets)>);
+	}
+	/// Hash buckets storing grid cells.
+	/// The active member is determined by `_layout`.
+	_data {};
+	// Required for variants to have a common subsequence.
+	static_assert(std::is_standard_layout_v<decltype(_data)>);
+
 #if OTV_HASH_GRID_VALIDATION
 	/// Test the implementation by mirroring operations with an STL container.
 	struct {
@@ -199,7 +265,7 @@ private:
 
 		/// Stores the number of trajectory intervals in each grid cell.
 		std::unordered_map<index_t, uint32_t, index_hash_t> cell_fill {};
-	} _validation;
+	} _validation {};
 #endif
 	/// Extent of each grid cell.
 	cgv::vec4 _cell_size {};
@@ -208,30 +274,35 @@ private:
 	cgv::vec4 _scale {};
 	/// Minimum distance (arclength, time) between sample points when adding a segment to the grid.
 	cgv::vec2 _sample_step;
-	/// Counts cells stored in the grid for performance evaluation.
-	uint32_t _num_cells {};
 	/// Describes which dimensions the grid indexes and how it is organized in memory.
-	layout _layout;
+	layout _layout {};
+	/// New hash tables are allocated with 2 ^ `_initial_buckets` buckets.
+	uint8_t _initial_buckets {};
 
-	/// Allocate a contiguous span of buckets, initializing all slots as empty.
-	[[nodiscard]] auto allocate_buckets (uint32_t count) -> std::span<bucket_t>;
-	/// Deallocate buckets without freeing the cells they contain.
-	void free_buckets (std::span<bucket_t>) noexcept;
+	/// Allocate a contiguous array from `_memory` without initializing its elements.
+	template <class T>
+	[[nodiscard]] auto allocate (uint32_t count) -> std::span<T>;
+	/// Deallocate an array obtained from `_memory` without destroying its elements.
+	template <class T>
+	void free (std::span<T>) noexcept;
 	/// Find or create a cell by index, then insert a trajectory interval into that cell.
 	void add_interval (index_t, interval_t);
 	/// Access a cell by its index.
 	/// If the cell is not yet stored in the grid, it is created.
-	auto get (index_t) -> cell_t&;
-	/// Find a cell in the hash table by its index.
+	auto cell (index_t) -> cell_t&;
+	/// Access the hash buckets containing all cells for a given temporal index.
+	auto table (int32_t timestep) -> span_t<bucket_t>&;
+	/// Find a cell in a hash table by its index.
 	/// If there is no matching entry, insert `new_cell`, which must have the same index.
 	/// If `new_cell` is null, it is allocated on demand.
 	/// Returns a pointer to the queried entry in the table or nullptr if insertion failed.
-	auto find_or_insert (index_t, cell_t new_cell = {}) -> cell_t*;
+	auto find_or_insert (std::span<bucket_t>, index_t, cell_t new_cell = {}) -> cell_t*;
 
 	/// Hash a cell index into a shorter signature with high entropy.
 	[[nodiscard]] constexpr auto signature (index_t) const noexcept -> signature_t;
-	/// The bucket in which a cell with the given signature is stored by `hash_fn`.
-	[[nodiscard]] auto bucket (signature_t, uint8_t hash_fn) noexcept -> bucket_t&;
+	/// Access the bucket in which a cell with the given signature is stored by `hash_fn`.
+	[[nodiscard]] auto bucket (std::span<bucket_t>, signature_t, uint8_t hash_fn) noexcept
+		-> bucket_t&;
 };
 
 } // namespace otv

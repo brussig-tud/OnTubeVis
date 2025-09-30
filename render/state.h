@@ -173,9 +173,7 @@ struct render_state
 
 
 	render_state() = default;
-	// Instances must not be moved since `hash_grid` points to `grid_mem`.
-	render_state(render_state&&) = delete;
-	auto operator= (render_state&&) = delete;
+	~render_state() noexcept;
 
 
 	/// Create, register and return an empty trajectory.

@@ -8,6 +8,13 @@
 
 namespace otv {
 
+render_state::~render_state() noexcept
+{
+	// Since the memory region used by the grid is destroyed anyway, there is no reason to slowly
+	// deallocate each cell individually.
+	hash_grid.leak();
+}
+
 void render_state::update ()
 {
 	// Upload nodes from the host queue to the render buffer
@@ -290,8 +297,10 @@ void render_state::build_hash_grid (hash_grid::params const& params)
 		grid_mem = std::make_unique<gpumem::heap_buffer>(1 << 30, gpumem::sync_mode::coherent, 64);
 	}
 
-	// Create a new hash grid.
-	hash_grid = {grid_mem.get(), params, 10};
+	// Construct a new hash grid in place.
+	hash_grid.~hash_grid();
+	auto const initial_buckets = params.layout == hash_grid::layout::t_xyz ? 10u : 1000u;
+	new(std::launder(&hash_grid)) otv::hash_grid{grid_mem.get(), params, initial_buckets};
 
 	// Insert all segments into the new grid.
 	for (auto const& segment : segment_buffer) {

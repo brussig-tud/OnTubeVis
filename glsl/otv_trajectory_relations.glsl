@@ -24,10 +24,9 @@ const function_t fn_dbg_num_samples    = {1 + fn_dbg_num_intervals.value};
 const function_t fn_dbg_num_evals      = {1 + fn_dbg_num_samples.value};
 
 /// Describes which dimensions the hash grid indexes and how it is organized in memory.
-struct layout_t {uint value;};
-const layout_t layout_xyz   = {0};
-const layout_t layout_t_xyz = {1};
-const layout_t layout_xyzt  = {2};
+#define LAYOUT_XYZ   0
+#define LAYOUT_T_XYZ 1
+#define LAYOUT_XYZT  2
 
 // Static configuration ############################################################################
 // Default values are provided only for linting and must be replaced at runtime.
@@ -40,13 +39,17 @@ const layout_t layout_xyzt  = {2};
 #define TRAJ_REL_FUNCTION          0
 
 // Index at which the SSBO containing the hash grid is bound.
-const uint       buffer_binding   = HASH_GRID_BUFFER_BINDING;
-const uint       address_unit     = HASH_GRID_ADDRESS_UNIT;
-const uint       num_hash_fns     = HASH_GRID_NUM_HASH_FNS;
-const uint       slots_per_bucket = HASH_GRID_SLOTS_PER_BUCKET;
-const uint       cell_header_size = HASH_GRID_CELL_HEADER_SIZE;
-const layout_t   grid_layout      = {HASH_GRID_LAYOUT};
-const function_t function         = {TRAJ_REL_FUNCTION};
+const uint buffer_binding = HASH_GRID_BUFFER_BINDING;
+// Minimal addressable unit of the grid buffer in bytes.
+const uint address_unit = HASH_GRID_ADDRESS_UNIT;
+// Number of candidate hash buckets a cell can be stored in.
+const uint num_hash_fns = HASH_GRID_NUM_HASH_FNS;
+// Number of cells with equal hash that can be stored in each bucket of a hash table.
+const uint slots_per_bucket = HASH_GRID_SLOTS_PER_BUCKET;
+// Offset of a cell's intervals array from its base address.
+const uint cell_header_size = HASH_GRID_CELL_HEADER_SIZE;
+// The relation or debug value to calculte and visualize.
+const function_t function = {TRAJ_REL_FUNCTION};
 
 // Types ###########################################################################################
 struct node_data_type {
@@ -62,13 +65,19 @@ struct ptr_t {
 };
 const ptr_t null = {~0u};
 
-// The space that the hash grid indexes.
-#if HASH_GRID_LAYOUT == layout_xyz
-	#define coord_t vec3
-	#define index_t ivec3
-#else
-	#define coord_t vec4
+// Pointer to a contiguous array with runtime length.
+struct span_t {
+	ptr_t start;
+	uint  len;
+};
+const span_t null_span = {null, 0};
+
+// Key used to identify grid cells within each hash table.
+// The grid as a whole always uses 4D indices, though some layouts may ignore the time component.
+#if HASH_GRID_LAYOUT == LAYOUT_XYZT
 	#define index_t ivec4
+#else
+	#define index_t ivec3
 #endif
 
 // An entry of the hash table.
@@ -84,12 +93,6 @@ const uint sizeof_slot = 8; // bytes
 struct cell_t {
 	index_t index;
 	uint    size;
-};
-
-// Pointer to a contiguous array with runtime length.
-struct span_t {
-	ptr_t start;
-	uint  len;
 };
 
 // Part of a trajectory segment contained in a single grid cell.
@@ -118,10 +121,12 @@ layout(binding = HASH_GRID_BUFFER_BINDING) readonly buffer hash_grid_buffer4 {
 };
 
 // Uniforms ########################################################################################
-uniform vec4        hash_grid_cell_size;
-uniform vec4        hash_grid_scale; // == 1 / hash_grid_cell_size
-uniform ptr_t       hash_grid_buckets;
-uniform uint        hash_grid_buckets_mask;
+uniform vec4   hash_grid_cell_size;
+uniform vec4   hash_grid_scale; // == 1 / hash_grid_cell_size
+uniform span_t hash_grid_data;
+#if HASH_GRID_LAYOUT == LAYOUT_T_XYZ
+uniform ptr_t hash_grid_timesteps;
+#endif
 uniform vec2        traj_rel_radius;
 uniform float       traj_rel_sample_rate;
 uniform direction_t traj_rel_direction;
@@ -161,9 +166,9 @@ uvec4 load4 (ptr_t ptr)
 
 // Hash grid =======================================================================================
 // Calculate the index of the cell containing a given point.
-index_t cell_index (coord_t coords)
+ivec4 cell_index (vec4 point)
 {
-	return index_t(round(coords * coord_t(hash_grid_scale)));
+	return ivec4(round(point * hash_grid_scale));
 }
 
 // Hash a cell index into a 32-bit signature using xxhash32 as implemented by Jarzynski and Olano
@@ -175,7 +180,7 @@ uint signature (index_t index)
 
 	uint sig = uint(index[0]) + p[3];
 
-	for (uint d = 1; d < (grid_layout == layout_xyzt ? 4 : 3); ++d) {
+	for (uint d = 1; d < (HASH_GRID_LAYOUT == LAYOUT_XYZT ? 4 : 3); ++d) {
 		sig += uint(index[d]) * p[1];
 		sig  = p[2] * ((sig << 17) | (sig >> 15));
 	}
@@ -185,7 +190,7 @@ uint signature (index_t index)
 }
 
 // Calculate the base address of the bucket that `hash_fn` maps `signature` onto.
-ptr_t bucket (uint signature, uint hash_fn)
+ptr_t bucket (span_t table, uint signature, uint hash_fn)
 {
 	uint hash = signature;
 
@@ -203,8 +208,8 @@ ptr_t bucket (uint signature, uint hash_fn)
 	}
 
 	return offset_bytes(
-		hash_grid_buckets,
-		(hash & hash_grid_buckets_mask) * slots_per_bucket * sizeof_slot
+		table.start,
+		(hash & (table.len - 1)) * slots_per_bucket * sizeof_slot
 	);
 }
 
@@ -231,13 +236,13 @@ cell_t load_cell (ptr_t ptr)
 
 // Search the hash table for a given cell and return the trajectory intervals it contains.
 // If the cell is not stored in the table, return an empty span.
-span_t query (index_t index)
+span_t query (span_t table, index_t index)
 {
 	uint signature = signature(index);
 
 	// Try all hash functions.
 	for (uint fn = 0; fn < num_hash_fns; ++fn) {
-		ptr_t bucket = bucket(signature, fn);
+		ptr_t bucket = bucket(table, signature, fn);
 
 		for (uint i = 0; i < slots_per_bucket; ++i) {
 			slot_t slot = load_slot(bucket, i);
@@ -257,8 +262,67 @@ span_t query (index_t index)
 	}
 
 	// The cell could not be found.
-	return span_t(null, 0u);
+	return null_span;
 }
+
+#if HASH_GRID_LAYOUT != LAYOUT_T_XYZ
+// Return a pointer to the buckets for a given temporal index.
+span_t find_table (int timestep)
+{
+	// All layouts other than t_xyz have only one table.
+	return hash_grid_data;
+}
+
+#else
+
+// Load a bucket range from the table vector.
+span_t load_table (uint table_idx)
+{
+	uvec2 data = load2(offset_bytes(hash_grid_data.start, table_idx * 8));
+	return span_t(ptr_t(data[0]), data[1]);
+}
+
+// Load the timestep corresponding to the given index in the table vector.
+int load_timestep (uint table_idx)
+{
+	return int(load1(offset_bytes(hash_grid_timesteps, table_idx * 4)));
+}
+
+// Find the subspan of the table vector that lies between two temporal indices.
+// Both the query and the result are inclusive ranges.
+uvec2 table_range (int min_timestep, int max_timestep)
+{
+	// Binary search for the earliest timestep no smaller than the query's lower limit.
+	int lo = 0;
+	int hi = int(hash_grid_data.len) - 1;
+	while (lo < hi) {
+		int mid = (lo + hi) / 2;
+		if (min_timestep <= load_timestep(mid)) hi = mid;
+		else lo = mid + 1;
+	}
+	// Save the result.
+	uint start = lo;
+
+	// Binary search for the latest timestep no larger than the query's upper limit.
+	hi = int(hash_grid_data.len) - 1;
+	while (lo < hi) {
+		int mid = (lo + hi) / 2;
+		if (max_timestep > load_timestep(mid)) lo = mid + 1;
+		else hi = mid;
+	}
+	// Return the resulting range.
+	return uvec2(start, hi);
+}
+
+// Retrieve the bucket range corresponding to a given temporal index from the table vector.
+// If the vector contains no entry for the queried timestep, an empty null span is returned.
+span_t find_table (int timestep)
+{
+	uint table_idx = table_range(timestep, timestep)[0];
+	if (table_idx >= hash_grid_data.len || load_timestep(table_idx) != timestep) return null_span;
+	return load_table(table_idx);
+}
+#endif
 
 // Load one of the trajectory intervals in a cell from the grid buffer.
 interval_t load_interval (span_t intervals, uint index)
@@ -361,31 +425,37 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 	if (function == fn_dbg_seg_t) return map_to_color(seg_t, traj_rel_color_map);
 
 	// Calculate data-space coordinates and grid cell at the given trajectory point.
-	vec4 local_point    = trajectory_point(start, end, seg_t);
-	index_t local_index = cell_index(coord_t(local_point));
+	vec4 local_point  = trajectory_point(start, end, seg_t);
+	ivec4 local_index = cell_index(local_point);
 
 	// Color by grid cell (spatial).
 	if (function == fn_dbg_index_xyz)
 		return local_point.xyz * hash_grid_scale.xyz - local_index.xyz + 0.5;
-	#if HASH_GRID_LAYOUT != layout_xyz
-		// Color by grid cell (temporal).
-		if (function == fn_dbg_index_t)
-			return map_to_color(
-				local_point[3] * hash_grid_scale[3] - local_index[3] + 0.5,
-				traj_rel_color_map
-			);
-	#endif
+	// Color by grid cell (temporal).
+	if (function == fn_dbg_index_t)
+		return map_to_color(
+			local_point[3] * hash_grid_scale[3] - local_index[3] + 0.5,
+			traj_rel_color_map
+		);
 	// Color by cell hash.
-	if (function == fn_dbg_signature) return map_to_color(signature(local_index) / float(~0u), 19);
+	if (function == fn_dbg_signature)
+		return map_to_color(signature(index_t(local_index)) / float(~0u), 19);
 	// Color by hash bucket load.
 	if (function == fn_dbg_bucket_load) {
-		uint fill = bucket_fill(bucket(signature(local_index), 1));
+		// Load the bucket range for the local timestep.
+		span_t table = find_table(local_index[3]);
+		if (table.start == null) return traj_rel_highlight_color;
+		// Find the bucket containing the local point and count how many of tis slots are in use.
+		uint fill = bucket_fill(bucket(table, signature(index_t(local_index)), 1));
 		return map_to_color(float(fill) / slots_per_bucket, traj_rel_color_map);
 	}
 	// Color by local trajectory interval.
 	if (function == fn_dbg_local_interval) {
+		// Load the bucket range for the local timestep.
+		span_t table = find_table(local_index[3]);
+		if (table.start == null) return traj_rel_highlight_color;
 		// Find the cell containing this fragment.
-		span_t local_intervals = query(local_index);
+		span_t local_intervals = query(table, index_t(local_index));
 		// Within that cell, find the interval containing the fragment.
 		for (uint i = 0; i < local_intervals.len; ++i) {
 			interval_t interval = load_interval(local_intervals, i);
@@ -401,9 +471,9 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 	}
 
 	// AABB of cells to query.
-	coord_t max_offset = coord_t(vec4(vec3(traj_rel_radius[0]), traj_rel_radius[1]));
-	index_t min_cell   = cell_index(coord_t(local_point) - max_offset);
-	index_t max_cell   = cell_index(coord_t(local_point) + max_offset);
+	vec4 max_offset = vec4(vec3(traj_rel_radius[0]), traj_rel_radius[1]);
+	ivec4 min_cell  = cell_index(local_point - max_offset);
+	ivec4 max_cell  = cell_index(local_point + max_offset);
 
 	// Iff the distance squared between a cell's center and the local point is larger than this
 	// value, all points within that cell are outside the evaluation radius.
@@ -413,14 +483,28 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 	// Value of the relation at the local point.
 	float result = 0;
 
-#if HASH_GRID_LAYOUT != layout_xyz
+#if HASH_GRID_LAYOUT == LAYOUT_T_XYZ
+	// Iterate over the hash tables of all timesteps within the evaluated radius.
+	uvec2 table_range = table_range(min_cell[3], max_cell[3]);
+	for (uint table_idx = table_range[0]; table_idx <= table_range[1]; ++table_idx) {
+		span_t table = load_table(table_idx);
+#else
+	// All layouts other than t_xyz have only one hash table.
+	span_t table = hash_grid_data;
+
+#if HASH_GRID_LAYOUT == LAYOUT_XYZT
+	// Iterate over the AABB's temporal extent.
 	for (int time = min_cell[3]; time <= max_cell[3]; ++time)
 #endif
+	{
+#endif
+
+	// Iterate over the AABB's spatial extent
 	for (int z = min_cell.z; z <= max_cell.z; ++z)
 	for (int y = min_cell.y; y <= max_cell.y; ++y)
 	for (int x = min_cell.x; x <= max_cell.x; ++x) {
 		index_t index = {x, y, z
-			#if HASH_GRID_LAYOUT != layout_xyz
+			#if HASH_GRID_LAYOUT == LAYOUT_XYZT
 				, time
 			#endif
 		};
@@ -432,8 +516,8 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 			continue;
 		}
 
-		// Look up trajectory contents in the hash map.
-		span_t intervals = query(index);
+		// Search the hash table for the current cell and return the intervals it contains.
+		span_t intervals = query(table, index);
 
 		switch (function.value) {
 		case fn_dbg_num_cells.value:
@@ -458,6 +542,7 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 			) result += eval_relation(local_point, interval);
 		}
 	}
+	}
 
 	// Normalize the relation value.
 	float norm_time = traj_rel_normalize ? 2*traj_rel_radius[1] : 1;
@@ -467,7 +552,7 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 		result /= (traj_rel_radius[0] * norm_time);
 		break;
 	case fn_dbg_skipped_cells.value: // Skipped cells.
-		result /= float(dot(max_cell - min_cell + 1, coord_t(1)));
+		result /= float(dot(max_cell - min_cell + 1, vec4(1)));
 		break;
 	}
 
