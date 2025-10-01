@@ -1,12 +1,12 @@
 #pragma once
 
-// Additional validation can be turned on or off independently from the standard debug flag.
-#ifndef OTV_HASH_GRID_VALIDATION
-#ifndef NDEBUG
-#define OTV_HASH_GRID_VALIDATION 1
-#else
+// Debug builds can have a configurable amount of additional validation through duplicate state.
+#if !defined(OTV_HASH_GRID_VALIDATION) && !defined(NDEBUG)
+#define OTV_HASH_GRID_VALIDATION 2
+#elif !defined(OTV_HASH_GRID_VALIDATION) && defined(NDEBUG)
 #define OTV_HASH_GRID_VALIDATION 0
-#endif
+#elif defined(OTV_HASH_GRID_VALIDATION) && defined(NDEBUG)
+#warning OTV_HASH_GRID_VALIDATION has no effect in release builds.
 #endif
 
 // C++ STL

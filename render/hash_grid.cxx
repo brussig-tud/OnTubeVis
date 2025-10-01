@@ -414,8 +414,12 @@ auto hash_grid::cell (index_t index) -> cell_t&
 
 		// Rebuild the table with double capacity.
 		rehash:
+			auto const new_size = buckets.size() * 2;
+			if constexpr (log_level > 2)
+				log(LOG_TAG" Grow table from {} to {} buckets.\n", buckets.size(), new_size);
+
 			// Allocate new buckets and initialize them as empty.
-			buckets = allocate<bucket_t>(buckets.size() * 2);
+			buckets = allocate<bucket_t>(new_size);
 			std::ranges::uninitialized_default_construct(buckets);
 			// Store the new pointer.
 			table = {region, buckets};
@@ -439,7 +443,7 @@ auto hash_grid::cell (index_t index) -> cell_t&
 		if constexpr (log_level > 0) {
 			// Print the load factor before resizing to determine efficiency.
 			auto const num_slots = old_buckets.size() * bucket_t::num_slots;
-			log(LOG_TAG" Resizing hash table after insertion failed with {}/{} slots occupied "
+			log(LOG_TAG" Rehashed table after insertion failed with {}/{} slots occupied "
 				"(load factor {:.2}).\n",
 				num_cells,
 				num_slots,
@@ -450,6 +454,13 @@ auto hash_grid::cell (index_t index) -> cell_t&
 		// Free the previous allocation.
 		free(old_buckets);
 
+#if OTV_HASH_GRID_VALIDATION > 1
+		// Check that no entries have been lost.
+		for (auto const& [idx, fill] : _validation.cell_fill) {
+			if (_layout == layout::t_xyz && idx[3] != index[3]) continue;
+			assert(find_or_insert(buckets, idx)->data.get(region)->size == fill);
+		}
+#endif
 		// Once all previous entries have been restored, reattempt to insert the new index.
 	}
 }
@@ -597,14 +608,14 @@ auto hash_grid::find_or_insert (std::span<bucket_t> buckets, index_t query, cell
 		if (_validation.cell_fill[query] != 0) {
 			std::clog << LOG_ERROR LOG_TAG" Could not find cell (" << query << ") "
 				"even though it has been added to the grid before.\n";
-			std::exit(EXIT_FAILURE);
+			std::abort();
 		}
 #endif
 	}
 
 	/// The entry currently being inserted.
 	/// Initialized to the new cell, updated with every cuckoo.
-	auto insert_entry = slot_t{signature, new_cell};
+	auto floating_entry = slot_t{signature, new_cell};
 	/// Hash function the entry being inserted was last stored with.
 	/// For the new cell that was never in the table, it is initialized such that the next function
 	/// will be zero.
@@ -614,40 +625,45 @@ auto hash_grid::find_or_insert (std::span<bucket_t> buckets, index_t query, cell
 	cell_t* new_entry = nullptr;
 
 	// Move entries until we find a free slot or some maximum number of iterations is reached.
-	for (auto i = 0u; i < max_cuckoo_chain; ++i) {
+	auto cuckoo_chain = 0u;
+	while (true) {
 		// If one of the candidate buckets has a free slot, store the entry and return.
 		if (dest_bucket.load < bucket_t::num_slots) {
 			// Buckets are filled front to back.
-			auto& dest = dest_bucket.data->slots[dest_bucket.load] = insert_entry;
+			auto& dest = dest_bucket.data->slots[dest_bucket.load] = floating_entry;
 			// Ensure that the return value points to the new cell.
-			if (insert_entry.cell.data == new_cell.data) new_entry = &dest.cell;
+			if (floating_entry.cell.data == new_cell.data) new_entry = &dest.cell;
 			else assert(new_entry->data == new_cell.data);
 
 			if constexpr (log_level > 2)
-				std::clog << LOG_TAG" Inserted cell (" << query << ") after " << i << " cuckoos.\n";
+				std::clog << LOG_TAG" Inserted cell (" << query << ") after " << cuckoo_chain << " cuckoos.\n";
 
 			return new_entry;
 		}
+
+		// Count iterations and abort insertion after maximum.
+		if (cuckoo_chain >= max_cuckoo_chain) break;
+		++cuckoo_chain;
 
 		// If all candidate buckets are full, pick one by cycling through hash functions, then store
 		// the entry in a random slot.
 		auto& cuckoo_bucket = this->bucket(
 			buckets,
-			insert_entry.signature,
+			floating_entry.signature,
 			(prev_fn + 1) % num_hash_fns
 		);
 		auto& dest = cuckoo_bucket.slots[
 			std::uniform_int_distribution{0uz, bucket_t::num_slots - 1}(_rng)
 		];
 		// Remember where the new cell is stored.
-		if (insert_entry.cell.data == new_cell.data) new_entry = &dest.cell;
+		if (floating_entry.cell.data == new_cell.data) new_entry = &dest.cell;
 		// Cuckoo the previous entry from the chosen slot.
-		std::swap(dest, insert_entry);
+		std::swap(dest, floating_entry);
 
 		// Find the best bucket to store the displaced entry.
 		dest_bucket = {};
 		for (uint8_t fn = 0; fn < num_hash_fns; ++fn) {
-			auto& bucket = this->bucket(buckets, insert_entry.signature, fn);
+			auto& bucket = this->bucket(buckets, floating_entry.signature, fn);
 
 			// We know that the bucket the entry was displaced from is full already.
 			// Remember the associated hsah function, so we know which one to try next if all
@@ -665,12 +681,15 @@ auto hash_grid::find_or_insert (std::span<bucket_t> buckets, index_t query, cell
 			if (load < dest_bucket.load) dest_bucket = {&bucket, load};
 		}
 	}
+	if constexpr (log_level > 2)
+		std::clog << LOG_TAG" Could not insert cell (" << query << ") after "
+			<< max_cuckoo_chain << " cuckoos.\n";
 	// If no free slot could be found in the given number of tries, the table must be resized.
 	// All cells in the table before this function call are reinserted into the new buckets.
 	// To this end, the last cell to be displaced is restored into the slot of the new cell.
 	// It will be in the wrong bucket with the wrong signature, but for rehashing that is OK.
 	// The new cell will be added to the expanded table after all previous entries have been moved.
-	*new_entry = insert_entry.cell;
+	if (floating_entry.cell.data != new_cell.data) *new_entry = floating_entry.cell;
 	return nullptr;
 }
 
@@ -807,7 +826,7 @@ void hash_grid::cell_t::add_interval (pmr::memory_region& memory, interval_t int
 		+ static_cast<uint32_t>(offsetof(data_t, intervals) / sizeof(interval_t));
 
 	if constexpr (log_level > 2)
-		log(LOG_TAG" Growing cell from capacity {} to {}.\n", capacity, new_capacity);
+		log(LOG_TAG" Grow cell from capacity {} to {}.\n", capacity, new_capacity);
 
 	auto& new_data = *allocate(memory, new_capacity) = {index, size + 1, new_capacity};
 	// Copy previous intervals.
