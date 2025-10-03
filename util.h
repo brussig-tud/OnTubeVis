@@ -152,13 +152,23 @@ struct finalizer
 };
 
 
+/// Create a default-initialized instance of a type (does not need to be a class).
+template <class T>
+T default_construct()
+{
+	return {};
+}
+
 /// A simple RAII-wrapper for some resource. Calls the specified cleanup function on the wrapped resource in its
 /// destructor.
-template <class ResourceHandle, void(*finalizer)(ResourceHandle), ResourceHandle none = {}>
-struct RAII
+template <
+	class ResourceHandle,
+	void(*finalizer)(ResourceHandle),
+	ResourceHandle(*none)() = default_construct<ResourceHandle>
+> struct RAII
 {
 	/// Handle for the wrapped resource.
-	ResourceHandle handle = none;
+	ResourceHandle handle = none();
 
 	// No default and copy construction/assignment.
 	RAII() = delete;
@@ -170,7 +180,7 @@ struct RAII
 		: handle {std::move(other.handle)}
 	{
 		// Clear the previous owner to avoid double-free.
-		other.handle = none;
+		other.handle = none();
 	}
 
 	/// Move assignment.
@@ -182,7 +192,7 @@ struct RAII
 		drop();
 		// Take the handle from its previous owner.
 		handle = std::move(other.handle);
-		other.handle = none;
+		other.handle = none();
 		return *this;
 	}
 
@@ -197,9 +207,9 @@ struct RAII
 
 	/// Explicitly call the finalizer on the wrapped resource. Leaves the RAII wrapper in an undefined state.
 	inline void drop (void) {
-		if (handle != none) {
+		if (handle != none()) {
 			finalizer(handle);
-			handle = none;
+			handle = none();
 		}
 	}
 };
