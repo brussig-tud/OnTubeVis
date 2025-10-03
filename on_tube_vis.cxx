@@ -1400,6 +1400,12 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 		client.commit_session();
 	ah_mgr.set_dataset(ds);
 
+	tube_shading_defines = tube_shading.build_tube_shading_defines(
+		render.visualizations.front().config, debug.highlight_segments
+	);
+	set_rel_vis_defines(ctx);
+	shaders.reload(ctx, "tube_shading", { tube_shading_defines });
+
 	// reset glyph layer configuration file
 	layer_config_file_helper.set_file_name("");
 	layer_config_has_unsaved_changes = false;
