@@ -32,6 +32,12 @@ struct trajectory_relation {
 	cgv::vec2 radius {1};
 	/// Relation values mapped onto the endpoints of the color scale.
 	cgv::vec2 color_range {0, 1};
+	enum class shading : uint32_t { // uint8_t causes problems with CGV GUI.
+		forward,
+		deferred,
+	}
+	/// Determines at which stage of the rendering pipeline relations are evaluated.
+	shading {shading::deferred};
 	enum class function : uint32_t { // uint8_t causes problems with CGV GUI.
 		none,               // No visualization.
 		distance,           // Euclidean spatial distance between trajectories.
@@ -88,8 +94,10 @@ struct trajectory_relation {
 	void set_uniforms (cgv::render::context&, cgv::render::shader_program&) const;
 };
 
-/// Provide traits so changes to `trajectory_relation.function` can be detected in `on_set`.
-auto get_reflection_traits(decltype(otv::vis::trajectory_relation::function) const&)
-	-> cgv::reflect::enum_reflection_traits<decltype(otv::vis::trajectory_relation::function)>;
+// Reflect enum members so changes can be detected in `on_set`.
+auto get_reflection_traits(enum otv::vis::trajectory_relation::shading const&)
+	-> cgv::reflect::enum_reflection_traits<enum otv::vis::trajectory_relation::shading>;
+auto get_reflection_traits(enum otv::vis::trajectory_relation::function const&)
+	-> cgv::reflect::enum_reflection_traits<enum otv::vis::trajectory_relation::function>;
 
 } // namespace otv::vis

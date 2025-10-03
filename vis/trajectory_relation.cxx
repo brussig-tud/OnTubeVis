@@ -25,6 +25,9 @@ void trajectory_relation::build_gui (
 	std::vector<std::string> const& color_maps
 ) {
 	auto const b = dynamic_cast<cgv::base::base*>(&p);
+	p.add_member_control(b, "Shading", shading, "dropdown",
+		"enums='Forward,Deferred'"
+	);
 	p.add_member_control(b, "Function", function, "dropdown", "enums='"
 		"None,"
 		"Distance,"
@@ -96,6 +99,12 @@ void trajectory_relation::set_uniforms (
 	&& p.set_uniform(c, "traj_rel_background_color", background_color)
 	;
 	assert(ok);
+}
+
+auto get_reflection_traits(enum otv::vis::trajectory_relation::shading const&)
+	-> cgv::reflect::enum_reflection_traits<enum otv::vis::trajectory_relation::shading>
+{
+	return {"forward,deferred"};
 }
 
 auto get_reflection_traits(enum otv::vis::trajectory_relation::function const&)

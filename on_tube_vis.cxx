@@ -100,15 +100,17 @@ enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
 
 namespace {
 /// Bind indices used for SSBOs.
-namespace buffer_bindings {
-	constexpr GLuint nodes        = 0;
-	constexpr GLuint t_to_s       = 1;
-	constexpr GLuint node_idcs    = 2;
-	constexpr GLuint seg_to_traj  = 3;
-	constexpr GLuint glyphs_base  = 4;
-	constexpr GLuint glyph_memory = glyphs_base + max_glyph_layers*2;
-	constexpr GLuint grid_memory  = glyph_memory + 1;
-}
+/// "Scoped enum" with implicit conversion to the underlying integer type.
+struct buffer_bindings {enum : GLuint {
+	nodes,
+	t_to_s,
+	node_idcs,
+	seg_to_traj,
+	glyphs_base,
+	glyph_memory = glyphs_base + max_glyph_layers*2,
+	grid_memory,
+	count
+};};
 }
 
 
@@ -1454,12 +1456,20 @@ void on_tube_vis::build_hash_grid ()
 
 void on_tube_vis::set_rel_vis_defines (cgv::render::context& ctx)
 {
-	auto& tstr_defines = ref_textured_spline_tube_renderer(ctx, 1).additional_defines;
-	render.hash_grid.set_defines(tstr_defines, buffer_bindings::grid_memory);
-	rel_vis.set_defines(tstr_defines);
-
+	// Set defines for trajectory relation shading.
 	render.hash_grid.set_defines(tube_shading_defines, buffer_bindings::grid_memory);
 	rel_vis.set_defines(tube_shading_defines);
+
+	auto& tstr_defines = ref_textured_spline_tube_renderer(ctx, 1).additional_defines;
+
+	// Select shading style.
+	if ((render.style.forward = rel_vis.shading == decltype(rel_vis.shading)::forward))
+		// In forward shading, all visualization defines must be set in the geometry render pass.
+		for (auto const& [key, val] : tube_shading_defines) tstr_defines[key] = val;
+	else
+		// In deferred shading, the geometry pass only needs to know whether or not the deferred
+		// pass will evaluate a relation to determine the G-buffer format.
+		rel_vis.set_defines(tstr_defines);
 }
 
 bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
@@ -1585,14 +1595,15 @@ void on_tube_vis::on_set(void* member_ptr)
 	// render settings
 	if(!data_init_pending && m.one_of(
 		debug.highlight_segments,
-			tube_shading.ao_style.enable,
-			tube_shading.grid_mode,
-			tube_shading.grid_normal_settings,
-			tube_shading.grid_normal_inwards,
-			tube_shading.grid_normal_variant,
-			tube_shading.enable_fuzzy_grid,
-			rel_vis.function
-	)){
+		tube_shading.ao_style.enable,
+		tube_shading.grid_mode,
+		tube_shading.grid_normal_settings,
+		tube_shading.grid_normal_inwards,
+		tube_shading.grid_normal_variant,
+		tube_shading.enable_fuzzy_grid,
+		rel_vis.shading,
+		rel_vis.function
+	)) {
 		tube_shading_defines = tube_shading.build_tube_shading_defines(
 			render.visualizations.front().config, debug.highlight_segments
 		);
@@ -3756,8 +3767,15 @@ void on_tube_vis::draw_dnd(context& ctx) {
 void on_tube_vis::draw_trajectories(context& ctx)
 {
 	// common init
+	auto &tstr = ref_textured_spline_tube_renderer(ctx);
+
+	// - node attribute data needed by both rasterization and raytracing
+	const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
+	if (!node_idx_buffer_ptr) return;
+
 	// - place timer query
 	render.render_time_query.begin_scope();
+
 	// - view-related info
 	const vec3 &cyclopic_eye = view_ptr->get_eye();
 	const vec3 &view_dir = view_ptr->get_view_dir();
@@ -3767,54 +3785,75 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		static_cast<float>(fbc.ref_frame_buffer().get_width()),
 		static_cast<float>(fbc.ref_frame_buffer().get_height())
 	);
-	// - spline stube renderer setup relevant to deferred shading pass
-	auto &tstr = ref_textured_spline_tube_renderer(ctx);
+
+	// - spline stube renderer setup relevant to shading
 	tstr.set_render_style(render.style);
-	// - the depth texture to use
-	//   (workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats)
+
 #ifdef RTX_SUPPORT
-	texture &tex_depth = (optix.enabled && optix.initialized) ? optix.fb.depth : *fbc.attachment_texture_ptr("depth");
-#else
-	texture &tex_depth = *fbc.attachment_texture_ptr("depth");
+	// If enabled, run raytracing before binding any buffers.
+	if (optix.enabled && optix.initialized) {
+		// delegate to OptiX raytracing
+		optix_draw_trajectories(ctx);
+
+		// workaround for weird framework material behavior
+		tstr.enable(ctx); tstr.disable(ctx);
+	}
 #endif
-	// - node attribute data needed by both rasterization and raytracing
-	const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
+
+	// - glyph data
+	const auto &glyph_layers_config = render.visualizations.front().config;
+
+	// bind geometry SBOs
+	glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, buffer_bindings::nodes, 4, std::array{
+		render.node_buffer.as_span().handle(),
+		render.t_to_s.handle(),
+		gl::get_gl_id(node_idx_buffer_ptr->handle), // <- streaming requires we always bind the node indices as SBO
+		render.seg_to_traj.as_span().handle()       //    regardless of chosen attribute-less mode
+	}.data());
+	// bind range attribute SBOs of active glyph layers
+	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
+		if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
+			const auto attribs_handle {render.glyphs[i].attribs.as_span().handle()};
+			const auto aindex_handle  {render.glyphs[i].ranges.handle()};
+			glBindBuffersBase(
+				GL_SHADER_STORAGE_BUFFER,
+				buffer_bindings::glyphs_base + 2*(GLuint)i,
+				2,
+				std::array{attribs_handle, aindex_handle}.data()
+			);
+		}
+	}
+	// bind further SBOs
+	glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, buffer_bindings::glyph_memory, 2, std::array{
+		render.traj_glyph_mem.handle(),
+		render.grid_mem->handle(),
+	}.data());
+
+	// Enable textures.
+	if(tube_shading.ao_style.enable)
+		density_tex.enable(ctx, 5);
+	color_map_mgr.ref_texture().enable(ctx, 6);
+
+	// Update uniforms required for fragment shading; program depends on mode (forward or deferred).
+	const auto set_shading_uniforms = [&](cgv::render::shader_program& prog) {
+		tube_shading.set_uniforms(
+			ctx, prog, render.style, glyph_layers_config
+			#if RTX_SUPPORT
+				, optix.enabled
+			#endif
+		);
+		render.hash_grid.set_uniforms(ctx, prog);
+		rel_vis.set_uniforms(ctx, prog);
+	};
 
 #ifdef RTX_SUPPORT
 	if (!optix.enabled || !optix.initialized)
 #endif
 	{
-		// enable drawing framebuffer
-		fbc.enable(ctx);
+		if (render.style.forward) set_shading_uniforms(tstr.ref_prog());
+		else fbc.enable(ctx); // enable drawing framebuffer
+
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		// render tubes
-		auto &tstr = ref_textured_spline_tube_renderer(ctx);
-
-		// prepare index buffer pointer
-		const vertex_buffer* segment_idx_buffer_ptr = tstr.get_index_buffer_ptr(render.aam);
-
-		if(segment_idx_buffer_ptr == nullptr || node_idx_buffer_ptr == nullptr)
-			return;
-
-		// only perform a new visibility sort step when the view configuration deviates significantly
-		bool do_sort = false;
-		float pos_angle = dot(normalize(last_sort_pos), normalize(cyclopic_eye));
-		float view_angle = dot(view_dir, last_sort_dir);
-		if (view_angle < 0.8f || pos_angle < 0.8f || !debug.lazy_sort) {
-			do_sort = true;
-			last_sort_pos = normalize(cyclopic_eye);
-			last_sort_dir = view_dir;
-		}
-
-		// sort the segment indices
-		// if(debug.sort && do_sort && !debug.force_initial_order) {
-		// 	// measure sort time
-		// 	//render.sorter.begin_time_query();
-		// 	render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, cyclopic_eye, view_dir, node_idx_buffer_ptr);
-		// 	//benchmark.sort_time_total += render.sorter.end_time_query();
-		// 	++benchmark.num_sorts;
-		// }
 
 		tstr.set_cyclopic_eye(cyclopic_eye);
 		tstr.set_view_dir(view_dir);
@@ -3827,26 +3866,13 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			count = static_cast<int>(debug.render_count);
 		}
 
-		// render.render_sbo.bind(ctx, VBT_STORAGE, 0);
-
 		// Bind buffers.
-		tstr.set_node_id_array(ctx, render.segment_buffer.as_span().data(), render.segment_buffer.as_span().length(), sizeof(uvec2));
-		// glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, render.node_buffer.handle());
-		// render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
-		glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, buffer_bindings::nodes, 4, std::array{
-			render.node_buffer.as_span().handle(),
-			render.t_to_s.handle(),
-			gl::get_gl_id(node_idx_buffer_ptr->handle), // <- streaming requires we always bind the node indices as SBO
-			render.seg_to_traj.as_span().handle()       //    regardless of chosen attribute-less mode
-		}.data());
-
-		/*if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
-			// for now we always bind the node indices buffer to enable smooth intra-segment t filtering
-			node_idx_buffer_ptr->bind(ctx, VBT_STORAGE, 2);
-			// tstr.render(ctx, 0, count);
-		*//*}
-		else
-			tstr.render(ctx, 0, count);*/
+		tstr.set_node_id_array(
+			ctx,
+			render.segment_buffer.as_span().data(),
+			render.segment_buffer.as_span().length(),
+			sizeof(uvec2)
+		);
 
 		// Draw:
 		// If the segment buffer is contiguous in memory.
@@ -3870,36 +3896,21 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
 		// disable the drawing framebuffer
-		fbc.disable(ctx);
+		if (!render.style.forward) fbc.disable(ctx);
 	}
-#ifdef RTX_SUPPORT
-	else
-	{
-		// delegate to OptiX raytracing
-		optix_draw_trajectories(ctx);
-
-		// workaround for weird framework material behavior
-		tstr.enable(ctx); tstr.disable(ctx);
-	}
-#endif
 #ifdef RTX_SUPPORT
 	if (   (!optix.enabled || !optix.initialized)
 		|| (!optix.debug && optix.enabled && optix.initialized))
+#else
+	if (!render.style.forward)
 #endif
-	{
+	{ // Deferred shading:
 		// perform the deferred shading pass and draw the image into the shading framebuffer when not using OptiX (for now)
 		shader_program& prog = shaders.get("tube_shading");
 		prog.enable(ctx);
 
-		// Set tube shading uniforms
-		const auto &glyph_layers_config = render.visualizations.front().config;
-		tube_shading.set_uniforms(
-			ctx, prog, render.style, glyph_layers_config
-			#if RTX_SUPPORT
-				, optix.enabled
-			#endif
-		);
-
+		// Set uniforms.
+		set_shading_uniforms(prog);
 		#ifdef RTX_SUPPORT
 			prog.set_uniform(ctx, "holographic_raycast", optix.enabled && optix.initialized && optix.holographic);
 		#else
@@ -3909,116 +3920,77 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		const auto fb_size = fbc.get_size();
 		prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
 
-		render.hash_grid.set_uniforms(ctx, prog);
-		rel_vis.set_uniforms(ctx, prog);
-
+		// Enable textures.
 		fbc.enable_attachment(ctx, "albedo", 0);
 		fbc.enable_attachment(ctx, "position", 1);
 		fbc.enable_attachment(ctx, "normal", 2);
 		fbc.enable_attachment(ctx, "tangent", 3);
+		// The depth texture to use.
+		// (workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats)
+		texture &tex_depth =
+#ifdef RTX_SUPPORT
+			(optix.enabled && optix.initialized) ? optix.fb.depth : *fbc.attachment_texture_ptr("depth");
+#else
+			*fbc.attachment_texture_ptr("depth");
+#endif
 		tex_depth.enable(ctx, 4);
-		if(tube_shading.ao_style.enable)
-			density_tex.enable(ctx, 5);
-		color_map_mgr.ref_texture().enable(ctx, 6);
 
-		// bind geometry buffers we also need during shading
-		glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, buffer_bindings::nodes, 4, std::array{
-			render.node_buffer.as_span().handle(),
-			0u, // render.t_to_s.handle(),
-			gl::get_gl_id(node_idx_buffer_ptr->handle),
-			render.seg_to_traj.as_span().handle()
-		}.data());
-
-		// bind range attribute SBOs of active glyph layers
-		bool active_sbos[4] = { false, false, false, false };
-		for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
-			if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
-				const auto attribs_handle {render.glyphs[i].attribs.as_span().handle()};
-				const auto aindex_handle  {render.glyphs[i].ranges.handle()};
-				glBindBuffersBase(
-					GL_SHADER_STORAGE_BUFFER,
-					buffer_bindings::glyphs_base + 2*(GLuint)i,
-					2,
-					std::array{attribs_handle, aindex_handle}.data()
-				);
-				active_sbos[i] = true;
-			}
-		}
-
-		// bind further ssbos
-		auto buffers_after_glyphs = std::array{
-			render.traj_glyph_mem.handle(),
-			render.grid_mem->handle(),
-		};
-		glBindBuffersBase(
-			GL_SHADER_STORAGE_BUFFER,
-			buffer_bindings::glyph_memory,
-			buffers_after_glyphs.size(),
-			buffers_after_glyphs.data()
-		);
-
+		// Draw screen quad.
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-		// unbind all SBOs
-		glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 4, std::array{0u, 0u, 0u, 0u}.data());
-		for(size_t i=0; i<4; ++i) {
-			if(active_sbos[i]) {
-				glBindBuffersBase(
-					GL_SHADER_STORAGE_BUFFER,
-					buffer_bindings::glyphs_base + 2*(GLuint)i,
-					2,
-					std::array{0u, 0u}.data()
-				);
-			}
-		}
-		buffers_after_glyphs.fill(0);
-		glBindBuffersBase(
-			GL_SHADER_STORAGE_BUFFER,
-			buffer_bindings::glyph_memory,
-			buffers_after_glyphs.size(),
-			buffers_after_glyphs.data()
-		);
-
+		// Disable textures.
 		fbc.disable_attachment(ctx, "albedo");
 		fbc.disable_attachment(ctx, "position");
 		fbc.disable_attachment(ctx, "normal");
 		fbc.disable_attachment(ctx, "tangent");
 		tex_depth.disable(ctx);
-		if (tube_shading.ao_style.enable)
-			density_tex.disable(ctx);
-		color_map_mgr.ref_texture().disable(ctx);
 
 		prog.disable(ctx);
-		render.render_time_query.end_scope();
-
-		// Synchronization - after this code, the memory consumed by the previous frame's tube rendering commands will
-		// be safe to write to again.
-		// - wait for the previous draw call to complete.
-		/*auto wait_result = *//*glClientWaitSync(render.draw_fence, 0, -1);
-		glDeleteSync(render.draw_fence);
-		// - create a fence object to check when this frame's tube drawing has completed
-		render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);*/
-
-		// Ensure that there is enough memory for new glyphs.
-		for (auto &traj : render.trajectories) {
-			traj.trim_glyphs();
-		}
-
- 		// Update the ring buffers' guard indices to match the new draw call.
-		render.node_buffer.set_gpu_front(render.node_buffer.front());
-		render.segment_buffer.set_gpu_front(render.segment_buffer.front());
-
-		for (auto &trajectory : render.trajectories) {
-			trajectory.on_frame_done();
-		}
-
-		// flush the command buffer.
-		glFlush();
-
-		// Make sure we keep drawing if required
-		if(playback.active || client.extrapol_mgr.update_needed())
-			post_redraw();
 	}
+
+	// unbind all SBOs
+	glBindBuffersBase(
+		GL_SHADER_STORAGE_BUFFER,
+		0,
+		buffer_bindings::count,
+		std::array<GLuint, buffer_bindings::count>{}.data()
+	);
+
+	// Disable textures.
+	if (tube_shading.ao_style.enable)
+		density_tex.disable(ctx);
+	color_map_mgr.ref_texture().disable(ctx);
+
+	// Finish timing.
+	render.render_time_query.end_scope();
+
+	// Synchronization - after this code, the memory consumed by the previous frame's tube rendering commands will
+	// be safe to write to again.
+	// - wait for the previous draw call to complete.
+	/*auto wait_result = *//*glClientWaitSync(render.draw_fence, 0, -1);
+	glDeleteSync(render.draw_fence);
+	// - create a fence object to check when this frame's tube drawing has completed
+	render.draw_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);*/
+
+	// Ensure that there is enough memory for new glyphs.
+	for (auto &traj : render.trajectories) {
+		traj.trim_glyphs();
+	}
+
+	// Update the ring buffers' guard indices to match the new draw call.
+	render.node_buffer.set_gpu_front(render.node_buffer.front());
+	render.segment_buffer.set_gpu_front(render.segment_buffer.front());
+
+	for (auto &trajectory : render.trajectories) {
+		trajectory.on_frame_done();
+	}
+
+	// flush the command buffer.
+	glFlush();
+
+	// Make sure we keep drawing if required
+	if(playback.active || client.extrapol_mgr.update_needed())
+		post_redraw();
 }
 
 void on_tube_vis::draw_density_volume(context& ctx)

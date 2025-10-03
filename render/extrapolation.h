@@ -317,9 +317,10 @@ struct extrapolation_manager
 	){
 		render.tube_shading = tube_shading;
 		render.tube_shading.alternative_ring_buffer = true;
-		const auto tube_shading_defines = render.tube_shading.build_tube_shading_defines(
+		auto tube_shading_defines = render.tube_shading.build_tube_shading_defines(
 			layer_config, false
 		);
+		cgv::render::shader_code::set_define(tube_shading_defines, "SHOW_CURSOR", true, false);
 		render.tstr.set_additional_defines(tube_shading_defines);
 	}
 
