@@ -9,9 +9,8 @@
 #include "vis/trajectory_relation.h"
 
 
-// Make the CGV framework treat the color map index as an enum to get a dropdown GUI.
-template<>
-struct cgv::type::info::type_name<decltype(otv::vis::trajectory_relation::color_map)> {
+template <class T>
+struct cgv::type::info::type_name<otv::vis::trajectory_relation::pseudo_enum<T>> {
 	static const char* get_name() {return "enum";}
 };
 
@@ -25,8 +24,11 @@ void trajectory_relation::build_gui (
 	std::vector<std::string> const& color_maps
 ) {
 	auto const b = dynamic_cast<cgv::base::base*>(&p);
-	p.add_member_control(b, "Shading", shading, "dropdown",
-		"enums='Forward,Deferred'"
+	p.add_member_control(b, "Shading", shading, "dropdown", "enums='"
+		"Forward per Node,"
+		"Forward per Fragment,"
+		"Deferred per Node,"
+		"Deferred per Fragment'"
 	);
 	p.add_member_control(b, "Function", function, "dropdown", "enums='"
 		"None,"
@@ -79,7 +81,9 @@ void trajectory_relation::set_defaults (cgv::vec4 extent)
 void trajectory_relation::set_defines (cgv::render::shader_define_map& d) const
 {
 	using sc = cgv::render::shader_code;
-	sc::set_define(d, "TRAJ_REL_FUNCTION", function, {});
+	// Use an undefined value as default so the define is always stored explicitely.
+	sc::set_define(d, "TRAJ_REL_SHADING",  shading.value,                   ~0u);
+	sc::set_define(d, "TRAJ_REL_FUNCTION", static_cast<uint32_t>(function), ~0u);
 }
 
 void trajectory_relation::set_uniforms (
@@ -92,19 +96,13 @@ void trajectory_relation::set_uniforms (
 	&& p.set_uniform(c, "traj_rel_direction.value",  static_cast<uint32_t>(direction))
 	&& p.set_uniform(c, "traj_rel_ref_traj",         reference_trajectory)
 	&& p.set_uniform(c, "traj_rel_normalize",        normalize)
-	&& p.set_uniform(c, "traj_rel_color_map",        color_map.index)
+	&& p.set_uniform(c, "traj_rel_color_map",        color_map.value)
 	&& p.set_uniform(c, "traj_rel_color_range",      color_range)
 	&& p.set_uniform(c, "traj_rel_log_scale",        log_scale)
 	&& p.set_uniform(c, "traj_rel_highlight_color",  highlight_color)
 	&& p.set_uniform(c, "traj_rel_background_color", background_color)
 	;
 	assert(ok);
-}
-
-auto get_reflection_traits(enum otv::vis::trajectory_relation::shading const&)
-	-> cgv::reflect::enum_reflection_traits<enum otv::vis::trajectory_relation::shading>
-{
-	return {"forward,deferred"};
 }
 
 auto get_reflection_traits(enum otv::vis::trajectory_relation::function const&)

@@ -1463,13 +1463,13 @@ void on_tube_vis::set_rel_vis_defines (cgv::render::context& ctx)
 	auto& tstr_defines = ref_textured_spline_tube_renderer(ctx, 1).additional_defines;
 
 	// Select shading style.
-	if ((render.style.forward = rel_vis.shading == decltype(rel_vis.shading)::forward))
+	if ((render.style.forward = !(rel_vis.shading.value & decltype(rel_vis)::shading::deferred)))
 		// In forward shading, all visualization defines must be set in the geometry render pass.
 		for (auto const& [key, val] : tube_shading_defines) tstr_defines[key] = val;
-	else
-		// In deferred shading, the geometry pass only needs to know whether or not the deferred
-		// pass will evaluate a relation to determine the G-buffer format.
+	else {
+		render.hash_grid.set_defines(tstr_defines, buffer_bindings::grid_memory);
 		rel_vis.set_defines(tstr_defines);
+	}
 }
 
 bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
@@ -3834,24 +3834,34 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		density_tex.enable(ctx, 5);
 	color_map_mgr.ref_texture().enable(ctx, 6);
 
-	// Update uniforms required for fragment shading; program depends on mode (forward or deferred).
-	const auto set_shading_uniforms = [&](cgv::render::shader_program& prog) {
-		tube_shading.set_uniforms(
-			ctx, prog, render.style, glyph_layers_config
-			#if RTX_SUPPORT
-				, optix.enabled
-			#endif
-		);
-		render.hash_grid.set_uniforms(ctx, prog);
-		rel_vis.set_uniforms(ctx, prog);
-	};
+	// Shader programs.
+	auto& tstr_prog     = tstr.ref_prog();
+	auto& deferred_prog = shaders.get("tube_shading");
+
+	// Update uniforms.
+	tube_shading.set_uniforms(
+		ctx,
+		render.style.forward ? tstr_prog : deferred_prog,
+		render.style,
+		glyph_layers_config
+		#if RTX_SUPPORT
+			, optix.enabled
+		#endif
+	);
+
+	{
+	using shading  = enum decltype(rel_vis)::shading;
+	auto& rel_prog = rel_vis.shading.value == (shading::deferred | shading::per_fragment)
+		? deferred_prog : tstr_prog;
+	render.hash_grid.set_uniforms(ctx, rel_prog);
+	rel_vis.set_uniforms(ctx, rel_prog);
+	}
 
 #ifdef RTX_SUPPORT
 	if (!optix.enabled || !optix.initialized)
 #endif
 	{
-		if (render.style.forward) set_shading_uniforms(tstr.ref_prog());
-		else fbc.enable(ctx); // enable drawing framebuffer
+		if (!render.style.forward) fbc.enable(ctx); // enable drawing framebuffer
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -3906,19 +3916,17 @@ void on_tube_vis::draw_trajectories(context& ctx)
 #endif
 	{ // Deferred shading:
 		// perform the deferred shading pass and draw the image into the shading framebuffer when not using OptiX (for now)
-		shader_program& prog = shaders.get("tube_shading");
-		prog.enable(ctx);
+		deferred_prog.enable(ctx);
 
 		// Set uniforms.
-		set_shading_uniforms(prog);
 		#ifdef RTX_SUPPORT
-			prog.set_uniform(ctx, "holographic_raycast", optix.enabled && optix.initialized && optix.holographic);
+			deferred_prog.set_uniform(ctx, "holographic_raycast", optix.enabled && optix.initialized && optix.holographic);
 		#else
-			prog.set_uniform(ctx, "holographic_raycast", false);
+			deferred_prog.set_uniform(ctx, "holographic_raycast", false);
 		#endif
-		prog.set_uniform(ctx, "viewport_width", (float)ctx.get_width());
+		deferred_prog.set_uniform(ctx, "viewport_width", (float)ctx.get_width());
 		const auto fb_size = fbc.get_size();
-		prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
+		deferred_prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
 
 		// Enable textures.
 		fbc.enable_attachment(ctx, "albedo", 0);
@@ -3945,7 +3953,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		fbc.disable_attachment(ctx, "tangent");
 		tex_depth.disable(ctx);
 
-		prog.disable(ctx);
+		deferred_prog.disable(ctx);
 	}
 
 	// unbind all SBOs

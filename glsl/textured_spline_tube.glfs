@@ -8,6 +8,8 @@
 #define USE_CUBIC_TANGENTS 1
 #define USE_VIEW_SPACE_POSITION 1
 
+// Determines at which point in the rendering pipeline trajectory relations are evaluated.
+#define TRAJ_REL_SHADING 0
 // Trajectory relation to evaluate.
 #define TRAJ_REL_FUNCTION 0
 
@@ -57,14 +59,15 @@ mat3 get_inverse_normal_matrix();
 vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
 	in float depth, in float specular_factor, in float max_glyph_s
-	#if TRAJ_REL_FUNCTION != 0
-		, in float seg_t
-	#endif
 );
 vec4 otv_shade_cursor (
 	in float u_pos, in float u_half_width, in vec2 uv, in vec4 cursor_color, in vec4 pre_shaded_color
 );
 // *** end of interface of otv_shading.glsl *******************************
+
+// *** begin interface of otv_trajectory_relations.glsl ********************************
+vec3 otv_shade_relation (float value);
+// *** end interface of otv_trajectory_relations.glsl **********************************
 
 struct TubeNode {
 	vec3 pos;
@@ -150,6 +153,12 @@ in flat float l_offset_fs;
 in flat int segment_id_fs;
 #if USE_CUBIC_TANGENTS == 1
 in flat mat4 SM_fs; // spline matrix
+#endif
+
+#if !(TRAJ_REL_SHADING & 1)
+	// Evaluate trajectory relations per node.
+	in flat float relation0_fs;
+	in flat float relation1_fs;
 #endif
 
 #if USE_CONSERVATIVE_DEPTH == 1
@@ -1003,11 +1012,25 @@ void main()
 		//vec3 hit_pos_eye = direction * hit.t;
 		// determine color - since we ignore the tangents, interpolation is just linear
 		vec4 col = //spline_t >= max_t ? vec4(0.75, 0.75, 0.75, 1) :
+	#if TRAJ_REL_FUNCTION == 0
 		#if ATTRIB_MODE & 2
 			mix(color0, color1, spline_t);
 		#else
 			mix(unpackUnorm4x8(color0_fs), unpackUnorm4x8(color1_fs), spline_t);
 		#endif
+	#else
+		#if TRAJ_REL_SHADING & 1
+			// Relation is calculated per fragment, pass local t to `otv_shade_fragment`.
+			{spline_t, 0, 0, 1};
+		#else
+			// Relation was already calculated by node, interpolate and map to color.
+			vec4(otv_shade_relation(
+				floatBitsToUint(relation0_fs) >= 0xffc00000u
+					? relation0_fs // Preserve NaNs.
+					: mix(relation0_fs, relation1_fs, spline_t)
+			), 1);
+		#endif
+	#endif
 
 		vec4 v_eye = vec4(hit.hp, 1.0);
 		vec4 depth = get_projection_matrix() * v_eye;
@@ -1036,9 +1059,6 @@ void main()
 			col.rgb, /*texcoord: */vec2(u, spline_t>=l_max_cubic ? 2 : v),
 			segment_id_fs, hit.hp.xyz, hit.normal, tangent, gl_FragDepth, /*specular_factor: */1,
 			/* max_glyph_s: */POS_INF //s_playback
-			#if TRAJ_REL_FUNCTION != 0
-				, spline_t
-			#endif
 		).rgb;
 	#if SHOW_CURSOR
 		if (l_playback < POS_INF)
@@ -1047,7 +1067,9 @@ void main()
 		color_out = vec4(pow(col.rgb, 1.0/gamma3), col.a);
 #else
 		frag_albedo = uvec4(
-			TRAJ_REL_FUNCTION == 0 ? packUnorm4x8(col) : floatBitsToUint(spline_t),
+			TRAJ_REL_FUNCTION != 0 && bool(TRAJ_REL_SHADING & 1)
+				? floatBitsToUint(spline_t) // Relation per fragment requires local t.
+				: packUnorm4x8(col),
 			floatBitsToUint(alen(spline_t)),
 			floatBitsToUint(/*hit.cap ? 2.193f : */v),
 			uint(segment_id_fs) // "guaranteed to preserve the bit pattern"

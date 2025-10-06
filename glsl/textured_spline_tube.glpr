@@ -2,11 +2,14 @@ files:textured_spline_tube
 vertex_file:textured_line_primitive.glvs
 vertex_file:view.glsl
 geometry_file:view.glsl
+geometry_file:otv_color_map.glsl
+geometry_file:otv_trajectory_relations.glsl
 fragment_file:view.glsl
 fragment_file:side.glsl
 fragment_file:lights.glsl
 fragment_file:brdf.glsl
 fragment_file:bump_map.glfs
 fragment_file:surface_mod.glsl
+fragment_file:otv_color_map.glsl
 fragment_file:otv_shading.glsl
 fragment_file:otv_trajectory_relations.glsl

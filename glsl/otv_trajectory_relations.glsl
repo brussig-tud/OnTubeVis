@@ -1,6 +1,6 @@
 #version 430 core
 
-// Enums ###########################################################################################
+// Constants #######################################################################################
 // Determines for which pairs of trajectories the relation is visualized.
 struct direction_t {uint value;};
 const direction_t dir_ref_to_all = {0};
@@ -23,10 +23,20 @@ const function_t fn_dbg_num_intervals  = {1 + fn_dbg_num_cells.value};
 const function_t fn_dbg_num_samples    = {1 + fn_dbg_num_intervals.value};
 const function_t fn_dbg_num_evals      = {1 + fn_dbg_num_samples.value};
 
-/// Describes which dimensions the hash grid indexes and how it is organized in memory.
+// Describes which dimensions the hash grid indexes and how it is organized in memory.
 #define LAYOUT_XYZ   0
 #define LAYOUT_T_XYZ 1
 #define LAYOUT_XYZT  2
+
+// Special values returned by `otv_trajectory_relation`, encoded as quiet NaNs.
+const uint nan              = 0xffc00000u;
+const uint background_value = nan | 1;
+const uint highlight_value  = nan | 2;
+
+uint traj_rel_background_value()
+{
+	return background_value;
+}
 
 // Static configuration ############################################################################
 // Default values are provided only for linting and must be replaced at runtime.
@@ -106,9 +116,6 @@ const uint sizeof_interval = 16; // in bytes
 layout(std430, binding = 0) readonly buffer data_buffer {
 	node_data_type nodes[];
 };
-layout(std430, binding = 2) readonly buffer nid_buffer {
-	uvec2 node_ids[];
-};
 // The grid buffer is aliased as multiple types to allow aligned loads of different sizes.
 layout(binding = HASH_GRID_BUFFER_BINDING) readonly buffer hash_grid_buffer1 {
 	uint hash_grid_data1[];
@@ -139,7 +146,7 @@ uniform vec3        traj_rel_highlight_color;
 uniform vec3        traj_rel_background_color;
 
 // External functions ##############################################################################
-// Defined in otv_shading.glsl.
+// Defined in otv_color_map.glsl.
 vec3 map_to_color (float v, int color_map_idx);
 
 // Local functions #################################################################################
@@ -356,6 +363,8 @@ vec4 trajectory_point (node_data_type start, node_data_type end, float t)
 }
 
 // Shading =========================================================================================
+// Calculate the trajectory relation selected by `TRAJ_REL_FUNCTION` from a fixed starting point to
+// one or more sampled points on a given interval, provided the samples lie within the query radius.
 float eval_relation (vec4 ref_point, interval_t interval)
 {
 	// Load node data.
@@ -406,23 +415,24 @@ float eval_relation (vec4 ref_point, interval_t interval)
 	return result * sampling * timespan;
 }
 
-// Determine the color to use for a trajectory fragment by calculating its relation to other
-// trajectories using the hash grid.
-vec3 otv_shade_relation (int seg_id, float seg_t)
+// Evaluate the relation selected by `TRAJ_REL_FUNCTION` between one point of a segment and the
+// surrounding trajectories using the hash grid.
+// The return value can be mapped to a color using `otv_shade_relation`.
+float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 {
 	// Load node data.
-	node_data_type start = nodes[node_ids[seg_id][0]];
-	node_data_type end   = nodes[node_ids[seg_id][1]];
+	node_data_type start = nodes[node_ids[0]];
+	node_data_type end   = nodes[node_ids[1]];
 
 	// If only the reference trajectory is to be shaded, mark all others as background.
 	if (traj_rel_direction == dir_ref_to_all && start.t[1] != traj_rel_ref_traj)
-		return traj_rel_background_color;
+		return uintBitsToFloat(background_value);
 	// Mark the reference trajectory.
 	if (traj_rel_direction == dir_all_to_ref && start.t[1] == traj_rel_ref_traj)
-		return traj_rel_highlight_color;
+		return uintBitsToFloat(highlight_value);
 
 	// Color by local time.
-	if (function == fn_dbg_seg_t) return map_to_color(seg_t, traj_rel_color_map);
+	if (function == fn_dbg_seg_t) return seg_t;
 
 	// Calculate data-space coordinates and grid cell at the given trajectory point.
 	vec4 local_point  = trajectory_point(start, end, seg_t);
@@ -430,30 +440,29 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 
 	// Color by grid cell (spatial).
 	if (function == fn_dbg_index_xyz)
-		return local_point.xyz * hash_grid_scale.xyz - local_index.xyz + 0.5;
+		return uintBitsToFloat(packUnorm4x8(
+			vec4(vec3(local_point * hash_grid_scale - local_index + 0.5), 0)
+		));
 	// Color by grid cell (temporal).
 	if (function == fn_dbg_index_t)
-		return map_to_color(
-			local_point[3] * hash_grid_scale[3] - local_index[3] + 0.5,
-			traj_rel_color_map
-		);
+		return local_point[3] * hash_grid_scale[3] - local_index[3] + 0.5;
 	// Color by cell hash.
 	if (function == fn_dbg_signature)
-		return map_to_color(signature(index_t(local_index)) / float(~0u), 19);
+		return signature(index_t(local_index)) / float(~0u);
 	// Color by hash bucket load.
 	if (function == fn_dbg_bucket_load) {
 		// Load the bucket range for the local timestep.
 		span_t table = find_table(local_index[3]);
-		if (table.start == null) return traj_rel_highlight_color;
+		if (table.start == null) return uintBitsToFloat(highlight_value);
 		// Find the bucket containing the local point and count how many of tis slots are in use.
 		uint fill = bucket_fill(bucket(table, signature(index_t(local_index)), 1));
-		return map_to_color(float(fill) / slots_per_bucket, traj_rel_color_map);
+		return float(fill) / slots_per_bucket;
 	}
 	// Color by local trajectory interval.
 	if (function == fn_dbg_local_interval) {
 		// Load the bucket range for the local timestep.
 		span_t table = find_table(local_index[3]);
-		if (table.start == null) return traj_rel_highlight_color;
+		if (table.start == null) return uintBitsToFloat(highlight_value);
 		// Find the cell containing this fragment.
 		span_t local_intervals = query(table, index_t(local_index));
 		// Within that cell, find the interval containing the fragment.
@@ -462,12 +471,12 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 			float t0            = interval.time[0];
 			float t1            = interval.time[1];
 
-			if (interval.nodes == node_ids[seg_id] && local_point[3] >= t0 && local_point[3] <= t1)
+			if (interval.nodes == node_ids && local_point[3] >= t0 && local_point[3] <= t1)
 				// Color by interval-local curve parameter.
-				return map_to_color((local_point[3] - t0)/(t1 - t0), traj_rel_color_map);
+				return (local_point[3] - t0)/(t1 - t0);
 		}
 		// Mark points not stored within their local cell.
-		return traj_rel_highlight_color;
+		return uintBitsToFloat(highlight_value);;
 	}
 
 	// AABB of cells to query.
@@ -566,5 +575,17 @@ vec3 otv_shade_relation (int seg_id, float seg_t)
 	else
 		result = (result - range[0])/(range[1] - range[0]);
 
-	return map_to_color(result, traj_rel_color_map);
+	return result;
+}
+
+// Visualize a trajectory relation value as a color.
+vec3 otv_shade_relation (float value)
+{
+	uint bits = floatBitsToUint(value);
+	if (function == fn_dbg_index_xyz) return unpackUnorm4x8(bits).xyz;
+	if (bits == background_value)     return traj_rel_background_color;
+	if (bits == highlight_value)      return traj_rel_highlight_color;
+
+	int color_map = function == fn_dbg_signature ? 19 : traj_rel_color_map;
+	return map_to_color(value, color_map);
 }

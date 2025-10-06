@@ -14,6 +14,8 @@
 #define GRID_NORMAL_SETTINGS 0
 #define OUTLINE_INWARDS 0
 
+// Determines at which point in the rendering pipeline trajectory relations are evaluated.
+#define TRAJ_REL_SHADING 0
 // Trajectory relation to evaluate.
 #define TRAJ_REL_FUNCTION 0
 
@@ -53,8 +55,13 @@ mat3 get_inverse_normal_matrix();
 vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color, int side, float specular_factor);
 ////***** end interface of surface.glsl ***********************************
 
+// *** begin interface of otv_color_map.glsl ********************************
+vec3 map_to_color(float v, int color_map_idx);
+// *** end interface of otv_color_map.glsl **********************************
+
 // *** begin interface of otv_trajectory_relations.glsl ********************************
-vec3 otv_shade_relation (int seg_id, float seg_t);
+float otv_trajectory_relation (uvec2 node_ids, float seg_t);
+vec3 otv_shade_relation (float value);
 // *** end interface of otv_trajectory_relations.glsl **********************************
 
 
@@ -62,7 +69,6 @@ vec3 otv_shade_relation (int seg_id, float seg_t);
 #if ENABLE_AMBIENT_OCCLUSION == 1
 	layout (binding = 5) uniform sampler3D density_tex;
 #endif
-layout (binding = 6) uniform sampler2D color_maps_tex;
 
 // ambient occlusion parameters
 uniform struct {
@@ -132,6 +138,9 @@ layout (std430, binding=B1) readonly buffer ranges_buffer##I { \
 	irange ranges##I[]; \
 };
 
+layout(std430, binding = 2) readonly buffer nid_buffer {
+	uvec2 node_ids[];
+};
 // buffer storing which trajectory each segment belongs to.
 layout (binding = 3) readonly buffer seg_to_traj_buffer {
 	uvec2 seg_to_traj[];
@@ -531,14 +540,6 @@ float clamp_remap11(float v, vec4 r) {
 	if(abs(r.x - r.y) > 0.00001)
 		t = (v - r.x) / (r.y - r.x);
 	return 2.0*t - 1.0;
-}
-
-//vec3 map_to_color(float v, float map_idx_coord) {
-vec3 map_to_color(float v, int color_map_idx) {
-	vec2 ts = textureSize(color_maps_tex, 0);
-	float half_step = 0.5 * (1.0 / ts.y);
-	float map_coord = float(color_map_idx) / ts.y + half_step;
-	return pow(texture(color_maps_tex, vec2(v, map_coord)).rgb, vec3(2.2));
 }
 
 // return a rotation matrix given angle in radians
@@ -1469,9 +1470,6 @@ vec3 rainbow(float t)
 vec4 otv_shade_fragment (
 	in vec3 color, in vec2 texcoord, in int segment_id, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye,
 	in float depth, in float specular_factor, in float max_glyph_s
-	#if TRAJ_REL_FUNCTION != 0
-		, in float seg_t
-	#endif
 ){
 	vec4 subp_color;
 	vec2 uv = texcoord;
@@ -1489,9 +1487,9 @@ vec4 otv_shade_fragment (
 
 	//subp_color = vec4(uv.s, uv.t, 0.0, 1.0);
 
-	#if TRAJ_REL_FUNCTION != 0
-		color = otv_shade_relation(segment_id, seg_t);
-	#endif
+#if TRAJ_REL_FUNCTION != 0 && TRAJ_REL_SHADING & 1
+	color = otv_shade_relation(otv_trajectory_relation(node_ids[segment_id], color[0]));
+#endif
 
 	// glyph layer 0
 #if L0_VISIBLE > 0 && L0_MAPPED_ATTRIB_COUNT > 0

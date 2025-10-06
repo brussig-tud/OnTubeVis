@@ -23,6 +23,20 @@ namespace otv::vis {
 
 /// Parameters for on-the-fly calculation and visualization of relations between trajectories.
 struct trajectory_relation {
+	/// Describes how trajectories are rendered and where in the pipeline relations are evaluated.
+	enum shading : uint32_t {
+		/// Evaluate relations in the fragment shader.
+		/// If not set, relations are evaluated per node in the geometry shader.
+		per_fragment = 1,
+		/// Use deferred shading.
+		/// If not set, trajectories are rendered in a single pass.
+		deferred = 2,
+	};
+
+	/// Wrapper class presented to the CGV framework as an enum to get proper dropdowns.
+	template <class T>
+	struct pseudo_enum {T value;};
+
 	/// Color marking special trajectory parts.
 	cgv::rgb highlight_color {1, 0, 1};
 	/// Color of trajectories for which no relation value is calculated.
@@ -32,12 +46,10 @@ struct trajectory_relation {
 	cgv::vec2 radius {1};
 	/// Relation values mapped onto the endpoints of the color scale.
 	cgv::vec2 color_range {0, 1};
-	enum class shading : uint32_t { // uint8_t causes problems with CGV GUI.
-		forward,
-		deferred,
-	}
-	/// Determines at which stage of the rendering pipeline relations are evaluated.
-	shading {shading::deferred};
+	/// Determines how trajectories are rendered and where in the pipeline relations are evaluated.
+	pseudo_enum<std::underlying_type_t<shading>> shading {
+		shading::deferred | shading::per_fragment
+	};
 	enum class function : uint32_t { // uint8_t causes problems with CGV GUI.
 		none,               // No visualization.
 		distance,           // Euclidean spatial distance between trajectories.
@@ -68,7 +80,7 @@ struct trajectory_relation {
 	/// Trajectory evaluations per unit of time to calculate relation.
 	float sample_rate {1};
 	/// Color scale used to visualize the relation value.
-	struct {int32_t index;} color_map {12/*imola*/};
+	pseudo_enum<int32_t> color_map {12/*imola*/};
 	/// ID of the "reference trajectory" whose meaning depends on `direction`.
 	uint32_t reference_trajectory {0};
 	/// Determines whether the relation is averaged (true) or accumulated (false) over time.
@@ -95,8 +107,6 @@ struct trajectory_relation {
 };
 
 // Reflect enum members so changes can be detected in `on_set`.
-auto get_reflection_traits(enum otv::vis::trajectory_relation::shading const&)
-	-> cgv::reflect::enum_reflection_traits<enum otv::vis::trajectory_relation::shading>;
 auto get_reflection_traits(enum otv::vis::trajectory_relation::function const&)
 	-> cgv::reflect::enum_reflection_traits<enum otv::vis::trajectory_relation::function>;
 

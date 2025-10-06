@@ -4,6 +4,11 @@
 #define USE_CUBIC_TANGENTS 1
 #define USE_VIEW_SPACE_POSITION 1
 
+// Determines at which point in the rendering pipeline trajectory relations are evaluated.
+#define TRAJ_REL_SHADING 0
+// Trajectory relation to evaluate.
+#define TRAJ_REL_FUNCTION 0
+
 /* 0: BOX
    1: APPROXIMATE_BILLBOARD
    2: EXACT_POLYGON
@@ -32,6 +37,11 @@ mat4 get_inverse_modelview_projection_matrix();
 mat3 get_normal_matrix();
 mat3 get_inverse_normal_matrix();
 //***** end interface of view.glsl ***********************************
+
+// *** begin interface of otv_trajectory_relations.glsl ********************************
+uint traj_rel_background_value ();
+float otv_trajectory_relation (uvec2 node_ids, float seg_t);
+// *** end interface of otv_trajectory_relations.glsl **********************************
 
 #if BOUNDING_GEOMETRY_TYPE == 0
 const vec4 corners[4] = {
@@ -136,6 +146,11 @@ out flat int segment_id_fs;
 #if USE_CUBIC_TANGENTS == 1
 out flat mat4 SM_fs; // spline matrix
 #endif
+#if !(TRAJ_REL_SHADING & 1)
+	// Evaluate trajectory relations per node.
+	out flat float relation0_fs;
+	out flat float relation1_fs;
+#endif
 
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 
@@ -225,78 +240,78 @@ mat4 calculate_transformation_matrix(QTube qTube) {
 	{
 		x = qTube.e.pos - qTube.s.pos;
 		xl = length(x);
-		
+
 		if(xl < 0.0001) {
 			y = qTube.h.pos - qTube.s.pos;
 			yl = length(y);
-			
+
 			if(yl < 0.0001) {
 				x = vec3(1.0, 0.0, 0.0);
 				y = vec3(0.0, 1.0, 0.0);
 				z = vec3(0.0, 0.0, 1.0);
-				
+
 				xl = 1.0; xq = true;
 				yl = 1.0; yq = true;
 			} else {
 				x = normalize(ortho_vec(x));
 				xl = 1.0; xq = true;
-				
+
 				z = cross(x, y);
 			}
 		} else {
 			y = project_to_plane(qTube.h.pos - qTube.s.pos, x);
 			yl = length(y);
-			
+
 			if(yl < 0.0001) {
 				y = normalize(ortho_vec(x));
 				yl = 1.0; yq = true;
 			}
-			
+
 			z = cross(x, y);
 		}
-	}	
+	}
 
 	vec3 xd = x / xl;
 	vec3 yd = y / yl;
 	vec3 zd = normalize(z);
-	
+
 	float xm, xp, ym, yp, zm;
 	{
 		float xyl = dot(qTube.h.pos - qTube.s.pos, xd);
-		
+
 		float cx[3];
 		SplinePointsToPolyCoeffs(0.0, xyl, xl, cx);
-		
+
 		float cy[3];
 		SplinePointsToPolyCoeffs(0.0, yl, 0.0, cy);
-		
+
 		float rc[3];
 		SplinePointsToPolyCoeffs(qTube.s.rad, qTube.h.rad, qTube.e.rad, rc);
-		
+
 		float c_xm[3];
 		c_xm[0] = cx[0] - rc[0]; c_xm[1] = cx[1] - rc[1]; c_xm[2] = cx[2] - rc[2];
-		
+
 		float c_xp[3];
 		c_xp[0] = cx[0] + rc[0]; c_xp[1] = cx[1] + rc[1]; c_xp[2] = cx[2] + rc[2];
-		
+
 		xm = min(-qTube.s.rad, min(xl - qTube.e.rad, EvalPolyD0(saturate(-c_xm[1] / c_xm[2] * 0.5), c_xm)));
 		xp = max( qTube.s.rad, max(xl + qTube.e.rad, EvalPolyD0(saturate(-c_xp[1] / c_xp[2] * 0.5), c_xp)));
-		
+
 		float c_ym[3];
 		c_ym[0] = cy[0] - rc[0]; c_ym[1] = cy[1] - rc[1]; c_ym[2] = cy[2] - rc[2];
-		
+
 		float c_yp[3];
 		c_yp[0] = cy[0] + rc[0]; c_yp[1] = cy[1] + rc[1]; c_yp[2] = cy[2] + rc[2];
-		
+
 		ym = min(-qTube.s.rad, min(-qTube.e.rad, EvalPolyD0(saturate(-c_ym[1] / c_ym[2] * 0.5), c_ym)));
 		yp = max( qTube.s.rad, max( qTube.e.rad, EvalPolyD0(saturate(-c_yp[1] / c_yp[2] * 0.5), c_yp)));
-		
+
 		zm = max( qTube.s.rad, max( qTube.e.rad, EvalPolyD0(saturate(-rc[1] / rc[2] * 0.5), rc)));
-		
+
 		if(xq) { xm = -zm; xp = zm; }
 		if(yq) { ym = -zm; yp = zm; }
 	}
-	
+
 	vec3 center = qTube.s.pos + 0.5*(xd * (xm + xp) + yd * (ym + yp));
 
 	mat4 M;
@@ -304,7 +319,7 @@ mat4 calculate_transformation_matrix(QTube qTube) {
 	M[1] = vec4((yp - ym) * yd, 0.0);
 	M[2] = vec4(2.0 * zm  * zd, 0.0);
 	M[3] = vec4(center, 1.0);
-	
+
 	return M;
 }
 
@@ -319,78 +334,78 @@ mat3 calculate_transformation_parameters(QTube qTube, out vec3 scale, out vec3 t
 	{
 		x = qTube.e.pos - qTube.s.pos;
 		xl = length(x);
-		
+
 		if(xl < 0.0001) {
 			y = qTube.h.pos - qTube.s.pos;
 			yl = length(y);
-			
+
 			if(yl < 0.0001) {
 				x = vec3(1.0, 0.0, 0.0);
 				y = vec3(0.0, 1.0, 0.0);
 				z = vec3(0.0, 0.0, 1.0);
-				
+
 				xl = 1.0; xq = true;
 				yl = 1.0; yq = true;
 			} else {
 				x = normalize(ortho_vec(x));
 				xl = 1.0; xq = true;
-				
+
 				z = cross(x, y);
 			}
 		} else {
 			y = project_to_plane(qTube.h.pos - qTube.s.pos, x);
 			yl = length(y);
-			
+
 			if(yl < 0.0001) {
 				y = normalize(ortho_vec(x));
 				yl = 1.0; yq = true;
 			}
-			
+
 			z = cross(x, y);
 		}
-	}	
+	}
 
 	vec3 xd = x / xl;
 	vec3 yd = y / yl;
 	vec3 zd = normalize(z);
-	
+
 	float xm, xp, ym, yp, zm;
 	{
 		float xyl = dot(qTube.h.pos - qTube.s.pos, xd);
-		
+
 		float cx[3];
 		SplinePointsToPolyCoeffs(0.0, xyl, xl, cx);
-		
+
 		float cy[3];
 		SplinePointsToPolyCoeffs(0.0, yl, 0.0, cy);
-		
+
 		float rc[3];
 		SplinePointsToPolyCoeffs(qTube.s.rad, qTube.h.rad, qTube.e.rad, rc);
-		
+
 		float c_xm[3];
 		c_xm[0] = cx[0] - rc[0]; c_xm[1] = cx[1] - rc[1]; c_xm[2] = cx[2] - rc[2];
-		
+
 		float c_xp[3];
 		c_xp[0] = cx[0] + rc[0]; c_xp[1] = cx[1] + rc[1]; c_xp[2] = cx[2] + rc[2];
-		
+
 		xm = min(-qTube.s.rad, min(xl - qTube.e.rad, EvalPolyD0(saturate(-c_xm[1] / c_xm[2] * 0.5), c_xm)));
 		xp = max( qTube.s.rad, max(xl + qTube.e.rad, EvalPolyD0(saturate(-c_xp[1] / c_xp[2] * 0.5), c_xp)));
-		
+
 		float c_ym[3];
 		c_ym[0] = cy[0] - rc[0]; c_ym[1] = cy[1] - rc[1]; c_ym[2] = cy[2] - rc[2];
-		
+
 		float c_yp[3];
 		c_yp[0] = cy[0] + rc[0]; c_yp[1] = cy[1] + rc[1]; c_yp[2] = cy[2] + rc[2];
-		
+
 		ym = min(-qTube.s.rad, min(-qTube.e.rad, EvalPolyD0(saturate(-c_ym[1] / c_ym[2] * 0.5), c_ym)));
 		yp = max( qTube.s.rad, max( qTube.e.rad, EvalPolyD0(saturate(-c_yp[1] / c_yp[2] * 0.5), c_yp)));
-		
+
 		zm = max( qTube.s.rad, max( qTube.e.rad, EvalPolyD0(saturate(-rc[1] / rc[2] * 0.5), rc)));
-		
+
 		if(xq) { xm = -zm; xp = zm; }
 		if(yq) { ym = -zm; yp = zm; }
 	}
-	
+
 	vec3 center = qTube.s.pos + 0.5*(xd * (xm + xp) + yd * (ym + yp));
 
 	scale = vec3(
@@ -405,7 +420,7 @@ mat3 calculate_transformation_parameters(QTube qTube, out vec3 scale, out vec3 t
 	R[0] = xd;
 	R[1] = yd;
 	R[2] = zd;
-	
+
 	return R;
 }
 #endif
@@ -422,7 +437,7 @@ float sd_rounded_cone(vec3 p, vec4 a, vec4 b) {
     float rr = a.w - b.w;
     float a2 = l2 - rr*rr;
     float il2 = 1.0/l2;
-    
+
     // sampling dependant computations
     vec3 pa = p - a.xyz;
     float y = dot(pa,ba);
@@ -439,7 +454,7 @@ float sd_rounded_cone(vec3 p, vec4 a, vec4 b) {
 
     if(sign(y)*a2*y2 < k)
 		return sqrt(x2 + y2) * il2 - a.w;
-    
+
 	return (sqrt(x2*a2*il2) + y*rr) * il2 - a.w;
 }
 
@@ -461,7 +476,7 @@ mat4x3 quad(vec4 start, vec4 end) {
 
 	vec3 start_to_eye = eye_pos - ps;
 	vec3 end_to_eye   = eye_pos - pe;
-	
+
 	vec2 dse = vec2(length(start_to_eye), length(end_to_eye));
 
 	vec2 pr_fac = rse / sqrt(dse*dse - rse*rse);
@@ -784,7 +799,7 @@ void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 
 	vec3 scale, origin;
 	mat3 R = calculate_transformation_parameters(qTube, scale, origin);
-	
+
 	vec3 dx = R * vec3(1.0, 0.0, 0.0);
 	vec3 dy = R * vec3(0.0, 1.0, 0.0);
 	vec3 dz = R * vec3(0.0, 0.0, 1.0);
@@ -794,7 +809,7 @@ void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 	dz *= scale.z;
 
 	vec3 half_diag = 0.5f * (dx + dy + dz);
-	
+
 	vec3 a = origin - half_diag;
 	vec3 b = origin + half_diag;
 	vec3 org = 0.5*(a + b);
@@ -822,7 +837,7 @@ void emit_exact_box_polygon(int segment_idx, QTube qTube) {
 		mask |= 2;
 	if(dot(eye_pos - b, dz) < 0)
 		mask |= 4;
-		
+
 	int count = 6;
 	vec3 c[6];
 	c[0] = a + dy;
@@ -945,7 +960,7 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 
 	vec3 scale, origin;
 	mat3 R = calculate_transformation_parameters(qTube, scale, origin);
-	
+
 	vec3 dx = R * vec3(1.0, 0.0, 0.0);
 	vec3 dy = R * vec3(0.0, 1.0, 0.0);
 	vec3 dz = R * vec3(0.0, 0.0, 1.0);
@@ -973,7 +988,7 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 
 	/*float ref_dot = abs(dot(dx, eye_to_origin)) / scale.x;
 	vec3 ref_dir = dx;
-	
+
 	float ang = abs(dot(eye_to_origin, dy)) / scale.y;
 	if(ang < ref_dot) {
 		ref_dot = ang;
@@ -1010,7 +1025,7 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 
 	float ref_l = lx;
 	vec3 ref_dir = dx;
-	
+
 	if(ly > ref_l) {
 		ref_l = ly;
 		ref_dir = dy;
@@ -1028,7 +1043,7 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 
 	vec3 aligned_up = normalize(cross(ref_dir, eye_to_origin));
 	vec3 aligned_right = cross(eye_to_origin, aligned_up); // no need to normalize cross product of two unit vectors
-	
+
 	vec3 ps[8];
 	// The plane is defined by origin p000 and view direction as normal.
 	// By subtracting p000 from the points the plane origin is effectively moved to (0,0,0).
@@ -1070,7 +1085,7 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 	c[1] = p000 + max_u * aligned_right + min_v * aligned_up;
 	c[2] = p000 + min_u * aligned_right + max_v * aligned_up;
 	c[3] = p000 + max_u * aligned_right + max_v * aligned_up;
-	
+
 #if USE_CONSERVATIVE_DEPTH == 1
 	// The signed distance function is defined on an axis aligned box centered in the origin.
 	// The scale of the box can simply be passed to the distance calculation, however we need
@@ -1092,9 +1107,9 @@ void emit_box_billboard(int segment_idx, QTube qTube) {
 		qTube.e.pos = (get_modelview_matrix() * vec4(qTube.e.pos, 1.0)).xyz;
 		qTube_fs = qTube;
 	#endif
-	
+
 	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
-	
+
 	//mat4 MVP = get_modelview_projection_matrix();
 
 #if USE_VIEW_SPACE_POSITION == 0
@@ -1379,24 +1394,24 @@ void emit_aligned_box_billboard(int segment_idx, QTube qTube) {
 void main()
 {
 	Tube tube;
-	
+
 	node_data_type n0 = nodes[node_ids_gs[0].x];
-	
+
 	tube.s.pos = n0.pos_rad.xyz;
 	tube.s.rad = n0.pos_rad.w * radius_scale;
 	tube.s.pos_tan = n0.tangent.xyz;
 	tube.s.rad_tan = n0.tangent.w;
 
 	node_data_type n1 = nodes[node_ids_gs[0].y];
-	
+
 	tube.e.pos = n1.pos_rad.xyz;
 	tube.e.rad = n1.pos_rad.w * radius_scale;
 	tube.e.pos_tan = n1.tangent.xyz;
 	tube.e.rad_tan = n1.tangent.w;
-	
+
 	QTube qTube0, qTube1;
 	SplitTube(tube, qTube0, qTube1);
-	
+
 	segment_id_fs = segment_id_gs[0];
 
 #if USE_CUBIC_TANGENTS == 1
@@ -1413,10 +1428,32 @@ void main()
 	Mh[3] = vec4( 1,  0,  0,  0);
 	SM_fs = Bk * Mh;
 #endif
-	
+
 #if !(ATTRIB_MODE & 2)
 	color0_fs = packUnorm4x8(vec4(n0.color.rgb, 1.0));
 	color1_fs = packUnorm4x8(vec4(n1.color.rgb, 1.0));
+#endif
+#if !(TRAJ_REL_SHADING & 1)
+	{ // Evaluate trajectory relations:
+		// Transform nodes to NDC.
+		mat4 MVP   = get_modelview_projection_matrix();
+		vec4 start = MVP * vec4(tube.s.pos, 1);
+		start     /= start.w;
+		vec4 end   = MVP * vec4(tube.e.pos, 1);
+		end       /= end.w;
+
+		// Calculate AABB in NDC.
+		vec3 min = min(start, end).xyz;
+		vec3 max = max(start, end).xyz;
+
+		// Evaluate relation only for segments that intersect the view frustum.
+		// This test is not exact, but good enough.
+		if (all(lessThan(min, vec3(1.1))) && all(greaterThan(max, vec3(-1.1)))) {
+			relation0_fs = otv_trajectory_relation(node_ids_gs[0], 0);
+			relation1_fs = otv_trajectory_relation(node_ids_gs[0], 1);
+		}
+		else relation0_fs = relation1_fs = uintBitsToFloat(traj_rel_background_value());
+	}
 #endif
 
 	// only emit geometry if the tube at least partly passes the max_t threshold
