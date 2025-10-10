@@ -339,26 +339,51 @@ interval_t load_interval (span_t intervals, uint index)
 }
 
 // Trajectories ====================================================================================
-// Calculate the trajectory coordinates at parameter t in [0, 1] of a given segment.
+// Formulas for evaluating cubic Hermite splines are taken from
+// https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Representations
+
+// Calculate the coefficients of a trajectory's 3D position represented as a cubic Hermite spline in
+// monomial basis ordered by increasing degree.
+// Since these coefficients are constant over the entire segment, they can be used to efficiently
+// calculate several positions using the function `eval_position`.
+mat4x3 position_coeffs (node_data_type start, node_data_type end)
+{
+	vec3 p0 = start.pos_rad.xyz;
+	vec3 m0 = start.tangent.xyz;
+	vec3 p1 = end.pos_rad.xyz;
+	vec3 m1 = end.tangent.xyz;
+
+	return mat4x3(
+		p0,
+		m0,
+		-3*p0 - 2*m0 + 3*p1 - m1,
+		2*p0 + m0 - 2*p1 + m1
+	);
+}
+
+// Obtain the 3D position at parameter `t` in [0, 1] along a trajectory segment using coefficients
+// precalculated by `position_coeffs`.
+vec3 eval_position (mat4x3 coeffs, float t)
+{
+	float t2 = t*t;
+	float t3 = t*t2;
+	return coeffs * vec4(1, t, t2, t3);
+}
+
+// Calculate the 4D trajectory point at parameter t in [0, 1] of a given segment.
+// If only a single point is required, this function is faster than
+// `eval_position(position_coeffs)`.
 vec4 trajectory_point (node_data_type start, node_data_type end, float t)
 {
-	// Spatial coordinates: Evaluate cubic Bézier curve.
-	mat4x3 bezier = {
-		start.pos_rad.xyz,
-		start.pos_rad.xyz + start.tangent.xyz,
-		  end.pos_rad.xyz -   end.tangent.xyz,
-		  end.pos_rad.xyz,
-	};
-
 	float t2 = t*t;
-	float s  = 1.0f - t;
-	float s2 = s*s;
+	float t3 = t*t2;
 
 	return vec4(
-		// Space: cubic Bézier curve.
-		bezier * vec4(s2*s, 3*s2*t, 3*s*t2, t*t2),
-		// Time: linear interpolation.
-		s*start.t[0] + t*end.t[0]
+		(2*t3 - 3*t2 + 1)*start.pos_rad.xyz
+		+ (t3 - 2*t2 + t)*start.tangent.xyz
+		+ (-2*t3 + 3*t2)*end.pos_rad.xyz
+		+ (t3 - t2)*end.tangent.xyz,
+		mix(start.t[0], end.t[0], t)
 	);
 }
 
@@ -390,11 +415,14 @@ float eval_relation (vec4 ref_point, interval_t interval)
 	float tmin = (start - n0.t[0]) * time_scale;
 	float tmax = (end   - n0.t[0]) * time_scale;
 
+	// Calculate spline coefficients.
+	mat4x3 coeffs = position_coeffs(n0, n1);
+
 	// Evaluate the relation at one or more sample points along the interval.
 	float result = 0.0;
 	for (float t = tmin + 0.5*sample_step; t < tmax; t += sample_step) {
 		// Evaluate the trajectory for the current curve parameter.
-		vec3 sample_point = trajectory_point(n0, n1, t).xyz;
+		vec3 sample_point = eval_position(coeffs, t);
 
 		// Ignore points outside the evaluation radius.
 		vec3 offset = sample_point - ref_point.xyz;

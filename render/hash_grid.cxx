@@ -174,12 +174,12 @@ void hash_grid::add_segment (
 		std::clog << LOG_TAG" Add segment (" << start_point << ") to (" << end_point << ")\n";
 
 	/// Cubic Bézier curve defining the segment's spatial components, scaled to grid coordinates.
-	auto const [b0, b1, b2, b3] = std::array{
-		vec3{start_point},
-		vec3{start.pos_rad + start.tangent} * vec3{_scale},
-		vec3{  end.pos_rad -   end.tangent} * vec3{_scale},
-		vec3{end_point},
-	};
+	auto const [b0, b1, b2, b3] = std::to_array<vec3>({
+		start_point,
+		(start.pos_rad + start.tangent*(1/3.0f)) * _scale,
+		(  end.pos_rad -   end.tangent*(1/3.0f)) * _scale,
+		end_point,
+	});
 	// If all control points lie in the same cell, that cell contains the entire segment.
 	if (
 		start_index == round(end_point)
@@ -231,16 +231,18 @@ void hash_grid::add_segment (
 			1.0f // Limit to segment.
 		);
 
-		// Evaluate the segment for the current curve parameter.
-		auto const t2    = t*t;
-		auto const s     = 1.0f - t;
-		auto const s2    = s*s;
-		auto const point = vec4{
-			// Spatial components: Evaluate cubic Bézier.
-			s2*s*b0 + 3*s2*t*b1 + 3*s*t2*b2 + t*t2*b3,
-			// Temporal component: Linear interpolation.
-			s*start_point[3] + t*end_point[3]
-		};
+		// Evaluate the segment for the current curve parameter using de Casteljau's algorithm.
+		vec4 point;
+		{
+		auto const p01 = lerp(b0, b1, t);
+		auto const p12 = lerp(b1, b2, t);
+		auto const p23 = lerp(b2, b3, t);
+
+		auto const p02 = lerp(p01, p12, t);
+		auto const p13 = lerp(p12, p23, t);
+
+		point = lerp(vec4{p02, start_point[3]}, {p13, end_point[3]}, t);
+		}
 
 		if constexpr (log_level > 3) {
 			log("{:5.1f}% {:f}", t * 100, (start.t[0] + t*duration));
