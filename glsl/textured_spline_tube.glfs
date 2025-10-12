@@ -990,10 +990,10 @@ void main()
 	float spline_t = hit.l * 0.5 + l_offset_fs;
 	float cappiness = hit.cap ? abs(dot(qtangent, hit.normal)) : 0;// > CAPPINESS_THR;
 	//const bool is_last_seg = seg_to_traj[segment_id_fs].y == -1;
-	//#if FORWARD_SHADING == 1
- 	//	if (hit.cap && spline_t<l_max_cubic)
-	//		discard;
-	//#endif
+	#if FORWARD_SHADING == 1
+		if (hit.cap && spline_t<l_max_cubic)
+			discard;
+	#endif
 
 	if(hit.t == POS_INF || (hit.cap && hit.t > cap_clip_distance)) {
 #if MODE == 2
