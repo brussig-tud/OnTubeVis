@@ -110,4 +110,12 @@ struct trajectory_relation {
 auto get_reflection_traits(enum otv::vis::trajectory_relation::function const&)
 	-> cgv::reflect::enum_reflection_traits<enum otv::vis::trajectory_relation::function>;
 
+/// Return the unqualified identifier for the given enum value.
+[[nodiscard]] constexpr auto enum_id (enum trajectory_relation::direction dir) noexcept
+	-> std::string_view
+{
+	using std::operator""sv;
+	return std::array{"ref_to_all"sv, "all_to_ref"sv, "all_to_all"sv}[static_cast<size_t>(dir)];
+}
+
 } // namespace otv::vis

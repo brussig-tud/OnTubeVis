@@ -28,6 +28,13 @@ public:
 	/// Allocated memory remains valid, but can no longer be freed.
 	void clear ();
 
+	/// Count how many bytes of memory are currently allocated from this instance.
+	/// May include internal fragmentation, thus exceeding requested allocations.
+	[[nodiscard]] virtual auto allocated_bytes () const -> size_t
+	{
+		return _pool_alloc.allocated_bytes();
+	}
+
 private:
 	/// Coarse memory management for larger allocations.
 	buddy_alloc _buddy_alloc {};

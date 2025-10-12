@@ -5,6 +5,8 @@
 // C++ STL
 #include <cassert>
 #include <filesystem>
+#include <fstream>
+#include <print>
 
 // OS access
 #ifdef _WIN32
@@ -419,7 +421,7 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("playback_speed", playback.speed) &&
 		rh.reflect_member("datapath", datapath_helper.file_name) &&
 		rh.reflect_member("layer_config_file", layer_config_file_helper.file_name) && // ToDo: figure out proper reflection name
-		rh.reflect_member("trajectory_relation", rel_vis.function) &&
+		rh.reflect_member("trajectory_relation", traj_rel.function) &&
 		rh.reflect_member("show_hidden_glyphs", debug.show_hidden_glyphs) &&
 		rh.reflect_member("render_style", render.style) &&
 		rh.reflect_member("override_cap_clip_distance", override_cap_clip_distance_proxy) &&
@@ -1405,7 +1407,7 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 	tube_shading_defines = tube_shading.build_tube_shading_defines(
 		render.visualizations.front().config, debug.highlight_segments
 	);
-	set_rel_vis_defines(ctx);
+	set_traj_rel_defines(ctx);
 	shaders.reload(ctx, "tube_shading", { tube_shading_defines });
 
 	// reset glyph layer configuration file
@@ -1441,37 +1443,6 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 #endif
 }
 
-void on_tube_vis::build_hash_grid ()
-{
-	// Recreate grid.
-	render.build_hash_grid(hash_grid_params);
-	// Update shaders.
-	auto& ctx = *get_context();
-	set_rel_vis_defines(ctx);
-	shaders.reload(ctx, "tube_shading", { tube_shading_defines });
-	// Show new state.
-	taa.reset();
-	post_redraw();
-}
-
-void on_tube_vis::set_rel_vis_defines (cgv::render::context& ctx)
-{
-	// Set defines for trajectory relation shading.
-	render.hash_grid.set_defines(tube_shading_defines, buffer_bindings::grid_memory);
-	rel_vis.set_defines(tube_shading_defines);
-
-	auto& tstr_defines = ref_textured_spline_tube_renderer(ctx, 1).additional_defines;
-
-	// Select shading style.
-	if ((render.style.forward = !(rel_vis.shading.value & decltype(rel_vis)::shading::deferred)))
-		// In forward shading, all visualization defines must be set in the geometry render pass.
-		for (auto const& [key, val] : tube_shading_defines) tstr_defines[key] = val;
-	else {
-		render.hash_grid.set_defines(tstr_defines, buffer_bindings::grid_memory);
-		rel_vis.set_defines(tstr_defines);
-	}
-}
-
 bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 
 	auto& glyph_layer_mgr = render.visualizations.front().manager;
@@ -1489,7 +1460,7 @@ bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 		tube_shading_defines = tube_shading.build_tube_shading_defines(
 			render.visualizations.front().config, debug.highlight_segments
 		);
-		set_rel_vis_defines(ctx);
+		set_traj_rel_defines(ctx);
 		shaders.reload(ctx, "tube_shading", { tube_shading_defines });
 
 		compile_glyph_attribs();
@@ -1601,15 +1572,15 @@ void on_tube_vis::on_set(void* member_ptr)
 		tube_shading.grid_normal_inwards,
 		tube_shading.grid_normal_variant,
 		tube_shading.enable_fuzzy_grid,
-		rel_vis.shading,
-		rel_vis.function
+		traj_rel.shading,
+		traj_rel.function
 	)) {
 		tube_shading_defines = tube_shading.build_tube_shading_defines(
 			render.visualizations.front().config, debug.highlight_segments
 		);
 		context& ctx = *get_context();
 		client.extrapol_mgr.update_tube_shading(tube_shading, render.visualizations.front().config);
-		set_rel_vis_defines(ctx);
+		set_traj_rel_defines(ctx);
 		shaders.reload(ctx, "tube_shading", { tube_shading_defines });
 	}
 
@@ -2950,20 +2921,22 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 			bbox_rd.render(ctx);
 
 		// render extrapolations
-		// - enable textures
-		if (tube_shading.ao_style.enable)
-			density_tex.enable(ctx, 5);
-		color_map_mgr.ref_texture().enable(ctx, 6);
-		// - draw with alpha blending
-		glPushAttrib(GL_COLOR_BUFFER_BIT);
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			client.extrapol_mgr.draw_extrapolations(ctx, view_ptr->get_eye(), view_ptr->get_view_dir());
-		glPopAttrib();
-		// - disable textures
-		if (tube_shading.ao_style.enable)
-			density_tex.disable(ctx);
-		color_map_mgr.ref_texture().disable(ctx);
+		if (show_extrapolation) {
+			// - enable textures
+			if (tube_shading.ao_style.enable)
+				density_tex.enable(ctx, 5);
+			color_map_mgr.ref_texture().enable(ctx, 6);
+			// - draw with alpha blending
+			glPushAttrib(GL_COLOR_BUFFER_BIT);
+			glEnable(GL_BLEND);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				client.extrapol_mgr.draw_extrapolations(ctx, view_ptr->get_eye(), view_ptr->get_view_dir());
+			glPopAttrib();
+			// - disable textures
+			if (tube_shading.ao_style.enable)
+				density_tex.disable(ctx);
+			color_map_mgr.ref_texture().disable(ctx);
+		}
 
 		taa.end(ctx);
 	}
@@ -2980,7 +2953,7 @@ void on_tube_vis::after_finish(context& ctx)
 		// evaluate criterion for capturing render time
 		const float buffer_vacancy =
 			render.node_buffer.free_capacity() / float(render.node_buffer.capacity());
-		render.collect_timer_queries(buffer_vacancy < 0.5f);
+		render.collect_timer_queries(benchmark.traj_rel_start != ~0uz || buffer_vacancy < 0.5f);
 		client.extrapol_mgr.collect_timer_queries();
 	}
 
@@ -2997,7 +2970,7 @@ void on_tube_vis::after_finish(context& ctx)
 
 		view_ptr->rotate(0.0, cgv::math::deg2rad(360.0 * alpha), depth);
 
-		if(seconds_since_start >= benchmark_time)
+		if(seconds_since_start >= benchmark_time && benchmark.total_frames >= benchmark.min_frames)
 		{
 			benchmark.running = false;
 			benchmark.requested = false;
@@ -3014,6 +2987,7 @@ void on_tube_vis::after_finish(context& ctx)
 			//ss << "Sorted " << benchmark.num_sorts << " times with mean duration of " << (benchmark.sort_time_total / static_cast<double>(benchmark.num_sorts)) << "ms" << std::endl;
 
 			std::cout << ss.str() << std::endl;
+			if (benchmark.traj_rel_start != ~0uz) end_traj_rel_benchmark();
 		}
 	}
 
@@ -3149,10 +3123,10 @@ void on_tube_vis::create_gui (void)
 	add_decorator("", "separator");
 	add_heading("Visualization");
 
-	if (begin_tree_node("Trajectory Relation", rel_vis)) {
-		if (traj_mgr.has_data())
-		{
+	if (begin_tree_node("Trajectory Relation", traj_rel)) {
+		if (traj_mgr.has_data()) {
 		align("\a");
+
 		add_decorator("Hash Grid", "heading", "level=2");
 		add_member_control(this, "Layout", hash_grid_params.layout, "dropdown", "enums='"
 			"3D,Strided 3D,4D'"
@@ -3184,12 +3158,12 @@ void on_tube_vis::create_gui (void)
 			std::format("min=0;max={};log=true;ticks=true", hash_grid_params.cell_size[3] * 0.2f)
 		);
 		connect_copy(
-			add_button("OK")->click,
+			add_button("Rebuild Grid")->click,
 			cgv::signal::rebind(this, &on_tube_vis::build_hash_grid)
 		);
 
 		add_decorator("Shading", "heading", "level=2");
-		rel_vis.build_gui(
+		traj_rel.build_gui(
 			*this,
 			client.data->datasets[0].trajs.size(),
 			cgv::vec4{
@@ -3198,9 +3172,18 @@ void on_tube_vis::create_gui (void)
 			},
 			color_map_mgr.get_names()
 		);
+
+		add_decorator("Benchmark", "heading", "level=2");
+		add_member_control(this, "#Frames", benchmark.min_frames);
+		connect_copy(
+			add_button("Run Benchmark")->click,
+			cgv::signal::rebind(this, &on_tube_vis::start_traj_rel_benchmark)
+		);
+
 		align("\b");
 		}
-		end_tree_node(rel_vis);
+
+		end_tree_node(traj_rel);
 	}
 	add_decorator("", "separator");
 
@@ -3572,7 +3555,7 @@ void on_tube_vis::update_attribute_bindings(void)
 		// constant.
 		{
 		auto const extent = bbox.get_extent();
-		rel_vis.set_defaults({extent, tmax - tmin});
+		traj_rel.set_defaults({extent, tmax - tmin});
 		auto const resolution      = std::max(std::powf(num_nodes, 0.25f), 16.0f) * 1e-3f;
 		hash_grid_params.cell_size = cgv::vec4{
 			cgv::vec3{max_value(extent) * resolution},
@@ -3850,11 +3833,11 @@ void on_tube_vis::draw_trajectories(context& ctx)
 	);
 
 	{
-	using shading  = enum decltype(rel_vis)::shading;
-	auto& rel_prog = rel_vis.shading.value == (shading::deferred | shading::per_fragment)
+	using shading  = enum decltype(traj_rel)::shading;
+	auto& rel_prog = traj_rel.shading.value == (shading::deferred | shading::per_fragment)
 		? deferred_prog : tstr_prog;
 	render.hash_grid.set_uniforms(ctx, rel_prog);
-	rel_vis.set_uniforms(ctx, rel_prog);
+	traj_rel.set_uniforms(ctx, rel_prog);
 	}
 
 #ifdef RTX_SUPPORT
@@ -4012,6 +3995,111 @@ void on_tube_vis::draw_density_volume(context& ctx)
 	vr.transform_to_bounding_box(true);
 
 	vr.render(ctx, 0, 0);
+}
+
+
+void on_tube_vis::build_hash_grid ()
+{
+	// Recreate grid.
+	render.build_hash_grid(hash_grid_params);
+	// Update shaders.
+	auto& ctx = *get_context();
+	set_traj_rel_defines(ctx);
+	shaders.reload(ctx, "tube_shading", { tube_shading_defines });
+	// Show new state.
+	taa.reset();
+	post_redraw();
+}
+
+void on_tube_vis::set_traj_rel_defines (cgv::render::context& ctx)
+{
+	// Set defines for trajectory relation shading.
+	render.hash_grid.set_defines(tube_shading_defines, buffer_bindings::grid_memory);
+	traj_rel.set_defines(tube_shading_defines);
+
+	auto& tstr_defines = ref_textured_spline_tube_renderer(ctx, 1).additional_defines;
+
+	// Select shading style.
+	if ((render.style.forward = !(traj_rel.shading.value & decltype(traj_rel)::shading::deferred)))
+		// In forward shading, all visualization defines must be set in the geometry render pass.
+		for (auto const& [key, val] : tube_shading_defines) tstr_defines[key] = val;
+	else {
+		render.hash_grid.set_defines(tstr_defines, buffer_bindings::grid_memory);
+		traj_rel.set_defines(tstr_defines);
+	}
+}
+
+void on_tube_vis::start_traj_rel_benchmark ()
+{
+	// Ensure the hash grid is up to date.
+	build_hash_grid();
+	// Render only trajectories and GUI.
+	benchmark_mode_setup = false;
+	show_extrapolation   = false;
+	benchmark_mode       = true;
+	// Disable antialiasing.
+	taa.set_enabled(false);
+	on_set(&taa);
+	// Only measurements after this point will be included in the results.
+	benchmark.traj_rel_start = render.stats.render_times.measurements.size();
+	// Trigger benchmark starting with the next frame.
+	SET_MEMBER(benchmark.requested, true);
+	post_redraw();
+}
+
+void on_tube_vis::end_traj_rel_benchmark ()
+{
+	// Write results to a CSV file.
+	using namespace std::chrono;
+	auto result_file = std::ofstream{std::format(
+		"{:%F_%T}.csv",
+		zoned_seconds{current_zone(), round<seconds>(system_clock::now())}
+	)};
+	// Write parameters.
+	auto const& frame_buffer = fbc.ref_frame_buffer();
+	std::print(result_file,
+		"num_pixels\t{}\n"
+		"grid_layout\t{}\n"
+		"cell_size_x\t{}\n"
+		"cell_size_y\t{}\n"
+		"cell_size_z\t{}\n"
+		"cell_size_t\t{}\n"
+		"sampling_space\t{}\n"
+		"sampling_time\t{}\n"
+		"shading\t{}\n"
+		"function\t{}\n"
+		"radius_space\t{}\n"
+		"radius_time\t{}\n"
+		"sample_rate\t{}\n"
+		"direction\t{}\n"
+		"memory\t{}\n",
+		frame_buffer.get_width() * frame_buffer.get_height(),
+		enum_id(hash_grid_params.layout),
+		hash_grid_params.cell_size.x(),
+		hash_grid_params.cell_size.y(),
+		hash_grid_params.cell_size.z(),
+		hash_grid_params.cell_size[3],
+		hash_grid_params.sample_step[0],
+		hash_grid_params.sample_step[1],
+		traj_rel.shading.value,
+		get_reflection_traits(traj_rel.function)
+			.get_enum_name(static_cast<unsigned>(traj_rel.function)),
+		traj_rel.radius[0],
+		traj_rel.radius[1],
+		traj_rel.sample_rate,
+		enum_id(traj_rel.direction),
+		render.grid_mem ? render.grid_mem->allocated_bytes() : 0uz
+	);
+	// Write render time measurements.
+	for (auto const t:
+		std::span{render.stats.render_times.measurements}.subspan(benchmark.traj_rel_start)
+	) std::print(result_file, "time\t{}\n", t.count());
+	// Exit benchmark mode.
+	benchmark_mode           = false;
+	benchmark.traj_rel_start = ~0uz;
+	// Render additonal elements.
+	show_wireframe_bbox = show_extrapolation = true;
+	navigator_ptr->set_visibility(true);
 }
 
 

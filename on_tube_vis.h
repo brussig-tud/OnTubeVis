@@ -232,13 +232,6 @@ protected:
 
 	/// tube shading settings
 	tube_shading_settings tube_shading;
-	otv::vis::trajectory_relation rel_vis {};
-
-	/// Trajectory hash grid settings.
-	otv::hash_grid::params hash_grid_params {
-		.cell_size = {},
-		.layout    = otv::hash_grid::layout::xyzt,
-	};
 
 protected:
 	/// shader defines for the deferred shading pass
@@ -300,11 +293,6 @@ protected:
 		/// vertex buffer for the quad containing the map for the RTLola drone flight demo dataset
 		vertex_buffer rtlola_map_vbo;
 	} dataset;
-
-	/// Create a new trajectory hash grid with the current parameters, then insert all segments.
-	void build_hash_grid ();
-	/// Set shader defines for calculating and visualizing trajectory relations using the hash grid.
-	void set_rel_vis_defines (cgv::render::context&);
 
 public:
 	bool toggle_taa_proxy = true;
@@ -370,6 +358,7 @@ protected:
 
 	bool show_bbox = false;
 	bool show_wireframe_bbox = true;
+	bool show_extrapolation = true;
 
 public:
 	cgv::render::box_render_data<> bbox_rd;
@@ -408,19 +397,26 @@ protected:
 
 	/// benchmark state fields
 	struct {
-		/// whether a benchmark run is requested
-		bool requested = false;
-		/// whether a benchmark is currently running
-		bool running = false;
 		/// timer to count elapsed time
 		cgv::utils::stopwatch timer;
-		/// counter for rendered frames
-		unsigned total_frames;
 		/// store last seconds since the start of the run
 		double last_seconds_since_start;
 
 		double sort_time_total = 0.0;
+		/// Index of the first `render_time` measurement during the current trajectory relation
+		/// benchmark.
+		/// Set to ~0 if no such benchmark is running.
+		size_t traj_rel_start = ~0uz;
+		/// counter for rendered frames
+		unsigned total_frames;
+		/// Number of frames that must be rendered before the benchmark ends.
+		unsigned min_frames = 0;
 		unsigned num_sorts = 0;
+		/// whether a benchmark run is requested
+		bool requested = false;
+		/// whether a benchmark is currently running
+		bool running = false;
+
 	} benchmark;
 
 	/// the different debug render modes
@@ -533,6 +529,26 @@ protected:
 	/// helper methods
 	void on_register();
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
+
+
+	/// Trajectory hash grid settings.
+	otv::hash_grid::params hash_grid_params {
+		.cell_size = {},
+		.layout    = otv::hash_grid::layout::xyzt,
+	};
+	/// Settings for on-the-fly evaluation and visualization of relations between trajectories using
+	/// the hash grid.
+	otv::vis::trajectory_relation traj_rel {};
+
+	/// Create a new trajectory hash grid with the current parameters, then insert all segments.
+	void build_hash_grid ();
+	/// Set shader defines for calculating and visualizing trajectory relations using the hash grid.
+	void set_traj_rel_defines (cgv::render::context&);
+	/// Begin a render time benchmark for the visualization of trajectory relations.
+	void start_traj_rel_benchmark ();
+	/// Called when all measurements for a trajectory relation benchmark have been taken.
+	/// Writes the results to a CSV file and restores settings.
+	void end_traj_rel_benchmark ();
 
 public:
 	on_tube_vis();

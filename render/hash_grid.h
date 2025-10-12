@@ -305,4 +305,11 @@ private:
 		-> bucket_t&;
 };
 
+/// Return the unqualified identifier for the given enum value.
+[[nodiscard]] constexpr auto enum_id (hash_grid::layout layout) noexcept -> std::string_view
+{
+	using std::operator""sv;
+	return std::array{"xyz", "t_xyz", "xyzt"}[static_cast<size_t>(layout)];
+}
+
 } // namespace otv

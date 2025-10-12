@@ -85,6 +85,17 @@ void pool_alloc::leak ()
 	for (auto* pool = &_pools[0]; pool < &_pools[_max_order - _min_order]; ++pool) pool->clear();
 }
 
+auto pool_alloc::allocated_bytes () const -> size_t
+{
+	if (!_pools) return 0;
+
+	auto num_bytes = 0uz;
+	for (auto order = _min_order; order < _max_order; ++order)
+		for (auto const& chunk : _pools[order - _min_order])
+			num_bytes += _chunk_size - chunk.capacity * (1uz << order);
+	return num_bytes;
+}
+
 auto pool_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 {
 	// Allocator must be initialized and not moved from.
@@ -239,13 +250,7 @@ void pool_alloc::clean_up () noexcept
 	// Check if there are any allocations that have not been freed
 	// Remaining chunks are not freed; this leaks memory but avoids potential crashes from freeing
 	// objects still in use.
-	auto allocated_bytes = 0uz;
-
-	for (auto order = _min_order; order < _max_order; ++order)
-		for (auto const& chunk : _pools[order - _min_order])
-			allocated_bytes += chunk.capacity * (1uz << order);
-
-	if (allocated_bytes > 0)
+	if (auto const allocated_bytes = this->allocated_bytes(); allocated_bytes > 0)
 		log("\x1b[1;31m[error]\x1b[m" LOG_TAG" {} bytes leaked.\n", allocated_bytes);
 #endif
 }

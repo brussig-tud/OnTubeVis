@@ -44,6 +44,10 @@ public:
 	/// Allocations from this instance remain valid, but can no longer be freed by it.
 	void leak ();
 
+	/// Count how many bytes of memory are currently allocated from this instance.
+	/// Includes unused memory within allocated blocks, but not unallocated blocks within chunks.
+	[[nodiscard]] auto allocated_bytes () const -> size_t;
+
 private:
 	/// A chunk of memory obtained from the parent allocator, subdivided into smaller blocks.
 	struct chunk {
