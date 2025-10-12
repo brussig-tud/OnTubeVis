@@ -205,7 +205,7 @@ ptr_t bucket (span_t table, uint signature, uint hash_fn)
 		// PCG hash relation by O'Neill 2014, as implemented by Jarzynski and Olano 2020.
 
 		// Choose the seed.
-		uvec3 s = uvec3[](
+		const uvec3 s = uvec3[](
 			uvec3(747796405u, 2891336453u, 277803737u)
 		)[hash_fn - 1];
 
@@ -223,7 +223,7 @@ ptr_t bucket (span_t table, uint signature, uint hash_fn)
 // Load an entry of the hash table from the grid buffer.
 slot_t load_slot (ptr_t bucket, uint index)
 {
-	uvec2 data = load2(offset_bytes(bucket, index * sizeof_slot));
+	const uvec2 data = load2(offset_bytes(bucket, index * sizeof_slot));
 	return slot_t(data[0], ptr_t(data[1]));
 }
 
@@ -245,14 +245,14 @@ cell_t load_cell (ptr_t ptr)
 // If the cell is not stored in the table, return an empty span.
 span_t query (span_t table, index_t index)
 {
-	uint signature = signature(index);
+	const uint signature = signature(index);
 
 	// Try all hash functions.
 	for (uint fn = 0; fn < num_hash_fns; ++fn) {
-		ptr_t bucket = bucket(table, signature, fn);
+		const ptr_t bucket = bucket(table, signature, fn);
 
 		for (uint i = 0; i < slots_per_bucket; ++i) {
-			slot_t slot = load_slot(bucket, i);
+			const slot_t slot = load_slot(bucket, i);
 			// Buckets are filled front to back, so if one slot is empty, the remaining ones are as
 			// well.
 			if (slot.cell == null) break;
@@ -260,7 +260,7 @@ span_t query (span_t table, index_t index)
 			if (slot.signature != signature) continue;
 
 			// If the signature matches, check the index.
-			cell_t cell = load_cell(slot.cell);
+			const cell_t cell = load_cell(slot.cell);
 			if (cell.index != index) continue;
 
 			// The cell has been found.
@@ -285,7 +285,7 @@ span_t find_table (int timestep)
 // Load a bucket range from the table vector.
 span_t load_table (uint table_idx)
 {
-	uvec2 data = load2(offset_bytes(hash_grid_data.start, table_idx * 8));
+	const uvec2 data = load2(offset_bytes(hash_grid_data.start, table_idx * 8));
 	return span_t(ptr_t(data[0]), data[1]);
 }
 
@@ -303,17 +303,17 @@ uvec2 table_range (int min_timestep, int max_timestep)
 	int lo = 0;
 	int hi = int(hash_grid_data.len) - 1;
 	while (lo < hi) {
-		int mid = (lo + hi) / 2;
+		const int mid = (lo + hi) / 2;
 		if (min_timestep <= load_timestep(mid)) hi = mid;
 		else lo = mid + 1;
 	}
 	// Save the result.
-	uint start = lo;
+	const uint start = lo;
 
 	// Binary search for the latest timestep no larger than the query's upper limit.
 	hi = int(hash_grid_data.len) - 1;
 	while (lo < hi) {
-		int mid = (lo + hi) / 2;
+		const int mid = (lo + hi) / 2;
 		if (max_timestep > load_timestep(mid)) lo = mid + 1;
 		else hi = mid;
 	}
@@ -325,7 +325,7 @@ uvec2 table_range (int min_timestep, int max_timestep)
 // If the vector contains no entry for the queried timestep, an empty null span is returned.
 span_t find_table (int timestep)
 {
-	uint table_idx = table_range(timestep, timestep)[0];
+	const uint table_idx = table_range(timestep, timestep)[0];
 	if (table_idx >= hash_grid_data.len || load_timestep(table_idx) != timestep) return null_span;
 	return load_table(table_idx);
 }
@@ -334,7 +334,7 @@ span_t find_table (int timestep)
 // Load one of the trajectory intervals in a cell from the grid buffer.
 interval_t load_interval (span_t intervals, uint index)
 {
-	uvec4 data = load4(offset_bytes(intervals.start, index * sizeof_interval));
+	const uvec4 data = load4(offset_bytes(intervals.start, index * sizeof_interval));
 	return interval_t(data.xy, uintBitsToFloat(data.zw));
 }
 
@@ -348,10 +348,10 @@ interval_t load_interval (span_t intervals, uint index)
 // calculate several positions using the function `eval_position`.
 mat4x3 position_coeffs (node_data_type start, node_data_type end)
 {
-	vec3 p0 = start.pos_rad.xyz;
-	vec3 m0 = start.tangent.xyz;
-	vec3 p1 = end.pos_rad.xyz;
-	vec3 m1 = end.tangent.xyz;
+	const vec3 p0 = start.pos_rad.xyz;
+	const vec3 m0 = start.tangent.xyz;
+	const vec3 p1 = end.pos_rad.xyz;
+	const vec3 m1 = end.tangent.xyz;
 
 	return mat4x3(
 		p0,
@@ -365,8 +365,8 @@ mat4x3 position_coeffs (node_data_type start, node_data_type end)
 // precalculated by `position_coeffs`.
 vec3 eval_position (mat4x3 coeffs, float t)
 {
-	float t2 = t*t;
-	float t3 = t*t2;
+	const float t2 = t*t;
+	const float t3 = t*t2;
 	return coeffs * vec4(1, t, t2, t3);
 }
 
@@ -375,8 +375,8 @@ vec3 eval_position (mat4x3 coeffs, float t)
 // `eval_position(position_coeffs)`.
 vec4 trajectory_point (node_data_type start, node_data_type end, float t)
 {
-	float t2 = t*t;
-	float t3 = t*t2;
+	const float t2 = t*t;
+	const float t3 = t*t2;
 
 	return vec4(
 		(2*t3 - 3*t2 + 1)*start.pos_rad.xyz
@@ -393,39 +393,39 @@ vec4 trajectory_point (node_data_type start, node_data_type end, float t)
 float eval_relation (vec4 ref_point, interval_t interval)
 {
 	// Load node data.
-	node_data_type n0 = nodes[interval.nodes[0]];
-	node_data_type n1 = nodes[interval.nodes[1]];
+	const node_data_type n0 = nodes[interval.nodes[0]];
+	const node_data_type n1 = nodes[interval.nodes[1]];
 
 	// Intersect trajectory interval and evaluated time frame.
-	float start    = max(interval.time[0], ref_point[3] - traj_rel_radius[1]);
-	float end      = min(interval.time[1], ref_point[3] + traj_rel_radius[1]);
-	float timespan = end - start;
+	const float start    = max(interval.time[0], ref_point[3] - traj_rel_radius[1]);
+	const float end      = min(interval.time[1], ref_point[3] + traj_rel_radius[1]);
+	const float timespan = end - start;
 	if (timespan <= 0) return 0;
 
 	// Determine how often the interval should be sampled.
-	float num_samples = ceil(timespan * traj_rel_sample_rate);
+	const float num_samples = ceil(timespan * traj_rel_sample_rate);
 	if (function == fn_dbg_num_samples) return num_samples;
 
 	// Divide the evaluated range into equal steps.
-	float time_scale  = 1.0 / (n1.t[0] - n0.t[0]);
-	float sampling    = 1.0 / num_samples;
-	float sample_step = timespan * time_scale * sampling;
+	const float time_scale  = 1.0 / (n1.t[0] - n0.t[0]);
+	const float sampling    = 1.0 / num_samples;
+	const float sample_step = timespan * time_scale * sampling;
 
 	// Map time to curve parameter.
-	float tmin = (start - n0.t[0]) * time_scale;
-	float tmax = (end   - n0.t[0]) * time_scale;
+	const float tmin = (start - n0.t[0]) * time_scale;
+	const float tmax = (end   - n0.t[0]) * time_scale;
 
 	// Calculate spline coefficients.
-	mat4x3 coeffs = position_coeffs(n0, n1);
+	const mat4x3 coeffs = position_coeffs(n0, n1);
 
 	// Evaluate the relation at one or more sample points along the interval.
 	float result = 0.0;
 	for (float t = tmin + 0.5*sample_step; t < tmax; t += sample_step) {
 		// Evaluate the trajectory for the current curve parameter.
-		vec3 sample_point = eval_position(coeffs, t);
+		const vec3 sample_point = eval_position(coeffs, t);
 
 		// Ignore points outside the evaluation radius.
-		vec3 offset = sample_point - ref_point.xyz;
+		const vec3 offset = sample_point - ref_point.xyz;
 		if (dot(offset, offset) > traj_rel_radius[0]*traj_rel_radius[0]) continue;
 
 		// Evaluate the relation.
@@ -449,8 +449,8 @@ float eval_relation (vec4 ref_point, interval_t interval)
 float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 {
 	// Load node data.
-	node_data_type start = nodes[node_ids[0]];
-	node_data_type end   = nodes[node_ids[1]];
+	const node_data_type start = nodes[node_ids[0]];
+	const node_data_type end   = nodes[node_ids[1]];
 
 	// If only the reference trajectory is to be shaded, mark all others as background.
 	if (traj_rel_direction == dir_ref_to_all && start.t[1] != traj_rel_ref_traj)
@@ -463,8 +463,8 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 	if (function == fn_dbg_seg_t) return seg_t;
 
 	// Calculate data-space coordinates and grid cell at the given trajectory point.
-	vec4 local_point  = trajectory_point(start, end, seg_t);
-	ivec4 local_index = cell_index(local_point);
+	const vec4 local_point  = trajectory_point(start, end, seg_t);
+	const ivec4 local_index = cell_index(local_point);
 
 	// Color by grid cell (spatial).
 	if (function == fn_dbg_index_xyz)
@@ -480,24 +480,24 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 	// Color by hash bucket load.
 	if (function == fn_dbg_bucket_load) {
 		// Load the bucket range for the local timestep.
-		span_t table = find_table(local_index[3]);
+		const span_t table = find_table(local_index[3]);
 		if (table.start == null) return uintBitsToFloat(highlight_value);
 		// Find the bucket containing the local point and count how many of tis slots are in use.
-		uint fill = bucket_fill(bucket(table, signature(index_t(local_index)), 1));
+		const uint fill = bucket_fill(bucket(table, signature(index_t(local_index)), 1));
 		return float(fill) / slots_per_bucket;
 	}
 	// Color by local trajectory interval.
 	if (function == fn_dbg_local_interval) {
 		// Load the bucket range for the local timestep.
-		span_t table = find_table(local_index[3]);
+		const span_t table = find_table(local_index[3]);
 		if (table.start == null) return uintBitsToFloat(highlight_value);
 		// Find the cell containing this fragment.
-		span_t local_intervals = query(table, index_t(local_index));
+		const span_t local_intervals = query(table, index_t(local_index));
 		// Within that cell, find the interval containing the fragment.
 		for (uint i = 0; i < local_intervals.len; ++i) {
-			interval_t interval = load_interval(local_intervals, i);
-			float t0            = interval.time[0];
-			float t1            = interval.time[1];
+			const interval_t interval = load_interval(local_intervals, i);
+			const float t0            = interval.time[0];
+			const float t1            = interval.time[1];
 
 			if (interval.nodes == node_ids && local_point[3] >= t0 && local_point[3] <= t1)
 				// Color by interval-local curve parameter.
@@ -508,26 +508,26 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 	}
 
 	// AABB of cells to query.
-	vec4 max_offset = vec4(vec3(traj_rel_radius[0]), traj_rel_radius[1]);
-	ivec4 min_cell  = cell_index(local_point - max_offset);
-	ivec4 max_cell  = cell_index(local_point + max_offset);
+	const vec4 max_offset = vec4(vec3(traj_rel_radius[0]), traj_rel_radius[1]);
+	const ivec4 min_cell  = cell_index(local_point - max_offset);
+	const ivec4 max_cell  = cell_index(local_point + max_offset);
 
 	// Iff the distance squared between a cell's center and the local point is larger than this
 	// value, all points within that cell are outside the evaluation radius.
-	float max_cell_dist2 = traj_rel_radius[0] + length(hash_grid_cell_size.xyz)*0.5;
-	max_cell_dist2      *= max_cell_dist2;
+	const float max_cell_dist  = traj_rel_radius[0] + length(hash_grid_cell_size.xyz)*0.5;
+	const float max_cell_dist2 = max_cell_dist*max_cell_dist;
 
 	// Value of the relation at the local point.
 	float result = 0;
 
 #if HASH_GRID_LAYOUT == LAYOUT_T_XYZ
 	// Iterate over the hash tables of all timesteps within the evaluated radius.
-	uvec2 table_range = table_range(min_cell[3], max_cell[3]);
+	const uvec2 table_range = table_range(min_cell[3], max_cell[3]);
 	for (uint table_idx = table_range[0]; table_idx <= table_range[1]; ++table_idx) {
-		span_t table = load_table(table_idx);
+		const span_t table = load_table(table_idx);
 #else
 	// All layouts other than t_xyz have only one hash table.
-	span_t table = hash_grid_data;
+	const span_t table = hash_grid_data;
 
 #if HASH_GRID_LAYOUT == LAYOUT_XYZT
 	// Iterate over the AABB's temporal extent.
@@ -540,21 +540,21 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 	for (int z = min_cell.z; z <= max_cell.z; ++z)
 	for (int y = min_cell.y; y <= max_cell.y; ++y)
 	for (int x = min_cell.x; x <= max_cell.x; ++x) {
-		index_t index = {x, y, z
+		const index_t index = {x, y, z
 			#if HASH_GRID_LAYOUT == LAYOUT_XYZT
 				, time
 			#endif
 		};
 
 		// Skip cells within the AABB, but outside the evaluation radius.
-		vec3 offset = local_point.xyz - index.xyz*hash_grid_cell_size.xyz;
+		const vec3 offset = local_point.xyz - index.xyz*hash_grid_cell_size.xyz;
 		if (dot(offset, offset) > max_cell_dist2) {
 			if (function == fn_dbg_skipped_cells) ++result;
 			continue;
 		}
 
 		// Search the hash table for the current cell and return the intervals it contains.
-		span_t intervals = query(table, index);
+		const span_t intervals = query(table, index);
 
 		switch (function.value) {
 		case fn_dbg_num_cells.value:
@@ -567,7 +567,7 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 
 		// Process all intervals within the cell.
 		for (uint i = 0; i < intervals.len; ++i) {
-			interval_t interval = load_interval(intervals, i);
+			const interval_t interval = load_interval(intervals, i);
 
 			if (
 				// Only evaluate intervals of the reference trajectory.
@@ -582,7 +582,7 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 	}
 
 	// Normalize the relation value.
-	float norm_time = traj_rel_normalize ? 2*traj_rel_radius[1] : 1;
+	const float norm_time = traj_rel_normalize ? 2*traj_rel_radius[1] : 1;
 
 	switch (function.value) {
 	case fn_distance.value: // Distance.
@@ -594,7 +594,7 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 	}
 
 	// Map the relation value to a color.
-	vec2 range = traj_rel_color_range;
+	const vec2 range = traj_rel_color_range;
 
 	if (traj_rel_log_scale)
 		// log base 10.
@@ -609,11 +609,9 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 // Visualize a trajectory relation value as a color.
 vec3 otv_shade_relation (float value)
 {
-	uint bits = floatBitsToUint(value);
+	const uint bits = floatBitsToUint(value);
 	if (function == fn_dbg_index_xyz) return unpackUnorm4x8(bits).xyz;
 	if (bits == background_value)     return traj_rel_background_color;
 	if (bits == highlight_value)      return traj_rel_highlight_color;
-
-	int color_map = function == fn_dbg_signature ? 19 : traj_rel_color_map;
-	return map_to_color(value, color_map);
+	return map_to_color(value, function == fn_dbg_signature ? 19 : traj_rel_color_map);
 }
