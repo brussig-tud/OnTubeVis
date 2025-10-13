@@ -8,20 +8,19 @@ const direction_t dir_all_to_ref = {1};
 const direction_t dir_all_to_all = {2};
 
 // The value to visualize.
-struct function_t {uint value;};
-const function_t fn_none               = {0};
-const function_t fn_distance           = {1 + fn_none.value};
-const function_t fn_dbg_seg_t          = {1 + fn_distance.value};
-const function_t fn_dbg_index_xyz      = {1 + fn_dbg_seg_t.value};
-const function_t fn_dbg_index_t        = {1 + fn_dbg_index_xyz.value};
-const function_t fn_dbg_signature      = {1 + fn_dbg_index_t.value};
-const function_t fn_dbg_bucket_load    = {1 + fn_dbg_signature.value};
-const function_t fn_dbg_local_interval = {1 + fn_dbg_bucket_load.value};
-const function_t fn_dbg_skipped_cells  = {1 + fn_dbg_local_interval.value};
-const function_t fn_dbg_num_cells      = {1 + fn_dbg_skipped_cells.value};
-const function_t fn_dbg_num_intervals  = {1 + fn_dbg_num_cells.value};
-const function_t fn_dbg_num_samples    = {1 + fn_dbg_num_intervals.value};
-const function_t fn_dbg_num_evals      = {1 + fn_dbg_num_samples.value};
+#define FN_NONE               0
+#define FN_DISTANCE           1 + FN_NONE
+#define FN_DBG_SEG_T          1 + FN_DISTANCE
+#define FN_DBG_INDEX_XYZ      1 + FN_DBG_SEG_T
+#define FN_DBG_INDEX_T        1 + FN_DBG_INDEX_XYZ
+#define FN_DBG_SIGNATURE      1 + FN_DBG_INDEX_T
+#define FN_DBG_BUCKET_LOAD    1 + FN_DBG_SIGNATURE
+#define FN_DBG_LOCAL_INTERVAL 1 + FN_DBG_BUCKET_LOAD
+#define FN_DBG_SKIPPED_CELLS  1 + FN_DBG_LOCAL_INTERVAL
+#define FN_DBG_NUM_CELLS      1 + FN_DBG_SKIPPED_CELLS
+#define FN_DBG_NUM_INTERVALS  1 + FN_DBG_NUM_CELLS
+#define FN_DBG_NUM_SAMPLES    1 + FN_DBG_NUM_INTERVALS
+#define FN_DBG_NUM_EVALS      1 + FN_DBG_NUM_SAMPLES
 
 // Describes which dimensions the hash grid indexes and how it is organized in memory.
 #define LAYOUT_XYZ   0
@@ -30,8 +29,8 @@ const function_t fn_dbg_num_evals      = {1 + fn_dbg_num_samples.value};
 
 // Special values returned by `otv_trajectory_relation`, encoded as quiet NaNs.
 const uint nan              = 0xffc00000u;
-const uint background_value = nan | 1;
-const uint highlight_value  = nan | 2;
+const uint background_value = nan | 1u;
+const uint highlight_value  = nan | 2u;
 
 uint traj_rel_background_value()
 {
@@ -46,6 +45,7 @@ uint traj_rel_background_value()
 #define HASH_GRID_SLOTS_PER_BUCKET 0
 #define HASH_GRID_CELL_HEADER_SIZE 0
 #define HASH_GRID_LAYOUT           0
+#define TRAJ_REL_SHADING           0
 #define TRAJ_REL_FUNCTION          0
 
 // Index at which the SSBO containing the hash grid is bound.
@@ -58,8 +58,6 @@ const uint num_hash_fns = HASH_GRID_NUM_HASH_FNS;
 const uint slots_per_bucket = HASH_GRID_SLOTS_PER_BUCKET;
 // Offset of a cell's intervals array from its base address.
 const uint cell_header_size = HASH_GRID_CELL_HEADER_SIZE;
-// The relation or debug value to calculte and visualize.
-const function_t function = {TRAJ_REL_FUNCTION};
 
 // Types ###########################################################################################
 struct node_data_type {
@@ -172,106 +170,6 @@ uvec4 load4 (ptr_t ptr)
 }
 
 // Hash grid =======================================================================================
-// Calculate the index of the cell containing a given point.
-ivec4 cell_index (vec4 point)
-{
-	return ivec4(round(point * hash_grid_scale));
-}
-
-// Hash a cell index into a 32-bit signature using xxhash32 as implemented by Jarzynski and Olano
-// 2020 with coordinates rotated.
-uint signature (index_t index)
-{
-	// Prime constants.
-	const uint[] p = {2246822519u, 3266489917u, 668265263u, 374761393u};
-
-	uint sig = uint(index[0]) + p[3];
-
-	for (uint d = 1; d < (HASH_GRID_LAYOUT == LAYOUT_XYZT ? 4 : 3); ++d) {
-		sig += uint(index[d]) * p[1];
-		sig  = p[2] * ((sig << 17) | (sig >> 15));
-	}
-	sig = p[0] * (sig ^ (sig >> 15));
-	sig = p[1] * (sig ^ (sig >> 13));
-	return sig ^ (sig >> 16);
-}
-
-// Calculate the base address of the bucket that `hash_fn` maps `signature` onto.
-ptr_t bucket (span_t table, uint signature, uint hash_fn)
-{
-	uint hash = signature;
-
-	if (hash_fn != 0) {
-		// PCG hash relation by O'Neill 2014, as implemented by Jarzynski and Olano 2020.
-
-		// Choose the seed.
-		const uvec3 s = uvec3[](
-			uvec3(747796405u, 2891336453u, 277803737u)
-		)[hash_fn - 1];
-
-		hash = signature * s[0] + s[1];
-		hash = ((hash >> ((hash >> 28) + 4)) ^ hash) * s[2];
-		hash = (hash >> 22) ^ hash;
-	}
-
-	return offset_bytes(
-		table.start,
-		(hash & (table.len - 1)) * slots_per_bucket * sizeof_slot
-	);
-}
-
-// Load an entry of the hash table from the grid buffer.
-slot_t load_slot (ptr_t bucket, uint index)
-{
-	const uvec2 data = load2(offset_bytes(bucket, index * sizeof_slot));
-	return slot_t(data[0], ptr_t(data[1]));
-}
-
-// Count the occupied slots in a hash bucket.
-uint bucket_fill (ptr_t bucket)
-{
-	uint fill = slots_per_bucket;
-	while (fill > 0 && load_slot(bucket, fill - 1).cell == null) --fill;
-	return fill;
-}
-
-// Load a grid cell's header from the grid buffer.
-cell_t load_cell (ptr_t ptr)
-{
-	return cell_t(index_t(load4(ptr)), load1(offset_bytes(ptr, 16)));
-}
-
-// Search the hash table for a given cell and return the trajectory intervals it contains.
-// If the cell is not stored in the table, return an empty span.
-span_t query (span_t table, index_t index)
-{
-	const uint signature = signature(index);
-
-	// Try all hash functions.
-	for (uint fn = 0; fn < num_hash_fns; ++fn) {
-		const ptr_t bucket = bucket(table, signature, fn);
-
-		for (uint i = 0; i < slots_per_bucket; ++i) {
-			const slot_t slot = load_slot(bucket, i);
-			// Buckets are filled front to back, so if one slot is empty, the remaining ones are as
-			// well.
-			if (slot.cell == null) break;
-			// Look for a matching signature.
-			if (slot.signature != signature) continue;
-
-			// If the signature matches, check the index.
-			const cell_t cell = load_cell(slot.cell);
-			if (cell.index != index) continue;
-
-			// The cell has been found.
-			return span_t(offset_bytes(slot.cell, cell_header_size), cell.size);
-		}
-	}
-
-	// The cell could not be found.
-	return null_span;
-}
-
 #if HASH_GRID_LAYOUT != LAYOUT_T_XYZ
 // Return a pointer to the buckets for a given temporal index.
 span_t find_table (int timestep)
@@ -330,6 +228,98 @@ span_t find_table (int timestep)
 	return load_table(table_idx);
 }
 #endif
+
+// Calculate the index of the cell containing a given point.
+ivec4 cell_index (vec4 point)
+{
+	return ivec4(round(point * hash_grid_scale));
+}
+
+// Hash a cell index into a 32-bit signature using xxhash32 as implemented by Jarzynski and Olano
+// 2020 with coordinates rotated.
+uint signature (index_t index)
+{
+	// Prime constants.
+	const uint[] p = {2246822519u, 3266489917u, 668265263u, 374761393u};
+
+	uint sig = uint(index[0]) + p[3];
+
+	for (uint d = 1; d < (HASH_GRID_LAYOUT == LAYOUT_XYZT ? 4 : 3); ++d) {
+		sig += uint(index[d]) * p[1];
+		sig  = p[2] * ((sig << 17) | (sig >> 15));
+	}
+	sig = p[0] * (sig ^ (sig >> 15));
+	sig = p[1] * (sig ^ (sig >> 13));
+	return sig ^ (sig >> 16);
+}
+
+// Calculate the base address of the bucket that `hash_fn` maps `signature` onto.
+ptr_t bucket (span_t table, uint signature, uint hash_fn)
+{
+	uint hash = signature;
+
+	if (hash_fn != 0) {
+		// PCG hash relation by O'Neill 2014, as implemented by Jarzynski and Olano 2020.
+
+		// Choose the seed.
+		const uvec3 s = uvec3[](
+			uvec3(747796405u, 2891336453u, 277803737u)
+		)[hash_fn - 1];
+
+		hash = signature * s[0] + s[1];
+		hash = ((hash >> ((hash >> 28) + 4)) ^ hash) * s[2];
+		hash = (hash >> 22) ^ hash;
+	}
+
+	return offset_bytes(
+		table.start,
+		(hash & (table.len - 1)) * slots_per_bucket * sizeof_slot
+	);
+}
+
+// Load an entry of the hash table from the grid buffer.
+slot_t load_slot (ptr_t bucket, uint index)
+{
+	const uvec2 data = load2(offset_bytes(bucket, index * sizeof_slot));
+	return slot_t(data[0], ptr_t(data[1]));
+}
+
+// Load a grid cell's header from the grid buffer.
+cell_t load_cell (ptr_t ptr)
+{
+	return cell_t(index_t(load4(ptr)), load1(offset_bytes(ptr, 16)));
+}
+
+// Search the hash table for a given cell and return the trajectory intervals it contains.
+// If the cell is not stored in the table, return an empty span.
+span_t query (span_t table, index_t index)
+{
+	const uint signature = signature(index);
+
+	// Try all hash functions.
+	for (uint fn = 0; fn < num_hash_fns; ++fn) {
+		const ptr_t bucket = bucket(table, signature, fn);
+
+		for (uint i = 0; i < slots_per_bucket; ++i) {
+			const slot_t slot = load_slot(bucket, i);
+			// Buckets are filled front to back, so if one slot is empty, the remaining ones are as
+			// well.
+			if (slot.cell == null) break;
+			// Look for a matching signature.
+			if (slot.signature != signature) continue;
+
+			// If the signature matches, check the index.
+			const cell_t cell = load_cell(slot.cell);
+			if (cell.index != index) continue;
+
+			// The cell has been found.
+			return span_t(offset_bytes(slot.cell, cell_header_size), cell.size);
+		}
+	}
+
+	// The cell could not be found.
+	return null_span;
+}
 
 // Load one of the trajectory intervals in a cell from the grid buffer.
 interval_t load_interval (span_t intervals, uint index)
@@ -404,7 +394,13 @@ float eval_relation (vec4 ref_point, interval_t interval)
 
 	// Determine how often the interval should be sampled.
 	const float num_samples = ceil(timespan * traj_rel_sample_rate);
-	if (function == fn_dbg_num_samples) return num_samples;
+	if (TRAJ_REL_FUNCTION == FN_DBG_NUM_SAMPLES)
+		// TODO: For whatever reason, if the return value of this function is a simple conditional
+		// (0 if timespan <= 0, potentially different value otherwise), it can freeze the system.
+		// This was observed under amdgpu, but only in the deferred shading pass and only if the
+		// result is trivial; if actual samples are evaluated there is no issue.
+		// For now, the problematic conditional is avoided by always returning 0.
+		return TRAJ_REL_SHADING == 3 ? 0 : num_samples;
 
 	// Divide the evaluated range into equal steps.
 	const float time_scale  = 1.0 / (n1.t[0] - n0.t[0]);
@@ -429,15 +425,13 @@ float eval_relation (vec4 ref_point, interval_t interval)
 		if (dot(offset, offset) > traj_rel_radius[0]*traj_rel_radius[0]) continue;
 
 		// Evaluate the relation.
-		switch (function.value) {
-		case fn_distance.value:
+		#if TRAJ_REL_FUNCTION == FN_DISTANCE
 			result += traj_rel_radius[0] - distance(ref_point.xyz, sample_point);
-		case fn_dbg_num_evals.value:
+		#elif TRAJ_REL_FUNCTION == FN_DBG_NUM_EVALS
 			result += 1;
-		}
+		#endif
 	}
-
-	if (function == fn_dbg_num_evals) return result;
+	if (TRAJ_REL_FUNCTION == FN_DBG_NUM_EVALS) return result;
 
 	// Average samples and weight by time.
 	return result * sampling * timespan;
@@ -460,34 +454,39 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 		return uintBitsToFloat(highlight_value);
 
 	// Color by local time.
-	if (function == fn_dbg_seg_t) return seg_t;
+	if (TRAJ_REL_FUNCTION == FN_DBG_SEG_T) return seg_t;
 
 	// Calculate data-space coordinates and grid cell at the given trajectory point.
 	const vec4 local_point  = trajectory_point(start, end, seg_t);
 	const ivec4 local_index = cell_index(local_point);
 
 	// Color by grid cell (spatial).
-	if (function == fn_dbg_index_xyz)
+	#if TRAJ_REL_FUNCTION == FN_DBG_INDEX_XYZ
 		return uintBitsToFloat(packUnorm4x8(
 			vec4(vec3(local_point * hash_grid_scale - local_index + 0.5), 0)
 		));
 	// Color by grid cell (temporal).
-	if (function == fn_dbg_index_t)
+	#elif TRAJ_REL_FUNCTION == FN_DBG_INDEX_T
 		return local_point[3] * hash_grid_scale[3] - local_index[3] + 0.5;
 	// Color by cell hash.
-	if (function == fn_dbg_signature)
+	#elif TRAJ_REL_FUNCTION == FN_DBG_SIGNATURE
 		return signature(index_t(local_index)) / float(~0u);
 	// Color by hash bucket load.
-	if (function == fn_dbg_bucket_load) {
-		// Load the bucket range for the local timestep.
+	#elif TRAJ_REL_FUNCTION == FN_DBG_BUCKET_LOAD
+	{
+		// Find the bucket containing the local point.
 		const span_t table = find_table(local_index[3]);
 		if (table.start == null) return uintBitsToFloat(highlight_value);
-		// Find the bucket containing the local point and count how many of tis slots are in use.
-		const uint fill = bucket_fill(bucket(table, signature(index_t(local_index)), 1));
+		const ptr_t bucket = bucket(table, signature(index_t(local_index)), 1);
+		if (bucket == null) return uintBitsToFloat(highlight_value);
+		// Count how many of its slots are in use.
+		uint fill = slots_per_bucket;
+		while (fill > 0 && load_slot(bucket, fill - 1).cell == null) --fill;
 		return float(fill) / slots_per_bucket;
 	}
 	// Color by local trajectory interval.
-	if (function == fn_dbg_local_interval) {
+	#elif TRAJ_REL_FUNCTION == FN_DBG_LOCAL_INTERVAL
+	{
 		// Load the bucket range for the local timestep.
 		const span_t table = find_table(local_index[3]);
 		if (table.start == null) return uintBitsToFloat(highlight_value);
@@ -504,8 +503,9 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 				return (local_point[3] - t0)/(t1 - t0);
 		}
 		// Mark points not stored within their local cell.
-		return uintBitsToFloat(highlight_value);;
+		return uintBitsToFloat(highlight_value);
 	}
+	#endif
 
 	// AABB of cells to query.
 	const vec4 max_offset = vec4(vec3(traj_rel_radius[0]), traj_rel_radius[1]);
@@ -549,21 +549,20 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 		// Skip cells within the AABB, but outside the evaluation radius.
 		const vec3 offset = local_point.xyz - index.xyz*hash_grid_cell_size.xyz;
 		if (dot(offset, offset) > max_cell_dist2) {
-			if (function == fn_dbg_skipped_cells) ++result;
+			if (TRAJ_REL_FUNCTION == FN_DBG_SKIPPED_CELLS) ++result;
 			continue;
 		}
 
 		// Search the hash table for the current cell and return the intervals it contains.
 		const span_t intervals = query(table, index);
 
-		switch (function.value) {
-		case fn_dbg_num_cells.value:
+		#if TRAJ_REL_FUNCTION == FN_DBG_NUM_CELLS
 			result += float(intervals.len != 0);
 			continue;
-		case fn_dbg_num_intervals.value:
+		#elif TRAJ_REL_FUNCTION == FN_DBG_NUM_INTERVALS
 			result += intervals.len;
 			continue;
-		}
+		#endif
 
 		// Process all intervals within the cell.
 		for (uint i = 0; i < intervals.len; ++i) {
@@ -584,14 +583,11 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 	// Normalize the relation value.
 	const float norm_time = traj_rel_normalize ? 2*traj_rel_radius[1] : 1;
 
-	switch (function.value) {
-	case fn_distance.value: // Distance.
+	#if TRAJ_REL_FUNCTION == FN_DISTANCE
 		result /= (traj_rel_radius[0] * norm_time);
-		break;
-	case fn_dbg_skipped_cells.value: // Skipped cells.
+	#elif TRAJ_REL_FUNCTION == FN_DBG_SKIPPED_CELLS
 		result /= float(dot(max_cell - min_cell + 1, vec4(1)));
-		break;
-	}
+	#endif
 	return result;
 }
 
@@ -599,9 +595,9 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 vec3 otv_shade_relation (float value)
 {
 	const uint bits = floatBitsToUint(value);
-	if (function == fn_dbg_index_xyz) return unpackUnorm4x8(bits).xyz;
-	if (bits == background_value)     return traj_rel_background_color;
-	if (bits == highlight_value)      return traj_rel_highlight_color;
+	if (TRAJ_REL_FUNCTION == FN_DBG_INDEX_XYZ) return unpackUnorm4x8(bits).xyz;
+	if (bits == background_value)              return traj_rel_background_color;
+	if (bits == highlight_value)               return traj_rel_highlight_color;
 
 	// Apply transform function.
 	const vec2 range = traj_rel_color_range;
@@ -610,5 +606,5 @@ vec3 otv_shade_relation (float value)
 			/ 3.32192809489 /*log2(10)*/;
 	else value = (value - range[0])/(range[1] - range[0]);
 
-	return map_to_color(value, function == fn_dbg_signature ? 19 : traj_rel_color_map);
+	return map_to_color(value, TRAJ_REL_FUNCTION == FN_DBG_SIGNATURE ? 19 : traj_rel_color_map);
 }
