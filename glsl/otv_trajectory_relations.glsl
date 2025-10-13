@@ -592,17 +592,6 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 		result /= float(dot(max_cell - min_cell + 1, vec4(1)));
 		break;
 	}
-
-	// Map the relation value to a color.
-	const vec2 range = traj_rel_color_range;
-
-	if (traj_rel_log_scale)
-		// log base 10.
-		result = log2(9 * (result - range[0])/(range[1] - range[0]) + 1)
-			/ 3.32192809489 /*log2(10)*/;
-	else
-		result = (result - range[0])/(range[1] - range[0]);
-
 	return result;
 }
 
@@ -613,5 +602,13 @@ vec3 otv_shade_relation (float value)
 	if (function == fn_dbg_index_xyz) return unpackUnorm4x8(bits).xyz;
 	if (bits == background_value)     return traj_rel_background_color;
 	if (bits == highlight_value)      return traj_rel_highlight_color;
+
+	// Apply transform function.
+	const vec2 range = traj_rel_color_range;
+	if (traj_rel_log_scale) // log base 10.
+		value = log2(9 * (value - range[0])/(range[1] - range[0]) + 1)
+			/ 3.32192809489 /*log2(10)*/;
+	else value = (value - range[0])/(range[1] - range[0]);
+
 	return map_to_color(value, function == fn_dbg_signature ? 19 : traj_rel_color_map);
 }
