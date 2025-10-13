@@ -4058,6 +4058,7 @@ void on_tube_vis::end_traj_rel_benchmark ()
 	// Write parameters.
 	auto const& frame_buffer = fbc.ref_frame_buffer();
 	std::print(result_file,
+		"dataset\t{}\n"
 		"num_pixels\t{}\n"
 		"grid_layout\t{}\n"
 		"cell_size_x\t{}\n"
@@ -4073,6 +4074,7 @@ void on_tube_vis::end_traj_rel_benchmark ()
 		"sample_rate\t{}\n"
 		"direction\t{}\n"
 		"memory\t{}\n",
+		traj_mgr.dataset(0).data_source(),
 		frame_buffer.get_width() * frame_buffer.get_height(),
 		enum_id(hash_grid_params.layout),
 		hash_grid_params.cell_size.x(),
