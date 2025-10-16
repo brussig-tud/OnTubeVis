@@ -83,13 +83,17 @@ struct trajectory_relation {
 	float sample_rate {1};
 	/// Color scale used to visualize the relation value.
 	pseudo_enum<int32_t> color_map {12/*imola*/};
+	enum class color_transform : uint32_t { // uint8_t causes problems with CGV GUI.
+		linear,
+		log,
+		symlog, // Logarithm mirrored to diverge from the middle of the color range.
+	}
+	/// Function used for mapping relation values to color.
+	color_transform {color_transform::linear};
 	/// ID of the "reference trajectory" whose meaning depends on `direction`.
 	uint32_t reference_trajectory {0};
 	/// Determines whether the relation is averaged (true) or accumulated (false) over time.
 	bool normalize {true};
-	/// Determines whether the relation is mapped onto the color scale linearly (false) or
-	/// logarithmically (true).
-	bool log_scale {false};
 
 	/// Generate GUI elements to control member variables.
 	void build_gui (

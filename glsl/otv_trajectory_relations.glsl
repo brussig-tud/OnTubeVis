@@ -29,6 +29,12 @@ const direction_t dir_all_to_all = {2};
 #define LAYOUT_T_XYZ 1
 #define LAYOUT_XYZT  2
 
+// Functions used to map relation values to color.
+struct transform_t {uint value;};
+const transform_t transform_linear = {0};
+const transform_t transform_log    = {1};
+const transform_t transform_symlog = {2};
+
 // Special values returned by `otv_trajectory_relation`, encoded as quiet NaNs.
 const uint nan              = 0xffc00000u;
 const uint background_value = nan | 1u;
@@ -145,7 +151,7 @@ uniform uint        traj_rel_ref_traj;
 uniform bool        traj_rel_normalize;
 uniform int         traj_rel_color_map;
 uniform vec2        traj_rel_color_range;
-uniform bool        traj_rel_log_scale;
+uniform transform_t traj_rel_color_transform;
 uniform vec3        traj_rel_highlight_color;
 uniform vec3        traj_rel_background_color;
 
@@ -654,16 +660,36 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 vec3 otv_shade_relation (float value)
 {
 	const uint bits = floatBitsToUint(value);
-	if (bits == background_value)              return traj_rel_background_color;
-	if (bits == highlight_value)               return traj_rel_highlight_color;
+	// Special values.
+	if (bits == background_value) return traj_rel_background_color;
+	if (bits == highlight_value)  return traj_rel_highlight_color;
+	// Multivariate mapping.
 	if (TRAJ_REL_FUNCTION == FN_DBG_INDEX_XYZ) return unpackUnorm4x8(bits).xyz;
 
-	// Apply transform function.
-	const vec2 range = traj_rel_color_range;
-	if (traj_rel_log_scale) // log base 10.
-		value = log2(9 * (value - range[0])/(range[1] - range[0]) + 1)
-			/ 3.32192809489 /*log2(10)*/;
-	else value = (value - range[0])/(range[1] - range[0]);
+	// Mapping parameters.
+	vec2 range     = traj_rel_color_range;
+	transform_t tf = traj_rel_color_transform;
+	// The diverging logarithmic transform is constructed by applying a logarithmic transform to the
+	// upper half of the range, then rotating it into the lower half around the midpoint.
+	if (tf == transform_symlog) range[0] = 0.5*(range[0] + range[1]);
 
+	// Linearly map `range` to [0, 1].
+	value = (value - range[0])/(range[1] - range[0]);
+
+	if (tf != transform_linear) {
+		// Symlog: Reflect the upper half of the original range into the lower half.
+		const bool rotate = value < 0;
+		if (tf == transform_symlog) value = abs(value);
+
+		// Apply base 10 logarithm, preserving points (range[0], 0) and (range[1], 1).
+		value = log2(9*value + 1) / 3.32192809489;
+
+		if (tf == transform_symlog) {
+			// Complete the rotation by reflecting values in the lower half range.
+			if (rotate) value = -value;
+			value = 0.5*value + 0.5; // Map values from [-1, 1] to [0, 1].
+		}
+	}
+	// Get color from texture.
 	return map_to_color(value, TRAJ_REL_FUNCTION == FN_DBG_SIGNATURE ? 19 : traj_rel_color_map);
 }
