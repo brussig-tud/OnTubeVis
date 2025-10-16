@@ -52,8 +52,10 @@ struct trajectory_relation {
 	};
 	enum class function : uint32_t { // uint8_t causes problems with CGV GUI.
 		none,               // No visualization.
-		distance,           // Euclidean spatial distance between trajectories.
+		proximity,          // Euclidean spatial distance, from 1 (local point) to 0 (query radius).
+		alignment,          // Dot product of trajectory directions.
 		dbg_seg_t,          // Segment-local curve parameter.
+		dbg_velocity,       // Length of the trajectory's spatial derivative w.r.t. time.
 		dbg_index_xyz,      // Spatial grid index.
 		dbg_index_t,        // Temporal grid index.
 		dbg_signature,      // Index hash signature.

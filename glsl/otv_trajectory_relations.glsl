@@ -7,11 +7,13 @@ const direction_t dir_ref_to_all = {0};
 const direction_t dir_all_to_ref = {1};
 const direction_t dir_all_to_all = {2};
 
-// The value to visualize.
+// The value to visualize, see vis::trajectory_relation::function.
 #define FN_NONE               0
-#define FN_DISTANCE           1 + FN_NONE
-#define FN_DBG_SEG_T          1 + FN_DISTANCE
-#define FN_DBG_INDEX_XYZ      1 + FN_DBG_SEG_T
+#define FN_PROXIMITY          1 + FN_NONE
+#define FN_ALIGNMENT          1 + FN_PROXIMITY
+#define FN_DBG_SEG_T          1 + FN_ALIGNMENT
+#define FN_DBG_VELOCITY       1 + FN_DBG_SEG_T
+#define FN_DBG_INDEX_XYZ      1 + FN_DBG_VELOCITY
 #define FN_DBG_INDEX_T        1 + FN_DBG_INDEX_XYZ
 #define FN_DBG_SIGNATURE      1 + FN_DBG_INDEX_T
 #define FN_DBG_BUCKET_LOAD    1 + FN_DBG_SIGNATURE
@@ -47,6 +49,10 @@ uint traj_rel_background_value()
 #define HASH_GRID_LAYOUT           0
 #define TRAJ_REL_SHADING           0
 #define TRAJ_REL_FUNCTION          0
+
+// Boolean expression determining whether or not the evaluated function depends on trajectories'
+// derivatives.
+#define FN_USES_DERIVATIVE (TRAJ_REL_FUNCTION == FN_ALIGNMENT)
 
 // Index at which the SSBO containing the hash grid is bound.
 const uint buffer_binding = HASH_GRID_BUFFER_BINDING;
@@ -332,8 +338,8 @@ interval_t load_interval (span_t intervals, uint index)
 // Formulas for evaluating cubic Hermite splines are taken from
 // https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Representations
 
-// Calculate the coefficients of a trajectory's 3D position represented as a cubic Hermite spline in
-// monomial basis ordered by increasing degree.
+// Calculate the coefficients of a trajectory segments's 3D position represented as a cubic Hermite
+// spline in monomial basis ordered by increasing degree.
 // Since these coefficients are constant over the entire segment, they can be used to efficiently
 // calculate several positions using the function `eval_position`.
 mat4x3 position_coeffs (node_data_type start, node_data_type end)
@@ -350,7 +356,6 @@ mat4x3 position_coeffs (node_data_type start, node_data_type end)
 		2*p0 + m0 - 2*p1 + m1
 	);
 }
-
 // Obtain the 3D position at parameter `t` in [0, 1] along a trajectory segment using coefficients
 // precalculated by `position_coeffs`.
 vec3 eval_position (mat4x3 coeffs, float t)
@@ -359,7 +364,6 @@ vec3 eval_position (mat4x3 coeffs, float t)
 	const float t3 = t*t2;
 	return coeffs * vec4(1, t, t2, t3);
 }
-
 // Calculate the 4D trajectory point at parameter t in [0, 1] of a given segment.
 // If only a single point is required, this function is faster than
 // `eval_position(position_coeffs)`.
@@ -369,26 +373,54 @@ vec4 trajectory_point (node_data_type start, node_data_type end, float t)
 	const float t3 = t*t2;
 
 	return vec4(
-		(2*t3 - 3*t2 + 1)*start.pos_rad.xyz
-		+ (t3 - 2*t2 + t)*start.tangent.xyz
-		+ (-2*t3 + 3*t2)*end.pos_rad.xyz
-		+ (t3 - t2)*end.tangent.xyz,
+		  ( 2*t3 - 3*t2 + 1) * start.pos_rad.xyz
+		+ (   t3 - 2*t2 + t) * start.tangent.xyz
+		+ (-2*t3 + 3*t2    ) * end.pos_rad.xyz
+		+ (   t3 -   t2    ) * end.tangent.xyz,
 		mix(start.t[0], end.t[0], t)
 	);
+}
+
+/// Calculate the derivative of a trajectory segment's position as represented by `position_coeffs`.
+mat3 derive_coeffs (mat4x3 pos_coeffs)
+{
+	return mat3(pos_coeffs[1], 2*pos_coeffs[2], 3*pos_coeffs[3]);
+}
+/// Calculate the derivative of a trajectory's position w.r.t. curve parameter using coefficients
+/// precomputed by `derive_coeffs` for fast evaluation of mutliple samples.
+vec3 trajectory_derivative (mat3 coeffs, float t)
+{
+	return coeffs * vec3(1, t, t*t);
+}
+/// Calculate the derivative of a trajectory's position w.r.t. curve parameter.
+vec3 trajectory_derivative (node_data_type start, node_data_type end, float t)
+{
+	const float dt2 = 2*t;
+	const float dt3 = 3*t*t;
+	return
+		  ( 2*dt3 - 3*dt2    ) * start.pos_rad.xyz
+		+ (   dt3 - 2*dt2 + 1) * start.tangent.xyz
+		+ (-2*dt3 + 3*dt2    ) * end.pos_rad.xyz
+		+ (   dt3 -   dt2    ) * end.tangent.xyz;
 }
 
 // Shading =========================================================================================
 // Calculate the trajectory relation selected by `TRAJ_REL_FUNCTION` from a fixed starting point to
 // one or more sampled points on a given interval, provided the samples lie within the query radius.
-float eval_relation (vec4 ref_point, interval_t interval)
-{
+float eval_relation (
+	vec4 base_point,
+#if FN_USES_DERIVATIVE
+	vec3 base_derivative,
+#endif
+	interval_t interval
+) {
 	// Load node data.
 	const node_data_type n0 = nodes[interval.nodes[0]];
 	const node_data_type n1 = nodes[interval.nodes[1]];
 
 	// Intersect trajectory interval and evaluated time frame.
-	const float start    = max(interval.time[0], ref_point[3] - traj_rel_radius[1]);
-	const float end      = min(interval.time[1], ref_point[3] + traj_rel_radius[1]);
+	const float start    = max(interval.time[0], base_point[3] - traj_rel_radius[1]);
+	const float end      = min(interval.time[1], base_point[3] + traj_rel_radius[1]);
 	const float timespan = end - start;
 	if (timespan <= 0) return 0;
 
@@ -413,20 +445,29 @@ float eval_relation (vec4 ref_point, interval_t interval)
 
 	// Calculate spline coefficients.
 	const mat4x3 coeffs = position_coeffs(n0, n1);
+#if FN_USES_DERIVATIVE
+	const mat3 coeffs_dt = derive_coeffs(coeffs);
+#endif
+
+	const float radius2 = traj_rel_radius[0] * traj_rel_radius[0];
 
 	// Evaluate the relation at one or more sample points along the interval.
 	float result = 0.0;
 	for (float t = tmin + 0.5*sample_step; t < tmax; t += sample_step) {
 		// Evaluate the trajectory for the current curve parameter.
-		const vec3 sample_point = eval_position(coeffs, t);
+		const vec3 sample_pos = eval_position(coeffs, t);
 
 		// Ignore points outside the evaluation radius.
-		const vec3 offset = sample_point - ref_point.xyz;
-		if (dot(offset, offset) > traj_rel_radius[0]*traj_rel_radius[0]) continue;
+		const vec3 offset = sample_pos - base_point.xyz;
+		const float dist2 = dot(offset, offset);
+		if (dist2 > radius2) continue;
 
 		// Evaluate the relation.
-		#if TRAJ_REL_FUNCTION == FN_DISTANCE
-			result += traj_rel_radius[0] - distance(ref_point.xyz, sample_point);
+		#if TRAJ_REL_FUNCTION == FN_PROXIMITY
+			result += traj_rel_radius[0] - sqrt(dist2);
+		#elif TRAJ_REL_FUNCTION == FN_ALIGNMENT
+			result += dot(base_derivative, normalize(trajectory_derivative(coeffs_dt, t)))
+				* exp(dist2 * (-6/radius2)); // Gaussian weight function.
 		#elif TRAJ_REL_FUNCTION == FN_DBG_NUM_EVALS
 			result += 1;
 		#endif
@@ -454,7 +495,12 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 		return uintBitsToFloat(highlight_value);
 
 	// Color by local time.
-	if (TRAJ_REL_FUNCTION == FN_DBG_SEG_T) return seg_t;
+	#if TRAJ_REL_FUNCTION == FN_DBG_SEG_T
+		return seg_t;
+	#elif TRAJ_REL_FUNCTION == FN_DBG_VELOCITY
+		// Derivative w.r.t. curve parameter, divide by duration to get physical velocity.
+		return length(trajectory_derivative(start, end, seg_t)) / (end.t[0] - start.t[0]);
+	#endif
 
 	// Calculate data-space coordinates and grid cell at the given trajectory point.
 	const vec4 local_point  = trajectory_point(start, end, seg_t);
@@ -517,6 +563,11 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 	const float max_cell_dist  = traj_rel_radius[0] + length(hash_grid_cell_size.xyz)*0.5;
 	const float max_cell_dist2 = max_cell_dist*max_cell_dist;
 
+#if TRAJ_REL_FUNCTION == FN_ALIGNMENT
+	// Normalized trajectory direction for calculating angle to other trajectories.
+	const vec3 local_derivative = normalize(trajectory_derivative(start, end, seg_t));
+#endif
+
 	// Value of the relation at the local point.
 	float result = 0;
 
@@ -575,7 +626,13 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 				// Evaluate all intervals on different trajectories.
 				|| traj_rel_direction != dir_all_to_ref
 				&& nodes[interval.nodes[0]].t[1] != start.t[1]
-			) result += eval_relation(local_point, interval);
+			) result += eval_relation(
+				local_point,
+			#if FN_USES_DERIVATIVE
+				local_derivative,
+			#endif
+				interval
+			);
 		}
 	}
 	}
@@ -583,8 +640,10 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 	// Normalize the relation value.
 	const float norm_time = traj_rel_normalize ? 2*traj_rel_radius[1] : 1;
 
-	#if TRAJ_REL_FUNCTION == FN_DISTANCE
+	#if TRAJ_REL_FUNCTION == FN_PROXIMITY
 		result /= (traj_rel_radius[0] * norm_time);
+	#elif TRAJ_REL_FUNCTION == FN_ALIGNMENT
+		result /= norm_time;
 	#elif TRAJ_REL_FUNCTION == FN_DBG_SKIPPED_CELLS
 		result /= float(dot(max_cell - min_cell + 1, vec4(1)));
 	#endif
@@ -595,9 +654,9 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 vec3 otv_shade_relation (float value)
 {
 	const uint bits = floatBitsToUint(value);
-	if (TRAJ_REL_FUNCTION == FN_DBG_INDEX_XYZ) return unpackUnorm4x8(bits).xyz;
 	if (bits == background_value)              return traj_rel_background_color;
 	if (bits == highlight_value)               return traj_rel_highlight_color;
+	if (TRAJ_REL_FUNCTION == FN_DBG_INDEX_XYZ) return unpackUnorm4x8(bits).xyz;
 
 	// Apply transform function.
 	const vec2 range = traj_rel_color_range;

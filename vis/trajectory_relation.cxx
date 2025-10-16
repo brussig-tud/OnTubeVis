@@ -32,8 +32,10 @@ void trajectory_relation::build_gui (
 	);
 	p.add_member_control(b, "Function", function, "dropdown", "enums='"
 		"None,"
-		"Distance,"
+		"Proximity,"
+		"Alignment,"
 		"[debug] Curve Parameter,"
+		"[debug] Velocity,"
 		"[debug] Spatial Index,"
 		"[debug] Temporal Index,"
 		"[debug] Index Hash,"
@@ -110,8 +112,10 @@ auto get_reflection_traits(enum otv::vis::trajectory_relation::function const&)
 {
 	return {
 		"none,"
-		"distance,"
+		"proximity,"
+		"alignment,"
 		"dbg_seg_t,"
+		"dbg_velocity,"
 		"dbg_index_xyz,"
 		"dbg_index_t,"
 		"dbg_signature,"
