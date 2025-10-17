@@ -317,10 +317,10 @@ struct extrapolation_manager
 	){
 		render.tube_shading = tube_shading;
 		render.tube_shading.alternative_ring_buffer = true;
-		const auto tube_shading_defines = render.tube_shading.build_tube_shading_defines(
+		const auto tube_shading_options = render.tube_shading.build_tube_shading_options(
 			layer_config, false
 		);
-		render.tstr.set_additional_defines(tube_shading_defines);
+		render.tstr.set_additional_defines(tube_shading_options);
 	}
 
 	void clear (void);

@@ -76,7 +76,7 @@ struct tube_shading_settings
 	bool alternative_ring_buffer = false;
 	float playback_t = std::numeric_limits<float>::infinity();
 
-	[[nodiscard]] cgv::render::shader_define_map build_tube_shading_defines (
+	[[nodiscard]] cgv::render::shader_compile_options build_tube_shading_options (
 		const glyph_layer_manager::configuration &glyph_layers_config, bool debug_highlight_segments=false
 	) const;
 
