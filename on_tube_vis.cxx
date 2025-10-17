@@ -83,14 +83,13 @@ void on_tube_vis::on_register()
 on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(this)
 {
 	// adjust geometry and grid style defaults
-	render.style.material.set_brdf_type(
-		(cgv::media::illum::BrdfType)(cgv::media::illum::BrdfType::BT_STRAUSS_DIFFUSE
-			| cgv::media::illum::BrdfType::BT_COOK_TORRANCE)
+	render.style.material.brdf_type = cgv::media::illum::BrdfType(
+		cgv::media::illum::BrdfType::BT_STRAUSS_DIFFUSE | cgv::media::illum::BrdfType::BT_COOK_TORRANCE
 	);
-	render.style.material.set_roughness(0.25);
-	render.style.material.set_metalness(0.25);
-	render.style.material.set_ambient_occlusion(0.75);
-	render.style.material.set_specular_reflectance({ 0.05f, 0.05f, 0.05f });
+	render.style.material.roughness = 0.25f;
+	render.style.material.metalness = 0.25f;
+	render.style.material.ambient_occlusion = 0.75f;
+	render.style.material.specular_reflectance = { 0.05f, 0.05f, 0.05f };
 	render.style.use_conservative_depth = true;
 	
 	bbox_rd.style.culling_mode = cgv::render::CM_FRONTFACE;
@@ -746,8 +745,8 @@ void on_tube_vis::on_set(void* member_ptr) {
 		ah_mgr.set_dataset(traj_mgr.dataset(0));
 
 		context& ctx = *get_context();
-		tube_shading_defines = build_tube_shading_defines();
-		shaders.reload(ctx, "tube_shading", { tube_shading_defines });
+		tube_shading_options = build_tube_shading_options();
+		shaders.reload(ctx, "tube_shading", tube_shading_options);
 
 		// reset glyph layer configuration file
 		layer_config_file_helper.set_file_name("");
@@ -781,11 +780,11 @@ void on_tube_vis::on_set(void* member_ptr) {
 				grid_normal_inwards,
 				grid_normal_variant,
 				enable_fuzzy_grid)) {
-		shader_define_map defines = build_tube_shading_defines();
-		if(defines != tube_shading_defines) {
+		shader_compile_options options = build_tube_shading_options();
+		if(options != tube_shading_options) {
 			context& ctx = *get_context();
-			tube_shading_defines = defines;
-			shaders.reload(ctx, "tube_shading", { tube_shading_defines });
+			tube_shading_options = options;
+			shaders.reload(ctx, "tube_shading", tube_shading_options);
 		}
 	}
 
@@ -831,8 +830,8 @@ void on_tube_vis::on_set(void* member_ptr) {
 			glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 			context& ctx = *get_context();
-			tube_shading_defines = build_tube_shading_defines();
-			shaders.reload(ctx, "tube_shading", { tube_shading_defines });
+			tube_shading_options = build_tube_shading_options();
+			shaders.reload(ctx, "tube_shading", tube_shading_options);
 
 			compile_glyph_attribs();
 
@@ -1316,8 +1315,8 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 		vis.config = vis.manager.get_configuration();
 	}
 
-	tube_shading_defines = build_tube_shading_defines();
-	shaders.reload(ctx, "tube_shading", tube_shading_defines);
+	tube_shading_options = build_tube_shading_options();
+	shaders.reload(ctx, "tube_shading", tube_shading_options);
 
 	// init shared attribute array manager
 	success &= render.aam.init(ctx);
@@ -2646,7 +2645,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 	texture &tex_depth = *fbc.attachment_texture_ptr("depth");
 #endif
 	// - node attribute data needed by both rasterization and raytracing
-	const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
+	const vertex_buffer *node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids"),
+	                    &node_idx_buffer = *node_idx_buffer_ptr;
 	
 #ifdef RTX_SUPPORT
 	if (!optix.enabled || !optix.initialized)
@@ -2689,9 +2689,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			// measure sort time
 			//render.sorter.begin_time_query();
 			//render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, , view_dir, );
-			cgv::gpgpu::argument_binding_list sort_arguments = {
-				{ "u_eye_pos", cyclopic_eye }, { "u_view_dir", view_dir }, { "node_index_buffer", node_idx_buffer_ptr }
-			};
+			cgv::gpgpu::argument_binding_list sort_arguments;
+			sort_arguments.bind_uniform("u_eye_pos", cyclopic_eye);
+			sort_arguments.bind_uniform("u_view_dir", view_dir);
+			sort_arguments.bind_buffer("node_index_buffer", node_idx_buffer);
 			render.sorter.execute(ctx, render.render_sbo, render.data->indices.size(), *segment_idx_buffer_ptr, sort_arguments);
 			//benchmark.sort_time_total += render.sorter.end_time_query();
 			++benchmark.num_sorts;
@@ -2873,39 +2874,51 @@ void on_tube_vis::draw_density_volume(context& ctx) {
 	vr.render(ctx, 0, 0);
 }
 
-shader_define_map on_tube_vis::build_tube_shading_defines() {
-	shader_define_map defines;
+shader_compile_options on_tube_vis::build_tube_shading_options() {
+	shader_compile_options options;
 
 	// debug defines
-	shader_code::set_define(defines, "DEBUG_SEGMENTS", debug.highlight_segments, false);
+	//shader_code::set_define(defines, "DEBUG_SEGMENTS", debug.highlight_segments, false);
+	options.define_macro_if_not_default("DEBUG_SEGMENTS", debug.highlight_segments, false);
 
 	// ambient occlusion defines
-	shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
+	//shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
+	options.define_macro_if_not_default("ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
 
 	// grid defines
-	shader_code::set_define(defines, "GRID_MODE", grid_mode, GM_COLOR);
+	//shader_code::set_define(defines, "GRID_MODE", grid_mode, GM_COLOR);
+	options.define_macro_if_not_default("GRID_MODE", grid_mode, GM_COLOR);
 	unsigned gs = static_cast<unsigned>(grid_normal_settings);
 	if(grid_normal_inwards) gs += 4u;
 	if(grid_normal_variant) gs += 8u;
-	shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
-	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
+	//shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
+	options.define_macro_if_not_default("GRID_NORMAL_SETTINGS", gs, 0u);
+	//shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
+	options.define_macro_if_not_default("ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
 	// glyph layer defines
 	const auto &glyph_layers_config = render.visualizations.front().config;
-	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
+	//shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
+	options.define_macro_if_not_default("GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
 
-	shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
-	shader_code::set_define(defines, "CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
-	shader_code::set_define(defines, "MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
-	
+	//shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
+	options.define_macro_if_not_default("CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
+	//shader_code::set_define(defines, "CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
+	options.define_macro_if_not_default("CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
+	//shader_code::set_define(defines, "MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
+	options.define_macro_if_not_default("MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
+
 	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
 		const auto& lc = glyph_layers_config.layer_configs[i];
-		shader_code::set_define(defines, "L" + std::to_string(i) + "_VISIBLE", lc.visible, true);
-		shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
-		shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
+		//shader_code::set_define(defines, "L" + std::to_string(i) + "_VISIBLE", lc.visible, true);
+		options.define_macro_if_not_default("L" + std::to_string(i) + "_VISIBLE", lc.visible, true);
+		//shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
+		options.define_macro_if_not_default("L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
+		//shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
+		options.define_macro_if_not_default("L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
 	}
 
-	return defines;
+	return options;
 }
 
 

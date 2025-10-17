@@ -239,7 +239,7 @@ protected:
 	bool enable_fuzzy_grid;
 
 	/// shader defines for the deferred shading pass
-	shader_define_map tube_shading_defines;
+	shader_compile_options tube_shading_options;
 
 	/// store the current OpenGL viewport configuration
 	GLint viewport[4];
@@ -539,7 +539,7 @@ protected:
 	void draw_density_volume(context& ctx);
 
 	/// helper methods
-	shader_define_map build_tube_shading_defines();
+	shader_compile_options build_tube_shading_options();
 	void on_register();
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
 
