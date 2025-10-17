@@ -53,7 +53,7 @@ namespace cgv { // @<
 			enum LinePrimitive
 			{
 				LP_TUBE_RUSSIG = 0,                         // use intersector for swept-sphere spline tubes by Russig et al.
-				LP_TUBE_PHANTOM = 1,                        // use swept-disc Phantom Ray Hair intersector by Reshetov and Lübke
+				LP_TUBE_PHANTOM = 1,                        // use swept-disc Phantom Ray Hair intersector by Reshetov and Lï¿½bke
 				LP_RIBBON_RAYCASTED = 2,                    // use raycasted view-aligned ribbon
 				LP_RIBBON_GEOMETRY = 3                      // use geometry-shader based triangle-strip tessellated view-aligned ribbon (ignores bounding geometry style options)
 			} line_primitive;
@@ -153,7 +153,7 @@ namespace cgv { // @<
 			/// update shader defines based on render style
 			void update_defines(shader_define_map& defines);
 			/// build rounded cone program
-			bool build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines);
+			bool build_shader_program(context& ctx, shader_program& prog, const shader_compile_options &defines);
 
 		public:
 			/// initializes position_is_center to true 
@@ -163,9 +163,13 @@ namespace cgv { // @<
 			/// call this after last render/draw call to ensure that no other users of renderer change attribute arrays of given manager
 			void disable_attribute_array_manager(const context& ctx, attribute_array_manager& aam);
 			///
-			void set_cyclopic_eye(const vec3 & cyclopic_eye_pos) { this->cyclopic_eye = cyclopic_eye_pos; }
+			void set_cyclopic_eye(const vec3 &cyclopic_eye_pos) {
+				cyclopic_eye = cyclopic_eye_pos;
+			}
 			///
-			void set_view_dir(const vec3& view_dir) { this->view_dir = view_dir; }
+			void set_view_dir(const vec3 &view_dir) {
+				this->view_dir = view_dir;
+			}
 			///
 			void set_viewport(const vec4& viewport) { this->viewport = viewport; }
 			/// set additional defines that do not depend on the style

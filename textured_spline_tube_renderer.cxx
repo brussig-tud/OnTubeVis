@@ -119,17 +119,19 @@ namespace cgv {
 			for(const auto& define : additional_defines)
 				defines.insert(define);
 		}
-		bool textured_spline_tube_renderer::build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines)
+		bool textured_spline_tube_renderer::build_shader_program(context& ctx, shader_program& prog, const shader_compile_options& defines)
 		{
 			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
 			last_active_line_primitive = rs.line_primitive;
 
+			shader_compile_options options = { defines };
+
 			if(rs.is_tube())
-				return prog.build_program(ctx, "textured_spline_tube.glpr", true, defines);
+				return prog.build_program(ctx, "textured_spline_tube.glpr", options, true);
 			else if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED)
-				return prog.build_program(ctx, "view_aligned_ribbon.glpr", true, defines);
+				return prog.build_program(ctx, "view_aligned_ribbon.glpr", options, true);
 			else
-				return prog.build_program(ctx, "textured_spline_ribbon.glpr", true, defines);
+				return prog.build_program(ctx, "textured_spline_ribbon.glpr", options, true);
 		}
 		bool textured_spline_tube_renderer::enable(context& ctx)
 		{

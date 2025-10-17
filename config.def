@@ -37,6 +37,10 @@ type(on_tube_vis):ambient_occlusion=true
 
 // Framework settings
 name(Stereo Interactor):clip_relative_to_extent=false
+//name(Stereo Interactor):stereo_mode=vsplit
+name(Stereo Interactor):stereo_translate_in_model_view=true
+// Good eye distance setting for the LG 3D TV in Holodeck:
+//name(Stereo Interactor):eye_distance=0.00600
 
 // Raycasted ribbon renderer settings
 // - threshold for the linearity measure under which a (sub-)curve is considered linear (0 means actual true mathematical linearity)

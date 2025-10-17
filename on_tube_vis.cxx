@@ -80,7 +80,7 @@ void on_tube_vis::on_register()
 }
 
 
-on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(this)
+on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(this)
 {
 	// adjust geometry and grid style defaults
 	render.style.material.set_brdf_type(
@@ -133,31 +133,31 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
 
 	// register overlay widgets
-	mapping_legend_ptr = register_overlay<mapping_legend>("Mapping Legend");
+	mapping_legend_ptr = create_and_append_child<mapping_legend>("Mapping Legend");
 
-	cm_editor_ptr = register_overlay<cgv::app::color_map_editor>("Color Scales");
+	cm_editor_ptr = create_and_append_child<cgv::app::color_map_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
 	cm_editor_ptr->gui_options.create_default_tree_node = false;
 	cm_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_color_map_change, this));
 	cm_editor_ptr->set_stretch(cgv::app::overlay::SO_HORIZONTAL);
 
-	tf_editor_ptr = register_overlay<cgv::app::color_map_editor>("Transfer Function");
+	tf_editor_ptr = create_and_append_child<cgv::app::color_map_editor>("Transfer Function");
 	tf_editor_ptr->set_visibility(false);
 	tf_editor_ptr->set_opacity_support(true);
 	tf_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_transfer_function_change, this));
 	tf_editor_ptr->set_stretch(cgv::app::overlay::SO_HORIZONTAL);
 
-	navigator_ptr = register_overlay<cgv::app::navigator>("Navigator");
+	navigator_ptr = create_and_append_child<cgv::app::navigator>("Navigator");
 	navigator_ptr->set_visibility(false);
 	navigator_ptr->gui_options.show_layout_options = false;
 	navigator_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_START);
 	navigator_ptr->set_size(100);
 	
-	cm_viewer_ptr = register_overlay<color_map_viewer>("Color Scale Viewer");
+	cm_viewer_ptr = create_and_append_child<color_map_viewer>("Color Scale Viewer");
 	cm_viewer_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_END);
 	cm_viewer_ptr->set_visibility(false);
 
-	perfmon_ptr = register_overlay<cgv::app::performance_monitor>("Performance Monitor");
+	perfmon_ptr = create_and_append_child<cgv::app::performance_monitor>("Performance Monitor");
 	perfmon_ptr->set_visibility(false);
 	//perfmon_ptr->set_show_background(false);
 	perfmon_ptr->enable_monitoring_only_when_visible(true);
@@ -361,7 +361,7 @@ void on_tube_vis::stream_help (std::ostream &os) {
 
 #define SET_MEMBER(m, v) m = v; update_member(&m);
 
-bool on_tube_vis::handle_event(cgv::gui::event &e) {
+bool on_tube_vis::handle(cgv::gui::event &e) {
 
 	unsigned et = e.get_kind();
 	unsigned char modifiers = e.get_modifiers();
@@ -654,7 +654,8 @@ void on_tube_vis::handle_transfer_function_change() {
 		volume_tf.generate_texture(*get_context());
 }
 
-void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
+void on_tube_vis::on_set(void* member_ptr) {
+	const cgv::utils::pointer_test& m(member_ptr);
 
 	// control flags
 	bool do_full_gui_update = false, data_set_changed = false, from_demo = false, reset_taa = true;
@@ -1088,6 +1089,9 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		taa.reset();
 	else
 		taa.reset_static_frame_count(); // Just make sure we keep multisampling
+
+	update_member(member_ptr);
+	post_redraw();
 }
 
 bool on_tube_vis::on_exit_request() {
@@ -1320,6 +1324,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	success &= density_volume.init(ctx, 0);
 
+	/*
 	render.sorter.set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent; vec4 t;");
 	render.sorter.set_auxiliary_type_override("uint a_idx; uint b_idx;");
 
@@ -1336,6 +1341,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 		float key = (ddv < 0.0 ? -1.0 : 1.0) * dot(eye_to_pos, eye_to_pos);)";
 
 	render.sorter.set_key_definition_override(key_definition);
+	*/
 
 	// Initialize the last sort position and direction to zero to force a sorting step before the first draw call
 	last_sort_pos = vec3(0.0f);
@@ -1804,10 +1810,24 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		update_legends = false;
 	}
 
-	// keep the framebuffer up to date with the viewport size
-	fbc.ensure(ctx);
-	
-	taa.ensure(ctx);
+	// query the current viewport dimensions as this is needed for multiple draw methods
+	glGetIntegerv(GL_VIEWPORT, viewport);
+
+	/* keep the framebuffer up to date with the viewport size */ {
+		const ivec2 &dims = *(ivec2*)&viewport[2];
+		fbc.set_size(dims);
+		fbc.ensure(ctx);
+		taa.ensure_fb_size(ctx, dims);
+		#ifdef RTX_SUPPORT
+			optix.fb.albedo = fbc.attachment_texture_ptr("albedo");
+			optix.fb.position = fbc.attachment_texture_ptr("position");
+			optix.fb.normal = fbc.attachment_texture_ptr("normal");
+			optix.fb.tangent = fbc.attachment_texture_ptr("tangent");
+			optix.fb.depth.set_resolution(0, dims.x());
+			optix.fb.depth.set_resolution(1, dims.y());
+			optix.fb.depth.ensure_state(ctx);
+		#endif
+	}
 
 #ifdef RTX_SUPPORT
 	// ###############################
@@ -1830,8 +1850,6 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	// ###  END:  OptiX integration
 	// ###############################
 #endif
-	// query the current viewport dimensions as this is needed for multiple draw methods
-	glGetIntegerv(GL_VIEWPORT, viewport);
 
 	if (playback.active)
 	{
@@ -1915,7 +1933,9 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 	// draw dataset using selected render mode
 	if(traj_mgr.has_data())
 	{
-		taa.begin(ctx);
+		const auto &sview_interactor = *dynamic_cast<stereo_view_interactor*>(view_ptr);
+		if (!sview_interactor.is_stereo_enabled())
+			taa.begin(ctx, false);
 
 		int debug_idx_count = static_cast<int>(render.data->indices.size());
 		if(debug.limit_render_count)
@@ -1965,7 +1985,8 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 		if (show_bbox)
 			bbox_rd.render(ctx);
 
-		taa.end(ctx);
+		if (!sview_interactor.is_stereo_enabled())
+			taa.end(ctx, false);
 	}
 	
 	// display drag-n-drop information, if a dnd operation is in progress
@@ -1975,7 +1996,7 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 
 void on_tube_vis::after_finish(context& ctx) {
 
-	if(initialize_view_ptr()) {
+	if(!view_ptr && (view_ptr = find_view_as_node())) {
 		// do one-time initialization that needs the view if necessary
 		set_view();
 		ensure_selected_in_tab_group_parent();
@@ -2414,8 +2435,8 @@ void on_tube_vis::update_attribute_bindings(void) {
 		tstr.set_indices(ctx, segment_indices);
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
-		if(!render.sorter.init(ctx, render.data->indices.size() / 2))
-			std::cout << "Could not initialize gpu sorter" << std::endl;
+		//if(!render.sorter.init(ctx, render.data->indices.size() / 2))
+		//	std::cout << "Could not initialize gpu sorter" << std::endl;
 
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
@@ -2526,7 +2547,7 @@ void on_tube_vis::create_density_volume(context& ctx, unsigned resolution) {
 	if(!density_tex.is_created()) {
 		std::vector<float> density_data(res.x()*res.y()*res.z(), 0.0f);
 
-		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res.x(), res.y(), res.z(), TI_FLT32, cgv::data::CF_R), density_data.data());
+		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res.x(), res.y(), res.z(), cgv::type::info::TI_FLT32, cgv::data::CF_R), density_data.data());
 		density_tex = texture("flt32[R]", TF_LINEAR, TF_LINEAR_MIPMAP_LINEAR, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER, TW_CLAMP_TO_BORDER);
 		density_tex.set_border_color(0.0f, 0.0f, 0.0f, 0.0f);
 		density_tex.create(ctx, dv, 0);
@@ -2546,7 +2567,7 @@ void on_tube_vis::create_density_volume(context& ctx, unsigned resolution) {
 
 		std::vector<float>& density_data = density_volume.ref_voxel_grid().data;
 
-		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res.x(), res.y(), res.z(), TI_FLT32, cgv::data::CF_R), density_data.data());
+		cgv::data::data_view dv = cgv::data::data_view(new cgv::data::data_format(res.x(), res.y(), res.z(), cgv::type::info::TI_FLT32, cgv::data::CF_R), density_data.data());
 		density_tex.replace(ctx, 0, 0, 0, dv);
 		density_tex.generate_mipmaps(ctx);
 	}
@@ -2610,14 +2631,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 {
 	// common init
 	// - view-related info
-	const vec3 &cyclopic_eye = view_ptr->get_eye();
-	const vec3 &view_dir = view_ptr->get_view_dir();
+	auto &sview_interactor = *dynamic_cast<stereo_view_interactor*>(view_ptr);
+	const vec3 cyclopic_eye = view_ptr->get_eye();
+	const vec3 view_dir = view_ptr->get_view_dir();
 	const vec3 &view_up_dir = view_ptr->get_view_up_dir();
-
-	vec2 viewport_size(
-		static_cast<float>(fbc.ref_frame_buffer().get_width()),
-		static_cast<float>(fbc.ref_frame_buffer().get_height())
-	);
 	// - spline stube renderer setup relevant to deferred shading pass
 	auto &tstr = ref_textured_spline_tube_renderer(ctx);
 	tstr.set_render_style(render.style);
@@ -2635,8 +2652,14 @@ void on_tube_vis::draw_trajectories(context& ctx)
 	if (!optix.enabled || !optix.initialized)
 #endif
 	{
+		// push viewport
+		const cgv::ivec4 vp_bak(viewport[0], viewport[1], viewport[2], viewport[3]);
+		const cgv::ivec4 vp_offscreen = cgv::ivec4(0, 0, fbc.get_size().x(), fbc.get_size().y());
+		if (sview_interactor.is_stereo_enabled())
+			ctx.set_viewport(vp_offscreen);
+
 		// enable drawing framebuffer
-		fbc.enable(ctx);
+		fbc.enable(ctx, false);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		// render tubes
@@ -2662,18 +2685,24 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		}
 
 		// sort the segment indices
-		if(debug.sort && do_sort && !debug.force_initial_order) {
+		if(false && debug.sort && do_sort && !debug.force_initial_order) {
 			// measure sort time
 			//render.sorter.begin_time_query();
-			render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, cyclopic_eye, view_dir, node_idx_buffer_ptr);
+			//render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, , view_dir, );
+			cgv::gpgpu::argument_binding_list sort_arguments = {
+				{ "u_eye_pos", cyclopic_eye }, { "u_view_dir", view_dir }, { "node_index_buffer", node_idx_buffer_ptr }
+			};
+			render.sorter.execute(ctx, render.render_sbo, render.data->indices.size(), *segment_idx_buffer_ptr, sort_arguments);
 			//benchmark.sort_time_total += render.sorter.end_time_query();
 			++benchmark.num_sorts;
 		}
 
 		tstr.set_cyclopic_eye(cyclopic_eye);
 		tstr.set_view_dir(view_dir);
-		tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
+		//tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
+		tstr.set_viewport(vec4(vp_offscreen));
 		tstr.set_render_style(render.style);
+
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 
 		int count = static_cast<int>(render.data->indices.size() / 2);
@@ -2694,7 +2723,11 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
 		// disable the drawing framebuffer
-		fbc.disable(ctx);
+		fbc.disable(ctx, false);
+
+		// pop viewport
+		if (sview_interactor.is_stereo_enabled())
+			ctx.set_viewport(vp_bak);
 	}
 #ifdef RTX_SUPPORT
 	else
@@ -2778,7 +2811,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		#else
 			prog.set_uniform(ctx, "holographic_raycast", false);
 		#endif
-		prog.set_uniform(ctx, "viewport_width", (float)ctx.get_width());
+		prog.set_uniform(ctx, "viewport_width", (float)viewport[2]/*ctx.get_width()*/);
 		const auto fb_size = fbc.get_size();
 		prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
 

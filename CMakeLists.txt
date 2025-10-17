@@ -26,7 +26,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 197d7118381d864588df58c0348b8be1e68402e4
+		GIT_TAG db38fdb98d7fcb587812712508089c0f1d6cdd6f
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -198,8 +198,9 @@ if (ENABLE_OPTIX_SUPPORT)
 		optixtracer_textured_spline_tube.h
 	)
 endif()
-# - resources (we'll likely get away with just globbing them)
+# - resources
 file(GLOB_RECURSE IMAGES RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.png" "*.bmp")
+list(FILTER IMAGES EXCLUDE REGEX "^doc") # we'll have to remove the /doc folder if it exits
 
 # decide on the view interactor to use
 if (ENABLE_HOLOGRAPHY)
@@ -221,7 +222,9 @@ cgv_add_target(OnTubeVis
 		cgv_os cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d cgv_app cgv_post cgv_gpgpu
 		${OPTIONAL_DEPENDENCIES} 
 
-	LINKTIME_PLUGIN_DEPENDENCIES cg_fltk  # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
+	LINKTIME_PLUGIN_DEPENDENCIES
+		cg_fltk # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
+		crg_stereo_view  # <-- we're directly using exported symbols from the crg_stereo_view plugin
 
 	ADDITIONAL_INCLUDE_PATHS ${ADDITIONAL_INCLUDE_PATHS}
 

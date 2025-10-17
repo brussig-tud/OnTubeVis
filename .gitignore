@@ -38,6 +38,9 @@
 # CGV framework stuff
 config.cfg
 
+# OnTubeVis streaming branch API documentation
+/doc
+
 # IDE folders
 .vs
 .vscode
