@@ -747,7 +747,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 
 		context& ctx = *get_context();
 		tube_shading_defines = build_tube_shading_defines();
-		shaders.reload(ctx, "tube_shading", tube_shading_defines);
+		shaders.reload(ctx, "tube_shading", { tube_shading_defines });
 
 		// reset glyph layer configuration file
 		layer_config_file_helper.set_file_name("");
@@ -785,7 +785,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 		if(defines != tube_shading_defines) {
 			context& ctx = *get_context();
 			tube_shading_defines = defines;
-			shaders.reload(ctx, "tube_shading", tube_shading_defines);
+			shaders.reload(ctx, "tube_shading", { tube_shading_defines });
 		}
 	}
 
@@ -832,7 +832,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 
 			context& ctx = *get_context();
 			tube_shading_defines = build_tube_shading_defines();
-			shaders.reload(ctx, "tube_shading", tube_shading_defines);
+			shaders.reload(ctx, "tube_shading", { tube_shading_defines });
 
 			compile_glyph_attribs();
 
