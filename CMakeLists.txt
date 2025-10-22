@@ -119,7 +119,7 @@ set(SOURCES
 		fmt/bcc.cxx
 		fmt/bezdat.cxx
 		fmt/csv.cxx
-		fmt/jtf19.cxx
+		fmt/jtf20.cxx
 		fmt/obd.cxx
 		fmt/sepia.cxx
 		fmt/tasc.cxx
