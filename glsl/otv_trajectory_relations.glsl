@@ -691,5 +691,5 @@ vec3 otv_shade_relation (float value)
 		}
 	}
 	// Get color from texture.
-	return map_to_color(value, TRAJ_REL_FUNCTION == FN_DBG_SIGNATURE ? 19 : traj_rel_color_map);
+	return map_to_color(value, TRAJ_REL_FUNCTION == FN_DBG_SIGNATURE ? 21 : traj_rel_color_map);
 }

@@ -2194,12 +2194,15 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	auto load_color_maps_from_directory = [this, &load_color_maps](const std::string& dir_name) {
 		if(std::filesystem::exists(dir_name)) {
+			auto files = std::vector<std::string>{};
 			for(const auto& entry : std::filesystem::directory_iterator(dir_name)) {
 				std::filesystem::path entry_path = entry.path();
 				// only take xml files
 				if(entry_path.extension() == ".xml")
-					load_color_maps(entry_path.string());
+					files.push_back(entry_path.string());
 			}
+			std::sort(files.begin(), files.end());
+			for (auto const& file : files) load_color_maps(file);
 		}
 	};
 
