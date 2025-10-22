@@ -344,7 +344,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 			declared_attribs.emplace_back(csv_attrib);
 			auto &attrib = declared_attribs.back();
 			// for each colum declaration, search the corresponding field in the actual .csv header row
-			for (const auto &col : csv_attribs[props.pos_id].columns)
+			for (const auto &col : csv_attrib.columns)
 				for (unsigned i=0; i<(unsigned)fields.size(); i++)
 				{
 					if (   (col.case_sensitive && fields[i].compare(col.name) == 0)
@@ -483,7 +483,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		} else {
 			t_mod = (real)(t = (real)P.size());
 		}
-	
+
 		// read in all declared attributes
 		for (auto &attrib : declared_attribs)
 		{
