@@ -299,7 +299,7 @@ void render_state::build_hash_grid (hash_grid::params const& params)
 
 	// Construct a new hash grid in place.
 	hash_grid.~hash_grid();
-	auto const initial_buckets = params.layout == hash_grid::layout::t_xyz ? 10u : 1000u;
+	auto const initial_buckets = params.layout == hash_grid::layout::t_xyz ? 10u : 100u;
 	new(std::launder(&hash_grid)) otv::hash_grid{grid_mem.get(), params, initial_buckets};
 
 	// Insert all segments into the new grid.
