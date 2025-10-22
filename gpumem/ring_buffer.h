@@ -2,8 +2,7 @@
 
 #include <type_traits>
 
-#include "array.h"
-
+#include "array.inl"
 
 
 namespace otv::gpumem {

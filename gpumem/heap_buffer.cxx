@@ -1,5 +1,6 @@
 // local includes
 #include <gl_util.h>
+#include <util.h>
 
 // implemented header
 #include "gpumem/heap_buffer.h"
@@ -35,9 +36,8 @@ namespace {
 	// Ensure that everything was successful.
 	check_gl_errors("gpumem::heap::heap");
 	if (!mapping)
-		throw std::runtime_error{std::format(
-			"Failed to allocate gpumem::heap of {} bytes.",
-			num_bytes
+		throw std::runtime_error{concat(
+			"Failed to allocate gpumem::heap of ",num_bytes," bytes."
 		)};
 
 	return {mapping, num_bytes, handle};

@@ -406,7 +406,7 @@ protected:
 		/// Index of the first `render_time` measurement during the current trajectory relation
 		/// benchmark.
 		/// Set to ~0 if no such benchmark is running.
-		size_t traj_rel_start = ~0uz;
+		size_t traj_rel_start = ~size_t{0};
 		/// counter for rendered frames
 		unsigned total_frames;
 		/// Number of frames that must be rendered before the benchmark ends.

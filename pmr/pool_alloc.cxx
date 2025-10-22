@@ -1,8 +1,8 @@
 // C++ STL
+#include <algorithm>
 #include <bit>
 #include <cassert>
 #include <iostream>
-#include <print>
 
 // implemented header
 #include "pmr/pool_alloc.h"
@@ -20,19 +20,18 @@ namespace {
 /// Ranges from 0 (no output) to 3 (full output).
 constexpr auto log_level = 1u;
 
-/// Print a message to `std::clog` using a C++ 20 format string.
-/// Does not append a newline.
-template <class... Args>
-void log(std::format_string<Args...> fmt, Args&&... args)
+/// Stream arguments to `std::clog`.
+template<typename... Args>
+void log(Args&&... args)
 {
-	std::print(std::clog, fmt, std::forward<Args>(args)...);
+	(std::clog << ... << std::forward<Args>(args));
 }
 
 /// Calculate the alignment used for blocks of a given order.
 [[nodiscard]] constexpr auto block_align (uint8_t order) noexcept -> size_t
 {
 	// Blocks are aligned no more than the size of each block or the maximum alignment of any type.
-	return std::min(1uz << order, alignof(std::max_align_t));
+	return std::min(size_t{1} << order, alignof(std::max_align_t));
 }
 
 } // namespace
@@ -49,10 +48,9 @@ pool_alloc::pool_alloc (std::pmr::memory_resource* parent, size_t chunk_size, ui
 
 	if constexpr (log_level > 0)
 		log(LOG_TAG" Create instance.\n"
-			"\tChunk size: {} bytes\n"
-			"\tMin block:  {} bytes\n"
-			"\tMax block:  {} bytes\n",
-			_chunk_size, 1 << _min_order, 1 << (_max_order - 1)
+			"\tChunk size: ",_chunk_size," bytes\n"
+			"\tMin block:  ",1 << _min_order," bytes\n"
+			"\tMax block:  ",1 << (_max_order - 1)," bytes\n"
 		);
 
 	// Chunks must be large enough to store at least two blocks of the smallest size.
@@ -89,10 +87,10 @@ auto pool_alloc::allocated_bytes () const -> size_t
 {
 	if (!_pools) return 0;
 
-	auto num_bytes = 0uz;
+	auto num_bytes = size_t{0};
 	for (auto order = _min_order; order < _max_order; ++order)
 		for (auto const& chunk : _pools[order - _min_order])
-			num_bytes += _chunk_size - chunk.capacity * (1uz << order);
+			num_bytes += _chunk_size - chunk.capacity * (size_t{1} << order);
 	return num_bytes;
 }
 
@@ -105,7 +103,7 @@ auto pool_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 	auto const order = required_order(num_bytes);
 
 	if constexpr (log_level > 1)
-		log(LOG_TAG" Allocating {} bytes in a block of order {}.\n", num_bytes, order);
+		log(LOG_TAG" Allocating ",num_bytes," bytes in a block of order ",order,".\n");
 
 	// Requests for more than half a chunk are forwarded to the parent allocator.
 	if (order >= _max_order) {
@@ -125,7 +123,7 @@ auto pool_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 		auto const num_blocks = _chunk_size >> order;
 
 		if constexpr (log_level > 2)
-			log("Allocating a new chunk of {} blocks.\n", num_blocks);
+			log("Allocating a new chunk of ",num_blocks," blocks.\n");
 
 		// Chunks have the same alignment as the blocks the contain.
 		auto const chunk_mem = static_cast<void**>(_parent->allocate(
@@ -165,12 +163,10 @@ auto pool_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 			return (reinterpret_cast<std::byte*>(block) - chunk->data) >> order;
 		};
 
-		log(LOG_TAG" Allocated block {} at {} in chunk {}."
-			"\nBlocks remaining: {}"
-			"\nNext free block:  {}\n",
-			block_idx(allocation), static_cast<void*>(allocation), chunk - chunks.begin(),
-			chunk->capacity,
-			block_idx(chunk->next_free)
+		log(LOG_TAG" Allocated block ",block_idx(allocation)," at ",allocation," in chunk ",
+				chunk - chunks.begin(),".\n"
+			"Blocks remaining: ",chunk->capacity,"\n"
+			"Next free block:  ",block_idx(chunk->next_free),"\n"
 		);
 	}
 	return allocation;
@@ -181,8 +177,7 @@ void pool_alloc::do_deallocate (void* ptr, size_t num_bytes, size_t align) noexc
 	// Determine the order of the allocated block.
 	auto const order = required_order(num_bytes);
 
-	if constexpr (log_level > 1)
-		log(LOG_TAG" Free {} bytes at {}.\n", num_bytes, ptr);
+	if constexpr (log_level > 1) log(LOG_TAG" Free ",num_bytes," bytes at ",ptr,".\n");
 
 	// Large allocations are handled by the parent.
 	if (order >= _max_order) {
@@ -209,14 +204,12 @@ void pool_alloc::do_deallocate (void* ptr, size_t num_bytes, size_t align) noexc
 	};
 
 	if (log_level > 2)
-		log("Returned block {} to chunk {}, which now has {} free blocks.\n",
-			block_idx(ptr), chunk - chunks.begin(), chunk->capacity
-		);
+		log("Returned block ",block_idx(ptr)," to chunk ",chunk - chunks.begin(),", which now has ",
+			chunk->capacity," free blocks.\n");
 
 	// If all blocks in the chunk are free, return it to the parent allocator.
 	if (chunk->capacity == _chunk_size >> order) {
-		if (log_level > 2)
-			log("Free empty chunk.\n");
+		if (log_level > 2) log("Free empty chunk.\n");
 
 		// Deallocate the chunk's memory.
 		_parent->deallocate(chunk->data, _chunk_size, block_align(order));
@@ -233,7 +226,7 @@ void pool_alloc::do_deallocate (void* ptr, size_t num_bytes, size_t align) noexc
 	chunk->next_free = next_free;
 
 	if (log_level > 2)
-		log("Next free block: {}.\n", (static_cast<std::byte*>(*next_free) - chunk->data) >> order);
+		log("Next free block: ",(static_cast<std::byte*>(*next_free) - chunk->data) >> order,".\n");
 }
 
 constexpr auto pool_alloc::required_order (size_t num_bytes) const noexcept -> uint8_t
@@ -251,7 +244,7 @@ void pool_alloc::clean_up () noexcept
 	// Remaining chunks are not freed; this leaks memory but avoids potential crashes from freeing
 	// objects still in use.
 	if (auto const allocated_bytes = this->allocated_bytes(); allocated_bytes > 0)
-		log("\x1b[1;31m[error]\x1b[m" LOG_TAG" {} bytes leaked.\n", allocated_bytes);
+		log("\x1b[1;31m[error]\x1b[m" LOG_TAG" ",allocated_bytes," bytes leaked.\n");
 #endif
 }
 

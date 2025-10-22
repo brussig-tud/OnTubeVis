@@ -1124,7 +1124,7 @@ struct traj_dataset<flt_type>::Impl
 	std::unordered_map<unsigned, std::vector<range>> trajs;
 	std::vector<range> empty_default_trajectories;
 	visual_attribute_mapping<flt_type> attrmap;
-	traj_manager<flt_type>::render_data::dataset::pfn_arclen arclen_fn = nullptr;
+	typename traj_manager<flt_type>::render_data::dataset::pfn_arclen arclen_fn = nullptr;
 	std::pair<real, real> minmax_pos_ts;
 	real avg_seg_len;
 

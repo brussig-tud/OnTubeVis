@@ -211,11 +211,11 @@ struct Nodes
 			otv__compute_extrapol(
 				extrapol.data(), config.extrapol_length, &prev_node, &new_node, &cur_alen
 			);
-			stream.nodes.emplace_back(
+			stream.nodes.push_back({
 				new_node,
 				i>0 ? std::make_optional(cur_alen) : std::nullopt,
 				extrapol
-			);
+			});
 			stream.time_sequence.emplace_hint(stream.time_sequence.end(), events[i].t, i);
 		}
 		return stream;

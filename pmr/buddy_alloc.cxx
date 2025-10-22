@@ -2,7 +2,6 @@
 #include <bit>
 #include <cassert>
 #include <iostream>
-#include <print>
 
 // implemented header
 #include "pmr/buddy_alloc.h"
@@ -20,12 +19,11 @@ namespace {
 /// Ranges from 0 (no output) to 3 (full output).
 constexpr auto log_level = 1u;
 
-/// Print a message to `std::clog` using a C++ 20 format string.
-/// Does not append a newline.
+/// Stream arguments to `std::clog`.
 template<typename... Args>
-void log(std::format_string<Args...> fmt, Args&&... args)
+void log(Args&&... args)
 {
-	std::print(std::clog, fmt, std::forward<Args>(args)...);
+	(std::clog << ... << std::forward<Args>(args));
 }
 
 } // namespace
@@ -53,14 +51,10 @@ buddy_alloc::buddy_alloc(std::span<std::byte> memory, uint8_t base_order)
 
 	if constexpr (log_level > 0)
 		log(LOG_TAG" Create instance.\n"
-			"\tRange:       {}..{} ({} bytes)\n"
-			"\tCapacity:    {} bytes\n"
-			"\tGranularity: {} bytes\n"
-			"\tLevels:      {}\n",
-			static_cast<void*>(_span.data()), static_cast<void*>(&*memory.end()), memory.size(),
-			block_size * min_blocks,
-			block_size,
-			_max_order
+			"\tRange:       ",_span.data(),"..",&*_span.end()," (",_span.size()," bytes)\n"
+			"\tCapacity:    ",block_size * min_blocks," bytes\n"
+			"\tGranularity: ",block_size," bytes\n"
+			"\tLevels:      ",_max_order,"\n"
 		);
 
 	// Initialize blocks as free.
@@ -114,7 +108,7 @@ void buddy_alloc::clear ()
 		}
 
 		if constexpr (log_level > 2)
-			log("\tOrder {}: {} blocks, remainder {}.\n", order, full_blocks, rem_order);
+			log("\tOrder ",order,": ",full_blocks," blocks, remainder ",rem_order,".\n");
 
 		// The next level starts at the left child of the current layer's first node.
 		first_block *= 2;
@@ -134,9 +128,9 @@ auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 	auto const req_order = required_order(num_bytes);
 
 	if constexpr (log_level > 1)
-		log(LOG_TAG" Allocating {} bytes in a block of order {}.\n", num_bytes, req_order);
+		log(LOG_TAG" Allocating ",num_bytes," bytes in a block of order ",req_order,".\n");
 
-	auto block = 1uz;
+	auto block = size_t{1};
 	// The root node stores the order of the largest block currently available.
 	// This check is both necessary and sufficient to determine whether the requested allocation is
 	// possible (ignoring alignment).
@@ -145,7 +139,7 @@ auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 	// Descend the tree of blocks down to the lowest order large enough to fulfill the request.
 	for (auto order = _max_order; order > req_order; --order) {
 		if constexpr (log_level > 2)
-			log("Order {}, block {}, capacity {}.\n", order, block, _capacity[block]);
+			log("Order ",order,", block ",block,", capacity ",_capacity[block],".\n");
 
 		auto const lchild = block * 2;
 
@@ -165,7 +159,7 @@ auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 		(block - (1 << (_max_order - req_order))) // Block index within level.
 		<< (_base_order + req_order - 1) // Times block size in bytes.
 	]);
-	if constexpr (log_level > 1) log("Allocated block {} at {}.\n", block, allocation);
+	if constexpr (log_level > 1) log("Allocated block ",block," at ",allocation,".\n");
 
 	// Check alignment.
 	if (reinterpret_cast<uintptr_t>(allocation) & (align - 1)) throw std::bad_alloc{};
@@ -192,7 +186,7 @@ auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 		block = parent;
 
 		if constexpr (log_level > 2)
-			log("Order {}, block {}, capacity {}.\n", order + 1, block, _capacity[block]);
+			log("Order ",order + 1,", block ",block,", capacity ",_capacity[block],".\n");
 	}
 
 	return allocation;
@@ -204,7 +198,7 @@ void buddy_alloc::do_deallocate (void* ptr, size_t num_bytes, size_t align) noex
 	auto order = required_order(num_bytes);
 
 	if constexpr (log_level > 1)
-		log(LOG_TAG" Free {} bytes at {}.\n", num_bytes, ptr);
+		log(LOG_TAG" Free ",num_bytes," bytes at ",ptr,".\n");
 
 #ifndef NDEBUG
 	// Track memory usage.
@@ -218,7 +212,7 @@ void buddy_alloc::do_deallocate (void* ptr, size_t num_bytes, size_t align) noex
 		+ (offset >> (_base_order + order - 1)); // Offset within the level.
 
 	if constexpr (log_level > 2)
-		log("Allocated in block {}, order {}.\n", block, order);
+		log("Allocated in block ",block,", order ",order,".\n");
 
 	// A free block's capacity is equal to its order.
 	auto new_cap = _capacity[block] = order;
@@ -242,7 +236,7 @@ void buddy_alloc::do_deallocate (void* ptr, size_t num_bytes, size_t align) noex
 		block /= 2;
 
 		if constexpr (log_level > 2)
-			log("Order {}, block {}, capacity {}.\n", order + 1, block, new_cap);
+			log("Order ",order + 1,", block ",block,", capacity ",new_cap,".\n");
 	}
 }
 
@@ -265,7 +259,7 @@ void buddy_alloc::clean_up () noexcept
 #ifndef NDEBUG
 	// Check that all allocations have been freed.
 	if (_capacity && _allocated_bytes > 0)
-		log("\x1b[1;33m[warning]\x1b[m" LOG_TAG" {} bytes leaked.\n", _allocated_bytes);
+		log("\x1b[1;33m[warning]\x1b[m" LOG_TAG" ",_allocated_bytes," bytes leaked.\n");
 #endif
 }
 

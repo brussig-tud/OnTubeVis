@@ -1,9 +1,9 @@
-// C++ STL
-#include <format>
-
 // CGV framework
 #include <cgv/gui/provider.h>
 #include <cgv/render/shader_program.h>
+
+// local includes
+#include <util.h>
 
 // implemented header
 #include "vis/trajectory_relation.h"
@@ -23,6 +23,7 @@ void trajectory_relation::build_gui (
 	cgv::vec4                       data_extent,
 	std::vector<std::string> const& color_maps
 ) {
+	using std::operator""s;
 	auto const b = dynamic_cast<cgv::base::base*>(&p);
 	p.add_member_control(b, "Shading", shading, "dropdown", "enums='"
 		"Forward per Node,"
@@ -48,13 +49,13 @@ void trajectory_relation::build_gui (
 		"[debug] Contributing Samples'"
 	);
 	p.add_member_control(b, "Spatial Radius", radius[0], "value_slider",
-		std::format("min=0;max={};ticks=true;log=true", cgv::vec3{data_extent}.length() * 0.1f)
+		concat("min=0;max=",cgv::vec3{data_extent}.length() * 0.1f,";ticks=true;log=true")
 	);
 	p.add_member_control(b, "Temporal Radius", radius[1], "value_slider",
-		std::format("min=0;max={};ticks=true;log=true", data_extent[3] * 0.1f)
+		concat("min=0;max=",data_extent[3] * 0.1f,";ticks=true;log=true")
 	);
 	p.add_member_control(b, "Sample Rate", sample_rate, "value_slider",
-		std::format("min=0;max={};ticks=true;log=true", 1e4 / data_extent[3])
+		concat("min=0;max=",1e4 / data_extent[3],";ticks=true;log=true")
 	);
 	p.add_member_control(b, "Direction", direction, "dropdown", "enums='"
 		"Reference to All,"
@@ -62,7 +63,7 @@ void trajectory_relation::build_gui (
 		"All to All'"
 	);
 	p.add_member_control(b, "Reference Traj.", reference_trajectory, "value_slider",
-		std::format("min=0;max={};step=1;ticks=true", num_trajectories - 1)
+		concat("min=0;max=",num_trajectories - 1,";step=1;ticks=true")
 	);
 	p.add_member_control(b, "Normalize", normalize, "check");
 	p.add_member_control(b, "Color Scale", color_map, "dropdown", p.concat_enum_def(color_maps));

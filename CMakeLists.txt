@@ -372,7 +372,7 @@ if (ENABLE_OPTIX_SUPPORT)
 			BUILD_TOOL       cuda_resprep
 			BUILD_TOOL_ARGS
 				"${CUDA_NVCC_EXECUTABLE}" "<<<INFILE>>>" "<<<OUTFILE>>>" "${NVCC_BINCC_OPT}" "${NVCC_BINCC_ARG}"
-				"-std=c++23" "-ptx" "-arch=compute_61" "--use_fast_math" "-O=3" "-dopt=on" "-D__x86_64"
+				"-std=c++20" "-ptx" "-arch=compute_61" "--use_fast_math" "-O=3" "-dopt=on" "-D__x86_64"
 				"-I\"<<<INFILE_PATH>>>\"" ${NVCC_INCLUDE_PATH}
 	)
 endif()
@@ -388,9 +388,9 @@ if (NOT OpenMP_CXX_FOUND)
 endif()
 
 # make sure we can compile
-target_compile_features(OnTubeVis PUBLIC cxx_std_23)
-target_compile_features(OnTubeVis_static PUBLIC cxx_std_23)
-set_target_properties(OnTubeVis OnTubeVis_static PROPERTIES CXX_STANDARD 23)
+target_compile_features(OnTubeVis PUBLIC cxx_std_20)
+target_compile_features(OnTubeVis_static PUBLIC cxx_std_20)
+set_target_properties(OnTubeVis OnTubeVis_static PROPERTIES CXX_STANDARD 20)
 set_target_properties(OnTubeVis OnTubeVis_static PROPERTIES CXX_STANDARD_REQUIRED ON)
 set_target_properties(OnTubeVis OnTubeVis_static PROPERTIES CXX_EXTENSIONS ON)
 

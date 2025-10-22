@@ -189,7 +189,7 @@ private:
 	};
 	/// A bucket of the hash table, dimensioned and aligned to match GPU memory transfers.
 	struct bucket_t {
-		static constexpr auto size_bytes = 128uz;
+		static constexpr auto size_bytes = size_t{128};
 		static constexpr auto num_slots  = size_bytes / sizeof(slot_t);
 		alignas(size_bytes) std::array<slot_t, num_slots> slots;
 	};
@@ -241,8 +241,10 @@ private:
 		/// Used by layout `t_xyz`.
 		tables;
 
+#if __cpp_lib_is_layout_compatible
 		// Ensure that all variants have a common `span_t` subsequence.
 		static_assert(std::is_layout_compatible_v<decltype(buckets), decltype(tables.buckets)>);
+#endif
 	}
 	/// Hash buckets storing grid cells.
 	/// The active member is determined by `_layout`.
@@ -256,7 +258,7 @@ private:
 		/// Function object hashing grid indices for use in STL containers.
 		/// Uses a different hash function than the main table.
 		struct index_hash_t {
-			[[nodiscard]] constexpr auto operator()(index_t const& idx) const noexcept -> size_t
+			[[nodiscard]] auto operator()(index_t const& idx) const noexcept -> size_t
 			{
 				using index_bits = std::bitset<sizeof(index_t) * 8>;
 				return std::hash<index_bits>{}(*reinterpret_cast<index_bits const*>(&idx));
@@ -298,8 +300,8 @@ private:
 	/// Returns a pointer to the queried entry in the table or nullptr if insertion failed.
 	auto find_or_insert (std::span<bucket_t>, index_t, cell_t new_cell = {}) -> cell_t*;
 
-	/// Hash a cell index into a shorter signature with high entropy.
-	[[nodiscard]] constexpr auto signature (index_t) const noexcept -> signature_t;
+	/// Hash a cell index into a shorter signature.
+	[[nodiscard]] auto signature (index_t) const noexcept -> signature_t;
 	/// Access the bucket in which a cell with the given signature is stored by `hash_fn`.
 	[[nodiscard]] auto bucket (std::span<bucket_t>, signature_t, uint8_t hash_fn) noexcept
 		-> bucket_t&;

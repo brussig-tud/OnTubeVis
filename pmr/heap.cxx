@@ -15,8 +15,8 @@ heap::heap(std::span<std::byte> memory, size_t granularity)
 	}
 	, _pool_alloc {
 		&_buddy_alloc,
-		1uz << _buddy_alloc.base_order(),
-		static_cast<uint8_t>(std::bit_width(std::min(memory.size(), 1uz) - 1)/*ceil(log2)*/)
+		size_t{1} << _buddy_alloc.base_order(),
+		static_cast<uint8_t>(std::bit_width(std::min(memory.size(), size_t{1}) - 1)/*ceil(log2)*/)
 	}
 {}
 

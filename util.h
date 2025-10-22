@@ -7,12 +7,22 @@
 #include <algorithm>
 #include <chrono>
 #include <optional>
+#include <sstream>
+#include <vector>
 
 
 /// The duration type for the platform high-resolution clock
 typedef decltype(
 	std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now()
 ) hires_duration_type;
+
+
+/// Format and concatenate arguments using `std::stringstream`.
+template <class... Args>
+auto concat (Args&&... args) -> std::string
+{
+	return std::move((std::stringstream{} << ... << std::forward<Args>(args))).str();
+}
 
 
 /// A right-open range [begin, end).

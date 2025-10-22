@@ -6,7 +6,6 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
-#include <print>
 
 // OS access
 #ifdef _WIN32
@@ -2953,7 +2952,10 @@ void on_tube_vis::after_finish(context& ctx)
 		// evaluate criterion for capturing render time
 		const float buffer_vacancy =
 			render.node_buffer.free_capacity() / float(render.node_buffer.capacity());
-		render.collect_timer_queries(benchmark.traj_rel_start != ~0uz || buffer_vacancy < 0.5f);
+		render.collect_timer_queries(
+			benchmark.traj_rel_start != ~size_t{0}
+			|| buffer_vacancy < 0.5f
+		);
 		client.extrapol_mgr.collect_timer_queries();
 	}
 
@@ -2987,7 +2989,7 @@ void on_tube_vis::after_finish(context& ctx)
 			//ss << "Sorted " << benchmark.num_sorts << " times with mean duration of " << (benchmark.sort_time_total / static_cast<double>(benchmark.num_sorts)) << "ms" << std::endl;
 
 			std::cout << ss.str() << std::endl;
-			if (benchmark.traj_rel_start != ~0uz) end_traj_rel_benchmark();
+			if (benchmark.traj_rel_start != ~size_t{0}) end_traj_rel_benchmark();
 		}
 	}
 
@@ -3136,26 +3138,24 @@ void on_tube_vis::create_gui (void)
 			client.data->t_minmax.second - client.data->t_minmax.first
 		};
 		add_member_control(this, "Cell size x", hash_grid_params.cell_size[0], "value_slider",
-			std::format("min=0;max={};log=true;ticks=true", extent[0] * 0.1f)
+			concat("min=0;max=",extent[0] * 0.1f,";log=true;ticks=true")
 		);
 		add_member_control(this, "Cell size y", hash_grid_params.cell_size[1], "value_slider",
-			std::format("min=0;max={};log=true;ticks=true", extent[1] * 0.1f)
+			concat("min=0;max=",extent[1] * 0.1f,";log=true;ticks=true")
 		);
 		add_member_control(this, "Cell size z", hash_grid_params.cell_size[2], "value_slider",
-			std::format("min=0;max={};log=true;ticks=true", extent[2] * 0.1f)
+			concat("min=0;max=",extent[2] * 0.1f,";log=true;ticks=true")
 		);
 		add_member_control(this, "Cell size t", hash_grid_params.cell_size[3], "value_slider",
-			std::format("min=0;max={};log=true;ticks=true", extent[3] * 0.1f)
+			concat("min=0;max=",extent[3] * 0.1f,";log=true;ticks=true")
 		);
 		add_member_control(this, "Sample step space", hash_grid_params.sample_step[0],
 			"value_slider",
-			std::format("min=0;max={};log=true;ticks=true",
-				min_value(hash_grid_params.cell_size) * 0.2f
-			)
+			concat("min=0;max=",min_value(hash_grid_params.cell_size) * 0.2f,";log=true;ticks=true")
 		);
 		add_member_control(this, "Sample step time", hash_grid_params.sample_step[1],
 			"value_slider",
-			std::format("min=0;max={};log=true;ticks=true", hash_grid_params.cell_size[3] * 0.2f)
+			concat("min=0;max=",hash_grid_params.cell_size[3] * 0.2f,";log=true;ticks=true")
 		);
 		connect_copy(
 			add_button("Rebuild Grid")->click,
@@ -3556,7 +3556,7 @@ void on_tube_vis::update_attribute_bindings(void)
 		{
 		auto const extent = bbox.get_extent();
 		traj_rel.set_defaults({extent, tmax - tmin});
-		auto const resolution      = std::max(std::powf(num_nodes, 0.25f), 16.0f) * 1e-3f;
+		auto const resolution      = std::max(powf(num_nodes, 0.25f), 16.0f) * 1e-3f;
 		hash_grid_params.cell_size = cgv::vec4{
 			cgv::vec3{max_value(extent) * resolution},
 			(tmax - tmin) * resolution
@@ -4050,55 +4050,39 @@ void on_tube_vis::start_traj_rel_benchmark ()
 void on_tube_vis::end_traj_rel_benchmark ()
 {
 	// Write results to a CSV file.
-	using namespace std::chrono;
-	auto result_file = std::ofstream{std::format(
-		"{:%F_%T}.csv",
-		zoned_seconds{current_zone(), round<seconds>(system_clock::now())}
-	)};
+	auto const now   = std::time(nullptr);
+	auto result_file = std::ofstream{concat(std::put_time(std::localtime(&now), "%F_%T.csv"))};
+
 	// Write parameters.
-	auto const& frame_buffer = fbc.ref_frame_buffer();
-	std::print(result_file,
-		"dataset\t{}\n"
-		"num_pixels\t{}\n"
-		"grid_layout\t{}\n"
-		"cell_size_x\t{}\n"
-		"cell_size_y\t{}\n"
-		"cell_size_z\t{}\n"
-		"cell_size_t\t{}\n"
-		"sampling_space\t{}\n"
-		"sampling_time\t{}\n"
-		"shading\t{}\n"
-		"function\t{}\n"
-		"radius_space\t{}\n"
-		"radius_time\t{}\n"
-		"sample_rate\t{}\n"
-		"direction\t{}\n"
-		"memory\t{}\n",
-		traj_mgr.dataset(0).data_source(),
-		frame_buffer.get_width() * frame_buffer.get_height(),
-		enum_id(hash_grid_params.layout),
-		hash_grid_params.cell_size.x(),
-		hash_grid_params.cell_size.y(),
-		hash_grid_params.cell_size.z(),
-		hash_grid_params.cell_size[3],
-		hash_grid_params.sample_step[0],
-		hash_grid_params.sample_step[1],
-		traj_rel.shading.value,
-		get_reflection_traits(traj_rel.function)
-			.get_enum_name(static_cast<unsigned>(traj_rel.function)),
-		traj_rel.radius[0],
-		traj_rel.radius[1],
-		traj_rel.sample_rate,
-		enum_id(traj_rel.direction),
-		render.grid_mem ? render.grid_mem->allocated_bytes() : 0uz
-	);
+	auto const& fb = fbc.ref_frame_buffer();
+	auto const fn  = get_reflection_traits(traj_rel.function)
+		.get_enum_name(static_cast<unsigned>(traj_rel.function));
+	auto const memory = render.grid_mem ? render.grid_mem->allocated_bytes() : size_t{0};
+	result_file <<
+		"dataset\t"        << traj_mgr.dataset(0).data_source() << "\n"
+		"num_pixels\t"     << fb.get_width() * fb.get_height()  << "\n"
+		"grid_layout\t"    << enum_id(hash_grid_params.layout)  << "\n"
+		"cell_size_x\t"    << hash_grid_params.cell_size.x()    << "\n"
+		"cell_size_y\t"    << hash_grid_params.cell_size.y()    << "\n"
+		"cell_size_z\t"    << hash_grid_params.cell_size.z()    << "\n"
+		"cell_size_t\t"    << hash_grid_params.cell_size[3]     << "\n"
+		"sampling_space\t" << hash_grid_params.sample_step[0]   << "\n"
+		"sampling_time\t"  << hash_grid_params.sample_step[1]   << "\n"
+		"shading\t"        << traj_rel.shading.value            << "\n"
+		"function\t"       << fn                                << "\n"
+		"radius_space\t"   << traj_rel.radius[0]                << "\n"
+		"radius_time\t"    << traj_rel.radius[1]                << "\n"
+		"sample_rate\t"    << traj_rel.sample_rate              << "\n"
+		"direction\t"      << enum_id(traj_rel.direction)       << "\n"
+		"memory\t"         << memory                            << "\n";
 	// Write render time measurements.
 	for (auto const t:
 		std::span{render.stats.render_times.measurements}.subspan(benchmark.traj_rel_start)
-	) std::print(result_file, "time\t{}\n", t.count());
+	) result_file << "time\t" << t.count() << "\n";
+
 	// Exit benchmark mode.
 	benchmark_mode           = false;
-	benchmark.traj_rel_start = ~0uz;
+	benchmark.traj_rel_start = ~size_t{0};
 	// Render additonal elements.
 	show_wireframe_bbox = show_extrapolation = true;
 	navigator_ptr->set_visibility(true);

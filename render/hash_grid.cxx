@@ -1,9 +1,9 @@
-// C++ STL
-#include <print>
-
 // CGV framework
 #include <cgv/render/context.h>
 #include <cgv/render/shader_program.h>
+
+// local includes
+#include <util.h>
 
 // implemented header
 #include "render/hash_grid.h"
@@ -27,12 +27,11 @@ using cgv::vec4;
 /// Ranges from 0 (no output) to 4 (full output).
 constexpr auto log_level = 2u;
 
-/// Print a message to `std::clog` using a C++ 20 format string.
-/// Does not append a newline.
-template <class... Args>
-void log(std::format_string<Args...> fmt, Args&&... args)
+/// Stream arguments to `std::clog`.
+template<typename... Args>
+void log(Args&&... args)
 {
-	std::print(std::clog, fmt, std::forward<Args>(args)...);
+	(std::clog << ... << std::forward<Args>(args));
 }
 
 
@@ -50,6 +49,125 @@ constexpr uint8_t num_hash_fns = 2;
 constexpr auto max_cuckoo_chain = 50u;
 
 } // namespace
+
+
+template <class T>
+constexpr hash_grid::ptr_t<T>::ptr_t(memory_region region, T* ptr) noexcept
+	: address {
+		static_cast<uint32_t>(reinterpret_cast<std::byte*>(ptr) - region.data())
+		/ address_unit
+	}
+{
+	// Check that the pointer lies within the region and its offset can be represented in 32 bits.
+	assert(get(region) == ptr);
+}
+
+template <class T>
+constexpr hash_grid::ptr_t<T>::operator bool() const noexcept
+{
+	return address != ~0u;
+}
+
+template <class T>
+constexpr auto hash_grid::ptr_t<T>::operator== (ptr_t other) const noexcept -> bool
+{
+	return address == other.address;
+}
+
+template <class T>
+constexpr auto hash_grid::ptr_t<T>::get (memory_region region) const noexcept -> T*
+{
+	assert(address * address_unit < region.size());
+	return reinterpret_cast<T*>(&region[address * address_unit]);
+}
+
+
+template <class T>
+constexpr hash_grid::span_t<T>::span_t(memory_region region, std::span<T> span) noexcept
+	: start {region, span.data()}
+	, len   {static_cast<uint32_t>(span.size())}
+{
+	// Check that the length can be represented with 32 bits.
+	assert(len == span.size());
+}
+
+template <class T>
+constexpr auto hash_grid::span_t<T>::get (memory_region region) const noexcept -> std::span<T>
+{
+	return {start.get(region), len};
+}
+
+
+hash_grid::cell_t::cell_t(pmr::memory_region& memory, index_t index)
+{
+	// Start with the smallest capacity > 0 such that the total size of the allocation is a power of
+	// two.
+	auto const capacity =
+		(std::bit_ceil(offsetof(data_t, intervals[1])) - offsetof(data_t, intervals))
+		/ sizeof(interval_t);
+	// Allocate and initialize cell data.
+	data = {
+		memory.span(),
+		&(*allocate(memory, capacity) = {.index = index, .size = 0, .capacity = capacity})
+	};
+}
+
+void hash_grid::cell_t::add_interval (pmr::memory_region& memory, interval_t interval)
+{
+	auto const region = memory.span();
+	auto& data        = *this->data.get(region);
+	// Load header.
+	auto const [index, size, capacity, _] = data;
+
+	// If the allocation has spare capacity, append the new interval.
+	if (size < capacity) {
+		std::construct_at(&data.intervals[data.size++], interval);
+		return;
+	}
+
+	// Sanity check: Array length cannot exceed allocation size.
+	assert(size == capacity);
+
+	// If the current allocation is full, reallocate with twice as much memory.
+	auto const new_capacity = capacity * 2
+		+ static_cast<uint32_t>(offsetof(data_t, intervals) / sizeof(interval_t));
+
+	if constexpr (log_level > 2)
+		log(LOG_TAG" Grow cell from capacity ",capacity," to ",new_capacity,".\n");
+
+	auto& new_data = *allocate(memory, new_capacity) = {index, size + 1, new_capacity};
+	// Copy previous intervals.
+	std::uninitialized_move_n(data.intervals, size, new_data.intervals);
+	// Append the new interval.
+	std::construct_at(&new_data.intervals[size], interval);
+
+	// Free the previous allocation.
+	memory.deallocate(
+		&data,
+		offsetof(data_t, intervals) + capacity * sizeof(interval_t),
+		alignof(data_t)
+	);
+	// Point to the new allocation.
+	this->data = {region, &new_data};
+}
+
+void hash_grid::cell_t::free (pmr::memory_region& memory) noexcept
+{
+	auto& data = *this->data.get(memory.span());
+	memory.deallocate(
+		&data,
+		offsetof(data_t, intervals) + data.capacity * sizeof(interval_t),
+		alignof(data_t)
+	);
+}
+
+auto hash_grid::cell_t::allocate (pmr::memory_region& memory, uint32_t capacity) -> data_t*
+{
+	return std::construct_at(static_cast<data_t*>(memory.allocate(
+		offsetof(data_t, intervals) + capacity*sizeof(interval_t),
+		alignof(data_t)
+	)));
+}
 
 
 hash_grid::hash_grid(pmr::memory_region* memory, params const& params, uint32_t initial_buckets)
@@ -72,10 +190,9 @@ hash_grid::hash_grid(pmr::memory_region* memory, params const& params, uint32_t 
 	// offset.
 	auto const address_limit = (static_cast<size_t>(address_unit) << 32) - 1;
 	if (region.size() >= address_limit)
-		throw std::runtime_error{std::format(
-			"{} byte memory region exceeds the hash grid's address limit of {} bytes.",
-			region.size(),
-			address_limit
+		throw std::runtime_error{concat(
+			region.size()," byte memory region exceeds the hash grid's address limit of ",
+			address_limit," bytes."
 		)};
 
 	// Initialize tables.
@@ -96,12 +213,13 @@ hash_grid::hash_grid(pmr::memory_region* memory, params const& params, uint32_t 
 		using std::operator""sv;
 		auto const layout_name = std::array{"3D"sv, "Strided 3D"sv, "4D"sv}
 			[static_cast<size_t>(_layout)];
-		std::clog << LOG_TAG" Create instance.\n"
-			"\tLayout:          "  << layout_name              <<  "\n"
-			"\tCell size:       (" << _cell_size               << ")\n"
-			"\tSample step:     "  << _sample_step[0]          <<  " (space), "
-			                       << _sample_step[1]          <<  " (time)\n"
-			"\tInitial buckets: "  << (1u << _initial_buckets) <<  "\n";
+		log(LOG_TAG" Create instance.\n"
+			"\tLayout:          " ,layout_name             , "\n"
+			"\tCell size:       (",_cell_size              ,")\n"
+			"\tSample step:     " ,_sample_step[0]         , " (space), "
+			                      ,_sample_step[1]         , " (time)\n"
+			"\tInitial buckets: " ,(1u << _initial_buckets), "\n"
+		);
 	}
 }
 
@@ -171,7 +289,7 @@ void hash_grid::add_segment (
 	auto const start_index = round(start_point);
 
 	if constexpr (log_level > 2)
-		std::clog << LOG_TAG" Add segment (" << start_point << ") to (" << end_point << ")\n";
+		log(LOG_TAG" Add segment (",start_point,") to (",end_point,")\n");
 
 	/// Cubic Bézier curve defining the segment's spatial components, scaled to grid coordinates.
 	auto const [b0, b1, b2, b3] = std::to_array<vec3>({
@@ -205,12 +323,12 @@ void hash_grid::add_segment (
 	// Check plausibility.
 	assert(min_step > 1e-6 && min_step < 1e6);
 
-	if constexpr (log_level > 3)
-		std::clog <<
-			"\tArclength:    "  << arclen          <<  "\n"
-			"\tDuration:     "  << duration        <<  "\n"
-			"\tMin sampling: "  << min_step        <<  "\n"
-			"\tMax sampling: (" << max_step * 0.5f << ")\n";
+	if constexpr (log_level > 3) log(
+		"\tArclength:    " ,arclen         , "\n"
+		"\tDuration:     " ,duration       , "\n"
+		"\tMin sampling: " ,min_step       , "\n"
+		"\tMax sampling: (",max_step * 0.5f,")\n"
+	);
 
 	/// Start of the current interval.
 	auto min_time = start.t[0];
@@ -245,8 +363,9 @@ void hash_grid::add_segment (
 		}
 
 		if constexpr (log_level > 3) {
-			log("{:5.1f}% {:f}", t * 100, (start.t[0] + t*duration));
-			std::clog << " (" << point << ")\n";
+			auto const prec = std::clog.precision();
+			log(std::setw(5),std::fixed,std::setprecision(1),t * 100,"% ",std::defaultfloat,prec,
+				start.t[0] + t*duration," (",point,")\n");
 		}
 
 		/// Grid cell containing the current sample.
@@ -268,8 +387,8 @@ void hash_grid::add_segment (
 				auto grid_plane = 0.5f*prev_index[d] + 0.5f*index[d];
 
 				if (log_level > 1 && abs(index[d] - prev_index[d]) > 1)
-					std::clog << LOG_WARNING LOG_TAG" Skipping cell between (" << prev_index
-						<< ") and (" << index << ")\n";
+					log(LOG_WARNING LOG_TAG" Skipping cell between (",prev_index,") and (",index,
+						")\n");
 
 				// Linearly approximate the intersection between trajectory and grid.
 				isect_offset +=
@@ -387,7 +506,7 @@ void hash_grid::free (std::span<T> alloc) noexcept
 void hash_grid::add_interval (index_t index, interval_t interval)
 {
 	if constexpr (log_level > 2)
-		std::clog << LOG_TAG" Add interval (" << interval.time << ") to cell (" << index << ").\n";
+		log(LOG_TAG" Add interval (",interval.time,") to cell (",index,").\n");
 
 	cell(index).add_interval(*_memory, interval);
 
@@ -418,7 +537,7 @@ auto hash_grid::cell (index_t index) -> cell_t&
 		rehash:
 			auto const new_size = buckets.size() * 2;
 			if constexpr (log_level > 2)
-				log(LOG_TAG" Grow table from {} to {} buckets.\n", buckets.size(), new_size);
+				log(LOG_TAG" Grow table from ",buckets.size()," to ",new_size," buckets.\n");
 
 			// Allocate new buckets and initialize them as empty.
 			buckets = allocate<bucket_t>(new_size);
@@ -427,7 +546,7 @@ auto hash_grid::cell (index_t index) -> cell_t&
 			table = {region, buckets};
 
 			// Reinsert all entries in the new buckets.
-			auto num_cells = 0uz;
+			auto num_cells = size_t{0};
 			for (auto& bucket : old_buckets)
 				for (auto& slot : bucket.slots) {
 					// Count cells to determine load factor.
@@ -445,12 +564,10 @@ auto hash_grid::cell (index_t index) -> cell_t&
 		if constexpr (log_level > 0) {
 			// Print the load factor before resizing to determine efficiency.
 			auto const num_slots = old_buckets.size() * bucket_t::num_slots;
-			log(LOG_TAG" Rehashed table after insertion failed with {}/{} slots occupied "
-				"(load factor {:.2}).\n",
-				num_cells,
-				num_slots,
-				static_cast<float>(num_cells) / num_slots
-			);
+			auto const prec      = std::clog.precision();
+			log(LOG_TAG" Rehashed table after insertion failed with ",num_cells,"/",num_slots,
+				" slots occupied (load factor ",std::setprecision(3),
+				static_cast<float>(num_cells) / num_slots,").\n",prec);
 		}
 
 		// Free the previous allocation.
@@ -488,7 +605,7 @@ auto hash_grid::table (int32_t timestep) -> span_t<bucket_t>&
 
 	// Otherwise, a new table must be allocated.
 	auto const num_buckets = 1u << _initial_buckets;
-	if (log_level > 1) log(LOG_TAG" Allocate {} buckets for timestep {}.\n", num_buckets, timestep);
+	if (log_level > 1) log(LOG_TAG" Allocate ",num_buckets," buckets for timestep ",timestep,".\n");
 
 	auto const new_buckets = allocate<bucket_t>(num_buckets);
 	std::ranges::uninitialized_default_construct(new_buckets);
@@ -515,10 +632,8 @@ auto hash_grid::table (int32_t timestep) -> span_t<bucket_t>&
 	_data.tables.capacity *= 2;
 
 	if (log_level > 1)
-		log(LOG_TAG" Grow table vector from capacity {} to {}.\n",
-			bucket_vec.size(),
-			_data.tables.capacity
-		);
+		log(LOG_TAG" Grow table vector from capacity ",bucket_vec.size()," to ",
+			_data.tables.capacity,".\n");
 
 	// Move timesteps, splicing the new entry inbetween.
 	auto const new_timestep_vec = allocate<int32_t>(_data.tables.capacity);
@@ -586,8 +701,7 @@ auto hash_grid::find_or_insert (std::span<bucket_t> buckets, index_t query, cell
 				}
 				// Report signature hash collisions.
 				if constexpr (log_level > 1)
-					std::clog << LOG_TAG" Signature collision for indices (" << index
-						<< ") and (" << query << ")\n";
+					log(LOG_TAG" Signature collision for indices (",index,") and (",query,")\n");
 			}
 			++load;
 		}
@@ -608,8 +722,8 @@ auto hash_grid::find_or_insert (std::span<bucket_t> buckets, index_t query, cell
 		// This check is not performed when `new_cell` is given, since that only happens during
 		// rehashing, which does not affect the validation map.
 		if (_validation.cell_fill[query] != 0) {
-			std::clog << LOG_ERROR LOG_TAG" Could not find cell (" << query << ") "
-				"even though it has been added to the grid before.\n";
+			log(LOG_ERROR LOG_TAG" Could not find cell (",query,") "
+				"even though it has been added to the grid before.\n");
 			std::abort();
 		}
 #endif
@@ -638,7 +752,7 @@ auto hash_grid::find_or_insert (std::span<bucket_t> buckets, index_t query, cell
 			else assert(new_entry->data == new_cell.data);
 
 			if constexpr (log_level > 2)
-				std::clog << LOG_TAG" Inserted cell (" << query << ") after " << cuckoo_chain << " cuckoos.\n";
+				log(LOG_TAG" Inserted cell (",query,") after ",cuckoo_chain," cuckoos.\n");
 
 			return new_entry;
 		}
@@ -655,7 +769,7 @@ auto hash_grid::find_or_insert (std::span<bucket_t> buckets, index_t query, cell
 			(prev_fn + 1) % num_hash_fns
 		);
 		auto& dest = cuckoo_bucket.slots[
-			std::uniform_int_distribution{0uz, bucket_t::num_slots - 1}(_rng)
+			std::uniform_int_distribution{size_t{0}, bucket_t::num_slots - 1}(_rng)
 		];
 		// Remember where the new cell is stored.
 		if (floating_entry.cell.data == new_cell.data) new_entry = &dest.cell;
@@ -684,8 +798,7 @@ auto hash_grid::find_or_insert (std::span<bucket_t> buckets, index_t query, cell
 		}
 	}
 	if constexpr (log_level > 2)
-		std::clog << LOG_TAG" Could not insert cell (" << query << ") after "
-			<< max_cuckoo_chain << " cuckoos.\n";
+		log(LOG_TAG" Could not insert cell (",query,") after ",max_cuckoo_chain," cuckoos.\n");
 	// If no free slot could be found in the given number of tries, the table must be resized.
 	// All cells in the table before this function call are reinserted into the new buckets.
 	// To this end, the last cell to be displaced is restored into the slot of the new cell.
@@ -695,7 +808,7 @@ auto hash_grid::find_or_insert (std::span<bucket_t> buckets, index_t query, cell
 	return nullptr;
 }
 
-constexpr auto hash_grid::signature (index_t index) const noexcept -> signature_t
+auto hash_grid::signature (index_t index) const noexcept -> signature_t
 {
 	// Signatures are generated using the variable length xxhash32 algorithm by Collet 2012 as
 	// implemented by Jarzynski and Olano 2020.
@@ -743,125 +856,6 @@ auto hash_grid::bucket (std::span<bucket_t> buckets, signature_t signature, uint
 
 	// The number of buckets is a power of two, so the modulo simplifies to a bit-wise and.
 	return buckets[hash & buckets.size() - 1];
-}
-
-
-template <class T>
-constexpr hash_grid::ptr_t<T>::ptr_t(memory_region region, T* ptr) noexcept
-	: address {
-		static_cast<uint32_t>(reinterpret_cast<std::byte*>(ptr) - region.data())
-		/ address_unit
-	}
-{
-	// Check that the pointer lies within the region and its offset can be represented in 32 bits.
-	assert(get(region) == ptr);
-}
-
-template <class T>
-constexpr hash_grid::ptr_t<T>::operator bool() const noexcept
-{
-	return address != ~0u;
-}
-
-template <class T>
-constexpr auto hash_grid::ptr_t<T>::operator== (ptr_t other) const noexcept -> bool
-{
-	return address == other.address;
-}
-
-template <class T>
-constexpr auto hash_grid::ptr_t<T>::get (memory_region region) const noexcept -> T*
-{
-	assert(address * address_unit < region.size());
-	return reinterpret_cast<T*>(&region[address * address_unit]);
-}
-
-
-template <class T>
-constexpr hash_grid::span_t<T>::span_t(memory_region region, std::span<T> span) noexcept
-	: start {region, span.data()}
-	, len   {static_cast<uint32_t>(span.size())}
-{
-	// Check that the length can be represented with 32 bits.
-	assert(len == span.size());
-}
-
-template <class T>
-constexpr auto hash_grid::span_t<T>::get (memory_region region) const noexcept -> std::span<T>
-{
-	return {start.get(region), len};
-}
-
-
-hash_grid::cell_t::cell_t(pmr::memory_region& memory, index_t index)
-{
-	// Start with the smallest capacity > 0 such that the total size of the allocation is a power of
-	// two.
-	auto const capacity =
-		(std::bit_ceil(offsetof(data_t, intervals[1])) - offsetof(data_t, intervals))
-		/ sizeof(interval_t);
-	// Allocate and initialize cell data.
-	data = {
-		memory.span(),
-		&(*allocate(memory, capacity) = {.index = index, .size = 0, .capacity = capacity})
-	};
-}
-
-void hash_grid::cell_t::add_interval (pmr::memory_region& memory, interval_t interval)
-{
-	auto const region = memory.span();
-	auto& data        = *this->data.get(region);
-	// Load header.
-	auto const [index, size, capacity, _] = data;
-
-	// If the allocation has spare capacity, append the new interval.
-	if (size < capacity) {
-		std::construct_at(&data.intervals[data.size++], interval);
-		return;
-	}
-
-	// Sanity check: Array length cannot exceed allocation size.
-	assert(size == capacity);
-
-	// If the current allocation is full, reallocate with twice as much memory.
-	auto const new_capacity = capacity * 2
-		+ static_cast<uint32_t>(offsetof(data_t, intervals) / sizeof(interval_t));
-
-	if constexpr (log_level > 2)
-		log(LOG_TAG" Grow cell from capacity {} to {}.\n", capacity, new_capacity);
-
-	auto& new_data = *allocate(memory, new_capacity) = {index, size + 1, new_capacity};
-	// Copy previous intervals.
-	std::uninitialized_move_n(data.intervals, size, new_data.intervals);
-	// Append the new interval.
-	std::construct_at(&new_data.intervals[size], interval);
-
-	// Free the previous allocation.
-	memory.deallocate(
-		&data,
-		offsetof(data_t, intervals) + capacity * sizeof(interval_t),
-		alignof(data_t)
-	);
-	// Point to the new allocation.
-	this->data = {region, &new_data};
-}
-
-void hash_grid::cell_t::free (pmr::memory_region& memory) noexcept
-{
-	auto& data = *this->data.get(memory.span());
-	memory.deallocate(
-		&data,
-		offsetof(data_t, intervals) + data.capacity * sizeof(interval_t),
-		alignof(data_t)
-	);
-}
-
-auto hash_grid::cell_t::allocate (pmr::memory_region& memory, uint32_t capacity) -> data_t*
-{
-	return std::construct_at(static_cast<data_t*>(memory.allocate(
-		offsetof(data_t, intervals) + capacity*sizeof(interval_t),
-		alignof(data_t)
-	)));
 }
 
 } // namespace otv

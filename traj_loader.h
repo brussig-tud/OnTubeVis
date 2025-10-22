@@ -1180,7 +1180,7 @@ protected:
 	/// write-access the timestamps at each position (for use by trajectory format handlers)
 	flt_type* timestamps (void);
 
-	using pfn_arclen = traj_manager<flt_type>::render_data::dataset::pfn_arclen;
+	using pfn_arclen = typename traj_manager<flt_type>::render_data::dataset::pfn_arclen;
 	/// Access the function pointer used to compute the arclength parametrization of the segments in
 	/// this dataset.
 	pfn_arclen& arclen_fn (void);
