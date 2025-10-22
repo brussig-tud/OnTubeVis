@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <bit>
 #include <charconv>
-#include <execution>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -404,7 +403,7 @@ auto jtf20<flt_type>::read(
 	cgv::utils::dir::glob(cgv::utils::file::get_path(path), files, "*.bin");
 
 	// Sort files by name and thus time.
-	std::sort(std::execution::par_unseq, files.begin(), files.end());
+	std::sort(files.begin(), files.end());
 
 	// Deserialize particle traces.
 	auto sim = read_simulation({files.begin(), files.end()}, config);

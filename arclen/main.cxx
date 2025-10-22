@@ -1,7 +1,6 @@
 
 // C++ STL
 #include <algorithm>
-#include <execution>
 #include <utility>
 #include <vector>
 
@@ -252,12 +251,7 @@ void linear_parametrization(
 	};
 
 	// s to t: Local to each segment, thus identical for all.
-	std::fill(
-		std::execution::par_unseq,
-		s_to_t.begin(),
-		s_to_t.end(),
-		single_linear_t_to_s<flt_type>(1, 0)
-	);
+	std::fill(s_to_t.begin(), s_to_t.end(), single_linear_t_to_s<flt_type>(1, 0));
 }
 
 cgv::render::vertex_buffer upload_renderdata (cgv::render::context& ctx, const std::vector<cgv::mat4> &approximations)
