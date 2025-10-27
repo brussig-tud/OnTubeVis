@@ -88,7 +88,7 @@ namespace cgv {
 		void textured_spline_tube_renderer::set_additional_defines(shader_compile_options &&options) {
 			additional_options = std::move(options);
 		}
-		void textured_spline_tube_renderer::update_defines(shader_compile_options &options)
+		void textured_spline_tube_renderer::update_shader_program_options(shader_compile_options &options) const
 		{
 			const auto& rs = get_style<textured_spline_tube_render_style>();
 
@@ -139,10 +139,11 @@ namespace cgv {
 				defines.insert(define);*/
 			options.extend(additional_options, false);
 		}
-		bool textured_spline_tube_renderer::build_shader_program(context& ctx, shader_program& prog, const shader_compile_options& defines)
-		{
-			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
-			last_active_line_primitive = rs.line_primitive;
+		bool textured_spline_tube_renderer::build_shader_program (
+			context& ctx, shader_program& prog, const shader_compile_options& defines
+		) const {
+			const auto &rs = get_style<textured_spline_tube_render_style>();
+			const_cast<textured_spline_tube_renderer*>(this)->last_active_line_primitive = rs.line_primitive;
 
 			shader_compile_options options = { defines };
 
