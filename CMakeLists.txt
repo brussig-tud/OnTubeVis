@@ -225,6 +225,7 @@ cgv_add_target(OnTubeVis
 	LINKTIME_PLUGIN_DEPENDENCIES
 		cg_fltk # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
 		crg_stereo_view  # <-- we're directly using exported symbols from the crg_stereo_view plugin
+		screenshot # <-- we're directly using exported symbols from the screenshot plugin
 
 	ADDITIONAL_INCLUDE_PATHS ${ADDITIONAL_INCLUDE_PATHS}
 

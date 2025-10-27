@@ -32,6 +32,9 @@
 // CGV framework post processing algorithms
 #include <cgv_post/temporal_anti_aliasing.h>
 
+// CGV framework screenshot plugin
+#include <plugins/screenshot/screenshot.h>
+
 // local includes
 #include "traj_loader.h"
 #include "arclen_helper.h"

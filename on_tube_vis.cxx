@@ -1929,6 +1929,15 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 {
 	if(!view_ptr) return;
 
+	// obtain handle to screenshot plugin
+	auto shots = cgv::base::find_object_by_type("screenshot").down_cast<screenshot>();
+	auto shot = shots->get_active_shot().lock();
+	if (shot)
+		std::clog << "SCREENSHOT DBG: active shot: "<<shot<<": '"<<shot->name<<"'@"
+		          << shot->create_resolution.x()<<'x'<<shot->create_resolution.y() << std::endl;
+	else
+		std::clog << "SCREENSHOT DBG: <no active shot>" << std::endl;
+
 	// draw dataset using selected render mode
 	if(traj_mgr.has_data())
 	{
