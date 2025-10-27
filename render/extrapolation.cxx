@@ -979,14 +979,15 @@ void extrapolation_manager::draw_extrapolations(
 	render.sort_time_query.begin_scope();
 	render.tstr.enable_attribute_array_manager(ctx, render.aam);
 	geom.segment_idx_buf_ptr = render.tstr.get_index_buffer_ptr(render.aam);
-	const auto node_id_buf = render.tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
+	const cgv::render::vertex_buffer *node_id_buf_ptr = render.tstr.get_vertex_buffer_ptr(
+		ctx, render.aam, "node_ids"
+	);
 
 	// Bind the actual parameters to arguments. Argument names must match the ones used to initialize the sorter.
-	cgv::gpgpu::argument_binding_list sort_arguments = {
-		{ "u_eye_pos", eye_pos },
-		{ "u_view_dir", view_dir },
-		{ "node_index_buffer", node_id_buf }
-	};
+	cgv::gpgpu::argument_binding_list sort_arguments;
+	sort_arguments.bind_uniform("u_eye_pos", eye_pos);
+	sort_arguments.bind_uniform("u_view_dir", view_dir);
+	sort_arguments.bind_buffer("node_index_buffer", *node_id_buf_ptr);
 
 	render.sorter.execute(ctx, geom.nodes_arena.as_vertex_buffer(), geom.node_indices.size(), *geom.segment_idx_buf_ptr, sort_arguments);
 	
@@ -999,7 +1000,7 @@ void extrapolation_manager::draw_extrapolations(
 	GLuint buffer_handles[13] = {
 		geom.nodes_arena.data_memory.handle(),
 		geom.t_to_s_arena.data_memory.handle(),
-		cgv::render::gl::get_gl_id(node_id_buf->handle), // <- required since we're drawing attribute-less
+		cgv::render::gl::get_gl_id(node_id_buf_ptr->handle), // <- required since we're drawing attribute-less
 		geom.seg_to_traj_arena.data_memory.handle()
 	};
 	for (unsigned l=0; l<setup.num_layers; ++l) {

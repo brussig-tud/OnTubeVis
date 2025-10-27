@@ -6,8 +6,8 @@
 #include <cgv/render/shader_library.h>
 #include <cgv/render/vertex_buffer.h>
 #include <cgv_gl/gl/gl_context.h>
-#include <cgv_gpgpu/for_each_texture.h>
-#include <cgv_gpgpu/fill_texture.h>
+#include <cgv_gpgpu/texture_for_each.h>
+#include <cgv_gpgpu/texture_fill.h>
 #include <cgv_gpgpu/mipmap.h>
 
 #include "voxel_grid.h"
@@ -24,8 +24,8 @@ public:
 protected:
 	cgv::render::shader_program voxelize_prog;
 	
-	cgv::gpgpu::for_each_texture clamp_kernel;
-	cgv::gpgpu::fill_texture fill_kernel;
+	cgv::gpgpu::texture_for_each clamp_kernel;
+	cgv::gpgpu::texture_fill fill_kernel;
 	cgv::gpgpu::mipmap mipmap_kernel;
 
 	voxel_grid vg;

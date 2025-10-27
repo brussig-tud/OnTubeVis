@@ -155,11 +155,13 @@ namespace cgv { // @<
 			/// overload to allow instantiation of box_renderer
 			render_style* create_render_style() const override;
 			/// update shader defines based on render style
-			void update_defines(shader_compile_options &options);
+			void update_shader_program_options(shader_compile_options &options) const override;
 			/// return the default shader program name
 			std::string get_default_prog_name() const override { return "textured_spline_tube.glpr"; }
 			/// build rounded cone program
-			bool build_shader_program(context& ctx, shader_program& prog, const shader_compile_options& defines);
+			bool build_shader_program (
+				context& ctx, shader_program& prog, const shader_compile_options& defines
+			) const override;
 
 		public:
 			/// initializes position_is_center to true 

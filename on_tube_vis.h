@@ -234,7 +234,7 @@ protected:
 
 protected:
 	/// shader defines for the deferred shading pass
-	shader_define_map tube_shading_defines;
+	shader_compile_options tube_shading_options;
 
 	/// store the current OpenGL viewport configuration
 	GLint viewport[4];

@@ -132,14 +132,13 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 	taa.set_enabled(true);
 
 	// adjust geometry and grid style defaults
-	render.style.material.set_brdf_type(
-		(cgv::media::illum::BrdfType)(cgv::media::illum::BrdfType::BT_STRAUSS_DIFFUSE
-			| cgv::media::illum::BrdfType::BT_COOK_TORRANCE)
-	);
-	render.style.material.set_roughness(0.25);
-	render.style.material.set_metalness(0.25);
-	render.style.material.set_ambient_occlusion(0.75);
-	render.style.material.set_specular_reflectance({ 0.05f, 0.05f, 0.05f });
+	render.style.material.brdf_type = cgv::media::illum::BrdfType(
+		cgv::media::illum::BrdfType::BT_STRAUSS_DIFFUSE | cgv::media::illum::BrdfType::BT_COOK_TORRANCE
+		);
+	render.style.material.roughness = 0.25f;
+	render.style.material.metalness = 0.25f;
+	render.style.material.ambient_occlusion = 0.75f;
+	render.style.material.specular_reflectance = { 0.05f, 0.05f, 0.05f };
 	render.style.use_conservative_depth = true;
 
 	bbox_rd.style.culling_mode = cgv::render::CM_FRONTFACE;
@@ -1383,10 +1382,10 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 		client.commit_session();
 	ah_mgr.set_dataset(ds);
 
-	tube_shading_defines = tube_shading.build_tube_shading_defines(
+	tube_shading_options = tube_shading.build_tube_shading_options(
 		render.visualizations.front().config, debug.highlight_segments
 	);
-	shaders.reload(ctx, "tube_shading", { tube_shading_defines });
+	shaders.reload(ctx, "tube_shading", tube_shading_options);
 
 	// reset glyph layer configuration file
 	layer_config_file_helper.set_file_name("");
@@ -1435,10 +1434,10 @@ bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 		glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 		context& ctx = *get_context();
-		tube_shading_defines = tube_shading.build_tube_shading_defines(
+		tube_shading_options = tube_shading.build_tube_shading_options(
 			render.visualizations.front().config, debug.highlight_segments
 		);
-		shaders.reload(ctx, "tube_shading", { tube_shading_defines });
+		shaders.reload(ctx, "tube_shading", tube_shading_options);
 
 		compile_glyph_attribs();
 
@@ -1551,13 +1550,13 @@ void on_tube_vis::on_set(void* member_ptr)
 			tube_shading.enable_fuzzy_grid
 		)
 	){
-		shader_define_map defines = tube_shading.build_tube_shading_defines(
+		shader_compile_options options = tube_shading.build_tube_shading_options(
 			render.visualizations.front().config, debug.highlight_segments
 		);
-		if(defines != tube_shading_defines) {
+		if(options != tube_shading_options) {
 			context& ctx = *get_context();
-			tube_shading_defines = defines;
-			shaders.reload(ctx, "tube_shading", { tube_shading_defines });
+			tube_shading_options = options;
+			shaders.reload(ctx, "tube_shading", tube_shading_options);
 			client.extrapol_mgr.update_tube_shading(tube_shading, render.visualizations.front().config);
 		}
 	}
