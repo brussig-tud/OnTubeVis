@@ -143,25 +143,29 @@ namespace cgv { // @<
 			vec3 view_dir;
 			/// viewport rectangle (offset and size)
 			vec4 viewport;
-			/// additional defines not dependant on the style and set from outside the renderer
-			shader_define_map additional_defines;
+			/// additional options not dependant on the style and set from outside the renderer
+			shader_compile_options additional_options;
 			/// keep track of which line primitive was active the last time the renderer drew something
 			textured_spline_tube_render_style::LinePrimitive last_active_line_primitive;
 
 			/// overload to allow instantiation of box_renderer
-			render_style* create_render_style() const;
+			render_style* create_render_style() const override;
 			/// update shader defines based on render style
-			void update_defines(shader_define_map& defines);
+			void update_shader_program_options (shader_compile_options &options) const override;
+			/// return the default shader program name
+			std::string get_default_prog_name() const override { return "textured_spline_tube.glpr"; }
 			/// build rounded cone program
-			bool build_shader_program(context& ctx, shader_program& prog, const shader_compile_options &defines);
+			bool build_shader_program (
+				context& ctx, shader_program& prog, const shader_compile_options &defines
+			) const override;
 
 		public:
 			/// initializes position_is_center to true 
 			textured_spline_tube_renderer();
 			/// call this before setting attribute arrays to manage attribute array in given manager
-			void enable_attribute_array_manager(const context& ctx, attribute_array_manager& aam);
+			void enable_attribute_array_manager(const context& ctx, attribute_array_manager& aam) override;
 			/// call this after last render/draw call to ensure that no other users of renderer change attribute arrays of given manager
-			void disable_attribute_array_manager(const context& ctx, attribute_array_manager& aam);
+			void disable_attribute_array_manager(const context& ctx, attribute_array_manager& aam) override;
 			///
 			void set_cyclopic_eye(const vec3 &cyclopic_eye_pos) {
 				cyclopic_eye = cyclopic_eye_pos;
@@ -172,8 +176,11 @@ namespace cgv { // @<
 			}
 			///
 			void set_viewport(const vec4& viewport) { this->viewport = viewport; }
-			/// set additional defines that do not depend on the style
-			void set_additional_defines(shader_define_map& defines);
+			/// set additional defines contained in the given shader_compile_options that do not depend on the style
+			void set_additional_defines(const shader_compile_options &options);
+			/// set additional defines contained in the given shader_compile_options that do not depend on the style,
+			/// moving the relevant maps instead of copying them
+			void set_additional_defines(shader_compile_options &&options);
 			///
 			template <typename T = float>
 			void set_node_id_array(const context& ctx, const std::vector<T>& node_ids) { has_node_ids = true; set_attribute_array(ctx, "node_ids", node_ids); }
@@ -193,14 +200,14 @@ namespace cgv { // @<
 			template <typename T = float>
 			void set_tangent_array(const context& ctx, const T* tangents, size_t nr_elements, unsigned stride_in_bytes = 0) { has_tangents = true; set_attribute_array(ctx, "tangent", tangents, nr_elements, stride_in_bytes); }
 			///
-			bool validate_attributes(const context& ctx) const;
+			bool validate_attributes(const context& ctx) const override;
 			/// 
-			bool enable(context& ctx);
+			bool enable(context& ctx) override;
 			///
-			bool disable(context& ctx);
+			bool disable(context& ctx) override;
 			///
-			void draw(context& ctx, size_t sunt, size_t count,
-				bool use_strips = false, bool use_adjacency = false, uint32_t strip_resunt_index = -1);
+			void draw(context& ctx, size_t start, size_t count, bool use_strips = false, bool use_adjacency = false,
+			          uint32_t strip_restart_index = -1) override;
 		};
 
 		struct textured_spline_tube_render_style_reflect : public textured_spline_tube_render_style

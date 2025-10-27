@@ -82,47 +82,68 @@ namespace cgv {
 			}
 			return true;
 		}
-		void textured_spline_tube_renderer::set_additional_defines(shader_define_map& defines) {
-			additional_defines = defines;
+		void textured_spline_tube_renderer::set_additional_defines(const shader_compile_options &options) {
+			additional_options = options;
 		}
-		void textured_spline_tube_renderer::update_defines(shader_define_map& defines)
+		void textured_spline_tube_renderer::set_additional_defines(shader_compile_options &&options) {
+			additional_options = std::move(options);
+		}
+		void textured_spline_tube_renderer::update_shader_program_options(shader_compile_options &options) const
 		{
-			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
+			const auto& rs = get_style<textured_spline_tube_render_style>();
 
-			defines.clear();
+			options.clear();
 
-			shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
+			//shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
+			options.define_macro_if_not_default("USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
 			if (rs.is_tube()) {
-				shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
-				shader_code::set_define(defines, "USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
-				shader_code::set_define(defines, "PRIMITIVE_INTERSECTOR", rs.line_primitive, rs.LP_TUBE_RUSSIG);
+				//shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
+				options.define_macro_if_not_default("USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
+				//shader_code::set_define(defines, "USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
+				options.define_macro_if_not_default("USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
+				//shader_code::set_define(defines, "PRIMITIVE_INTERSECTOR", rs.line_primitive, rs.LP_TUBE_RUSSIG);
+				options.define_macro_if_not_default("PRIMITIVE_INTERSECTOR", rs.line_primitive, rs.LP_TUBE_RUSSIG);
 				static const bool no = false;
-				shader_code::set_define(defines, "USE_RIBBONS", no, false);
+				//shader_code::set_define(defines, "USE_RIBBONS", no, false);
+				options.define_macro_if_not_default("USE_RIBBONS", no, false);
 			}
 			else if (rs.line_primitive == rs.LP_RIBBON_GEOMETRY) {
 				static const bool yes = true;
-				shader_code::set_define(defines, "USE_RIBBONS", yes, false);
+				//shader_code::set_define(defines, "USE_RIBBONS", yes, false);
+				options.define_macro_if_not_default("USE_RIBBONS", yes, false);
 			}
-			shader_code::set_define(defines, "ATTRIB_MODE", rs.attrib_mode, rs.AM_ALL);
-			shader_code::set_define(defines, "MODE", rs.fragment_mode, rs.FM_RAY_CAST);
+			//shader_code::set_define(defines, "ATTRIB_MODE", rs.attrib_mode, rs.AM_ALL);
+			options.define_macro_if_not_default("ATTRIB_MODE", rs.attrib_mode, rs.AM_ALL);
+			//shader_code::set_define(defines, "MODE", rs.fragment_mode, rs.FM_RAY_CAST);
+			options.define_macro_if_not_default("MODE", rs.fragment_mode, rs.FM_RAY_CAST);
 			if (rs.line_primitive != rs.LP_RIBBON_GEOMETRY)
-				shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, rs.BG_ALIGNED_BOX_BILLBOARD);
+				//shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, rs.BG_ALIGNED_BOX_BILLBOARD);
+				options.define_macro_if_not_default("BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, rs.BG_ALIGNED_BOX_BILLBOARD);
 			if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED) {
-				shader_code::set_define(defines, "EXACT_RIBBON_BBOXES", rs.rcribbon.exact_ribbon_bboxes, false);
-				shader_code::set_define(defines, "BBOX_COORD_SYSTEM", rs.rcribbon.bbox_coord_system, rs.rcribbon.BBO_RCC);
-				shader_code::set_define(defines, "RAY_CENTRIC_ISECTS", rs.rcribbon.ray_centric_isects, false);
-				shader_code::set_define(defines, "MAX_INTERSECTION_STACK_SIZE", rs.rcribbon.max_intersection_stack_size, (unsigned)8);
-				shader_code::set_define(defines, "DBG_VISUALIZE_STATS", rs.rcribbon.debug.visualize_stats, rs.rcribbon.debug.VS_OFF);
-				shader_code::set_define(defines, "DBG_VISUALIZE_LEAF_BBOXES", rs.rcribbon.debug.visualize_leaf_bboxes, false);
+				//shader_code::set_define(defines, "EXACT_RIBBON_BBOXES", rs.rcribbon.exact_ribbon_bboxes, false);
+				options.define_macro_if_not_default("EXACT_RIBBON_BBOXES", rs.rcribbon.exact_ribbon_bboxes, false);
+				//shader_code::set_define(defines, "BBOX_COORD_SYSTEM", rs.rcribbon.bbox_coord_system, rs.rcribbon.BBO_RCC);
+				options.define_macro_if_not_default("BBOX_COORD_SYSTEM", rs.rcribbon.bbox_coord_system, rs.rcribbon.BBO_RCC);
+				//shader_code::set_define(defines, "RAY_CENTRIC_ISECTS", rs.rcribbon.ray_centric_isects, false);
+				options.define_macro_if_not_default("RAY_CENTRIC_ISECTS", rs.rcribbon.ray_centric_isects, false);
+				//shader_code::set_define(defines, "MAX_INTERSECTION_STACK_SIZE", rs.rcribbon.max_intersection_stack_size, (unsigned)8);
+				options.define_macro_if_not_default("MAX_INTERSECTION_STACK_SIZE", rs.rcribbon.max_intersection_stack_size, (unsigned)8);
+				//shader_code::set_define(defines, "DBG_VISUALIZE_STATS", rs.rcribbon.debug.visualize_stats, rs.rcribbon.debug.VS_OFF);
+				options.define_macro_if_not_default("DBG_VISUALIZE_STATS", rs.rcribbon.debug.visualize_stats, rs.rcribbon.debug.VS_OFF);
+				//shader_code::set_define(defines, "DBG_VISUALIZE_LEAF_BBOXES", rs.rcribbon.debug.visualize_leaf_bboxes, false);
+				options.define_macro_if_not_default("DBG_VISUALIZE_LEAF_BBOXES", rs.rcribbon.debug.visualize_leaf_bboxes, false);
 			}
 
+			/*defines.clear();
 			for(const auto& define : additional_defines)
-				defines.insert(define);
+				defines.insert(define);*/
+			options.extend(additional_options, false);
 		}
-		bool textured_spline_tube_renderer::build_shader_program(context& ctx, shader_program& prog, const shader_compile_options& defines)
-		{
-			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
-			last_active_line_primitive = rs.line_primitive;
+		bool textured_spline_tube_renderer::build_shader_program (
+			context& ctx, shader_program& prog, const shader_compile_options& defines
+		) const {
+			const auto &rs = get_style<textured_spline_tube_render_style>();
+			const_cast<textured_spline_tube_renderer*>(this)->last_active_line_primitive = rs.line_primitive;
 
 			shader_compile_options options = { defines };
 
