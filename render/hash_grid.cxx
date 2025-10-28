@@ -48,6 +48,23 @@ constexpr uint8_t num_hash_fns = 2;
 /// Larger numbers allow for a higher load factor at the cost of longer worst-case insertion time.
 constexpr auto max_cuckoo_chain = 50u;
 
+/// Generate a lookup table that maps every bit `b` in a byte to bit `spread_factor * b`, where
+/// `b = 0` is the least significant bit.
+/// All other bits are zero.
+[[nodiscard]] constexpr auto bit_spread_lut (uint8_t spread_factor) noexcept
+	-> std::array<uint32_t, 256>
+{
+	std::array<uint32_t, 256> lut {}; // Zero-initialization.
+	for (auto i = 0u; i < 256; ++i)
+		for (auto b = 0u; b < 8u; ++b)
+			lut[i] |= (i & 1<<b) << b*(spread_factor - 1);
+	return lut;
+}
+
+// Lookup tables used to calculate 3D and 4D Z-order curve by interleaving bits.
+constexpr auto spread3 = bit_spread_lut(3);
+constexpr auto spread4 = bit_spread_lut(4);
+
 } // namespace
 
 
@@ -180,6 +197,7 @@ hash_grid::hash_grid(pmr::memory_region* memory, params const& params, uint32_t 
 	, _scale           {vec4{1} / _cell_size} // index = round(point / _cell_size)
 	, _sample_step     {max(params.sample_step, vec2{0.001})}
 	, _layout          {params.layout}
+	, _signature_fn    {params.signature_fn}
 	, _initial_buckets {static_cast<uint8_t>(
 		std::bit_width(std::max(initial_buckets, 1u) - 1)) // ceil(log2)
 	}
@@ -213,8 +231,11 @@ hash_grid::hash_grid(pmr::memory_region* memory, params const& params, uint32_t 
 		using std::operator""sv;
 		auto const layout_name = std::array{"3D"sv, "Strided 3D"sv, "4D"sv}
 			[static_cast<size_t>(_layout)];
+		auto const signature_fn = std::array{"Multiply and XOR"sv, "xxHash32"sv, "Z-Order Curve"sv}
+			[static_cast<size_t>(_signature_fn)];
 		log(LOG_TAG" Create instance.\n"
 			"\tLayout:          " ,layout_name             , "\n"
+			"\tSignature:       " ,signature_fn            , "\n"
 			"\tCell size:       (",_cell_size              ,")\n"
 			"\tSample step:     " ,_sample_step[0]         , " (space), "
 			                      ,_sample_step[1]         , " (time)\n"
@@ -424,6 +445,7 @@ void hash_grid::set_defines (cgv::render::shader_define_map& d, GLuint buffer_bi
 	sc::set_define(d, "HASH_GRID_SLOTS_PER_BUCKET", bucket_t::num_slots,                 {});
 	sc::set_define(d, "HASH_GRID_CELL_HEADER_SIZE", offsetof(cell_t::data_t, intervals), {});
 	sc::set_define(d, "HASH_GRID_LAYOUT",           _layout,                             {});
+	sc::set_define(d, "HASH_GRID_SIGNATURE_FN",     _signature_fn,                       {});
 }
 
 void hash_grid::set_uniforms (cgv::render::context& c, cgv::render::shader_program& p) const
@@ -810,25 +832,49 @@ auto hash_grid::find_or_insert (std::span<bucket_t> buckets, index_t query, cell
 
 auto hash_grid::signature (index_t index) const noexcept -> signature_t
 {
-	// Signatures are generated using the variable length xxhash32 algorithm by Collet 2012 as
-	// implemented by Jarzynski and Olano 2020.
+	auto const dims = _layout == layout::xyzt ? 4u : 3u;
+	/// Treat the indices as unsigned integers.
+	auto const uidx = *reinterpret_cast<cgv::uvec4 const*>(&index);
 
-	/// Prime constants.
-	auto const [p2, p3, p4, p5] = std::to_array<uint32_t>({
-		2246822519, 3266489917, 668265263, 374761393
-	});
-
-	// Compared to the implementation by Jarzynski and Olano, `index` is rotated by one component.
-	uint32_t hash = std::bit_cast<uint32_t>(index[0]) + p5;
-
-	for (auto d = 1u; d < (_layout == layout::xyzt ? 4 : 3); ++d) {
-		hash += std::bit_cast<uint32_t>(index[d]) * p3;
-		hash  = p4 * ((hash << 17) | (hash >> 15));
+	switch (_signature_fn) {
+	case signature_fn::mult_xor: {
+		/// Prime constants taken from Teschner et al., except for `c0 = 1` as in Müller et al.
+		auto const c = std::to_array<uint32_t>({1, 73856093, 19349663, 83492791});
+		auto sig     = uint32_t{};
+		for (auto d = 0u; d < dims; ++d) sig ^= c[d]*uidx[d];
+		return {sig};
 	}
+	case signature_fn::xxhash32: {
+		// Multibyte xxHash32 algorithm by Collet 2012, as implemented by Jarzynski and Olano 2020.
 
-	hash = p2 * (hash ^ (hash >> 15));
-	hash = p3 * (hash ^ (hash >> 13));
-	return {hash ^ (hash >> 16)};
+		/// Prime constants.
+		auto const [c2, c3, c4, c5] = std::to_array<uint32_t>({
+			2246822519, 3266489917, 668265263, 374761393
+		});
+		// Compared to the implementation by Jarzynski and Olano, `index` is rotated by one
+		// component.
+		auto sig = uidx[0] + c5;
+		for (auto d = 1u; d < dims; ++d) {
+			sig += c3 * uidx[d];
+			sig  = c4 * ((sig << 17) | (sig >> 15));
+		}
+		sig = c2 * (sig ^ (sig >> 15));
+		sig = c3 * (sig ^ (sig >> 13));
+		return {sig ^ (sig >> 16)};
+	}
+	case signature_fn::z_order: {
+		/// Lookup table for spreading out bits to make room for other dimensions.
+		auto const& lut = _layout == layout::xyzt ? spread4 : spread3;
+		auto sig        = uint32_t{};
+		for (auto d = 0u; d < dims; ++d)
+			// Only the least significant `32 / dims` bits affect the result.
+			for (auto b = 0u; b <= (_layout == layout::xyzt ? 0 : 8); b += 8)
+				// Get byte, scatter bits, then offset by one bit per dimension and shift back to
+				// the byte's original offset.
+				sig |= lut[uidx[d]>>b & 0xff] << (b*dims + d);
+		return {sig};
+	}
+	};
 }
 
 auto hash_grid::bucket (std::span<bucket_t> buckets, signature_t signature, uint8_t hash_fn)

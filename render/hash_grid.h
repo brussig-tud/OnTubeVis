@@ -48,6 +48,12 @@ public:
 		t_xyz, // Separate 3D spatial grids for each time index.
 		xyzt,  // Single 4D spatiotemporal grid.
 	};
+	/// Hash function used to reduce cell indices to a 32 bit signature.
+	enum class signature_fn : uint32_t {
+		mult_xor, // Prime multiplication, then XOR reduction following Teschner et al.
+		xxhash32, // xxHash32 as implemented by Jarzynski and Olano.
+		z_order,  // Z-order curve obtained by interleaving bits, see e.g. García et al.
+	};
 
 	/// Fundamental aspects of a grid's structure that cannot be changed after construction.
 	struct params {
@@ -61,6 +67,8 @@ public:
 		cgv::vec2 sample_step {0.1};
 		/// Describes which dimensions the grid indexes and how it is organized in memory.
 		layout layout {layout::xyzt};
+		/// Determines how cell signatures are calculated.
+		signature_fn signature_fn {signature_fn::z_order};
 	};
 
 	/// Create a grid with no backing memory, so it cannot store anything.
@@ -278,6 +286,8 @@ private:
 	cgv::vec2 _sample_step;
 	/// Describes which dimensions the grid indexes and how it is organized in memory.
 	layout _layout {};
+	/// Determines the function used to calculate cell signatures.
+	signature_fn _signature_fn {};
 	/// New hash tables are allocated with 2 ^ `_initial_buckets` buckets.
 	uint8_t _initial_buckets {};
 
@@ -312,6 +322,13 @@ private:
 {
 	using std::operator""sv;
 	return std::array{"xyz", "t_xyz", "xyzt"}[static_cast<size_t>(layout)];
+}
+
+/// Return the unqualified identifier for the given enum value.
+[[nodiscard]] constexpr auto enum_id (hash_grid::signature_fn sigfn) noexcept -> std::string_view
+{
+	using std::operator""sv;
+	return std::array{"mult_xor", "xxhash32", "z_order"}[static_cast<size_t>(sigfn)];
 }
 
 } // namespace otv

@@ -532,10 +532,7 @@ protected:
 
 
 	/// Trajectory hash grid settings.
-	otv::hash_grid::params hash_grid_params {
-		.cell_size = {},
-		.layout    = otv::hash_grid::layout::xyzt,
-	};
+	otv::hash_grid::params hash_grid_params {};
 	/// Settings for on-the-fly evaluation and visualization of relations between trajectories using
 	/// the hash grid.
 	otv::vis::trajectory_relation traj_rel {};

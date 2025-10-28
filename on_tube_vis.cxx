@@ -3136,6 +3136,9 @@ void on_tube_vis::create_gui (void)
 		add_member_control(this, "Layout", hash_grid_params.layout, "dropdown", "enums='"
 			"3D,Strided 3D,4D'"
 		);
+		add_member_control(this, "Hash function", hash_grid_params.signature_fn, "dropdown", "enums='"
+			"Multiply and XOR,xxHash32,Z-Order'"
+		);
 		auto const extent = vec4{
 			bbox.get_extent(),
 			client.data->t_minmax.second - client.data->t_minmax.first
@@ -4062,22 +4065,23 @@ void on_tube_vis::end_traj_rel_benchmark ()
 		.get_enum_name(static_cast<unsigned>(traj_rel.function));
 	auto const memory = render.grid_mem ? render.grid_mem->allocated_bytes() : size_t{0};
 	result_file <<
-		"dataset\t"        << traj_mgr.dataset(0).data_source() << "\n"
-		"num_pixels\t"     << fb.get_width() * fb.get_height()  << "\n"
-		"grid_layout\t"    << enum_id(hash_grid_params.layout)  << "\n"
-		"cell_size_x\t"    << hash_grid_params.cell_size.x()    << "\n"
-		"cell_size_y\t"    << hash_grid_params.cell_size.y()    << "\n"
-		"cell_size_z\t"    << hash_grid_params.cell_size.z()    << "\n"
-		"cell_size_t\t"    << hash_grid_params.cell_size[3]     << "\n"
-		"sampling_space\t" << hash_grid_params.sample_step[0]   << "\n"
-		"sampling_time\t"  << hash_grid_params.sample_step[1]   << "\n"
-		"shading\t"        << traj_rel.shading.value            << "\n"
-		"function\t"       << fn                                << "\n"
-		"radius_space\t"   << traj_rel.radius[0]                << "\n"
-		"radius_time\t"    << traj_rel.radius[1]                << "\n"
-		"sample_rate\t"    << traj_rel.sample_rate              << "\n"
-		"direction\t"      << enum_id(traj_rel.direction)       << "\n"
-		"memory\t"         << memory                            << "\n";
+		"dataset\t"        << traj_mgr.dataset(0).data_source()      << "\n"
+		"num_pixels\t"     << fb.get_width() * fb.get_height()       << "\n"
+		"grid_layout\t"    << enum_id(hash_grid_params.layout)       << "\n"
+		"signature_fn\t"   << enum_id(hash_grid_params.signature_fn) << "\n"
+		"cell_size_x\t"    << hash_grid_params.cell_size.x()         << "\n"
+		"cell_size_y\t"    << hash_grid_params.cell_size.y()         << "\n"
+		"cell_size_z\t"    << hash_grid_params.cell_size.z()         << "\n"
+		"cell_size_t\t"    << hash_grid_params.cell_size[3]          << "\n"
+		"sampling_space\t" << hash_grid_params.sample_step[0]        << "\n"
+		"sampling_time\t"  << hash_grid_params.sample_step[1]        << "\n"
+		"shading\t"        << traj_rel.shading.value                 << "\n"
+		"function\t"       << fn                                     << "\n"
+		"radius_space\t"   << traj_rel.radius[0]                     << "\n"
+		"radius_time\t"    << traj_rel.radius[1]                     << "\n"
+		"sample_rate\t"    << traj_rel.sample_rate                   << "\n"
+		"direction\t"      << enum_id(traj_rel.direction)            << "\n"
+		"memory\t"         << memory                                 << "\n";
 	// Write render time measurements.
 	for (auto const t:
 		std::span{render.stats.render_times.measurements}.subspan(benchmark.traj_rel_start)
