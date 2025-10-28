@@ -424,6 +424,10 @@ protected:
 	color_legend_manager color_legend_mgr;
 	bool update_legends = false; // flag indicating whether the color and mapping legends need updating during init_frame
 
+	unsigned scene_switch_state = 0;
+	signed selected_scene = -1;
+	screenshot *screenshot_ptr = nullptr;
+
 	/// benchmark state fields
 	struct {
 		/// whether a benchmark run is requested
@@ -545,6 +549,8 @@ protected:
 	shader_compile_options build_tube_shading_options();
 	void on_register();
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
+
+	void handle_screenshot_change (screenshot::event &event);
 
 public:
 	on_tube_vis();

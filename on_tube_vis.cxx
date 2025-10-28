@@ -541,12 +541,16 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 				handled = true;
 				break;
 			case cgv::gui::Keys::KEY_Space:
-				if(modifiers == 0) {
+				selected_scene = 0;
+				screenshot_ptr->set_active_shot_by_index(selected_scene);
+				handled = true;
+				break;
+				/*if(modifiers == 0) {
 					playback.active = !playback.active;
 					on_set(&playback.active);
 					handled = true;
 				}
-				break;
+				break;*/
 			case cgv::gui::Keys::KEY_Home:
 				playback.follow = !playback.follow;
 				on_set(&playback.follow);
@@ -1925,18 +1929,99 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	}
 }
 
+void on_tube_vis::handle_screenshot_change (screenshot::event &event)
+{
+	switch (event.get_type())
+	{
+		case screenshot::EventType::kCreateShot:
+		case screenshot::EventType::kUpdateShot:
+			event.set_shot_user_properties(screenshot::property_map {
+				{"dataset", datapath_helper.file_name},
+				{"layercfg", layer_config_file_helper.file_name}
+			});
+			return;
+
+		case screenshot::EventType::kSelectShot: {
+			bool ds_changed = false, layercfg_changed = false;
+			const auto shot = event.get_shot().lock();
+			try {
+				const auto new_ds = shot->get_user_property_value("dataset");
+				if (new_ds != datapath_helper.file_name) {
+					datapath_helper.file_name = new_ds;
+					ds_changed = true;
+				}
+			}
+			catch (std::exception& e) {
+				std::cerr << "ERROR: Unable to load pre-selected dataset!\nReason: " << e.what() << std::endl;
+				return;
+			}
+			std::string new_layercfg;
+			try {
+				new_layercfg = shot->get_user_property_value("layercfg");
+				layercfg_changed = new_layercfg != layer_config_file_helper.file_name;
+			}
+			catch (std::exception& e) {
+				std::cerr << "ERROR: Unable to load pre-selected layer configuration!\nReason: " << e.what() << std::endl;
+				if (ds_changed) {
+					layer_config_file_helper.file_name = "";
+					on_set(&layer_config_file_helper.file_name);
+				}
+				return;
+			}
+			if (ds_changed) {
+				on_set(&datapath_helper.file_name);
+				scene_switch_state = 1; // initiate wrong view workaround logic
+			}
+			layer_config_file_helper.file_name = std::move(new_layercfg);
+			if (ds_changed || layercfg_changed)
+				on_set(&layer_config_file_helper.file_name);
+			selected_scene = -1;
+			for (unsigned i=0; i<screenshot_ptr->get_shot_count(); ++i) {
+				if (shot->name == screenshot_ptr->get_shot_at(i).lock()->name) {
+					selected_scene = i;
+					break;
+				}
+			}
+			if (selected_scene < 0) {
+				const std::string error = "!!!INTERNAL LOGIC  ERROR!!! No such scene: '"+shot->name+"'";
+				std::cerr << error << std::endl;
+				throw std::runtime_error(error);
+			}
+			return;
+		}
+
+		default:
+			/* DoNothing() */;
+	}
+}
+
 void on_tube_vis::draw (cgv::render::context &ctx)
 {
-	if(!view_ptr) return;
+	// skip drawing until we have a pointer to the active view interactor
+	if(!view_ptr)
+		return;
 
-	// obtain handle to screenshot plugin
-	auto shots = cgv::base::find_object_by_type("screenshot").down_cast<screenshot>();
-	auto shot = shots->get_active_shot().lock();
-	if (shot)
-		std::clog << "SCREENSHOT DBG: active shot: "<<shot<<": '"<<shot->name<<"'@"
-		          << shot->create_resolution.x()<<'x'<<shot->create_resolution.y() << std::endl;
-	else
-		std::clog << "SCREENSHOT DBG: <no active shot>" << std::endl;
+	// make sure we have a pointer to the screenshot plugin instance
+	if (!screenshot_ptr) {
+		screenshot_ptr = screenshot::find_instance(this);
+		cgv::signal::connect_copy(screenshot_ptr->on_change, cgv::signal::rebind(
+			this, &on_tube_vis::handle_screenshot_change, cgv::signal::_1
+		));
+	}
+
+	// handle scene switch
+	if (scene_switch_state == 1) {
+		screenshot_ptr->deselect_active_shot();
+		screenshot_ptr->set_active_shot_by_index(selected_scene);
+		scene_switch_state = 2;
+		post_redraw();
+	}
+	else if (scene_switch_state > 1) {
+		screenshot_ptr->deselect_active_shot();
+		scene_switch_state = 0;
+		taa.reset();
+		post_redraw();
+	}
 
 	// draw dataset using selected render mode
 	if(traj_mgr.has_data())
@@ -1950,24 +2035,25 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 			debug_idx_count = static_cast<int>(2 * debug.render_count);
 
 		switch(debug.render_mode) {
-		case DRM_NONE:
-			draw_trajectories(ctx);
-			break;
-		case DRM_NODES:
-			debug.geometry.nodes.render(ctx, 0, debug_idx_count);
-			break;
-		case DRM_SEGMENTS:
-			debug.geometry.segments.render(ctx, 0, debug_idx_count);
-			break;
-		case DRM_NODES_SEGMENTS:
-			debug.geometry.nodes.render(ctx, 0, debug_idx_count);
-			debug.geometry.segments.render(ctx, 0, debug_idx_count);
-			break;
-		case DRM_VOLUME:
-			draw_density_volume(ctx);
-			break;
-		default:
-			break;
+			case DRM_NONE:
+				draw_trajectories(ctx);
+				break;
+			case DRM_NODES:
+				debug.geometry.nodes.render(ctx, 0, debug_idx_count);
+				break;
+			case DRM_SEGMENTS:
+				debug.geometry.segments.render(ctx, 0, debug_idx_count);
+				break;
+			case DRM_NODES_SEGMENTS:
+				debug.geometry.nodes.render(ctx, 0, debug_idx_count);
+				debug.geometry.segments.render(ctx, 0, debug_idx_count);
+				break;
+			case DRM_VOLUME:
+				draw_density_volume(ctx);
+				break;
+
+			default:
+				/* DoNothing() */;
 		}
 
 		if (dataset.is_rtlola && dataset.rtlola_show_map)
