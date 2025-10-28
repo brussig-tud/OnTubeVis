@@ -3068,6 +3068,11 @@ void on_tube_vis::create_gui (void)
 		);
 	}*/
 
+	{ // Display the scene's spatial and temporal extent.
+	auto const [tmin, tmax] = traj_mgr.has_data() ? client.data->t_minmax : std::pair{0.0f, 0.0f};
+	add_decorator(concat("Extent: ",bbox.get_extent(),"\nDuration:",tmax - tmin), "text");
+	}
+
 	add_member_control(this, "Bounds", bbox_rd.style.surface_color, "", "w=20", " ");
 	add_member_control(this, "Box", show_bbox, "toggle", "w=83", "%x+=2");
 	add_member_control(this, "Wireframe", show_wireframe_bbox, "toggle", "w=83");
