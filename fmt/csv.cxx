@@ -346,7 +346,7 @@ traj_dataset<flt_type> csv<flt_type>::read (
 			declared_attribs.emplace_back(csv_attrib);
 			auto &attrib = declared_attribs.back();
 			// for each colum declaration, search the corresponding field in the actual .csv header row
-			for (const auto &col : csv_attribs[props.pos_id].columns)
+			for (const auto &col : csv_attrib.columns)
 				for (unsigned i=0; i<(unsigned)fields.size(); i++)
 				{
 					if (   (col.case_sensitive && fields[i].compare(col.name) == 0)
@@ -699,6 +699,15 @@ template class csv<double>;
 
 ////
 // Object registration
+
+/// Handler for CSV data consisting of trajectory ID, timestep and position.
+cgv::base::object_registration_1<csv<float>, csv_descriptor> csv_multi_flt {
+	{"CSV (Multiple Trajectories)", " \t,;", {
+		{"trajectory", {"trajectory"}, CSV_AttribSemantics::TRAJ_ID},
+		{"time",       {"time"}, CSV_AttribSemantics::TIMESTAMP},
+		{"position",   {{"x"}, {"y"}, {"z"}}, CSV_AttribSemantics::POS},
+	}}
+};
 
 // Register example handler for the IML multi-user study .csv files
 static const csv_descriptor csv_imluser_desc("IML user trajectory", ",", {
