@@ -384,11 +384,11 @@ struct sepia_handler<flt_type>::Impl {
 	template <class T>
 	inline static T string_to_value (const std::string &str, size_t *pos) { return (T)std::stoll(str, pos); }
 	template <>
-	inline float string_to_value<float> (const std::string &str, size_t *pos) { return std::stof(str, pos); }
+	inline static float string_to_value<float> (const std::string &str, size_t *pos) { return std::stof(str, pos); }
 	template <>
-	inline double string_to_value<double> (const std::string &str, size_t *pos) { return std::stod(str, pos); }
+	inline static double string_to_value<double> (const std::string &str, size_t *pos) { return std::stod(str, pos); }
 	template <>
-	inline sample_on_off<real> string_to_value<sample_on_off<real>> (const std::string &str, size_t *pos)
+	inline static sample_on_off<real> string_to_value<sample_on_off<real>> (const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
 		bool val;
@@ -402,7 +402,7 @@ struct sepia_handler<flt_type>::Impl {
 		return {val};
 	}
 	template <>
-	inline sample_active_inactive<real> string_to_value<sample_active_inactive<real>> (const std::string &str, size_t *pos)
+	inline static sample_active_inactive<real> string_to_value<sample_active_inactive<real>> (const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
 		bool val;
@@ -416,7 +416,7 @@ struct sepia_handler<flt_type>::Impl {
 		return {val};
 	}
 	template <>
-	inline sample_reg_notreg<real> string_to_value<sample_reg_notreg<real>>(const std::string &str, size_t *pos)
+	inline static sample_reg_notreg<real> string_to_value<sample_reg_notreg<real>>(const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
 		bool val;
@@ -430,7 +430,7 @@ struct sepia_handler<flt_type>::Impl {
 		return { val };
 	}
 	template <>
-	inline sample_hit_nothit<real> string_to_value<sample_hit_nothit<real>>(const std::string &str, size_t *pos)
+	inline static sample_hit_nothit<real> string_to_value<sample_hit_nothit<real>>(const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
 		bool val;
@@ -444,7 +444,7 @@ struct sepia_handler<flt_type>::Impl {
 		return {val};
 	}
 	template <>
-	inline sample_handbreak<real> string_to_value<sample_handbreak<real>>(const std::string &str, size_t *pos)
+	inline static sample_handbreak<real> string_to_value<sample_handbreak<real>>(const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
 		bool val;
@@ -459,7 +459,7 @@ struct sepia_handler<flt_type>::Impl {
 		return { val };
 	}
 	template <>
-	inline sample_seatbelt<real> string_to_value<sample_seatbelt<real>>(const std::string &str, size_t *pos)
+	inline static sample_seatbelt<real> string_to_value<sample_seatbelt<real>>(const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
 		bool val;
@@ -474,7 +474,7 @@ struct sepia_handler<flt_type>::Impl {
 		return { val };
 	}
 	template <>
-	inline sample_open_closed<real> string_to_value<sample_open_closed<real>>(const std::string &str, size_t *pos)
+	inline static sample_open_closed<real> string_to_value<sample_open_closed<real>>(const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
 		bool val;
@@ -489,7 +489,7 @@ struct sepia_handler<flt_type>::Impl {
 		return { val };
 	}
 	template <>
-	inline sample_left_right<real> string_to_value<sample_left_right<real>> (const std::string &str, size_t *pos)
+	inline static sample_left_right<real> string_to_value<sample_left_right<real>> (const std::string &str, size_t *pos)
 	{
 		const std::string str_lower(cgv::utils::to_lower(str));
 		int val;
@@ -506,7 +506,7 @@ struct sepia_handler<flt_type>::Impl {
 		return {val};
 	}
 	template <>
-	inline sample_gearsel<real> string_to_value<sample_gearsel<real>>(const std::string &str, size_t *pos)
+	inline static sample_gearsel<real> string_to_value<sample_gearsel<real>>(const std::string &str, size_t *pos)
 	{
 		static const std::string seperators = " \t";
 		std::vector<cgv::utils::token> tokens;
@@ -536,7 +536,7 @@ struct sepia_handler<flt_type>::Impl {
 		return {val};
 	}
 	template <>
-	inline double_time string_to_value<double_time> (const std::string &str, size_t *pos)
+	inline static double_time string_to_value<double_time> (const std::string &str, size_t *pos)
 	{
 		switch (guess_timestamp_format(str))
 		{
@@ -658,7 +658,7 @@ struct sepia_handler<flt_type>::Impl {
 		return false;
 	}
 	template <>
-	inline bool traj_parse_prop(
+	inline static bool traj_parse_prop(
 		sepia_traj_prop<typename trajectory<real>::gpsvec> *out, const char* name, const std::vector<std::string> &fields, const std::string &line
 	) noexcept
 	{
@@ -713,7 +713,7 @@ struct sepia_handler<flt_type>::Impl {
 		return 0;
 	}
 	template <>
-	inline unsigned traj_parse_sample<sample_accel<real>> (
+	inline static unsigned traj_parse_sample<sample_accel<real>> (
 		double *ts, sample_accel<real> *out, const char* name, const std::vector<std::string> &fields, const std::string &line
 	) noexcept
 	{

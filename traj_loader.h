@@ -179,13 +179,13 @@ public:
 		template <class T>
 		static flt_type mag(const T& value) { return value.length(); }
 		template <>
-		flt_type mag<flt_type>(const flt_type &value) { return std::abs(value); }
+		static flt_type mag<flt_type>(const flt_type &value) { return std::abs(value); }
 
 		/// utility for returning the magnitude of a vector or a scalar, preserving the sign of the latter
 		template <class T>
 		static flt_type smag(const T &value) { return value.length(); }
 		template <>
-		flt_type smag<flt_type>(const flt_type &value) { return value; }
+		static flt_type smag<flt_type>(const flt_type &value) { return value; }
 	};
 
 	/// generic container type for storing the actual attribute data
