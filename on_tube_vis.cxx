@@ -1937,7 +1937,8 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 		case screenshot::EventType::kUpdateShot:
 			event.set_shot_user_properties(screenshot::property_map {
 				{"dataset", datapath_helper.file_name},
-				{"layercfg", layer_config_file_helper.file_name}
+				{"layercfg", layer_config_file_helper.file_name},
+				{"ribbons", std::to_string(render.style.is_ribbon())}
 			});
 			return;
 
@@ -1991,7 +1992,18 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 			layer_config_file_helper.file_name = std::move(new_layercfg);
 			if (ds_changed || layercfg_changed)
 				on_set(&layer_config_file_helper.file_name);
-			return;
+
+			try {
+				std::stringstream ss;
+				ss << shot->get_user_property_value("ribbons");
+				bool is_ribbon = false;
+				ss >> is_ribbon;
+				render.style.line_primitive = is_ribbon ?
+					  textured_spline_tube_render_style::LP_RIBBON_RAYCASTED
+					: textured_spline_tube_render_style::LP_TUBE_RUSSIG;
+				on_set(&render.style.line_primitive);
+			}
+			catch (...) { /* DoNothing() */; }
 		}
 
 		default:
