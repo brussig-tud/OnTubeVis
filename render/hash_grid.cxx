@@ -364,8 +364,8 @@ void hash_grid::add_segment (
 
 		if constexpr (log_level > 3) {
 			auto const prec = std::clog.precision();
-			log(std::setw(5),std::fixed,std::setprecision(1),t * 100,"% ",std::defaultfloat,prec,
-				start.t[0] + t*duration," (",point,")\n");
+			log(std::setw(5),std::fixed,std::setprecision(1),t * 100,"% ",std::defaultfloat,
+				std::setprecision(prec),start.t[0] + t*duration," (",point,")\n");
 		}
 
 		/// Grid cell containing the current sample.
@@ -567,7 +567,7 @@ auto hash_grid::cell (index_t index) -> cell_t&
 			auto const prec      = std::clog.precision();
 			log(LOG_TAG" Rehashed table after insertion failed with ",num_cells,"/",num_slots,
 				" slots occupied (load factor ",std::setprecision(3),
-				static_cast<float>(num_cells) / num_slots,").\n",prec);
+				static_cast<float>(num_cells) / num_slots,std::setprecision(prec),").\n");
 		}
 
 		// Free the previous allocation.
