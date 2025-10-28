@@ -1968,13 +1968,7 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 				}
 				return;
 			}
-			if (ds_changed) {
-				on_set(&datapath_helper.file_name);
-				scene_switch_state = 1; // initiate wrong view workaround logic
-			}
-			layer_config_file_helper.file_name = std::move(new_layercfg);
-			if (ds_changed || layercfg_changed)
-				on_set(&layer_config_file_helper.file_name);
+
 			selected_scene = -1;
 			for (unsigned i=0; i<screenshot_ptr->get_shot_count(); ++i) {
 				if (shot->name == screenshot_ptr->get_shot_at(i).lock()->name) {
@@ -1987,6 +1981,16 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 				std::cerr << error << std::endl;
 				throw std::runtime_error(error);
 			}
+
+			if (ds_changed) {
+				on_set(&datapath_helper.file_name);
+				scene_switch_state = 1; // initiate workaround logic for faulty view change in screenshot plugin
+			}
+			else
+				screenshot_ptr->deselect_active_shot();
+			layer_config_file_helper.file_name = std::move(new_layercfg);
+			if (ds_changed || layercfg_changed)
+				on_set(&layer_config_file_helper.file_name);
 			return;
 		}
 
