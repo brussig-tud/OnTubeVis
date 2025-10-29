@@ -499,7 +499,7 @@ float eval_relation (
 	if (timespan <= 0) return 0;
 
 	// Determine how often the interval should be sampled.
-	const float num_samples = ceil(timespan * traj_rel_sample_rate);
+	const float num_samples = max(ceil(timespan * traj_rel_sample_rate), 1);
 	if (TRAJ_REL_FUNCTION == FN_DBG_NUM_SAMPLES)
 		// TODO: For whatever reason, if the return value of this function is a simple conditional
 		// (0 if timespan <= 0, potentially different value otherwise), it can freeze the system.
@@ -693,13 +693,11 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 		for (uint i = 0; i < intervals.len; ++i) {
 			const interval_t interval = load_interval(intervals, i);
 
-			if (
+			if (traj_rel_direction == dir_all_to_ref
 				// Only evaluate intervals of the reference trajectory.
-				   traj_rel_direction == dir_all_to_ref
-				&& nodes[interval.nodes[0]].t[1] == traj_rel_ref_traj
+				? nodes[interval.nodes[0]].t[1] == traj_rel_ref_traj
 				// Evaluate all intervals on different trajectories.
-				|| traj_rel_direction != dir_all_to_ref
-				&& nodes[interval.nodes[0]].t[1] != start.t[1]
+				: nodes[interval.nodes[0]].t[1] != start.t[1]
 			) result += eval_relation(
 				local_point,
 			#if FN_USES_DERIVATIVE
@@ -719,7 +717,10 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 	#elif TRAJ_REL_FUNCTION == FN_ALIGNMENT
 		result /= norm_time;
 	#elif TRAJ_REL_FUNCTION == FN_DBG_SKIPPED_CELLS
-		result /= float(dot(max_cell - min_cell + 1, vec4(1)));
+	if (traj_rel_normalize) {
+		const uvec4 extent = max_cell - min_cell + 1;
+		result /= float(extent.x * extent.y * extent.z * extent.w);
+	}
 	#endif
 	return result;
 }
