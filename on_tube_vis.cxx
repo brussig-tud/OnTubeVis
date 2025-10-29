@@ -196,6 +196,7 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 
 	help.add_line("Scene:");
 	help.add_bullet_point("NumP. Enter\t : Toggle tube/ribbon mode");
+	help.add_bullet_point("U\t\t\t : Toggle camera unlock after scene change");
 	help.add_bullet_point("B\t\t\t : Toggle bounding box");
 	help.add_bullet_point("W\t\t\t : Toggle wireframe bounding box");
 	help.add_bullet_point("R\t\t\t : Double tube radius/ribbon width");
@@ -2198,17 +2199,13 @@ void on_tube_vis::create_gui(void)
 	add_member_control(this, "Box", show_bbox, "toggle", "w=83", "%x+=2");
 	add_member_control(this, "Wireframe", show_wireframe_bbox, "toggle", "w=83");
 	/* Quick tube/ribbon toggle */ {
-		std::string label = "Current: ";
-		label += render.style.is_tube() ? "tubes" : "ribbons";
-		label += " (toggle)";
-		ui_state.tr_toggle.button = add_button(get_tube_ribbon_toggle_label());
+		ui_state.tr_toggle.button = add_button(get_tube_ribbon_toggle_label(), "tooltip='Hotkey [NumPad ENTER]'");
 		if(ui_state.tr_toggle.button)
 			connect_copy(
-				ui_state.tr_toggle.button->click,
-				cgv::signal::rebind(this, &on_tube_vis::toggle_tube_ribbon)
+				ui_state.tr_toggle.button->click, cgv::signal::rebind(this, &on_tube_vis::toggle_tube_ribbon)
 			);
 	}
-	add_member_control(this, "unlock camera after scene change", unlock_after_scene_switch, "check");
+	add_member_control(this, "unlock camera after scene change", unlock_after_scene_switch, "check", "tooltip='Hotkey [U]'");
 
 	if(begin_tree_node("Playback", playback, false)) {
 		align("\a");
