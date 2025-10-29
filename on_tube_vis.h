@@ -57,7 +57,7 @@
 
 
 // define GridMode outside of main on_tube_vis class to be able to use it with type reflection
-enum GridMode {
+enum GridMode : unsigned {
 	GM_NONE = 0,
 	GM_COLOR = 1,
 	GM_NORMAL = 2,

@@ -1938,7 +1938,8 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 			event.set_shot_user_properties(screenshot::property_map {
 				{"dataset", datapath_helper.file_name},
 				{"layercfg", layer_config_file_helper.file_name},
-				{"ribbons", std::to_string(render.style.is_ribbon())}
+				{"ribbons", std::to_string(render.style.is_ribbon())},
+				{"gridmode", std::to_string(grid_mode)}
 			});
 			return;
 
@@ -2002,6 +2003,14 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 					  textured_spline_tube_render_style::LP_RIBBON_RAYCASTED
 					: textured_spline_tube_render_style::LP_TUBE_RUSSIG;
 				on_set(&render.style.line_primitive);
+			}
+			catch (...) { /* DoNothing() */; }
+
+			try {
+				std::stringstream ss;
+				ss << shot->get_user_property_value("gridmode");
+				ss >> (unsigned&)grid_mode;
+				on_set(&grid_mode);
 			}
 			catch (...) { /* DoNothing() */; }
 		}
