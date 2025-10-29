@@ -49,7 +49,7 @@ void trajectory_relation::build_gui (
 		"[debug] Contributing Samples'"
 	);
 	p.add_member_control(b, "Spatial Radius", radius[0], "value_slider",
-		concat("min=0;max=",cgv::vec3{data_extent}.length() * 0.1f,";ticks=true;log=true")
+		concat("min=0;max=",max_value(cgv::vec3{data_extent}) * 0.1f,";ticks=true;log=true")
 	);
 	p.add_member_control(b, "Temporal Radius", radius[1], "value_slider",
 		concat("min=0;max=",data_extent[3] * 0.1f,";ticks=true;log=true")
@@ -67,8 +67,12 @@ void trajectory_relation::build_gui (
 	);
 	p.add_member_control(b, "Normalize", normalize, "check");
 	p.add_member_control(b, "Color Scale", color_map, "dropdown", p.concat_enum_def(color_maps));
-	p.add_member_control(b, "Scale Begin", color_range[0], "value_slider", "ticks=true;log=true");
-	p.add_member_control(b, "Scale End", color_range[1], "value_slider", "ticks=true;log=true");
+	p.add_member_control(b, "Scale Begin", color_range[0], "value_slider",
+		"ticks=true;log=true;min=-1"
+	);
+	p.add_member_control(b, "Scale End", color_range[1], "value_slider",
+		"ticks=true;log=true;min=-1"
+	);
 	p.add_member_control(b, "Scale Type", color_transform, "dropdown", "enums='"
 		"Linear,"
 		"Logarithmic,"
@@ -80,7 +84,7 @@ void trajectory_relation::build_gui (
 
 void trajectory_relation::set_defaults (cgv::vec4 extent)
 {
-	radius[0]   = cgv::vec3{extent}.length() * 0.01f;
+	radius[0]   = max_value(cgv::vec3{extent}) * 0.01f;
 	radius[1]   = extent[3] * 0.01f;
 	sample_rate = 1e3f / extent[3];
 }

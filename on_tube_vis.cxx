@@ -3567,11 +3567,7 @@ void on_tube_vis::update_attribute_bindings(void)
 		{
 		auto const extent = bbox.get_extent();
 		traj_rel.set_defaults({extent, tmax - tmin});
-		auto const resolution      = std::max(powf(num_nodes, 0.25f), 16.0f) * 1e-3f;
-		hash_grid_params.cell_size = cgv::vec4{
-			cgv::vec3{max_value(extent) * resolution},
-			(tmax - tmin) * resolution
-		};
+		hash_grid_params.cell_size = vec4{vec3{traj_rel.radius[0]}, traj_rel.radius[1]};
 		hash_grid_params.sample_step =
 			vec2{hash_grid_params.cell_size[0], hash_grid_params.cell_size[3]} * 0.05f;
 		build_hash_grid();

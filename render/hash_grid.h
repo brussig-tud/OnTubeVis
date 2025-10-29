@@ -68,7 +68,7 @@ public:
 		/// Describes which dimensions the grid indexes and how it is organized in memory.
 		layout layout {layout::xyzt};
 		/// Determines how cell signatures are calculated.
-		signature_fn signature_fn {signature_fn::z_order};
+		signature_fn signature_fn {signature_fn::xxhash32};
 	};
 
 	/// Create a grid with no backing memory, so it cannot store anything.
