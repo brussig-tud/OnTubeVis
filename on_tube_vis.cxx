@@ -1954,7 +1954,13 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 				{"dataset", datapath_helper.file_name},
 				{"layercfg", layer_config_file_helper.file_name},
 				{"ribbons", std::to_string(render.style.is_ribbon())},
-				{"gridmode", std::to_string(grid_mode)}
+				{"gridmode", std::to_string(grid_mode)},
+				{"ao_enabled", std::to_string(ao_style.enable)},
+				{"ao_strength", std::to_string(ao_style.strength_scale)},
+				{"ao_sample_offset", std::to_string(ao_style.sample_offset)},
+				{"ao_sample_dist", std::to_string(ao_style.sample_distance)},
+				{"ao_cone_angle", std::to_string(ao_style.cone_angle)},
+				{"ao_resolution", std::to_string(voxel_grid_resolution)}
 			});
 			return;
 
@@ -2030,6 +2036,31 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 				ss << shot->get_user_property_value("gridmode");
 				ss >> (unsigned&)grid_mode;
 				on_set(&grid_mode);
+			}
+			catch (...) { /* DoNothing() */; }
+
+			try {
+				ambient_occlusion_style ao;
+				std::stringstream ss;
+				ss << shot->get_user_property_value("ao_enabled");
+				ss >> ao.enable;
+				ss << shot->get_user_property_value("ao_strength");
+				ss >> ao.strength_scale;
+				ss << shot->get_user_property_value("ao_sample_offset");
+				ss >> ao.sample_offset;
+				ss << shot->get_user_property_value("ao_sample_dist");
+				ss >> ao.sample_distance;
+				ss << shot->get_user_property_value("ao_cone_angle");
+				ss >> ao.cone_angle;
+				unsigned ao_resolution;
+				ss << shot->get_user_property_value("ao_resolution");
+				ss >> ao_resolution;
+				ao_style = ao;
+				on_set(&ao_style);
+				if (ao_resolution != (unsigned)voxel_grid_resolution) {
+					voxel_grid_resolution = (cgv::type::DummyEnum)ao_resolution;
+					on_set(&voxel_grid_resolution);
+				}
 			}
 			catch (...) { /* DoNothing() */; }
 		}
