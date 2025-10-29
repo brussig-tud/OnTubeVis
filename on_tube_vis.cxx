@@ -788,6 +788,13 @@ void on_tube_vis::on_set(void* member_ptr) {
 	}
 
 	// render settings
+	if (m.is(ao_style)) { // no individual action required, but make sure to update all member controls
+		update_member(&ao_style.enable);
+		update_member(&ao_style.strength_scale);
+		update_member(&ao_style.sample_offset);
+		update_member(&ao_style.sample_distance);
+		update_member(&ao_style.cone_angle);
+	}
 	if(m.one_of(debug.highlight_segments,
 				ao_style.enable,
 				grid_mode,
@@ -2040,22 +2047,26 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 			catch (...) { /* DoNothing() */; }
 
 			try {
+				unsigned ao_resolution = voxel_grid_resolution;
 				ambient_occlusion_style ao;
 				std::stringstream ss;
 				ss << shot->get_user_property_value("ao_enabled");
-				ss >> ao.enable;
+				ss >> ao.enable; ss.clear();
 				ss << shot->get_user_property_value("ao_strength");
-				ss >> ao.strength_scale;
+				ss >> ao.strength_scale; ss.clear();
 				ss << shot->get_user_property_value("ao_sample_offset");
-				ss >> ao.sample_offset;
+				ss >> ao.sample_offset; ss.clear();
 				ss << shot->get_user_property_value("ao_sample_dist");
-				ss >> ao.sample_distance;
+				ss >> ao.sample_distance; ss.clear();
 				ss << shot->get_user_property_value("ao_cone_angle");
-				ss >> ao.cone_angle;
-				unsigned ao_resolution;
+				ss >> ao.cone_angle; ss.clear();
 				ss << shot->get_user_property_value("ao_resolution");
 				ss >> ao_resolution;
-				ao_style = ao;
+				ao_style.enable = ao.enable;
+				ao_style.strength_scale = ao.strength_scale;
+				ao_style.sample_offset = ao.sample_offset;
+				ao_style.sample_distance = ao.sample_distance;
+				ao_style.cone_angle = ao.cone_angle;
 				on_set(&ao_style);
 				if (ao_resolution != (unsigned)voxel_grid_resolution) {
 					voxel_grid_resolution = (cgv::type::DummyEnum)ao_resolution;
