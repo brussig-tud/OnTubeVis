@@ -74,6 +74,11 @@ enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
 }
 }
 
+namespace {
+	std::filesystem::path startupCWD = std::filesystem::current_path();
+}
+
+
 void on_tube_vis::on_register()
 {
 	cgv::gui::application::get_window(0)->set("title", "OnTubeVis");
@@ -670,6 +675,9 @@ void on_tube_vis::on_set(void* member_ptr) {
 	// - configurable datapath
 	if(m.is(datapath_helper.file_name))
 	{
+		// Reset working directory to what it was at program startup to mitigate meddling from the file open dialog
+		std::filesystem::current_path(startupCWD);
+
 		const auto& file_name = datapath_helper.file_name;
 		if(!file_name.empty())
 		{
@@ -903,7 +911,11 @@ void on_tube_vis::on_set(void* member_ptr) {
 		on_set(&layer_config_has_unsaved_changes);
 	}
 
-	if(m.is(layer_config_file_helper.file_name)) {
+	if(m.is(layer_config_file_helper.file_name))
+	{
+		// Reset working directory to what it was at program startup to mitigate meddling from the file open dialog
+		std::filesystem::current_path(startupCWD);
+
 		std::string& file_name = layer_config_file_helper.file_name;
 
 		if(layer_config_file_helper.is_save_action()) {
@@ -1947,6 +1959,10 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 			return;
 
 		case screenshot::EventType::kSelectShot: {
+			// Reset working directory to what it was at program startup to mitigate meddling from the file open dialog
+			// that might have preceded the selection (e.g. from loading a new scene list)
+			std::filesystem::current_path(startupCWD);
+
 			bool ds_changed = false, layercfg_changed = false;
 			const auto shot = event.get_shot().lock();
 			try {
