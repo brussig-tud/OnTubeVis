@@ -4038,8 +4038,6 @@ void on_tube_vis::set_traj_rel_defines (cgv::render::context& ctx)
 
 void on_tube_vis::start_traj_rel_benchmark ()
 {
-	// Ensure the hash grid is up to date.
-	build_hash_grid();
 	// Render only trajectories and GUI.
 	benchmark_mode_setup = false;
 	show_extrapolation   = false;
