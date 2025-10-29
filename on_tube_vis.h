@@ -425,6 +425,7 @@ protected:
 	bool update_legends = false; // flag indicating whether the color and mapping legends need updating during init_frame
 
 	unsigned scene_switch_state = 0;
+	bool unlock_after_scene_switch = true;
 	signed selected_scene = -1;
 	screenshot *screenshot_ptr = nullptr;
 

@@ -351,7 +351,8 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
-		rh.reflect_member("benchmark_mode", benchmark_mode);
+		rh.reflect_member("benchmark_mode", benchmark_mode) &&
+		rh.reflect_member("unlock_after_scene_switch", unlock_after_scene_switch);
 }
 
 void on_tube_vis::stream_help (std::ostream &os) {
@@ -531,6 +532,11 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 				on_set(&show_wireframe_bbox);
 				handled = true;
 				break;
+			case 'U':
+				unlock_after_scene_switch = !unlock_after_scene_switch;
+				on_set(&unlock_after_scene_switch);
+				handled = true;
+				break;
 			case cgv::gui::Keys::KEY_Num_0:
 				dataset.rtlola_show_map = !dataset.rtlola_show_map;
 				taa.reset();
@@ -541,16 +547,12 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 				handled = true;
 				break;
 			case cgv::gui::Keys::KEY_Space:
-				selected_scene = 0;
-				screenshot_ptr->set_active_shot_by_index(selected_scene);
-				handled = true;
-				break;
-				/*if(modifiers == 0) {
+				if(modifiers == 0) {
 					playback.active = !playback.active;
 					on_set(&playback.active);
 					handled = true;
 				}
-				break;*/
+				break;
 			case cgv::gui::Keys::KEY_Home:
 				playback.follow = !playback.follow;
 				on_set(&playback.follow);
@@ -1988,7 +1990,7 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 				on_set(&datapath_helper.file_name);
 				scene_switch_state = 1; // initiate workaround logic for faulty view change in screenshot plugin
 			}
-			else
+			else if (unlock_after_scene_switch)
 				screenshot_ptr->deselect_active_shot();
 			layer_config_file_helper.file_name = std::move(new_layercfg);
 			if (ds_changed || layercfg_changed)
@@ -2042,7 +2044,8 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 		post_redraw();
 	}
 	else if (scene_switch_state > 1) {
-		screenshot_ptr->deselect_active_shot();
+		if (unlock_after_scene_switch)
+			screenshot_ptr->deselect_active_shot();
 		scene_switch_state = 0;
 		taa.reset();
 		post_redraw();
@@ -2205,6 +2208,7 @@ void on_tube_vis::create_gui(void)
 				cgv::signal::rebind(this, &on_tube_vis::toggle_tube_ribbon)
 			);
 	}
+	add_member_control(this, "unlock camera after scene change", unlock_after_scene_switch, "check");
 
 	if(begin_tree_node("Playback", playback, false)) {
 		align("\a");
