@@ -350,6 +350,13 @@ if (ENABLE_OPTIX_SUPPORT)
 	)
 endif()
 
+# Required compiler settings
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+	# Actually fixing these warnings will break MSVC builds
+	target_compile_options(OnTubeVis PRIVATE "-Wno-explicit-specialization-storage-class")
+	target_compile_options(OnTubeVis_static PRIVATE "-Wno-explicit-specialization-storage-class")
+endif()
+
 # schedule high-level warning messages at the very end of the configuration process to make sure they will be easily
 # visible
 if (NOT OpenMP_CXX_FOUND)
