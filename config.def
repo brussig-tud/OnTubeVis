@@ -7,6 +7,12 @@ type(fltk_viewer_window):theme=dark
 // - initial glyph layer config
 type(on_tube_vis):layer_config_file="./testdata/layerconf_1layer_defaultprocedural.xml"
 
+// Scene database
+// - the scene collection file (uncomment and set in your local config.cfg)
+//type(screenshot):screenshots_file="./testdata/scenes.xml"
+// - whether to immediately unlock  the camera controls after switching to a scene
+//type(on_tube_vis):unlock_after_scene_switch=true
+
 // Visualization and general settings
 // - How node attributes are made available to the spline tube shader when using the rasterization render path
 //   0 ... classical              - [DEFAULT] use attributes of the proxy geometry

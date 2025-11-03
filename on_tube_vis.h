@@ -32,6 +32,9 @@
 // CGV framework post processing algorithms
 #include <cgv_post/temporal_anti_aliasing.h>
 
+// CGV framework screenshot plugin
+#include <plugins/screenshot/screenshot.h>
+
 // local includes
 #include "traj_loader.h"
 #include "arclen_helper.h"
@@ -54,7 +57,7 @@
 
 
 // define GridMode outside of main on_tube_vis class to be able to use it with type reflection
-enum GridMode {
+enum GridMode : unsigned {
 	GM_NONE = 0,
 	GM_COLOR = 1,
 	GM_NORMAL = 2,
@@ -421,6 +424,11 @@ protected:
 	color_legend_manager color_legend_mgr;
 	bool update_legends = false; // flag indicating whether the color and mapping legends need updating during init_frame
 
+	unsigned scene_switch_state = 0;
+	bool unlock_after_scene_switch = true;
+	signed selected_scene = -1;
+	screenshot *screenshot_ptr = nullptr;
+
 	/// benchmark state fields
 	struct {
 		/// whether a benchmark run is requested
@@ -542,6 +550,8 @@ protected:
 	shader_compile_options build_tube_shading_options();
 	void on_register();
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
+
+	void handle_screenshot_change (screenshot::event &event);
 
 public:
 	on_tube_vis();

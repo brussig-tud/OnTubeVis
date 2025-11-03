@@ -26,7 +26,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 1df3c23ceac5ad31295a6f957e7f3fbd62addef9
+		GIT_TAG 25104531b816e55768fa63e0fbae35ef4d6075c5
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -225,6 +225,7 @@ cgv_add_target(OnTubeVis
 	LINKTIME_PLUGIN_DEPENDENCIES
 		cg_fltk # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
 		crg_stereo_view  # <-- we're directly using exported symbols from the crg_stereo_view plugin
+		screenshot # <-- we're directly using exported symbols from the screenshot plugin
 
 	ADDITIONAL_INCLUDE_PATHS ${ADDITIONAL_INCLUDE_PATHS}
 
@@ -266,6 +267,13 @@ if (ENABLE_OPTIX_SUPPORT)
 			"${CUDA_NVCC_EXECUTABLE}" "<<<INFILE>>>" "<<<OUTFILE>>>" "${NVCC_BINCC_OPT}" "${NVCC_BINCC_ARG}" "-std=c++17" "-ptx"
 			"-arch=compute_61" "--use_fast_math" "-O=3" "-dopt=on" "-D__x86_64" "-I\"<<<INFILE_PATH>>>\"" ${NVCC_INCLUDE_PATH}
 	)
+endif()
+
+# Required compiler settings
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+	# Actually fixing these warnings will break MSVC builds
+	target_compile_options(OnTubeVis PRIVATE "-Wno-explicit-specialization-storage-class")
+	target_compile_options(OnTubeVis_static PRIVATE "-Wno-explicit-specialization-storage-class")
 endif()
 
 # schedule high-level warning messages at the very end of the configuration process to make sure they will be easily

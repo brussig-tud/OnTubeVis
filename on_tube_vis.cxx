@@ -74,6 +74,11 @@ enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
 }
 }
 
+namespace {
+	std::filesystem::path startupCWD = std::filesystem::current_path();
+}
+
+
 void on_tube_vis::on_register()
 {
 	cgv::gui::application::get_window(0)->set("title", "OnTubeVis");
@@ -126,7 +131,7 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 
 	// add framebuffer attachments needed for deferred rendering
 	fbc.add_attachment("depth", "uint32[D]");
-	fbc.add_attachment("albedo", "flt32[R,G,B,A]");
+	fbc.add_attachment("albedo", "uint32[R,G,B,A]");
 	fbc.add_attachment("position", "flt32[R,G,B]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
@@ -196,6 +201,7 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 
 	help.add_line("Scene:");
 	help.add_bullet_point("NumP. Enter\t : Toggle tube/ribbon mode");
+	help.add_bullet_point("U\t\t\t : Toggle camera unlock after scene change");
 	help.add_bullet_point("B\t\t\t : Toggle bounding box");
 	help.add_bullet_point("W\t\t\t : Toggle wireframe bounding box");
 	help.add_bullet_point("R\t\t\t : Double tube radius/ribbon width");
@@ -351,7 +357,8 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
-		rh.reflect_member("benchmark_mode", benchmark_mode);
+		rh.reflect_member("benchmark_mode", benchmark_mode) &&
+		rh.reflect_member("unlock_after_scene_switch", unlock_after_scene_switch);
 }
 
 void on_tube_vis::stream_help (std::ostream &os) {
@@ -531,6 +538,11 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 				on_set(&show_wireframe_bbox);
 				handled = true;
 				break;
+			case 'U':
+				unlock_after_scene_switch = !unlock_after_scene_switch;
+				on_set(&unlock_after_scene_switch);
+				handled = true;
+				break;
 			case cgv::gui::Keys::KEY_Num_0:
 				dataset.rtlola_show_map = !dataset.rtlola_show_map;
 				taa.reset();
@@ -663,6 +675,9 @@ void on_tube_vis::on_set(void* member_ptr) {
 	// - configurable datapath
 	if(m.is(datapath_helper.file_name))
 	{
+		// Reset working directory to what it was at program startup to mitigate meddling from the file open dialog
+		std::filesystem::current_path(startupCWD);
+
 		const auto& file_name = datapath_helper.file_name;
 		if(!file_name.empty())
 		{
@@ -773,6 +788,13 @@ void on_tube_vis::on_set(void* member_ptr) {
 	}
 
 	// render settings
+	if (m.is(ao_style)) { // no individual action required, but make sure to update all member controls
+		update_member(&ao_style.enable);
+		update_member(&ao_style.strength_scale);
+		update_member(&ao_style.sample_offset);
+		update_member(&ao_style.sample_distance);
+		update_member(&ao_style.cone_angle);
+	}
 	if(m.one_of(debug.highlight_segments,
 				ao_style.enable,
 				grid_mode,
@@ -896,7 +918,11 @@ void on_tube_vis::on_set(void* member_ptr) {
 		on_set(&layer_config_has_unsaved_changes);
 	}
 
-	if(m.is(layer_config_file_helper.file_name)) {
+	if(m.is(layer_config_file_helper.file_name))
+	{
+		// Reset working directory to what it was at program startup to mitigate meddling from the file open dialog
+		std::filesystem::current_path(startupCWD);
+
 		std::string& file_name = layer_config_file_helper.file_name;
 
 		if(layer_config_file_helper.is_save_action()) {
@@ -1925,9 +1951,164 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	}
 }
 
+void on_tube_vis::handle_screenshot_change (screenshot::event &event)
+{
+	switch (event.get_type())
+	{
+		case screenshot::EventType::kCreateShot:
+		case screenshot::EventType::kUpdateShot:
+			event.set_shot_user_properties(screenshot::property_map {
+				{"dataset", datapath_helper.file_name},
+				{"layercfg", layer_config_file_helper.file_name},
+				{"ribbons", std::to_string(render.style.is_ribbon())},
+				{"gridmode", std::to_string(grid_mode)},
+				{"ao_enabled", std::to_string(ao_style.enable)},
+				{"ao_strength", std::to_string(ao_style.strength_scale)},
+				{"ao_sample_offset", std::to_string(ao_style.sample_offset)},
+				{"ao_sample_dist", std::to_string(ao_style.sample_distance)},
+				{"ao_cone_angle", std::to_string(ao_style.cone_angle)},
+				{"ao_resolution", std::to_string(voxel_grid_resolution)}
+			});
+			return;
+
+		case screenshot::EventType::kSelectShot: {
+			// Reset working directory to what it was at program startup to mitigate meddling from the file open dialog
+			// that might have preceded the selection (e.g. from loading a new scene list)
+			std::filesystem::current_path(startupCWD);
+
+			bool ds_changed = false, layercfg_changed = false;
+			const auto shot = event.get_shot().lock();
+			try {
+				const auto new_ds = shot->get_user_property_value("dataset");
+				if (new_ds != datapath_helper.file_name) {
+					datapath_helper.file_name = new_ds;
+					ds_changed = true;
+				}
+			}
+			catch (std::exception& e) {
+				std::cerr << "ERROR: Unable to load pre-selected dataset!\nReason: " << e.what() << std::endl;
+				return;
+			}
+			std::string new_layercfg;
+			try {
+				new_layercfg = shot->get_user_property_value("layercfg");
+				layercfg_changed = new_layercfg != layer_config_file_helper.file_name;
+			}
+			catch (std::exception& e) {
+				std::cerr << "ERROR: Unable to load pre-selected layer configuration!\nReason: " << e.what() << std::endl;
+				if (ds_changed) {
+					layer_config_file_helper.file_name = "";
+					on_set(&layer_config_file_helper.file_name);
+				}
+				return;
+			}
+
+			selected_scene = -1;
+			for (unsigned i=0; i<screenshot_ptr->get_shot_count(); ++i) {
+				if (shot->name == screenshot_ptr->get_shot_at(i).lock()->name) {
+					selected_scene = i;
+					break;
+				}
+			}
+			if (selected_scene < 0) {
+				const std::string error = "!!!INTERNAL LOGIC  ERROR!!! No such scene: '"+shot->name+"'";
+				std::cerr << error << std::endl;
+				throw std::runtime_error(error);
+			}
+
+			if (ds_changed) {
+				on_set(&datapath_helper.file_name);
+				scene_switch_state = 1; // initiate workaround logic for faulty view change in screenshot plugin
+			}
+			else if (unlock_after_scene_switch)
+				screenshot_ptr->deselect_active_shot();
+			layer_config_file_helper.file_name = std::move(new_layercfg);
+			if (ds_changed || layercfg_changed)
+				on_set(&layer_config_file_helper.file_name);
+
+			try {
+				std::stringstream ss;
+				ss << shot->get_user_property_value("ribbons");
+				bool is_ribbon = false;
+				ss >> is_ribbon;
+				render.style.line_primitive = is_ribbon ?
+					  textured_spline_tube_render_style::LP_RIBBON_RAYCASTED
+					: textured_spline_tube_render_style::LP_TUBE_RUSSIG;
+				on_set(&render.style.line_primitive);
+			}
+			catch (...) { /* DoNothing() */; }
+
+			try {
+				std::stringstream ss;
+				ss << shot->get_user_property_value("gridmode");
+				ss >> (unsigned&)grid_mode;
+				on_set(&grid_mode);
+			}
+			catch (...) { /* DoNothing() */; }
+
+			try {
+				unsigned ao_resolution = voxel_grid_resolution;
+				ambient_occlusion_style ao;
+				std::stringstream ss;
+				ss << shot->get_user_property_value("ao_enabled");
+				ss >> ao.enable; ss.clear();
+				ss << shot->get_user_property_value("ao_strength");
+				ss >> ao.strength_scale; ss.clear();
+				ss << shot->get_user_property_value("ao_sample_offset");
+				ss >> ao.sample_offset; ss.clear();
+				ss << shot->get_user_property_value("ao_sample_dist");
+				ss >> ao.sample_distance; ss.clear();
+				ss << shot->get_user_property_value("ao_cone_angle");
+				ss >> ao.cone_angle; ss.clear();
+				ss << shot->get_user_property_value("ao_resolution");
+				ss >> ao_resolution;
+				ao_style.enable = ao.enable;
+				ao_style.strength_scale = ao.strength_scale;
+				ao_style.sample_offset = ao.sample_offset;
+				ao_style.sample_distance = ao.sample_distance;
+				ao_style.cone_angle = ao.cone_angle;
+				on_set(&ao_style);
+				if (ao_resolution != (unsigned)voxel_grid_resolution) {
+					voxel_grid_resolution = (cgv::type::DummyEnum)ao_resolution;
+					on_set(&voxel_grid_resolution);
+				}
+			}
+			catch (...) { /* DoNothing() */; }
+		}
+
+		default:
+			/* DoNothing() */;
+	}
+}
+
 void on_tube_vis::draw (cgv::render::context &ctx)
 {
-	if(!view_ptr) return;
+	// skip drawing until we have a pointer to the active view interactor
+	if(!view_ptr)
+		return;
+
+	// make sure we have a pointer to the screenshot plugin instance
+	if (!screenshot_ptr) {
+		screenshot_ptr = screenshot::find_instance(this);
+		cgv::signal::connect_copy(screenshot_ptr->on_change, cgv::signal::rebind(
+			this, &on_tube_vis::handle_screenshot_change, cgv::signal::_1
+		));
+	}
+
+	// handle scene switch
+	if (scene_switch_state == 1) {
+		screenshot_ptr->deselect_active_shot();
+		screenshot_ptr->set_active_shot_by_index(selected_scene);
+		scene_switch_state = 2;
+		post_redraw();
+	}
+	else if (scene_switch_state > 1) {
+		if (unlock_after_scene_switch)
+			screenshot_ptr->deselect_active_shot();
+		scene_switch_state = 0;
+		taa.reset();
+		post_redraw();
+	}
 
 	// draw dataset using selected render mode
 	if(traj_mgr.has_data())
@@ -1941,24 +2122,25 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 			debug_idx_count = static_cast<int>(2 * debug.render_count);
 
 		switch(debug.render_mode) {
-		case DRM_NONE:
-			draw_trajectories(ctx);
-			break;
-		case DRM_NODES:
-			debug.geometry.nodes.render(ctx, 0, debug_idx_count);
-			break;
-		case DRM_SEGMENTS:
-			debug.geometry.segments.render(ctx, 0, debug_idx_count);
-			break;
-		case DRM_NODES_SEGMENTS:
-			debug.geometry.nodes.render(ctx, 0, debug_idx_count);
-			debug.geometry.segments.render(ctx, 0, debug_idx_count);
-			break;
-		case DRM_VOLUME:
-			draw_density_volume(ctx);
-			break;
-		default:
-			break;
+			case DRM_NONE:
+				draw_trajectories(ctx);
+				break;
+			case DRM_NODES:
+				debug.geometry.nodes.render(ctx, 0, debug_idx_count);
+				break;
+			case DRM_SEGMENTS:
+				debug.geometry.segments.render(ctx, 0, debug_idx_count);
+				break;
+			case DRM_NODES_SEGMENTS:
+				debug.geometry.nodes.render(ctx, 0, debug_idx_count);
+				debug.geometry.segments.render(ctx, 0, debug_idx_count);
+				break;
+			case DRM_VOLUME:
+				draw_density_volume(ctx);
+				break;
+
+			default:
+				/* DoNothing() */;
 		}
 
 		if (dataset.is_rtlola && dataset.rtlola_show_map)
@@ -2075,16 +2257,13 @@ void on_tube_vis::create_gui(void)
 	add_member_control(this, "Box", show_bbox, "toggle", "w=83", "%x+=2");
 	add_member_control(this, "Wireframe", show_wireframe_bbox, "toggle", "w=83");
 	/* Quick tube/ribbon toggle */ {
-		std::string label = "Current: ";
-		label += render.style.is_tube() ? "tubes" : "ribbons";
-		label += " (toggle)";
-		ui_state.tr_toggle.button = add_button(get_tube_ribbon_toggle_label());
+		ui_state.tr_toggle.button = add_button(get_tube_ribbon_toggle_label(), "tooltip='Hotkey [NumPad ENTER]'");
 		if(ui_state.tr_toggle.button)
 			connect_copy(
-				ui_state.tr_toggle.button->click,
-				cgv::signal::rebind(this, &on_tube_vis::toggle_tube_ribbon)
+				ui_state.tr_toggle.button->click, cgv::signal::rebind(this, &on_tube_vis::toggle_tube_ribbon)
 			);
 	}
+	add_member_control(this, "unlock camera after scene change", unlock_after_scene_switch, "check", "tooltip='Hotkey [U]'");
 
 	if(begin_tree_node("Playback", playback, false)) {
 		align("\a");
