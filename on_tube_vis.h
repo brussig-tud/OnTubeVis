@@ -83,7 +83,11 @@ using namespace cgv::render;
 struct view_interaction_timeline;
 struct view_interaction_accumulator
 {
-	using time_point = std::chrono::time_point<std::chrono::high_resolution_clock>;
+	using time_point = std::chrono::system_clock::time_point;
+
+	view_interaction_accumulator() : start_time(std::chrono::system_clock::now()) {}
+	view_interaction_accumulator(const view_interaction_accumulator&) = default;
+	view_interaction_accumulator(view_interaction_accumulator&&) = default;
 
 	struct datapoint {
 		inline static datapoint zeroed (void) {
@@ -96,7 +100,7 @@ struct view_interaction_accumulator
 		double delta;
 	};
 
-	time_point start_time = std::chrono::high_resolution_clock::now();
+	time_point start_time;
 	std::map<float, datapoint> orbit, pan, roll, zoom, focus_move;
 
 	inline void clear (void) {
@@ -108,7 +112,7 @@ struct view_interaction_accumulator
 	}
 	inline void reset (void) {
 		clear();
-		start_time = std::chrono::high_resolution_clock::now();
+		start_time = std::chrono::system_clock::now();
 	}
 
 	void log (std::map<float,datapoint> &timeline, const time_point &time, const double delta) const
@@ -141,10 +145,11 @@ struct view_interaction_accumulator
 
 	inline double log_interaction (const view_interaction &interaction)
 	{
+		constexpr double _1_over_pi = 0.31830988618379067153776752674502872499;
 		switch (interaction.kind)
 		{
 			case view_interaction::Kind::Orbit: {
-				const double degrees = interaction.amount*M_1_PIf64 * 180.;
+				const double degrees = interaction.amount*_1_over_pi * 180.;
 				log(orbit, interaction.time, degrees);
 				return degrees;
 			}
@@ -154,7 +159,7 @@ struct view_interaction_accumulator
 				return percent;
 			}
 			case view_interaction::Kind::Roll: {
-				const double degrees = interaction.amount*M_1_PIf64 * 180.;
+				const double degrees = interaction.amount*_1_over_pi * 180.;
 				log(roll, interaction.time, degrees);
 				return degrees;
 			}

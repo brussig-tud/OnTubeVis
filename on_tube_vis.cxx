@@ -1017,7 +1017,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 		case AT_EDIT_REQUEST:
 			if(cm_editor_ptr) {
 				int idx = color_map_mgr.edit_index();
-				if(idx > -1 && idx < color_map_mgr.ref_color_maps().size()) {
+				if(idx > -1 && size_t(idx) < color_map_mgr.ref_color_maps().size()) {
 					cm_editor_ptr->set_color_map(&(color_map_mgr.ref_color_maps()[idx].cm));
 					cm_editor_ptr->set_visibility(true);
 				}

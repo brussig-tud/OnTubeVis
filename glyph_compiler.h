@@ -808,7 +808,7 @@ protected:
 
 		for(size_t i = 0; i < layer_config.mapped_attributes.size(); ++i) {
 			int attrib_idx = layer_config.mapped_attributes[i];
-			if(attrib_idx < 0 || attrib_idx >= attrib_names.size()) {
+			if(attrib_idx < 0 || size_t(attrib_idx) >= attrib_names.size()) {
 				std::cout << "Error: glyph_compiler::compile_glyph_layer - attribute index out of range" << std::endl;
 				continue;
 			}
