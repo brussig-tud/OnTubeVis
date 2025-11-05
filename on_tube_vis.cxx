@@ -22,8 +22,6 @@
 // CGV framework plugins
 // - fltk_gl_view for controlling instant redraw
 #include <plugins/cg_fltk/fltk_gl_view.h>
-// - stereo_view_interactor for controlling fix_view_up_dir
-#include <plugins/crg_stereo_view/stereo_view_interactor.h>
 
 // CGV framework 3rd party libraries
 #include <3rd/xml/tinyxml2/tinyxml2.h>
@@ -77,6 +75,120 @@ enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
 namespace {
 	std::filesystem::path startupCWD = std::filesystem::current_path();
 }
+
+
+view_interaction_timeline view_interaction_accumulator::create_timeline(void) const
+{
+	using record = view_interaction_timeline::record;
+	view_interaction_timeline timeline;
+	// orbit interaction
+	for (const auto &[time, datapoint] : orbit) {
+		auto it = timeline.records.find(time);
+		if (it == timeline.records.end())
+			timeline.records.emplace(time, record::from_orbit(datapoint));
+		else
+			it->second.orbit = datapoint;
+	}
+	// pan interaction
+	for (const auto &[time, datapoint] : pan) {
+		auto it = timeline.records.find(time);
+		if (it == timeline.records.end())
+			timeline.records.emplace(time, record::from_pan(datapoint));
+		else
+			it->second.pan = datapoint;
+	}
+	// roll interaction
+	for (const auto &[time, datapoint] : roll) {
+		auto it = timeline.records.find(time);
+		if (it == timeline.records.end())
+			timeline.records.emplace(time, record::from_roll(datapoint));
+		else
+			it->second.roll = datapoint;
+	}
+	// zoom interaction
+	for (const auto &[time, datapoint] : zoom) {
+		auto it = timeline.records.find(time);
+		if (it == timeline.records.end())
+			timeline.records.emplace(time, record::from_zoom(datapoint));
+		else
+			it->second.zoom = datapoint;
+	}
+	// focus_move interaction
+	for (const auto &[time, datapoint] : focus_move) {
+		auto it = timeline.records.find(time);
+		if (it == timeline.records.end())
+			timeline.records.emplace(time, record::from_focus_move(datapoint));
+		else
+			it->second.focus_move = datapoint;
+	}
+
+	// tap out early if nothing was recorded
+	if (timeline.records.empty())
+		return std::move(timeline);
+
+	// fill in accumulation gaps
+	auto it = timeline.records.begin();
+	// - first record
+	it->second.orbit.accum = it->second.orbit.delta;
+	it->second.pan.accum = it->second.pan.delta;
+	it->second.roll.accum = it->second.roll.delta;
+	it->second.zoom.accum = it->second.zoom.delta;
+	it->second.focus_move.accum = it->second.focus_move.delta;
+	record *prev = &it->second;
+	++it;
+	// - all remaining records
+	for (; it!=timeline.records.end(); ++it) {
+		it->second.orbit.accum = prev->orbit.accum + it->second.orbit.delta;
+		it->second.pan.accum = prev->pan.accum + it->second.pan.delta;
+		it->second.roll.accum = prev->roll.accum + it->second.roll.delta;
+		it->second.zoom.accum = prev->zoom.accum + it->second.zoom.delta;
+		it->second.focus_move.accum = prev->focus_move.accum + it->second.focus_move.delta;
+		prev = &it->second;
+	}
+
+	// sanity check
+	constexpr double err_tol = 0.015625;
+	const auto last_record = std::prev(timeline.records.end());
+	if (!orbit.empty()) {
+		const auto last_orbit = std::prev(orbit.end());
+		const auto diff = last_orbit->second.accum-last_record->second.orbit.accum;
+		if (std::abs(diff) > err_tol)
+			std::cerr << "WARNING: accumulation of orbit actions does not match between individual and merged timelines!\n"
+			          << "         diff = "<<diff << std::endl;
+	}
+	if (!pan.empty()) {
+		const auto last_pan = std::prev(pan.end());
+		const auto diff = last_pan->second.accum-last_record->second.pan.accum;
+		if (std::abs(diff) > err_tol)
+			std::cerr << "WARNING: accumulation of panning actions does not match between individual and merged timelines!\n"
+			          << "         diff = "<<diff << std::endl;
+	}
+	if (!roll.empty()) {
+		const auto last_roll = std::prev(roll.end());
+		const auto diff = last_roll->second.accum-last_record->second.roll.accum;
+		if (std::abs(diff) > err_tol)
+			std::cerr << "WARNING: accumulation of roll actions does not match between individual and merged timelines!\n"
+			          << "         diff = "<<diff << std::endl;
+	}
+	if (!zoom.empty()) {
+		const auto last_zoom = std::prev(zoom.end());
+		const auto diff = last_zoom->second.accum-last_record->second.zoom.accum;
+		if (std::abs(diff) > err_tol)
+			std::cerr << "WARNING: accumulation of zoom actions does not match between individual and merged timelines!\n"
+			          << "         diff = "<<diff << std::endl;
+	}
+	if (!focus_move.empty()) {
+		const auto last_focus_move = std::prev(focus_move.end());
+		const auto diff = last_focus_move->second.accum-last_record->second.focus_move.accum;
+		if (std::abs(diff) > err_tol)
+			std::cerr << "WARNING: accumulation of focus move actions does not match between individual and merged timelines!\n"
+					  << "         diff = "<<diff << std::endl;
+	}
+
+	// done!
+	return std::move(timeline);
+}
+
 
 
 void on_tube_vis::on_register()
@@ -1119,7 +1231,13 @@ void on_tube_vis::on_set(void* member_ptr) {
 	post_redraw();
 }
 
-bool on_tube_vis::on_exit_request() {
+bool on_tube_vis::on_exit_request()
+{
+	// Test compiling user interaction timeline
+	auto view_interaction_timeline = view_interactions.create_timeline();
+	std::clog << "Recorded "<<view_interaction_timeline.records.size()<<" unique interaction times."
+	          << std::endl<<std::endl;
+
 	// TODO: does not seem to fire when window is maximized?
 #ifndef _DEBUG
 	if(layer_config_has_unsaved_changes) {
@@ -1951,6 +2069,30 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	}
 }
 
+void on_tube_vis::on_view_interaction (const view_interaction &interaction)
+{
+	switch (interaction.kind)
+	{
+		case view_interaction::Kind::Orbit:
+			std::clog << "orbited "<<view_interactions.log_interaction(interaction)<<"°" << std::endl;
+			return;
+		case view_interaction::Kind::Pan:
+			std::clog << "panned "<<view_interactions.log_interaction(interaction)<<"%" << std::endl;
+			return;
+		case view_interaction::Kind::Roll:
+			std::clog << "rolled "<<view_interactions.log_interaction(interaction)<<"°" << std::endl;
+			return;
+		case view_interaction::Kind::Zoom:
+			std::clog << "zoomed "<<view_interactions.log_interaction(interaction)<<'%' << std::endl;
+			return;
+		case view_interaction::Kind::FocusChange:
+			std::clog << "focus moved "<<view_interactions.log_interaction(interaction)<<" units" << std::endl;
+			return;
+		case view_interaction::Kind::FocusChangeFromZoom:
+			std::clog << "focus moved "<<interaction.amount<<" units (via zoom action)" << std::endl;
+	}
+}
+
 void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 {
 	switch (event.get_type())
@@ -2181,6 +2323,12 @@ void on_tube_vis::after_finish(context& ctx) {
 		// do one-time initialization that needs the view if necessary
 		set_view();
 		ensure_selected_in_tab_group_parent();
+		cgv::signal::connect_copy(
+			dynamic_cast<stereo_view_interactor*>(view_ptr)->on_view_interaction,
+			cgv::signal::rebind(
+				this, &on_tube_vis::on_view_interaction, cgv::signal::_1
+			)
+		);
 
 		// set one of the loaded color maps as the transfer function for the volume renderer
 		if(tf_editor_ptr) {

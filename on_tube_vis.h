@@ -32,7 +32,10 @@
 // CGV framework post processing algorithms
 #include <cgv_post/temporal_anti_aliasing.h>
 
-// CGV framework screenshot plugin
+// CGV framework plugins
+// - stereo_view_interactor for controlling/listening to camera changes
+#include <plugins/crg_stereo_view/stereo_view_interactor.h>
+// - screenshot plugin for saving/restoring scenes
 #include <plugins/screenshot/screenshot.h>
 
 // local includes
@@ -76,6 +79,146 @@ enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&);
 
 
 using namespace cgv::render;
+
+struct view_interaction_timeline;
+struct view_interaction_accumulator
+{
+	using time_point = std::chrono::time_point<std::chrono::high_resolution_clock>;
+
+	struct datapoint {
+		inline static datapoint zeroed (void) {
+			return {0, 0};
+		};
+		/// how move change has accumulated including this point
+		double accum;
+
+		/// how much change is added at this point (this is a backwards difference!)
+		double delta;
+	};
+
+	time_point start_time = std::chrono::high_resolution_clock::now();
+	std::map<float, datapoint> orbit, pan, roll, zoom, focus_move;
+
+	inline void clear (void) {
+		orbit.clear();
+		pan.clear();
+		roll.clear();
+		zoom.clear();
+		focus_move.clear();
+	}
+	inline void reset (void) {
+		clear();
+		start_time = std::chrono::high_resolution_clock::now();
+	}
+
+	void log (std::map<float,datapoint> &timeline, const time_point &time, const double delta) const
+	{
+		const auto delta_abs = std::abs(delta);
+		const auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time - start_time).count();
+		const auto time_s = float(time_ms) / 1000;
+		if (timeline.empty())
+			timeline.emplace(time_s, datapoint{delta_abs, delta_abs});
+		else {
+			auto it = timeline.lower_bound(time_s);
+			if (it != timeline.end())
+			{
+				if (it->first == time_s) {
+					it->second.accum += delta_abs;
+					it->second.delta += delta_abs;
+					return;
+				}
+				std::string msg =
+					"timeline already contains a later datapoint - old:"+std::to_string(it->first)+" > new:" +
+					std::to_string(time_s);
+				throw std::runtime_error(std::move(msg));
+			}
+			it = std::prev(timeline.end());
+			timeline.emplace_hint(
+				timeline.end(), time_s, datapoint{it->second.accum + delta_abs, delta_abs}
+			);
+		}
+	}
+
+	inline double log_interaction (const view_interaction &interaction)
+	{
+		switch (interaction.kind)
+		{
+			case view_interaction::Kind::Orbit: {
+				const double degrees = interaction.amount*M_1_PIf64 * 180.;
+				log(orbit, interaction.time, degrees);
+				return degrees;
+			}
+			case view_interaction::Kind::Pan: {
+				const double percent = interaction.amount*100.;
+				log(pan, interaction.time, percent);
+				return percent;
+			}
+			case view_interaction::Kind::Roll: {
+				const double degrees = interaction.amount*M_1_PIf64 * 180.;
+				log(roll, interaction.time, degrees);
+				return degrees;
+			}
+			case view_interaction::Kind::Zoom: {
+				const double percent = interaction.amount*100.;
+				log(zoom, interaction.time, percent);
+				return percent;
+			}
+			case view_interaction::Kind::FocusChange:
+				log(focus_move, interaction.time, interaction.amount);
+				return interaction.amount;
+
+			default:
+				// We don't log anything else
+				return 0;
+		}
+	}
+
+	view_interaction_timeline create_timeline (void) const;
+};
+
+struct view_interaction_timeline {
+	view_interaction_timeline() {};
+	view_interaction_timeline(const view_interaction_timeline&) = default;
+	view_interaction_timeline(view_interaction_timeline&&) = default;
+
+	using datapoint = view_interaction_accumulator::datapoint;
+	struct record {
+		inline static record from_orbit (const datapoint &orbit_data) {
+			return {
+				orbit_data, datapoint::zeroed(), datapoint::zeroed(),
+				datapoint::zeroed(), datapoint::zeroed()
+			};
+		}
+		inline static record from_pan (const datapoint &pan_data) {
+			return {
+				datapoint::zeroed(), pan_data, datapoint::zeroed(),
+				datapoint::zeroed(), datapoint::zeroed()
+			};
+		}
+		inline static record from_roll (const datapoint &roll_data) {
+			return {
+				datapoint::zeroed(), datapoint::zeroed(), roll_data,
+				datapoint::zeroed(), datapoint::zeroed()
+			};
+		}
+		inline static record from_zoom (const datapoint &zoom_data) {
+			return {
+				datapoint::zeroed(), datapoint::zeroed(), datapoint::zeroed(),
+				zoom_data, datapoint::zeroed()
+			};
+		}
+		inline static record from_focus_move (const datapoint &focus_move_data) {
+			return {
+				datapoint::zeroed(), datapoint::zeroed(), datapoint::zeroed(),
+				datapoint::zeroed(), focus_move_data
+			};
+		}
+		datapoint orbit, pan, roll, zoom, focus_move;
+	};
+	std::map<float, record> records;
+};
+
+
 
 ////
 // Plugin definition
@@ -551,6 +694,8 @@ protected:
 	void on_register();
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
 
+	view_interaction_accumulator view_interactions;
+	void on_view_interaction (const view_interaction &interaction);
 	void handle_screenshot_change (screenshot::event &event);
 
 public:
