@@ -161,46 +161,46 @@ view_interaction_timeline view_interaction_accumulator::create_timeline(void) co
 	constexpr double err_tol = 0.015625;
 	const auto last_record = std::prev(timeline.records.end());
 	if (!orbit.empty()) {
-		const auto last_orbit = std::prev(orbit.end());
-		const auto diff = last_orbit->second.accum-last_record->second.orbit.accum;
+		const auto last = std::prev(orbit.end());
+		const auto diff = last->second.accum-last_record->second.orbit.accum;
 		if (std::abs(diff) > err_tol)
 			std::cerr << "WARNING: accumulation of orbit actions does not match between individual and merged timelines!\n"
 			          << "         diff = "<<diff << std::endl;
 	}
 	if (!pan.empty()) {
-		const auto last_pan = std::prev(pan.end());
-		const auto diff = last_pan->second.accum-last_record->second.pan.accum;
+		const auto last = std::prev(pan.end());
+		const auto diff = last->second.accum-last_record->second.pan.accum;
 		if (std::abs(diff) > err_tol)
 			std::cerr << "WARNING: accumulation of panning actions does not match between individual and merged timelines!\n"
 			          << "         diff = "<<diff << std::endl;
 	}
 	if (!roll.empty()) {
-		const auto last_roll = std::prev(roll.end());
-		const auto diff = last_roll->second.accum-last_record->second.roll.accum;
+		const auto last = std::prev(roll.end());
+		const auto diff = last->second.accum-last_record->second.roll.accum;
 		if (std::abs(diff) > err_tol)
 			std::cerr << "WARNING: accumulation of roll actions does not match between individual and merged timelines!\n"
 			          << "         diff = "<<diff << std::endl;
 	}
 	if (!zoom.empty()) {
-		const auto last_zoom = std::prev(zoom.end());
-		const auto diff = last_zoom->second.accum-last_record->second.zoom.accum;
+		const auto last = std::prev(zoom.end());
+		const auto diff = last->second.accum-last_record->second.zoom.accum;
 		if (std::abs(diff) > err_tol)
 			std::cerr << "WARNING: accumulation of zoom actions does not match between individual and merged timelines!\n"
 			          << "         diff = "<<diff << std::endl;
 	}
 	if (!focus_move.empty()) {
 		/* amounts */ {
-			const auto last_focus_move = std::prev(focus_move.end());
-			const auto diff = last_focus_move->second.accum-last_record->second.focus_move.accum;
+			const auto last = std::prev(focus_move.end());
+			const auto diff = last->second.accum-last_record->second.focus_move.accum;
 			if (std::abs(diff) > err_tol)
 				std::cerr << "WARNING: accumulation of focus move actions does not match between individual and merged timelines!\n"
 				          << "         diff = "<<diff << std::endl;
 		}
 		/* counts */ {
-			const auto last_focus_move_count = std::prev(focus_move_count.end());
-			const auto diff = last_focus_move_count->second.accum-last_record->second.focus_move_count.accum;
+			const auto last = std::prev(focus_move_count.end());
+			const auto diff = last->second.accum-last_record->second.focus_move_count.accum;
 			if (diff != 0)
-				std::cerr << "WARNING: accumulation of focus move actions does not match between individual and merged timelines!\n"
+				std::cerr << "WARNING: focus move action counts do not match between individual and merged timelines!\n"
 				          << "         diff = "<<diff << std::endl;
 		}
 	}
@@ -211,11 +211,9 @@ view_interaction_timeline view_interaction_accumulator::create_timeline(void) co
 
 
 
-void on_tube_vis::on_register()
-{
+void on_tube_vis::on_register() {
 	cgv::gui::application::get_window(0)->set("title", "OnTubeVis");
 }
-
 
 on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(this)
 {
