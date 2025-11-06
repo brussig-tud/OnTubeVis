@@ -89,19 +89,21 @@ struct view_interaction_accumulator
 	view_interaction_accumulator(const view_interaction_accumulator&) = default;
 	view_interaction_accumulator(view_interaction_accumulator&&) = default;
 
+	template <class T>
 	struct datapoint {
 		inline static datapoint zeroed (void) {
-			return {0, 0};
+			return {T(0), T(0)};
 		};
 		/// how move change has accumulated including this point
-		double accum;
+		T accum;
 
 		/// how much change is added at this point (this is a backwards difference!)
-		double delta;
+		T delta;
 	};
 
 	time_point start_time;
-	std::map<float, datapoint> orbit, pan, roll, zoom, focus_move;
+	std::map<float, datapoint<double>> orbit, pan, roll, zoom, focus_move;
+	std::map<float, datapoint<unsigned>> focus_move_count;
 
 	inline void clear (void) {
 		orbit.clear();
@@ -109,15 +111,18 @@ struct view_interaction_accumulator
 		roll.clear();
 		zoom.clear();
 		focus_move.clear();
+		focus_move_count.clear();
 	}
 	inline void reset (void) {
 		clear();
 		start_time = std::chrono::system_clock::now();
 	}
 
-	void log (std::map<float,datapoint> &timeline, const time_point &time, const double delta) const
+	template <class T>
+	void log (std::map<float,datapoint<T>> &timeline, const time_point &time, const T delta) const
 	{
-		const auto delta_abs = std::abs(delta);
+		using datapoint = datapoint<T>;
+		const T delta_abs = std::abs((double)delta);
 		const auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time - start_time).count();
 		const auto time_s = float(time_ms) / 1000;
 		if (timeline.empty())
@@ -170,6 +175,7 @@ struct view_interaction_accumulator
 			}
 			case view_interaction::Kind::FocusChange:
 				log(focus_move, interaction.time, interaction.amount);
+				log(focus_move_count, interaction.time, (unsigned)1);
 				return interaction.amount;
 
 			default:
@@ -182,43 +188,58 @@ struct view_interaction_accumulator
 };
 
 struct view_interaction_timeline {
-	view_interaction_timeline() {};
+	view_interaction_timeline() = default;
 	view_interaction_timeline(const view_interaction_timeline&) = default;
 	view_interaction_timeline(view_interaction_timeline&&) = default;
 
-	using datapoint = view_interaction_accumulator::datapoint;
+	template<class T>
+	using datapoint = view_interaction_accumulator::datapoint<T>;
+	using datapoint_count = view_interaction_accumulator::datapoint<unsigned>;
 	struct record {
-		inline static record from_orbit (const datapoint &orbit_data) {
+		inline static record from_orbit (const datapoint<double> &orbit_data) {
+			using datapoint = datapoint<double>;
 			return {
-				orbit_data, datapoint::zeroed(), datapoint::zeroed(),
-				datapoint::zeroed(), datapoint::zeroed()
+				orbit_data, datapoint::zeroed(), datapoint::zeroed(), datapoint::zeroed(),
+				datapoint::zeroed(), datapoint_count::zeroed()
 			};
 		}
-		inline static record from_pan (const datapoint &pan_data) {
+		inline static record from_pan (const datapoint<double> &pan_data) {
+			using datapoint = datapoint<double>;
 			return {
-				datapoint::zeroed(), pan_data, datapoint::zeroed(),
-				datapoint::zeroed(), datapoint::zeroed()
+				datapoint::zeroed(), pan_data, datapoint::zeroed(), datapoint::zeroed(),
+				datapoint::zeroed(), datapoint_count::zeroed()
 			};
 		}
-		inline static record from_roll (const datapoint &roll_data) {
+		inline static record from_roll (const datapoint<double> &roll_data) {
+			using datapoint = datapoint<double>;
 			return {
-				datapoint::zeroed(), datapoint::zeroed(), roll_data,
-				datapoint::zeroed(), datapoint::zeroed()
+				datapoint::zeroed(), datapoint::zeroed(), roll_data, datapoint::zeroed(),
+				datapoint::zeroed(), datapoint_count::zeroed()
 			};
 		}
-		inline static record from_zoom (const datapoint &zoom_data) {
+		inline static record from_zoom (const datapoint<double> &zoom_data) {
+			using datapoint = datapoint<double>;
+			return {
+				datapoint::zeroed(), datapoint::zeroed(), datapoint::zeroed(), zoom_data,
+				datapoint::zeroed(), datapoint_count::zeroed()
+			};
+		}
+		inline static record from_focus_move (const datapoint<double> &focus_move_data) {
+			using datapoint = datapoint<double>;
 			return {
 				datapoint::zeroed(), datapoint::zeroed(), datapoint::zeroed(),
-				zoom_data, datapoint::zeroed()
+				datapoint::zeroed(), focus_move_data, datapoint_count::zeroed()
 			};
 		}
-		inline static record from_focus_move (const datapoint &focus_move_data) {
+		inline static record from_focus_move_count (const datapoint<unsigned> &focus_move_count_data) {
+			using datapoint = datapoint<double>;
 			return {
 				datapoint::zeroed(), datapoint::zeroed(), datapoint::zeroed(),
-				datapoint::zeroed(), focus_move_data
+				datapoint::zeroed(), datapoint::zeroed(), focus_move_count_data
 			};
 		}
-		datapoint orbit, pan, roll, zoom, focus_move;
+		datapoint<double> orbit, pan, roll, zoom, focus_move;
+		datapoint<unsigned> focus_move_count;
 	};
 	std::map<float, record> records;
 };

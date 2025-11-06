@@ -114,12 +114,21 @@ view_interaction_timeline view_interaction_accumulator::create_timeline(void) co
 			it->second.zoom = datapoint;
 	}
 	// focus_move interaction
+	// - amount
 	for (const auto &[time, datapoint] : focus_move) {
 		auto it = timeline.records.find(time);
 		if (it == timeline.records.end())
 			timeline.records.emplace(time, record::from_focus_move(datapoint));
 		else
 			it->second.focus_move = datapoint;
+	}
+	// - count
+	for (const auto &[time, datapoint] : focus_move_count) {
+		auto it = timeline.records.find(time);
+		if (it == timeline.records.end())
+			timeline.records.emplace(time, record::from_focus_move_count(datapoint));
+		else
+			it->second.focus_move_count = datapoint;
 	}
 
 	// tap out early if nothing was recorded
@@ -134,6 +143,7 @@ view_interaction_timeline view_interaction_accumulator::create_timeline(void) co
 	it->second.roll.accum = it->second.roll.delta;
 	it->second.zoom.accum = it->second.zoom.delta;
 	it->second.focus_move.accum = it->second.focus_move.delta;
+	it->second.focus_move_count.accum = it->second.focus_move_count.delta;
 	record *prev = &it->second;
 	++it;
 	// - all remaining records
@@ -143,6 +153,7 @@ view_interaction_timeline view_interaction_accumulator::create_timeline(void) co
 		it->second.roll.accum = prev->roll.accum + it->second.roll.delta;
 		it->second.zoom.accum = prev->zoom.accum + it->second.zoom.delta;
 		it->second.focus_move.accum = prev->focus_move.accum + it->second.focus_move.delta;
+		it->second.focus_move_count.accum = prev->focus_move_count.accum + it->second.focus_move_count.delta;
 		prev = &it->second;
 	}
 
@@ -178,11 +189,20 @@ view_interaction_timeline view_interaction_accumulator::create_timeline(void) co
 			          << "         diff = "<<diff << std::endl;
 	}
 	if (!focus_move.empty()) {
-		const auto last_focus_move = std::prev(focus_move.end());
-		const auto diff = last_focus_move->second.accum-last_record->second.focus_move.accum;
-		if (std::abs(diff) > err_tol)
-			std::cerr << "WARNING: accumulation of focus move actions does not match between individual and merged timelines!\n"
-					  << "         diff = "<<diff << std::endl;
+		/* amounts */ {
+			const auto last_focus_move = std::prev(focus_move.end());
+			const auto diff = last_focus_move->second.accum-last_record->second.focus_move.accum;
+			if (std::abs(diff) > err_tol)
+				std::cerr << "WARNING: accumulation of focus move actions does not match between individual and merged timelines!\n"
+				          << "         diff = "<<diff << std::endl;
+		}
+		/* counts */ {
+			const auto last_focus_move_count = std::prev(focus_move_count.end());
+			const auto diff = last_focus_move_count->second.accum-last_record->second.focus_move_count.accum;
+			if (diff != 0)
+				std::cerr << "WARNING: accumulation of focus move actions does not match between individual and merged timelines!\n"
+				          << "         diff = "<<diff << std::endl;
+		}
 	}
 
 	// done!
