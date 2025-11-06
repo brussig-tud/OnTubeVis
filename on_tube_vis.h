@@ -122,7 +122,7 @@ struct view_interaction_accumulator
 	void log (std::map<float,datapoint<T>> &timeline, const time_point &time, const T delta) const
 	{
 		using datapoint = datapoint<T>;
-		const T delta_abs = std::abs((double)delta);
+		const auto delta_abs = (T)std::abs((double)delta);
 		const auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time - start_time).count();
 		const auto time_s = float(time_ms) / 1000;
 		if (timeline.empty())
