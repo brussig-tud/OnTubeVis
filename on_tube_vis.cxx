@@ -198,7 +198,7 @@ view_interaction_timeline view_interaction_accumulator::create_timeline(void) co
 		}
 		/* counts */ {
 			const auto last = std::prev(focus_move_count.end());
-			const auto diff = last->second.accum-last_record->second.focus_move_count.accum;
+			const signed diff = last->second.accum-last_record->second.focus_move_count.accum;
 			if (diff != 0)
 				std::cerr << "WARNING: focus move action counts do not match between individual and merged timelines!\n"
 				          << "         diff = "<<diff << std::endl;
