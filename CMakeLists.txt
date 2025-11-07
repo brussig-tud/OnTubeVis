@@ -89,6 +89,9 @@ set(SOURCES
 	arclength/bezier.cpp
 	arclength/hermite.cpp
 
+	# user study code
+	userstudies/view_interaction.cxx
+
 	# main app
 	arclen_helper.cxx
 	attrib_handle_manager.cxx
@@ -128,6 +131,10 @@ set(HEADERS
 	arclength/hermite.h
 	arclength/PolynomialRegression.h
 	arclength/v3.h
+
+	# user study code
+	userstudies/ribbons_vs_tubes/trial.h
+	userstudies/view_interaction.h
 
 	# main app
 	ambient_occlusion_style.h
