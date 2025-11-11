@@ -330,8 +330,33 @@ protected:
 	// user studies
 	struct {
 		userstudies::trial *active_trial = nullptr;
+		bool setting_ribbons_vs_tubes_trial = false; // XXX: Ugly hack
 		userstudies::RvT::trial ribbons_vs_tubes_trial;
+
+		bool unlock_after_scene_switch_bak = false;
+
+		void stop (void) {
+			// we are intentionally crashing this in case active_trial is nullptr (responsibility to check for this is
+			// with the aller)
+			active_trial->stop();
+			active_trial = nullptr;
+		}
 	} user_studies;
+	void stop_user_study (void) {
+		if (user_studies.active_trial) {
+			user_studies.stop();
+			unlock_after_scene_switch = user_studies.unlock_after_scene_switch_bak;
+			user_studies.active_trial = nullptr;
+		}
+	}
+
+	unsigned scene_switch_state = 0;
+	bool unlock_after_scene_switch = true;
+	signed selected_scene = -1;
+	screenshot *screenshot_ptr = nullptr;
+	unsigned trial_count = 0;
+
+	void ensure_screenshot_ptr ();
 
 	void playback_rewind() {
 		render.style.max_t = (float)playback.tstart;
@@ -432,11 +457,6 @@ protected:
 	/// color map legend manager
 	color_legend_manager color_legend_mgr;
 	bool update_legends = false; // flag indicating whether the color and mapping legends need updating during init_frame
-
-	unsigned scene_switch_state = 0;
-	bool unlock_after_scene_switch = true;
-	signed selected_scene = -1;
-	screenshot *screenshot_ptr = nullptr;
 
 	/// benchmark state fields
 	struct {

@@ -130,6 +130,13 @@ struct view_interaction_timeline {
 	using datapoint = view_interaction_accumulator::datapoint<T>;
 	using datapoint_count = view_interaction_accumulator::datapoint<unsigned>;
 	struct record {
+		inline static record zeroes (void) {
+			using datapoint = datapoint<double>;
+			return {
+				datapoint::zeroed(), datapoint::zeroed(), datapoint::zeroed(), datapoint::zeroed(),
+				datapoint::zeroed(), datapoint_count::zeroed()
+			};
+		}
 		inline static record from_orbit (const datapoint<double> &orbit_data) {
 			using datapoint = datapoint<double>;
 			return {

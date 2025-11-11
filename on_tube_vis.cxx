@@ -257,6 +257,16 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 	// ###  END:  OptiX integration
 	// ###############################
 #endif
+
+	// user study stuff
+	// - setup trial file input control
+	user_studies.ribbons_vs_tubes_trial.definition_file = cgv::gui::file_helper(
+		this, "Open trial definition", cgv::gui::file_helper::Mode::kOpen
+	);
+	user_studies.ribbons_vs_tubes_trial.definition_file.add_filter("XML files", "xml");
+	#if defined(WIN32) || defined(_WIN32)
+		user_studies.ribbons_vs_tubes_trial.definition_file.add_filter_for_all_files();
+	#endif
 }
 
 on_tube_vis::~on_tube_vis()
@@ -356,7 +366,13 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
 		rh.reflect_member("benchmark_mode", benchmark_mode) &&
-		rh.reflect_member("unlock_after_scene_switch", unlock_after_scene_switch);
+
+		// user study stuff
+		rh.reflect_member("unlock_after_scene_switch", unlock_after_scene_switch) &&
+		rh.reflect_member(
+			"ribbons_vs_tubes_trial_file",
+			user_studies.ribbons_vs_tubes_trial.definition_file.file_name
+		);
 }
 
 void on_tube_vis::stream_help (std::ostream &os) {
@@ -537,9 +553,11 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 				handled = true;
 				break;
 			case 'U':
-				unlock_after_scene_switch = !unlock_after_scene_switch;
-				on_set(&unlock_after_scene_switch);
-				handled = true;
+				if (!user_studies.active_trial) {
+					unlock_after_scene_switch = !unlock_after_scene_switch;
+					on_set(&unlock_after_scene_switch);
+					handled = true;
+				}
 				break;
 			case cgv::gui::Keys::KEY_Num_0:
 				dataset.rtlola_show_map = !dataset.rtlola_show_map;
@@ -551,9 +569,39 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 				handled = true;
 				break;
 			case cgv::gui::Keys::KEY_Space:
-				if(modifiers == 0) {
+				if (modifiers == 0 && user_studies.active_trial)
+				{
+					// start/stop current task
+					auto &active_trial = *user_studies.active_trial;
+					if (active_trial.get_cur_task() < 0) {
+						std::cerr << "ERROR: cannot begin/end task, trial not yet started!" << std::endl;
+					}
+					else {
+						if (active_trial.is_cur_task_ongoing()) {
+							active_trial.end_cur_task();
+						}
+						else {
+							if (active_trial.cur_task_run_count() > 0)
+								std::cerr << "ERROR: we don't allow restarting a task!" << std::endl;
+							else
+								active_trial.begin_cur_task();
+						}
+					}
+					handled = true;
+				}
+				else if (modifiers == 0) {
 					playback.active = !playback.active;
 					on_set(&playback.active);
+					handled = true;
+				}
+				break;
+			case cgv::gui::Keys::KEY_Num_5:
+				if (user_studies.active_trial) {
+					// advance to next task
+					if (user_studies.active_trial->is_cur_task_ongoing())
+						std::cerr << "ERROR: cannot advance to next task while current one is ongoing!" << std::endl;
+					else
+						user_studies.active_trial->advance_to_next_task();
 					handled = true;
 				}
 				break;
@@ -1102,6 +1150,33 @@ void on_tube_vis::on_set(void* member_ptr) {
 	/* ###  END:  OptiX integration */ }
 	// ###############################
 #endif
+
+	// User study state
+	if (m.is(user_studies.ribbons_vs_tubes_trial.definition_file.file_name))
+	{
+		stop_user_study();
+		ensure_screenshot_ptr();
+		user_studies.setting_ribbons_vs_tubes_trial = true;
+		screenshot_ptr->set(
+			"screenshots_file", user_studies.ribbons_vs_tubes_trial.definition_file.file_name
+		);
+		if (screenshot_ptr->get_shot_count() > 0) {
+			// success
+			std::clog << "ACTIVATING TRIAL '"<<user_studies.ribbons_vs_tubes_trial.definition_file.file_name<<'\''
+			          << std::endl;
+			user_studies.unlock_after_scene_switch_bak = unlock_after_scene_switch;
+			unlock_after_scene_switch = true;
+			user_studies.active_trial = &user_studies.ribbons_vs_tubes_trial;
+			user_studies.active_trial->setup(screenshot_ptr, "test"+std::to_string(trial_count++));
+		}
+		else {
+			// error
+			std::cerr << "unable to load trial '"<<user_studies.ribbons_vs_tubes_trial.definition_file.file_name<<'\''
+			          << std::endl;
+			user_studies.ribbons_vs_tubes_trial.definition_file.set_file_name("");
+		}
+		user_studies.setting_ribbons_vs_tubes_trial = false;
+	}
 
 	// default implementation for all members
 	// - update GUI
@@ -2078,10 +2153,26 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 				}
 			}
 			catch (...) { /* DoNothing() */; }
+			return;
 		}
+
+		case screenshot::EventType::kLoadShots:
+			if (!user_studies.setting_ribbons_vs_tubes_trial && user_studies.active_trial)
+				stop_user_study();
+			return;
 
 		default:
 			/* DoNothing() */;
+	}
+}
+
+void on_tube_vis::ensure_screenshot_ptr ()
+{
+	if (!screenshot_ptr) {
+		screenshot_ptr = screenshot::find_instance(this);
+		cgv::signal::connect_copy(screenshot_ptr->on_change, cgv::signal::rebind(
+			this, &on_tube_vis::handle_screenshot_change, cgv::signal::_1
+		));
 	}
 }
 
@@ -2092,12 +2183,7 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 		return;
 
 	// make sure we have a pointer to the screenshot plugin instance
-	if (!screenshot_ptr) {
-		screenshot_ptr = screenshot::find_instance(this);
-		cgv::signal::connect_copy(screenshot_ptr->on_change, cgv::signal::rebind(
-			this, &on_tube_vis::handle_screenshot_change, cgv::signal::_1
-		));
-	}
+	ensure_screenshot_ptr();
 
 	// handle scene switch
 	if (scene_switch_state == 1) {
@@ -2273,6 +2359,9 @@ void on_tube_vis::create_gui(void)
 				ui_state.tr_toggle.button->click, cgv::signal::rebind(this, &on_tube_vis::toggle_tube_ribbon)
 			);
 	}
+
+	add_heading("User study");
+	user_studies.ribbons_vs_tubes_trial.definition_file.create_gui("trial file (TvR)");
 	add_member_control(this, "unlock camera after scene change", unlock_after_scene_switch, "check", "tooltip='Hotkey [U]'");
 
 	if(begin_tree_node("Playback", playback, false)) {
