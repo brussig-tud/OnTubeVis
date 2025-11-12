@@ -1075,6 +1075,8 @@ void on_tube_vis::on_set(void* member_ptr) {
 	if(m.is(render.style.max_t))
 		reset_taa = false;
 
+	if (m.is(render.style.attrib_mode))
+		attrib_mode_bak = render.style.attrib_mode;
 	if(m.is(render.style.line_primitive))
 	{
 		// perform smart toggle bookkeeping
@@ -1084,6 +1086,15 @@ void on_tube_vis::on_set(void* member_ptr) {
 			else
 				ui_state.tr_toggle.last_ribbon_primitive = render.style.line_primitive;
 		}
+
+		// force attrib-less mode on GS ribbons
+		if (render.style.line_primitive == textured_spline_tube_render_style::LP_RIBBON_GEOMETRY) {
+			attrib_mode_bak = render.style.attrib_mode;
+			render.style.attrib_mode = textured_spline_tube_render_style::AM_ATTRIBLESS;
+		}
+		else
+			render.style.attrib_mode = attrib_mode_bak;
+		update_member(&render.style.attrib_mode);
 
 		update_tube_ribbon_toggle();
 		reset_taa = true;

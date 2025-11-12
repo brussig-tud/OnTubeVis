@@ -444,6 +444,7 @@ protected:
 		cgv::gpgpu::visibility_sort sorter;
 	} render;
 	int render_gui_dummy = 0;
+	textured_spline_tube_render_style::AttribMode attrib_mode_bak = render.style.attrib_mode;
 
 	/// trajectory manager
 	traj_manager<float> traj_mgr;
