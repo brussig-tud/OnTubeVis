@@ -80,7 +80,7 @@ struct trial : public userstudies::trial
 	{
 		const signed next_task = cur_task+1;
 		const unsigned count = screenshot_ptr->get_shot_count();
-		if (next_task < count) {
+		if (next_task < (signed)count) {
 			cur_task = next_task;
 			std::clog << "advancing to task "<<cur_task+1<<'/'<<count << std::endl;
 			screenshot_ptr->set_active_shot_by_index(cur_task);
