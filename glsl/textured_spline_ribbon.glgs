@@ -8,8 +8,8 @@
 
 #define ONE_OVER_THREE (1.0/3.0)
 #define N0 3
-#define NUM_SUBDIVISIONS 8
-#define NUM_VERTICES (2 * 2 * NUM_SUBDIVISIONS)
+#define NUM_SUBDIVISIONS 7
+#define NUM_VERTICES (2*(NUM_SUBDIVISIONS-1)*6)
 
 //***** begin interface of view.glsl ***********************************
 mat4 get_modelview_matrix();
@@ -82,7 +82,7 @@ out flat float l_offset_fs;
 	out flat QTube qTube_fs;
 #endif
 out flat int segment_id_fs;
-out flat mat4 SM_fs; // spline matrix
+//out flat mat4 SM_fs; // spline matrix (we'll compute it on the fly in the FS to save on attribs)
 
 #define DEF_SplitCurve(T)						\
 void SplitCurve(T v0, T d0, T v1, T d1,			\
@@ -135,12 +135,12 @@ vec3 qSplineEval(float l, float curveX[N0], float curveY[N0], float curveZ[N0]) 
 	);
 }
 
-vec3 eval_cubic_hermite_tangent(float t) {
+vec3 eval_cubic_hermite_tangent(mat4 SM, float t) {
 	vec4 tvec = vec4(3.0*t*t, 2.0*t, 1.0, 0.0);
-	return (SM_fs * tvec).xyz;
+	return (SM * tvec).xyz;
 }
 
-void emit_ribbon_segment(int segment_idx, QTube qTube, float start_t, float end_t) {
+void emit_ribbon_segment(int segment_idx, mat4 SM, QTube qTube, float start_t, float end_t) {
 	
 	const mat4 MV = get_modelview_matrix();
 
@@ -173,42 +173,79 @@ void emit_ribbon_segment(int segment_idx, QTube qTube, float start_t, float end_
 	if(max_t < end_t)
 		end_l = (max_t - start_t) / (end_t - start_t);
 
-	for(int i = 0; i < NUM_SUBDIVISIONS; ++i) {
+	for(int i=0; i<NUM_SUBDIVISIONS-1; ++i) {
 		// the quadratic spline runlength parameter in [0,1]
 		float qspline_l = float(i)/float(NUM_SUBDIVISIONS-1);
+		float qspline_l_n = float(i+1)/float(NUM_SUBDIVISIONS-1);
 		qspline_l *= end_l;
 		
 		// transform to cubic spline parameter
 		float spline_t = 0.5 * qspline_l + l_offset_fs;
+		float spline_t_n = 0.5 * qspline_l_n + l_offset_fs;
 
 		// tangent is given in object space (always use cubic tangents)
-		vec3 tangent = eval_cubic_hermite_tangent(spline_t);
+		vec3 tangent = eval_cubic_hermite_tangent(SM, spline_t);
+		vec3 tangent_n = eval_cubic_hermite_tangent(SM, spline_t_n);
 		
 		// compute the position on the quadratic spline at the current runlength parameter
 		vec3 spline_pos = qSplineEval(qspline_l, curveX, curveY, curveZ);
+		vec3 spline_pos_n = qSplineEval(qspline_l_n, curveX, curveY, curveZ);
 
 		// calculate a bitangent which is orthogonal to the tangent and the vector from the eye position to the spline position
 		vec3 b = normalize(cross(tangent, spline_pos - cyclopic_eye));
+		vec3 b_n = normalize(cross(tangent_n, spline_pos_n - cyclopic_eye));
 		
 		// compute the normal from the tangent and bitangent and transform to eye space
-		vec3 normal = cross(tangent, b);
-		normal = normalize(NM * normal);
-		normal_fs = normal;
+		vec3 normal = normalize(NM * cross(tangent, b));
+		vec3 normal_n = normalize(NM * cross(tangent_n, b_n));
 
 		// get vertex positios by extruding the spline outwards along the direction of the (view-aligned) bitangent
 		vec3 c0 = spline_pos + b * radius;
 		vec3 c1 = spline_pos - b * radius;
+		vec3 c0_n = spline_pos_n + b_n * radius;
+		vec3 c1_n = spline_pos_n - b_n * radius;
 		
 		position_fs = (MV * vec4(c0, 1.0)).xyz;
+		normal_fs = normal;
 		texcoords_fs = vec2(spline_t, 0.0);
 		gl_Position = MVP * vec4(c0, 1.0); EmitVertex();
 
+		position_fs = (MV * vec4(c0_n, 1.0)).xyz;
+		normal_fs = normal_n;
+		texcoords_fs = vec2(spline_t_n, 0.0);
+		gl_Position = MVP * vec4(c0_n, 1.0); EmitVertex();
+
+		position_fs = (MV * vec4(spline_pos, 1.0)).xyz;
+		normal_fs = normal;
+		texcoords_fs = vec2(spline_t, 0.5);
+		gl_Position = MVP * vec4(spline_pos, 1.0); EmitVertex();
+
+		position_fs = (MV * vec4(spline_pos_n, 1.0)).xyz;
+		normal_fs = normal_n;
+		texcoords_fs = vec2(spline_t_n, 0.5);
+		gl_Position = MVP * vec4(spline_pos_n, 1.0); EmitVertex();
+
 		position_fs = (MV * vec4(c1, 1.0)).xyz;
+		normal_fs = normal;
 		texcoords_fs = vec2(spline_t, 1.0);
 		gl_Position = MVP * vec4(c1, 1.0); EmitVertex();
+
+		position_fs = (MV * vec4(c1_n, 1.0)).xyz;
+		normal_fs = normal_n;
+		texcoords_fs = vec2(spline_t_n, 1.0);
+		gl_Position = MVP * vec4(c1_n, 1.0); EmitVertex();
+		EndPrimitive();
+
+		/*position_fs = (MV * vec4(c1_n, 1.0)).xyz;
+		texcoords_fs = vec2(spline_t_n, 1.0);
+		gl_Position = MVP * vec4(c1_n, 1.0); EmitVertex();
+
+		position_fs = (MV * vec4(c0_n, 1.0)).xyz;
+		texcoords_fs = vec2(spline_t_n, 0.0);
+		gl_Position = MVP * vec4(c0_n, 1.0); EmitVertex();*/
 	}
 
-	EndPrimitive();
+	//EndPrimitive();
 }
 
 void main()
@@ -234,18 +271,21 @@ void main()
 	
 	segment_id_fs = segment_id_gs[0];
 
-	mat4 Bk; // matrix of control points and tangents
-	Bk[0] = vec4(tube.s.pos, 0.0);
-	Bk[1] = vec4(tube.e.pos, 0.0);
-	Bk[2] = vec4(tube.s.pos_tan, 0.0);
-	Bk[3] = vec4(tube.e.pos_tan, 0.0);
-
-	mat4 Mh; // hermite matrix
-	Mh[0] = vec4( 2, -2,  1,  1);
-	Mh[1] = vec4(-3,  3, -2, -1);
-	Mh[2] = vec4( 0,  0,  1,  0);
-	Mh[3] = vec4( 1,  0,  0,  0);
-	SM_fs = Bk * Mh;
+	// spline matrix (for eval_cubic_hermite_tangent())
+	mat4 SM; {
+		mat4 Bk;
+		// matrix of control points and tangents
+		Bk[0] = vec4(tube.s.pos, 0.0);
+		Bk[1] = vec4(tube.e.pos, 0.0);
+		Bk[2] = vec4(tube.s.pos_tan, 0.0);
+		Bk[3] = vec4(tube.e.pos_tan, 0.0);
+		mat4 Mh; // hermite matrix
+		Mh[0] = vec4( 2, -2,  1,  1);
+		Mh[1] = vec4(-3,  3, -2, -1);
+		Mh[2] = vec4( 0,  0,  1,  0);
+		Mh[3] = vec4( 1,  0,  0,  0);
+		SM = Bk * Mh;
+	}
 
 #if !(ATTRIB_MODE & 2)
 	color0_fs = packUnorm4x8(vec4(n0.color.rgb, 1.0));
@@ -257,8 +297,8 @@ void main()
 
 	if (n0_t < max_t)
 	{
-		emit_ribbon_segment(0, qTube0, n0_t, split_t);
+		emit_ribbon_segment(0, SM, qTube0, n0_t, split_t);
 		if (0.5*(n0_t + n1_t) < max_t)
-			emit_ribbon_segment(1, qTube1, split_t, n1_t);
+			emit_ribbon_segment(1, SM, qTube1, split_t, n1_t);
 	}
 }
