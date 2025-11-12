@@ -103,7 +103,7 @@ in flat float l_offset_fs;
 	in flat QTube qTube_fs;
 #endif
 in flat int segment_id_fs;
-in flat mat4 SM_fs; // spline matrix
+//in flat mat4 SM_fs; // spline matrix (we're computing it on the fly to save on attribs)
 
 layout (location = 0) out uvec4 frag_albedo;
 layout (location = 1) out vec3 frag_position;
@@ -197,9 +197,9 @@ vec3 eval_quadratic_bezier_tangent(QTube qtube, float t)
 	return M * vec3(0.0, 1, 2.0*t);
 }
 
-vec3 eval_cubic_hermite_tangent(float t) {
+vec3 eval_cubic_hermite_tangent(mat4 SM, float t) {
 	vec4 tvec = vec4(3.0*t*t, 2.0*t, 1.0, 0.0);
-	return (SM_fs * tvec).xyz;
+	return (SM * tvec).xyz;
 }
 
 void main()
@@ -212,6 +212,20 @@ void main()
 		const node_data_type n1 = nodes[node_ids[segment_id_fs].y];
 		const float n0_t=n0.t.x, n1_t=n1.t.x;
 		vec3 color0, color1;
+		// spline matrix (for eval_cubic_hermite_tangent())
+		mat4 SM; {
+			mat4 Bk; // matrix of control points and tangents
+			Bk[0] = vec4(n0.pos_rad.xyz, 0.0);
+			Bk[1] = vec4(n1.pos_rad.xyz, 0.0);
+			Bk[2] = vec4(n0.tangent.xyz, 0.0);
+			Bk[3] = vec4(n1.tangent.xyz, 0.0);
+			mat4 Mh; // hermite matrix
+			Mh[0] = vec4( 2, -2,  1,  1);
+			Mh[1] = vec4(-3,  3, -2, -1);
+			Mh[2] = vec4( 0,  0,  1,  0);
+			Mh[3] = vec4( 1,  0,  0,  0);
+			SM = Bk * Mh;
+		}
 
 		#if ATTRIB_MODE & 1
 			// compile hermite tube info
@@ -265,8 +279,23 @@ void main()
 		#endif
 	#else
 		const QTube qtube = qTube_fs;
-		const float n0_t = nodes[node_ids[segment_id_fs].x].t.x,
-		            n1_t = nodes[node_ids[segment_id_fs].y].t.x;
+		const node_data_type n0 = nodes[node_ids[segment_id_fs].x];
+		const node_data_type n1 = nodes[node_ids[segment_id_fs].y];
+		const float n0_t=n0.t.x, n1_t=n1.t.x;
+		// spline matrix (for eval_cubic_hermite_tangent())
+		mat4 SM; {
+			mat4 Bk; // matrix of control points and tangents
+			Bk[0] = vec4(n0.pos_rad.xyz, 0.0);
+			Bk[1] = vec4(n1.pos_rad.xyz, 0.0);
+			Bk[2] = vec4(n0.tangent.xyz, 0.0);
+			Bk[3] = vec4(n1.tangent.xyz, 0.0);
+			mat4 Mh; // hermite matrix
+			Mh[0] = vec4( 2, -2,  1,  1);
+			Mh[1] = vec4(-3,  3, -2, -1);
+			Mh[2] = vec4( 0,  0,  1,  0);
+			Mh[3] = vec4( 1,  0,  0,  0);
+			SM = Bk * Mh;
+		}
 	#endif
 
 #if MODE == 0
@@ -290,7 +319,7 @@ void main()
 	#endif
 
 	// tangent is given in object space
-	vec3 tangent = eval_cubic_hermite_tangent(spline_t);
+	vec3 tangent = eval_cubic_hermite_tangent(SM, spline_t);
 	// transform the tangent from object space to eye space
 	tangent = normalize(get_normal_matrix() * tangent);
 	
