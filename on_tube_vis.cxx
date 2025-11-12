@@ -2051,6 +2051,9 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 				{"dataset", datapath_helper.file_name},
 				{"layercfg", layer_config_file_helper.file_name},
 				{"ribbons", std::to_string(render.style.is_ribbon())},
+				{"ribbon_type", std::to_string(
+					ui_state.tr_toggle.last_ribbon_primitive == textured_spline_tube_render_style::LP_RIBBON_GEOMETRY
+				)},
 				{"gridmode", std::to_string(grid_mode)},
 				{"ao_enabled", std::to_string(ao_style.enable)},
 				{"ao_strength", std::to_string(ao_style.strength_scale)},
@@ -2118,11 +2121,22 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 
 			try {
 				std::stringstream ss;
+				ss << shot->get_user_property_value("ribbon_type");
+				bool is_GS = false;
+				ss >> is_GS;
+				ui_state.tr_toggle.last_ribbon_primitive = is_GS ?
+					  textured_spline_tube_render_style::LP_RIBBON_GEOMETRY
+					: textured_spline_tube_render_style::LP_RIBBON_RAYCASTED;
+			}
+			catch (...) { /* DoNothing() */; }
+
+			try {
+				std::stringstream ss;
 				ss << shot->get_user_property_value("ribbons");
 				bool is_ribbon = false;
 				ss >> is_ribbon;
 				render.style.line_primitive = is_ribbon ?
-					  textured_spline_tube_render_style::LP_RIBBON_RAYCASTED
+					  ui_state.tr_toggle.last_ribbon_primitive
 					: textured_spline_tube_render_style::LP_TUBE_RUSSIG;
 				on_set(&render.style.line_primitive);
 			}
