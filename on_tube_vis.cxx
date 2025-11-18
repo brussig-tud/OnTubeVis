@@ -28,6 +28,8 @@
 #include <3rd/xml/cgv_xml/query.h>
 
 // Local includes
+#include <cgv/gui/file_helper.h>
+
 #include "arclen_helper.h"
 #include "glyph_compiler.h"
 #ifdef RTX_SUPPORT
@@ -182,6 +184,12 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 	datapath_helper.add_filter("TASC simulation ensemble", "tasc");
 	datapath_helper.add_filter("Binary Curve Collection", "bcc");
 	datapath_helper.add_filter_for_all_files();
+
+	user_studies.ribbons_vs_tubes_outdir = cgv::gui::file_helper(
+		this, "Trial results outdir", cgv::gui::file_helper::Mode::kSave
+	);
+	user_studies.ribbons_vs_tubes_outdir.set_file_name("./trials_out");
+	user_studies.ribbons_vs_tubes_outdir.set_default_path("./trials_out", cgv::gui::file_helper::Mode::kSave);
 
 	// fill help message info
 	help.add_line("OnTubeVis Help");
@@ -372,6 +380,9 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member(
 			"ribbons_vs_tubes_trial_file",
 			user_studies.ribbons_vs_tubes_trial.definition_file.file_name
+		) &&
+		rh.reflect_member(
+			"trial_result_outdir", user_studies.ribbons_vs_tubes_outdir.file_name
 		);
 }
 
@@ -1175,10 +1186,19 @@ void on_tube_vis::on_set(void* member_ptr) {
 			// success
 			std::clog << "ACTIVATING TRIAL '"<<user_studies.ribbons_vs_tubes_trial.definition_file.file_name<<'\''
 			          << std::endl;
+			const std::string trai_fn = std::filesystem::path(
+				user_studies.ribbons_vs_tubes_trial.definition_file.file_name
+			).filename().replace_extension();
+			const auto unique = std::to_string(std::chrono::duration_cast<std::chrono::seconds>(
+				std::chrono::system_clock::now().time_since_epoch()
+			).count() % 86400);
 			user_studies.unlock_after_scene_switch_bak = unlock_after_scene_switch;
 			unlock_after_scene_switch = true;
 			user_studies.active_trial = &user_studies.ribbons_vs_tubes_trial;
-			user_studies.active_trial->setup(screenshot_ptr, "test"+std::to_string(trial_count++));
+			user_studies.active_trial->setup(
+				screenshot_ptr,
+				  user_studies.ribbons_vs_tubes_outdir.file_name+'/'+trai_fn+unique+'-'+std::to_string(trial_count++)
+			);
 		}
 		else {
 			// error
@@ -2387,6 +2407,7 @@ void on_tube_vis::create_gui(void)
 
 	add_heading("User study");
 	user_studies.ribbons_vs_tubes_trial.definition_file.create_gui("trial file (TvR)");
+	user_studies.ribbons_vs_tubes_outdir.create_gui("results out dir");
 	add_member_control(this, "unlock camera after scene change", unlock_after_scene_switch, "check", "tooltip='Hotkey [U]'");
 
 	if(begin_tree_node("Playback", playback, false)) {

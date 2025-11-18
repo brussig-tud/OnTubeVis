@@ -97,6 +97,7 @@ struct trial : public userstudies::trial
 			throw std::runtime_error(std::move(msg));
 		}
 		state.emplace(task_state::create());
+		std::clog << "Task "<<cur_task<<" has STARTED!" << std::endl;
 	}
 	void end_cur_task (void) override
 	{
@@ -107,13 +108,14 @@ struct trial : public userstudies::trial
 		}
 
 		++task_run_counts[cur_task];
-		const std::string data_filename =
-			  "trial_"+trial_id+"_task_"+std::to_string(cur_task)+".csv";
 
 		const auto dur = (float)std::chrono::duration_cast<std::chrono::milliseconds>(
 			std::chrono::system_clock::now() - state.value().view_interactions.start_time
 		).count() / 1000.f;
-		std::clog << "task finished! user took "<<dur<<"s" << std::endl;
+		std::clog << "FINISHED task "<<cur_task<<"! user took "<<dur<<"s" << std::endl;
+
+		const std::string data_filename =
+			trial_id+"__task"+std::to_string(cur_task)+'@'+std::to_string(dur)+"s.csv";
 
 		auto interaction_timeline = state.value().view_interactions.create_timeline();
 		std::clog << "recorded interactions at "<<interaction_timeline.records.size()<<" unique times" << std::endl;
@@ -121,6 +123,7 @@ struct trial : public userstudies::trial
 		interaction_timeline.records.emplace_hint(
 			interaction_timeline.records.end(), dur, view_interaction_timeline::record::zeroes()
 		);
+		interaction_timeline.write_csv(data_filename);
 		state.reset();
 	}
 

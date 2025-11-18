@@ -25,14 +25,25 @@ struct view_interaction_accumulator
 
 	template <class T>
 	struct datapoint {
-		inline static datapoint zeroed (void) {
-			return {T(0), T(0)};
-		};
 		/// how move change has accumulated including this point
 		T accum;
 
 		/// how much change is added at this point (this is a backwards difference!)
 		T delta;
+
+		/// create an all-zero datapoint
+		inline static datapoint zeroed (void) {
+			return {T(0), T(0)};
+		};
+
+		/// format a comma-separated pair of field names of this datapoint
+		inline static std::string field_names (const std::string &prefix) {
+			return prefix+"accum,"+prefix+"delta";
+		}
+
+		inline std::string format (void) const {
+			return std::to_string(accum)+","+std::to_string(delta);
+		}
 	};
 
 	time_point start_time;
@@ -183,6 +194,8 @@ struct view_interaction_timeline {
 		datapoint<unsigned> focus_move_count;
 	};
 	std::map<float, record> records;
+
+	void write_csv (const std::string &filename) const;
 };
 
 }

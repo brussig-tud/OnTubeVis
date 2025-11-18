@@ -333,6 +333,8 @@ protected:
 		bool setting_ribbons_vs_tubes_trial = false; // XXX: Ugly hack
 		userstudies::RvT::trial ribbons_vs_tubes_trial;
 
+		cgv::gui::file_helper ribbons_vs_tubes_outdir;
+
 		bool unlock_after_scene_switch_bak = false;
 
 		void stop (void) {

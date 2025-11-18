@@ -3,6 +3,7 @@
 #include "view_interaction.h"
 
 // C++ STL
+#include <fstream>
 #include <filesystem>
 
 
@@ -140,5 +141,24 @@ view_interaction_timeline view_interaction_accumulator::create_timeline(void) co
 	return std::move(timeline);
 }
 
+void view_interaction_timeline::write_csv (const std::string &filename) const
+{
+	std::clog << "view_interaction_timeline::write_csv() target fn: "<<filename << std::endl;
+	auto outfile = std::ofstream(filename);
+	if (records.empty()) {
+		outfile << "<no datapoints>";
+		return;
+	}
+
+	const auto &first = records.begin()->second;
+	outfile << "time,"<<first.orbit.field_names("orbit_")<<','<<first.pan.field_names("pan_")
+	        << ','<<first.roll.field_names("roll_")<<','<<first.zoom.field_names("zoom_")
+	        << ','<<first.focus_move.field_names("focusMove_")<<','
+	        << first.focus_move_count.field_names("focusMoveCount_") << std::endl;
+	for (const auto &[time, record] : records)
+		outfile << time<<","<<record.orbit.format()<<","<<record.pan.format()<<","<<record.roll.format()<<","
+		        << record.zoom.format()<<","<<record.focus_move.format()<<","<<record.focus_move_count.format()
+		        << std::endl;
+}
 
 }
