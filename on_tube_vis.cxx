@@ -1186,9 +1186,9 @@ void on_tube_vis::on_set(void* member_ptr) {
 			// success
 			std::clog << "ACTIVATING TRIAL '"<<user_studies.ribbons_vs_tubes_trial.definition_file.file_name<<'\''
 			          << std::endl;
-			const std::string trai_fn = std::filesystem::path(
+			const auto trai_fn = std::filesystem::path(
 				user_studies.ribbons_vs_tubes_trial.definition_file.file_name
-			).filename().replace_extension();
+			).filename().replace_extension().string();
 			const auto unique = std::to_string(std::chrono::duration_cast<std::chrono::seconds>(
 				std::chrono::system_clock::now().time_since_epoch()
 			).count() % 86400);
