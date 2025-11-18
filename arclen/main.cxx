@@ -234,7 +234,8 @@ void linear_parametrization(
 
 	// t to s:
 	#pragma omp parallel for
-	for (auto const& traj : dataset.trajs) {
+	for (auto i = 0; i < dataset.trajs.size(); ++i) {
+		auto const& traj = dataset.trajs[i];
 		// Total length of this trajectory.
 		auto len = flt_type{0};
 		// Node indices and arclength parametrization of segments in this trajectory.

@@ -426,7 +426,7 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("override_cap_clip_distance", override_cap_clip_distance_proxy) &&
 		rh.reflect_member("attrib_mode", (unsigned&)render.style.attrib_mode) &&
 		rh.reflect_member("bounding_geometry", render.style.bounding_geometry) &&
-		rh.reflect_member("bounding_box_color", bbox_rd.style.surface_color) &&
+		//rh.reflect_member("bounding_box_color", bbox_rd.style.surface_color) &&
 		rh.reflect_member("show_bounding_box", show_bbox) &&
 		rh.reflect_member("show_wireframe_box", show_wireframe_bbox) &&
 		rh.reflect_member("grid_mode", tube_shading.grid_mode) &&
@@ -3840,8 +3840,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 	);
 
 	{
-	using shading  = enum decltype(traj_rel)::shading;
-	auto& rel_prog = traj_rel.shading.value == (shading::deferred | shading::per_fragment)
+	auto& rel_prog = traj_rel.shading.value == (traj_rel.deferred | traj_rel.per_fragment)
 		? deferred_prog : tstr_prog;
 	render.hash_grid.set_uniforms(ctx, rel_prog);
 	traj_rel.set_uniforms(ctx, rel_prog);

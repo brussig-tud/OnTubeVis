@@ -95,7 +95,7 @@ template <class T>
 constexpr auto hash_grid::ptr_t<T>::get (memory_region region) const noexcept -> T*
 {
 	assert(address * address_unit < region.size());
-	return reinterpret_cast<T*>(&region[address * address_unit]);
+	return reinterpret_cast<T*>(&region[static_cast<size_t>(address) * address_unit]);
 }
 
 
@@ -115,12 +115,17 @@ constexpr auto hash_grid::span_t<T>::get (memory_region region) const noexcept -
 }
 
 
+auto hash_grid::cell_t::data_t::interval(size_t idx) noexcept -> interval_t*
+{
+	return reinterpret_cast<interval_t*>(this + 1) + idx;
+}
+
 hash_grid::cell_t::cell_t(pmr::memory_region& memory, index_t index)
 {
 	// Start with the smallest capacity > 0 such that the total size of the allocation is a power of
 	// two.
 	auto const capacity =
-		(std::bit_ceil(offsetof(data_t, intervals[1])) - offsetof(data_t, intervals))
+		(std::bit_ceil(sizeof(data_t) + sizeof(interval_t)) - sizeof(data_t))
 		/ sizeof(interval_t);
 	// Allocate and initialize cell data.
 	data = {
@@ -134,11 +139,11 @@ void hash_grid::cell_t::add_interval (pmr::memory_region& memory, interval_t int
 	auto const region = memory.span();
 	auto& data        = *this->data.get(region);
 	// Load header.
-	auto const [index, size, capacity, _] = data;
+	auto const [index, size, capacity] = data;
 
 	// If the allocation has spare capacity, append the new interval.
 	if (size < capacity) {
-		std::construct_at(&data.intervals[data.size++], interval);
+		std::construct_at(data.interval(data.size++), interval);
 		return;
 	}
 
@@ -147,21 +152,21 @@ void hash_grid::cell_t::add_interval (pmr::memory_region& memory, interval_t int
 
 	// If the current allocation is full, reallocate with twice as much memory.
 	auto const new_capacity = capacity * 2
-		+ static_cast<uint32_t>(offsetof(data_t, intervals) / sizeof(interval_t));
+		+ static_cast<uint32_t>(sizeof(data_t) / sizeof(interval_t));
 
 	if constexpr (log_level > 2)
 		log(LOG_TAG" Grow cell from capacity ",capacity," to ",new_capacity,".\n");
 
 	auto& new_data = *allocate(memory, new_capacity) = {index, size + 1, new_capacity};
 	// Copy previous intervals.
-	std::uninitialized_move_n(data.intervals, size, new_data.intervals);
+	std::uninitialized_move_n(data.interval(0), size, new_data.interval(0));
 	// Append the new interval.
-	std::construct_at(&new_data.intervals[size], interval);
+	std::construct_at(new_data.interval(size), interval);
 
 	// Free the previous allocation.
 	memory.deallocate(
 		&data,
-		offsetof(data_t, intervals) + capacity * sizeof(interval_t),
+		sizeof(data_t) + capacity * sizeof(interval_t),
 		alignof(data_t)
 	);
 	// Point to the new allocation.
@@ -173,7 +178,7 @@ void hash_grid::cell_t::free (pmr::memory_region& memory) noexcept
 	auto& data = *this->data.get(memory.span());
 	memory.deallocate(
 		&data,
-		offsetof(data_t, intervals) + data.capacity * sizeof(interval_t),
+		sizeof(data_t) + data.capacity * sizeof(interval_t),
 		alignof(data_t)
 	);
 }
@@ -181,7 +186,7 @@ void hash_grid::cell_t::free (pmr::memory_region& memory) noexcept
 auto hash_grid::cell_t::allocate (pmr::memory_region& memory, uint32_t capacity) -> data_t*
 {
 	return std::construct_at(static_cast<data_t*>(memory.allocate(
-		offsetof(data_t, intervals) + capacity*sizeof(interval_t),
+		sizeof(data_t) + capacity * sizeof(interval_t),
 		alignof(data_t)
 	)));
 }
@@ -439,13 +444,13 @@ void hash_grid::add_segment (
 void hash_grid::set_defines (cgv::render::shader_define_map& d, GLuint buffer_binding) const
 {
 	using sc = cgv::render::shader_code;
-	sc::set_define(d, "HASH_GRID_BUFFER_BINDING",   buffer_binding,                      {});
-	sc::set_define(d, "HASH_GRID_ADDRESS_UNIT",     address_unit,                        {});
-	sc::set_define(d, "HASH_GRID_NUM_HASH_FNS",     uint32_t{num_hash_fns},              {});
-	sc::set_define(d, "HASH_GRID_SLOTS_PER_BUCKET", bucket_t::num_slots,                 {});
-	sc::set_define(d, "HASH_GRID_CELL_HEADER_SIZE", offsetof(cell_t::data_t, intervals), {});
-	sc::set_define(d, "HASH_GRID_LAYOUT",           _layout,                             {});
-	sc::set_define(d, "HASH_GRID_SIGNATURE_FN",     _signature_fn,                       {});
+	sc::set_define(d, "HASH_GRID_BUFFER_BINDING",   buffer_binding,         {});
+	sc::set_define(d, "HASH_GRID_ADDRESS_UNIT",     address_unit,           {});
+	sc::set_define(d, "HASH_GRID_NUM_HASH_FNS",     uint32_t{num_hash_fns}, {});
+	sc::set_define(d, "HASH_GRID_SLOTS_PER_BUCKET", bucket_t::num_slots,    {});
+	sc::set_define(d, "HASH_GRID_CELL_HEADER_SIZE", sizeof(cell_t::data_t), {});
+	sc::set_define(d, "HASH_GRID_LAYOUT",           _layout,                {});
+	sc::set_define(d, "HASH_GRID_SIGNATURE_FN",     _signature_fn,          {});
 }
 
 void hash_grid::set_uniforms (cgv::render::context& c, cgv::render::shader_program& p) const

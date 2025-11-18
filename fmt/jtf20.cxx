@@ -170,8 +170,8 @@ auto config::from_file(std::istream& file) -> config {
 		case scalar_type::u32:
 			for (auto argn = 0; argn < stg.extent; ++argn)
 				if (std::from_chars(
-					args[argn].begin(),
-					args[argn].end(),
+					&*args[argn].cbegin(),
+					&*args[argn].cend(),
 					reinterpret_cast<uint32_t*>(member)[argn]
 				).ec != std::errc{})
 					invalid_value(argn, "u32");
@@ -179,8 +179,8 @@ auto config::from_file(std::istream& file) -> config {
 		case scalar_type::f32:
 			for (auto argn = 0; argn < stg.extent; ++argn)
 				if (std::from_chars(
-					args[argn].begin(),
-					args[argn].end(),
+					&*args[argn].cbegin(),
+					&*args[argn].cend(),
 					reinterpret_cast<float*>(member)[argn]
 				).ec != std::errc{})
 					invalid_value(argn, "f32");

@@ -1,3 +1,7 @@
+#ifndef _USE_MATH_DEFINES
+	#define _USE_MATH_DEFINES
+#endif
+
 // CGV framework
 #include <cgv/gui/provider.h>
 #include <cgv/render/shader_program.h>

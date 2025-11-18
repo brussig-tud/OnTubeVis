@@ -158,16 +158,19 @@ private:
 	/// Stores a grid cell's index and the trajectory intervals it contains as a dynamic array with
 	/// pointer semantics, meaning copies are shallow and allocations are not automatically freed.
 	struct cell_t {
-		/// Format of the actual allocations instances point to.
-		struct data_t {
+		/// Format of the actual allocations that instances point to.
+		struct alignas(interval_t) data_t {
 			/// The index identifying the cell.
 			alignas(16) index_t index;
 			/// Number of trajectory intervals in the cell.
-			alignas(16) uint32_t size;
+			uint32_t size;
 			/// Maximum number of intervals that fit in the current allocation.
 			uint32_t capacity;
-			/// Trajectory intervals within the cell.
-			interval_t intervals[];
+			/// Trajectory intervals within the cell are stored like in a flexible array member
+			/// `interval_t[]`, starting at offset `sizeof(data_t)`.
+			/// Use this function to index into the array.
+			/// As with a C array, there is no bounds check, and memory may be uninitialized.
+			[[nodiscard]] auto interval(size_t idx) noexcept -> interval_t*;
 		};
 
 		/// Pointer to the allocation within `_memory` that stores the data for this cell.

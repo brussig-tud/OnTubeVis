@@ -1,3 +1,6 @@
+// C++ STL
+#include <bit>
+
 // local includes
 #include <gl_util.h>
 
