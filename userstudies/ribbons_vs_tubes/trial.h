@@ -97,7 +97,7 @@ struct trial : public userstudies::trial
 			throw std::runtime_error(std::move(msg));
 		}
 		state.emplace(task_state::create());
-		std::clog << "Task "<<cur_task<<" has STARTED!" << std::endl;
+		std::clog << "Task "<<cur_task+1<<" has STARTED!" << std::endl;
 	}
 	void end_cur_task (void) override
 	{
@@ -112,10 +112,10 @@ struct trial : public userstudies::trial
 		const auto dur = (float)std::chrono::duration_cast<std::chrono::milliseconds>(
 			std::chrono::system_clock::now() - state.value().view_interactions.start_time
 		).count() / 1000.f;
-		std::clog << "FINISHED task "<<cur_task<<"! user took "<<dur<<"s" << std::endl;
+		std::clog << "FINISHED task "<<cur_task+1<<"! user took "<<dur<<"s" << std::endl;
 
 		const std::string data_filename =
-			trial_id+"__task"+std::to_string(cur_task)+'@'+std::to_string(dur)+"s.csv";
+			trial_id+"__task"+std::to_string(cur_task+1)+'@'+std::to_string(dur)+"s.csv";
 
 		auto interaction_timeline = state.value().view_interactions.create_timeline();
 		std::clog << "recorded interactions at "<<interaction_timeline.records.size()<<" unique times" << std::endl;
