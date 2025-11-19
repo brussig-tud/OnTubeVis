@@ -444,6 +444,9 @@ protected:
 
 		/// the gpu sorter used to reorder the indices according to their corresponding segment visibility order
 		cgv::gpgpu::visibility_sort sorter;
+
+		// for config-setting the number of TAA samples to gather
+		unsigned taa_samples = 8;
 	} render;
 	int render_gui_dummy = 0;
 	textured_spline_tube_render_style::AttribMode attrib_mode_bak = render.style.attrib_mode;

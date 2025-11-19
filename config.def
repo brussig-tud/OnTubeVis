@@ -40,6 +40,8 @@ type(on_tube_vis):show_hidden_glyphs=false
 type(on_tube_vis):ambient_occlusion=true
 // - Voxelization device
 //type(on_tube_vis):voxelize_gpu=true
+// - TAA settings (higher sample count really improves image quality from far-away view points)
+type(on_tube_vis):taa_samples=16
 
 // Framework settings
 name(Stereo Interactor):clip_relative_to_extent=false
@@ -47,6 +49,10 @@ name(Stereo Interactor):clip_relative_to_extent=false
 name(Stereo Interactor):stereo_translate_in_model_view=true
 // Good eye distance setting for the LG 3D TV in Holodeck:
 //name(Stereo Interactor):eye_distance=0.00600
+// Because lines will frequently appear in front of the view when zooming out, disabling this works better
+name(Stereo Interactor):zoom_to_mouse=false
+// Disabling VSync helps improve TAA experience
+type(on_tube_vis):vsync_proxy=false
 
 // Raycasted ribbon renderer settings
 // - threshold for the linearity measure under which a (sub-)curve is considered linear (0 means actual true mathematical linearity)
@@ -61,3 +67,5 @@ name(Stereo Interactor):stereo_translate_in_model_view=true
 // - make this persistent in you local .cfg
 type(on_tube_vis):instant_redraw_proxy=false
 type(on_tube_vis):fix_view_up_dir_proxy=false
+type(on_tube_vis):vsync_proxy=false
+type(on_tube_vis):taa_samples=16

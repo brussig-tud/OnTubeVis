@@ -96,6 +96,7 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 	render.style.material.ambient_occlusion = 0.75f;
 	render.style.material.specular_reflectance = { 0.05f, 0.05f, 0.05f };
 	render.style.use_conservative_depth = true;
+	taa.set_jitter_sample_count(render.taa_samples);
 	
 	bbox_rd.style.culling_mode = cgv::render::CM_FRONTFACE;
 	bbox_rd.style.illumination_mode = cgv::render::IM_TWO_SIDED;
@@ -374,6 +375,7 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
 		rh.reflect_member("benchmark_mode", benchmark_mode) &&
+		rh.reflect_member("taa_samples", render.taa_samples) &&
 
 		// user study stuff
 		rh.reflect_member("unlock_after_scene_switch", unlock_after_scene_switch) &&
@@ -1110,6 +1112,9 @@ void on_tube_vis::on_set(void* member_ptr) {
 		update_tube_ribbon_toggle();
 		reset_taa = true;
 	}
+
+	if (m.is(render.taa_samples))
+		taa.set_jitter_sample_count(render.taa_samples);
 
 #ifdef RTX_SUPPORT
 	// ###############################
