@@ -270,6 +270,7 @@ set (SHADERS
 		glsl/curve_tools.glsl
 		glsl/optix_display.glfs
 		glsl/optix_display.glpr
+		glsl/otv_color_map.glsl
 		glsl/otv_shading.glsl
 		glsl/otv_trajectory_relations.glsl
 		glsl/rcc.glsl
