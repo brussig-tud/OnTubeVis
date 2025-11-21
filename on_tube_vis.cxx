@@ -1191,7 +1191,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 			// success
 			std::clog << "ACTIVATING TRIAL '"<<user_studies.ribbons_vs_tubes_trial.definition_file.file_name<<'\''
 			          << std::endl;
-			const auto trai_fn = std::filesystem::path(
+			const auto trial_fn_no_ext = std::filesystem::path(
 				user_studies.ribbons_vs_tubes_trial.definition_file.file_name
 			).filename().replace_extension().string();
 			const auto unique = std::to_string(std::chrono::duration_cast<std::chrono::seconds>(
@@ -1201,8 +1201,8 @@ void on_tube_vis::on_set(void* member_ptr) {
 			unlock_after_scene_switch = true;
 			user_studies.active_trial = &user_studies.ribbons_vs_tubes_trial;
 			user_studies.active_trial->setup(
-				screenshot_ptr,
-				  user_studies.ribbons_vs_tubes_outdir.file_name+'/'+trai_fn+unique+'-'+std::to_string(trial_count++)
+				screenshot_ptr, user_studies.ribbons_vs_tubes_outdir.file_name+'/'+trial_fn_no_ext+'-'+unique+'-'
+				+ std::to_string(trial_count++)
 			);
 		}
 		else {
