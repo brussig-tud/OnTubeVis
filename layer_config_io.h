@@ -1,12 +1,14 @@
 #pragma once
 
+#include <memory>
+
 // CGV framework core
 #include <cgv/utils/file.h>
 #include <cgv/utils/scan.h>
 
-// CGV framework application utility
-#include <cgv_app/color_map_reader.h>
-#include <cgv_app/color_map_writer.h>
+// CGV framework libraries
+#include <cmc_io/transfer_function_reader.h>
+#include <cmc_io/transfer_function_writer.h>
 
 // CGV framework 3rd party libraries
 #include <3rd/xml/tinyxml2/tinyxml2.h>
@@ -19,9 +21,6 @@
 
 
 class layer_configuration_io {
-public:
-	using vec2 = cgv::vec2;
-
 private:
 	static int index_of(const std::vector<std::string>& v, const std::string& elem) {
 
@@ -36,10 +35,14 @@ private:
 
 		printer.OpenElement("ColorMaps");
 
-		const auto& color_maps = color_map_mgr.ref_color_maps();
-		for(const auto& cmc : color_maps) {
-			if(cmc.custom)
-				cgv::app::color_map_writer::to_xml_printer(printer, cmc.name, cmc.cm, false);
+		for(const auto& color_map : color_map_mgr.ref_color_maps()) {
+			if(color_map.user_defined) {
+				// Todo: Re-enable writing.
+				
+				//auto tf = std::make_unique<cgv::media::transfer_function>();
+				//tf->set_color_points_from_scheme(cmc.cm, 256);
+				//cgv::media::transfer_function_writer::to_xml_printer(printer, cmc.name, tf.get(), false);
+			}
 		}
 
 		printer.CloseElement();
@@ -152,14 +155,13 @@ private:
 
 	static void extract_color_maps(const tinyxml2::XMLElement& elem, color_map_manager& color_map_mgr) {
 
-		cgv::app::color_map_reader::result color_maps;
-		cgv::app::color_map_reader::read_from_xml(elem, color_maps);
+		cgv::media::transfer_function_reader_result read_result = cgv::media::transfer_function_reader::read_from_xml(elem);
 
 		// clear previous custom color maps
 		std::vector<std::string> current_names;
 		const auto& current_color_maps = color_map_mgr.ref_color_maps();
 		for(size_t i = 0; i < current_color_maps.size(); ++i) {
-			if(current_color_maps[i].custom)
+			if(current_color_maps[i].user_defined)
 				current_names.push_back(current_color_maps[i].name);
 		}
 
@@ -167,8 +169,10 @@ private:
 			color_map_mgr.remove_color_map_by_name(current_names[i]);
 
 		// add new custom color maps
-		for(const auto& entry : color_maps)
-			color_map_mgr.add_color_map(entry.first, entry.second, true);
+		for(const auto& entry : read_result.entries) {
+			// Todo: Re-enable reading.
+			//color_map_mgr.add_color_map(entry.first, entry.second, true);
+		}
 	}
 
 	static void extract_layer(const tinyxml2::XMLElement& elem,

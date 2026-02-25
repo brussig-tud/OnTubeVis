@@ -1,18 +1,13 @@
 #pragma once
 
-#include <cgv/render/color_map.h>
+#include <cgv/media/color_scale.h>
 #include <cgv/render/texture.h>
-#include <cgv_app/themed_canvas_overlay.h>
 #include <cgv_g2d/msdf_gl_font_renderer.h>
 #include <cgv_g2d/canvas.h>
 #include <cgv_g2d/shape2d_styles.h>
+#include <cgv_overlay/themed_canvas_overlay.h>
 
-class color_map_viewer : public cgv::app::themed_canvas_overlay {
-public:
-	using ivec2 = cgv::ivec2;
-	using rgb = cgv::rgb;
-	using rgba = cgv::rgba;
-
+class color_map_viewer : public cgv::overlay::themed_canvas_overlay {
 protected:
 	struct layout_attributes {
 		int padding;
@@ -22,15 +17,14 @@ protected:
 		// dependent members
 		cgv::g2d::trect<int> color_map_rect;
 
-		void update(const ivec2& parent_size) {
-			color_map_rect.position = ivec2(padding);
+		void update(const cgv::ivec2& parent_size) {
+			color_map_rect.position = cgv::ivec2(padding);
 			color_map_rect.size = parent_size - 2 * padding;
 		}
 	} layout;
 
-	bool texts_out_of_date = false;
-	
 	std::vector<std::string> names;
+	bool texts_out_of_date = false;
 
 	cgv::g2d::shape2d_style border_style, color_map_style;
 	cgv::render::texture* tex;
@@ -38,12 +32,11 @@ protected:
 	// text appearance
 	cgv::g2d::text2d_style text_style;
 	cgv::g2d::msdf_text_geometry texts;
-	std::vector<std::string> text_labels;
 	std::vector<float> text_positions;
 	std::vector<cgv::render::TextAlignment> text_alignments;
 	
 	void init_styles();
-	void update_texts();
+	void update_texts(cgv::render::context& ctx);
 
 	void create_gui_impl();
 

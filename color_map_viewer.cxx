@@ -17,7 +17,7 @@ color_map_viewer::color_map_viewer() {
 	layout.band_height = 18;
 	layout.total_height = 80;
 
-	set_size(ivec2(200u, layout.total_height));
+	set_size(cgv::ivec2(200u, layout.total_height));
 	
 	register_shader("rectangle", cgv::g2d::shaders::rectangle);
 	register_shader("color_maps", "color_maps.glpr");
@@ -46,7 +46,7 @@ bool color_map_viewer::handle_event(cgv::gui::event& e) {
 void color_map_viewer::on_set(void* member_ptr) {
 
 	if(member_ptr == &layout.total_height || member_ptr == &layout.band_height) {
-		ivec2 size = get_rectangle().size;
+		cgv::ivec2 size = get_rectangle().size;
 
 		if(tex) {
 			int h = static_cast<int>(tex->get_height());
@@ -75,12 +75,11 @@ void color_map_viewer::init_frame(cgv::render::context& ctx)
 {
 	if(ensure_layout(ctx)) {
 		layout.update(get_rectangle().size);
-
-		update_texts();
+		update_texts(ctx);
 	}
 
 	if(texts_out_of_date)
-		update_texts();
+		update_texts(ctx);
 }
 
 void color_map_viewer::draw_content(cgv::render::context& ctx) {
@@ -89,7 +88,6 @@ void color_map_viewer::draw_content(cgv::render::context& ctx) {
 		return;
 
 	begin_content(ctx);
-	//enable_blending();
 	
 	// draw inner border
 	auto rectangle = get_content_rectangle();
@@ -109,10 +107,8 @@ void color_map_viewer::draw_content(cgv::render::context& ctx) {
 	content_canvas.disable_current_shader(ctx);
 	
 	// draw color scale names
-	texts.set_text_array(ctx, names);
 	cgv::g2d::ref_msdf_gl_font_renderer_2d(ctx).render(ctx, content_canvas, texts, text_style);
 
-	//disable_blending();
 	end_content(ctx);
 }
 
@@ -149,30 +145,32 @@ void color_map_viewer::init_styles() {
 
 	// configure text style
 	text_style.use_blending = true;
-	text_style.fill_color = rgb(1.0f);
-	text_style.border_color = rgb(0.0f);
+	text_style.fill_color = cgv::rgb(1.0f);
+	text_style.border_color = cgv::rgb(0.0f);
 	text_style.border_radius = 0.5f;
 	text_style.border_width = 0.75f;
 	text_style.feather_origin = 0.35f;
 	text_style.font_size = 16.0f;
 }
 
-void color_map_viewer::update_texts() {
+void color_map_viewer::update_texts(cgv::render::context& ctx) {
 
 	texts.clear();
-	if(names.size() == 0)
+	if(names.empty())
 		return;
 
-	int step = layout.color_map_rect.h() / (int)names.size();
-	ivec2 base = layout.color_map_rect.position + ivec2(layout.color_map_rect.w() / 2, step / 2 - static_cast<int>(0.333f*text_style.font_size));
+	texts.texts = names;
+
+	int step = layout.color_map_rect.h() / static_cast<int>(names.size());
+	cgv::ivec2 base = layout.color_map_rect.position + cgv::ivec2(layout.color_map_rect.w() / 2, step / 2 - static_cast<int>(0.333f*text_style.font_size));
 	int i = 0;
 	for(const auto& name : names) {
-		ivec2 p = base;
+		cgv::ivec2 p = base;
 		p.y() += (static_cast<int>(names.size())-i - 1)*step - 1;
-		texts.positions.emplace_back(cgv::vec3(p.x(), p.y(), .0f));
-		texts.alignments.emplace_back(cgv::render::TA_BOTTOM);
+		texts.positions.emplace_back(p.x(), p.y(), 0.0f);
 		++i;
 	}
 	texts.alignment = cgv::render::TA_BOTTOM;
+	texts.create(ctx);
 	texts_out_of_date = false;
 }

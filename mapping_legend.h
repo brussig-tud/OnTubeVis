@@ -1,15 +1,15 @@
 #pragma once
 
-#include <cgv_app/themed_canvas_overlay.h>
 #include <cgv_g2d/msdf_gl_font_renderer.h>
 #include <cgv_g2d/canvas.h>
 #include <cgv_g2d/shape2d_styles.h>
+#include <cgv_overlay/themed_canvas_overlay.h>
 
 #include "glyph_layer_manager.h"
 #include "traj_loader.h"
 
 
-class mapping_legend : public cgv::app::themed_canvas_overlay {
+class mapping_legend : public cgv::overlay::themed_canvas_overlay {
 public:
 	using vec2 = cgv::vec2;
 	using vec3 = cgv::vec3;
@@ -36,9 +36,10 @@ protected:
 	std::vector<layer_info> layers;
 
 	// data
-	std::vector<std::string> labels;
+	//std::vector<std::string> labels;
 
 	// geometry
+	bool text_out_of_date = true;
 	cgv::g2d::msdf_text_geometry text;
 	std::vector<float> dividers;
 	std::vector<std::pair<vec2, rgb>> color_boxes;

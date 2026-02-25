@@ -10,7 +10,7 @@ mapping_legend::mapping_legend() {
 
 	set_size(ivec2(316, 0));
 
-	content_canvas.set_origin_setting(cgv::g2d::OriginSetting::kUpperLeft);
+	content_canvas.set_origin_setting(cgv::g2d::CoordinateOrigin::kUpperLeft);
 }
 
 bool mapping_legend::init(cgv::render::context& ctx) {
@@ -54,7 +54,10 @@ void mapping_legend::draw_content(cgv::render::context& ctx) {
 
 	content_canvas.disable_current_shader(ctx);
 
-	text.set_text_array(ctx, labels);
+	if(text_out_of_date) {
+		text.create(ctx);
+		text_out_of_date = false;
+	}
 	cgv::g2d::ref_msdf_gl_font_renderer_2d(ctx).render(ctx, content_canvas, text, text_style);
 
 	end_content(ctx);
@@ -175,7 +178,6 @@ void mapping_legend::create_geometry()
 	text.clear();
 	dividers.clear();
 	color_boxes.clear();
-	labels.clear();
 
 	const float padding = 12.0f;
 	vec2 position(padding);
@@ -185,8 +187,7 @@ void mapping_legend::create_geometry()
 	for(const auto& layer : layers) {
 		text.positions.emplace_back(vec3(position, .0f));
 		text.alignments.emplace_back(cgv::render::TA_TOP_LEFT);
-		labels.emplace_back(std::to_string(layer_idx)+": "+layer.title);
-		//text.add_text(???1.2f???);
+		text.texts.emplace_back(std::to_string(layer_idx) + ": " + layer.title);
 		position.y() += 1.75f * text_style.font_size;
 		
 		for(const auto& [str, range, has_color, color] : layer.lines) {
@@ -199,12 +200,12 @@ void mapping_legend::create_geometry()
 
 			text.positions.emplace_back(vec3(position + offset, .0f));
 			text.alignments.emplace_back(cgv::render::TA_TOP_LEFT);
-			labels.emplace_back(str);
+			text.texts.emplace_back(str);
 
 			offset.x() = static_cast<float>(overlay_size.x()) - 2.0f * padding;
 			text.positions.emplace_back(vec3(position + offset, .0f));
 			text.alignments.emplace_back(cgv::render::TA_TOP_RIGHT);
-			labels.emplace_back(range);
+			text.texts.emplace_back(range);
 
 			position.y() += 1.2f * text_style.font_size;
 		}
@@ -227,6 +228,8 @@ void mapping_legend::create_geometry()
 
 	overlay_size.y() = static_cast<int>(height + 0.5f);
 	set_size(overlay_size);
+
+	text_out_of_date = true;
 
 	post_damage();
 }

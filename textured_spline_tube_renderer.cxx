@@ -45,6 +45,8 @@ namespace cgv {
 
 			rcribbon.debug.visualize_stats = rcribbon.debug.VS_OFF;
 			rcribbon.debug.visualize_leaf_bboxes = false;
+
+			gsribbon.subdivisions = 4;
 		}
 
 		textured_spline_tube_renderer::textured_spline_tube_renderer()
@@ -94,43 +96,29 @@ namespace cgv {
 
 			options.clear();
 
-			//shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
 			options.define_macro_if_not_default("USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
 			if (rs.is_tube()) {
-				//shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
 				options.define_macro_if_not_default("USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
-				//shader_code::set_define(defines, "USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
 				options.define_macro_if_not_default("USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
-				//shader_code::set_define(defines, "PRIMITIVE_INTERSECTOR", rs.line_primitive, rs.LP_TUBE_RUSSIG);
 				options.define_macro_if_not_default("PRIMITIVE_INTERSECTOR", rs.line_primitive, rs.LP_TUBE_RUSSIG);
 				static const bool no = false;
-				//shader_code::set_define(defines, "USE_RIBBONS", no, false);
 				options.define_macro_if_not_default("USE_RIBBONS", no, false);
 			}
 			else if (rs.line_primitive == rs.LP_RIBBON_GEOMETRY) {
 				static const bool yes = true;
-				//shader_code::set_define(defines, "USE_RIBBONS", yes, false);
 				options.define_macro_if_not_default("USE_RIBBONS", yes, false);
+				options.define_macro_if_not_default("NUM_SUBDIVISIONS", rs.gsribbon.subdivisions, 2);
 			}
-			//shader_code::set_define(defines, "ATTRIB_MODE", rs.attrib_mode, rs.AM_ALL);
 			options.define_macro_if_not_default("ATTRIB_MODE", rs.attrib_mode, rs.AM_ALL);
-			//shader_code::set_define(defines, "MODE", rs.fragment_mode, rs.FM_RAY_CAST);
 			options.define_macro_if_not_default("MODE", rs.fragment_mode, rs.FM_RAY_CAST);
 			if (rs.line_primitive != rs.LP_RIBBON_GEOMETRY)
-				//shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, rs.BG_ALIGNED_BOX_BILLBOARD);
 				options.define_macro_if_not_default("BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, rs.BG_ALIGNED_BOX_BILLBOARD);
 			if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED) {
-				//shader_code::set_define(defines, "EXACT_RIBBON_BBOXES", rs.rcribbon.exact_ribbon_bboxes, false);
 				options.define_macro_if_not_default("EXACT_RIBBON_BBOXES", rs.rcribbon.exact_ribbon_bboxes, false);
-				//shader_code::set_define(defines, "BBOX_COORD_SYSTEM", rs.rcribbon.bbox_coord_system, rs.rcribbon.BBO_RCC);
 				options.define_macro_if_not_default("BBOX_COORD_SYSTEM", rs.rcribbon.bbox_coord_system, rs.rcribbon.BBO_RCC);
-				//shader_code::set_define(defines, "RAY_CENTRIC_ISECTS", rs.rcribbon.ray_centric_isects, false);
 				options.define_macro_if_not_default("RAY_CENTRIC_ISECTS", rs.rcribbon.ray_centric_isects, false);
-				//shader_code::set_define(defines, "MAX_INTERSECTION_STACK_SIZE", rs.rcribbon.max_intersection_stack_size, (unsigned)8);
 				options.define_macro_if_not_default("MAX_INTERSECTION_STACK_SIZE", rs.rcribbon.max_intersection_stack_size, (unsigned)8);
-				//shader_code::set_define(defines, "DBG_VISUALIZE_STATS", rs.rcribbon.debug.visualize_stats, rs.rcribbon.debug.VS_OFF);
 				options.define_macro_if_not_default("DBG_VISUALIZE_STATS", rs.rcribbon.debug.visualize_stats, rs.rcribbon.debug.VS_OFF);
-				//shader_code::set_define(defines, "DBG_VISUALIZE_LEAF_BBOXES", rs.rcribbon.debug.visualize_leaf_bboxes, false);
 				options.define_macro_if_not_default("DBG_VISUALIZE_LEAF_BBOXES", rs.rcribbon.debug.visualize_leaf_bboxes, false);
 			}
 
@@ -271,6 +259,13 @@ namespace cgv {
 				p->add_member_control(b, "Visualize Leaf BBoxes", rs_ptr->rcribbon.debug.visualize_leaf_bboxes, "check");
 				p->align("\b");
 				p->end_tree_node(rs_ptr->rcribbon);
+			}
+
+			if(p->begin_tree_node("Ribbon - Geometry", rs_ptr->gsribbon)) {
+				p->align("\a");
+				p->add_member_control(b, "Subdivisions", rs_ptr->gsribbon.subdivisions, "value_slider", "min=2;step=1;max=7;ticks=true");
+				p->align("\b");
+				p->end_tree_node(rs_ptr->gsribbon);
 			}
 
 			const auto &[tmin, tmax] = rs_ptr->data_t_minmax;

@@ -8,7 +8,7 @@
 
 #define ONE_OVER_THREE (1.0/3.0)
 #define N0 3
-#define NUM_SUBDIVISIONS 7
+#define NUM_SUBDIVISIONS 2
 #define NUM_VERTICES (2*(NUM_SUBDIVISIONS-1)*6)
 
 //***** begin interface of view.glsl ***********************************

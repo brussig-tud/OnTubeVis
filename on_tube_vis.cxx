@@ -6,18 +6,24 @@
 #include <filesystem>
 
 // CGV framework core
+#include <cgv/data/informed_ptr.h>
 #include <cgv/defines/quote.h>
 #include <cgv/gui/dialog.h>
 #include <cgv/gui/trigger.h>
 #include <cgv/signal/rebind.h>
 #include <cgv/gui/theme_info.h>
 #include <cgv/math/ftransform.h>
+#include <cgv/media/color_scheme.h>
 #include <cgv/media/image/image_reader.h>
 #include <cgv/utils/advanced_scan.h>
+#include <cgv/utils/algorithm.h>
+
+// CGV framework libraries
+#include <cmc_crameri/schemes.h>
 
 // CGV framework application utility
-#include <cgv_app/color_map_reader.h>
-#include <cgv_app/color_map_writer.h>
+//#include <cgv_app/color_map_reader.h>
+//#include <cgv_app/color_map_writer.h>
 
 // CGV framework plugins
 // - fltk_gl_view for controlling instant redraw
@@ -33,7 +39,6 @@
 #ifdef RTX_SUPPORT
 #include "cuda/optix_interface.h"
 
-
 // ###############################
 // ### BEGIN: OptiX integration
 // ###############################
@@ -47,6 +52,7 @@ void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* 
 // ###############################
 #endif
 
+using namespace cgv::render;
 
 /* TODOs:
 * > Find way of adjusting view z-Near to prevent z-fighting artifacts that occur with the default
@@ -95,8 +101,8 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 	render.style.material.specular_reflectance = { 0.05f, 0.05f, 0.05f };
 	render.style.use_conservative_depth = true;
 	
-	bbox_rd.style.culling_mode = cgv::render::CM_FRONTFACE;
-	bbox_rd.style.illumination_mode = cgv::render::IM_TWO_SIDED;
+	bbox_rd.style.culling_mode = CullingMode::CM_FRONTFACE;
+	bbox_rd.style.illumination_mode = IlluminationMode::IM_TWO_SIDED;
 	bbox_rd.style.surface_color = rgb(0.7f);
 
 	vstyle.enable_depth_test = false;
@@ -137,33 +143,32 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 	// register overlay widgets
 	mapping_legend_ptr = create_and_append_child<mapping_legend>("Mapping Legend");
 
-	cm_editor_ptr = create_and_append_child<cgv::app::color_map_editor>("Color Scales");
+	cm_editor_ptr = create_and_append_child<cgv::overlay::transfer_function_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
 	cm_editor_ptr->gui_options.create_default_tree_node = false;
 	cm_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_color_map_change, this));
-	cm_editor_ptr->set_stretch(cgv::app::overlay::SO_HORIZONTAL);
+	cm_editor_ptr->set_stretch_mode(cgv::overlay::StretchMode::kHorizontal);
 
-	tf_editor_ptr = create_and_append_child<cgv::app::color_map_editor>("Transfer Function");
+	tf_editor_ptr = create_and_append_child<cgv::overlay::transfer_function_editor>("Transfer Function");
 	tf_editor_ptr->set_visibility(false);
 	tf_editor_ptr->set_opacity_support(true);
-	tf_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_transfer_function_change, this));
-	tf_editor_ptr->set_stretch(cgv::app::overlay::SO_HORIZONTAL);
-
-	navigator_ptr = create_and_append_child<cgv::app::navigator>("Navigator");
+	tf_editor_ptr->set_stretch_mode(cgv::overlay::StretchMode::kHorizontal);
+	
+	navigator_ptr = create_and_append_child<cgv::overlay::navigator>("Navigator");
 	navigator_ptr->set_visibility(false);
 	navigator_ptr->gui_options.show_layout_options = false;
-	navigator_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_START);
+	navigator_ptr->set_alignment(cgv::overlay::Alignment::kEnd, cgv::overlay::Alignment::kStart);
 	navigator_ptr->set_size(100);
 	
 	cm_viewer_ptr = create_and_append_child<color_map_viewer>("Color Scale Viewer");
-	cm_viewer_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_END);
+	cm_viewer_ptr->set_alignment(cgv::overlay::Alignment::kEnd, cgv::overlay::Alignment::kEnd);
 	cm_viewer_ptr->set_visibility(false);
 
-	perfmon_ptr = create_and_append_child<cgv::app::performance_monitor>("Performance Monitor");
+	perfmon_ptr = create_and_append_child<cgv::overlay::performance_monitor>("Performance Monitor");
 	perfmon_ptr->set_visibility(false);
 	//perfmon_ptr->set_show_background(false);
 	perfmon_ptr->enable_monitoring_only_when_visible(true);
-	perfmon_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_END);
+	perfmon_ptr->set_alignment(cgv::overlay::Alignment::kEnd, cgv::overlay::Alignment::kEnd);
 	
 	layer_config_file_helper = cgv::gui::file_helper(this, "Open/Save Layer Configuration", cgv::gui::file_helper::Mode::kOpenAndSave);
 	layer_config_file_helper.add_filter("Layer Configuration XML", "xml");
@@ -305,7 +310,212 @@ void on_tube_vis::handle_args (std::vector<std::string> &args)
 	}
 }
 
-void on_tube_vis::clear(cgv::render::context &ctx) {
+bool on_tube_vis::init(context& ctx) {
+	// ideal settings for .bcc yarn models:
+	/*ao_style.enable = true;
+	ao_style.sample_offset = .4f;
+	ao_style.sample_distance = .125f;
+	ao_style.strength_scale = 40;
+	ao_style.cone_angle = 50;
+	voxelize_gpu = true;
+	voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(512u);
+	grid_mode = GridMode::GM_NORMAL;*/
+
+	// generate demo dataset
+	// - demo AO settings
+	ao_style_bak = ao_style;
+	ao_style.strength_scale = 15.0f;
+	update_member(&ao_style);
+	// - demo geometry
+	constexpr unsigned seed = 11;
+#ifdef _DEBUG
+	constexpr unsigned num_trajectories = 3;
+	constexpr unsigned num_nodes = 16;
+#else
+	constexpr unsigned num_trajectories = 256; // 1
+	constexpr unsigned num_nodes = 256; // 32
+#endif
+	for(unsigned i = 0; i < num_trajectories; i++)
+		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_nodes, seed + i));
+	traj_mgr.add_dataset(
+		demo::compile_dataset(dataset.demo_trajs)
+	);
+	// - print out attribute statistics
+	std::cerr << "Data attributes:" << std::endl;
+	for(const auto& a : traj_mgr.dataset(0).attributes())
+		std::cerr << " - [" << a.first << "] - " << a.second.get_timestamps().size() << " samples" << std::endl;
+	std::cerr << std::endl;
+
+	// increase reference count of the renderers by one
+	auto& tstr = ref_textured_spline_tube_renderer(ctx, 1);
+	auto& vr = ref_volume_renderer(ctx, 1);
+	bool success = tstr.ref_prog().is_linked() && vr.ref_prog().is_linked();
+
+	// load all shaders in the library
+	success &= shaders.load_all(ctx);
+
+	// prepare render-time dataset state
+	for(const auto& ds : traj_mgr.datasets()) {
+		auto& vis = render.visualizations.emplace_back(this);
+		vis.config = vis.manager.get_configuration();
+	}
+
+	tube_shading_options = build_tube_shading_options();
+	shaders.reload(ctx, "tube_shading", tube_shading_options);
+
+	// init shared attribute array manager
+	success &= render.aam.init(ctx);
+
+	success &= density_volume.init(ctx, 0);
+
+	/*
+	render.sorter.set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent; vec4 t;");
+	render.sorter.set_auxiliary_type_override("uint a_idx; uint b_idx;");
+
+	std::string key_definition =
+		R"(aux_type indices = aux_values[idx]; \
+		data_type a = data[indices.a_idx]; \
+		data_type b = data[indices.b_idx]; \
+		vec3 pa = a.pos_rad.xyz; \
+		vec3 pb = b.pos_rad.xyz; \
+		\
+		vec3 x = 0.5*(pa + pb); \
+		vec3 eye_to_pos = x - eye_pos; \
+		float ddv = dot(eye_to_pos, view_dir); \
+		float key = (ddv < 0.0 ? -1.0 : 1.0) * dot(eye_to_pos, eye_to_pos);)";
+
+	render.sorter.set_key_definition_override(key_definition);
+	*/
+
+	// Initialize the last sort position and direction to zero to force a sorting step before the first draw call
+	last_sort_pos = vec3(0.0f);
+	last_sort_dir = vec3(0.0f);
+
+	bbox_rd.init(ctx);
+	bbox_wire_rd.init(ctx);
+
+	// initialize debug geometry
+	debug.geometry.nodes.init(ctx);
+	debug.geometry.segments.init(ctx);
+
+	// enable ambient occlusion
+	ao_style.enable = true;
+
+	// init data-dependent render state
+	update_attribute_bindings();
+	update_grid_ratios();
+
+	// init color maps
+	// - populate registry
+	auto& color_scheme_registry = cgv::media::get_global_continuous_color_scheme_registry();
+	crameri::load_continuous_color_scheme_presets(color_scheme_registry, { cgv::media::ColorSchemeType::kSequential, cgv::media::ColorSchemeType::kDiverging });
+
+	// - manager
+	color_map_mgr.init(ctx);
+	for(const auto& entry : color_scheme_registry) {
+		cgv::media::transfer_function tf;
+		tf.set_color_points_from_scheme(entry.second, 256);
+		color_map_mgr.add_color_map(entry.first, tf, false);
+	}
+
+	color_map_mgr.update_texture(ctx);
+	if(cm_viewer_ptr) {
+		cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
+		cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+	}
+
+	update_glyph_layer_managers();
+	compile_glyph_attribs();
+	ah_mgr.set_dataset(traj_mgr.dataset(0));
+
+	// - volume transfer function
+	volume_tf->set_color_points_from_scheme(crameri::schemes::interpolateImola(), 256);
+	volume_tf->add_opacity_point(0.0f, 0.0f);
+	volume_tf->add_opacity_point(1.0f, 1.0f);
+
+	// since the tansfer function object won't change, it is sufficient to set it once in the editor
+	if(tf_editor_ptr)
+		tf_editor_ptr->set_transfer_function(volume_tf);
+
+	volume_tf_adapter.init(ctx);
+	volume_tf_adapter.set_color_scale(std::make_shared<device_transfer_function>(volume_tf));
+
+	// initialize temporal anti-aliasing
+	success &= taa.init(ctx);
+	taa.set_jitter_sample_count(8);
+	taa.set_mix_factor(0.125f);
+	taa.set_fxaa_mix_factor(0.5f);
+
+	// use white background for paper screenshots
+	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
+
+	////
+	// RTLola drone flight demo dataset map
+
+	// vertex structure for interleaved storage
+	struct rtlola_map_vertex {
+		vec4 pos;
+		vec4 color;
+		vec2 texcoord;
+	};
+
+	// vertex buffer element descriptors for each of our struct member types
+	const auto vec4desc = element_descriptor_traits<vec4>::get_type_descriptor(vec4());
+	const auto vec2desc = element_descriptor_traits<vec2>::get_type_descriptor(vec2());
+
+	// setup VBO and VAO
+	const shader_program& default_shader = ctx.ref_default_shader_program(true /* <-- texture support */);
+	success &= dataset.rtlola_map_vao.create(ctx);
+	success &= dataset.rtlola_map_vbo.create(ctx, std::vector<rtlola_map_vertex>{
+		{{-2544.4730907677954f, 581.5f, -837.50963767276119f, 1.f}, { 1.f }, { 0.f, 0.f }},
+		{ {2004.4304399613477f, 581.5f, -837.50963767276119f, 1.f}, {1.f}, {1.f, 0.f} },
+		{ {-2544.4730907677954f, 581.5f, 2506.1411020040873f, 1.f}, {1.f}, {0.f, 1.f} },
+		{ {2004.4304399613477f, 581.5f, 2506.1411020040873f, 1.f}, {1.f}, {1.f, 1.f} }
+	});
+	success &= dataset.rtlola_map_vao.bind_attribute_array(
+		ctx, default_shader, "position", vec4desc,
+		dataset.rtlola_map_vbo, 0, 4, sizeof(rtlola_map_vertex)
+	);
+	success &= dataset.rtlola_map_vao.bind_attribute_array(
+		ctx, default_shader, "color", vec4desc,
+		dataset.rtlola_map_vbo, sizeof(vec4), 4, sizeof(rtlola_map_vertex)
+	);
+	success &= dataset.rtlola_map_vao.bind_attribute_array(
+		ctx, default_shader, "texcoord", vec2desc,
+		dataset.rtlola_map_vbo, 2 * sizeof(vec4), 4, sizeof(rtlola_map_vertex)
+	);
+
+	// load map texture
+#ifdef CGV_FORCE_STATIC
+	// TODO: why is loading embedded image files in case of single-exe builds not handled automatically?
+	success &= dataset.rtlola_map_tex.create_from_image(ctx, "res://rtlola_droneflight.png");
+#else
+	success &= dataset.rtlola_map_tex.create_from_image(ctx, "res/rtlola_droneflight.png");
+#endif
+
+
+#ifdef RTX_SUPPORT
+	// ###############################
+	// ### BEGIN: OptiX integration
+	// ###############################
+
+	if(optix.enabled && !optix_ensure_init(ctx)) {
+		optix.enabled = false;
+		update_member(&optix.enabled);
+		success = false;
+	}
+
+	// ###############################
+	// ###  END:  OptiX integration
+	// ###############################
+#endif
+
+
+	// done
+	return success;
+}
+
+void on_tube_vis::clear(context &ctx) {
 	// decrease reference count of the renderers by one
 	ref_textured_spline_tube_renderer(ctx, -1);
 	ref_volume_renderer(ctx, -1);
@@ -324,6 +534,7 @@ void on_tube_vis::clear(cgv::render::context &ctx) {
 	render.sorter.destruct(ctx);
 
 	density_volume.destruct(ctx);
+	volume_tf_adapter.destruct(ctx);
 
 	taa.destruct(ctx);
 }
@@ -652,26 +863,28 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 
 void on_tube_vis::handle_color_map_change() {
 	if(cm_editor_ptr) {
-		color_map_mgr.update_texture(*get_context());
-		if(cm_viewer_ptr)
-			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+		cgv::media::transfer_function* color_ramp = color_map_mgr.get_edited_color_ramp();
+		if(color_ramp) {
+			*color_ramp = *cm_editor_ptr->get_transfer_function();
+			color_map_mgr.update_texture(*get_context());
+			if(cm_viewer_ptr)
+				cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+			update_legends = true;
+			taa.reset();
+			post_redraw();
+		}
 	}
 }
 
-void on_tube_vis::handle_transfer_function_change() {
-	if(tf_editor_ptr)
-		volume_tf.generate_texture(*get_context());
-}
-
 void on_tube_vis::on_set(void* member_ptr) {
-	const cgv::utils::pointer_test& m(member_ptr);
+	cgv::data::informed_ptr ptr(member_ptr);
 
 	// control flags
 	bool do_full_gui_update = false, data_set_changed = false, from_demo = false, reset_taa = true;
 
 	// internal state flags
 	// - configurable datapath
-	if(m.is(datapath_helper.file_name))
+	if(ptr.points_to(datapath_helper.file_name))
 	{
 		// Reset working directory to what it was at program startup to mitigate meddling from the file open dialog
 		std::filesystem::current_path(startupCWD);
@@ -696,7 +909,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 		}
 	}
 	// - non-configurable dataset logic
-	else if(m.is(dataset)) {
+	else if(ptr.points_to(dataset)) {
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		// clear current dataset
 		datapath_helper.set_file_name("");
@@ -786,14 +999,14 @@ void on_tube_vis::on_set(void* member_ptr) {
 	}
 
 	// render settings
-	if (m.is(ao_style)) { // no individual action required, but make sure to update all member controls
+	if (ptr.points_to_member_of(ao_style)) { // no individual action required, but make sure to update all member controls
 		update_member(&ao_style.enable);
 		update_member(&ao_style.strength_scale);
 		update_member(&ao_style.sample_offset);
 		update_member(&ao_style.sample_distance);
 		update_member(&ao_style.cone_angle);
 	}
-	if(m.one_of(debug.highlight_segments,
+	if(ptr.points_to_one_of(debug.highlight_segments,
 				ao_style.enable,
 				grid_mode,
 				grid_normal_settings,
@@ -809,39 +1022,39 @@ void on_tube_vis::on_set(void* member_ptr) {
 	}
 
 	// - debug render setting
-	if(m.is(debug.force_initial_order)) {
+	if(ptr.points_to(debug.force_initial_order)) {
 		update_attribute_bindings();
 	}
 
-	if(m.is(debug.render_percentage)) {
+	if(ptr.points_to(debug.render_percentage)) {
 		debug.render_count = static_cast<size_t>(debug.render_percentage * debug.segment_count);
 		update_member(&debug.render_count);
 	}
 
-	if(m.is(debug.render_count)) {
+	if(ptr.points_to(debug.render_count)) {
 		debug.render_percentage = static_cast<float>(debug.render_count) / static_cast<float>(debug.segment_count);
 		update_member(&debug.render_percentage);
 	}
 
-	if(m.is(debug.render_mode)) {
+	if(ptr.points_to(debug.render_mode)) {
 		do_full_gui_update = true;
 		update_debug_attribute_bindings();
 	}
 
 	// voxelization settings
-	if(m.one_of(voxel_grid_resolution, voxelize_gpu, render.style.radius_scale)) {
+	if(ptr.points_to_one_of(voxel_grid_resolution, voxelize_gpu, render.style.radius_scale)) {
 		context& ctx = *get_context();
 		voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(cgv::math::clamp(static_cast<unsigned>(voxel_grid_resolution), 16u, 512u));
 		create_density_volume(ctx, voxel_grid_resolution);
 
-		if(m.is(render.style.radius_scale)) {
+		if(ptr.points_to(render.style.radius_scale)) {
 			update_grid_ratios();
 			glyphs_out_of_date(true);
 		}
 	}
 
 	// visualization settings
-	if(m.is(render.visualizations.front().manager)) {
+	if(ptr.points_to(render.visualizations.front().manager)) {
 		auto& glyph_layer_mgr = render.visualizations.front().manager;
 		auto& glyph_layers_config = render.visualizations.front().config;
 		const auto action = glyph_layer_mgr.action_type();
@@ -873,22 +1086,15 @@ void on_tube_vis::on_set(void* member_ptr) {
 		}
 	}
 
-	if(m.is(color_map_mgr)) {
+	if(ptr.points_to(color_map_mgr)) {
 		switch(color_map_mgr.action_type()) {
 		case AT_CONFIGURATION_CHANGE:
 		{
 			if(cm_editor_ptr) {
-				const auto& color_maps = color_map_mgr.ref_color_maps();
-				const auto* edit_cm_ptr = cm_editor_ptr->get_color_map();
-				for(size_t i = 0; i < color_maps.size(); ++i) {
-					if(&color_maps[i].cm == edit_cm_ptr) {
-						// TODO: use smart pointers for color map and in manager
-						cm_editor_ptr->set_color_map(nullptr);
-						cm_editor_ptr->set_visibility(false);
-					}
-				}
+				cm_editor_ptr->set_transfer_function(nullptr);
+				cm_editor_ptr->set_visibility(false);
 			}
-			// TODO: remove commented line
+			
 			render.visualizations.front().variables->set_color_map_names(color_map_mgr.get_names());
 
 			color_map_mgr.update_texture(*get_context());
@@ -902,10 +1108,15 @@ void on_tube_vis::on_set(void* member_ptr) {
 		}
 		case AT_EDIT_REQUEST:
 			if(cm_editor_ptr) {
-				int idx = color_map_mgr.edit_index();
-				if(idx > -1 && size_t(idx) < color_map_mgr.ref_color_maps().size()) {
-					cm_editor_ptr->set_color_map(&(color_map_mgr.ref_color_maps()[idx].cm));
+				cgv::media::transfer_function* color_ramp = color_map_mgr.get_edited_color_ramp();
+				if(color_ramp) {
+					auto transfer_function = std::make_shared<cgv::media::transfer_function>(*color_ramp);
+					transfer_function->set_interpolation(cgv::media::transfer_function::InterpolationMode::kSmooth);
+					cm_editor_ptr->set_transfer_function(transfer_function);
 					cm_editor_ptr->set_visibility(true);
+				} else {
+					cm_editor_ptr->set_transfer_function(nullptr);
+					cm_editor_ptr->set_visibility(false);
 				}
 			}
 			break;
@@ -916,7 +1127,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 		on_set(&layer_config_has_unsaved_changes);
 	}
 
-	if(m.is(layer_config_file_helper.file_name))
+	if(ptr.points_to(layer_config_file_helper.file_name))
 	{
 		// Reset working directory to what it was at program startup to mitigate meddling from the file open dialog
 		std::filesystem::current_path(startupCWD);
@@ -963,17 +1174,17 @@ void on_tube_vis::on_set(void* member_ptr) {
 
 	}
 
-	if(m.is(layer_config_has_unsaved_changes)) {
+	if(ptr.points_to(layer_config_has_unsaved_changes)) {
 		auto ctrl = find_control(layer_config_file_helper.file_name);
 		if(ctrl)
 			ctrl->set("text_color", layer_config_has_unsaved_changes ? cgv::gui::theme_info::instance().warning_hex() : "");
 	}
 
-	if(m.is(debug.show_hidden_glyphs))
+	if(ptr.points_to(debug.show_hidden_glyphs))
 		compile_glyph_attribs();
 
 	// playback controls
-	if(m.is(playback.active) && playback.active) {
+	if(ptr.points_to(playback.active) && playback.active) {
 		playback.timer.add_time();
 		render.style.max_t =
 			render.style.max_t >= (float)playback.tend ? (float)playback.tstart : render.style.max_t;
@@ -982,7 +1193,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 		const auto& traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
 		playback.follow_last_nid = find_sample(pos.attrib, traj_range, render.style.max_t);
 	}
-	if(m.is(playback.follow_traj)) {
+	if(ptr.points_to(playback.follow_traj)) {
 		const auto& ds = traj_mgr.dataset(0);
 		const auto& pos = ds.positions();
 		const auto& traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
@@ -990,46 +1201,39 @@ void on_tube_vis::on_set(void* member_ptr) {
 	}
 
 	// widget controls
-	if(m.is(show_mapping_legend)) {
-		if(mapping_legend_ptr)
-			mapping_legend_ptr->set_visibility(show_mapping_legend);
-	}
+	if(ptr.points_to(show_mapping_legend) && mapping_legend_ptr)
+		mapping_legend_ptr->set_visibility(show_mapping_legend);
 	
-	if(m.is(show_color_map_viewer)) {
-		if(cm_viewer_ptr)
-			cm_viewer_ptr->set_visibility(show_color_map_viewer);
-	}
+	if(ptr.points_to(show_color_map_viewer) && cm_viewer_ptr)
+		cm_viewer_ptr->set_visibility(show_color_map_viewer);
 
-	if(m.is(show_navigator)) {
-		if(navigator_ptr)
-			navigator_ptr->set_visibility(show_navigator);
-	}
+	if(ptr.points_to(show_navigator) && navigator_ptr)
+		navigator_ptr->set_visibility(show_navigator);
 
-	if(m.is(show_performance_monitor)) {
-		if(perfmon_ptr)
-			perfmon_ptr->set_visibility(show_performance_monitor);
-	}
+	if(ptr.points_to(show_performance_monitor) && perfmon_ptr)
+		perfmon_ptr->set_visibility(show_performance_monitor);
 
 	// misc settings
 	// - instant redraw
-	if(m.is(misc_cfg.instant_redraw_proxy))
+	if(ptr.points_to(misc_cfg.instant_redraw_proxy))
 		// ToDo: handle the (virtually impossible) case that some other plugin than cg_fltk provides the gl_context
-		dynamic_cast<fltk_gl_view*>(get_context())->set_void("instant_redraw", "bool", m.ptr);
+		dynamic_cast<fltk_gl_view*>(get_context())->set_void("instant_redraw", "bool", ptr.get());
 	// - vsync
-	if(m.is(misc_cfg.vsync_proxy))
+	if(ptr.points_to(misc_cfg.vsync_proxy))
 		// ToDo: handle the (virtually impossible) case that some other plugin than cg_fltk provides the gl_context
-		dynamic_cast<fltk_gl_view*>(get_context())->set_void("vsync", "bool", m.ptr);
+		dynamic_cast<fltk_gl_view*>(get_context())->set_void("vsync", "bool", ptr.get());
 	// - fix view up dir
-	else if(m.is(misc_cfg.fix_view_up_dir_proxy))
+	else if(ptr.points_to(misc_cfg.fix_view_up_dir_proxy))
 		dynamic_cast<node*>(find_view_as_node())->set("fix_view_up_dir", misc_cfg.fix_view_up_dir_proxy);
 
 	// In case of timestep thresholding we don't want to reset TAA
-	if(m.is(render.style.max_t))
+	if(ptr.points_to(render.style.max_t))
 		reset_taa = false;
 
-	if (m.is(render.style.attrib_mode))
+	if (ptr.points_to(render.style.attrib_mode))
 		attrib_mode_bak = render.style.attrib_mode;
-	if(m.is(render.style.line_primitive))
+
+	if(ptr.points_to(render.style.line_primitive))
 	{
 		// perform smart toggle bookkeeping
 		if (!ui_state.tr_toggle.check_toggled()) {
@@ -1079,9 +1283,9 @@ void on_tube_vis::on_set(void* member_ptr) {
 		optix.fb.depth.ensure_state(ctx);
 	};
 
-	if(m.member_of(taa)) {
+	if(ptr.points_to_member_of(taa)) {
 		optix.prev_TAA_state = taa.is_enabled();
-	} else if(m.is(optix.enabled)) {
+	} else if(ptr.points_to(optix.enabled)) {
 		do_full_gui_update = true;
 		if(optix.enabled) {
 			if(optix_ensure_init(*get_context())) {
@@ -1092,7 +1296,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 		} else {
 			pop_optix_holo_taa_state();
 		}
-	} else if(m.is(optix.primitive)) {
+	} else if(ptr.points_to(optix.primitive)) {
 		if(optix.primitive == OPR_PHANTOM)
 			optix.tracer = &optix.tracer_phantom;
 		else if(optix.primitive == OPR_BUILTIN)
@@ -1101,7 +1305,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 			optix.tracer = &optix.tracer_builtin_cubic;
 		else
 			optix.tracer = &optix.tracer_russig;
-	} else if(m.is(optix.holographic) && optix.enabled) {
+	} else if(ptr.points_to(optix.holographic) && optix.enabled) {
 		if(optix.holographic)
 			push_optix_holo_taa_state();
 		else
@@ -1300,215 +1504,6 @@ bool on_tube_vis::compile_glyph_attribs (void)
 	return success;
 }
 
-bool on_tube_vis::init (cgv::render::context &ctx)
-{
-	// ideal settings for .bcc yarn models:
-	/*ao_style.enable = true;
-	ao_style.sample_offset = .4f;
-	ao_style.sample_distance = .125f;
-	ao_style.strength_scale = 40;
-	ao_style.cone_angle = 50;
-	voxelize_gpu = true;
-	voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(512u);
-	grid_mode = GridMode::GM_NORMAL;*/
-
-	// generate demo dataset
-	// - demo AO settings
-	ao_style_bak = ao_style;
-	ao_style.strength_scale = 15.0f;
-	update_member(&ao_style);
-	// - demo geometry
-	constexpr unsigned seed = 11;
-#ifdef _DEBUG
-	constexpr unsigned num_trajectories = 3;
-	constexpr unsigned num_nodes = 16;
-#else
-	constexpr unsigned num_trajectories = 256; // 1
-	constexpr unsigned num_nodes = 256; // 32
-#endif
-	for (unsigned i=0; i<num_trajectories; i++)
-		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_nodes, seed+i));
-	traj_mgr.add_dataset(
-		demo::compile_dataset(dataset.demo_trajs)
-	);
-	// - print out attribute statistics
-	std::cerr << "Data attributes:" << std::endl;
-	for (const auto& a : traj_mgr.dataset(0).attributes())
-		std::cerr << " - ["<<a.first<<"] - "<<a.second.get_timestamps().size()<<" samples" << std::endl;
-	std::cerr << std::endl;
-
-	// increase reference count of the renderers by one
-	auto &tstr = ref_textured_spline_tube_renderer(ctx, 1);
-	auto &vr = ref_volume_renderer(ctx, 1);
-	bool success = tstr.ref_prog().is_linked() && vr.ref_prog().is_linked();
-
-	// load all shaders in the library
-	success &= shaders.load_all(ctx);
-
-	// prepare render-time dataset state
-	for (const auto &ds : traj_mgr.datasets()) {
-		auto &vis = render.visualizations.emplace_back(this);
-		vis.config = vis.manager.get_configuration();
-	}
-
-	tube_shading_options = build_tube_shading_options();
-	shaders.reload(ctx, "tube_shading", tube_shading_options);
-
-	// init shared attribute array manager
-	success &= render.aam.init(ctx);
-
-	success &= density_volume.init(ctx, 0);
-
-	/*
-	render.sorter.set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent; vec4 t;");
-	render.sorter.set_auxiliary_type_override("uint a_idx; uint b_idx;");
-
-	std::string key_definition =
-		R"(aux_type indices = aux_values[idx]; \
-		data_type a = data[indices.a_idx]; \
-		data_type b = data[indices.b_idx]; \
-		vec3 pa = a.pos_rad.xyz; \
-		vec3 pb = b.pos_rad.xyz; \
-		\
-		vec3 x = 0.5*(pa + pb); \
-		vec3 eye_to_pos = x - eye_pos; \
-		float ddv = dot(eye_to_pos, view_dir); \
-		float key = (ddv < 0.0 ? -1.0 : 1.0) * dot(eye_to_pos, eye_to_pos);)";
-
-	render.sorter.set_key_definition_override(key_definition);
-	*/
-
-	// Initialize the last sort position and direction to zero to force a sorting step before the first draw call
-	last_sort_pos = vec3(0.0f);
-	last_sort_dir = vec3(0.0f);
-
-	bbox_rd.init(ctx);
-	bbox_wire_rd.init(ctx);
-
-	// initialize debug geometry
-	debug.geometry.nodes.init(ctx);
-	debug.geometry.segments.init(ctx);
-
-	// enable ambient occlusion
-	ao_style.enable = true;
-
-	// init data-dependent render state
-	update_attribute_bindings();
-	update_grid_ratios();
-
-	// init color maps
-	// - manager
-	color_map_mgr.init(ctx);
-
-	auto load_color_maps = [this](const std::string& file_name) {
-		cgv::app::color_map_reader::result color_maps;
-		if(cgv::app::color_map_reader::read_from_xml_file(file_name, color_maps))
-			for(const auto& entry : color_maps)
-				color_map_mgr.add_color_map(entry.first, entry.second, false);
-	};
-
-	auto load_color_maps_from_directory = [this, &load_color_maps](const std::string& dir_name) {
-		if(std::filesystem::exists(dir_name)) {
-			for(const auto& entry : std::filesystem::directory_iterator(dir_name)) {
-				std::filesystem::path entry_path = entry.path();
-				// only take xml files
-				if(entry_path.extension() == ".xml")
-					load_color_maps(entry_path.string());
-			}
-		}
-	};
-
-	// - load sequential and diverging color maps from the resource directory
-	load_color_maps_from_directory("res/color_maps/sequential");
-	load_color_maps_from_directory("res/color_maps/diverging");
-
-	color_map_mgr.update_texture(ctx);
-	if(cm_viewer_ptr) {
-		cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
-		cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
-	}
-
-	update_glyph_layer_managers();
-	compile_glyph_attribs();
-	ah_mgr.set_dataset(traj_mgr.dataset(0));
-
-	volume_tf.init(ctx);
-
-	// initialize temporal anti-aliasing
-	success &= taa.init(ctx);
-	taa.set_jitter_sample_count(8);
-	taa.set_mix_factor(0.125f);
-	taa.set_fxaa_mix_factor(0.5f);
-
-	// use white background for paper screenshots
-	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
-
-	////
-	// RTLola drone flight demo dataset map
-
-	// vertex structure for interleaved storage
-	struct rtlola_map_vertex {
-		vec4 pos;
-		vec4 color;
-		vec2 texcoord;
-	};
-
-	// vertex buffer element descriptors for each of our struct member types
-	const auto vec4desc = element_descriptor_traits<vec4>::get_type_descriptor(vec4());
-	const auto vec2desc = element_descriptor_traits<vec2>::get_type_descriptor(vec2());
-
-	// setup VBO and VAO
-	const shader_program &default_shader = ctx.ref_default_shader_program(true /* <-- texture support */);
-	success &= dataset.rtlola_map_vao.create(ctx);
-	success &= dataset.rtlola_map_vbo.create(ctx, std::vector<rtlola_map_vertex>{
-		{{-2544.4730907677954f, 581.5f, -837.50963767276119f, 1.f}, {1.f}, {0.f, 0.f}},
-		{{2004.4304399613477f, 581.5f, -837.50963767276119f, 1.f}, {1.f}, {1.f, 0.f}},
-		{{-2544.4730907677954f, 581.5f, 2506.1411020040873f, 1.f}, {1.f}, {0.f, 1.f}},
-		{{2004.4304399613477f, 581.5f, 2506.1411020040873f, 1.f}, {1.f}, {1.f, 1.f}}
-	});
-	success &= dataset.rtlola_map_vao.bind_attribute_array(
-		ctx, default_shader, "position", vec4desc,
-		dataset.rtlola_map_vbo, 0, 4, sizeof(rtlola_map_vertex)
-	);
-	success &= dataset.rtlola_map_vao.bind_attribute_array(
-		ctx, default_shader, "color", vec4desc,
-		dataset.rtlola_map_vbo, sizeof(vec4), 4, sizeof(rtlola_map_vertex)
-	);
-	success &= dataset.rtlola_map_vao.bind_attribute_array(
-		ctx, default_shader, "texcoord", vec2desc,
-		dataset.rtlola_map_vbo, 2*sizeof(vec4), 4, sizeof(rtlola_map_vertex)
-	);
-
-	// load map texture
-#ifdef CGV_FORCE_STATIC
-	// TODO: why is loading embedded image files in case of single-exe builds not handled automatically?
-	success &= dataset.rtlola_map_tex.create_from_image(ctx, "res://rtlola_droneflight.png");
-#else
-	success &= dataset.rtlola_map_tex.create_from_image(ctx, "res/rtlola_droneflight.png");
-#endif
-
-
-#ifdef RTX_SUPPORT
-	// ###############################
-	// ### BEGIN: OptiX integration
-	// ###############################
-
-	if (optix.enabled && !optix_ensure_init(ctx)) {
-		optix.enabled = false;
-		update_member(&optix.enabled);
-		success = false;
-	}
-
-	// ###############################
-	// ###  END:  OptiX integration
-	// ###############################
-#endif
-
-
-	// done
-	return success;
-}
-
 #ifdef RTX_SUPPORT
 // ###############################
 // ### BEGIN: OptiX integration
@@ -1649,8 +1644,8 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		const auto  sview = (stereo_view*)view_ptr;
 		const mat4  &MV    = MAT4(params.cam_MV) = ctx.get_modelview_matrix(),
 		            &P     = MAT4(params.cam_P) = ctx.get_projection_matrix(),
-		            &invMV = MAT4(params.cam_invMV) = cgv::math::inv(MV),
-		            &invP  = MAT4(params.cam_invP) = cgv::math::inv(P);
+		            &invMV = MAT4(params.cam_invMV) = cgv::math::inverse(MV),
+		            &invP  = MAT4(params.cam_invP) = cgv::math::inverse(P);
 		const float aspect = (float)ctx.get_width()/ctx.get_height(),
 		            stereo_eye_dist = (float)sview->get_eye_distance()/*,
 		            optixV_len = (float)view_ptr->get_tan_of_half_of_fovy(true),
@@ -1736,11 +1731,11 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		params.holo_eyes_dist = stereo_eye_dist;
 		params.parallax_zero_depth = (float)sview->get_parallax_zero_depth();
 		MAT4(params.holo_MV_left)  = stereo_modelview_matrix(-1.f);
-		MAT4(params.holo_invMV_left) = cgv::math::inv(MAT4(params.holo_MV_left));
+		MAT4(params.holo_invMV_left) = cgv::math::inverse(MAT4(params.holo_MV_left));
 		MAT4(params.holo_MV_right) = stereo_modelview_matrix( 1.f);
-		MAT4(params.holo_invMV_right) = cgv::math::inv(MAT4(params.holo_MV_right));
+		MAT4(params.holo_invMV_right) = cgv::math::inverse(MAT4(params.holo_MV_right));
 		mat4 &Pl = MAT4(params.holo_P_left)   = stereo_projection_matrix(-1.f, P);
-		MAT4(params.holo_invP_left) = cgv::math::inv(MAT4(params.holo_P_left));
+		MAT4(params.holo_invP_left) = cgv::math::inverse(MAT4(params.holo_P_left));
 		mat4 &Pr = MAT4(params.holo_P_right)  = stereo_projection_matrix( 1.f, P);
 		mat4 PC = stereo_projection_matrix(0, P), PCi = cgv::math::lerp(Pl, Pr, .5f);
 		//const_cast<mat4&>(P) = PCi; const_cast<mat4&>(invP) = cgv::math::inv(P);
@@ -1757,9 +1752,9 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		std::cerr << "invPC:" << std::endl << invPC << std::endl;
 		std::cerr << "invPr:" << std::endl << invPr << std::endl;
 		std::cerr << "=======================================================================================" << std::endl;*/
-		MAT4(params.holo_invP_right) = cgv::math::inv(MAT4(params.holo_P_right));
-		MAT4(params.holo_invMVP_left) = cgv::math::inv(MAT4(params.holo_P_left)) * MAT4(params.holo_MV_left);
-		MAT4(params.holo_invMVP_right) = cgv::math::inv(MAT4(params.holo_P_right)) * MAT4(params.holo_MV_right);
+		MAT4(params.holo_invP_right) = cgv::math::inverse(MAT4(params.holo_P_right));
+		MAT4(params.holo_invMVP_left) = cgv::math::inverse(MAT4(params.holo_P_left)) * MAT4(params.holo_MV_left);
+		MAT4(params.holo_invMVP_right) = cgv::math::inverse(MAT4(params.holo_P_right)) * MAT4(params.holo_MV_right);
 		/*params.holo_eye_left = MAT4(params.holo_invMV_left) * 
 		params.holo_eye_right = MAT4(params.holo_invMV_right) * */
 		// - upload to device
@@ -1827,7 +1822,7 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 // ###############################
 #endif
 
-void on_tube_vis::init_frame (cgv::render::context &ctx)
+void on_tube_vis::init_frame (context &ctx)
 {
 	// TODO: remove once all relevant view interactors provided by the framework properly fix the up-vector
 	/*if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
@@ -1836,7 +1831,7 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	// update color and mapping legends if necessary
 	if (update_legends) {
 		color_legend_mgr.compose(
-			ctx, traj_mgr.dataset(0), color_map_mgr, render.visualizations.front().manager.ref_glyph_attribute_mappings()
+			traj_mgr.dataset(0), color_map_mgr, render.visualizations.front().manager.ref_glyph_attribute_mappings()
 		);
 
 		if(mapping_legend_ptr)
@@ -2096,7 +2091,7 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 	}
 }
 
-void on_tube_vis::draw (cgv::render::context &ctx)
+void on_tube_vis::draw (context &ctx)
 {
 	// skip drawing until we have a pointer to the active view interactor
 	if(!view_ptr)
@@ -2204,6 +2199,7 @@ void on_tube_vis::after_finish(context& ctx) {
 		);
 
 		// set one of the loaded color maps as the transfer function for the volume renderer
+		/*
 		if(tf_editor_ptr) {
 			auto& cmcs = color_map_mgr.ref_color_maps();
 			for(auto& cmc : cmcs) {
@@ -2219,6 +2215,7 @@ void on_tube_vis::after_finish(context& ctx) {
 				}
 			}
 		}
+		*/
 
 		taa.set_view(view_ptr);
 	}
@@ -2507,7 +2504,7 @@ void on_tube_vis::set_view(void)
 	double extent_factor = debug.near_view ? debug.near_extent_factor : debug.far_extent_factor;
 	view_ptr->set_y_extent_at_focus(extent_factor * (double)length(bbox.get_extent()));
 
-	auto* cview_ptr = dynamic_cast<cgv::render::clipped_view*>(view_ptr);
+	auto* cview_ptr = dynamic_cast<clipped_view*>(view_ptr);
 	if(cview_ptr) {
 		// extent the bounding box to prevent accidental clipping of proxy geometry which could happen in certain scenarios.
 		box3 clip_bbox = bbox;
@@ -2614,7 +2611,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 			});
 		}
 		// - upload
-		cgv::render::vertex_buffer new_sbo(cgv::render::VBT_STORAGE, cgv::render::VBU_STATIC_READ);
+		vertex_buffer new_sbo(VertexBufferType::VBT_STORAGE, VertexBufferUsage::VBU_STATIC_READ);
 		if (!new_sbo.create(ctx, render_attribs))
 			std::cerr << "!!! unable to create render attribute Storage Buffer Object !!!" << std::endl << std::endl;
 		render.render_sbo = std::move(new_sbo);
@@ -2820,7 +2817,7 @@ void on_tube_vis::draw_dnd(context& ctx) {
 	// draw the text
 	ctx.push_pixel_coords();
 	ctx.set_color(dnd_col);
-	ctx.set_cursor(vecn(float(pos.x()), float(pos.y())), "", cgv::render::TA_TOP_LEFT);
+	ctx.set_cursor(vecn(float(pos.x()), float(pos.y())), "", TextAlignment::TA_TOP_LEFT);
 	ctx.output_stream() << dnd_drawtext.str();
 	ctx.output_stream().flush();
 	ctx.pop_pixel_coords();
@@ -3066,7 +3063,7 @@ void on_tube_vis::draw_density_volume(context& ctx) {
 	auto& vr = ref_volume_renderer(ctx);
 	vr.set_render_style(vstyle);
 	vr.set_volume_texture(&density_tex);
-	vr.set_transfer_function_texture(&volume_tf.ref_texture());
+	vr.set_transfer_function_texture(&volume_tf_adapter.get_texture(ctx));
 	
 	vr.set_bounding_box(density_volume.ref_voxel_grid().bounds);
 	vr.transform_to_bounding_box(true);

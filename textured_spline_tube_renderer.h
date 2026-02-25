@@ -114,6 +114,11 @@ namespace cgv { // @<
 				} debug;
 			} rcribbon;
 
+			/// special parameters for tessellated ribbon
+			struct {
+				// the number of subdivisions used per input hermite segment while tessellating the triangle strip that forms the ribbon; must be larger than 1; may not be larger than 7, depending on GPU capabilities
+				int subdivisions;
+			} gsribbon;
 			/// construct with default values
 			textured_spline_tube_render_style();
 
