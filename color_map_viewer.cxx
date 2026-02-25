@@ -10,19 +10,10 @@
 color_map_viewer::color_map_viewer() {
 
 	set_name("Color Map Viewer");
-
-	//blend_overlay = true;
-
 	layout.padding = padding();
-	layout.band_height = 18;
-	layout.total_height = 80;
-
-	set_size(cgv::ivec2(200u, layout.total_height));
+	set_size(cgv::ivec2(layout.preview_width + layout.label_width, layout.total_height));
 	
 	register_shader("rectangle", cgv::g2d::shaders::rectangle);
-	register_shader("color_maps", "color_maps.glpr");
-	
-	tex = nullptr;
 }
 
 void color_map_viewer::clear(cgv::render::context& ctx) {
@@ -48,9 +39,9 @@ void color_map_viewer::on_set(void* member_ptr) {
 	if(member_ptr == &layout.total_height || member_ptr == &layout.band_height) {
 		cgv::ivec2 size = get_rectangle().size;
 
-		if(tex) {
-			int h = static_cast<int>(tex->get_height());
-			layout.total_height = 2 * layout.padding + h * layout.band_height;
+		if(texture) {
+			int h = static_cast<int>(texture->get_height());
+			layout.total_height = 2 * layout.padding + h * layout.band_height + h - 1;
 		}
 
 		size.y() = layout.total_height;
@@ -84,28 +75,42 @@ void color_map_viewer::init_frame(cgv::render::context& ctx)
 
 void color_map_viewer::draw_content(cgv::render::context& ctx) {
 
-	if(!tex)
+	if(!texture)
 		return;
 
 	begin_content(ctx);
 	
-	// draw inner border
-	auto rectangle = get_content_rectangle();
-	rectangle.scale(1);
+	// draw border around color map previews
+	const auto& theme = cgv::gui::theme_info::instance();
+	auto border_rectangle = layout.color_map_rect;
+	border_rectangle.scale(1);
 
 	content_canvas.enable_shader(ctx, "rectangle");
-	content_canvas.set_style(ctx, border_style);
-	content_canvas.draw_shape(ctx, rectangle);
-	content_canvas.disable_current_shader(ctx);
+	content_canvas.set_style(ctx, solid_style);
+	content_canvas.draw_shape(ctx, border_rectangle, theme.border());
 	
-	// draw color scale texture
-	auto& color_maps_prog = content_canvas.enable_shader(ctx, "color_maps");
-	color_map_style.apply(ctx, color_maps_prog);
-	tex->enable(ctx, 0);
-	content_canvas.draw_shape(ctx, layout.color_map_rect);
-	tex->disable(ctx);
-	content_canvas.disable_current_shader(ctx);
+	// draw color map previews
+	auto color_map_rectangle = layout.color_map_rect;
+	color_map_rectangle.y() = layout.color_map_rect.y1() - layout.band_height;
+	color_map_rectangle.h() = layout.band_height;
+
+	texture->enable(ctx, 0);
 	
+	const float u_step = 1.0f / static_cast<float>(names.size());
+	float u_coord = 0.5f * u_step;
+
+	for(const auto& name : names) {
+		color_map_style.texcoord_offset = { 0.0f, u_coord };
+		content_canvas.set_style(ctx, color_map_style);
+		content_canvas.draw_shape(ctx, color_map_rectangle);
+
+		color_map_rectangle.y() -= layout.band_height + 1;
+		u_coord += u_step;
+	}
+	
+	texture->disable(ctx);
+	content_canvas.disable_current_shader(ctx);
+
 	// draw color scale names
 	cgv::g2d::ref_msdf_gl_font_renderer_2d(ctx).render(ctx, content_canvas, texts, text_style);
 
@@ -124,9 +129,9 @@ void color_map_viewer::set_color_map_names(const std::vector<std::string>& names
 	post_damage();
 }
 
-void color_map_viewer::set_color_map_texture(cgv::render::texture* tex) {
+void color_map_viewer::set_color_map_texture(cgv::render::texture* texture) {
 
-	this->tex = tex;
+	this->texture = texture;
 	on_set(&layout.total_height);
 	post_damage();
 }
@@ -134,23 +139,19 @@ void color_map_viewer::set_color_map_texture(cgv::render::texture* tex) {
 void color_map_viewer::init_styles() {
 	const auto& theme = cgv::gui::theme_info::instance();
 
-	// configure style for the border rectangles
-	border_style.fill_color = theme.border();
-	border_style.border_width = 0.0f;
-	border_style.feather_width = 0.0f;
+	// configure style for solid_color rectangles
+	solid_style.use_fill_color = false;
+	solid_style.feather_width = 0.0f;
 	
 	// configure style for the color scale rectangle
-	color_map_style = border_style;
+	color_map_style = solid_style;
 	color_map_style.use_texture = true;
+	color_map_style.texcoord_scaling = { 1.0f, 0.0f };
 
 	// configure text style
 	text_style.use_blending = true;
-	text_style.fill_color = cgv::rgb(1.0f);
-	text_style.border_color = cgv::rgb(0.0f);
-	text_style.border_radius = 0.5f;
-	text_style.border_width = 0.75f;
-	text_style.feather_origin = 0.35f;
-	text_style.font_size = 16.0f;
+	text_style.fill_color = theme.text();
+	text_style.font_size = 14.0f;
 }
 
 void color_map_viewer::update_texts(cgv::render::context& ctx) {
@@ -161,16 +162,13 @@ void color_map_viewer::update_texts(cgv::render::context& ctx) {
 
 	texts.texts = names;
 
-	int step = layout.color_map_rect.h() / static_cast<int>(names.size());
-	cgv::ivec2 base = layout.color_map_rect.position + cgv::ivec2(layout.color_map_rect.w() / 2, step / 2 - static_cast<int>(0.333f*text_style.font_size));
-	int i = 0;
+	cgv::vec3 position = cgv::vec3(static_cast<float>(layout.color_map_rect.x1() + layout.label_margin), static_cast<float>(layout.color_map_rect.y1() - layout.band_height), 0.0f);
+	position.y() += 0.5f * static_cast<float>(layout.band_height);
 	for(const auto& name : names) {
-		cgv::ivec2 p = base;
-		p.y() += (static_cast<int>(names.size())-i - 1)*step - 1;
-		texts.positions.emplace_back(p.x(), p.y(), 0.0f);
-		++i;
+		texts.positions.push_back(position);
+		position.y() -= static_cast<float>(layout.band_height) + 1.0f;
 	}
-	texts.alignment = cgv::render::TA_BOTTOM;
+	texts.alignment = cgv::render::TA_LEFT;
 	texts.create(ctx);
 	texts_out_of_date = false;
 }
