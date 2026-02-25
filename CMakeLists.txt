@@ -226,7 +226,7 @@ cgv_add_target(OnTubeVis
 	RESOURCES       ${IMAGES}
 	DEPENDENCIES
 		glew json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui
-		cgv_render cgv_os cg_fltk cgv_gl cg_ext cmc_crameri cmc_io cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d
+		cgv_render cgv_os cg_fltk cgv_gl cg_ext cmc_crameri cmc_io cmi_io cmf_tt_gl_font cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d
 		cgv_overlay cgv_post cgv_gpgpu screenshot ${OPTIONAL_DEPENDENCIES}
 
 	LINKTIME_PLUGIN_DEPENDENCIES

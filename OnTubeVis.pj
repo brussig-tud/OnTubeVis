@@ -17,7 +17,7 @@ addIncDirs=[
 excludeSourceFiles=[INPUT_DIR."/optixtracer_textured_spline_tube.cxx", INPUT_DIR."/optix_integration.cxx"];
 addProjectDeps=[
 	"cgv_utils", "cgv_type", "cgv_reflect", "cgv_data", "cgv_signal", "cgv_base", "cgv_media",  "cgv_gui",
-	"cgv_render", "cgv_os", "cgv_viewer", "glew", "cgv_gl", "cg_fltk", "cg_ext", "cmc_crameri", "cmc_io", "cmi_io", "crg_stereo_view",
+	"cgv_render", "cgv_os", "cgv_viewer", "glew", "cgv_gl", "cg_fltk", "cg_ext", "cmc_crameri", "cmc_io", "cmi_io", "cmf_tt_gl_font", "crg_stereo_view",
 	"crg_light", "crg_grid", "cgv_g2d", "cgv_overlay", "cgv_post", "cgv_gpgpu", "cuda_resprep", "screenshot"
 ];
 if (env["CUDA_PATH"]) {

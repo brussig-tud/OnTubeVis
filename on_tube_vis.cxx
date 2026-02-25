@@ -21,10 +21,6 @@
 // CGV framework libraries
 #include <cmc_crameri/schemes.h>
 
-// CGV framework application utility
-//#include <cgv_app/color_map_reader.h>
-//#include <cgv_app/color_map_writer.h>
-
 // CGV framework plugins
 // - fltk_gl_view for controlling instant redraw
 #include <plugins/cg_fltk/fltk_gl_view.h>
@@ -2815,9 +2811,12 @@ void on_tube_vis::draw_dnd(context& ctx) {
 	// - then, absolutely prevent truncation at the top border
 	pos.y() = std::max(viewport[1] + signed(s), pos.y());
 	// draw the text
+	// ToDo: FixMe: This is a fix to get drawing text to work. The gl_context provides a default font face but does not set the current_font_face member of the context base class.
+	// Meanwhile the draw_text implementation of context uses the current_font member which is empty by default. It should instead get the current font facethrough a call to get_current_font_face.
+	ctx.enable_font_face(ctx.get_current_font_face(), ctx.get_current_font_size());
 	ctx.push_pixel_coords();
 	ctx.set_color(dnd_col);
-	ctx.set_cursor(vecn(float(pos.x()), float(pos.y())), "", TextAlignment::TA_TOP_LEFT);
+	ctx.set_cursor(cgv::vec3(static_cast<float>(pos.x()), static_cast<float>(pos.y()), 0.0f), "", TextAlignment::TA_TOP_LEFT);
 	ctx.output_stream() << dnd_drawtext.str();
 	ctx.output_stream().flush();
 	ctx.pop_pixel_coords();
