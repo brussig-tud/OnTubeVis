@@ -112,7 +112,7 @@ void color_map_manager::create_color_map() {
 	
 	last_action_type = AT_CONFIGURATION_CHANGE;
 	if(base_ptr) {
-		auto provider = base_ptr.down_cast<cgv::gui::provider>();
+		auto provider = dynamic_cast<cgv::gui::provider*>(&(*base_ptr));
 		if(provider)
 			provider->update_member(&new_name);
 		base_ptr->on_set(this);
