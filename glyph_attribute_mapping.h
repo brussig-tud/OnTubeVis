@@ -35,11 +35,6 @@ struct scalar_mapping {
 };
 
 class glyph_attribute_mapping {
-public:
-	using vec2 = cgv::vec2;
-	using vec4 = cgv::vec4;
-	using rgb = cgv::rgb;
-
 protected:
 	ActionType last_action_type = AT_NONE;
 
@@ -53,12 +48,12 @@ protected:
 	GlyphType type = GT_CIRCLE;
 	glyph_shape* shape_ptr = nullptr;
 
-	std::vector<cgv::type::DummyEnum> attrib_source_indices;
-	std::vector<cgv::type::DummyEnum> color_source_indices;
+	std::vector<int> attrib_source_indices;
+	std::vector<int> color_source_indices;
 	std::vector<scalar_mapping> attrib_mapping_values;
 	// Use bool class type to prevent specialization of std::vector.
 	std::vector<cgv::type::bool32_t> reverse_colors;
-	std::vector<rgb> attrib_colors;
+	std::vector<cgv::rgb> attrib_colors;
 	
 	void on_set(void* member_ptr, cgv::base::base* base_ptr);
 
@@ -74,15 +69,14 @@ protected:
 		return cp;
 	}
 
-	int dummy_enum_to_int(cgv::type::DummyEnum index) const;
-
-	cgv::type::DummyEnum int_to_dummy_enum(int index) const;
-
 	std::string to_display_str(const std::string& name) const;
 
 	void create_attribute_gui(cgv::base::base* bp, cgv::gui::provider& p, const size_t i, const glyph_attribute& attrib, const bool global_block);
 
 public:
+	// the index used to indicate unmapped attributes
+	static const int k_unmapped_index = -1;
+
 	glyph_attribute_mapping();
 
 	glyph_attribute_mapping(const glyph_attribute_mapping& other);
@@ -135,56 +129,27 @@ public:
 
 	void set_glyph_type(GlyphType type);
 
-	const std::vector<int> get_attrib_indices() const;
+	const std::vector<int> get_attrib_indices() const { return attrib_source_indices; }
 
-	const std::vector<int> get_color_map_indices() const;
+	const std::vector<int> get_color_map_indices() const { return color_source_indices; }
 
 	const std::vector<scalar_mapping> &ref_attrib_mapping_values() const { return attrib_mapping_values; }
 
-	const std::vector<rgb>& ref_attrib_colors() const { return attrib_colors; }
+	const std::vector<cgv::rgb>& ref_attrib_colors() const { return attrib_colors; }
 
 	const std::shared_ptr<const visualization_variables_info> get_visualization_variables() const { return visualization_variables; }
 
-	void set_visualization_variables(std::shared_ptr<const visualization_variables_info> variables) {
-		
-		visualization_variables = variables;
-	
-		for(size_t i = 0; i < attrib_mapping_values.size(); ++i) {
-			int attrib_idx = dummy_enum_to_int(attrib_source_indices[i]);
-			if(attrib_idx > -1) {
-				const vec2& range = visualization_variables->ref_attribute_ranges()[attrib_idx];
-				attrib_mapping_values[i].input_range = range;
-			}
-		}
-	}
+	void set_visualization_variables(std::shared_ptr<const visualization_variables_info> variables);
+
+	void set_attrib_source_index(size_t attrib_idx, int source_idx);
+
+	void set_color_source_index(size_t color_idx, int source_idx);
+
+	void set_attrib_in_range(size_t idx, const cgv::vec2& range);
+
+	void set_attrib_out_range(size_t idx, const cgv::vec2& range);
+
+	void set_attrib_color(size_t idx, const cgv::rgb& color);
 
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
-
-	void set_attrib_source_index(size_t attrib_idx, int source_idx) {
-		if(attrib_idx < attrib_source_indices.size())
-			attrib_source_indices[attrib_idx] = int_to_dummy_enum(source_idx);
-	}
-
-	void set_color_source_index(size_t color_idx, int source_idx) {
-		if(color_idx < color_source_indices.size())
-			color_source_indices[color_idx] = int_to_dummy_enum(source_idx);
-	}
-
-	void set_attrib_in_range(size_t idx, const vec2& range) {
-		if(idx < attrib_mapping_values.size()) {
-			attrib_mapping_values[idx].input_range = range;
-		}
-	}
-
-	void set_attrib_out_range(size_t idx, const vec2& range) {
-		if(idx < attrib_mapping_values.size()) {
-			attrib_mapping_values[idx].output_range = range;
-			reverse_colors[idx] = range.x() > range.y();
-		}
-	}
-
-	void set_attrib_color(size_t idx, const rgb& color) {
-		if(idx < attrib_colors.size())
-			attrib_colors[idx] = color;
-	}
 };
