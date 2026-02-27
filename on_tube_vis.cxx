@@ -2997,11 +2997,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		prog.set_uniform(ctx, "length_scale", render.style.length_scale);
 		prog.set_uniform(ctx, "antialias_radius", render.style.antialias_radius);
 
-		const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
-
-		prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
-		prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
-		prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
+		ctx.set_material(render.style.material);
+		prog.set_uniform(ctx, "map_color_to_material", static_cast<int>(render.style.map_color_to_material));
+		prog.set_uniform(ctx, "culling_mode", static_cast<int>(render.style.culling_mode));
+		prog.set_uniform(ctx, "illumination_mode", static_cast<int>(render.style.illumination_mode));
 
 		#ifdef RTX_SUPPORT
 			prog.set_uniform(ctx, "holographic_raycast", optix.enabled && optix.initialized && optix.holographic);

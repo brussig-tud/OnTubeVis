@@ -13,11 +13,6 @@ namespace cgv {
 			return r;
 		}
 
-		render_style* textured_spline_tube_renderer::create_render_style() const
-		{
-			return new textured_spline_tube_render_style();
-		}
-
 		textured_spline_tube_render_style::textured_spline_tube_render_style()
 		{
 			radius_scale = 1.0f;
@@ -49,36 +44,8 @@ namespace cgv {
 			gsribbon.subdivisions = 4;
 		}
 
-		textured_spline_tube_renderer::textured_spline_tube_renderer()
-		{
-			has_node_ids = false;
-			has_radii = false;
-			has_tangents = false;
-			last_active_line_primitive = textured_spline_tube_render_style::LP_TUBE_RUSSIG;
-		}
-
-		/// call this before setting attribute arrays to manage attribute array in given manager
-		void textured_spline_tube_renderer::enable_attribute_array_manager(const context& ctx, attribute_array_manager& aam)
-		{
-			surface_renderer::enable_attribute_array_manager(ctx, aam);
-			if (has_attribute(ctx, "radius"))
-				has_radii = true;
-			if (has_attribute(ctx, "tangent"))
-				has_tangents = true;
-		}
-		/// call this after last render/draw call to ensure that no other users of renderer change attribute arrays of given manager
-		void textured_spline_tube_renderer::disable_attribute_array_manager(const context& ctx, attribute_array_manager& aam)
-		{
-			surface_renderer::disable_attribute_array_manager(ctx, aam);
-			has_radii = false;
-			has_tangents = false;
-		}
 		bool textured_spline_tube_renderer::validate_attributes(const context& ctx) const
 		{
-			// validate set attributes
-			//bool res = surface_renderer::validate_attributes(ctx);
-			//return res;
-
 			if(!has_node_ids) {
 				ctx.error("renderer::enable() node id attribute not set");
 				return false;
@@ -144,7 +111,7 @@ namespace cgv {
 				init(ctx);
 			}
 
-			if (!surface_renderer::enable(ctx))
+			if (!renderer::enable(ctx))
 				return false;
 			
 			if(!ref_prog().is_linked())
@@ -165,16 +132,6 @@ namespace cgv {
 
 			return true;
 		}
-		///
-		bool textured_spline_tube_renderer::disable(context& ctx)
-		{
-			if (!attributes_persist()) {
-				has_radii = false;
-				has_tangents = false;
-			}
-
-			return surface_renderer::disable(ctx);
-		}
 
 		void textured_spline_tube_renderer::draw(context& ctx, size_t start, size_t count, bool use_strips, bool use_adjacency, uint32_t strip_restart_index)
 		{
@@ -186,7 +143,12 @@ namespace cgv {
 		bool textured_spline_tube_render_style_reflect::self_reflect(cgv::reflect::reflection_handler& rh)
 		{
 			return
-				rh.reflect_base(*static_cast<surface_render_style*>(this)) &&
+				rh.reflect_member("culling_mode", culling_mode) &&
+				rh.reflect_member("illumination_mode", illumination_mode) &&
+				rh.reflect_member("map_color_to_material", map_color_to_material) &&
+				rh.reflect_member("surface_color", surface_color) &&
+				rh.reflect_member("max_nr_lights", max_nr_lights) &&
+				rh.reflect_member("material", material);
 				rh.reflect_member("line_primitive", line_primitive) &&
 				rh.reflect_member("radius", radius) &&
 				rh.reflect_member("radius_scale", radius_scale) &&
@@ -273,7 +235,29 @@ namespace cgv {
 			p->add_member_control(b, "Cap Clip Distance", rs_ptr->cap_clip_distance, "value_slider", "min=0.0;max=100.0;step=0.01;ticks=true");
 			p->add_member_control(b, "Attribute-Less Mode", rs_ptr->attrib_mode, "dropdown", "enums='Off,No curve data,No node color,Attribute-less'");
 
-			p->add_gui("surface_render_style", *static_cast<cgv::render::surface_render_style*>(rs_ptr));
+			if(p->begin_tree_node("Color Mapping", rs_ptr->map_color_to_material, false, "level=3")) {
+				p->align("\a");
+				p->add_gui("Map Color to Material", rs_ptr->map_color_to_material, "bit_field_control",
+					"enums='Color Front=1,Color Back=2,Opacity Front=4,Opacity Back=8'");
+				p->align("\b");
+				p->end_tree_node(rs_ptr->map_color_to_material);
+			}
+			p->add_member_control(b, "Illumination Mode", rs_ptr->illumination_mode, "dropdown", "enums='Off,One-Sided,Two-Sided'");
+			p->add_member_control(b, "Max Nr Light", rs_ptr->max_nr_lights, "value_slider", "min=1;max=8;ticks=true");
+			p->add_member_control(b, "Culling Mode", rs_ptr->culling_mode, "dropdown", "enums='Off,Backface,Frontface'");
+			if(p->begin_tree_node("Color and Materials", rs_ptr->surface_color, false, "level=3")) {
+				p->align("\a");
+				p->add_member_control(b, "Surface Color", rs_ptr->surface_color);
+				p->add_member_control(b, "Surface Opacity", rs_ptr->surface_opacity, "value_slider", "min=0.0;step=0.01;max=1.0;log=false;ticks=true");
+				if(p->begin_tree_node("Material", rs_ptr->material, false, "level=3")) {
+					p->align("\a");
+					p->add_gui("front_material", rs_ptr->material);
+					p->align("\b");
+					p->end_tree_node(rs_ptr->material);
+				}
+				p->align("\b");
+				p->end_tree_node(rs_ptr->surface_color);
+			}
 
 			if(p->begin_tree_node("Debug Options", rs_ptr->fragment_mode, false, "level=3")) {
 				p->align("\a");
