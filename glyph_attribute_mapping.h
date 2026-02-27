@@ -46,7 +46,7 @@ protected:
 	AttributeSamplingStrategy sampling_strategy = ASS_AT_SAMPLES;
 	float sampling_step = 1.0f;
 	GlyphType type = GT_CIRCLE;
-	glyph_shape* shape_ptr = nullptr;
+	std::unique_ptr<glyph_shape> shape;
 
 	std::vector<int> attrib_source_indices;
 	std::vector<int> color_source_indices;
@@ -85,11 +85,8 @@ public:
 
 	glyph_attribute_mapping& operator=(glyph_attribute_mapping other);
 
-	~glyph_attribute_mapping();
-
 	friend void swap(glyph_attribute_mapping& first, glyph_attribute_mapping& second) {
 		using std::swap;
-
 		swap(first.name, second.name);
 		swap(first.active, second.active);
 		swap(first.sampling_strategy, second.sampling_strategy);
@@ -101,8 +98,7 @@ public:
 		swap(first.reverse_colors, second.reverse_colors);
 		swap(first.attrib_colors, second.attrib_colors);
 		swap(first.visualization_variables, second.visualization_variables);
-
-		swap(first.shape_ptr, second.shape_ptr);
+		first.shape.swap(second.shape);
 	}
 
 	ActionType action_type();
@@ -125,7 +121,7 @@ public:
 
 	void set_sampling_step(float step) { sampling_step = step; }
 
-	const glyph_shape* get_shape_ptr() const { return shape_ptr; }
+	const glyph_shape* get_shape() const { return shape.get(); }
 
 	void set_glyph_type(GlyphType type);
 

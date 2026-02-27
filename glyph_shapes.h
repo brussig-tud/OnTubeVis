@@ -1,6 +1,8 @@
 #pragma once
 
 #include <map>
+#include <memory>
+
 #include <cgv/math/fvec.h>
 #include <cgv/math/fmat.h>
 #include <cgv/math/functions.h>
@@ -67,7 +69,7 @@ public:
 
 	virtual ~glyph_shape() {}
 
-	virtual glyph_shape* copy() const = 0;
+	virtual std::unique_ptr<glyph_shape> clone() const = 0;
 
 	virtual GlyphType type() const = 0;
 	virtual std::string name() const = 0;
@@ -91,19 +93,20 @@ public:
 
 class color_glyph : public glyph_shape {
 public:
-	virtual color_glyph* copy() const {
-		return new color_glyph(*this);
+	std::unique_ptr<glyph_shape> clone() const override {
+		return std::unique_ptr<glyph_shape>(new color_glyph(*this));
+		//return std::make_unique<glyph_shape>(*this);
 	}
 
-	virtual GlyphType type() const {
+	GlyphType type() const override {
 		return GT_COLOR;
 	}
 
-	virtual std::string name() const {
+	std::string name() const override {
 		return "color";
 	}
 
-	virtual const attribute_list& supported_attributes() const {
+	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "interpolate", GAT_UNIT, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START }
@@ -111,14 +114,14 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	float get_size(const std::vector<float>& param_values) const override {
 		// a negative size tells the glyph layout algorithm to never skip these glyphs
 		// and that they are potentially infinite in size (the glyph will stretch as long
 		// as a next one is placed)
 		return -1.0f;
 	}
 
-	virtual std::string splat_func() const {
+	std::string splat_func() const override {
 		return "splat_color";
 	}
 };
@@ -126,19 +129,19 @@ public:
 
 class circle_glyph : public glyph_shape {
 public:
-	virtual circle_glyph* copy() const {
-		return new circle_glyph(*this);
+	std::unique_ptr<glyph_shape> clone() const override {
+		return std::make_unique<circle_glyph>(*this);
 	}
 
-	virtual GlyphType type() const {
+	GlyphType type() const override {
 		return GT_CIRCLE;
 	}
 
-	virtual std::string name() const {
+	std::string name() const override {
 		return "circle";
 	}
 
-	virtual const attribute_list& supported_attributes() const {
+	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
@@ -147,7 +150,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	float get_size(const std::vector<float>& param_values) const override {
 		// size is two times the radius, a.k.a. the diameter of the circle
 		return 2.0f * param_values[1];
 	}
@@ -155,19 +158,19 @@ public:
 
 class rectangle_glyph : public glyph_shape {
 public:
-	virtual rectangle_glyph* copy() const {
-		return new rectangle_glyph(*this);
+	std::unique_ptr<glyph_shape> clone() const override {
+		return std::make_unique<rectangle_glyph>(*this);
 	}
 
-	virtual GlyphType type() const {
+	GlyphType type() const override {
 		return GT_RECTANGLE;
 	}
 
-	virtual std::string name() const {
+	std::string name() const override {
 		return "rectangle";
 	}
 
-	virtual const attribute_list& supported_attributes() const {
+	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
@@ -177,7 +180,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	float get_size(const std::vector<float>& param_values) const override {
 		// size is just the length/width, height is irrelevant
 		return param_values[1];
 	}
@@ -185,19 +188,19 @@ public:
 
 class wedge_glyph : public glyph_shape {
 public:
-	virtual wedge_glyph* copy() const {
-		return new wedge_glyph(*this);
+	std::unique_ptr<glyph_shape> clone() const override {
+		return std::make_unique<wedge_glyph>(*this);
 	}
 
-	virtual GlyphType type() const {
+	GlyphType type() const override {
 		return GT_WEDGE;
 	}
 
-	virtual std::string name() const {
+	std::string name() const override {
 		return "wedge";
 	}
 
-	virtual const attribute_list& supported_attributes() const {
+	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
@@ -208,7 +211,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	float get_size(const std::vector<float>& param_values) const override {
 		// use just the radius as it gives a more uniform (or visually pleasing) spacing
 		// for complete correctness, aperture and orientation would need to be considered as well
 		return 2.0f * param_values[1];
@@ -217,19 +220,19 @@ public:
 
 class flat_arc_glyph : public glyph_shape {
 public:
-	virtual flat_arc_glyph* copy() const {
-		return new flat_arc_glyph(*this);
+	std::unique_ptr<glyph_shape> clone() const override {
+		return std::make_unique<flat_arc_glyph>(*this);
 	}
 
-	virtual GlyphType type() const {
+	GlyphType type() const override {
 		return GT_ARC_FLAT;
 	}
 
-	virtual std::string name() const {
+	std::string name() const override {
 		return "arc_flat";
 	}
 
-	virtual const attribute_list& supported_attributes() const {
+	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
@@ -241,7 +244,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	float get_size(const std::vector<float>& param_values) const override {
 		// use just the radius and thickness as it gives a more uniform (or visually pleasing) spacing
 		// for complete correctness, aperture and orientation would need to be considered as well
 		return 2.0f * (param_values[1] + param_values[2]);
@@ -250,34 +253,34 @@ public:
 
 class rounded_arc_glyph : public flat_arc_glyph {
 public:
-	virtual rounded_arc_glyph* copy() const {
-		return new rounded_arc_glyph(*this);
+	std::unique_ptr<glyph_shape> clone() const override {
+		return std::make_unique<rounded_arc_glyph>(*this);
 	}
 
-	virtual GlyphType type() const {
+	GlyphType type() const override {
 		return GT_ARC_ROUNDED;
 	}
 
-	virtual std::string name() const {
+	std::string name() const override {
 		return "arc_rounded";
 	}
 };
 
 class isoceles_triangle_glyph : public glyph_shape {
 public:
-	virtual isoceles_triangle_glyph* copy() const {
-		return new isoceles_triangle_glyph(*this);
+	std::unique_ptr<glyph_shape> clone() const override {
+		return std::make_unique<isoceles_triangle_glyph>(*this);
 	}
 
-	virtual GlyphType type() const {
+	GlyphType type() const override {
 		return GT_TRIANGLE;
 	}
 
-	virtual std::string name() const {
+	std::string name() const override {
 		return "triangle_isosceles";
 	}
 
-	virtual const attribute_list& supported_attributes() const {
+	const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
 			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
@@ -288,7 +291,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	float get_size(const std::vector<float>& param_values) const override {
 		// TODO: bounding box does not work right now
 
 		// build rotation matrix like in the shader
@@ -332,19 +335,19 @@ public:
 
 class drop_glyph : public glyph_shape {
 public:
-	virtual drop_glyph* copy() const {
-		return new drop_glyph(*this);
+	std::unique_ptr<glyph_shape> clone() const override {
+		return std::make_unique<drop_glyph>(*this);
 	}
 
-	virtual GlyphType type() const {
+	GlyphType type() const override {
 		return GT_DROP;
 	}
 
-	virtual std::string name() const {
+	std::string name() const override {
 		return "drop";
 	}
 
-	virtual const attribute_list& supported_attributes() const {
+	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
@@ -359,19 +362,19 @@ public:
 
 class sign_blob_glyph : public glyph_shape {
 public:
-	virtual sign_blob_glyph* copy() const {
-		return new sign_blob_glyph(*this);
+	std::unique_ptr<glyph_shape> clone() const override {
+		return std::make_unique<sign_blob_glyph>(*this);
 	}
 
-	virtual GlyphType type() const {
+	GlyphType type() const override {
 		return GT_SIGN_BLOB;
 	}
 
-	virtual std::string name() const {
+	std::string name() const override {
 		return "sign_blob";
 	}
 
-	virtual const attribute_list& supported_attributes() const {
+	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "size", GAT_SIZE, GAM_GLOBAL },
@@ -381,7 +384,7 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	float get_size(const std::vector<float>& param_values) const override {
 		// size is the total width of the glyph but depends on the current shape, which depends on the mapped value
 		float s = param_values[1];
 		float v = param_values[2];
@@ -397,19 +400,19 @@ public:
 
 class star_glyph : public glyph_shape {
 public:
-	virtual star_glyph* copy() const {
-		return new star_glyph(*this);
+	std::unique_ptr<glyph_shape> clone() const override {
+		return std::make_unique<star_glyph>(*this);
 	}
 
-	virtual GlyphType type() const {
+	GlyphType type() const override {
 		return GT_STAR;
 	}
 
-	virtual std::string name() const {
+	std::string name() const override {
 		return "star";
 	}
 
-	virtual const attribute_list& supported_attributes() const {
+	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "radius", GAT_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "secondary_color", GAT_COLOR, GAM_GLOBAL },
@@ -432,31 +435,31 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	float get_size(const std::vector<float>& param_values) const override {
 		// size is two times the radius, a.k.a. the diameter
 		return 2.0f * param_values[0];
 	}
 
-	virtual std::string splat_func() const {
+	std::string splat_func() const override {
 		return "splat_star";
 	}
 };
 
 class line_plot_glyph : public glyph_shape {
 public:
-	virtual line_plot_glyph* copy() const {
-		return new line_plot_glyph(*this);
+	std::unique_ptr<glyph_shape> clone() const override {
+		return std::make_unique<line_plot_glyph>(*this);
 	}
 
-	virtual GlyphType type() const {
+	GlyphType type() const override {
 		return GT_LINE_PLOT;
 	}
 
-	virtual std::string name() const {
+	std::string name() const override {
 		return "line_plot";
 	}
 
-	virtual const attribute_list& supported_attributes() const {
+	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "interpolate", GAT_UNIT, GAM_GLOBAL },
@@ -472,33 +475,33 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	float get_size(const std::vector<float>& param_values) const override {
 		// a negative size tells the glyph layout algorithm to never skip these glyphs
 		// and that they are potentially infinite in size (the glyph will stretch as long
 		// as a next one is placed)
 		return -1.0f;
 	}
 
-	virtual std::string splat_func() const {
+	std::string splat_func() const override {
 		return "splat_line_plot";
 	}
 };
 
 class temporal_heat_map_glyph : public glyph_shape {
 public:
-	virtual temporal_heat_map_glyph* copy() const {
-		return new temporal_heat_map_glyph(*this);
+	std::unique_ptr<glyph_shape> clone() const override {
+		return std::make_unique<temporal_heat_map_glyph>(*this);
 	}
 
-	virtual GlyphType type() const {
+	GlyphType type() const override {
 		return GT_TEMPORAL_HEAT_MAP;
 	}
 
-	virtual std::string name() const {
+	std::string name() const override {
 		return "temporal_heat_map";
 	}
 
-	virtual const attribute_list& supported_attributes() const {
+	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "interpolate", GAT_UNIT, GAM_GLOBAL },
@@ -511,14 +514,14 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {
+	float get_size(const std::vector<float>& param_values) const override {
 		// a negative size tells the glyph layout algorithm to never skip these glyphs
 		// and that they are potentially infinite in size (the glyph will stretch as long
 		// as a next one is placed)
 		return -1.0f;
 	}
 
-	virtual std::string splat_func() const {
+	std::string splat_func() const override {
 		return "splat_temporal_heat_map";
 	}
 };
@@ -600,25 +603,21 @@ struct glyph_type_registry {
 };
 
 struct glyph_shape_factory {
-	static glyph_shape* create(const GlyphType type) {
-		glyph_shape* shape_ptr = nullptr;
-
+	static std::unique_ptr<glyph_shape> create(const GlyphType type) {
 		switch(type) {
-		case GT_COLOR: shape_ptr = new color_glyph(); break;
-		case GT_CIRCLE: shape_ptr = new circle_glyph(); break;
-		case GT_RECTANGLE: shape_ptr = new rectangle_glyph(); break;
-		case GT_WEDGE: shape_ptr = new wedge_glyph(); break;
-		case GT_ARC_FLAT: shape_ptr = new flat_arc_glyph(); break;
-		case GT_ARC_ROUNDED: shape_ptr = new rounded_arc_glyph(); break;
-		case GT_TRIANGLE: shape_ptr = new isoceles_triangle_glyph(); break;
-		case GT_DROP: shape_ptr = new drop_glyph(); break;
-		case GT_SIGN_BLOB: shape_ptr = new sign_blob_glyph(); break;
-		case GT_STAR: shape_ptr = new star_glyph(); break;
-		case GT_LINE_PLOT: shape_ptr = new line_plot_glyph(); break;
-		case GT_TEMPORAL_HEAT_MAP: shape_ptr = new temporal_heat_map_glyph(); break;
-		default: shape_ptr = new circle_glyph(); break;
+		case GT_COLOR: return std::make_unique<color_glyph>();
+		case GT_CIRCLE: return std::make_unique<circle_glyph>();
+		case GT_RECTANGLE: return std::make_unique<rectangle_glyph>();
+		case GT_WEDGE: return std::make_unique<wedge_glyph>();
+		case GT_ARC_FLAT: return std::make_unique<flat_arc_glyph>();
+		case GT_ARC_ROUNDED: return std::make_unique<rounded_arc_glyph>();
+		case GT_TRIANGLE: return std::make_unique<isoceles_triangle_glyph>();
+		case GT_DROP: return std::make_unique<drop_glyph>();
+		case GT_SIGN_BLOB: return std::make_unique<sign_blob_glyph>();
+		case GT_STAR: return std::make_unique<star_glyph>();
+		case GT_LINE_PLOT: return std::make_unique<line_plot_glyph>();
+		case GT_TEMPORAL_HEAT_MAP: return std::make_unique<temporal_heat_map_glyph>();
+		default: return std::make_unique<color_glyph>();
 		}
-
-		return shape_ptr;
 	}
 };

@@ -18,8 +18,7 @@ glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& 
 	reverse_colors(other.reverse_colors),
 	attrib_colors(other.attrib_colors),
 	visualization_variables(other.visualization_variables) {
-	if(other.shape_ptr)
-		shape_ptr = other.shape_ptr->copy();
+	shape = other.shape->clone();
 }
 
 glyph_attribute_mapping::glyph_attribute_mapping(glyph_attribute_mapping&& other) noexcept : glyph_attribute_mapping() {
@@ -29,10 +28,6 @@ glyph_attribute_mapping::glyph_attribute_mapping(glyph_attribute_mapping&& other
 glyph_attribute_mapping& glyph_attribute_mapping::operator=(glyph_attribute_mapping other) {
 	swap(*this, other);
 	return *this;
-}
-
-glyph_attribute_mapping::~glyph_attribute_mapping() {
-	delete shape_ptr;
 }
 
 ActionType glyph_attribute_mapping::action_type() {
@@ -50,9 +45,9 @@ void glyph_attribute_mapping::set_visualization_variables(std::shared_ptr<const 
 	visualization_variables = variables;
 
 	for(size_t i = 0; i < attrib_mapping_values.size(); ++i) {
-		int idx = attrib_source_indices[i];
-		if(idx != k_unmapped_index)
-			attrib_mapping_values[i].input_range = visualization_variables->ref_attribute_ranges()[idx];
+		int attrib_idx = attrib_source_indices[i];
+		if(attrib_idx != k_unmapped_index)
+			attrib_mapping_values[i].input_range = visualization_variables->ref_attribute_ranges()[attrib_idx];
 	}
 }
 
@@ -84,7 +79,7 @@ void glyph_attribute_mapping::set_attrib_color(size_t idx, const cgv::rgb& color
 }
 
 void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
-	if(!shape_ptr)
+	if(!shape)
 		return;
 
 	add_local_member_control(p, bp, "Name", name, "", "w=146", "%x+=2");
@@ -98,8 +93,8 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='" + enums + "'");
 	
 	bool global_block = false;
-	for(size_t i = 0; i < shape_ptr->supported_attributes().size(); ++i) {
-		const glyph_attribute& attrib = shape_ptr->supported_attributes()[i];
+	for(size_t i = 0; i < shape->supported_attributes().size(); ++i) {
+		const glyph_attribute& attrib = shape->supported_attributes()[i];
 
 		bool separator_requested = false;
 		if(attrib.gui_hint == GH_BLOCK_START) {
@@ -134,21 +129,19 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 		create_glyph_shape();
 	}
 
-	for(size_t i = 0; i < attrib_source_indices.size(); ++i) {
-		if(member_ptr == &attrib_source_indices[i]) {
-			last_action_type = AT_CONFIGURATION_CHANGE;
-			int idx = attrib_source_indices[i];
-			if(idx != k_unmapped_index)
-				attrib_mapping_values[i].input_range = visualization_variables->ref_attribute_ranges()[idx];
-		}
+	if(auto it = ptr.find_in_data_of(attrib_source_indices); it != attrib_source_indices.end()) {
+		last_action_type = AT_CONFIGURATION_CHANGE;
+		int attrib_idx = *it;
+		if(attrib_idx != k_unmapped_index)
+			attrib_mapping_values[std::distance(attrib_source_indices.begin(), it)].input_range = visualization_variables->ref_attribute_ranges()[attrib_idx];
 	}
 
 	if(ptr.points_to_data_of(color_source_indices))
 		last_action_type = AT_CONFIGURATION_CHANGE;
 
-	for(size_t i = 0; i < reverse_colors.size(); ++i) {
-		if(ptr.points_to(reverse_colors[i]))
-			attrib_mapping_values[i].output_range = reverse_colors[i] ? cgv::vec2(1.0f, 0.0f) : cgv::vec2(0.0f, 1.0f);
+	if(auto it = ptr.find_in_data_of(reverse_colors); it != reverse_colors.end()) {
+		cgv::type::bool32_t is_reversed = *it;
+		attrib_mapping_values[std::distance(reverse_colors.begin(), it)].output_range = is_reversed ? cgv::vec2(1.0f, 0.0f) : cgv::vec2(0.0f, 1.0f);
 	}
 
 	base_ptr->on_set(this);
@@ -161,10 +154,7 @@ void glyph_attribute_mapping::update_name(cgv::base::base* base_ptr) {
 }
 
 void glyph_attribute_mapping::create_glyph_shape() {
-	if(shape_ptr)
-		delete shape_ptr;
-
-	shape_ptr = glyph_shape_factory::create(type);
+	shape = glyph_shape_factory::create(type);
 
 	attrib_source_indices.clear();
 	color_source_indices.clear();
@@ -172,12 +162,12 @@ void glyph_attribute_mapping::create_glyph_shape() {
 	reverse_colors.clear();
 	attrib_colors.clear();
 
-	size_t attrib_count = shape_ptr->supported_attributes().size();
+	size_t attrib_count = shape->supported_attributes().size();
 	attrib_source_indices.resize(attrib_count, k_unmapped_index);
 	color_source_indices.resize(attrib_count, k_unmapped_index);
 
 	for(size_t i = 0; i < attrib_count; ++i) {
-		GlyphAttributeType type = shape_ptr->supported_attributes()[i].type;
+		GlyphAttributeType type = shape->supported_attributes()[i].type;
 
 		// set unit ranges as default
 		cgv::vec2 input_range = { 0.0f, 1.0f };
@@ -209,7 +199,6 @@ void glyph_attribute_mapping::create_glyph_shape() {
 }
 
 std::string glyph_attribute_mapping::to_display_str(const std::string& name) const {
-
 	if(name.length() > 0) {
 		std::string str = name;
 
