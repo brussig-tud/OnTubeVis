@@ -1,5 +1,7 @@
 #include "glyph_attribute_mapping.h"
 
+#include <cgv/data/informed_ptr.h>
+
 glyph_attribute_mapping::glyph_attribute_mapping() {
 	create_glyph_shape();
 }
@@ -116,18 +118,18 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 }
 
 void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr) {
+	cgv::data::informed_ptr ptr(member_ptr);
 	last_action_type = AT_MAPPING_VALUE_CHANGE;
 
-	if(member_ptr == &sampling_strategy) {
+	if(ptr.points_to(sampling_strategy))
 		last_action_type = AT_CONFIGURATION_CHANGE;
-	}
 
-	if(member_ptr == &sampling_step) {
+	if(ptr.points_to(sampling_step)) {
 		sampling_step = std::max(sampling_step, 0.0f);
 		last_action_type = AT_CONFIGURATION_VALUE_CHANGE;
 	}
 
-	if(member_ptr == &type) {
+	if(ptr.points_to(type)) {
 		last_action_type = AT_CONFIGURATION_CHANGE;
 		create_glyph_shape();
 	}
@@ -141,17 +143,14 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 		}
 	}
 
-	for(size_t i = 0; i < color_source_indices.size(); ++i) {
-		if(member_ptr == &color_source_indices[i]) {
-			last_action_type = AT_CONFIGURATION_CHANGE;
-		}
-	}
+	if(ptr.points_to_data_of(color_source_indices))
+		last_action_type = AT_CONFIGURATION_CHANGE;
 
 	for(size_t i = 0; i < reverse_colors.size(); ++i) {
-		if(member_ptr == &reverse_colors[i])
+		if(ptr.points_to(reverse_colors[i]))
 			attrib_mapping_values[i].output_range = reverse_colors[i] ? cgv::vec2(1.0f, 0.0f) : cgv::vec2(0.0f, 1.0f);
 	}
-	
+
 	base_ptr->on_set(this);
 }
 
