@@ -117,8 +117,6 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 			int attrib_idx = dummy_enum_to_int(attrib_source_indices[i]);
 			if(attrib_idx > -1) {
 				const vec2& range = visualization_variables->ref_attribute_ranges()[attrib_idx];
-				//attrib_mapping_values[i].x() = range.x();
-				//attrib_mapping_values[i].y() = range.y();
 				attrib_mapping_values[i].input_range = range;
 			}
 		}
@@ -130,17 +128,8 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 	}
 
 	for(size_t i = 0; i < reverse_colors.size(); ++i) {
-		if(member_ptr == &reverse_colors[i].value) {
-			if(reverse_colors[i].value) {
-				//attrib_mapping_values[i].z() = 1.0f;
-				//attrib_mapping_values[i].w() = 0.0f;
-				attrib_mapping_values[i].output_range = { 1.0f, 0.0f };
-			} else {
-				//attrib_mapping_values[i].z() = 0.0f;
-				//attrib_mapping_values[i].w() = 1.0f;
-				attrib_mapping_values[i].output_range = { 0.0f, 1.0f };
-			}
-		}
+		if(member_ptr == &reverse_colors[i])
+			attrib_mapping_values[i].output_range = reverse_colors[i] ? cgv::vec2(1.0f, 0.0f) : cgv::vec2(0.0f, 1.0f);
 	}
 	
 	base_ptr->on_set(this);
@@ -203,7 +192,7 @@ void glyph_attribute_mapping::create_glyph_shape() {
 		attrib_mapping_values.push_back({ input_range, output_range });
 	}
 
-	reverse_colors.resize(attrib_count, Bool{ 0 });
+	reverse_colors.resize(attrib_count, false);
 	attrib_colors.resize(attrib_count, rgb(0.0f));
 }
 
@@ -292,7 +281,7 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 		if(attrib.type == GAT_COLOR) {
 			if(selected_attrib_src_idx > -1) {
 				add_local_member_control(p, bp, "Color Map", color_source_indices[i], "dropdown", "enums='" + color_map_name_enums + "';w=126", " ");
-				add_local_member_control(p, bp, "Reverse", reverse_colors[i].value, "check", "w=62");
+				add_local_member_control(p, bp, "Reverse", reinterpret_cast<bool&>(reverse_colors[i]), "check", "w=62");
 			}
 		}
 	}

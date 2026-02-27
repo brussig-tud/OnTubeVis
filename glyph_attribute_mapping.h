@@ -13,6 +13,7 @@
 #include <cgv/gui/provider.h>
 #include <cgv/math/interval.h>
 #include <cgv/media/color.h>
+#include <cgv/type/bool32_t.h>
 
 #include "gui_util.h"
 #include "glyph_shapes.h"
@@ -55,11 +56,8 @@ protected:
 	std::vector<cgv::type::DummyEnum> attrib_source_indices;
 	std::vector<cgv::type::DummyEnum> color_source_indices;
 	std::vector<scalar_mapping> attrib_mapping_values;
-	// Wrap bool to prevent specialization of std::vector.
-	struct Bool {
-		bool value;
-	};
-	std::vector<Bool> reverse_colors;
+	// Use bool class type to prevent specialization of std::vector.
+	std::vector<cgv::type::bool32_t> reverse_colors;
 	std::vector<rgb> attrib_colors;
 	
 	void on_set(void* member_ptr, cgv::base::base* base_ptr);
@@ -181,7 +179,7 @@ public:
 	void set_attrib_out_range(size_t idx, const vec2& range) {
 		if(idx < attrib_mapping_values.size()) {
 			attrib_mapping_values[idx].output_range = range;
-			reverse_colors[idx].value = range.x() > range.y();
+			reverse_colors[idx] = range.x() > range.y();
 		}
 	}
 
