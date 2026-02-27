@@ -151,18 +151,14 @@ namespace cgv { // @<
 			/// additional options not dependant on the style and set from outside the renderer
 			shader_compile_options additional_options;
 			/// keep track of which line primitive was active the last time the renderer drew something
-			textured_spline_tube_render_style::LinePrimitive last_active_line_primitive;
+			mutable textured_spline_tube_render_style::LinePrimitive last_active_line_primitive;
 
 			/// overload to allow instantiation of box_renderer
 			render_style* create_render_style() const override;
 			/// update shader defines based on render style
 			void update_shader_program_options (shader_compile_options &options) const override;
 			/// return the default shader program name
-			std::string get_default_prog_name() const override { return "textured_spline_tube.glpr"; }
-			/// build rounded cone program
-			bool build_shader_program (
-				context& ctx, shader_program& prog, const shader_compile_options &defines
-			) const override;
+			std::string get_default_prog_name() const override;
 
 		public:
 			/// initializes position_is_center to true 

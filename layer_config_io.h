@@ -134,19 +134,18 @@ private:
 					cgv::xml::PushAttribute(printer, "color", colors[i]);
 			}
 
-			cgv::vec4 mr = mapping_ranges[i];
+			scalar_mapping mr = mapping_ranges[i];
 			if(attribute.modifiers & GAM_GLOBAL) {
 				if(attribute.type != GAT_COLOR)
-					cgv::xml::PushAttribute(printer, "value", std::to_string(mr.w()));
+					cgv::xml::PushAttribute(printer, "value", std::to_string(mr.output_range.y()));
 			} else {
-				cgv::xml::PushAttribute(printer, "in_range", cgv::vec2(mr.x(), mr.y()));
+				cgv::xml::PushAttribute(printer, "in_range", mr.input_range);
 			}
 			if(attribute.type != GAT_UNIT &&
 			   attribute.type != GAT_SIGNED_UNIT &&
-			   //attribute.type != GAT_COLOR &&
 			   attribute.type != GAT_OUTLINE
 			   ) {
-				cgv::xml::PushAttribute(printer, "out_range", cgv::vec2(mr.z(), mr.w()));
+				cgv::xml::PushAttribute(printer, "out_range", mr.output_range);
 			}
 
 			printer.CloseElement();

@@ -1,7 +1,8 @@
 #pragma once
 
 // CGV framework core
-//#include <cgv/render/render_types.h>
+#include <cgv/math/compare_float.h>
+#include <cgv/math/functions.h>
 
 // local includes
 #include "arclen_helper.h"
@@ -11,11 +12,6 @@
 
 
 class glyph_compiler {
-public:
-	using vec4 = cgv::vec4;
-	using uvec2 = cgv::uvec2;
-	using mat4 = cgv::mat4;
-
 protected:
 	// helper struct for range entries with start index i0 and count n
 	struct irange { int i0, n; };
@@ -53,13 +49,12 @@ protected:
 		}
 	};
 
-	// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
-	float clamp_remap(float v, const vec4& r) {
-		v = cgv::math::clamp(v, r.x(), r.y());
-		float t = 0.0f;
-		if(abs(r.x() - r.y()) > std::numeric_limits<float>::epsilon())
-			t = (v - r.x()) / (r.y() - r.x());
-		return cgv::math::lerp(r.z(), r.w(), t);
+	// clamp value v to in range and remap to out range
+	float clamp_remap(float v, const cgv::vec2 in, const cgv::vec2 out) {
+		if(cgv::math::is_zero(in.x() - in.y()))
+			return out.x();
+		v = cgv::math::clamp(v, in.x(), in.y());
+		return cgv::math::map(v, in.x(), in.y(), out.x(), out.y());
 	}
 
 	struct layer_compile_info {
@@ -79,7 +74,7 @@ protected:
 	};
 
 	// generate a glyph at every attribute sample location (interpolates attributes if more than one is mapped in this layer)
-	void compile_glyphs_front_at_samples(const traj_attribute<float>& P, const std::vector<range>& tube_trajs, const std::vector<mat4>& arc_length, const glyph_layer_manager::configuration::layer_configuration& layer_config, layer_compile_info& lci) {
+	void compile_glyphs_front_at_samples(const traj_attribute<float>& P, const std::vector<range>& tube_trajs, const std::vector<cgv::mat4>& arc_length, const glyph_layer_manager::configuration::layer_configuration& layer_config, layer_compile_info& lci) {
 		// convenience shorthands
 		const size_t attrib_count = lci.attrib_count;
 		const auto& mapped_attribs = lci.mapped_attribs;
@@ -211,12 +206,10 @@ protected:
 						const auto& triple = layer_config.glyph_mapping_parameters[i];
 						if(triple.type == 0) {
 							// constant attribute
-							glyph_params[i] = (*triple.v)[3];
+							glyph_params[i] = triple.v->output_range.y();
 						} else {
-							// mapped attribute
-							const vec4& ranges = *(triple.v);
 							// use windowing and remapping to get the value of the glyph parameter
-							glyph_params[i] = clamp_remap(attrib_values[triple.idx], ranges);
+							glyph_params[i] = clamp_remap(attrib_values[triple.idx], triple.v->input_range, triple.v->output_range);
 						}
 					}
 
@@ -323,7 +316,7 @@ protected:
 	}
 
 	// generate a glyph at uniformly spaced time steps by interpolating attributes
-	void compile_glyphs_front_uniform_time(const traj_attribute<float>& P, const std::vector<range>& tube_trajs, const std::vector<mat4>& arc_length, const glyph_layer_manager::configuration::layer_configuration& layer_config, layer_compile_info& lci) {
+	void compile_glyphs_front_uniform_time(const traj_attribute<float>& P, const std::vector<range>& tube_trajs, const std::vector<cgv::mat4>& arc_length, const glyph_layer_manager::configuration::layer_configuration& layer_config, layer_compile_info& lci) {
 		// convenience shorthands
 		const size_t attrib_count = lci.attrib_count;
 		const auto& mapped_attribs = lci.mapped_attribs;
@@ -333,7 +326,7 @@ protected:
 		const auto& alen = arc_length;
 
 		// stores an index pair for each attribute
-		std::vector<uvec2> attrib_indices(attrib_count, uvec2(0, 1));
+		std::vector<cgv::uvec2> attrib_indices(attrib_count, cgv::uvec2(0, 1));
 		// stores the count of each attribute
 		std::vector<unsigned> attrib_index_counts(attrib_count, 0);
 		// create storage for attribute and glyph parameter values
@@ -366,7 +359,7 @@ protected:
 			for(size_t i = 0; i < attrib_count; ++i) {
 				const auto &traj_range = attribs_trajs[i]->at(trj);
 				unsigned idx = traj_range.i0;
-				attrib_indices[i] = uvec2(idx, idx + 1);
+				attrib_indices[i] = cgv::uvec2(idx, idx + 1);
 				attrib_index_counts[i] = traj_range.i0 + traj_range.n;
 
 				if(traj_range.n < 2) // single-sample trajectory, assignment doesn't make sense here
@@ -402,7 +395,7 @@ protected:
 				// iterate over each attribute
 				for(size_t i = 0; i < attrib_count; ++i) {
 					const auto& mapped_attrib = mapped_attribs[i];
-					uvec2& indices = attrib_indices[i];
+					cgv::uvec2& indices = attrib_indices[i];
 					const unsigned count = attrib_index_counts[i];
 
 					// increment indices until the sample time point lies between the first and second attribute sample
@@ -448,7 +441,7 @@ protected:
 
 					// interpolate each mapped attribute value
 					for(size_t i = 0; i < attrib_count; ++i) {
-						const uvec2& attrib_idx = attrib_indices[i];
+						const cgv::uvec2& attrib_idx = attrib_indices[i];
 
 						auto a0 = mapped_attribs[i]->signed_magnitude_at(attrib_idx.x());
 						auto a1 = mapped_attribs[i]->signed_magnitude_at(attrib_idx.y());
@@ -467,12 +460,10 @@ protected:
 						const auto& triple = layer_config.glyph_mapping_parameters[i];
 						if(triple.type == 0) {
 							// constant attribute
-							glyph_params[i] = (*triple.v)[3];
+							glyph_params[i] = triple.v->output_range.y();
 						} else {
-							// mapped attribute
-							const vec4& ranges = *(triple.v);
 							// use windowing and remapping to get the value of the glyph parameter
-							glyph_params[i] = clamp_remap(attrib_values[triple.idx], ranges);
+							glyph_params[i] = clamp_remap(attrib_values[triple.idx], triple.v->input_range, triple.v->output_range);
 						}
 					}
 
@@ -566,7 +557,7 @@ protected:
 		auto& attribs = lci.attribs;
 
 		// stores an index pair for each attribute
-		std::vector<uvec2> attrib_indices(attrib_count, uvec2(0, 1));
+		std::vector<cgv::uvec2> attrib_indices(attrib_count, cgv::uvec2(0, 1));
 		// stores the count of each attribute
 		std::vector<unsigned> attrib_index_counts(attrib_count, 0);
 		// create storage for attribute and glyph parameter values
@@ -599,7 +590,7 @@ protected:
 			for(size_t i = 0; i < attrib_count; ++i) {
 				const auto &traj_range = attribs_trajs[i]->at(trj);
 				unsigned idx = traj_range.i0;
-				attrib_indices[i] = uvec2(idx, idx + 1);
+				attrib_indices[i] = cgv::uvec2(idx, idx + 1);
 				attrib_index_counts[i] = traj_range.i0 + traj_range.n;
 
 				if(traj_range.n < 2) // single-sample trajectory, assignment doesn't make sense here
@@ -635,7 +626,7 @@ protected:
 				// iterate over each attribute
 				for(size_t i = 0; i < attrib_count; ++i) {
 					const auto& mapped_attrib = mapped_attribs[i];
-					uvec2& indices = attrib_indices[i];
+					cgv::uvec2& indices = attrib_indices[i];
 					const unsigned count = attrib_index_counts[i];
 
 					// increment indices until the sample time point lies between the first and second attribute sample
@@ -681,7 +672,7 @@ protected:
 
 					// interpolate each mapped attribute value
 					for(size_t i = 0; i < attrib_count; ++i) {
-						const uvec2& attrib_idx = attrib_indices[i];
+						const cgv::uvec2& attrib_idx = attrib_indices[i];
 
 						auto a0 = mapped_attribs[i]->signed_magnitude_at(attrib_idx.x());
 						auto a1 = mapped_attribs[i]->signed_magnitude_at(attrib_idx.y());
@@ -700,12 +691,10 @@ protected:
 						const auto& triple = layer_config.glyph_mapping_parameters[i];
 						if(triple.type == 0) {
 							// constant attribute
-							glyph_params[i] = (*triple.v)[3];
+							glyph_params[i] = triple.v->output_range.y();
 						} else {
-							// mapped attribute
-							const vec4& ranges = *(triple.v);
 							// use windowing and remapping to get the value of the glyph parameter
-							glyph_params[i] = clamp_remap(attrib_values[triple.idx], ranges);
+							glyph_params[i] = clamp_remap(attrib_values[triple.idx], triple.v->input_range, triple.v->output_range);
 						}
 					}
 

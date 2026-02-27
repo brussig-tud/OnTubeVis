@@ -54,6 +54,7 @@ namespace cgv {
 			has_node_ids = false;
 			has_radii = false;
 			has_tangents = false;
+			last_active_line_primitive = textured_spline_tube_render_style::LP_TUBE_RUSSIG;
 		}
 
 		/// call this before setting attribute arrays to manage attribute array in given manager
@@ -122,25 +123,18 @@ namespace cgv {
 				options.define_macro_if_not_default("DBG_VISUALIZE_LEAF_BBOXES", rs.rcribbon.debug.visualize_leaf_bboxes, false);
 			}
 
-			/*defines.clear();
-			for(const auto& define : additional_defines)
-				defines.insert(define);*/
 			options.extend(additional_options, false);
 		}
-		bool textured_spline_tube_renderer::build_shader_program (
-			context& ctx, shader_program& prog, const shader_compile_options& defines
-		) const {
-			const auto &rs = get_style<textured_spline_tube_render_style>();
-			const_cast<textured_spline_tube_renderer*>(this)->last_active_line_primitive = rs.line_primitive;
-
-			shader_compile_options options = { defines };
+		std::string textured_spline_tube_renderer::get_default_prog_name() const {
+			const auto& rs = get_style<textured_spline_tube_render_style>();
+			last_active_line_primitive = rs.line_primitive;
 
 			if(rs.is_tube())
-				return prog.build_program(ctx, "textured_spline_tube.glpr", options, true);
-			else if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED)
-				return prog.build_program(ctx, "view_aligned_ribbon.glpr", options, true);
+				return "textured_spline_tube.glpr";
+			else if(rs.line_primitive == rs.LP_RIBBON_RAYCASTED)
+				return "view_aligned_ribbon.glpr";
 			else
-				return prog.build_program(ctx, "textured_spline_ribbon.glpr", options, true);
+				return "textured_spline_ribbon.glpr";
 		}
 		bool textured_spline_tube_renderer::enable(context& ctx)
 		{

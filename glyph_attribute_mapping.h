@@ -11,6 +11,7 @@
 #include <cgv/data/ref_ptr.h>
 #include <cgv/gui/control.h>
 #include <cgv/gui/provider.h>
+#include <cgv/math/interval.h>
 #include <cgv/media/color.h>
 
 #include "gui_util.h"
@@ -23,6 +24,13 @@ enum AttributeSamplingStrategy {
 	ASS_UNIFORM,
 	ASS_EQUIDIST,
 	ASS_AT_SAMPLES,
+};
+
+struct scalar_mapping {
+	// input values should be clampled and normalized to this range
+	cgv::vec2 input_range; 
+	// normalized values should be mapped to this range.
+	cgv::vec2 output_range;
 };
 
 class glyph_attribute_mapping {
@@ -46,7 +54,7 @@ protected:
 
 	std::vector<cgv::type::DummyEnum> attrib_source_indices;
 	std::vector<cgv::type::DummyEnum> color_source_indices;
-	std::vector<vec4> attrib_mapping_values;
+	std::vector<scalar_mapping> attrib_mapping_values;
 	// Wrap bool to prevent specialization of std::vector.
 	struct Bool {
 		bool value;
@@ -133,7 +141,7 @@ public:
 
 	const std::vector<int> get_color_map_indices() const;
 
-	const std::vector<vec4> &ref_attrib_mapping_values() const { return attrib_mapping_values; }
+	const std::vector<scalar_mapping> &ref_attrib_mapping_values() const { return attrib_mapping_values; }
 
 	const std::vector<rgb>& ref_attrib_colors() const { return attrib_colors; }
 
@@ -147,8 +155,7 @@ public:
 			int attrib_idx = dummy_enum_to_int(attrib_source_indices[i]);
 			if(attrib_idx > -1) {
 				const vec2& range = visualization_variables->ref_attribute_ranges()[attrib_idx];
-				attrib_mapping_values[i].x() = range.x();
-				attrib_mapping_values[i].y() = range.y();
+				attrib_mapping_values[i].input_range = range;
 			}
 		}
 	}
@@ -167,16 +174,13 @@ public:
 
 	void set_attrib_in_range(size_t idx, const vec2& range) {
 		if(idx < attrib_mapping_values.size()) {
-			attrib_mapping_values[idx].x() = range.x();
-			attrib_mapping_values[idx].y() = range.y();
+			attrib_mapping_values[idx].input_range = range;
 		}
 	}
 
 	void set_attrib_out_range(size_t idx, const vec2& range) {
 		if(idx < attrib_mapping_values.size()) {
-			attrib_mapping_values[idx].z() = range.x();
-			attrib_mapping_values[idx].w() = range.y();
-			
+			attrib_mapping_values[idx].output_range = range;
 			reverse_colors[idx].value = range.x() > range.y();
 		}
 	}

@@ -103,7 +103,6 @@ public:
 	using rgb = cgv::rgb;
 	using rgba = cgv::rgba;
 
-
 	/// data layout for per-node attributes within the attribute render SSBO
 	struct node_attribs {
 		vec4 pos_rad;

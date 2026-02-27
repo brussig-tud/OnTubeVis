@@ -117,8 +117,9 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 			int attrib_idx = dummy_enum_to_int(attrib_source_indices[i]);
 			if(attrib_idx > -1) {
 				const vec2& range = visualization_variables->ref_attribute_ranges()[attrib_idx];
-				attrib_mapping_values[i].x() = range.x();
-				attrib_mapping_values[i].y() = range.y();
+				//attrib_mapping_values[i].x() = range.x();
+				//attrib_mapping_values[i].y() = range.y();
+				attrib_mapping_values[i].input_range = range;
 			}
 		}
 	}
@@ -131,11 +132,13 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 	for(size_t i = 0; i < reverse_colors.size(); ++i) {
 		if(member_ptr == &reverse_colors[i].value) {
 			if(reverse_colors[i].value) {
-				attrib_mapping_values[i].z() = 1.0f;
-				attrib_mapping_values[i].w() = 0.0f;
+				//attrib_mapping_values[i].z() = 1.0f;
+				//attrib_mapping_values[i].w() = 0.0f;
+				attrib_mapping_values[i].output_range = { 1.0f, 0.0f };
 			} else {
-				attrib_mapping_values[i].z() = 0.0f;
-				attrib_mapping_values[i].w() = 1.0f;
+				//attrib_mapping_values[i].z() = 0.0f;
+				//attrib_mapping_values[i].w() = 1.0f;
+				attrib_mapping_values[i].output_range = { 0.0f, 1.0f };
 			}
 		}
 	}
@@ -167,32 +170,37 @@ void glyph_attribute_mapping::create_glyph_shape() {
 
 	for(size_t i = 0; i < attrib_count; ++i) {
 		GlyphAttributeType type = shape_ptr->supported_attributes()[i].type;
-		vec4 ranges(0.0f);
+		//vec4 ranges(0.0f);
+		// set unit ranges as default
+		vec2 input_range = { 0.0f, 1.0f };
+		vec2 output_range = { 0.0f, 1.0f };
 
 		switch(type) {
-		case GAT_UNIT:
-			ranges = vec4(0.0f, 1.0f, 0.0f, 1.0f);
-			break;
 		case GAT_SIGNED_UNIT:
-			ranges = vec4(0.0f, 1.0f, -1.0f, 1.0f);
+			//ranges = vec4(0.0f, 1.0f, -1.0f, 1.0f);
+			output_range = { -1.0f, 1.0f };
 			break;
-		case GAT_SIZE:
-			ranges = vec4(0.0f, 1.0f, 0.0f, 1.0f);
-			break;
+		//case GAT_SIZE:
+		//	ranges = vec4(0.0f, 1.0f, 0.0f, 1.0f);
+		//	break;
 		case GAT_ANGLE:
 		case GAT_DOUBLE_ANGLE:
 		case GAT_ORIENTATION:
-			ranges = vec4(0.0f, 1.0f, 0.0f, 360.0f);
+			//ranges = vec4(0.0f, 1.0f, 0.0f, 360.0f);
+			output_range = { 0.0f, 360.0f };
 			break;
 		case GAT_OUTLINE:
-			ranges = vec4(0.0f, 1.0f, 0.0f, 0.0f);
+			//ranges = vec4(0.0f, 1.0f, 0.0f, 0.0f);
+			output_range = { 0.0f, 0.0f };
 			break;
+		case GAT_UNIT:
+		case GAT_SIZE:
 		default:
-			ranges = vec4(0.0f, 1.0f, 0.0f, 1.0f);
+			//ranges = vec4(0.0f, 1.0f, 0.0f, 1.0f);
 			break;
 		}
 
-		attrib_mapping_values.push_back(ranges);
+		attrib_mapping_values.push_back({ input_range, output_range });
 	}
 
 	reverse_colors.resize(attrib_count, Bool{ 0 });
@@ -296,18 +304,18 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 			if(!(attrib.modifiers & GAM_FORCE_MAPPABLE))
 				add_local_member_control(p, bp, value_label, attrib_colors[i]);
 		} else {
-			add_local_member_control(p, bp, value_label, attrib_mapping_values[i][3], "value_slider", out_options_str);
+			add_local_member_control(p, bp, value_label, attrib_mapping_values[i].output_range.y(), "value_slider", out_options_str);
 		}
 	} else {
 		const vec2& range = visualization_variables->ref_attribute_ranges()[selected_attrib_src_idx];
 		std::string in_options_str = "min=" + std::to_string(range.x()) + ";max=" + std::to_string(range.y()) + ";step=0.001;ticks=true";
 		
-		add_local_member_control(p, bp, "In Min", attrib_mapping_values[i][0], "value_slider", in_options_str);
-		add_local_member_control(p, bp, "In Max", attrib_mapping_values[i][1], "value_slider", in_options_str);
+		add_local_member_control(p, bp, "In Min", attrib_mapping_values[i].input_range.x(), "value_slider", in_options_str);
+		add_local_member_control(p, bp, "In Max", attrib_mapping_values[i].input_range.y(), "value_slider", in_options_str);
 		
 		if(attrib.type != GAT_COLOR && attrib.type != GAT_UNIT && attrib.type != GAT_SIGNED_UNIT) {
-			add_local_member_control(p, bp, "Out Min", attrib_mapping_values[i][2], "value_slider", out_options_str);
-			add_local_member_control(p, bp, "Out Max", attrib_mapping_values[i][3], "value_slider", out_options_str);
+			add_local_member_control(p, bp, "Out Min", attrib_mapping_values[i].output_range.x(), "value_slider", out_options_str);
+			add_local_member_control(p, bp, "Out Max", attrib_mapping_values[i].output_range.y(), "value_slider", out_options_str);
 		}
 	}
 }

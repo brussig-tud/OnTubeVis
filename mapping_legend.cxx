@@ -8,7 +8,7 @@ mapping_legend::mapping_legend() {
 	set_name("Mapping Legend");
 	blocks_events(false);
 
-	set_size(ivec2(316, 0));
+	set_size(cgv::ivec2(316, 0));
 
 	content_canvas.set_origin_setting(cgv::g2d::CoordinateOrigin::kUpperLeft);
 }
@@ -46,11 +46,11 @@ void mapping_legend::draw_content(cgv::render::context& ctx) {
 	content_canvas.enable_shader(ctx, "rectangle");
 	content_canvas.set_style(ctx, border_style);
 	for(auto &position : dividers)
-		content_canvas.draw_shape(ctx, vec2(12.0f, position), vec2(static_cast<float>(get_rectangle().w() - 24), 1.0f));
+		content_canvas.draw_shape(ctx, cgv::vec2(12.0f, position), cgv::vec2(static_cast<float>(get_rectangle().w() - 24), 1.0f));
 
 	content_canvas.set_style(ctx, color_box_style);
 	for(const auto& [position, color] : color_boxes)
-		content_canvas.draw_shape(ctx, position, vec2(text_style.font_size), color);
+		content_canvas.draw_shape(ctx, position, cgv::vec2(text_style.font_size), color);
 
 	content_canvas.disable_current_shader(ctx);
 
@@ -96,7 +96,7 @@ void mapping_legend::update(const traj_dataset<float>& dataset, const glyph_laye
 			std::string visual_attribute_name = shape_attributes[i].name;
 			int attribute_index = mapping.get_attrib_indices()[i];
 			int color_index = mapping.get_color_map_indices()[i];
-			vec2 range(vec3(mapping.ref_attrib_mapping_values()[i])); // narrow vec4 to vec2 by trimming the w and z components
+			cgv::vec2 input_range = mapping.ref_attrib_mapping_values()[i].input_range;
 
 			// The following two methods are in large parts borrowed from color_legend_manager and color_map_legend.
 			// At some point it might be nice to have it in some library in one form or another.
@@ -111,7 +111,7 @@ void mapping_legend::update(const traj_dataset<float>& dataset, const glyph_laye
 				return str;
 			};
 
-			const auto range_to_string = [&float_to_string](vec2 range) {
+			const auto range_to_string = [&float_to_string](cgv::vec2 range) {
 				const float diff = range.y() - range.x();
 
 				unsigned precision = 7;
@@ -135,7 +135,7 @@ void mapping_legend::update(const traj_dataset<float>& dataset, const glyph_laye
 			if(shape->type() == GT_LINE_PLOT || shape->type() == GT_STAR) {
 				if(attribute_index > -1 && shape_attributes[i].type == GAT_SIZE) {
 					line.text = attribute_names[attribute_index];
-					line.range = range_to_string(range);
+					line.range = range_to_string(input_range);
 
 					if(i > 0) {
 						const auto& color = mapping.ref_attrib_colors()[i - 1];
@@ -147,7 +147,7 @@ void mapping_legend::update(const traj_dataset<float>& dataset, const glyph_laye
 				if(attribute_index > -1) {
 					// attribute is mapped
 					line.text = visual_attribute_name + " <-- " + attribute_names[attribute_index];
-					line.range = range_to_string(range);
+					line.range = range_to_string(input_range);
 
 					//if(color_index > -1)
 					//	line.text += " map";
@@ -180,30 +180,30 @@ void mapping_legend::create_geometry()
 	color_boxes.clear();
 
 	const float padding = 12.0f;
-	vec2 position(padding);
-	ivec2 overlay_size = get_rectangle().size;
+	cgv::vec2 position(padding);
+	cgv::ivec2 overlay_size = get_rectangle().size;
 
 	size_t layer_idx = 1;
 	for(const auto& layer : layers) {
-		text.positions.emplace_back(vec3(position, .0f));
+		text.positions.emplace_back(cgv::vec3(position, .0f));
 		text.alignments.emplace_back(cgv::render::TA_TOP_LEFT);
 		text.texts.emplace_back(std::to_string(layer_idx) + ": " + layer.title);
 		position.y() += 1.75f * text_style.font_size;
 		
 		for(const auto& [str, range, has_color, color] : layer.lines) {
-			vec2 offset(0.0f);
+			cgv::vec2 offset(0.0f);
 			
 			if(has_color) {
 				color_boxes.push_back({ cgv::math::round(position), color });
 				offset.x() = text_style.font_size + 5.0f;
 			}
 
-			text.positions.emplace_back(vec3(position + offset, .0f));
+			text.positions.emplace_back(cgv::vec3(position + offset, .0f));
 			text.alignments.emplace_back(cgv::render::TA_TOP_LEFT);
 			text.texts.emplace_back(str);
 
 			offset.x() = static_cast<float>(overlay_size.x()) - 2.0f * padding;
-			text.positions.emplace_back(vec3(position + offset, .0f));
+			text.positions.emplace_back(cgv::vec3(position + offset, .0f));
 			text.alignments.emplace_back(cgv::render::TA_TOP_RIGHT);
 			text.texts.emplace_back(range);
 

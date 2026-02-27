@@ -34,7 +34,7 @@ public:
 		struct glyph_mapping_triple {
 			int type; // 0 = constant, 1 = mapped
 			size_t idx; // index into attribute values
-			const vec4* v; // pointer to
+			const scalar_mapping* v; // pointer to scalar mapping parameters
 		};
 
 		struct layer_configuration {

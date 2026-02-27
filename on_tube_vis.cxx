@@ -3008,9 +3008,9 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		#else
 			prog.set_uniform(ctx, "holographic_raycast", false);
 		#endif
-		prog.set_uniform(ctx, "viewport_width", (float)viewport[2]/*ctx.get_width()*/);
+		prog.set_uniform(ctx, "viewport_width", static_cast<float>(viewport[2]));
 		const auto fb_size = fbc.get_size();
-		prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
+		prog.set_uniform(ctx, "framebuf_width", static_cast<float>(fb_size.x()));
 
 		fbc.enable_attachment(ctx, "albedo", 0);
 		fbc.enable_attachment(ctx, "position", 1);
@@ -3074,43 +3074,31 @@ shader_compile_options on_tube_vis::build_tube_shading_options() {
 	shader_compile_options options;
 
 	// debug defines
-	//shader_code::set_define(defines, "DEBUG_SEGMENTS", debug.highlight_segments, false);
 	options.define_macro_if_not_default("DEBUG_SEGMENTS", debug.highlight_segments, false);
 
 	// ambient occlusion defines
-	//shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
 	options.define_macro_if_not_default("ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
 
 	// grid defines
-	//shader_code::set_define(defines, "GRID_MODE", grid_mode, GM_COLOR);
 	options.define_macro_if_not_default("GRID_MODE", grid_mode, GM_COLOR);
 	unsigned gs = static_cast<unsigned>(grid_normal_settings);
 	if(grid_normal_inwards) gs += 4u;
 	if(grid_normal_variant) gs += 8u;
-	//shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
 	options.define_macro_if_not_default("GRID_NORMAL_SETTINGS", gs, 0u);
-	//shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 	options.define_macro_if_not_default("ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
 	// glyph layer defines
 	const auto &glyph_layers_config = render.visualizations.front().config;
-	//shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
 	options.define_macro_if_not_default("GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
 
-	//shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
 	options.define_macro_if_not_default("CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
-	//shader_code::set_define(defines, "CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
 	options.define_macro_if_not_default("CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
-	//shader_code::set_define(defines, "MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
 	options.define_macro_if_not_default("MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
 
 	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
 		const auto& lc = glyph_layers_config.layer_configs[i];
-		//shader_code::set_define(defines, "L" + std::to_string(i) + "_VISIBLE", lc.visible, true);
 		options.define_macro_if_not_default("L" + std::to_string(i) + "_VISIBLE", lc.visible, false);
-		//shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
 		options.define_macro_if_not_default("L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
-		//shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
 		options.define_macro_if_not_default("L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
 	}
 

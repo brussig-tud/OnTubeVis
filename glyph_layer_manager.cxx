@@ -59,7 +59,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 			const std::vector<int> attrib_indices = gam.get_attrib_indices();
 			const std::vector<int> color_map_indices = gam.get_color_map_indices();
-			const std::vector<vec4> &attrib_values = gam.ref_attrib_mapping_values();
+			const std::vector<scalar_mapping> &attrib_values = gam.ref_attrib_mapping_values();
 			const std::vector<rgb> &attrib_colors = gam.ref_attrib_colors();
 
 			for(size_t j = 0; j < attrib_indices.size(); ++j) {
@@ -88,7 +88,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 						uniform_name = config.constant_float_parameter_name_prefix + "[" + std::to_string(config.constant_float_parameters.size()) + "]";
 						
 						layer_config.glyph_mapping_parameters.push_back({ 0, config.constant_float_parameters.size() - last_constant_float_parameters_size, &attrib_values[j] });
-						config.constant_float_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j][3]));
+						config.constant_float_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j].output_range.y()));
 					}
 
 					parameter_str = uniform_name;
@@ -115,7 +115,8 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 						layer_config.glyph_mapping_parameters.push_back({ 1, config.mapping_parameters.size() - last_mapping_parameters_size, &attrib_values[j] });
 					}
 
-					config.mapping_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j]));
+					// reinterpret scalar mapping as vec4 to enable usage as uniforms
+					config.mapping_parameters.push_back(std::make_pair(uniform_name, reinterpret_cast<const cgv::vec4*>(&attrib_values[j])));
 					layer_config.mapped_attributes.push_back(idx);
 				}
 
