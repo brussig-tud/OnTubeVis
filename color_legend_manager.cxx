@@ -52,7 +52,7 @@ void color_legend_manager::compose (
 		{
 			// find out the layer name and glyph/plot type to include in the legend title
 			std::stringstream stitle;
-			stitle << ltype_names[layer.get_shape_ptr()->type()];
+			stitle << ltype_names[layer.get_shape()->type()];
 			stitle << " -- "<<attrib_names[ai];
 
 			// set up a legend for the found color mapping

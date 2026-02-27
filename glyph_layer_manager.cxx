@@ -34,7 +34,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 	// iterate over layers
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		const glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
-		const glyph_shape* shape_ptr = gam.get_shape_ptr();
+		const glyph_shape* shape_ptr = gam.get_shape();
 
 		config.layer_configs.push_back(configuration::layer_configuration());
 		auto& layer_config = config.layer_configs.back();

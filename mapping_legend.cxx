@@ -71,7 +71,7 @@ void mapping_legend::update(const traj_dataset<float>& dataset, const glyph_laye
 	const auto& attribute_mappings = glyph_manager.ref_glyph_attribute_mappings();
 	
 	for(const auto& mapping : attribute_mappings) {
-		const auto shape = mapping.get_shape_ptr();
+		const auto shape = mapping.get_shape();
 
 		if(!shape || !mapping.get_active())
 			continue;

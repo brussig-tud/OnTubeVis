@@ -53,14 +53,14 @@ private:
 		std::shared_ptr<const visualization_variables_info> visualization_variables,
 		const glyph_attribute_mapping& gam) {
 
-		const auto* shape_ptr = gam.get_shape_ptr();
+		const glyph_shape* shape = gam.get_shape();
 
-		if(shape_ptr) {
+		if(shape) {
 			printer.OpenElement("Layer");
 
 			cgv::xml::PushAttribute(printer, "name", gam.get_name());
 			cgv::xml::PushAttribute(printer, "active", gam.get_active());
-			cgv::xml::PushAttribute(printer, "glyph", shape_ptr->name());
+			cgv::xml::PushAttribute(printer, "glyph", shape->name());
 
 			std::string sampling_type = "";
 
@@ -77,7 +77,7 @@ private:
 					cgv::xml::PushAttribute(printer, "sampling_step", std::to_string(gam.get_sampling_step()));
 			}
 
-			write_layer_properties(printer, visualization_variables, gam, shape_ptr->supported_attributes());
+			write_layer_properties(printer, visualization_variables, gam, shape->supported_attributes());
 
 			printer.CloseElement();
 		}
@@ -206,7 +206,7 @@ private:
 
 	static void extract_layer_attributes(const tinyxml2::XMLElement& elem,
 										 glyph_attribute_mapping& gam,
-										 const glyph_shape*& shape_ptr,
+										 const glyph_shape*& shape,
 										 std::vector<std::string>& shape_attribute_names) {
 
 		std::string layer_name = "";
@@ -221,9 +221,9 @@ private:
 		if(cgv::xml::QueryStringAttribute(elem, "glyph", glyph_name) == tinyxml2::XML_SUCCESS) {
 			GlyphType glyph_type = glyph_type_registry::type(glyph_name);
 			gam.set_glyph_type(glyph_type);
-			shape_ptr = gam.get_shape_ptr();
+			shape = gam.get_shape();
 
-			for(const auto& a : shape_ptr->supported_attributes())
+			for(const auto& a : shape->supported_attributes())
 				shape_attribute_names.push_back(a.name);
 		}
 
