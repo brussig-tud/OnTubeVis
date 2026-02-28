@@ -1,6 +1,7 @@
 #include "mapping_legend.h"
 
 #include <cgv/gui/theme_info.h>
+#include <cgv/utils/number_format.h>
 #include <cgv_gl/gl/gl.h>
 
 mapping_legend::mapping_legend() {
@@ -90,6 +91,10 @@ void mapping_legend::update(const traj_dataset<float>& dataset, const glyph_laye
 			layer.title += " ";
 		layer.title += "(" + glyph_type_registry::display_names()[shape->type()] + ")";
 
+		cgv::utils::number_format format;
+		format.fixed = true;
+		format.trailing_zeros = false;
+
 		for(size_t i = 0; i < mapping.get_attrib_indices().size(); ++i) {
 			layer_info::line_info line;
 
@@ -98,37 +103,10 @@ void mapping_legend::update(const traj_dataset<float>& dataset, const glyph_laye
 			int color_index = mapping.get_color_map_indices()[i];
 			cgv::vec2 input_range = mapping.ref_attrib_mapping_values()[i].input_range;
 
-			// The following two methods are in large parts borrowed from color_legend_manager and color_map_legend.
-			// At some point it might be nice to have it in some library in one form or another.
-			const auto float_to_string = [](float value, unsigned precision) {
-				std::string str = cgv::utils::to_string(value, -1, precision, true);
-
-				if(str.length() > 1) {
-					cgv::utils::rtrim(str, "0");
-					cgv::utils::rtrim(str, ".");
-				}
-
-				return str;
-			};
-
-			const auto range_to_string = [&float_to_string](cgv::vec2 range) {
-				const float diff = range.y() - range.x();
-
-				unsigned precision = 7;
-				if(diff > 5)
-					precision = 1;
-				else if(diff > 1)
-					precision = 2;
-				else if(diff > .5f)
-					precision = 3;
-				else if(diff > .25f)
-					precision = 4;
-				else if(diff > .125f)
-					precision = 5;
-				else if(diff > .0625f)
-					precision = 6;
-
-				return "[" + float_to_string(range.x(), precision) + ", " + float_to_string(range.y(), precision) + "]";
+			const auto range_to_string = [&format](cgv::vec2 range) {
+				format.precision_from_range(range.x(), range.y());
+				format.precision += 1;
+				return "[" + format.convert(range.x()) + ", " + format.convert(range.y()) + "]";
 			};
 
 			// special handling for line and star plot
