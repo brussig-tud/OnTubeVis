@@ -2565,16 +2565,14 @@ void on_tube_vis::update_attribute_bindings(void) {
 			playback.follow_traj, (unsigned)render.data->datasets[0].trajs.size()-1
 		);
 
-		// Clear range and attribute buffers for glyph layers
-		for(size_t i = 0; i < render.aindex_sbos.size(); ++i)
-			render.aindex_sbos[i].destruct(ctx);
-		for(size_t i = 0; i < render.attribs_sbos.size(); ++i)
-			render.attribs_sbos[i].destruct(ctx);
-		
-		render.aindex_sbos.clear();
-		render.aindex_sbos.resize(4);
-		render.attribs_sbos.clear();
-		render.attribs_sbos.resize(4);
+		// Destruct range and attribute buffers for glyph layers and make sure to store one buffer pair per layer
+		for(auto& sbo : render.aindex_sbos)
+			sbo.destruct(ctx);
+		render.aindex_sbos.resize(k_supported_layer_count, { VertexBufferType::VBT_STORAGE });
+
+		for(auto& sbo : render.attribs_sbos)
+			sbo.destruct(ctx);
+		render.attribs_sbos.resize(k_supported_layer_count, { VertexBufferType::VBT_STORAGE });
 
 		// Recompute arclength parametrization
 		cgv::utils::stopwatch s(true);
@@ -3021,22 +3019,22 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		color_map_mgr.ref_texture().enable(ctx, 6);
 
 		// bind range attribute sbos of active glyph layers
-		bool active_sbos[4] = { false, false, false, false };
 		for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
-			if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
-				const int attribs_handle = render.attribs_sbos[i].handle ? (const int&)render.attribs_sbos[i].handle - 1 : 0;
-				const int aindex_handle = render.aindex_sbos[i].handle ? (const int&)render.aindex_sbos[i].handle - 1 : 0;
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 0, attribs_handle);
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 1, aindex_handle);
+			if(!glyph_layers_config.layer_configs[i].mapped_attributes.empty()) {
+				const GLuint base_index = static_cast<GLuint>(2 * i);
+				render.attribs_sbos[i].bind(ctx, base_index);
+				render.aindex_sbos[i].bind(ctx, base_index + 1);
 			}
 		}
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-		for(size_t i = 0; i < 4; ++i) {
-			if(active_sbos[i]) {
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 0, 0);
-				glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2 * (GLuint)i + 1, 0);
+		// unbind range attribute sbos of active glyph layers
+		for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
+			if(!glyph_layers_config.layer_configs[i].mapped_attributes.empty()) {
+				const GLuint base_index = static_cast<GLuint>(2 * i);
+				render.attribs_sbos[i].unbind(ctx, base_index);
+				render.aindex_sbos[i].unbind(ctx, base_index + 1);
 			}
 		}
 

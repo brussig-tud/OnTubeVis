@@ -214,6 +214,9 @@ protected:
 	// ###############################
 #endif
 
+	// the number of supported glyph mapping layers which is currently fixed at 4
+	static const size_t k_supported_layer_count = 4;
+
 	cgv::render::view* view_ptr = nullptr;
 
 	cgv::overlay::transfer_function_editor_ptr cm_editor_ptr;
