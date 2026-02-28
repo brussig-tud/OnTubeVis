@@ -3094,7 +3094,7 @@ shader_compile_options on_tube_vis::build_tube_shading_options() {
 
 	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
 		const auto& lc = glyph_layers_config.layer_configs[i];
-		options.define_macro_if_not_default("L" + std::to_string(i) + "_VISIBLE", lc.visible, false);
+		options.define_macro("L" + std::to_string(i) + "_VISIBLE", lc.visible);
 		options.define_macro_if_not_default("L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
 		options.define_macro_if_not_default("L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
 	}
