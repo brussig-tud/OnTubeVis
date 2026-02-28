@@ -4,6 +4,7 @@
 
 // C++ STL
 #include <filesystem>
+#include <numeric>
 
 // CGV framework core
 #include <cgv/data/informed_ptr.h>
@@ -363,25 +364,6 @@ bool on_tube_vis::init(context& ctx) {
 	success &= render.aam.init(ctx);
 
 	success &= density_volume.init(ctx, 0);
-
-	/*
-	render.sorter.set_data_type_override("vec4 pos_rad; vec4 color; vec4 tangent; vec4 t;");
-	render.sorter.set_auxiliary_type_override("uint a_idx; uint b_idx;");
-
-	std::string key_definition =
-		R"(aux_type indices = aux_values[idx]; \
-		data_type a = data[indices.a_idx]; \
-		data_type b = data[indices.b_idx]; \
-		vec3 pa = a.pos_rad.xyz; \
-		vec3 pb = b.pos_rad.xyz; \
-		\
-		vec3 x = 0.5*(pa + pb); \
-		vec3 eye_to_pos = x - eye_pos; \
-		float ddv = dot(eye_to_pos, view_dir); \
-		float key = (ddv < 0.0 ? -1.0 : 1.0) * dot(eye_to_pos, eye_to_pos);)";
-
-	render.sorter.set_key_definition_override(key_definition);
-	*/
 
 	// Initialize the last sort position and direction to zero to force a sorting step before the first draw call
 	last_sort_pos = vec3(0.0f);
@@ -2549,20 +2531,19 @@ void on_tube_vis::update_grid_ratios(void) {
 void on_tube_vis::update_attribute_bindings(void) {
 	auto &ctx = *get_context();
 
-	if (traj_mgr.has_data())
-	{
-		calculate_bounding_box(); 
+	if(traj_mgr.has_data()) {
+		calculate_bounding_box();
 		set_view();
 
 		// update min/max timestamps
-		auto &[tmin, tmax] = render.style.data_t_minmax;
-		float pct = (render.style.max_t-tmin) / (tmax-tmin);
+		auto& [tmin, tmax] = render.style.data_t_minmax;
+		float pct = (render.style.max_t - tmin) / (tmax - tmin);
 		render.style.data_t_minmax = render.data->t_minmax;
-		render.style.max_t = cgv::math::clamp(tmin + pct*(tmax-tmin), tmin, tmax);
+		render.style.max_t = cgv::math::clamp(tmin + pct * (tmax - tmin), tmin, tmax);
 		playback.tstart = tmin;
 		playback.tend = tmax;
 		playback.follow_traj = std::min(
-			playback.follow_traj, (unsigned)render.data->datasets[0].trajs.size()-1
+			playback.follow_traj, (unsigned)render.data->datasets[0].trajs.size() - 1
 		);
 
 		// Destruct range and attribute buffers for glyph layers and make sure to store one buffer pair per layer
@@ -2581,7 +2562,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 		render.arclen_sbo.destruct(ctx);
 		render.arclen_data = arclen::compute_parametrization(traj_mgr);
 		render.arclen_sbo = arclen::upload_renderdata(ctx, render.arclen_data.t_to_s);
-		
+
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
 		s.restart();
@@ -2592,43 +2573,38 @@ void on_tube_vis::update_attribute_bindings(void) {
 		// - compile data
 		const size_t num_nodes = render.data->positions.size();
 		std::vector<node_attribs> render_attribs; render_attribs.reserve(num_nodes);
-		for (size_t i=0; i<num_nodes; i++)
-		{
+		for(size_t i = 0; i < num_nodes; i++) {
 			// convenience shortcut
-			const auto &col = render.data->colors[i];
+			const auto& col = render.data->colors[i];
 			// interleave and commit
 			render_attribs.emplace_back(node_attribs{
 				/* .pos_rad */  vec4(render.data->positions[i], render.data->radii[i]),
 				/* .color */    vec4(col.R(), col.G(), col.B(), 1),
 				/* .tangent */  render.data->tangents[i],  // <- does already contain radius deriv. in w-component
 				/* .t */        vec4(render.data->timestamps[i], 0, 0, 0)
-			});
+				});
 		}
 		// - upload
 		vertex_buffer new_sbo(VertexBufferType::VBT_STORAGE, VertexBufferUsage::VBU_STATIC_READ);
-		if (!new_sbo.create(ctx, render_attribs))
+		if(!new_sbo.create(ctx, render_attribs))
 			std::cerr << "!!! unable to create render attribute Storage Buffer Object !!!" << std::endl << std::endl;
 		render.render_sbo = std::move(new_sbo);
 
-		unsigned node_indices_count = (unsigned)render.data->indices.size();
-		unsigned segment_count = node_indices_count / 2;
-
+		size_t node_indices_count = render.data->indices.size();
+		size_t segment_count = node_indices_count / 2;
 		std::vector<unsigned> segment_indices(segment_count);
-
-		for(unsigned i = 0; i < segment_indices.size(); ++i)
-			segment_indices[i] = i;
+		std::iota(segment_indices.begin(), segment_indices.end(), 0);
 
 		// Upload render attributes to legacy buffers
-		auto &tstr = ref_textured_spline_tube_renderer(ctx);
+		auto& tstr = ref_textured_spline_tube_renderer(ctx);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 		tstr.set_node_id_array(ctx, reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count, sizeof(uvec2));
 		tstr.set_indices(ctx, segment_indices);
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
-		//if(!render.sorter.init(ctx, render.data->indices.size() / 2))
-		//	std::cout << "Could not initialize gpu sorter" << std::endl;
-
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+
+		initialize_sorter();
 
 		debug.segment_count = segment_count;
 		debug.render_percentage = 1.0f;
@@ -2679,6 +2655,53 @@ void on_tube_vis::update_debug_attribute_bindings() {
 			segments.indices = render.data->indices;
 		}
 	}
+}
+
+void on_tube_vis::initialize_sorter(void) {
+	auto& ctx = *get_context();
+
+	// Define the type representing a spline node like it is used in the render data buffer.
+	const sl::data_type node_type = { "node_type", {
+		{ sl::Type::kVec4, "pos_rad" },
+		{ sl::Type::kVec4, "color" },
+		{ sl::Type::kVec4, "tangent" },
+		{ sl::Type::kVec4, "t" }
+	} };
+
+	// Define the arguments needed for computing the sort key.
+	const cgv::gpgpu::argument_definitions key_arguments = {
+		{ sl::Type::kVec3, "a_eye_pos" },
+		{ sl::Type::kVec3, "a_view_dir" },
+		{ sl::tag::buffer{}, { sl::Type::kUVec2, "a_node_indices", sl::varsize }, "node_index_buffer", { sl::MemoryQualifier::kReadOnly } }
+	};
+
+	// Define the sort key transform operation that computes a distance from the eye position to a given segment. For details see comments below.
+	const std::string key_transform = R"(
+		// Retrieve the two node indices that constitute the segment with the given index and then retrieve the actual node data.
+		uvec2 node_indices = a_node_indices[index];
+		node_type a = data_in[node_indices[0]];
+		node_type b = data_in[node_indices[1]];
+
+		// Compute the center point of the two node positions by approximating the segment as a straight line.
+		vec3 pos_a = a.pos_rad.xyz;
+		vec3 pos_b = b.pos_rad.xyz;
+		vec3 center = 0.5*(pos_a + pos_b);
+			
+		// The sort key is the distance from the eye position to the center. If the center lies behind the eye, the distance is
+		// negated to ensure these segments are sorted to the front.
+		vec3 eye_to_pos = center - a_eye_pos;
+		float side = dot(eye_to_pos, a_view_dir);
+		float distance = (side < 0.0 ? -1.0 : 1.0) * dot(eye_to_pos, eye_to_pos);
+		return distance;
+	)";
+
+	size_t node_indices_count = render.data->indices.size();
+	size_t segment_count = node_indices_count / 2;
+
+	// The sorter takes a sequence of segment_count elements of node_type and uses key_arguments in key_transform to compute a sort key.
+	// The output is a sequence of length segment_count containing indices of type uint representing the sorted order of the input elements.
+	if(!render.sorter.init(ctx, node_type, sl::Type::kUInt, segment_count, key_arguments, key_transform))
+		std::cout << "Error: Could not initialize GPU visibility sort routine." << std::endl;
 }
 
 void on_tube_vis::calculate_bounding_box(void) {
@@ -2879,14 +2902,15 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		}
 
 		// sort the segment indices
-		if(false && debug.sort && do_sort && !debug.force_initial_order) {
+		if(render.sorter.is_initialized() && debug.sort && do_sort && !debug.force_initial_order) {
+			size_t node_indices_count = render.data->indices.size();
+			size_t segment_count = node_indices_count / 2;
+			cgv::gpgpu::argument_binding_list sort_arguments;
+			sort_arguments.bind_uniform("a_eye_pos", cyclopic_eye);
+			sort_arguments.bind_uniform("a_view_dir", view_dir);
+			sort_arguments.bind_buffer("node_index_buffer", node_idx_buffer);
 			// measure sort time
 			//render.sorter.begin_time_query();
-			//render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, , view_dir, );
-			cgv::gpgpu::argument_binding_list sort_arguments;
-			sort_arguments.bind_uniform("u_eye_pos", cyclopic_eye);
-			sort_arguments.bind_uniform("u_view_dir", view_dir);
-			sort_arguments.bind_buffer("node_index_buffer", node_idx_buffer);
 			render.sorter.execute(ctx, render.render_sbo, render.data->indices.size(), *segment_idx_buffer_ptr, sort_arguments);
 			//benchmark.sort_time_total += render.sorter.end_time_query();
 			++benchmark.num_sorts;

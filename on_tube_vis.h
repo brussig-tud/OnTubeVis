@@ -549,6 +549,7 @@ protected:
 	void update_grid_ratios(void);
 	void update_attribute_bindings(void);
 	void update_debug_attribute_bindings(void);
+	void initialize_sorter(void);
 	void calculate_bounding_box(void);
 
 	void create_density_volume(cgv::render::context& ctx, unsigned resolution);
