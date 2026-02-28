@@ -36,13 +36,8 @@ private:
 		printer.OpenElement("ColorMaps");
 
 		for(const auto& color_map : color_map_mgr.ref_color_maps()) {
-			if(color_map.user_defined) {
-				// Todo: Re-enable writing.
-				
-				//auto tf = std::make_unique<cgv::media::transfer_function>();
-				//tf->set_color_points_from_scheme(cmc.cm, 256);
-				//cgv::media::transfer_function_writer::to_xml_printer(printer, cmc.name, tf.get(), false);
-			}
+			if(color_map.user_defined)
+				cgv::media::transfer_function_writer::to_xml_printer(printer, color_map.name, &color_map.ramp, false);
 		}
 
 		printer.CloseElement();
@@ -169,8 +164,7 @@ private:
 
 		// add new custom color maps
 		for(const auto& entry : read_result.entries) {
-			// Todo: Re-enable reading.
-			//color_map_mgr.add_color_map(entry.first, entry.second, true);
+			color_map_mgr.add_color_map(entry.name, *entry.transfer_function.get(), true);
 		}
 	}
 
