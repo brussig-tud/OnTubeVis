@@ -8,56 +8,66 @@
 #include <cgv/math/functions.h>
 
 
-enum GlyphType {
-	GT_UNDEFINED = -1,
-	GT_COLOR,
-	GT_CIRCLE,
-	GT_RECTANGLE,
-	GT_WEDGE,
-	GT_ARC_FLAT,
-	GT_ARC_ROUNDED,
-	GT_TRIANGLE,
-	GT_DROP,
-	GT_SIGN_BLOB,
-	GT_STAR,
-	GT_LINE_PLOT,
-	GT_TEMPORAL_HEAT_MAP,
+enum class GlyphType {
+	kUndefined = -1,
+	kColor,
+	kCircle,
+	kRectangle,
+	kWedge,
+	kArcFlat,
+	kArcRounded,
+	kTriangle,
+	kDrop,
+	kSignBlob,
+	kStar,
+	kLinePlot,
+	kTemporalHeatMap,
 };
 
-enum GlyphAttributeType {
-	GAT_UNIT = 0, // value in [0,1] determining a generic glyph attribute
-	GAT_SIGNED_UNIT = 1, // value in [-1,1] determining a generic glyph attribute
-	GAT_SIZE = 2, // value in [0,inf) determining radius, length or scale in general
-	GAT_ANGLE = 3, // value in [0,360] giving angle in degree
-	GAT_DOUBLE_ANGLE = 4, // value in [0,360] giving angle in degree (divided by 2 for the actual mapping)
-	GAT_ORIENTATION = 5, // value in [0,360] giving angle in degree used specifically to orient the glyph
-	GAT_COLOR = 6, // rgb color
-	GAT_OUTLINE = 7,
+enum class GlyphAttributeType {
+	kUnit = 0, // value in [0,1] determining a generic glyph attribute
+	kSignedUnit = 1, // value in [-1,1] determining a generic glyph attribute
+	kSize = 2, // value in [0,inf) determining radius, length or scale in general
+	kAngle = 3, // value in [0,360] giving angle in degree
+	kDoubleAngle = 4, // value in [0,360] giving angle in degree (divided by 2 for the actual mapping)
+	kOrientation = 5, // value in [0,360] giving angle in degree used specifically to orient the glyph
+	kColor = 6, // rgb color
+	kOutline = 7,
 };
 
-enum GlyphAttributeModifier {
-	GAM_NONE = 0,
-	GAM_GLOBAL = 1, // global attributes are always constant (overrides non-const)
-	GAM_NON_CONST = 2, // cannot be set to constant value
-	GAM_FORCE_MAPPABLE = 4,
+enum class GlyphAttributeModifier {
+	kNone = 0,
+	kGlobal = 1, // global attributes are always constant (overrides non-const)
+	kNonConst = 2, // cannot be set to constant value
+	kForceMappable = 4,
 };
 
-enum GuiHint {
-	GH_NONE = 0,
-	GH_GLOBAL_BLOCK_START = 1,
-	GH_BLOCK_START = 2,
+static GlyphAttributeModifier operator&(GlyphAttributeModifier lhs, GlyphAttributeModifier rhs) {
+	using T = std::underlying_type_t<GlyphAttributeModifier>;
+	return static_cast<GlyphAttributeModifier>(static_cast<T>(lhs) & static_cast<T>(rhs));
+}
+
+static GlyphAttributeModifier operator|(GlyphAttributeModifier lhs, GlyphAttributeModifier rhs) {
+	using T = std::underlying_type_t<GlyphAttributeModifier>;
+	return static_cast<GlyphAttributeModifier>(static_cast<T>(lhs) | static_cast<T>(rhs));
+}
+
+enum class GuiLayoutHint {
+	kNone = 0,
+	kGlobalBlockStart = 1,
+	kBlockStart = 2,
 };
 
 struct glyph_attribute {
 	std::string name;
-	GlyphAttributeType type;
-	GlyphAttributeModifier modifiers = GAM_NONE;
-	GuiHint gui_hint = GH_NONE;
+	GlyphAttributeType type = GlyphAttributeType::kUnit;
+	GlyphAttributeModifier modifiers = GlyphAttributeModifier::kNone;
+	GuiLayoutHint gui_hint = GuiLayoutHint::kNone;
 
 	glyph_attribute(std::string name, GlyphAttributeType type) : name(name), type(type) {}
 	glyph_attribute(std::string name, GlyphAttributeType type, GlyphAttributeModifier modifiers) : name(name), type(type), modifiers(modifiers) {}
-	glyph_attribute(std::string name, GlyphAttributeType type, GuiHint gui_hint) : name(name), type(type), gui_hint(gui_hint) {}
-	glyph_attribute(std::string name, GlyphAttributeType type, GlyphAttributeModifier modifiers, GuiHint gui_hint) : name(name), type(type), modifiers(modifiers), gui_hint(gui_hint) {}
+	glyph_attribute(std::string name, GlyphAttributeType type, GuiLayoutHint gui_hint) : name(name), type(type), gui_hint(gui_hint) {}
+	glyph_attribute(std::string name, GlyphAttributeType type, GlyphAttributeModifier modifiers, GuiLayoutHint gui_hint) : name(name), type(type), modifiers(modifiers), gui_hint(gui_hint) {}
 };
 
 class glyph_shape {
@@ -78,7 +88,7 @@ public:
 	virtual size_t num_size_attribs() const {
 		size_t n = 0;
 		for(size_t i = 0; i < supported_attributes().size(); ++i)
-			if(supported_attributes()[i].type != GAT_COLOR) ++n;
+			if(supported_attributes()[i].type != GlyphAttributeType::kColor) ++n;
 		return n;
 	}
 
@@ -99,7 +109,7 @@ public:
 	}
 
 	GlyphType type() const override {
-		return GT_COLOR;
+		return GlyphType::kColor;
 	}
 
 	std::string name() const override {
@@ -108,8 +118,8 @@ public:
 
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
-			{ "interpolate", GAT_UNIT, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "color", GAT_COLOR, GH_BLOCK_START }
+			{ "interpolate", GlyphAttributeType::kUnit, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
+			{ "color", GlyphAttributeType::kColor, GuiLayoutHint::kBlockStart }
 		};
 		return attributes;
 	}
@@ -134,7 +144,7 @@ public:
 	}
 
 	GlyphType type() const override {
-		return GT_CIRCLE;
+		return GlyphType::kCircle;
 	}
 
 	std::string name() const override {
@@ -143,9 +153,9 @@ public:
 
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "radius", GAT_SIZE },
+			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
+			{ "color", GlyphAttributeType::kColor, GuiLayoutHint::kBlockStart },
+			{ "radius", GlyphAttributeType::kSize },
 		};
 		return attributes;
 	}
@@ -163,7 +173,7 @@ public:
 	}
 
 	GlyphType type() const override {
-		return GT_RECTANGLE;
+		return GlyphType::kRectangle;
 	}
 
 	std::string name() const override {
@@ -172,10 +182,10 @@ public:
 
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "length", GAT_SIZE },
-			{ "height", GAT_SIZE }
+			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
+			{ "color", GlyphAttributeType::kColor, GuiLayoutHint::kBlockStart },
+			{ "length", GlyphAttributeType::kSize },
+			{ "height", GlyphAttributeType::kSize }
 		};
 		return attributes;
 	}
@@ -193,7 +203,7 @@ public:
 	}
 
 	GlyphType type() const override {
-		return GT_WEDGE;
+		return GlyphType::kWedge;
 	}
 
 	std::string name() const override {
@@ -202,11 +212,11 @@ public:
 
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "radius", GAT_SIZE },
-			{ "aperture", GAT_DOUBLE_ANGLE },
-			{ "orientation", GAT_ORIENTATION }
+			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
+			{ "color", GlyphAttributeType::kColor, GuiLayoutHint::kBlockStart },
+			{ "radius", GlyphAttributeType::kSize },
+			{ "aperture", GlyphAttributeType::kDoubleAngle },
+			{ "orientation", GlyphAttributeType::kOrientation }
 		};
 		return attributes;
 	}
@@ -225,7 +235,7 @@ public:
 	}
 
 	GlyphType type() const override {
-		return GT_ARC_FLAT;
+		return GlyphType::kArcFlat;
 	}
 
 	std::string name() const override {
@@ -234,12 +244,12 @@ public:
 
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "radius", GAT_SIZE },
-			{ "thickness", GAT_SIZE },
-			{ "aperture", GAT_DOUBLE_ANGLE },
-			{ "orientation", GAT_ORIENTATION }
+			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
+			{ "color", GlyphAttributeType::kColor, GuiLayoutHint::kBlockStart },
+			{ "radius", GlyphAttributeType::kSize },
+			{ "thickness", GlyphAttributeType::kSize },
+			{ "aperture", GlyphAttributeType::kDoubleAngle },
+			{ "orientation", GlyphAttributeType::kOrientation }
 		};
 		return attributes;
 	}
@@ -258,7 +268,7 @@ public:
 	}
 
 	GlyphType type() const override {
-		return GT_ARC_ROUNDED;
+		return GlyphType::kArcRounded;
 	}
 
 	std::string name() const override {
@@ -273,7 +283,7 @@ public:
 	}
 
 	GlyphType type() const override {
-		return GT_TRIANGLE;
+		return GlyphType::kTriangle;
 	}
 
 	std::string name() const override {
@@ -282,11 +292,11 @@ public:
 
 	const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "base_width", GAT_SIZE },
-			{ "height", GAT_SIZE },
-			{ "orientation", GAT_ORIENTATION }
+			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
+			{ "color", GlyphAttributeType::kColor, GuiLayoutHint::kBlockStart },
+			{ "base_width", GlyphAttributeType::kSize },
+			{ "height", GlyphAttributeType::kSize },
+			{ "orientation", GlyphAttributeType::kOrientation }
 		};
 		return attributes;
 	}
@@ -340,7 +350,7 @@ public:
 	}
 
 	GlyphType type() const override {
-		return GT_DROP;
+		return GlyphType::kDrop;
 	}
 
 	std::string name() const override {
@@ -349,12 +359,12 @@ public:
 
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "base_radius", GAT_SIZE },
-			{ "tip_radius", GAT_SIZE },
-			{ "height", GAT_SIZE },
-			{ "orientation", GAT_ORIENTATION }
+			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
+			{ "color", GlyphAttributeType::kColor, GuiLayoutHint::kBlockStart },
+			{ "base_radius", GlyphAttributeType::kSize },
+			{ "tip_radius", GlyphAttributeType::kSize },
+			{ "height", GlyphAttributeType::kSize },
+			{ "orientation", GlyphAttributeType::kOrientation }
 		};
 		return attributes;
 	}
@@ -367,7 +377,7 @@ public:
 	}
 
 	GlyphType type() const override {
-		return GT_SIGN_BLOB;
+		return GlyphType::kSignBlob;
 	}
 
 	std::string name() const override {
@@ -376,10 +386,10 @@ public:
 
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "size", GAT_SIZE, GAM_GLOBAL },
-			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "value", GAT_SIGNED_UNIT },
+			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
+			{ "size", GlyphAttributeType::kSize, GlyphAttributeModifier::kGlobal },
+			{ "color", GlyphAttributeType::kColor, GuiLayoutHint::kBlockStart },
+			{ "value", GlyphAttributeType::kSignedUnit },
 		};
 		return attributes;
 	}
@@ -405,7 +415,7 @@ public:
 	}
 
 	GlyphType type() const override {
-		return GT_STAR;
+		return GlyphType::kStar;
 	}
 
 	std::string name() const override {
@@ -414,23 +424,23 @@ public:
 
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
-			{ "radius", GAT_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "secondary_color", GAT_COLOR, GAM_GLOBAL },
-			{ "color_setting", GAT_UNIT, GAM_GLOBAL },
-			{ "blend_factor", GAT_UNIT, GAM_GLOBAL },
-			{ "inner_transparency", GAT_UNIT, GAM_GLOBAL },
-			{ "axes_setting", GAT_UNIT, GAM_GLOBAL },
-			{ "orientation", GAT_ORIENTATION, GAM_GLOBAL },
-			{ "color_0", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
-			{ "axis_0", GAT_SIZE, GAM_NON_CONST },
-			{ "color_1", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
-			{ "axis_1", GAT_SIZE, GAM_NON_CONST },
-			{ "color_2", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
-			{ "axis_2", GAT_SIZE, GAM_NON_CONST },
-			{ "color_3", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
-			{ "axis_3", GAT_SIZE, GAM_NON_CONST },
-			{ "color_4", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
-			{ "axis_4", GAT_SIZE, GAM_NON_CONST }
+			{ "radius", GlyphAttributeType::kSize, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
+			{ "secondary_color", GlyphAttributeType::kColor, GlyphAttributeModifier::kGlobal },
+			{ "color_setting", GlyphAttributeType::kUnit, GlyphAttributeModifier::kGlobal },
+			{ "blend_factor", GlyphAttributeType::kUnit, GlyphAttributeModifier::kGlobal },
+			{ "inner_transparency", GlyphAttributeType::kUnit, GlyphAttributeModifier::kGlobal },
+			{ "axes_setting", GlyphAttributeType::kUnit, GlyphAttributeModifier::kGlobal },
+			{ "orientation", GlyphAttributeType::kOrientation, GlyphAttributeModifier::kGlobal },
+			{ "color_0", GlyphAttributeType::kColor, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kBlockStart },
+			{ "axis_0", GlyphAttributeType::kSize, GlyphAttributeModifier::kNonConst },
+			{ "color_1", GlyphAttributeType::kColor, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kBlockStart },
+			{ "axis_1", GlyphAttributeType::kSize, GlyphAttributeModifier::kNonConst },
+			{ "color_2", GlyphAttributeType::kColor, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kBlockStart },
+			{ "axis_2", GlyphAttributeType::kSize, GlyphAttributeModifier::kNonConst },
+			{ "color_3", GlyphAttributeType::kColor, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kBlockStart },
+			{ "axis_3", GlyphAttributeType::kSize, GlyphAttributeModifier::kNonConst },
+			{ "color_4", GlyphAttributeType::kColor, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kBlockStart },
+			{ "axis_4", GlyphAttributeType::kSize, GlyphAttributeModifier::kNonConst }
 		};
 		return attributes;
 	}
@@ -452,7 +462,7 @@ public:
 	}
 
 	GlyphType type() const override {
-		return GT_LINE_PLOT;
+		return GlyphType::kLinePlot;
 	}
 
 	std::string name() const override {
@@ -461,16 +471,16 @@ public:
 
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "interpolate", GAT_UNIT, GAM_GLOBAL },
-			{ "color_0", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
-			{ "value_0", GAT_SIZE, GAM_NON_CONST },
-			{ "color_1", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
-			{ "value_1", GAT_SIZE, GAM_NON_CONST },
-			{ "color_2", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
-			{ "value_2", GAT_SIZE, GAM_NON_CONST },
-			{ "color_3", GAT_COLOR, GAM_GLOBAL, GH_BLOCK_START },
-			{ "value_3", GAT_SIZE, GAM_NON_CONST }
+			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
+			{ "interpolate", GlyphAttributeType::kUnit, GlyphAttributeModifier::kGlobal },
+			{ "color_0", GlyphAttributeType::kColor, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kBlockStart },
+			{ "value_0", GlyphAttributeType::kSize, GlyphAttributeModifier::kNonConst },
+			{ "color_1", GlyphAttributeType::kColor, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kBlockStart },
+			{ "value_1", GlyphAttributeType::kSize, GlyphAttributeModifier::kNonConst },
+			{ "color_2", GlyphAttributeType::kColor, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kBlockStart },
+			{ "value_2", GlyphAttributeType::kSize, GlyphAttributeModifier::kNonConst },
+			{ "color_3", GlyphAttributeType::kColor, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kBlockStart },
+			{ "value_3", GlyphAttributeType::kSize, GlyphAttributeModifier::kNonConst }
 		};
 		return attributes;
 	}
@@ -494,7 +504,7 @@ public:
 	}
 
 	GlyphType type() const override {
-		return GT_TEMPORAL_HEAT_MAP;
+		return GlyphType::kTemporalHeatMap;
 	}
 
 	std::string name() const override {
@@ -503,13 +513,13 @@ public:
 
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "interpolate", GAT_UNIT, GAM_GLOBAL },
-			{ "color", GAT_COLOR, GlyphAttributeModifier(GAM_GLOBAL|GAM_FORCE_MAPPABLE), GH_BLOCK_START },
-			{ "value_0", GAT_SIZE, GAM_NON_CONST },
-			{ "value_1", GAT_SIZE, GAM_NON_CONST },
-			{ "value_2", GAT_SIZE, GAM_NON_CONST },
-			{ "value_3", GAT_SIZE, GAM_NON_CONST }
+			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
+			{ "interpolate", GlyphAttributeType::kUnit, GlyphAttributeModifier::kGlobal },
+			{ "color", GlyphAttributeType::kColor, GlyphAttributeModifier::kGlobal | GlyphAttributeModifier::kForceMappable, GuiLayoutHint::kBlockStart },
+			{ "value_0", GlyphAttributeType::kSize, GlyphAttributeModifier::kNonConst },
+			{ "value_1", GlyphAttributeType::kSize, GlyphAttributeModifier::kNonConst },
+			{ "value_2", GlyphAttributeType::kSize, GlyphAttributeModifier::kNonConst },
+			{ "value_3", GlyphAttributeType::kSize, GlyphAttributeModifier::kNonConst }
 		};
 		return attributes;
 	}
@@ -530,24 +540,24 @@ struct glyph_type_registry {
 	static GlyphType type(const std::string& name) {
 		const auto& n = names();
 		static const std::map<std::string, GlyphType> mapping = {
-			{ n[0], GT_COLOR },
-			{ n[1], GT_CIRCLE },
-			{ n[2], GT_RECTANGLE },
-			{ n[3], GT_WEDGE },
-			{ n[4], GT_ARC_FLAT },
-			{ n[5], GT_ARC_ROUNDED },
-			{ n[6], GT_TRIANGLE },
-			{ n[7], GT_DROP },
-			{ n[8], GT_SIGN_BLOB },
-			{ n[9], GT_STAR },
-			{ n[10], GT_LINE_PLOT },
-			{ n[11], GT_TEMPORAL_HEAT_MAP }
+			{ n[0], GlyphType::kColor },
+			{ n[1], GlyphType::kCircle },
+			{ n[2], GlyphType::kRectangle },
+			{ n[3], GlyphType::kWedge },
+			{ n[4], GlyphType::kArcFlat },
+			{ n[5], GlyphType::kArcRounded },
+			{ n[6], GlyphType::kTriangle },
+			{ n[7], GlyphType::kDrop },
+			{ n[8], GlyphType::kSignBlob },
+			{ n[9], GlyphType::kStar },
+			{ n[10], GlyphType::kLinePlot },
+			{ n[11], GlyphType::kTemporalHeatMap }
 		};
 
 		auto it = mapping.find(name);
 		if(it != mapping.end())
 			return (*it).second;
-		return GT_UNDEFINED;
+		return GlyphType::kUndefined;
 	}
 
 	static std::vector<std::string> names() {
@@ -605,18 +615,18 @@ struct glyph_type_registry {
 struct glyph_shape_factory {
 	static std::unique_ptr<glyph_shape> create(const GlyphType type) {
 		switch(type) {
-		case GT_COLOR: return std::make_unique<color_glyph>();
-		case GT_CIRCLE: return std::make_unique<circle_glyph>();
-		case GT_RECTANGLE: return std::make_unique<rectangle_glyph>();
-		case GT_WEDGE: return std::make_unique<wedge_glyph>();
-		case GT_ARC_FLAT: return std::make_unique<flat_arc_glyph>();
-		case GT_ARC_ROUNDED: return std::make_unique<rounded_arc_glyph>();
-		case GT_TRIANGLE: return std::make_unique<isoceles_triangle_glyph>();
-		case GT_DROP: return std::make_unique<drop_glyph>();
-		case GT_SIGN_BLOB: return std::make_unique<sign_blob_glyph>();
-		case GT_STAR: return std::make_unique<star_glyph>();
-		case GT_LINE_PLOT: return std::make_unique<line_plot_glyph>();
-		case GT_TEMPORAL_HEAT_MAP: return std::make_unique<temporal_heat_map_glyph>();
+		case GlyphType::kColor: return std::make_unique<color_glyph>();
+		case GlyphType::kCircle: return std::make_unique<circle_glyph>();
+		case GlyphType::kRectangle: return std::make_unique<rectangle_glyph>();
+		case GlyphType::kWedge: return std::make_unique<wedge_glyph>();
+		case GlyphType::kArcFlat: return std::make_unique<flat_arc_glyph>();
+		case GlyphType::kArcRounded: return std::make_unique<rounded_arc_glyph>();
+		case GlyphType::kTriangle: return std::make_unique<isoceles_triangle_glyph>();
+		case GlyphType::kDrop: return std::make_unique<drop_glyph>();
+		case GlyphType::kSignBlob: return std::make_unique<sign_blob_glyph>();
+		case GlyphType::kStar: return std::make_unique<star_glyph>();
+		case GlyphType::kLinePlot: return std::make_unique<line_plot_glyph>();
+		case GlyphType::kTemporalHeatMap: return std::make_unique<temporal_heat_map_glyph>();
 		default: return std::make_unique<color_glyph>();
 		}
 	}

@@ -814,23 +814,25 @@ protected:
 
 		lci.update_attribute_count();
 
-		// reserve memory (might not make a huge or even noticeable difference)
+		// Todo: Reserve memory? Might not make a huge or even noticeable difference but try it anyway.
 		//lci.attribs.reserve(attribs.size() + ...);
 		// reserve the maximum amount of possible segments; actual segment count may be less if some nodes are used multiple times
 		lci.ranges.reserve(P.num() - tube_trajs.size());
 
 		switch (sampling_strategy)
 		{
-			case ASS_UNIFORM:
+			case AttributeSamplingStrategy::kUniformTime:
 				compile_glyphs_front_uniform_time(P, tube_trajs, parametrization.t_to_s, layer_config, lci);
 				break;
-			case ASS_EQUIDIST:
+			case AttributeSamplingStrategy::kEquidistant:
 				compile_glyphs_front_equidistant(P, tube_trajs, parametrization, layer_config, lci);
 				break;
-			case ASS_AT_SAMPLES:
+			case AttributeSamplingStrategy::kOriginalSamples:
 				compile_glyphs_front_at_samples(P, tube_trajs, parametrization.t_to_s, layer_config, lci);
+				break;
 			default:
 				/* DoNothing() */;
+				break;
 		}
 
 		layer_filled[layer_idx] = true;

@@ -223,7 +223,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 ActionType glyph_layer_manager::action_type() {
 	ActionType temp = last_action_type;
-	last_action_type = AT_NONE;
+	last_action_type = ActionType::kUndefined;
 	return temp;
 }
 
@@ -278,7 +278,7 @@ void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p)
 }
 
 void glyph_layer_manager::notify_configuration_change() {
-	last_action_type = AT_CONFIGURATION_CHANGE;
+	last_action_type = ActionType::kConfigurationChange;
 	if(base_ptr)
 		base_ptr->on_set(this);
 }
@@ -295,7 +295,7 @@ void glyph_layer_manager::add_glyph_attribute_mapping(const glyph_attribute_mapp
 }
 
 void glyph_layer_manager::on_set(void* member_ptr) {
-	last_action_type = AT_MAPPING_VALUE_CHANGE;
+	last_action_type = ActionType::kMappingValueChange;
 
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
@@ -304,11 +304,11 @@ void glyph_layer_manager::on_set(void* member_ptr) {
 			last_action_type = gam.action_type();
 
 		if(member_ptr == &gam.ref_active())
-			last_action_type = AT_CONFIGURATION_CHANGE;
+			last_action_type = ActionType::kConfigurationChange;
 	}
 
 	if(member_ptr == &new_attribute_mapping_name)
-		last_action_type = AT_NONE;
+		last_action_type = ActionType::kUndefined;
 
 	if(base_ptr)
 		base_ptr->on_set(this);

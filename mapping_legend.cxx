@@ -89,7 +89,7 @@ void mapping_legend::update(const traj_dataset<float>& dataset, const glyph_laye
 		layer.title = mapping.get_name();
 		if(!layer.title.empty())
 			layer.title += " ";
-		layer.title += "(" + glyph_type_registry::display_names()[shape->type()] + ")";
+		layer.title += "(" + glyph_type_registry::display_names()[static_cast<int>(shape->type())] + ")";
 
 		cgv::utils::number_format format;
 		format.fixed = true;
@@ -110,8 +110,8 @@ void mapping_legend::update(const traj_dataset<float>& dataset, const glyph_laye
 			};
 
 			// special handling for line and star plot
-			if(shape->type() == GT_LINE_PLOT || shape->type() == GT_STAR) {
-				if(attribute_index > -1 && shape_attributes[i].type == GAT_SIZE) {
+			if(shape->type() == GlyphType::kLinePlot || shape->type() == GlyphType::kStar) {
+				if(attribute_index > -1 && shape_attributes[i].type == GlyphAttributeType::kSize) {
 					line.text = attribute_names[attribute_index];
 					line.range = range_to_string(input_range);
 
@@ -130,7 +130,7 @@ void mapping_legend::update(const traj_dataset<float>& dataset, const glyph_laye
 					//if(color_index > -1)
 					//	line.text += " map";
 				} else {
-					if(color_index < 0 && shape_attributes[i].type == GAT_COLOR) {
+					if(color_index < 0 && shape_attributes[i].type == GlyphAttributeType::kColor) {
 						// using constant color
 						const auto& color = mapping.ref_attrib_colors()[i];
 

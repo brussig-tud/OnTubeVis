@@ -60,9 +60,9 @@ private:
 			std::string sampling_type = "";
 
 			switch(gam.get_sampling_strategy()) {
-			case ASS_AT_SAMPLES: sampling_type = "original"; break;
-			case ASS_UNIFORM: sampling_type = "uniform"; break;
-			case ASS_EQUIDIST: sampling_type = "equidist"; break;
+			case AttributeSamplingStrategy::kOriginalSamples: sampling_type = "original"; break;
+			case AttributeSamplingStrategy::kUniformTime: sampling_type = "uniform"; break;
+			case AttributeSamplingStrategy::kEquidistant: sampling_type = "equidist"; break;
 			default: break;
 			}
 
@@ -224,11 +224,11 @@ private:
 		std::string sampling = "";
 		if(cgv::xml::QueryStringAttribute(elem, "sampling", sampling) == tinyxml2::XML_SUCCESS) {
 			if(sampling == "original") {
-				gam.set_sampling_strategy(ASS_AT_SAMPLES);
+				gam.set_sampling_strategy(AttributeSamplingStrategy::kOriginalSamples);
 			} else if(sampling == "uniform") {
-				gam.set_sampling_strategy(ASS_UNIFORM);
+				gam.set_sampling_strategy(AttributeSamplingStrategy::kUniformTime);
 			} else if(sampling == "equidist") {
-				gam.set_sampling_strategy(ASS_EQUIDIST);
+				gam.set_sampling_strategy(AttributeSamplingStrategy::kEquidistant);
 			}
 		}
 

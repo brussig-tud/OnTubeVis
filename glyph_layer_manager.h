@@ -95,7 +95,7 @@ protected:
 	//
 	cgv::base::base_ptr base_ptr;
 	//
-	ActionType last_action_type = AT_NONE;
+	ActionType last_action_type = ActionType::kUndefined;
 
 	std::vector<glyph_attribute_mapping> glyph_attribute_mappings;
 

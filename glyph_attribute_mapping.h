@@ -21,10 +21,10 @@
 
 
 
-enum AttributeSamplingStrategy {
-	ASS_UNIFORM,
-	ASS_EQUIDIST,
-	ASS_AT_SAMPLES,
+enum class AttributeSamplingStrategy {
+	kUniformTime,
+	kEquidistant,
+	kOriginalSamples,
 };
 
 struct scalar_mapping {
@@ -36,16 +36,16 @@ struct scalar_mapping {
 
 class glyph_attribute_mapping {
 protected:
-	ActionType last_action_type = AT_NONE;
+	ActionType last_action_type = ActionType::kUndefined;
 
 	std::string name = "";
 	bool active = true;
 
 	std::shared_ptr<const visualization_variables_info> visualization_variables;
 
-	AttributeSamplingStrategy sampling_strategy = ASS_AT_SAMPLES;
+	AttributeSamplingStrategy sampling_strategy = AttributeSamplingStrategy::kOriginalSamples;
 	float sampling_step = 1.0f;
-	GlyphType type = GT_CIRCLE;
+	GlyphType type = GlyphType::kCircle;
 	std::unique_ptr<glyph_shape> shape;
 
 	std::vector<int> attrib_source_indices;

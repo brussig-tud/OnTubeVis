@@ -58,7 +58,7 @@ private:
 	/// pointer to the base that uses this manager
 	cgv::base::base_ptr base_ptr = nullptr;
 	/// type of the last gui action
-	ActionType last_action_type = AT_NONE;
+	ActionType last_action_type = ActionType::kUndefined;
 	/// index of currently edited color map
 	int edit_idx = -1;
 	/// name of the new color map

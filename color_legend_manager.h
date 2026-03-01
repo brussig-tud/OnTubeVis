@@ -10,7 +10,6 @@
 #include <cgv/render/texture.h>
 #include <cgv_overlay/color_scale_legend.h>
 
-#include "gui_util.h"
 #include "traj_loader.h"
 #include "glyph_attribute_mapping.h"
 #include "color_map_manager.h"

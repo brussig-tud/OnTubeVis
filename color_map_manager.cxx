@@ -34,7 +34,7 @@ void color_map_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
 
 ActionType color_map_manager::action_type() {
 	ActionType temp = last_action_type;
-	last_action_type = AT_NONE;
+	last_action_type = ActionType::kUndefined;
 	return temp;
 }
 
@@ -110,7 +110,7 @@ void color_map_manager::create_color_map() {
 
 	new_name.clear();
 	
-	last_action_type = AT_CONFIGURATION_CHANGE;
+	last_action_type = ActionType::kConfigurationChange;
 	if(base_ptr) {
 		auto provider = dynamic_cast<cgv::gui::provider*>(&(*base_ptr));
 		if(provider)
@@ -123,7 +123,7 @@ void color_map_manager::remove_color_map(const size_t index) {
 	if(index < color_maps.size()) {
 		color_maps.erase(color_maps.begin() + index);
 		
-		last_action_type = AT_CONFIGURATION_CHANGE;
+		last_action_type = ActionType::kConfigurationChange;
 		if(base_ptr)
 			base_ptr->on_set(this);
 	}
@@ -131,7 +131,7 @@ void color_map_manager::remove_color_map(const size_t index) {
 
 void color_map_manager::edit_color_map(const size_t index) {
 	if(base_ptr) {
-		last_action_type = AT_EDIT_REQUEST;
+		last_action_type = ActionType::kEditRequest;
 		if(edit_idx == index)
 			edit_idx = -1;
 		else

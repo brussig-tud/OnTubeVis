@@ -1037,7 +1037,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 		auto& glyph_layers_config = render.visualizations.front().config;
 		const auto action = glyph_layer_mgr.action_type();
 		bool changes = false;
-		if(action == AT_CONFIGURATION_CHANGE) {
+		if(action == ActionType::kConfigurationChange) {
 			glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 			context& ctx = *get_context();
@@ -1048,11 +1048,11 @@ void on_tube_vis::on_set(void* member_ptr) {
 
 			changes = true;
 			do_full_gui_update = true;
-		} else if(action == AT_CONFIGURATION_VALUE_CHANGE) {
+		} else if(action == ActionType::kConfigurationValueChange) {
 			glyph_layers_config = glyph_layer_mgr.get_configuration();
 			glyphs_out_of_date(true);
 			changes = true;
-		} else if(action == AT_MAPPING_VALUE_CHANGE) {
+		} else if(action == ActionType::kMappingValueChange) {
 			glyphs_out_of_date(true);
 			changes = true;
 		}
@@ -1066,7 +1066,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 
 	if(ptr.points_to(color_map_mgr)) {
 		switch(color_map_mgr.action_type()) {
-		case AT_CONFIGURATION_CHANGE:
+		case ActionType::kConfigurationChange:
 		{
 			if(cm_editor_ptr) {
 				cm_editor_ptr->set_transfer_function(nullptr);
@@ -1084,7 +1084,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 			do_full_gui_update = true;
 			break;
 		}
-		case AT_EDIT_REQUEST:
+		case ActionType::kEditRequest:
 			if(cm_editor_ptr) {
 				cgv::media::transfer_function* color_ramp = color_map_mgr.get_edited_color_ramp();
 				if(color_ramp) {
