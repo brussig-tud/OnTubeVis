@@ -69,7 +69,7 @@ namespace cgv {
 namespace reflect {
 
 enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
-	return enum_reflection_traits<GridMode>("GM_NONE,GM_COLOR,GM_NORMAL,GM_COLOR_AND_NORMAL");
+	return enum_reflection_traits<GridMode>("None,Color,Normal,ColorAndNormal");
 }
 
 }
@@ -114,7 +114,7 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 	grids[1].thickness = 0.1f;
 	grids[1].blend_factor = 0.333f;
 	grid_color = rgba(0.25f, 0.25f, 0.25f, 0.75f);
-	grid_mode = GM_COLOR_AND_NORMAL;
+	grid_mode = GridMode::kColorAndNormal;
 	grid_normal_settings = (cgv::type::DummyEnum)1u;
 	grid_normal_inwards = true;
 	grid_normal_variant = true;
@@ -1949,7 +1949,7 @@ void on_tube_vis::handle_screenshot_change (screenshot::event &event)
 				{"dataset", datapath_helper.file_name},
 				{"layercfg", layer_config_file_helper.file_name},
 				{"ribbons", std::to_string(render.style.is_ribbon())},
-				{"gridmode", std::to_string(grid_mode)},
+				{"gridmode", std::to_string(static_cast<std::underlying_type_t<GridMode>>(grid_mode))},
 				{"ao_enabled", std::to_string(ao_style.enable)},
 				{"ao_strength", std::to_string(ao_style.strength_scale)},
 				{"ao_sample_offset", std::to_string(ao_style.sample_offset)},
@@ -2109,26 +2109,27 @@ void on_tube_vis::draw (context &ctx)
 		if(debug.limit_render_count)
 			debug_idx_count = static_cast<int>(2 * debug.render_count);
 
-		switch(debug.render_mode) {
-			case DRM_NONE:
+		switch(debug.render_mode)
+		{
+			case DebugRenderMode::kDisabled:
 				draw_trajectories(ctx);
 				break;
-			case DRM_NODES:
+			case DebugRenderMode::kNodes:
 				debug.geometry.nodes.render(ctx, 0, debug_idx_count);
 				break;
-			case DRM_SEGMENTS:
+			case DebugRenderMode::kSegments:
 				debug.geometry.segments.render(ctx, 0, debug_idx_count);
 				break;
-			case DRM_NODES_SEGMENTS:
+			case DebugRenderMode::kNodesAndSegments:
 				debug.geometry.nodes.render(ctx, 0, debug_idx_count);
 				debug.geometry.segments.render(ctx, 0, debug_idx_count);
 				break;
-			case DRM_VOLUME:
+			case DebugRenderMode::kVolume:
 				draw_density_volume(ctx);
 				break;
-
 			default:
 				/* DoNothing() */;
+				break;
 		}
 
 		if (dataset.is_rtlola && dataset.rtlola_show_map)
@@ -2427,7 +2428,7 @@ void on_tube_vis::create_gui(void)
 		add_section_heading("Render Mode", 3);
 		add_member_control(this, "", debug.render_mode, "dropdown", "enums='Default,Nodes,Segments,Nodes + Segments,Volume'");
 		
-		if(debug.render_mode == DRM_VOLUME) {
+		if(debug.render_mode == DebugRenderMode::kVolume) {
 			if(begin_tree_node("Volume Style", vstyle, false, "level=3")) {
 				align("\a");
 				add_gui("vstyle", vstyle);
@@ -2631,10 +2632,10 @@ void on_tube_vis::update_debug_attribute_bindings() {
 	segments.clear();
 
 	if(traj_mgr.has_data()) {
-		float radius_scale = debug.render_mode == DRM_NODES_SEGMENTS ? 0.5f : 1.0f;
+		float radius_scale = debug.render_mode == DebugRenderMode::kNodesAndSegments ? 0.5f : 1.0f;
 
 		// Create render data for debug views if requested
-		if(debug.render_mode == DRM_NONE) {
+		if(debug.render_mode == DebugRenderMode::kDisabled) {
 			// do an early transfer to free GPU memory, since the render function of this data will not be called anymore
 			nodes.early_transfer(ctx, ref_sphere_renderer(ctx));
 			segments.early_transfer(ctx, ref_cone_renderer(ctx));
@@ -3101,7 +3102,7 @@ shader_compile_options on_tube_vis::build_tube_shading_options() {
 	options.define_macro_if_not_default("ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
 
 	// grid defines
-	options.define_macro_if_not_default("GRID_MODE", grid_mode, GM_COLOR);
+	options.define_macro_if_not_default("GRID_MODE", grid_mode, GridMode::kColor);
 	unsigned gs = static_cast<unsigned>(grid_normal_settings);
 	if(grid_normal_inwards) gs += 4u;
 	if(grid_normal_variant) gs += 8u;

@@ -63,11 +63,11 @@
 
 
 // define GridMode outside of main on_tube_vis class to be able to use it with type reflection
-enum GridMode : unsigned {
-	GM_NONE = 0,
-	GM_COLOR = 1,
-	GM_NORMAL = 2,
-	GM_COLOR_AND_NORMAL = 3
+enum class GridMode : unsigned {
+	kNone = 0,
+	kColor = 1,
+	kNormal = 2,
+	kColorAndNormal = 3
 };
 
 namespace cgv {
@@ -459,17 +459,17 @@ protected:
 	} benchmark;
 
 	/// the different debug render modes
-	enum DebugRenderMode {
-		DRM_NONE,
-		DRM_NODES,
-		DRM_SEGMENTS,
-		DRM_NODES_SEGMENTS,
-		DRM_VOLUME
+	enum class DebugRenderMode {
+		kDisabled,
+		kNodes,
+		kSegments,
+		kNodesAndSegments,
+		kVolume
 	};
 
 	/// debug state fields
 	struct {
-		DebugRenderMode render_mode = DRM_NONE;
+		DebugRenderMode render_mode = DebugRenderMode::kDisabled;
 
 		/// debug render data
 		struct {
