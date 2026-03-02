@@ -115,13 +115,13 @@ private:
 			printer.OpenElement("Property");
 			cgv::xml::PushAttribute(printer, "name", attribute.name);
 
-			if(!(attribute.modifiers & GAM_GLOBAL)) {
+			if((attribute.modifiers & GlyphAttributeModifier::kGlobal) == GlyphAttributeModifier::kNone) {
 				int attribute_index = attribute_indices[i];
 				if(attribute_index > -1)
 					cgv::xml::PushAttribute(printer, "attrib_name", attribute_names[attribute_index]);
 			}
 
-			if(attribute.type == GAT_COLOR) {
+			if(attribute.type == GlyphAttributeType::kColor) {
 				int color_index = color_indices[i];
 				if(color_index > -1)
 					cgv::xml::PushAttribute(printer, "color_map_name", color_map_names[color_index]);
@@ -130,15 +130,15 @@ private:
 			}
 
 			scalar_mapping mr = mapping_ranges[i];
-			if(attribute.modifiers & GAM_GLOBAL) {
-				if(attribute.type != GAT_COLOR)
+			if((attribute.modifiers & GlyphAttributeModifier::kGlobal) != GlyphAttributeModifier::kNone) {
+				if(attribute.type != GlyphAttributeType::kColor)
 					cgv::xml::PushAttribute(printer, "value", std::to_string(mr.output_range.y()));
 			} else {
 				cgv::xml::PushAttribute(printer, "in_range", mr.input_range);
 			}
-			if(attribute.type != GAT_UNIT &&
-			   attribute.type != GAT_SIGNED_UNIT &&
-			   attribute.type != GAT_OUTLINE
+			if(attribute.type != GlyphAttributeType::kUnit &&
+			   attribute.type != GlyphAttributeType::kSignedUnit &&
+			   attribute.type != GlyphAttributeType::kOutline
 			   ) {
 				cgv::xml::PushAttribute(printer, "out_range", mr.output_range);
 			}
@@ -273,7 +273,7 @@ private:
 			gam.set_attrib_source_index(static_cast<size_t>(shape_attrib_idx), attrib_idx);
 		}
 
-		if(attrib.modifiers & GAM_GLOBAL) {
+		if((attrib.modifiers & GlyphAttributeModifier::kGlobal) != GlyphAttributeModifier::kNone) {
 			float value = 1.0f;
 			if(elem.QueryFloatAttribute("value", &value) == tinyxml2::XML_SUCCESS)
 				gam.set_attrib_out_range(shape_attrib_idx, cgv::vec2(0.0f, value));
@@ -287,17 +287,16 @@ private:
 			input_ranges.push_back({ -1, in_range });
 		}
 
-		if(attrib.type != GAT_UNIT &&
-		   attrib.type != GAT_SIGNED_UNIT &&
-		   //attrib.type != GAT_COLOR &&
-		   attrib.type != GAT_OUTLINE
+		if(attrib.type != GlyphAttributeType::kUnit &&
+		   attrib.type != GlyphAttributeType::kSignedUnit &&
+		   attrib.type != GlyphAttributeType::kOutline
 		   ) {
 			cgv::vec2 out_range(0.0f, 1.0f);
 			if(cgv::xml::QueryVecAttribute(elem, "out_range", out_range) == tinyxml2::XML_SUCCESS)
 				gam.set_attrib_out_range(shape_attrib_idx, out_range);
 		}
 
-		if(shape_ptr->supported_attributes()[shape_attrib_idx].type == GAT_COLOR) {
+		if(shape_ptr->supported_attributes()[shape_attrib_idx].type == GlyphAttributeType::kColor) {
 			int color_map_idx = -1;
 			std::string color_map_name = "";
 			if(cgv::xml::QueryStringAttribute(elem, "color_map_name", color_map_name) == tinyxml2::XML_SUCCESS) {

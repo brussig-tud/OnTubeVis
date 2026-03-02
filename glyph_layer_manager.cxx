@@ -67,8 +67,8 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				int color_map_idx = color_map_indices[j];
 				GlyphAttributeType type = attribs[j].type;
 				GlyphAttributeModifier modifiers = attribs[j].modifiers;
-				bool is_global = modifiers & GAM_GLOBAL;
-				bool is_non_const = modifiers & GAM_NON_CONST;
+				bool is_global = (modifiers & GlyphAttributeModifier::kGlobal) != GlyphAttributeModifier::kNone;
+				bool is_non_const = (modifiers & GlyphAttributeModifier::kNonConst) != GlyphAttributeModifier::kNone;
 
 				std::string parameter_str = "";
 
@@ -80,7 +80,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					// constant non-mapped parameter
 					std::string uniform_name;
 
-					if(type == GAT_COLOR) {
+					if(type == GlyphAttributeType::kColor) {
 						uniform_name = config.constant_color_parameter_name_prefix + "[" + std::to_string(config.constant_color_parameters.size()) + "]";
 
 						config.constant_color_parameters.push_back(std::make_pair(uniform_name, &attrib_colors[j]));
@@ -99,14 +99,14 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 					std::string remap_func = "clamp_remap";
 					switch(type) {
-					case GAT_SIGNED_UNIT: remap_func = "clamp_remap11"; break;
-					case GAT_UNIT:
+					case GlyphAttributeType::kSignedUnit: remap_func = "clamp_remap11"; break;
+					case GlyphAttributeType::kUnit:
 					//case GAT_COLOR: remap_func = "clamp_remap01"; break;
 					default: break;
 					}
 					parameter_str = remap_func + "(glyph." + attrib_variable_name + ", " + uniform_name + ")";
 
-					if(type == GAT_COLOR) {
+					if(type == GlyphAttributeType::kColor) {
 						if(color_map_idx < 0)
 							parameter_str = "vec3(0.0)";
 						else
@@ -121,17 +121,17 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				}
 
 				switch(type) {
-				case GAT_ORIENTATION:
-				case GAT_ANGLE: parameter_str = "radians(" + parameter_str + ")"; break;
-				case GAT_DOUBLE_ANGLE: parameter_str = "radians(0.5*" + parameter_str + ")"; break;
+				case GlyphAttributeType::kOrientation:
+				case GlyphAttributeType::kAngle: parameter_str = "radians(" + parameter_str + ")"; break;
+				case GlyphAttributeType::kDoubleAngle: parameter_str = "radians(0.5*" + parameter_str + ")"; break;
 				default: break;
 				}
 
-				if(type == GAT_ORIENTATION) {
+				if(type == GlyphAttributeType::kOrientation) {
 					glyph_coord_str = "rotate(glyphuv, " + parameter_str + ")";
-				} else if(type == GAT_COLOR) {
+				} else if(type == GlyphAttributeType::kColor) {
 					color_parameter_strs.push_back(parameter_str);
-				} else if(type == GAT_OUTLINE) {
+				} else if(type == GlyphAttributeType::kOutline) {
 					glyph_outline_str = parameter_str;
 				} else {
 					float_parameter_strs.push_back(parameter_str);
@@ -166,26 +166,26 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					std::to_string(last_mapping_parameters_size);
 
 				switch(shape_ptr->type()) {
-				case GT_COLOR:
+				case GlyphType::kColor:
 				{
 					splat_func += layer_id + "(closest.id, uv, " + std::to_string(color_map_indices[1]) + ", ";
 					splat_func += index_params_string;
 					splat_func += ", non_outline_factor)";
 				} break;
-				case GT_STAR:
+				case GlyphType::kStar:
 				{
 					splat_func += layer_id + "(glyph, " + glyph_coord_str + ", ";
 					splat_func += index_params_string;
 					splat_func += ")";
 				} break;
-				case GT_LINE_PLOT:
+				case GlyphType::kLinePlot:
 				{
 					splat_func += layer_id + "(closest.id, uv, ";
 					splat_func += index_params_string + ", ";
 					splat_func += glyph_outline_str;
 					splat_func += ", non_outline_factor)";
 				} break;
-				case GT_TEMPORAL_HEAT_MAP:
+				case GlyphType::kTemporalHeatMap:
 				{
 					splat_func += layer_id + "(closest.id, uv, " + std::to_string(color_map_indices[2]) + ", ";
 					splat_func += index_params_string + ", ";
