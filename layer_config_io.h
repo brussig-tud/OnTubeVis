@@ -213,7 +213,7 @@ private:
 
 		std::string glyph_name = "";
 		if(cgv::xml::QueryStringAttribute(elem, "glyph", glyph_name) == tinyxml2::XML_SUCCESS) {
-			GlyphType glyph_type = glyph_type_registry::type(glyph_name);
+			GlyphType glyph_type = glyph_type_registry::get_type_by_name(glyph_name);
 			gam.set_glyph_type(glyph_type);
 			shape = gam.get_shape();
 

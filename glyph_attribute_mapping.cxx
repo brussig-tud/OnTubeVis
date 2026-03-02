@@ -1,6 +1,7 @@
 #include "glyph_attribute_mapping.h"
 
 #include <cgv/data/informed_ptr.h>
+#include <cgv/utils/algorithm.h>
 
 glyph_attribute_mapping::glyph_attribute_mapping() {
 	create_glyph_shape();
@@ -89,7 +90,8 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 	add_local_member_control(p, bp, "Sampling Step", sampling_step, "value_slider", "min=0;max=10;step=0.001;ticks=true;log=true");
 	p.add_decorator("", "separator");
 
-	std::string enums = glyph_type_registry::display_name_enums();
+	auto glyph_types = glyph_type_registry::list_glyph_types();
+	std::string enums = cgv::utils::transform_join(glyph_types.begin(), glyph_types.end(), [](GlyphType type) { return glyph_shape::display_name(type); }, ",");
 	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='" + enums + "'");
 	
 	bool global_block = false;

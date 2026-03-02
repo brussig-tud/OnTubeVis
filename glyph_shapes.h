@@ -1,11 +1,13 @@
 #pragma once
 
-#include <map>
+#include <algorithm>
 #include <memory>
+#include <vector>
 
 #include <cgv/math/fvec.h>
 #include <cgv/math/fmat.h>
 #include <cgv/math/functions.h>
+#include <cgv/utils/scan.h>
 
 
 enum class GlyphType {
@@ -23,6 +25,24 @@ enum class GlyphType {
 	kLinePlot,
 	kTemporalHeatMap,
 };
+
+static std::string to_string(GlyphType glyph_type) {
+	static const std::array<std::string, 12> names = {
+		"color",
+		"circle",
+		"rectangle",
+		"wedge",
+		"arc_flat",
+		"arc_rounded",
+		"triangle_isosceles",
+		"drop",
+		"sign_blob",
+		"star",
+		"line_plot",
+		"temporal_heat_map"
+	};
+	return names[static_cast<int>(glyph_type)];
+}
 
 enum class GlyphAttributeType {
 	kUnit = 0, // value in [0,1] determining a generic glyph attribute
@@ -81,8 +101,16 @@ public:
 
 	virtual std::unique_ptr<glyph_shape> clone() const = 0;
 
+	static std::string display_name(GlyphType type) {
+		return cgv::utils::snake_case_to_capitalized_case(to_string(type));
+	}
+
 	virtual GlyphType type() const = 0;
-	virtual std::string name() const = 0;
+
+	std::string name() const {
+		return to_string(type());
+	}
+
 	virtual const attribute_list& supported_attributes() const = 0;
 
 	virtual size_t num_size_attribs() const {
@@ -104,16 +132,11 @@ public:
 class color_glyph : public glyph_shape {
 public:
 	std::unique_ptr<glyph_shape> clone() const override {
-		return std::unique_ptr<glyph_shape>(new color_glyph(*this));
-		//return std::make_unique<glyph_shape>(*this);
+		return std::make_unique<color_glyph>(*this);
 	}
 
 	GlyphType type() const override {
 		return GlyphType::kColor;
-	}
-
-	std::string name() const override {
-		return "color";
 	}
 
 	const attribute_list& supported_attributes() const override {
@@ -147,10 +170,6 @@ public:
 		return GlyphType::kCircle;
 	}
 
-	std::string name() const override {
-		return "circle";
-	}
-
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
@@ -174,10 +193,6 @@ public:
 
 	GlyphType type() const override {
 		return GlyphType::kRectangle;
-	}
-
-	std::string name() const override {
-		return "rectangle";
 	}
 
 	const attribute_list& supported_attributes() const override {
@@ -204,10 +219,6 @@ public:
 
 	GlyphType type() const override {
 		return GlyphType::kWedge;
-	}
-
-	std::string name() const override {
-		return "wedge";
 	}
 
 	const attribute_list& supported_attributes() const override {
@@ -238,10 +249,6 @@ public:
 		return GlyphType::kArcFlat;
 	}
 
-	std::string name() const override {
-		return "arc_flat";
-	}
-
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
@@ -270,10 +277,6 @@ public:
 	GlyphType type() const override {
 		return GlyphType::kArcRounded;
 	}
-
-	std::string name() const override {
-		return "arc_rounded";
-	}
 };
 
 class isoceles_triangle_glyph : public glyph_shape {
@@ -284,10 +287,6 @@ public:
 
 	GlyphType type() const override {
 		return GlyphType::kTriangle;
-	}
-
-	std::string name() const override {
-		return "triangle_isosceles";
 	}
 
 	const attribute_list& supported_attributes() const {
@@ -353,10 +352,6 @@ public:
 		return GlyphType::kDrop;
 	}
 
-	std::string name() const override {
-		return "drop";
-	}
-
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
@@ -378,10 +373,6 @@ public:
 
 	GlyphType type() const override {
 		return GlyphType::kSignBlob;
-	}
-
-	std::string name() const override {
-		return "sign_blob";
 	}
 
 	const attribute_list& supported_attributes() const override {
@@ -416,10 +407,6 @@ public:
 
 	GlyphType type() const override {
 		return GlyphType::kStar;
-	}
-
-	std::string name() const override {
-		return "star";
 	}
 
 	const attribute_list& supported_attributes() const override {
@@ -465,10 +452,6 @@ public:
 		return GlyphType::kLinePlot;
 	}
 
-	std::string name() const override {
-		return "line_plot";
-	}
-
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
@@ -507,10 +490,6 @@ public:
 		return GlyphType::kTemporalHeatMap;
 	}
 
-	std::string name() const override {
-		return "temporal_heat_map";
-	}
-
 	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
@@ -537,78 +516,37 @@ public:
 };
 
 struct glyph_type_registry {
-	static GlyphType type(const std::string& name) {
-		const auto& n = names();
-		static const std::map<std::string, GlyphType> mapping = {
-			{ n[0], GlyphType::kColor },
-			{ n[1], GlyphType::kCircle },
-			{ n[2], GlyphType::kRectangle },
-			{ n[3], GlyphType::kWedge },
-			{ n[4], GlyphType::kArcFlat },
-			{ n[5], GlyphType::kArcRounded },
-			{ n[6], GlyphType::kTriangle },
-			{ n[7], GlyphType::kDrop },
-			{ n[8], GlyphType::kSignBlob },
-			{ n[9], GlyphType::kStar },
-			{ n[10], GlyphType::kLinePlot },
-			{ n[11], GlyphType::kTemporalHeatMap }
+	static std::vector<GlyphType> list_glyph_types() {
+		static const std::vector<GlyphType> types = {
+			GlyphType::kColor,
+			GlyphType::kCircle,
+			GlyphType::kRectangle,
+			GlyphType::kWedge,
+			GlyphType::kArcFlat,
+			GlyphType::kArcRounded,
+			GlyphType::kTriangle,
+			GlyphType::kDrop,
+			GlyphType::kSignBlob,
+			GlyphType::kStar,
+			GlyphType::kLinePlot,
+			GlyphType::kTemporalHeatMap
 		};
-
-		auto it = mapping.find(name);
-		if(it != mapping.end())
-			return (*it).second;
-		return GlyphType::kUndefined;
+		return types;
 	}
 
-	static std::vector<std::string> names() {
-		static const std::vector<std::string> n = {
-			"color",
-			"circle",
-			"rectangle",
-			"wedge",
-			"arc_flat",
-			"arc_rounded",
-			"triangle_isosceles",
-			"drop",
-			"sign_blob",
-			"star",
-			"line_plot",
-			"temporal_heat_map"
-		};
-
-		return n;
-	}
-
-	static std::vector<std::string> display_names() {
-		static const std::vector<std::string> names = {
-			"Surface Color",
-			"Circle",
-			"Rectangle",
-			"Wedge",
-			"Flat Arc",
-			"Rounded Arc",
-			"Isosceles Triangle",
-			"Drop",
-			"Sign Blob",
-			"Star",
-			"Line Plot",
-			"Temporal Heat Map"
-		};
-
+	static std::vector<std::string> list_names() {
+		auto types = list_glyph_types();
+		std::vector<std::string> names;
+		std::transform(types.begin(), types.end(), std::back_inserter(names), [](GlyphType type) { return to_string(type); });
 		return names;
 	}
 
-	static std::string display_name_enums() {
-		const auto& names = display_names();
-		std::string enums = "";
-
-		for(size_t i = 0; i < names.size(); ++i) {
-			enums += names[i];
-			if(i < names.size() - 1)
-				enums += ",";
-		}
-
-		return enums;
+	static GlyphType get_type_by_name(const std::string& name) {
+		auto types = list_glyph_types();
+		auto it = std::find_if(types.begin(), types.end(), [&name](GlyphType type) { return to_string(type) == name; });
+		if(it != types.end())
+			return *it;
+		return GlyphType::kUndefined;
 	}
 };
 

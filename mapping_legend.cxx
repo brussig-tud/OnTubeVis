@@ -89,7 +89,7 @@ void mapping_legend::update(const traj_dataset<float>& dataset, const glyph_laye
 		layer.title = mapping.get_name();
 		if(!layer.title.empty())
 			layer.title += " ";
-		layer.title += "(" + glyph_type_registry::display_names()[static_cast<int>(shape->type())] + ")";
+		layer.title += "(" + glyph_shape::display_name(shape->type()) + ")";
 
 		cgv::utils::number_format format;
 		format.fixed = true;

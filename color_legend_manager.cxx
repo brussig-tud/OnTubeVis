@@ -35,8 +35,7 @@ void color_legend_manager::compose (
 	if (layers.empty())
 		return;
 	int voffset = -1;
-	const auto attrib_names = dataset.get_attribute_names(),
-	           ltype_names = glyph_type_registry::display_names();
+	const auto attrib_names = dataset.get_attribute_names();
 	for (const auto &layer : layers)
 	{
 		// identify whether the layer uses a color map
@@ -52,7 +51,7 @@ void color_legend_manager::compose (
 		{
 			// find out the layer name and glyph/plot type to include in the legend title
 			std::stringstream stitle;
-			stitle << ltype_names[static_cast<int>(layer.get_shape()->type())];
+			stitle << glyph_shape::display_name(layer.get_shape()->type());
 			stitle << " -- " <<attrib_names[ai];
 
 			// set up a legend for the found color mapping
