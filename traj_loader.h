@@ -877,7 +877,7 @@ public:
 
 
 /// struct encapsulating a range of samples (single trajectory, whole dataset) via the first index of the
-/// range and the number of sampels spanned by the range
+/// range and the number of samples spanned by the range
 struct range
 {
 	/// start index

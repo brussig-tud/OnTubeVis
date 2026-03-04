@@ -477,10 +477,14 @@ protected:
 			cgv::render::cone_render_data<> segments;
 		} geometry;
 		
+		// whether to print out information about placed glyphs like count and attribute count after compiling the layers
+		bool print_glyph_information = false;
 		/// whether to higlight individual segments in the textured spline tube renderer
 		bool highlight_segments = false;
 		/// whether to show glyphs that are normally not drawn due to overlap in a transparent fashion
 		bool show_hidden_glyphs = false;
+
+		bool temp_use_variant2 = true;
 
 		/// whether to sort the segments, which is used to boost performance together with conservative depth testing
 		bool sort = true;

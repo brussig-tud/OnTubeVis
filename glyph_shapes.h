@@ -115,8 +115,8 @@ public:
 
 	virtual size_t num_size_attribs() const {
 		size_t n = 0;
-		for(size_t i = 0; i < supported_attributes().size(); ++i)
-			if(supported_attributes()[i].type != GlyphAttributeType::kColor) ++n;
+		for(const glyph_attribute& attribute : supported_attributes())
+			if(attribute.type != GlyphAttributeType::kColor) ++n;
 		return n;
 	}
 
