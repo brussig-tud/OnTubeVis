@@ -484,8 +484,6 @@ protected:
 		/// whether to show glyphs that are normally not drawn due to overlap in a transparent fashion
 		bool show_hidden_glyphs = false;
 
-		bool temp_use_variant2 = true;
-
 		/// whether to sort the segments, which is used to boost performance together with conservative depth testing
 		bool sort = true;
 		/// whether to only sort after significant view changes instead of every redraw

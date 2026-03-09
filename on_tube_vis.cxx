@@ -1158,7 +1158,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 			ctrl->set("text_color", layer_config_has_unsaved_changes ? cgv::gui::theme_info::instance().warning_hex() : "");
 	}
 
-	if(ptr.points_to(debug.show_hidden_glyphs))
+	if(ptr.points_to_one_of(debug.print_glyph_information, debug.show_hidden_glyphs))
 		compile_glyph_attribs();
 
 	// playback controls
@@ -1432,14 +1432,13 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			std::cout << "Compiling glyph attributes for dataset " << ds_idx << " '" << ds.name() << "'... ";
 			cgv::utils::stopwatch s(true);
 
-			glyph_compiler2 gc;
+			glyph_compiler gc;
 			gc.length_scale = render.style.length_scale;
 			gc.include_hidden_glyphs = debug.show_hidden_glyphs;
-			gc.use_variant2 = debug.temp_use_variant2;
 
 			const auto &dataset = traj_mgr.dataset(0);
-			glyph_compiler2::result result = gc.compile_glyph_attributes(dataset, render.arclen_data, ds_config.config);
-			success = result.success;
+			const auto compiled_layers = gc.compile_glyph_attributes(dataset, render.arclen_data, ds_config.config);
+			success = !compiled_layers.empty();
 
 			double elapsed_time = s.get_elapsed_time();
 			std::cout << "done (" << elapsed_time << "s)" << std::endl;
@@ -1447,11 +1446,11 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			if(debug.print_glyph_information) {
 				std::cout << "Compiled glyphs per layer:\n";
 				size_t layer_idx = 0;
-				for(const glyph_compiler2::layer_compile_result& layer : result.layers) {
+				for(const layer_compile_result& layer : compiled_layers) {
 					// The total used attribute count excludes the arc length position and debug information per glyph.
-					size_t attribute_count = layer.attribs.glyph_count() * layer.attribs.count;
+					size_t attribute_count = layer.glyphs.get_glyph_count() * layer.glyphs.get_mapped_attribute_count();
 					std::cout << "  Layer " << std::to_string(layer_idx) << ": ";
-					std::cout << std::to_string(layer.attribs.glyph_count()) << " glyphs / ";
+					std::cout << std::to_string(layer.glyphs.get_glyph_count()) << " glyphs / ";
 					std::cout << std::to_string(attribute_count) << " mapped attributes" << "\n";
 					++layer_idx;
 				}
@@ -1464,12 +1463,12 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			// get context
 			const auto& ctx = *get_context();
 
-			for(size_t layer_idx = 0; layer_idx < result.layers.size(); ++layer_idx) {
-				glyph_compiler2::layer_compile_result layer = result.layers[layer_idx];
+			for(size_t layer_idx = 0; layer_idx < compiled_layers.size(); ++layer_idx) {
+				layer_compile_result layer = compiled_layers[layer_idx];
 				
 				if(!layer.empty()) {
 					const auto& ranges = layer.ranges;
-					const auto& attribs = layer.attribs;
+					const auto& glyphs = layer.glyphs;
 					// - sanity check
 					{
 						assert((render.data->indices.size() & 1) == 0);
@@ -1483,7 +1482,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 					// ...attrib nodes
 					attribs_sbo.destruct(ctx);
-					if(!attribs_sbo.create(ctx, attribs.data))
+					if(!attribs_sbo.create(ctx, glyphs.get_data()))
 						std::cerr << "!!! unable to create glyph attribute Storage Buffer Object !!!" << std::endl << std::endl;
 
 					// ...index ranges
@@ -2466,7 +2465,6 @@ void on_tube_vis::create_gui(void)
 		}
 
 		add_member_control(this, "Print Glyph Information", debug.print_glyph_information, "check");
-		add_member_control(this, "Compile V2", debug.temp_use_variant2, "check");
 		add_member_control(this, "Show Segments", debug.highlight_segments, "check");
 		add_member_control(this, "Show Hidden Glyphs", debug.show_hidden_glyphs, "check");
 
