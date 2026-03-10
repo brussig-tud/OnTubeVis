@@ -14,7 +14,7 @@ layer_compile_state::layer_compile_state(
 	shape(shape),
 	result(mapped_attribute_count) {
 
-	// Todo: Explain why.
+	// Ensure enough space to hold all glyph parameters. A persistent buffer is used to avoid allocating a new one for every individual glyph.
 	glyph_params.resize(shape->num_size_attribs(), 0.0f);
 
 	// Resize the result to hold one range per segment.
@@ -89,41 +89,32 @@ void layer_compile_state::place_glyph(
 	bool show = result.glyphs.get_glyph_count() == global_attribute_offset || s >= last_committed_s + min_dist || min_dist < 0.0f;
 
 	if(show || show_hidden) {
-		auto& cur_range = result.ranges[global_segment_index];
-		if(cur_range.n < 1) {
+		auto& curr_range = result.ranges[global_segment_index];
+		if(curr_range.n < 1) {
 			// first free attribute that falls into this segment
-			cur_range.i0 = static_cast<int>(result.glyphs.get_glyph_count());
-			cur_range.n = 1;
-
-			// handle overlap to previous segment (this only works for a single previous segment)
-			/*if(seg > 0 && arc_lengths[global_seg - 1][15] > s - 0.5f*new_glyph_size) {
-				// if there have been no glyphs committed to the previous segment until now, also update its start index
-				if(ranges[global_seg - 1].n == 0)
-					ranges[global_seg - 1].i0 = cur_range.i0;
-				ranges[global_seg - 1].n++;
-			}*/
+			curr_range.i0 = static_cast<int>(result.glyphs.get_glyph_count());
+			curr_range.n = 1;
 
 			// handle overlap to the previous segments
 			if(local_segment_index > 0) {
-				// Todo: Get rid of casts?
-				int prev_seg = static_cast<int>(global_segment_index - 1);
-				int min_global_seg = static_cast<int>(global_segment_offset);
+				size_t curr_global_segment_index = global_segment_index;
+
 				float min_s = s - 0.5f * new_glyph_size;
 				if(min_s >= 0.0f) {
-					while(prev_seg >= min_global_seg && arc_lengths[prev_seg][15] > min_s) {
-						//while(prev_seg >= min_global_seg && param.t_to_s[prev_seg][15] > min_s) {
-							// if there have been no glyphs committed to the previous segment until now, also update its start index
-						auto& prev_range = result.ranges[prev_seg];
+					while(curr_global_segment_index > global_segment_offset && arc_lengths[curr_global_segment_index - 1][15] > min_s) {
+						// if there have been no glyphs committed to the previous segment until now, also update its start index
+						auto& prev_range = result.ranges[curr_global_segment_index - 1];
 						if(prev_range.n == 0)
-							prev_range.i0 = cur_range.i0;
+							prev_range.i0 = curr_range.i0;
 						prev_range.n++;
-						prev_seg--;
+						curr_global_segment_index--;
 					}
 				}
+
 			}
 		} else {
 			// one more free attribute that falls into this segment
-			cur_range.n++;
+			curr_range.n++;
 			// for infinitely sized "glyphs" there always will have been overlap from the previous segment, so the above branch won't have been executed
 			if(global_segment_index > 0 && new_glyph_size < 0.0f) {
 				// "glyphs" with a negative size value are possibly infinite in size and always overlap onto the previous segment
@@ -164,14 +155,10 @@ void layer_compile_state::increment_segment_index() {
 }
 
 segment_time<float> layer_compile_state::advance_to_segment_containing_time(float t) {
-	// Todo: Can we get rid of the duplicate call to segment_time_get?
-	auto segtime = segment_time_get(*position_attribute.attribute_handle, current_range, local_segment_index);
-	while(t >= segtime.t1) {
-		if(local_segment_index >= local_segment_count - 1)
-			break;
-
+	auto segtime = segment_time_get(*position_attribute.attribute_handle, current_range, static_cast<unsigned>(local_segment_index));
+	while(t >= segtime.t1 && local_segment_index < local_segment_count - 1) {
 		increment_segment_index();
-		segtime = segment_time_get(*position_attribute.attribute_handle, current_range, local_segment_index);
+		segtime = segment_time_get(*position_attribute.attribute_handle, current_range, static_cast<unsigned>(local_segment_index));
 
 		// handle overlap from previous segment
 		if(result.ranges[global_segment_index - 1].n > 0) {
@@ -266,7 +253,11 @@ bool attribute_interpolation_state::reached_end() const {
 	return false;
 }
 
-std::vector<layer_compile_result> glyph_compiler::compile_glyph_attributes(const traj_dataset<float>& data_set, const arclen::parametrization& parametrization, const glyph_layer_manager::configuration& layers_config) {
+std::vector<layer_compile_result> glyph_compiler::compile_glyph_attributes(
+	const traj_dataset<float>& data_set,
+	const arclen::parametrization& parametrization,
+	const glyph_layer_manager::configuration& layers_config
+) const {
 	std::vector<layer_compile_result> res;
 	if(layers_config.layer_configs.empty())
 		return res;
@@ -298,20 +289,20 @@ layer_compile_result glyph_compiler::compile_glyphs_front_at_samples(
 	const glyph_layer_manager::configuration::layer_configuration& layer_config,
 	const glyph_shape* shape,
 	const std::vector<attribute_trajectory_pair>& mapped_attributes
-) {
+) const {
 	const size_t attribute_count = mapped_attributes.size();
 
 	// stores an index for each attribute
 	std::vector<unsigned> attribute_indices(attribute_count, 0);
-	// stores evaluated datapoints for later reuse
-	std::vector<traj_attribute<float>::datapoint_mag> data_points(attribute_count);
+	// stores one past the last valid index for each attribute
+	std::vector<unsigned> max_attribute_indices(attribute_count);
 	// stores if an attribute has a sample at the current location
 	std::vector<bool> attribute_has_sample(attribute_count);
+	// stores evaluated datapoints for later reuse
+	std::vector<traj_attribute<float>::datapoint_mag> data_points(attribute_count);
 	// stores the attribute values
 	std::vector<float> attribute_values(attribute_count);
-
-	std::vector<unsigned> max_current_attribute_indices(attribute_count);
-		
+	
 	layer_compile_state state(position_attribute, arc_lengths, shape, attribute_count);
 
 	// - compile data
@@ -326,18 +317,13 @@ layer_compile_result glyph_compiler::compile_glyphs_front_at_samples(
 		// stores the index of the attribute with the minimum t
 		unsigned min_a_idx = 0;
 
-		// Todo: merge two loops
-		for(size_t i = 0; i < attribute_indices.size(); ++i) {
+		for(size_t i = 0; i < attribute_count; ++i) {
 			const auto& attribute_trajectory = mapped_attributes[i].trajectories->at(state.get_trajectory_index());
 			attribute_indices[i] = attribute_trajectory.i0;
+			max_attribute_indices[i] = attribute_trajectory.i0 + attribute_trajectory.n;
 
 			if(attribute_trajectory.n < 2) // single-sample trajectory, assignment doesn't make sense here
 				state.skip_to_trajectory_end();
-		}
-
-		for(size_t i = 0; i < attribute_count; ++i) {
-			const auto& attribute_trajectory = mapped_attributes[i].trajectories->at(state.get_trajectory_index());
-			max_current_attribute_indices[i] = attribute_trajectory.i0 + attribute_trajectory.n;
 		}
 
 		while(state.has_segment()) {
@@ -360,8 +346,7 @@ layer_compile_result glyph_compiler::compile_glyphs_front_at_samples(
 					const auto& a_curr = data_points[i];
 					float val = a_curr.val;
 
-					// TODO: make epsilon adjustable
-					bool found_sample = abs(min_t - a_curr.t) < 0.001f;
+					bool found_sample = std::abs(min_t - a_curr.t) < attribute_timestamp_epsilon;
 					attribute_has_sample[i] = found_sample;
 
 					if(!found_sample && attrib_idx > 0) {
@@ -383,7 +368,7 @@ layer_compile_result glyph_compiler::compile_glyphs_front_at_samples(
 
 			// increment indices and check whether the indices of all attributes have reached the end
 			for(size_t i = 0; i < attribute_count; ++i) {
-				const unsigned max_attribute_index = max_current_attribute_indices[i];
+				const unsigned max_attribute_index = max_attribute_indices[i];
 				if(attribute_has_sample[i])
 					attribute_indices[i] = std::min(max_attribute_index, ++attribute_indices[i]);
 				if(attribute_indices[i] >= max_attribute_index)
@@ -404,16 +389,13 @@ layer_compile_result glyph_compiler::compile_glyphs_front_uniform_time(
 	const glyph_layer_manager::configuration::layer_configuration& layer_config,
 	const glyph_shape* shape,
 	const std::vector<attribute_trajectory_pair>& mapped_attributes
-) {
+) const {
 	const size_t attribute_count = mapped_attributes.size();
 
-		
 	layer_compile_state state(position_attribute, arc_lengths, shape, attribute_count);
 	attribute_interpolation_state interpolation(mapped_attributes);
 
-	const float sample_step = layer_config.sampling_step;
-	// TODO: make this adapt to data set?
-	if(sample_step < 0.005f) {
+	if(layer_config.sampling_step < sample_step_threshold) {
 		std::cout << "sample step too low" << std::endl;
 		state.skip_to_trajectory_end();
 	}
@@ -441,7 +423,7 @@ layer_compile_result glyph_compiler::compile_glyphs_front_uniform_time(
 				state.skip_to_trajectory_end();
 
 			// increment the sample time point
-			sample_t += sample_step;
+			sample_t += layer_config.sampling_step;
 		}
 
 		state.advance_to_next_trajectory();
@@ -457,15 +439,13 @@ layer_compile_result glyph_compiler::compile_glyphs_front_equidistant(
 	const glyph_layer_manager::configuration::layer_configuration& layer_config,
 	const glyph_shape* shape,
 	const std::vector<attribute_trajectory_pair>& mapped_attributes
-) {
+) const {
 	const size_t attribute_count = mapped_attributes.size();
 
 	layer_compile_state state(position_attribute, parametrization.t_to_s, shape, attribute_count);
 	attribute_interpolation_state interpolation(mapped_attributes);
-		
-	const float sample_step = layer_config.sampling_step;
-	// TODO: make this adapt to data set?
-	if(sample_step < 0.005f) {
+	
+	if(layer_config.sampling_step < sample_step_threshold) {
 		std::cout << "sample step too low" << std::endl;
 		return state.get_result();
 	}
@@ -493,7 +473,7 @@ layer_compile_result glyph_compiler::compile_glyphs_front_equidistant(
 				state.skip_to_trajectory_end();
 
 			// increment the sample point
-			sample_s += sample_step;
+			sample_s += layer_config.sampling_step;
 
 			// update current sample_t
 			size_t next_local_segment_index = state.get_local_segment_index(), next_global_segment_index = state.get_global_segment_index();
@@ -507,7 +487,7 @@ layer_compile_result glyph_compiler::compile_glyphs_front_equidistant(
 				break;
 			// - query arc lenght parametrization for segment t and offset to get actual global timestamp
 			const float sample_t_local = arclen::map(parametrization.t_to_s[next_global_segment_index], parametrization.s_to_t[next_global_segment_index], sample_s);
-			segment.segtime = segment_time_get(*position_attribute.attribute_handle, position_trajectory, next_local_segment_index);
+			segment.segtime = segment_time_get(*position_attribute.attribute_handle, position_trajectory, static_cast<unsigned>(next_local_segment_index));
 			sample_t = cgv::math::lerp(segment.segtime.t0, segment.segtime.t1, sample_t_local);
 		}
 
@@ -523,7 +503,7 @@ layer_compile_result glyph_compiler::compile_glyph_layer(
 	const std::vector<std::string>& attribute_names,
 	attribute_trajectory_pair position_attribute,
 	const glyph_layer_manager::configuration::layer_configuration& layer_config
-) {
+) const {
 	std::vector<attribute_trajectory_pair> mapped_attributes;
 
 	for(size_t i = 0; i < layer_config.mapped_attributes.size(); ++i) {

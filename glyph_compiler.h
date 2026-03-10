@@ -38,7 +38,7 @@ public:
 			return 0.0f;
 	}
 
-	const std::vector<float> get_data() const {
+	const std::vector<float>& get_data() const {
 		return data;
 	}
 
@@ -166,7 +166,7 @@ private:
 	float prev_glyph_size = 0.0f;
 	float last_committed_s = 0.0f;
 
-	// scratch buffer to hold mapped glyph parameters that are needed to compute its size
+	// Scratch buffer to hold mapped glyph parameters that are needed to compute its size
 	std::vector<float> glyph_params;
 
 	layer_compile_result result;
@@ -203,13 +203,18 @@ private:
 
 class glyph_compiler {
 public:
-	std::vector<layer_compile_result> compile_glyph_attributes(const traj_dataset<float>& data_set, const arclen::parametrization& parametrization, const glyph_layer_manager::configuration& layers_config);
+	std::vector<layer_compile_result> compile_glyph_attributes(
+		const traj_dataset<float>& data_set,
+		const arclen::parametrization& parametrization,
+		const glyph_layer_manager::configuration& layers_config
+	) const;
 
 	bool include_hidden_glyphs = false;
 	float length_scale = 1.0f;
+	float sample_step_threshold = 0.005f;
+	float attribute_timestamp_epsilon = 0.001f;
 
 private:
-
 	// generate a glyph at every attribute sample location (interpolates attributes if more than one is mapped in this layer)
 	layer_compile_result compile_glyphs_front_at_samples(
 		attribute_trajectory_pair position_attribute,
@@ -217,7 +222,7 @@ private:
 		const glyph_layer_manager::configuration::layer_configuration& layer_config,
 		const glyph_shape* shape,
 		const std::vector<attribute_trajectory_pair>& mapped_attributes
-	);
+	) const;
 
 	// generate a glyph at uniformly spaced time steps by interpolating attributes
 	layer_compile_result compile_glyphs_front_uniform_time(
@@ -226,7 +231,7 @@ private:
 		const glyph_layer_manager::configuration::layer_configuration& layer_config,
 		const glyph_shape* shape,
 		const std::vector<attribute_trajectory_pair>& mapped_attributes
-	);
+	) const;
 
 	// generate a glyph at uniformly spaced time steps by interpolating attributes
 	layer_compile_result compile_glyphs_front_equidistant(
@@ -235,7 +240,7 @@ private:
 		const glyph_layer_manager::configuration::layer_configuration& layer_config,
 		const glyph_shape* shape,
 		const std::vector<attribute_trajectory_pair>& mapped_attributes
-	);
+	) const;
 
 	layer_compile_result compile_glyph_layer(
 		const traj_dataset<float>& data_set,
@@ -243,5 +248,5 @@ private:
 		const std::vector<std::string>& attribute_names,
 		attribute_trajectory_pair position_attribute,
 		const glyph_layer_manager::configuration::layer_configuration& layer_config
-	);
+	) const;
 };

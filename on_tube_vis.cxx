@@ -1435,6 +1435,8 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			glyph_compiler gc;
 			gc.length_scale = render.style.length_scale;
 			gc.include_hidden_glyphs = debug.show_hidden_glyphs;
+			// Todo: Set sample step threshold according to dataset?
+			//gc.sample_step_threshold = ...;
 
 			const auto &dataset = traj_mgr.dataset(0);
 			const auto compiled_layers = gc.compile_glyph_attributes(dataset, render.arclen_data, ds_config.config);
