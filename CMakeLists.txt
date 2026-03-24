@@ -30,7 +30,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 			cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-			GIT_TAG afa66be55649c661e9642415aefc3dcd1b285035
+			GIT_TAG a9836fe23ac9155f8f0415c979e0266b21f289a4
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -135,6 +135,7 @@ set(SOURCES
 		csv_handler.cxx
 		gl_util.cxx
 		glyph_attribute_mapping.cxx
+		glyph_compiler.cxx
 		glyph_layer_manager.cxx
 		mapping_legend.cxx
 		obd_handler.cxx
@@ -239,8 +240,6 @@ set(HEADERS
 )
 # - GLSL shaders
 set (SHADERS
-		glsl/color_maps.glfs
-		glsl/color_maps.glpr
 		glsl/curve_tools.glsl
 		glsl/optix_display.glfs
 		glsl/optix_display.glpr
@@ -300,7 +299,7 @@ cgv_add_target(OnTubeVis
 		RESOURCES       ${IMAGES}
 		DEPENDENCIES
 		json fltk cgv_viewer cgv_utils cgv_type cgv_reflect cgv_data cgv_signal cgv_base cgv_media cgv_gui cgv_render
-		cgv_os cg_fltk cgv_gl cg_ext cmi_io cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d cgv_app
+		cgv_os cg_fltk cgv_gl cg_ext cmc_crameri cmc_io cmi_io cmf_tt_gl_font cg_msdf ${VIEW_INTERACTOR_PLUGIN} crg_light crg_grid cgv_g2d cgv_overlay
 		cgv_post cgv_gpgpu ${OPTIONAL_PLUGINS} ${OPTIONAL_DEPENDENCIES} OpenGL::GLU
 
 		LINKTIME_PLUGIN_DEPENDENCIES

@@ -16,16 +16,30 @@ namespace cgv { // @<
 		extern textured_spline_tube_renderer& ref_textured_spline_tube_renderer(context& ctx, int ref_count_change = 0);
 
 		/*!	Style to control the look of textured spline tubes. */
-		struct textured_spline_tube_render_style : public surface_render_style
+		struct textured_spline_tube_render_style : public render_style
 		{
+			/// copy of parameters from surface render style
+			/// default value for color when map color to material is used
+			cgv::media::illum::surface_material::color_type surface_color = cgv::media::illum::surface_material::color_type(0.4f, 0.1f, 0.7f);
+			/// default value for the surface opacity when map color to material is used
+			float surface_opacity = 1.0f;
+			/// culling mode for point splats, defaults to CM_OFF
+			CullingMode culling_mode = CM_OFF;
+			/// illumination mode defaults to \c IM_ONE_SIDED
+			IlluminationMode illumination_mode = IM_ONE_SIDED;
+			/// material side[s] where color is to be mapped to the diffuse material component, defaults to CM_COLOR for front and back color mapping
+			ColorMapping map_color_to_material = CM_COLOR;
+			/// material of surface
+			cgv::media::illum::textured_surface_material material;
+			/// maximum number of supported lights (change triggers recompilation of shader)
+			int max_nr_lights = 2;
+
 			/// multiplied to the tube radius, initialized to 1
 			float radius_scale;
 			/// default tube radius, initialized to 1
 			float radius;
-
 			/// whether to disable g-buffer output and perform texturing immediately in the fragment shader.
 			bool forward = false;
-
 			/// specifies the calculation routinbe and output of the fragment shader for debug purposes
 			enum FragmentMode {
 				FM_NO_OP = 0, // discards all fragments
@@ -118,6 +132,11 @@ namespace cgv { // @<
 				} debug;
 			} rcribbon;
 
+			/// special parameters for tessellated ribbon
+			struct {
+				// the number of subdivisions used per input hermite segment while tessellating the triangle strip that forms the ribbon; must be larger than 1; may not be larger than 7, depending on GPU capabilities
+				int subdivisions;
+			} gsribbon;
 			/// construct with default values
 			textured_spline_tube_render_style();
 
@@ -132,15 +151,11 @@ namespace cgv { // @<
 		};
 
 		/// renderer that supports textured cubic hermite spline tubes
-		class textured_spline_tube_renderer : public surface_renderer
+		class textured_spline_tube_renderer : public renderer
 		{
 		protected:
 			/// whether node ids are specified
-			bool has_node_ids;
-			/// whether radii are specified
-			bool has_radii;
-			/// whether tangents are specified
-			bool has_tangents;
+			bool has_node_ids = false;
 			/// position of the cyclopian eye point (differs from eye point in case of stereoscopic rendering)
 			vec3 cyclopic_eye;
 			/// camera view direction
@@ -150,30 +165,24 @@ namespace cgv { // @<
 			/// additional options not dependant on the style and set from outside the renderer
 			shader_compile_options additional_options;
 			/// keep track of which line primitive was active the last time the renderer drew something
-			textured_spline_tube_render_style::LinePrimitive last_active_line_primitive;
+			mutable textured_spline_tube_render_style::LinePrimitive last_active_line_primitive = textured_spline_tube_render_style::LP_TUBE_RUSSIG;
 
-			/// overload to allow instantiation of box_renderer
-			render_style* create_render_style() const override;
 			/// update shader defines based on render style
-			void update_shader_program_options(shader_compile_options &options) const override;
+			void update_shader_program_options (shader_compile_options &options) const override;
 			/// return the default shader program name
-			std::string get_default_prog_name() const override { return "textured_spline_tube.glpr"; }
-			/// build rounded cone program
-			bool build_shader_program (
-				context& ctx, shader_program& prog, const shader_compile_options& defines
-			) const override;
+			std::string get_default_prog_name() const override;
+			/// overload to allow instantiation of box_renderer
+			render_style* create_render_style() const override { return new textured_spline_tube_render_style(); }
 
 		public:
-			/// initializes position_is_center to true 
-			textured_spline_tube_renderer();
-			/// call this before setting attribute arrays to manage attribute array in given manager
-			void enable_attribute_array_manager(const context& ctx, attribute_array_manager& aam) override;
-			/// call this after last render/draw call to ensure that no other users of renderer change attribute arrays of given manager
-			void disable_attribute_array_manager(const context& ctx, attribute_array_manager& aam) override;
 			///
-			void set_cyclopic_eye(const vec3 & cyclopic_eye_pos) { this->cyclopic_eye = cyclopic_eye_pos; }
+			void set_cyclopic_eye(const vec3 &cyclopic_eye_pos) {
+				cyclopic_eye = cyclopic_eye_pos;
+			}
 			///
-			void set_view_dir(const vec3& view_dir) { this->view_dir = view_dir; }
+			void set_view_dir(const vec3 &view_dir) {
+				this->view_dir = view_dir;
+			}
 			///
 			void set_viewport(const vec4& viewport) { this->viewport = viewport; }
 			/// set additional defines contained in the given shader_compile_options that do not depend on the style
@@ -188,23 +197,9 @@ namespace cgv { // @<
 			template <typename T = float>
 			void set_node_id_array(const context& ctx, const T* node_ids, size_t nr_elements, unsigned stride_in_bytes = 0) { has_node_ids = true; set_attribute_array(ctx, "node_ids", node_ids, nr_elements, stride_in_bytes); }
 			///
-			template <typename T = float>
-			void set_radius_array(const context& ctx, const std::vector<T>& radii) { has_radii = true; set_attribute_array(ctx, "radius", radii); }
-			/// 
-			template <typename T = float>
-			void set_radius_array(const context& ctx, const T* radii, size_t nr_elements, unsigned stride_in_bytes = 0) { has_radii = true; set_attribute_array(ctx, "radius", radii, nr_elements, stride_in_bytes); }
-			///
-			template <typename T = float>
-			void set_tangent_array(const context& ctx, const std::vector<T>& tangents) { has_tangents = true; set_attribute_array(ctx, "tangent", tangents); }
-			/// 
-			template <typename T = float>
-			void set_tangent_array(const context& ctx, const T* tangents, size_t nr_elements, unsigned stride_in_bytes = 0) { has_tangents = true; set_attribute_array(ctx, "tangent", tangents, nr_elements, stride_in_bytes); }
-			///
 			bool validate_attributes(const context& ctx) const override;
 			/// 
 			bool enable(context& ctx) override;
-			///
-			bool disable(context& ctx) override;
 			///
 			void draw(context& ctx, size_t start, size_t count, bool use_strips = false, bool use_adjacency = false,
 			          uint32_t strip_restart_index = -1) override;

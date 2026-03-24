@@ -41,8 +41,8 @@ type(maptiles):frustum_based_tiles=true
 // - Bounding box visibility
 type(on_tube_vis):show_bounding_box=false
 type(on_tube_vis):show_wireframe_box=true
-// - Grid mode: GM_NONE - no grid, GM_COLOR - color only, GM_NORMAL - normal mapping only, GM_COLOR_AND_NORMAL - color and normal mapping (default)
-type(on_tube_vis):grid_mode=GM_COLOR_AND_NORMAL
+// - Grid mode: None - no grid, Color - color only, Normal - normal mapping only, ColorAndNormal - color and normal mapping (default)
+type(on_tube_vis):grid_mode=ColorAndNormal
 // - Debugging
 type(on_tube_vis):show_hidden_glyphs=false
 // - Use ambient occlusion

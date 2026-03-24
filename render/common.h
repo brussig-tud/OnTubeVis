@@ -45,10 +45,10 @@ struct topology_info {
 
 // define GridMode outside of main on_tube_vis class to be able to use it with type reflection
 enum GridMode {
-	GM_NONE = 0,
-	GM_COLOR = 1,
-	GM_NORMAL = 2,
-	GM_COLOR_AND_NORMAL = 3
+	kNone = 0,
+	kColor = 1,
+	kNormal = 2,
+	kColorAndNormal = 3
 };
 
 /// tube shading settings
@@ -61,7 +61,7 @@ struct tube_shading_settings
 		float blend_factor;
 	};
 	cgv::rgba grid_color;
-	GridMode grid_mode = GM_NONE;
+	GridMode grid_mode = GridMode::kNone;
 	cgv::type::DummyEnum grid_normal_settings;
 	bool grid_normal_inwards;
 	bool grid_normal_variant;
@@ -175,39 +175,67 @@ using per_layer = std::array<Elem, max_glyph_layers>;
 /// Type holding the number of 32-bit float attributes used to represent one glyph.
 using glyph_size_type = uint8_t;
 
-// helper struct for glyph attributes
-// Moved from `glyph_compiler`.
-struct glyph_attributes {
-	glyph_size_type count = 0;
-	std::vector<float> data;
+/// Helper class for storing glyph attributes.
+class glyph_storage {
+public:
+	/// For each glyph at least 2 attributes (arc length and debug information) are stored.
+	static const size_t k_base_attribute_count = 2;
 
-	bool empty() const { return size() == 0; }
+	/// Construct by specifying the number of mapped attributes additional to the base attributes.
+	glyph_storage(size_t mapped_attribute_count) : mapped_attribute_count(mapped_attribute_count) {}
 
+	/// Return true if no attribtues are stored.
+	bool empty() const { return data.empty(); }
+
+	/// Get the total number of stored attributes over all glyphs.
 	size_t size() const { return data.size(); }
 
-	glyph_count_type glyph_count() const {
-		return static_cast<glyph_count_type>(size() / (2 + count));
+	/// Get the number of all attributes of a single glyph (base + mapped).
+	size_t get_glyph_attribute_count() const {
+		return k_base_attribute_count + mapped_attribute_count;
 	}
 
-	void add(const float val) {
-		data.emplace_back(val);
+	/// Get the number of mapped attributes of a single glyph.
+	size_t get_mapped_attribute_count() const {
+		return mapped_attribute_count;
 	}
 
-	float& operator [](int idx) {
-		return data[idx];
+	/// Get the number stored glyphs.
+	size_t get_glyph_count() const {
+		return size() / get_glyph_attribute_count();
 	}
 
-	float operator [](int idx) const {
-		return data[idx];
-	}
-
-	float last_glyph_s() const {
+	/// Get the arc-length position of the last stored glyph.
+	float get_last_glyph_position() const {
 		if(size() > 0)
-			return data[size() - 1 - 1 - count];
+			return data[size() - get_glyph_attribute_count()];
 		else
 			return 0.0f;
 	}
+
+	/// Get the stored attributes. 
+	std::vector<float>& get_data() {
+		return data;
+	}
+
+	/// @brief Append a new glyph to the end.
+	/// 
+	/// @param position The arc-length position.
+	/// @param debug_info The debug information encoded as floating-point.
+	/// @param mapped_attribute_values The values of the mapped attributes of the new glyph.
+	void append(float position, float debug_info, const std::vector<float>& mapped_attribute_values) {
+		data.push_back(position);
+		data.push_back(debug_info);
+		std::copy(mapped_attribute_values.begin(), mapped_attribute_values.end(), std::back_inserter(data));
+	}
+
+private:
+	// The number of mapped glyph attributes additional to the base attributes.
+	size_t mapped_attribute_count = 0;
+	// Store the attribute values of all glyhs consecutively.
+	std::vector<float> data;
 };
+
 
 namespace otv {
 

@@ -5,12 +5,11 @@
 #include <cgv/base/base.h>
 #include <cgv/base/group.h>
 #include <cgv/gui/provider.h>
+#include <cgv/media/color_scale.h>
 #include <cgv/render/context.h>
 #include <cgv/render/texture.h>
-#include <cgv/render/color_map.h>
-#include <cgv_app/color_map_legend.h>
+#include <cgv_overlay/color_scale_legend.h>
 
-#include "gui_util.h"
 #include "traj_loader.h"
 #include "glyph_attribute_mapping.h"
 #include "color_map_manager.h"
@@ -42,8 +41,8 @@ protected:
 	/// reference to the application plugin using the manager
 	cgv::base::group &owner;
 
-	/// the (fixed) pool of color map legend overlays. currently set to 4 since we can have max. 4 on-tube glyph layers.
-	std::array<cgv::app::color_map_legend_ptr, 4> legends;
+	/// the (fixed) pool of color scale legend overlays. currently set to 4 since we can have max. 4 on-tube glyph layers.
+	std::array<cgv::overlay::color_scale_legend_ptr, 4> legends;
 
 	/// the number of active legends
 	unsigned num_active;
@@ -65,8 +64,8 @@ public:
 
 	/// compose the legend for the given glyph layer configuration.
 	void compose (
-		cgv::render::context &ctx, const traj_dataset<float> &dataset,
-		const color_map_manager &color_map_mgr, const std::vector<glyph_attribute_mapping> &layers
+		const traj_dataset<float> &dataset, const color_map_manager &color_map_mgr,
+		const std::vector<glyph_attribute_mapping> &layers
 	);
 
 	/// create the gui for this manager

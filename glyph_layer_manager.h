@@ -34,7 +34,7 @@ public:
 		struct glyph_mapping_triple {
 			int type; // 0 = constant, 1 = mapped
 			size_t idx; // index into attribute values
-			const vec4* v; // pointer to
+			const scalar_mapping* v; // pointer to scalar mapping parameters
 		};
 
 		struct layer_configuration {
@@ -145,7 +145,7 @@ protected:
 	//
 	cgv::base::base_ptr base_ptr;
 	//
-	ActionType last_action_type = AT_NONE;
+	ActionType last_action_type = ActionType::kUndefined;
 
 	std::vector<glyph_attribute_mapping> glyph_attribute_mappings;
 
@@ -178,9 +178,8 @@ public:
 	}
 
 	void set_visualization_variables(std::shared_ptr<const visualization_variables_info> variables);
-
+	
 	visualization_variables_info& ref_visualization_variables();
-
 	const configuration& get_configuration();
 
 	ActionType action_type();

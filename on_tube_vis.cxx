@@ -15,18 +15,20 @@
 #endif
 
 // CGV framework core
+#include <cgv/data/informed_ptr.h>
 #include <cgv/defines/quote.h>
 #include <cgv/gui/dialog.h>
 #include <cgv/gui/trigger.h>
 #include <cgv/signal/rebind.h>
 #include <cgv/gui/theme_info.h>
 #include <cgv/math/ftransform.h>
+#include <cgv/media/color_scheme.h>
 #include <cgv/media/image/image_reader.h>
 #include <cgv/utils/advanced_scan.h>
+#include <cgv/utils/algorithm.h>
 
-// CGV framework application utility
-#include <cgv_app/color_map_reader.h>
-#include <cgv_app/color_map_writer.h>
+// CGV framework libraries
+#include <cmc_crameri/schemes.h>
 
 // CGV framework plugins
 // - fltk_gl_view for controlling instant redraw
@@ -69,7 +71,6 @@ void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* 
 // ###############################
 #endif
 
-
 /* TODOs:
 * > Find way of adjusting view z-Near to prevent z-fighting artifacts that occur with the default
 *   value (which is often much too small).
@@ -91,7 +92,7 @@ namespace cgv {
 namespace reflect {
 
 enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
-	return enum_reflection_traits<GridMode>("GM_NONE,GM_COLOR,GM_NORMAL,GM_COLOR_AND_NORMAL");
+	return enum_reflection_traits<GridMode>("None,Color,Normal,ColorAndNormal");
 }
 
 }
@@ -99,6 +100,8 @@ enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
 
 // Streaming API global state
 #include <3rd/fltk/include/fltk/events.h>
+
+using namespace cgv::render;
 
 on_tube_vis *otv_instance = nullptr;
 void *otv_thread_handle = nullptr;
@@ -141,8 +144,8 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 	render.style.material.specular_reflectance = { 0.05f, 0.05f, 0.05f };
 	render.style.use_conservative_depth = true;
 
-	bbox_rd.style.culling_mode = cgv::render::CM_FRONTFACE;
-	bbox_rd.style.illumination_mode = cgv::render::IM_TWO_SIDED;
+	bbox_rd.style.culling_mode = CullingMode::CM_FRONTFACE;
+	bbox_rd.style.illumination_mode = IlluminationMode::IM_TWO_SIDED;
 	bbox_rd.style.surface_color = rgb(0.7f);
 
 	vstyle.enable_depth_test = false;
@@ -157,7 +160,7 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 	tube_shading.grids[1].thickness = 0.1f;
 	tube_shading.grids[1].blend_factor = 0.333f;
 	tube_shading.grid_color = rgba(0.25f, 0.25f, 0.25f, 0.75f);
-	tube_shading.grid_mode = GM_COLOR_AND_NORMAL;
+	tube_shading.grid_mode = GridMode::kColorAndNormal;
 	tube_shading.grid_normal_settings = (cgv::type::DummyEnum)1u;
 	tube_shading.grid_normal_inwards = true;
 	tube_shading.grid_normal_variant = true;
@@ -183,33 +186,32 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 	// register overlay widgets
 	mapping_legend_ptr = create_and_append_child<mapping_legend>("Mapping Legend");
 
-	cm_editor_ptr = create_and_append_child<cgv::app::color_map_editor>("Color Scales");
+	cm_editor_ptr = create_and_append_child<cgv::overlay::transfer_function_editor>("Color Scales");
 	cm_editor_ptr->set_visibility(false);
 	cm_editor_ptr->gui_options.create_default_tree_node = false;
 	cm_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_color_map_change, this));
-	cm_editor_ptr->set_stretch(cgv::app::overlay::SO_HORIZONTAL);
+	cm_editor_ptr->set_stretch_mode(cgv::overlay::StretchMode::kHorizontal);
 
-	tf_editor_ptr = create_and_append_child<cgv::app::color_map_editor>("Transfer Function");
+	tf_editor_ptr = create_and_append_child<cgv::overlay::transfer_function_editor>("Transfer Function");
 	tf_editor_ptr->set_visibility(false);
 	tf_editor_ptr->set_opacity_support(true);
-	tf_editor_ptr->set_on_change_callback(std::bind(&on_tube_vis::handle_transfer_function_change, this));
-	tf_editor_ptr->set_stretch(cgv::app::overlay::SO_HORIZONTAL);
+	tf_editor_ptr->set_stretch_mode(cgv::overlay::StretchMode::kHorizontal);
 
-	navigator_ptr = create_and_append_child<cgv::app::navigator>("Navigator");
+	navigator_ptr = create_and_append_child<cgv::overlay::navigator>("Navigator");
 	navigator_ptr->set_visibility(false);
 	navigator_ptr->gui_options.show_layout_options = false;
-	navigator_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_START);
+	navigator_ptr->set_alignment(cgv::overlay::Alignment::kEnd, cgv::overlay::Alignment::kStart);
 	navigator_ptr->set_size(100);
 
 	cm_viewer_ptr = create_and_append_child<color_map_viewer>("Color Scale Viewer");
-	cm_viewer_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_END);
+	cm_viewer_ptr->set_alignment(cgv::overlay::Alignment::kEnd, cgv::overlay::Alignment::kEnd);
 	cm_viewer_ptr->set_visibility(false);
 
-	perfmon_ptr = create_and_append_child<cgv::app::performance_monitor>("Performance Monitor");
+	perfmon_ptr = create_and_append_child<cgv::overlay::performance_monitor>("Performance Monitor");
 	perfmon_ptr->set_visibility(false);
 	//perfmon_ptr->set_show_background(false);
 	perfmon_ptr->enable_monitoring_only_when_visible(true);
-	perfmon_ptr->set_alignment(cgv::app::overlay::AO_END, cgv::app::overlay::AO_END);
+	perfmon_ptr->set_alignment(cgv::overlay::Alignment::kEnd, cgv::overlay::Alignment::kEnd);
 
 	layer_config_file_helper = cgv::gui::file_helper(this, "Open/Save Layer Configuration", cgv::gui::file_helper::Mode::kOpenAndSave);
 	layer_config_file_helper.add_filter("Layer Configuration XML", "xml");
@@ -362,7 +364,7 @@ void on_tube_vis::handle_args (std::vector<std::string> &args)
 	}
 }
 
-void on_tube_vis::clear(cgv::render::context &ctx)
+void on_tube_vis::clear(context &ctx)
 {
 	// decrease reference count of the renderers by one
 	ref_textured_spline_tube_renderer(ctx, -1);
@@ -382,6 +384,7 @@ void on_tube_vis::clear(cgv::render::context &ctx)
 	render.sorter.destruct(ctx);
 
 	density_volume.destruct(ctx);
+	volume_tf_adapter.destruct(ctx);
 
 	taa.destruct(ctx);
 
@@ -932,7 +935,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				glyph_attribute_mapping m;
 				m.set_name("SurfaceColor");
 				// - type
-				m.set_glyph_type(GlyphType::GT_COLOR);
+				m.set_glyph_type(GlyphType::kColor);
 				// - interpolation mode
 				m.set_attrib_out_range(
 					metaattrib_idx__interpolate,
@@ -971,7 +974,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				glyph_attribute_mapping m;
 				m.set_name("LinePlot");
 				// - type
-				m.set_glyph_type(GlyphType::GT_LINE_PLOT);
+				m.set_glyph_type(GlyphType::kLinePlot);
 				// - outline
 				m.set_attrib_out_range(metaattrib_idx__outline, {0.f, layer_src.outline});
 				// - interpolation mode
@@ -1015,7 +1018,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				glyph_attribute_mapping m;
 				m.set_name("Circle");
 				// - type
-				m.set_glyph_type(GlyphType::GT_CIRCLE);
+				m.set_glyph_type(GlyphType::kCircle);
 				// - outline
 				m.set_attrib_out_range(metaattrib_idx__outline, {0.f, layer_src.outline});
 				// - color
@@ -1067,7 +1070,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				glyph_attribute_mapping m;
 				m.set_name("Rectangle");
 				// - type
-				m.set_glyph_type(GlyphType::GT_RECTANGLE);
+				m.set_glyph_type(GlyphType::kRectangle);
 				// - outline
 				m.set_attrib_out_range(metaattrib_idx__outline, {0.f, layer_src.outline});
 				// - color
@@ -1133,7 +1136,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				glyph_attribute_mapping m;
 				m.set_name("Triangle");
 				// - type
-				m.set_glyph_type(GlyphType::GT_TRIANGLE);
+				m.set_glyph_type(GlyphType::kTriangle);
 				// - outline
 				m.set_attrib_out_range(metaattrib_idx__outline, {0.f, layer_src.outline});
 				// - color
@@ -1214,7 +1217,7 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 				glyph_attribute_mapping m;
 				m.set_name("SignBlob");
 				// - type
-				m.set_glyph_type(GlyphType::GT_SIGN_BLOB);
+				m.set_glyph_type(GlyphType::kSignBlob);
 				// - outline
 				m.set_attrib_out_range(metaattrib_idx__outline, {0.f, layer_src.outline});
 				// - size (this is always a static parameter)
@@ -1306,11 +1309,6 @@ void on_tube_vis::handle_color_map_change() {
 		if(cm_viewer_ptr)
 			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 	}
-}
-
-void on_tube_vis::handle_transfer_function_change() {
-	if(tf_editor_ptr)
-		volume_tf.generate_texture(*get_context());
 }
 
 void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
@@ -1428,7 +1426,7 @@ bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 	bool changes = false;
 	bool full_gui_update = false;
 	bool new_session;
-	if(action == AT_CONFIGURATION_CHANGE)
+	if(action == ActionType::kConfigurationChange)
 	{
 		new_session = may_cause_new_session && client.new_session_if_not_in_setup();
 		glyph_layers_config = glyph_layer_mgr.get_configuration();
@@ -1444,13 +1442,13 @@ bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 		changes = true;
 		full_gui_update = true;
 	}
-	else if (action == AT_CONFIGURATION_VALUE_CHANGE) {
+	else if (action == ActionType::kConfigurationValueChange) {
 		new_session = may_cause_new_session && client.new_session_if_not_in_setup();
 		glyph_layers_config = glyph_layer_mgr.get_configuration();
 		glyphs_out_of_date(true);
 		changes = true;
 	}
-	else if (action == AT_MAPPING_VALUE_CHANGE) {
+	else if (action == ActionType::kMappingValueChange) {
 		new_session = may_cause_new_session && client.new_session_if_not_in_setup();
 		glyphs_out_of_date(true);
 		changes = true;
@@ -1474,14 +1472,14 @@ bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 void on_tube_vis::on_set(void* member_ptr)
 {
 	// helper for determining what fields or subfields were affected
-	const cgv::utils::pointer_test& m(member_ptr);
+	const cgv::data::informed_ptr ptr(member_ptr);
 
 	// control flags
 	bool do_full_gui_update = false, data_set_changed = false, from_demo = false, reset_taa = true;
 
 	// internal state flags
 	// - configurable datapath
-	if(!run_as_service && m.is(datapath_helper.file_name))
+	if(!run_as_service && ptr.points_to(datapath_helper.file_name))
 	{
 		const auto& file_name = datapath_helper.file_name;
 		if(!file_name.empty())
@@ -1503,7 +1501,7 @@ void on_tube_vis::on_set(void* member_ptr)
 		}
 	}
 	// - non-configurable dataset logic
-	else if(!run_as_service && m.is(dataset))
+	else if(!run_as_service && ptr.points_to(dataset))
 	{
 		from_demo = traj_mgr.has_data() && traj_mgr.dataset(0).data_source() == "DEMO";
 		// clear current dataset
@@ -1540,8 +1538,8 @@ void on_tube_vis::on_set(void* member_ptr)
 	}
 
 	// render settings
-	if(!data_init_pending && m.one_of(
-		debug.highlight_segments,
+	if(!data_init_pending && ptr.points_to_one_of(
+			debug.highlight_segments,
 			tube_shading.ao_style.enable,
 			tube_shading.grid_mode,
 			tube_shading.grid_normal_settings,
@@ -1562,57 +1560,50 @@ void on_tube_vis::on_set(void* member_ptr)
 	}
 
 	// - debug render setting
-	if(m.is(debug.force_initial_order)) {
+	if(ptr.points_to(debug.force_initial_order)) {
 		update_attribute_bindings();
 	}
 
-	if(m.is(debug.render_percentage)) {
+	if(ptr.points_to(debug.render_percentage)) {
 		debug.render_count = static_cast<size_t>(debug.render_percentage * debug.segment_count);
 		update_member(&debug.render_count);
 	}
 
-	if(m.is(debug.render_count)) {
+	if(ptr.points_to(debug.render_count)) {
 		debug.render_percentage = static_cast<float>(debug.render_count) / static_cast<float>(debug.segment_count);
 		update_member(&debug.render_percentage);
 	}
 
-	if(m.is(debug.render_mode)) {
+	if(ptr.points_to(debug.render_mode)) {
 		do_full_gui_update = true;
 		update_debug_attribute_bindings();
 	}
 
 	// voxelization settings
-	if(m.one_of(voxel_grid_resolution, /*voxelize_gpu, */render.style.radius_scale)) {
+	if(ptr.points_to_one_of(voxel_grid_resolution, /*voxelize_gpu, */render.style.radius_scale)) {
 		context& ctx = *get_context();
 		voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(cgv::math::clamp(static_cast<unsigned>(voxel_grid_resolution), 16u, 512u));
 		create_density_volume(ctx, voxel_grid_resolution);
 
-		if(m.is(render.style.radius_scale)) {
+		if(ptr.points_to(render.style.radius_scale)) {
 			update_grid_ratios();
 			glyphs_out_of_date(true);
 		}
 	}
 
 	// visualization settings
-	if(!data_init_pending && m.is(render.visualizations.front().manager))
+	if(!data_init_pending && ptr.points_to(render.visualizations.front().manager))
 		do_full_gui_update = update_visualizations(!session_starting);
 
-	if(m.is(color_map_mgr)) {
+	if(ptr.points_to(color_map_mgr)) {
 		switch(color_map_mgr.action_type()) {
-		case AT_CONFIGURATION_CHANGE:
+		case ActionType::kConfigurationChange:
 		{
 			if(cm_editor_ptr) {
-				const auto& color_maps = color_map_mgr.ref_color_maps();
-				const auto* edit_cm_ptr = cm_editor_ptr->get_color_map();
-				for(size_t i = 0; i < color_maps.size(); ++i) {
-					if(&color_maps[i].cm == edit_cm_ptr) {
-						// TODO: use smart pointers for color map and in manager
-						cm_editor_ptr->set_color_map(nullptr);
-						cm_editor_ptr->set_visibility(false);
-					}
-				}
+				cm_editor_ptr->set_transfer_function(nullptr);
+				cm_editor_ptr->set_visibility(false);
 			}
-			// TODO: remove commented line
+
 			render.visualizations.front().variables->set_color_map_names(color_map_mgr.get_names());
 
 			color_map_mgr.update_texture(*get_context());
@@ -1624,12 +1615,17 @@ void on_tube_vis::on_set(void* member_ptr)
 			do_full_gui_update = true;
 			break;
 		}
-		case AT_EDIT_REQUEST:
+		case ActionType::kEditRequest:
 			if(cm_editor_ptr) {
-				int idx = color_map_mgr.edit_index();
-				if(idx > -1 && idx < color_map_mgr.ref_color_maps().size()) {
-					cm_editor_ptr->set_color_map(&(color_map_mgr.ref_color_maps()[idx].cm));
+				cgv::media::transfer_function* color_ramp = color_map_mgr.get_edited_color_ramp();
+				if(color_ramp) {
+					auto transfer_function = std::make_shared<cgv::media::transfer_function>(*color_ramp);
+					transfer_function->set_interpolation(cgv::media::transfer_function::InterpolationMode::kSmooth);
+					cm_editor_ptr->set_transfer_function(transfer_function);
 					cm_editor_ptr->set_visibility(true);
+				} else {
+					cm_editor_ptr->set_transfer_function(nullptr);
+					cm_editor_ptr->set_visibility(false);
 				}
 			}
 			break;
@@ -1640,7 +1636,7 @@ void on_tube_vis::on_set(void* member_ptr)
 		on_set(&layer_config_has_unsaved_changes);
 	}
 
-	if(m.is(layer_config_file_helper.file_name)) {
+	if(ptr.points_to(layer_config_file_helper.file_name)) {
 		std::string& file_name = layer_config_file_helper.file_name;
 
 		if(layer_config_file_helper.is_save_action()) {
@@ -1685,17 +1681,17 @@ void on_tube_vis::on_set(void* member_ptr)
 
 	}
 
-	if(m.is(layer_config_has_unsaved_changes)) {
+	if(ptr.points_to(layer_config_has_unsaved_changes)) {
 		auto ctrl = find_control(layer_config_file_helper.file_name);
 		if(ctrl)
 			ctrl->set("text_color", layer_config_has_unsaved_changes ? cgv::gui::theme_info::instance().warning_hex() : "");
 	}
 
-	if(!data_init_pending && m.is(debug.show_hidden_glyphs))
+	if(!data_init_pending && ptr.points_to_one_of(debug.print_glyph_information, debug.show_hidden_glyphs))
 		compile_glyph_attribs();
 
 	// playback controls
-	if(m.is(playback.active) && playback.active) {
+	if(ptr.points_to(playback.active) && playback.active) {
 		playback.timer.add_time();
 		render.style.max_t = client.use_natural_progression ? client.playback_t : render.style.max_t;
 		tube_shading.playback_t = client.use_natural_progression ? tube_shading.playback_t : client.playback_t;
@@ -1704,7 +1700,7 @@ void on_tube_vis::on_set(void* member_ptr)
 		const auto& traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
 		playback.follow_last_nid = !run_as_service ? find_sample(pos.attrib, traj_range, client.playback_t) : 0;
 	}
-	if(m.is(playback.follow_traj)) {
+	if(ptr.points_to(playback.follow_traj)) {
 		const auto& ds = traj_mgr.dataset(0);
 		const auto& pos = ds.positions();
 		const auto& traj_range = ds.trajectories(pos.attrib)[playback.follow_traj];
@@ -1712,44 +1708,44 @@ void on_tube_vis::on_set(void* member_ptr)
 	}
 
 	// widget controls
-	if(m.is(show_mapping_legend)) {
+	if(ptr.points_to(show_mapping_legend)) {
 		if(mapping_legend_ptr)
 			mapping_legend_ptr->set_visibility(show_mapping_legend);
 	}
 
-	if(m.is(show_color_map_viewer)) {
+	if(ptr.points_to(show_color_map_viewer)) {
 		if(cm_viewer_ptr)
 			cm_viewer_ptr->set_visibility(show_color_map_viewer);
 	}
 
-	if(m.is(show_navigator)) {
+	if(ptr.points_to(show_navigator)) {
 		if(navigator_ptr)
 			navigator_ptr->set_visibility(show_navigator);
 	}
 
-	if(m.is(show_performance_monitor)) {
+	if(ptr.points_to(show_performance_monitor)) {
 		if(perfmon_ptr)
 			perfmon_ptr->set_visibility(show_performance_monitor);
 	}
 
 	// misc settings
 	// - instant redraw
-	if(m.is(misc_cfg.instant_redraw_proxy))
+	if(ptr.points_to(misc_cfg.instant_redraw_proxy))
 		// ToDo: handle the (virtually impossible) case that some other plugin than cg_fltk provides the gl_context
-		dynamic_cast<fltk_gl_view*>(get_context())->set_void("instant_redraw", "bool", m.ptr);
+		dynamic_cast<fltk_gl_view*>(get_context())->set_void("instant_redraw", "bool", ptr.get());
 	// - vsync
-	if(m.is(misc_cfg.vsync_proxy))
+	if(ptr.points_to(misc_cfg.vsync_proxy))
 		// ToDo: handle the (virtually impossible) case that some other plugin than cg_fltk provides the gl_context
-		dynamic_cast<fltk_gl_view*>(get_context())->set_void("vsync", "bool", m.ptr);
+		dynamic_cast<fltk_gl_view*>(get_context())->set_void("vsync", "bool", ptr.get());
 	// - fix view up dir
-	else if(m.is(misc_cfg.fix_view_up_dir_proxy))
+	else if(ptr.points_to(misc_cfg.fix_view_up_dir_proxy))
 		dynamic_cast<node*>(find_view_as_node())->set("fix_view_up_dir", misc_cfg.fix_view_up_dir_proxy);
 
 	// In case of timestep thresholding we don't want to reset TAA
-	if(m.is(render.style.max_t))
+	if(ptr.points_to(render.style.max_t))
 		reset_taa = false;
 
-	if(m.is(render.style.line_primitive))
+	if(ptr.points_to(render.style.line_primitive))
 	{
 		// perform smart toggle bookkeeping
 		if (!ui_state.tr_toggle.check_toggled()) {
@@ -1764,12 +1760,12 @@ void on_tube_vis::on_set(void* member_ptr)
 	}
 
 	// cap clip distance override
-	if (m.is(render.style.cap_clip_distance)) {
+	if (ptr.points_to(render.style.cap_clip_distance)) {
 		override_cap_clip_distance.reset();
 	}
 
 	// cap clip distance override
-	if (m.is(override_cap_clip_distance_proxy)) {
+	if (ptr.points_to(override_cap_clip_distance_proxy)) {
 		override_cap_clip_distance.emplace(override_cap_clip_distance_proxy);
 	}
 
@@ -1800,9 +1796,9 @@ void on_tube_vis::on_set(void* member_ptr)
 		optix.fb.depth.ensure_state(ctx);
 	};
 
-	if(m.member_of(taa)) {
+	if(ptr.points_to_member_of(taa)) {
 		optix.prev_TAA_state = taa.is_enabled();
-	} else if(m.is(optix.enabled)) {
+	} else if(ptr.points_to(optix.enabled)) {
 		do_full_gui_update = true;
 		if(optix.enabled) {
 			if(optix_ensure_init(*get_context())) {
@@ -1813,7 +1809,7 @@ void on_tube_vis::on_set(void* member_ptr)
 		} else {
 			pop_optix_holo_taa_state();
 		}
-	} else if(m.is(optix.primitive)) {
+	} else if(ptr.points_to(optix.primitive)) {
 		if(optix.primitive == OPR_PHANTOM)
 			optix.tracer = &optix.tracer_phantom;
 		else if(optix.primitive == OPR_BUILTIN)
@@ -1822,7 +1818,7 @@ void on_tube_vis::on_set(void* member_ptr)
 			optix.tracer = &optix.tracer_builtin_cubic;
 		else
 			optix.tracer = &optix.tracer_russig;
-	} else if(m.is(optix.holographic) && optix.enabled) {
+	} else if(ptr.points_to(optix.holographic) && optix.enabled) {
 		if(optix.holographic)
 			push_optix_holo_taa_state();
 		else
@@ -1837,12 +1833,12 @@ void on_tube_vis::on_set(void* member_ptr)
 
 	/* TAA */ {
 		bool taa_changed = false;
-		if (m.is(toggle_taa_proxy))
+		if (ptr.points_to(toggle_taa_proxy))
 		{
 			taa.set_enabled(toggle_taa_proxy);
 			taa_changed = true;
 		}
-		if (m.is(taa) || taa_changed)
+		if (ptr.points_to(taa) || taa_changed)
 		{
 			toggle_taa_proxy = taa.is_enabled();
 			/*#if defined(OTV_WITH_MAPTILES) && OTV_WITH_MAPTILES==1
@@ -2011,41 +2007,62 @@ bool on_tube_vis::compile_glyph_attribs (void)
 		auto &ds_config = render.visualizations[ds_idx];
 		if(ds_config.config.layer_configs.size() > 0)
 		{
+			std::cout << "Compiling glyph attributes for dataset " << ds_idx << " '" << ds.name() << "'... ";
 			cgv::utils::stopwatch s(true);
-			std::cout << "Compiling glyph attributes for dataset "<<ds_idx<<" '"<<ds.name()<<"'... ";
 
 			glyph_compiler gc;
 			gc.length_scale = render.style.length_scale;
 			gc.include_hidden_glyphs = debug.show_hidden_glyphs;
+			// Todo: Set sample step threshold according to dataset?
+			//gc.sample_step_threshold = ...;
 
 			const auto &dataset = traj_mgr.dataset(0);
+			const auto compiled_layers = gc.compile_glyph_attributes(dataset, client.arclen_data, ds_config.config);
+			success = !compiled_layers.empty();
 
-			success = gc.compile_glyph_attributes(dataset, client.arclen_data, ds_config.config);
+			double elapsed_time = s.get_elapsed_time();
+			std::cout << "done (" << elapsed_time << "s)" << std::endl;
 
-			// set up render/streaming
-			for(size_t layer_idx=0; layer_idx<gc.layer_filled.size(); ++layer_idx)
-			{
-				if (!gc.layer_filled[layer_idx])
-				{
+			if(debug.print_glyph_information) {
+				std::cout << "Compiled glyphs per layer:\n";
+				size_t layer_idx = 0;
+				for(const layer_compile_result& layer : compiled_layers) {
+					// The total used attribute count excludes the arc length position and debug information per glyph.
+					size_t attribute_count = layer.glyphs.get_glyph_count() * layer.glyphs.get_mapped_attribute_count();
+					std::cout << "  Layer " << std::to_string(layer_idx) << ": ";
+					std::cout << std::to_string(layer.glyphs.get_glyph_count()) << " glyphs / ";
+					std::cout << std::to_string(attribute_count) << " mapped attributes" << "\n";
+					++layer_idx;
+				}
+				std::cout << std::endl;
+			}
+
+			std::cout << "Uploading glyph attributes for dataset " << ds_idx << " '" << ds.name() << "'... ";
+			s.restart();
+
+			// get context
+			const auto& ctx = *get_context();
+
+			for(size_t layer_idx = 0; layer_idx < compiled_layers.size(); ++layer_idx) {
+				layer_compile_result layer = compiled_layers[layer_idx];
+
+				if(layer.empty()) {
 					// Clear layer for client and renderer.
 					client.glyphs[layer_idx] = {};
 					render.glyphs[layer_idx] = {};
-					if (run_as_service)
-					{
+					if(run_as_service) {
 						// In case we're running as service, glyphs can still be streamed even when no attributes are
 						// mapped. We must be able to receive them, so create GPU buffers for this layer anyway.
-						if (!render.create_glyph_layer(
-						    	layer_idx,
-						    	client.glyphs[layer_idx].attribs.count + 2,
-						    	client.trajectories.size(),
-						    	glyph_count_type{(int)session_glyphbuf_size}
-						    )
+						if(!render.create_glyph_layer(
+								layer_idx,
+								client.glyphs[layer_idx].attribs.get_glyph_attribute_count(),
+								client.trajectories.size(),
+								glyph_count_type{ (int)session_glyphbuf_size }
+							)
 						)
 							throw std::runtime_error("Failed to create glyph attribute buffers.");
 					}
-				}
-				else
-				{
+				} else {
 					// Mark layer as active in render state.
 					render.active_glyph_layers.set(layer_idx);
 
@@ -2053,23 +2070,23 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					//const auto& attribs = gc.layer_attribs[layer_idx];
 
 					// Copy glyph data into the simulated client
-					auto &gl = client.glyphs.at(layer_idx);
+					auto& gl = client.glyphs.at(layer_idx);
 					/*gl.ranges.reserve(gc.layer_ranges[layer_idx].size());
 					for (const auto& r : ranges)
 						gl.ranges.emplace_back(index_range<glyph_count_type>{
 							glyph_count_type(r.i0), glyph_count_type(r.n)
 						});*/
-					gl.ranges = std::move((std::vector<index_range<glyph_count_type>>&)gc.layer_ranges[layer_idx]);
-					gl.attribs = std::move(gc.layer_attribs[layer_idx]);
-					gl.timestamps = std::move(gc.layer_timestamps[layer_idx]);
+					gl.ranges = std::move(reinterpret_cast<std::vector<index_range<glyph_count_type>>&>(layer.ranges));
+					gl.attribs = std::move(layer.glyphs);
+					gl.timestamps = std::move(layer.timestamps);
 
 					// Allocate GPU buffers for glyph-related data.
 					if (!render.create_glyph_layer(
-					    	layer_idx,
-					    	client.glyphs[layer_idx].attribs.count + 2,
-					    	client.trajectories.size(),
-					    	glyph_count_type{(int)session_glyphbuf_size}
-					    )
+							layer_idx,
+							client.glyphs[layer_idx].attribs.get_glyph_attribute_count(),
+							client.trajectories.size(),
+							glyph_count_type{(int)session_glyphbuf_size}
+						)
 					)
 						throw std::runtime_error("Failed to create glyph attribute buffers.");
 
@@ -2089,7 +2106,9 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					/* min_glyphs_capacity_per_traj_and_layer: */128
 				);
 
-			std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+			elapsed_time = s.get_elapsed_time();
+			std::cout << "done (" << elapsed_time << "s)" << std::endl;
+
 			glyphs_out_of_date(false);
 		}
 	}
@@ -2104,7 +2123,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 	return success;
 }
 
-bool on_tube_vis::init (cgv::render::context &ctx)
+bool on_tube_vis::init (context &ctx)
 {
 	// First of all, disable VSync so TAA works well
 	 dynamic_cast<base&>(ctx).set("vsync", false);
@@ -2160,30 +2179,17 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	tube_shading.ao_style.enable = true;
 
 	// init color maps
+	// - populate registry
+	auto& color_scheme_registry = cgv::media::get_global_continuous_color_scheme_registry();
+	crameri::load_continuous_color_scheme_presets(color_scheme_registry, { cgv::media::ColorSchemeType::kSequential, cgv::media::ColorSchemeType::kDiverging });
+
 	// - manager
 	color_map_mgr.init(ctx);
-
-	auto load_color_maps = [this](const std::string& file_name) {
-		cgv::app::color_map_reader::result color_maps;
-		if(cgv::app::color_map_reader::read_from_xml_file(file_name, color_maps))
-			for(const auto& entry : color_maps)
-				color_map_mgr.add_color_map(entry.first, entry.second, false);
-	};
-
-	auto load_color_maps_from_directory = [this, &load_color_maps](const std::string& dir_name) {
-		if(std::filesystem::exists(dir_name)) {
-			for(const auto& entry : std::filesystem::directory_iterator(dir_name)) {
-				std::filesystem::path entry_path = entry.path();
-				// only take xml files
-				if(entry_path.extension() == ".xml")
-					load_color_maps(entry_path.string());
-			}
-		}
-	};
-
-	// load sequential and diverging color maps from the resource directory
-	load_color_maps_from_directory("res/color_maps/sequential");
-	load_color_maps_from_directory("res/color_maps/diverging");
+	for(const auto& entry : color_scheme_registry) {
+		cgv::media::transfer_function tf;
+		tf.set_color_points_from_scheme(entry.second, 256);
+		color_map_mgr.add_color_map(entry.first, tf, false);
+	}
 
 	color_map_mgr.update_texture(ctx);
 	if(cm_viewer_ptr) {
@@ -2191,7 +2197,17 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 		cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 	}
 
-	volume_tf.init(ctx);
+	// - volume transfer function
+	volume_tf->set_color_points_from_scheme(crameri::schemes::interpolateImola(), 256);
+	volume_tf->add_opacity_point(0.0f, 0.0f);
+	volume_tf->add_opacity_point(1.0f, 1.0f);
+
+	// since the tansfer function object won't change, it is sufficient to set it once in the editor
+	if(tf_editor_ptr)
+		tf_editor_ptr->set_transfer_function(volume_tf);
+
+	volume_tf_adapter.init(ctx);
+	volume_tf_adapter.set_color_scale(std::make_shared<device_transfer_function>(volume_tf));
 
 	// initialize temporal anti-aliasing
 	success &= taa.init(ctx);
@@ -2471,8 +2487,8 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		const auto  sview = (stereo_view*)view_ptr;
 		const mat4  &MV    = MAT4(params.cam_MV) = ctx.get_modelview_matrix(),
 		            &P     = MAT4(params.cam_P) = ctx.get_projection_matrix(),
-		            &invMV = MAT4(params.cam_invMV) = cgv::math::inv(MV),
-		            &invP  = MAT4(params.cam_invP) = cgv::math::inv(P);
+		            &invMV = MAT4(params.cam_invMV) = cgv::math::inverse(MV),
+		            &invP  = MAT4(params.cam_invP) = cgv::math::inverse(P);
 		const float aspect = (float)ctx.get_width()/ctx.get_height(),
 		            stereo_eye_dist = (float)sview->get_eye_distance()/*,
 		            optixV_len = (float)view_ptr->get_tan_of_half_of_fovy(true),
@@ -2558,11 +2574,11 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		params.holo_eyes_dist = stereo_eye_dist;
 		params.parallax_zero_depth = (float)sview->get_parallax_zero_depth();
 		MAT4(params.holo_MV_left)  = stereo_modelview_matrix(-1.f);
-		MAT4(params.holo_invMV_left) = cgv::math::inv(MAT4(params.holo_MV_left));
+		MAT4(params.holo_invMV_left) = cgv::math::inverse(MAT4(params.holo_MV_left));
 		MAT4(params.holo_MV_right) = stereo_modelview_matrix( 1.f);
-		MAT4(params.holo_invMV_right) = cgv::math::inv(MAT4(params.holo_MV_right));
+		MAT4(params.holo_invMV_right) = cgv::math::inverse(MAT4(params.holo_MV_right));
 		mat4 &Pl = MAT4(params.holo_P_left)   = stereo_projection_matrix(-1.f, P);
-		MAT4(params.holo_invP_left) = cgv::math::inv(MAT4(params.holo_P_left));
+		MAT4(params.holo_invP_left) = cgv::math::inverse(MAT4(params.holo_P_left));
 		mat4 &Pr = MAT4(params.holo_P_right)  = stereo_projection_matrix( 1.f, P);
 		mat4 PC = stereo_projection_matrix(0, P), PCi = cgv::math::lerp(Pl, Pr, .5f);
 		//const_cast<mat4&>(P) = PCi; const_cast<mat4&>(invP) = cgv::math::inv(P);
@@ -2579,9 +2595,9 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 		std::cerr << "invPC:" << std::endl << invPC << std::endl;
 		std::cerr << "invPr:" << std::endl << invPr << std::endl;
 		std::cerr << "=======================================================================================" << std::endl;*/
-		MAT4(params.holo_invP_right) = cgv::math::inv(MAT4(params.holo_P_right));
-		MAT4(params.holo_invMVP_left) = cgv::math::inv(MAT4(params.holo_P_left)) * MAT4(params.holo_MV_left);
-		MAT4(params.holo_invMVP_right) = cgv::math::inv(MAT4(params.holo_P_right)) * MAT4(params.holo_MV_right);
+		MAT4(params.holo_invP_right) = cgv::math::inverse(MAT4(params.holo_P_right));
+		MAT4(params.holo_invMVP_left) = cgv::math::inverse(MAT4(params.holo_P_left)) * MAT4(params.holo_MV_left);
+		MAT4(params.holo_invMVP_right) = cgv::math::inverse(MAT4(params.holo_P_right)) * MAT4(params.holo_MV_right);
 		/*params.holo_eye_left = MAT4(params.holo_invMV_left) *
 		params.holo_eye_right = MAT4(params.holo_invMV_right) * */
 		// - upload to device
@@ -2650,7 +2666,7 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 #endif
 
 
-void on_tube_vis::init_frame (cgv::render::context &ctx)
+void on_tube_vis::init_frame (context &ctx)
 {
 	// TODO: remove once all relevant view interactors provided by the framework properly fix the up-vector
 	/*if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
@@ -2662,7 +2678,7 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	if (update_legends)
 	{
 		color_legend_mgr.compose(
-			ctx, traj_mgr.dataset(0), color_map_mgr, render.visualizations.front().manager.ref_glyph_attribute_mappings()
+			traj_mgr.dataset(0), color_map_mgr, render.visualizations.front().manager.ref_glyph_attribute_mappings()
 		);
 
 		if(mapping_legend_ptr)
@@ -2683,26 +2699,6 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 		// do one-time initialization that needs the view if necessary
 		set_view();
 		ensure_selected_in_tab_group_parent();
-
-		// set one of the loaded color maps as the transfer function for the volume renderer
-		if(tf_editor_ptr)
-		{
-			auto& cmcs = color_map_mgr.ref_color_maps();
-			for(auto& cmc : cmcs)
-			{
-				if(cmc.name == "imola")
-				{
-					for(const auto& p : cmc.cm.ref_color_points())
-						volume_tf.add_color_point(p.first, p.second);
-
-					volume_tf.add_opacity_point(0.0f, 0.0f);
-					volume_tf.add_opacity_point(1.0f, 1.0f);
-
-					tf_editor_ptr->set_color_map(&volume_tf);
-					break;
-				}
-			}
-		}
 
 		taa.set_view(view_ptr);
 	}
@@ -2827,7 +2823,7 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	}
 }
 
-void on_tube_vis::draw (cgv::render::context &ctx)
+void on_tube_vis::draw (context &ctx)
 {
 	if(!view_ptr) return;
 
@@ -2842,23 +2838,24 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 
 		switch(debug.render_mode)
 		{
-			case DRM_NONE:
+			case DebugRenderMode::kDisabled:
 				draw_trajectories(ctx);
 				break;
-			case DRM_NODES:
+			case DebugRenderMode::kNodes:
 				debug.geometry.nodes.render(ctx, 0, debug_idx_count);
 				break;
-			case DRM_SEGMENTS:
+			case DebugRenderMode::kSegments:
 				debug.geometry.segments.render(ctx, 0, debug_idx_count);
 				break;
-			case DRM_NODES_SEGMENTS:
+			case DebugRenderMode::kNodesAndSegments:
 				debug.geometry.nodes.render(ctx, 0, debug_idx_count);
 				debug.geometry.segments.render(ctx, 0, debug_idx_count);
 				break;
-			case DRM_VOLUME:
+			case DebugRenderMode::kVolume:
 				draw_density_volume(ctx);
 				break;
 			default:
+				/* DoNothing() */;
 				break;
 		}
 
@@ -3228,7 +3225,7 @@ void on_tube_vis::create_gui (void)
 		add_section_heading("Render Mode", 3);
 		add_member_control(this, "", debug.render_mode, "dropdown", "enums='Default,Nodes,Segments,Nodes + Segments,Volume'");
 
-		if(debug.render_mode == DRM_VOLUME) {
+		if(debug.render_mode == DebugRenderMode::kVolume) {
 			if(begin_tree_node("Volume Style", vstyle, false, "level=3")) {
 				align("\a");
 				add_gui("vstyle", vstyle);
@@ -3240,6 +3237,7 @@ void on_tube_vis::create_gui (void)
 			}
 		}
 
+		add_member_control(this, "Print Glyph Information", debug.print_glyph_information, "check");
 		add_member_control(this, "Show Segments", debug.highlight_segments, "check");
 		add_member_control(this, "Show Hidden Glyphs", debug.show_hidden_glyphs, "check");
 
@@ -3277,7 +3275,7 @@ void on_tube_vis::create_vec3_gui (const std::string& name, vec3& value, float m
 
 void on_tube_vis::update_scene_extents (void)
 {
-	auto* cview_ptr = dynamic_cast<cgv::render::clipped_view*>(view_ptr);
+	auto* cview_ptr = dynamic_cast<clipped_view*>(view_ptr);
 	if(cview_ptr)
 	{
 		// extent the bounding box to prevent accidental clipping of proxy geometry which could happen in certain scenarios.
@@ -3479,10 +3477,10 @@ void on_tube_vis::update_debug_attribute_bindings() {
 	segments.clear();
 
 	if(traj_mgr.has_data()) {
-		float radius_scale = debug.render_mode == DRM_NODES_SEGMENTS ? 0.5f : 1.0f;
+		float radius_scale = debug.render_mode == DebugRenderMode::kNodesAndSegments ? 0.5f : 1.0f;
 
 		// Create render data for debug views if requested
-		if(debug.render_mode == DRM_NONE) {
+		if(debug.render_mode == DebugRenderMode::kDisabled) {
 			// do an early transfer to free GPU memory, since the render function of this data will not be called anymore
 			nodes.early_transfer(ctx, ref_sphere_renderer(ctx));
 			segments.early_transfer(ctx, ref_cone_renderer(ctx));
@@ -3635,7 +3633,7 @@ void on_tube_vis::draw_dnd(context& ctx) {
 	// draw the text
 	ctx.push_pixel_coords();
 	ctx.set_color(dnd_col);
-	ctx.set_cursor(vecn(float(pos.x()), float(pos.y())), "", cgv::render::TA_TOP_LEFT);
+	ctx.set_cursor(vecn(float(pos.x()), float(pos.y())), "", TA_TOP_LEFT);
 	ctx.output_stream() << dnd_drawtext.str();
 	ctx.output_stream().flush();
 	ctx.pop_pixel_coords();
@@ -3890,7 +3888,7 @@ void on_tube_vis::draw_density_volume(context& ctx)
 	auto& vr = ref_volume_renderer(ctx);
 	vr.set_render_style(vstyle);
 	vr.set_volume_texture(&density_tex);
-	vr.set_transfer_function_texture(&volume_tf.ref_texture());
+	vr.set_transfer_function_texture(&volume_tf_adapter.get_texture(ctx));
 
 	vr.set_bounding_box(density_volume.ref_voxel_grid().bounds);
 	vr.transform_to_bounding_box(true);

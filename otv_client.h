@@ -82,7 +82,7 @@ struct otv_client
 		/// The ranges of glyphs in this layer on each trajectory.
 		std::vector<index_range<glyph_count_type>> ranges;
 		/// The attributes defining each glyph.
-		glyph_attributes attribs;
+		glyph_storage attribs = glyph_storage(0);
 		/// The timestamps of each glyph
 		std::vector<float> timestamps;
 	};

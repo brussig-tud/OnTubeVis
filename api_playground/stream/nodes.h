@@ -272,7 +272,7 @@ struct Nodes
 	}
 
 	[[nodiscard]] inline Nodes transformed (const cgv::mat4 &trans, const float time_shift=0) const {
-		const auto tangents_trans = cgv::math::inv(cgv::math::transpose(trans));
+		const auto tangents_trans = cgv::math::inverse(cgv::math::transpose(trans));
 		return transformed(trans, tangents_trans, time_shift);
 	}
 

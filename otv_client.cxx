@@ -264,12 +264,12 @@ void otv_client::commit_session (void)
 		const auto &lmappings = vis.manager.ref_glyph_attribute_mappings()[i];
 		switch (lcfg.shape_ptr->type())
 		{
-			case GT_COLOR:
+			case GlyphType::kColor:
 			{
 				// obtain 'interpolate' meta attribute
 				constexpr unsigned metaattrib_idx__interpolate=0;
 				const auto interpolate= interpolation_attribval_to_api_enum(
-					lmappings.ref_attrib_mapping_values()[metaattrib_idx__interpolate].w()
+					lmappings.ref_attrib_mapping_values()[metaattrib_idx__interpolate].output_range.y()
 				);
 				// get colormap being used
 				constexpr unsigned vattrib_idx__color=1;
@@ -298,13 +298,13 @@ void otv_client::commit_session (void)
 				otv__add_layer(setup, &cfg);
 				break;
 			}
-			case GT_LINE_PLOT:
+			case GlyphType::kLinePlot:
 			{
 				// obtain values of meta attributes
 				constexpr unsigned metaattrib_idx__outline=0, metaattrib_idx__interpolate=1;
-				const auto outline= lmappings.ref_attrib_mapping_values()[metaattrib_idx__outline].w();
+				const auto outline= lmappings.ref_attrib_mapping_values()[metaattrib_idx__outline].output_range.y();
 				const auto interpolate= interpolation_attribval_to_api_enum(
-					lmappings.ref_attrib_mapping_values()[metaattrib_idx__interpolate].w()
+					lmappings.ref_attrib_mapping_values()[metaattrib_idx__interpolate].output_range.y()
 				);
 				// build up information about sub plots
 				const auto &attrib_sources = lmappings.get_attrib_indices();
@@ -326,11 +326,11 @@ void otv_client::commit_session (void)
 				otv__add_layer(setup, &cfg);
 				break;
 			}
-			case GT_RECTANGLE:
+			case GlyphType::kRectangle:
 			{
 				// obtain values of 'outline' meta attribute
 				constexpr unsigned metaattrib_idx__outline=0;
-				const auto outline= lmappings.ref_attrib_mapping_values()[metaattrib_idx__outline].w();
+				const auto outline= lmappings.ref_attrib_mapping_values()[metaattrib_idx__outline].output_range.y();
 				// get static color or colormap
 				constexpr unsigned vattrib_idx__color=1;
 				const int cidx = lmappings.get_attrib_indices()[vattrib_idx__color];
@@ -351,13 +351,13 @@ void otv_client::commit_session (void)
 				const std::optional<float> width = [&]() -> std::optional<float> {
 					const auto idx = lmappings.get_attrib_indices()[vattrib_idx__length];
 					if (idx < 0)
-						return lmappings.ref_attrib_mapping_values()[vattrib_idx__length].w();
+						return lmappings.ref_attrib_mapping_values()[vattrib_idx__length].output_range.y();
 					return {};
 				}();
 				const std::optional<float> height = [&]() -> std::optional<float> {
 					const auto idx = lmappings.get_attrib_indices()[vattrib_idx__height];
 					if (idx < 0)
-						return lmappings.ref_attrib_mapping_values()[vattrib_idx__height].w();
+						return lmappings.ref_attrib_mapping_values()[vattrib_idx__height].output_range.y();
 					return {};
 				}();
 				// create the layer config
@@ -375,14 +375,14 @@ void otv_client::commit_session (void)
 				otv__add_layer(setup, &cfg);
 				break;
 			}
-			case GT_SIGN_BLOB:
+			case GlyphType::kSignBlob:
 			{
 				// obtain values of 'outline' meta attribute
 				constexpr unsigned metaattrib_idx__outline=0;
-				const auto outline= lmappings.ref_attrib_mapping_values()[metaattrib_idx__outline].w();
+				const auto outline= lmappings.ref_attrib_mapping_values()[metaattrib_idx__outline].output_range.y();
 				// obtain static 'size' visual attribute (this can never be mapped to a data attribute)
 				constexpr unsigned vattrib_idx__size=1;
-				const auto radius= lmappings.ref_attrib_mapping_values()[vattrib_idx__size].w();
+				const auto radius= lmappings.ref_attrib_mapping_values()[vattrib_idx__size].output_range.y();
 				// get static color or colormap
 				constexpr unsigned vattrib_idx__color=2;
 				const int cidx = lmappings.get_attrib_indices()[vattrib_idx__color];
@@ -403,7 +403,7 @@ void otv_client::commit_session (void)
 				const std::optional<float> value = [&]() -> std::optional<float> {
 					const auto idx = lmappings.get_attrib_indices()[vattrib_idx__value];
 					if (idx < 0)
-						return lmappings.ref_attrib_mapping_values()[vattrib_idx__value].w();
+						return lmappings.ref_attrib_mapping_values()[vattrib_idx__value].output_range.y();
 					return {};
 				}();
 				// create the layer config
@@ -421,14 +421,14 @@ void otv_client::commit_session (void)
 				break;
 			}
 
-			case GT_TRIANGLE:
-			case GT_CIRCLE:
-			case GT_WEDGE:
-			case GT_ARC_FLAT:
-			case GT_ARC_ROUNDED:
-			case GT_DROP:
-			case GT_STAR:
-			case GT_TEMPORAL_HEAT_MAP:
+			case GlyphType::kTriangle:
+			case GlyphType::kCircle:
+			case GlyphType::kWedge:
+			case GlyphType::kArcFlat:
+			case GlyphType::kArcRounded:
+			case GlyphType::kDrop:
+			case GlyphType::kStar:
+			case GlyphType::kTemporalHeatMap:
 				cgv::gui::get_gui_driver()->message(
 					"Config contains unimplemented glyph type: "+lcfg.shape_ptr->name()+"\n"
 					"OnTubeVis will now most likely crash."
@@ -532,7 +532,7 @@ void otv_client::update ()
 		const auto enqueue_glyphs = [&](const auto layer_idx, const auto &)
 		{
 			// prelude
-			const auto data  {glyphs[layer_idx].attribs.data.begin()};
+			const auto data  {glyphs[layer_idx].attribs.get_data().begin()};
 			const auto cur_range = glyphs[layer_idx].ranges.at(traj.segment_idx);
 			const auto begin {cur_range.i0};
 			const auto end   {cur_range.end()};
@@ -804,7 +804,7 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 	std::vector<float> data; data.reserve(glyphs.size()*(glyphs.front().N+2));
 	switch (lcfg.shape_ptr->type())
 	{
-		case GT_COLOR:
+		case GlyphType::kColor:
 			for (const auto &glyph: glyphs)
 			{
 				data.emplace_back(glyph.s);
@@ -818,7 +818,7 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 			}
 			return std::move(data);
 
-		case GT_LINE_PLOT:
+		case GlyphType::kLinePlot:
 			for (const auto &glyph: glyphs)
 			{
 				data.emplace_back(glyph.s);
@@ -833,7 +833,7 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 			}
 			return std::move(data);
 
-		case GT_CIRCLE:
+		case GlyphType::kCircle:
 			for (const auto &glyph: glyphs)
 			{
 				data.emplace_back(glyph.s);
@@ -847,7 +847,7 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 			}
 			return std::move(data);
 
-		case GT_RECTANGLE:
+		case GlyphType::kRectangle:
 			for (const auto &glyph: glyphs)
 			{
 				data.emplace_back(glyph.s);
@@ -863,7 +863,7 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 			}
 			return std::move(data);
 
-		case GT_TRIANGLE:
+		case GlyphType::kTriangle:
 			for (const auto &glyph: glyphs)
 			{
 				data.emplace_back(glyph.s);
@@ -882,7 +882,7 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 			}
 			return std::move(data);
 
-		case GT_SIGN_BLOB:
+		case GlyphType::kSignBlob:
 			for (const auto &glyph: glyphs)
 			{
 				data.emplace_back(glyph.s);
@@ -896,12 +896,12 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 			}
 			return std::move(data);
 
-		case GT_WEDGE:
-		case GT_ARC_FLAT:
-		case GT_ARC_ROUNDED:
-		case GT_DROP:
-		case GT_STAR:
-		case GT_TEMPORAL_HEAT_MAP:
+		case GlyphType::kWedge:
+		case GlyphType::kArcFlat:
+		case GlyphType::kArcRounded:
+		case GlyphType::kDrop:
+		case GlyphType::kStar:
+		case GlyphType::kTemporalHeatMap:
 			cgv::gui::get_gui_driver()->message(
 				"Config contains unimplemented glyph type: "+lcfg.shape_ptr->name()+"\n"
 				"OnTubeVis will now most likely crash."

@@ -10,6 +10,8 @@
 // CGV framework core
 #include <cgv/base/base.h>
 #include <cgv/base/register.h>
+#include <cgv/math/interpolate.h>
+#include <cgv/media/named_color_schemes.h>
 #include <cgv/utils/file.h>
 #include <cgv/utils/dir.h>
 #include <cgv/utils/scan.h>
@@ -398,7 +400,6 @@ struct colormap::Impl
 {
 	// fields
 	Source source;
-	cgv::media::ColorScale builtin;
 	std::string named;
 	clr_scale_type samples;
 };
@@ -411,7 +412,6 @@ colormap::colormap(const colormap &other) : pimpl(nullptr)
 	{
 		pimpl = new Impl;
 		auto &impl = *pimpl; const auto &other_impl = *other.pimpl;
-		impl.builtin = other_impl.builtin;
 		impl.named = other_impl.named;
 		impl.source = other_impl.source;
 		impl.samples = other_impl.samples;
@@ -423,20 +423,10 @@ colormap::colormap(colormap &&other) : pimpl(other.pimpl)
 	other.pimpl = nullptr;
 }
 
-colormap::colormap(cgv::media::ColorScale built_in) : pimpl(nullptr)
-{
-	pimpl = new Impl;
-	auto &impl = *pimpl;
-	impl.builtin = built_in;
-	impl.named = cgv::media::get_color_scale_name(built_in);
-	impl.source = Src::BUILTIN;
-}
-
 colormap::colormap(const std::string &named) : pimpl(nullptr)
 {
 	pimpl = new Impl;
 	auto &impl = *pimpl;
-	impl.builtin = cgv::media::CS_NAMED;
 	impl.named = named;
 	impl.source = Src::NAMED;
 }
@@ -445,7 +435,6 @@ colormap::colormap(const clr_scale_type &samples) : pimpl(nullptr)
 {
 	pimpl = new Impl;
 	auto &impl = *pimpl;
-	impl.builtin = cgv::media::CS_NAMED;
 	impl.samples = samples;
 	// Note: impl.named remains empty to signify new user-defined scale
 	impl.source = Src::USER;
@@ -468,7 +457,6 @@ colormap& colormap::operator= (const colormap &other)
 		pimpl = new Impl;
 
 	auto &impl = *pimpl; const auto &other_impl = *other.pimpl;
-	impl.builtin = other_impl.builtin;
 	impl.named = other_impl.named;
 	impl.source = other_impl.source;
 	impl.samples = other_impl.samples;
@@ -487,15 +475,13 @@ bool colormap::is_defined (void) const
 	if (!pimpl)
 		return false;
 	auto &impl = *pimpl;
-	if (impl.source == Src::BUILTIN && unsigned(impl.builtin) < unsigned(cgv::media::CS_NAMED))
-		return true;
-	if (impl.source == Src::NAMED && impl.builtin == cgv::media::CS_NAMED)
+	if (impl.source == Src::NAMED)														   
 	{
-		const auto &registered = cgv::media::query_color_scale_names();
-		const auto &it = std::find(registered.begin(), registered.end(), impl.named);
-		return it != registered.end();
+		const auto& registry = cgv::media::get_global_continuous_color_scheme_registry();
+		auto it = registry.find(impl.named);
+		return it != registry.end();
 	}
-	if (impl.source == Src::USER && impl.builtin == cgv::media::CS_NAMED && !impl.samples.empty())
+	if (impl.source == Src::USER && !impl.samples.empty())
 		return true;
 	return false;
 }
@@ -508,9 +494,15 @@ colormap::Source colormap::source (void) const
 const colormap::clr_scale_type& colormap::get_color_scale (void) const
 {
 	auto &impl = *pimpl;
-	if (impl.source == Src::BUILTIN || impl.source == Src::NAMED)
-		return cgv::media::query_named_color_scale(impl.named);
-	else
+	if (impl.source == Src::NAMED)
+	{
+		const auto& registry = cgv::media::get_global_continuous_color_scheme_registry();
+		auto it = registry.find(impl.named);
+		if(it == registry.end())
+			return {};
+		constexpr size_t resolution = 256;
+		return it->second.quantize(resolution);
+	} else
 		return impl.samples;
 }
 
@@ -1773,7 +1765,7 @@ struct traj_manager<flt_type>::Impl
 							[&ref, &color_scale] (real src) {
 								real tmp;
 								ref.transform.exec(tmp, src);
-								auto c = cgv::media::sample_sampled_color_scale((float)tmp, color_scale);
+								auto c = cgv::math::interpolate_linear(color_scale, tmp, { real(0), real(1) });
 								return c;
 							}
 						);

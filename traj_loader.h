@@ -686,14 +686,14 @@ public:
 };
 
 
-/// struct describing a color mapping that can be either framework-builtin, reference the named color
-/// scale registry or completely user-defined
+/// struct describing a color mapping that can be either a named the named color
+/// scale from the global registry or completely user-defined
 class colormap
 {
 public:
 
 	/// Enumeration of possible sources of a color map
-	enum class Source { BUILTIN, NAMED, USER };
+	enum class Source { NAMED, USER };
 	typedef Source Src;
 
 	/// Framework-type for color scales
@@ -719,10 +719,7 @@ public:
 
 	/// move constructor
 	colormap(colormap &&other);
-
-	/// use a built-in color map
-	colormap(cgv::media::ColorScale built_in);
-
+	
 	/// use a named color map from the registry
 	colormap(const std::string &named);
 
@@ -882,7 +879,7 @@ public:
 
 
 /// struct encapsulating a range of samples (single trajectory, whole dataset) via the first index of the
-/// range and the number of sampels spanned by the range
+/// range and the number of samples spanned by the range
 struct range
 {
 	/// start index
