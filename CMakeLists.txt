@@ -26,7 +26,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG c1794b0ff020cbf9a9c1f12d1fcd54d10d45003a
+		GIT_TAG a9836fe23ac9155f8f0415c979e0266b21f289a4
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -102,6 +102,7 @@ set(SOURCES
 	color_map_viewer.cxx
 	csv_handler.cxx
 	glyph_attribute_mapping.cxx
+	glyph_compiler.cxx
 	glyph_layer_manager.cxx
 	mapping_legend.cxx
 	obd_handler.cxx
@@ -172,8 +173,6 @@ set(HEADERS
 )
 # - GLSL shaders
 set (SHADERS
-	glsl/color_maps.glfs
-	glsl/color_maps.glpr
 	glsl/curve_tools.glsl
 	glsl/optix_display.glfs
 	glsl/optix_display.glpr
