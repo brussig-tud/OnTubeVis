@@ -75,7 +75,7 @@ protected:
 
 public:
 	// the index used to indicate unmapped attributes
-	static const int k_unmapped_index = -1;
+	static constexpr int k_unmapped_index = -1;
 
 	glyph_attribute_mapping();
 

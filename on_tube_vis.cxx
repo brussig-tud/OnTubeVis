@@ -65,14 +65,8 @@ using namespace cgv::render;
 */
 #include <cgv/gui/application.h>
 
-namespace cgv {
-namespace reflect {
-
-enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
-	return enum_reflection_traits<GridMode>("None,Color,Normal,ColorAndNormal");
-}
-
-}
+cgv::reflect::enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
+	return {"None,Color,Normal,ColorAndNormal"};
 }
 
 namespace {

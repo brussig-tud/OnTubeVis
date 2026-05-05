@@ -116,7 +116,7 @@ uniform vec3 view_dir;
 uniform vec4 viewport;
 uniform float max_t;
 
-const vec3 eye_pos = (get_inverse_modelview_matrix()*vec4(0, 0, 0, 1)).xyz;
+vec3 eye_pos = (get_inverse_modelview_matrix()*vec4(0, 0, 0, 1)).xyz;
 
 in flat uvec2 node_ids_gs[];
 in flat int segment_id_gs[];
