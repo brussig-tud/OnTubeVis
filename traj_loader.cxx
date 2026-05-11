@@ -494,16 +494,16 @@ colormap::Source colormap::source (void) const
 const colormap::clr_scale_type& colormap::get_color_scale (void) const
 {
 	auto &impl = *pimpl;
-	if (impl.source == Src::NAMED)
+	if (impl.source == Src::NAMED && impl.samples.empty())
 	{
 		const auto& registry = cgv::media::get_global_continuous_color_scheme_registry();
 		auto it = registry.find(impl.named);
 		if(it == registry.end())
-			return {};
+			throw std::runtime_error{"Unknown color scale " + impl.named};
 		constexpr size_t resolution = 256;
-		return it->second.quantize(resolution);
-	} else
-		return impl.samples;
+		impl.samples = it->second.quantize(resolution);
+	}
+	return impl.samples;
 }
 
 
