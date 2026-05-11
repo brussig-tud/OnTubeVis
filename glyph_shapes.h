@@ -289,7 +289,7 @@ public:
 		return GlyphType::kTriangle;
 	}
 
-	const attribute_list& supported_attributes() const {
+	const attribute_list& supported_attributes() const override {
 		static const attribute_list attributes = {
 			{ "outline", GlyphAttributeType::kOutline, GlyphAttributeModifier::kGlobal, GuiLayoutHint::kGlobalBlockStart },
 			{ "color", GlyphAttributeType::kColor, GuiLayoutHint::kBlockStart },

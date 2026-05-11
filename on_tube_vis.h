@@ -563,7 +563,7 @@ protected:
 
 	/// helper methods
 	cgv::render::shader_compile_options build_tube_shading_options();
-	void on_register();
+	void on_register() override;
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
 
 	void on_view_interaction (const view_interaction &interaction);
@@ -592,5 +592,5 @@ public:
 	void draw(cgv::render::context& ctx) override;
 	void after_finish(cgv::render::context& ctx) override;
 
-	void create_gui();
+	void create_gui() override;
 };
