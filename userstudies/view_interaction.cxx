@@ -64,7 +64,7 @@ view_interaction_timeline view_interaction_accumulator::create_timeline(void) co
 
 	// tap out early if nothing was recorded
 	if (timeline.records.empty())
-		return std::move(timeline);
+		return timeline;
 
 	// fill in accumulation gaps
 	auto it = timeline.records.begin();
@@ -137,7 +137,7 @@ view_interaction_timeline view_interaction_accumulator::create_timeline(void) co
 	}
 
 	// done!
-	return std::move(timeline);
+	return timeline;
 }
 
 

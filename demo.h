@@ -337,7 +337,7 @@ struct demo : public traj_format_handler<float>
 		traj.attrib_vec4 = gen_attribute<Vec4>(1, 0.33333f, 0, tn, 1/4.f, 1/16.f, generator);
 
 		// Done!
-		return std::move(traj);
+		return traj;
 	}
 
 	static traj_dataset<float> compile_dataset (const std::vector<trajectory> &trajectories)
@@ -460,7 +460,7 @@ struct demo : public traj_format_handler<float>
 		set_avg_segment_length(ds, avg_dist/num_segs);
 
 		// done!
-		return std::move(ds);
+		return ds;
 	}
 };
 
