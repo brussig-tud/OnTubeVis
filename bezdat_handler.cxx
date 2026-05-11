@@ -141,13 +141,11 @@ struct bezdat_node
 /// one Hermite segment
 union hermite_segment
 {
-	struct {
-		/// index of the first node of the segment
-		unsigned n0;
+	/// index of the first node of the segment
+	unsigned n0;
 
-		/// index of the second node of the segment
-		unsigned n1;
-	};
+	/// index of the second node of the segment
+	unsigned n1;
 
 	/// indices of the first and second node of the segment
 	unsigned n[2];

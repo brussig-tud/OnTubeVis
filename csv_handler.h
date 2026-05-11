@@ -37,14 +37,11 @@ public:
 	/// collection of properties of a .csv descriptor
 	struct csv_properties
 	{
-		struct
-		{
-			/// indicates if readable .csv files must have a header row
-			unsigned char header : 1,
+		/// indicates if readable .csv files must have a header row
+		unsigned char header : 1,
 
-			/// indicates if readable .csv files can store more than one trajectory
-			multi_traj : 1;
-		};
+		/// indicates if readable .csv files can store more than one trajectory
+		multi_traj : 1;
 
 		/// indicates the largest .csv column number referenced by any attribute in the descriptor
 		unsigned max_col_id;
