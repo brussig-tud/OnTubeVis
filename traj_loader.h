@@ -421,7 +421,7 @@ public:
 	traj_attribute(std::vector<Vec4> &&source, std::vector<real> &&timestamps);
 
 	/// the destructor
-	~traj_attribute();
+	virtual ~traj_attribute();
 
 	/// copy assignment
 	traj_attribute& operator= (const traj_attribute &other);
