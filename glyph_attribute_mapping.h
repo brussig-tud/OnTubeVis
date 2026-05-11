@@ -113,9 +113,9 @@ public:
 
 	void set_active(bool flag) { active = flag; }
 
-	const AttributeSamplingStrategy get_sampling_strategy() const { return sampling_strategy; }
-	
-	const float get_sampling_step() const { return sampling_step; }
+	AttributeSamplingStrategy get_sampling_strategy() const { return sampling_strategy; }
+
+	float get_sampling_step() const { return sampling_step; }
 
 	void set_sampling_strategy(AttributeSamplingStrategy strategy) { sampling_strategy = strategy; }
 

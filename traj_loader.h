@@ -887,7 +887,7 @@ struct range
 	unsigned n;
 
 	/// median of node radii
-	float med_radius;
+	float med_radius {};
 };
 
 
