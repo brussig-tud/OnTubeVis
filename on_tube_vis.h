@@ -70,15 +70,6 @@ enum class GridMode : unsigned {
 	kColorAndNormal = 3
 };
 
-namespace cgv {
-namespace reflect {
-
-// define custom reflection traits for the GridMode
-enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&);
-
-}
-}
-
 ////
 // Plugin definition
 
