@@ -141,13 +141,11 @@ struct bezdat_node
 /// one Hermite segment
 union hermite_segment
 {
-	struct {
-		/// index of the first node of the segment
-		unsigned n0;
+	/// index of the first node of the segment
+	unsigned n0;
 
-		/// index of the second node of the segment
-		unsigned n1;
-	};
+	/// index of the second node of the segment
+	unsigned n1;
 
 	/// indices of the first and second node of the segment
 	unsigned n[2];
@@ -195,7 +193,7 @@ bool bezdat_handler<flt_type>::can_handle (std::istream &contents) const
 		return false;
 	// - check if rest of the file looks valid on first glance
 	do { std::getline(contents, str); } while (!contents.eof() && str.empty());
-	str = std::move(cgv::utils::to_upper(str.substr(0, 2)));
+	str = cgv::utils::to_upper(str.substr(0, 2));
 	return str.compare("PT")==0 || str.compare("BC")==0;
 }
 

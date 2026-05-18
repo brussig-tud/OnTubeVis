@@ -208,7 +208,7 @@ namespace cgv { // @<
 				context& ctx,
 				//const attribute_array_manager &aam,
 				const void *const *span_starts,
-				const GLsizei *span_lens, 
+				const GLsizei *span_lens,
 				GLsizei num_spans
 			);
 		};

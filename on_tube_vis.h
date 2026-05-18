@@ -9,11 +9,13 @@
 
 // CGV framework core
 #include <cgv/base/group.h>
+#include <cgv/gui/event_handler.h>
 #include <cgv/gui/provider.h>
 #include <cgv/gui/help_message.h>
 #include <cgv/gui/file_helper.h>
 #include <cgv/media/transfer_function.h>
 #include <cgv/render/color_scale_adapter.h>
+#include <cgv/render/drawable.h>
 #include <cgv/render/managed_frame_buffer.h>
 #include <cgv/render/shader_library.h>
 #include <cgv/utils/stopwatch.h>
@@ -24,8 +26,7 @@
 #include <cgv_gl/sphere_render_data.h>
 #include <cgv_gl/volume_renderer.h>
 
-// CGV framework application utility
-
+// CGV framework overlays
 #include <cgv_overlay/navigator.h>
 #include <cgv_overlay/performance_monitor.h>
 #include <cgv_overlay/transfer_function_editor.h>
@@ -35,6 +36,12 @@
 
 // OnTubeVis private streaming API
 #include "api/state/core.h"
+
+// CGV framework plugins
+// - stereo_view_interactor for controlling/listening to camera changes
+#include <plugins/crg_stereo_view/stereo_view_interactor.h>
+// - screenshot plugin for saving/restoring scenes
+#include <plugins/screenshot/screenshot.h>
 
 // local includes
 #include "traj_loader.h"
@@ -52,16 +59,7 @@
 #include "optix_integration.h"
 #include "optixtracer_textured_spline_tube.h"
 #endif
-
-
-namespace cgv {
-namespace reflect {
-
-// define custom reflection traits for the GridMode
-enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&);
-
-}
-}
+#include "userstudies/ribbons_vs_tubes/trial.h"
 
 
 ////
@@ -320,6 +318,12 @@ protected:
 		cgv::utils::stopwatch timer = &time_active;
 	} playback;
 
+	// user studies
+	struct {
+		userstudies::trial *active_trial = nullptr;
+		userstudies::RvT::trial ribbons_vs_tubes_trial;
+	} user_studies;
+
 	void playback_rewind() {
 		render.style.max_t = client.playback_t = (float)playback.tstart;
 		on_set(&render.style.max_t);
@@ -378,6 +382,7 @@ public:
 
 protected:
 	int render_gui_dummy = 0;
+	cgv::render::textured_spline_tube_render_style::AttribMode attrib_mode_bak = render.style.attrib_mode;
 
 public:
 	/// trajectory manager
@@ -393,6 +398,11 @@ protected:
 	/// color map legend manager
 	color_legend_manager color_legend_mgr;
 	bool update_legends = false; // flag indicating whether the color and mapping legends need updating during init_frame
+
+	unsigned scene_switch_state = 0;
+	bool unlock_after_scene_switch = true;
+	signed selected_scene = -1;
+	screenshot *screenshot_ptr = nullptr;
 
 	/// benchmark state fields
 	struct {
@@ -511,6 +521,7 @@ protected:
 	void update_grid_ratios(void);
 	void update_attribute_bindings(void);
 	void update_debug_attribute_bindings(void);
+	void initialize_sorter(void);
 	void calculate_bounding_box(void);
 
 	void create_density_volume(cgv::render::context& ctx, unsigned resolution);
@@ -521,8 +532,12 @@ protected:
 	void draw_density_volume(cgv::render::context& ctx);
 
 	/// helper methods
-	void on_register();
+	cgv::render::shader_compile_options build_tube_shading_options();
+	void on_register() override;
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
+
+	void on_view_interaction (const view_interaction &interaction);
+	void handle_screenshot_change (screenshot::event &event);
 
 public:
 	on_tube_vis();
@@ -548,7 +563,7 @@ public:
 	void draw(cgv::render::context& ctx) override;
 	void after_finish(cgv::render::context& ctx) override;
 
-	void create_gui();
+	void create_gui() override;
 };
 
 

@@ -66,7 +66,7 @@ namespace cgv {
 
 			// forward shading
 			options.define_macro_if_not_default("FORWARD_SHADING", rs.forward, false);
-			
+
 			options.define_macro_if_not_default("USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
 			if (rs.is_tube()) {
 				options.define_macro_if_not_default("USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
@@ -142,7 +142,7 @@ namespace cgv {
 			draw_impl(ctx, PT_POINTS, start, count, use_strips, use_adjacency, strip_restart_index);
 			glEnable(GL_CULL_FACE);
 		}
-		
+
 		[[nodiscard]] bool textured_spline_tube_renderer::multirender_indexed(
 			context& ctx,
 			//const attribute_array_manager &aam,
@@ -159,7 +159,7 @@ namespace cgv {
 
 			// The index type is hard-coded since it cannot easily be accessed.
 			glMultiDrawElements(GL_POINTS, span_lens, GL_UNSIGNED_INT, span_starts, num_spans);
-			
+
 			// Copied from `draw`.
 			glEnable(GL_CULL_FACE);
 			// Copied from `renderer::render`,

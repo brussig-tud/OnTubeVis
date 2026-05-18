@@ -104,20 +104,20 @@ struct invalid_container : traj_attribute<flt_type>::container_base
 {
 	inline const static std::vector<flt_type> empty_ts;
 
-	virtual unsigned dims (void) const { return 0; }
-	virtual unsigned num (void) const { return 0; }
-	virtual flt_type min(unsigned *index) const { return 0; }
-	virtual flt_type max(unsigned *index) const { return 0; }
-	virtual void* get_pointer (void) { return nullptr; }
-	virtual const void* get_pointer (void) const { return nullptr; }
-	virtual std::vector<flt_type>& get_timestamps (void) {
+	unsigned dims (void) const override { return 0; }
+	unsigned num (void) const override { return 0; }
+	flt_type min(unsigned *index) const override { return 0; }
+	flt_type max(unsigned *index) const override { return 0; }
+	void* get_pointer (void) override { return nullptr; }
+	const void* get_pointer (void) const override { return nullptr; }
+	std::vector<flt_type>& get_timestamps (void) override {
 		/* should never write-access */ throw nullptr;
 	}
-	virtual const std::vector<flt_type>& get_timestamps (void) const { return empty_ts; }
-	virtual typename traj_attribute<flt_type>::datapoint_mag magnitude_at (unsigned index) const {
+	const std::vector<flt_type>& get_timestamps (void) const override { return empty_ts; }
+	typename traj_attribute<flt_type>::datapoint_mag magnitude_at (unsigned index) const override {
 		return { -1.f, 0.f };
 	}
-	virtual typename traj_attribute<flt_type>::datapoint_mag signed_magnitude_at(unsigned index) const {
+	typename traj_attribute<flt_type>::datapoint_mag signed_magnitude_at(unsigned index) const override {
 		return { -1.f, 0.f };
 	}
 };
@@ -475,7 +475,7 @@ bool colormap::is_defined (void) const
 	if (!pimpl)
 		return false;
 	auto &impl = *pimpl;
-	if (impl.source == Src::NAMED)														   
+	if (impl.source == Src::NAMED)
 	{
 		const auto& registry = cgv::media::get_global_continuous_color_scheme_registry();
 		auto it = registry.find(impl.named);
@@ -494,16 +494,16 @@ colormap::Source colormap::source (void) const
 const colormap::clr_scale_type& colormap::get_color_scale (void) const
 {
 	auto &impl = *pimpl;
-	if (impl.source == Src::NAMED)
+	if (impl.source == Src::NAMED && impl.samples.empty())
 	{
 		const auto& registry = cgv::media::get_global_continuous_color_scheme_registry();
 		auto it = registry.find(impl.named);
 		if(it == registry.end())
-			return {};
+			throw std::runtime_error{"Unknown color scale " + impl.named};
 		constexpr size_t resolution = 256;
-		return it->second.quantize(resolution);
-	} else
-		return impl.samples;
+		impl.samples = it->second.quantize(resolution);
+	}
+	return impl.samples;
 }
 
 

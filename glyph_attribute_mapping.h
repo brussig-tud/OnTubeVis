@@ -75,7 +75,7 @@ protected:
 
 public:
 	// the index used to indicate unmapped attributes
-	static const int k_unmapped_index = -1;
+	static constexpr int k_unmapped_index = -1;
 
 	glyph_attribute_mapping();
 
@@ -113,9 +113,9 @@ public:
 
 	void set_active(bool flag) { active = flag; }
 
-	const AttributeSamplingStrategy get_sampling_strategy() const { return sampling_strategy; }
-	
-	const float get_sampling_step() const { return sampling_step; }
+	AttributeSamplingStrategy get_sampling_strategy() const { return sampling_strategy; }
+
+	float get_sampling_step() const { return sampling_step; }
 
 	void set_sampling_strategy(AttributeSamplingStrategy strategy) { sampling_strategy = strategy; }
 
@@ -142,13 +142,13 @@ public:
 	void set_color_source_index(size_t color_idx, int source_idx);
 
 	void set_attrib_in_range(size_t idx, const cgv::vec2& range);
-	
+
 	cgv::vec2 get_attrib_in_range(size_t idx) const { return attrib_mapping_values[idx].input_range; }
 
 	void set_attrib_out_range(size_t idx, const cgv::vec2& range);
 
 	cgv::vec2 get_attrib_out_range(size_t idx) const { return attrib_mapping_values[idx].output_range; }
-	
+
 	bool get_attrib_reverse_color(size_t idx) const { return reverse_colors[idx]; }
 
 	void set_attrib_color(size_t idx, const cgv::rgb& color);

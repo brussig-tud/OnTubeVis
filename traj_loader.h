@@ -428,7 +428,7 @@ public:
 	traj_attribute(std::vector<Vec4> &&source, std::vector<real> &&timestamps);
 
 	/// the destructor
-	~traj_attribute();
+	virtual ~traj_attribute();
 
 	/// copy assignment
 	traj_attribute& operator= (const traj_attribute &other);
@@ -719,7 +719,7 @@ public:
 
 	/// move constructor
 	colormap(colormap &&other);
-	
+
 	/// use a named color map from the registry
 	colormap(const std::string &named);
 
@@ -889,7 +889,7 @@ struct range
 	unsigned n;
 
 	/// median of node radii
-	float med_radius;
+	float med_radius {};
 };
 
 

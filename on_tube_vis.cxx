@@ -1,10 +1,10 @@
-
 // Implemented header
 #include "on_tube_vis.h"
 
 // C++ STL
 #include <cassert>
 #include <filesystem>
+#include <numeric>
 
 // OS access
 #ifdef _WIN32
@@ -57,7 +57,6 @@
 #ifdef RTX_SUPPORT
 #include "cuda/optix_interface.h"
 
-
 // ###############################
 // ### BEGIN: OptiX integration
 // ###############################
@@ -88,14 +87,8 @@ void optix_log_cb (unsigned int lvl, const char *tag, const char *msg, void* /* 
 #include <cgv/media/mesh/simple_mesh.h>
 #include <cgv/os/mutex.h>
 
-namespace cgv {
-namespace reflect {
-
-enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
-	return enum_reflection_traits<GridMode>("None,Color,Normal,ColorAndNormal");
-}
-
-}
+cgv::reflect::enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
+	return {"None,Color,Normal,ColorAndNormal"};
 }
 
 // Streaming API global state
@@ -107,6 +100,10 @@ on_tube_vis *otv_instance = nullptr;
 void *otv_thread_handle = nullptr;
 std::mutex on_tube_vis::init_mtx;
 std::condition_variable on_tube_vis::init_cv;
+
+namespace {
+	std::filesystem::path startupCWD = std::filesystem::current_path();
+}
 
 void on_tube_vis::on_register()
 {
@@ -128,7 +125,6 @@ void on_tube_vis::on_register()
 	#endif
 }
 
-
 on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(this)
 {
 	// enable TAA by default
@@ -137,7 +133,7 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 	// adjust geometry and grid style defaults
 	render.style.material.brdf_type = cgv::media::illum::BrdfType(
 		cgv::media::illum::BrdfType::BT_STRAUSS_DIFFUSE | cgv::media::illum::BrdfType::BT_COOK_TORRANCE
-		);
+	);
 	render.style.material.roughness = 0.25f;
 	render.style.material.metalness = 0.25f;
 	render.style.material.ambient_occlusion = 0.75f;
@@ -247,6 +243,7 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 
 	help.add_line("Scene:");
 	help.add_bullet_point("NumP. Enter\t : Toggle tube/ribbon mode");
+	help.add_bullet_point("U\t\t\t : Toggle camera unlock after scene change");
 	help.add_bullet_point("B\t\t\t : Toggle bounding box");
 	help.add_bullet_point("W\t\t\t : Toggle wireframe bounding box");
 	help.add_bullet_point("R\t\t\t : Double tube radius/ribbon width");
@@ -427,7 +424,8 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
-		rh.reflect_member("benchmark_mode", benchmark_mode);
+		rh.reflect_member("benchmark_mode", benchmark_mode) &&
+		rh.reflect_member("unlock_after_scene_switch", unlock_after_scene_switch);
 }
 
 void on_tube_vis::stream_help (std::ostream &os) {
@@ -630,6 +628,11 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 			case 'W':
 				show_wireframe_bbox = !show_wireframe_bbox;
 				on_set(&show_wireframe_bbox);
+				handled = true;
+				break;
+			case 'U':
+				unlock_after_scene_switch = !unlock_after_scene_switch;
+				on_set(&unlock_after_scene_switch);
 				handled = true;
 				break;
 			case cgv::gui::Keys::KEY_Num_0:
@@ -1305,9 +1308,16 @@ void on_tube_vis::start_new_streaming_session (const VisSetup &vis_setup)
 
 void on_tube_vis::handle_color_map_change() {
 	if(cm_editor_ptr) {
-		color_map_mgr.update_texture(*get_context());
-		if(cm_viewer_ptr)
-			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+		cgv::media::transfer_function* color_ramp = color_map_mgr.get_edited_color_ramp();
+		if(color_ramp) {
+			*color_ramp = *cm_editor_ptr->get_transfer_function();
+			color_map_mgr.update_texture(*get_context());
+			if(cm_viewer_ptr)
+				cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+			update_legends = true;
+			taa.reset();
+			post_redraw();
+		}
 	}
 }
 
@@ -1481,6 +1491,9 @@ void on_tube_vis::on_set(void* member_ptr)
 	// - configurable datapath
 	if(!run_as_service && ptr.points_to(datapath_helper.file_name))
 	{
+		// Reset working directory to what it was at program startup to mitigate meddling from the file open dialog
+		std::filesystem::current_path(startupCWD);
+
 		const auto& file_name = datapath_helper.file_name;
 		if(!file_name.empty())
 		{
@@ -1538,6 +1551,13 @@ void on_tube_vis::on_set(void* member_ptr)
 	}
 
 	// render settings
+	if (ptr.points_to_member_of(tube_shading.ao_style)) { // no individual action required, but make sure to update all member controls
+		update_member(&tube_shading.ao_style.enable);
+		update_member(&tube_shading.ao_style.strength_scale);
+		update_member(&tube_shading.ao_style.sample_offset);
+		update_member(&tube_shading.ao_style.sample_distance);
+		update_member(&tube_shading.ao_style.cone_angle);
+	}
 	if(!data_init_pending && ptr.points_to_one_of(
 			debug.highlight_segments,
 			tube_shading.ao_style.enable,
@@ -1580,7 +1600,7 @@ void on_tube_vis::on_set(void* member_ptr)
 	}
 
 	// voxelization settings
-	if(ptr.points_to_one_of(voxel_grid_resolution, /*voxelize_gpu, */render.style.radius_scale)) {
+	if(ptr.points_to_one_of(voxel_grid_resolution, voxelize_gpu, render.style.radius_scale)) {
 		context& ctx = *get_context();
 		voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(cgv::math::clamp(static_cast<unsigned>(voxel_grid_resolution), 16u, 512u));
 		create_density_volume(ctx, voxel_grid_resolution);
@@ -1637,6 +1657,9 @@ void on_tube_vis::on_set(void* member_ptr)
 	}
 
 	if(ptr.points_to(layer_config_file_helper.file_name)) {
+		// Reset working directory to what it was at program startup to mitigate meddling from the file open dialog
+		std::filesystem::current_path(startupCWD);
+
 		std::string& file_name = layer_config_file_helper.file_name;
 
 		if(layer_config_file_helper.is_save_action()) {
@@ -1708,25 +1731,17 @@ void on_tube_vis::on_set(void* member_ptr)
 	}
 
 	// widget controls
-	if(ptr.points_to(show_mapping_legend)) {
-		if(mapping_legend_ptr)
-			mapping_legend_ptr->set_visibility(show_mapping_legend);
-	}
+	if(ptr.points_to(show_mapping_legend) && mapping_legend_ptr)
+		mapping_legend_ptr->set_visibility(show_mapping_legend);
 
-	if(ptr.points_to(show_color_map_viewer)) {
-		if(cm_viewer_ptr)
-			cm_viewer_ptr->set_visibility(show_color_map_viewer);
-	}
+	if(ptr.points_to(show_color_map_viewer) && cm_viewer_ptr)
+		cm_viewer_ptr->set_visibility(show_color_map_viewer);
 
-	if(ptr.points_to(show_navigator)) {
-		if(navigator_ptr)
-			navigator_ptr->set_visibility(show_navigator);
-	}
+	if(ptr.points_to(show_navigator) && navigator_ptr)
+		navigator_ptr->set_visibility(show_navigator);
 
-	if(ptr.points_to(show_performance_monitor)) {
-		if(perfmon_ptr)
-			perfmon_ptr->set_visibility(show_performance_monitor);
-	}
+	if(ptr.points_to(show_performance_monitor) && perfmon_ptr)
+		perfmon_ptr->set_visibility(show_performance_monitor);
 
 	// misc settings
 	// - instant redraw
@@ -1745,6 +1760,9 @@ void on_tube_vis::on_set(void* member_ptr)
 	if(ptr.points_to(render.style.max_t))
 		reset_taa = false;
 
+	if (ptr.points_to(render.style.attrib_mode))
+		attrib_mode_bak = render.style.attrib_mode;
+
 	if(ptr.points_to(render.style.line_primitive))
 	{
 		// perform smart toggle bookkeeping
@@ -1754,6 +1772,15 @@ void on_tube_vis::on_set(void* member_ptr)
 			else
 				ui_state.tr_toggle.last_ribbon_primitive = render.style.line_primitive;
 		}
+
+		// force attrib-less mode on GS ribbons
+		if (render.style.line_primitive == textured_spline_tube_render_style::LP_RIBBON_GEOMETRY) {
+			attrib_mode_bak = render.style.attrib_mode;
+			render.style.attrib_mode = textured_spline_tube_render_style::AM_ATTRIBLESS;
+		}
+		else
+			render.style.attrib_mode = attrib_mode_bak;
+		update_member(&render.style.attrib_mode);
 
 		update_tube_ribbon_toggle();
 		reset_taa = true;
@@ -1859,7 +1886,8 @@ void on_tube_vis::on_set(void* member_ptr)
 		taa.reset();
 	else
 		taa.reset_static_frame_count(); // Just make sure we keep multisampling
-	// - redraw
+
+	update_member(member_ptr);
 	post_redraw();
 }
 
@@ -2665,7 +2693,6 @@ void on_tube_vis::optix_draw_trajectories (context &ctx)
 // ###############################
 #endif
 
-
 void on_tube_vis::init_frame (context &ctx)
 {
 	// TODO: remove once all relevant view interactors provided by the framework properly fix the up-vector
@@ -2687,11 +2714,27 @@ void on_tube_vis::init_frame (context &ctx)
 		update_legends = false;
 	}
 
-	// keep the framebuffer up to date with the viewport size
-	fbc.ensure(ctx);
-
 	// make sure TAA is ready
 	taa.ensure(ctx);
+
+	// query the current viewport dimensions as this is needed for multiple draw methods
+	glGetIntegerv(GL_VIEWPORT, viewport);
+
+	/* keep the framebuffer up to date with the viewport size */ {
+		const ivec2 &dims = *(ivec2*)&viewport[2];
+		fbc.set_size(dims);
+		fbc.ensure(ctx);
+		taa.ensure_fb_size(ctx, dims);
+		#ifdef RTX_SUPPORT
+			optix.fb.albedo = fbc.attachment_texture_ptr("albedo");
+			optix.fb.position = fbc.attachment_texture_ptr("position");
+			optix.fb.normal = fbc.attachment_texture_ptr("normal");
+			optix.fb.tangent = fbc.attachment_texture_ptr("tangent");
+			optix.fb.depth.set_resolution(0, dims.x());
+			optix.fb.depth.set_resolution(1, dims.y());
+			optix.fb.depth.ensure_state(ctx);
+		#endif
+	}
 
 	// make sure we have a view pointer, and that related initialization is done
 	if(!view_ptr && (view_ptr = find_view_as_node()))
@@ -2724,8 +2767,6 @@ void on_tube_vis::init_frame (context &ctx)
 	// ###  END:  OptiX integration
 	// ###############################
 #endif
-	// query the current viewport dimensions as this is needed for multiple draw methods
-	glGetIntegerv(GL_VIEWPORT, viewport);
 
 	// Upload new data from host queues to GPU buffers.
 	if (session_active)
@@ -2823,14 +2864,177 @@ void on_tube_vis::init_frame (context &ctx)
 	}
 }
 
+void on_tube_vis::on_view_interaction (const view_interaction &interaction)
+{
+	if (user_studies.active_trial)
+		user_studies.active_trial->on_view_interaction(interaction);
+}
+
+void on_tube_vis::handle_screenshot_change (screenshot::event &event)
+{
+	switch (event.get_type())
+	{
+		case screenshot::EventType::kCreateShot:
+		case screenshot::EventType::kUpdateShot:
+			event.set_shot_user_properties(screenshot::property_map {
+				{"dataset", datapath_helper.file_name},
+				{"layercfg", layer_config_file_helper.file_name},
+				{"ribbons", std::to_string(render.style.is_ribbon())},
+				{"gridmode", std::to_string(static_cast<std::underlying_type_t<GridMode>>(tube_shading.grid_mode))},
+				{"ao_enabled", std::to_string(tube_shading.ao_style.enable)},
+				{"ao_strength", std::to_string(tube_shading.ao_style.strength_scale)},
+				{"ao_sample_offset", std::to_string(tube_shading.ao_style.sample_offset)},
+				{"ao_sample_dist", std::to_string(tube_shading.ao_style.sample_distance)},
+				{"ao_cone_angle", std::to_string(tube_shading.ao_style.cone_angle)},
+				{"ao_resolution", std::to_string(voxel_grid_resolution)}
+			});
+			return;
+
+		case screenshot::EventType::kSelectShot: {
+			// Reset working directory to what it was at program startup to mitigate meddling from the file open dialog
+			// that might have preceded the selection (e.g. from loading a new scene list)
+			std::filesystem::current_path(startupCWD);
+
+			bool ds_changed = false, layercfg_changed = false;
+			const auto shot = event.get_shot().lock();
+			try {
+				const auto new_ds = shot->get_user_property_value("dataset");
+				if (new_ds != datapath_helper.file_name) {
+					datapath_helper.file_name = new_ds;
+					ds_changed = true;
+				}
+			}
+			catch (std::exception& e) {
+				std::cerr << "ERROR: Unable to load pre-selected dataset!\nReason: " << e.what() << std::endl;
+				return;
+			}
+			std::string new_layercfg;
+			try {
+				new_layercfg = shot->get_user_property_value("layercfg");
+				layercfg_changed = new_layercfg != layer_config_file_helper.file_name;
+			}
+			catch (std::exception& e) {
+				std::cerr << "ERROR: Unable to load pre-selected layer configuration!\nReason: " << e.what() << std::endl;
+				if (ds_changed) {
+					layer_config_file_helper.file_name = "";
+					on_set(&layer_config_file_helper.file_name);
+				}
+				return;
+			}
+
+			selected_scene = -1;
+			for (unsigned i=0; i<screenshot_ptr->get_shot_count(); ++i) {
+				if (shot->name == screenshot_ptr->get_shot_at(i).lock()->name) {
+					selected_scene = i;
+					break;
+				}
+			}
+			if (selected_scene < 0) {
+				const std::string error = "!!!INTERNAL LOGIC  ERROR!!! No such scene: '"+shot->name+"'";
+				std::cerr << error << std::endl;
+				throw std::runtime_error(error);
+			}
+
+			if (ds_changed) {
+				on_set(&datapath_helper.file_name);
+				scene_switch_state = 1; // initiate workaround logic for faulty view change in screenshot plugin
+			}
+			else if (unlock_after_scene_switch)
+				screenshot_ptr->deselect_active_shot();
+			layer_config_file_helper.file_name = std::move(new_layercfg);
+			if (ds_changed || layercfg_changed)
+				on_set(&layer_config_file_helper.file_name);
+
+			try {
+				std::stringstream ss;
+				ss << shot->get_user_property_value("ribbons");
+				bool is_ribbon = false;
+				ss >> is_ribbon;
+				render.style.line_primitive = is_ribbon ?
+					  textured_spline_tube_render_style::LP_RIBBON_RAYCASTED
+					: textured_spline_tube_render_style::LP_TUBE_RUSSIG;
+				on_set(&render.style.line_primitive);
+			}
+			catch (...) { /* DoNothing() */; }
+
+			try {
+				std::stringstream ss;
+				ss << shot->get_user_property_value("gridmode");
+				ss >> (unsigned&)tube_shading.grid_mode;
+				on_set(&tube_shading.grid_mode);
+			}
+			catch (...) { /* DoNothing() */; }
+
+			try {
+				unsigned ao_resolution = voxel_grid_resolution;
+				ambient_occlusion_style ao;
+				std::stringstream ss;
+				ss << shot->get_user_property_value("ao_enabled");
+				ss >> ao.enable; ss.clear();
+				ss << shot->get_user_property_value("ao_strength");
+				ss >> ao.strength_scale; ss.clear();
+				ss << shot->get_user_property_value("ao_sample_offset");
+				ss >> ao.sample_offset; ss.clear();
+				ss << shot->get_user_property_value("ao_sample_dist");
+				ss >> ao.sample_distance; ss.clear();
+				ss << shot->get_user_property_value("ao_cone_angle");
+				ss >> ao.cone_angle; ss.clear();
+				ss << shot->get_user_property_value("ao_resolution");
+				ss >> ao_resolution;
+				tube_shading.ao_style.enable = ao.enable;
+				tube_shading.ao_style.strength_scale = ao.strength_scale;
+				tube_shading.ao_style.sample_offset = ao.sample_offset;
+				tube_shading.ao_style.sample_distance = ao.sample_distance;
+				tube_shading.ao_style.cone_angle = ao.cone_angle;
+				on_set(&tube_shading.ao_style);
+				if (ao_resolution != (unsigned)voxel_grid_resolution) {
+					voxel_grid_resolution = (cgv::type::DummyEnum)ao_resolution;
+					on_set(&voxel_grid_resolution);
+				}
+			}
+			catch (...) { /* DoNothing() */; }
+		}
+
+		default:
+			/* DoNothing() */;
+	}
+}
+
 void on_tube_vis::draw (context &ctx)
 {
-	if(!view_ptr) return;
+	// skip drawing until we have a pointer to the active view interactor
+	if(!view_ptr)
+		return;
+
+	// make sure we have a pointer to the screenshot plugin instance
+	if (!screenshot_ptr) {
+		screenshot_ptr = screenshot::find_instance(this);
+		cgv::signal::connect_copy(screenshot_ptr->on_change, cgv::signal::rebind(
+			this, &on_tube_vis::handle_screenshot_change, cgv::signal::_1
+		));
+	}
+
+	// handle scene switch
+	if (scene_switch_state == 1) {
+		screenshot_ptr->deselect_active_shot();
+		screenshot_ptr->set_active_shot_by_index(selected_scene);
+		scene_switch_state = 2;
+		post_redraw();
+	}
+	else if (scene_switch_state > 1) {
+		if (unlock_after_scene_switch)
+			screenshot_ptr->deselect_active_shot();
+		scene_switch_state = 0;
+		taa.reset();
+		post_redraw();
+	}
 
 	// draw dataset using selected render mode
 	if(traj_mgr.has_data())
 	{
-		taa.begin(ctx);
+		const auto &sview_interactor = *dynamic_cast<stereo_view_interactor*>(view_ptr);
+		if (!sview_interactor.is_stereo_enabled())
+			taa.begin(ctx, false);
 
 		int debug_idx_count = static_cast<int>(client.data->indices.size());
 		if(debug.limit_render_count)
@@ -2910,7 +3114,8 @@ void on_tube_vis::draw (context &ctx)
 			density_tex.disable(ctx);
 		color_map_mgr.ref_texture().disable(ctx);
 
-		taa.end(ctx);
+		if (!sview_interactor.is_stereo_enabled())
+			taa.end(ctx, false);
 	}
 
 	// display drag-n-drop information, if a dnd operation is in progress
@@ -2929,8 +3134,40 @@ void on_tube_vis::after_finish(context& ctx)
 		client.extrapol_mgr.collect_timer_queries();
 	}
 
-	if (benchmark.running)
-	{
+	if(!view_ptr && (view_ptr = find_view_as_node())) {
+		// do one-time initialization that needs the view if necessary
+		set_view();
+		ensure_selected_in_tab_group_parent();
+		cgv::signal::connect_copy(
+			dynamic_cast<stereo_view_interactor*>(view_ptr)->on_view_interaction,
+			cgv::signal::rebind(
+				this, &on_tube_vis::on_view_interaction, cgv::signal::_1
+			)
+		);
+
+		// set one of the loaded color maps as the transfer function for the volume renderer
+		/*
+		if(tf_editor_ptr) {
+			auto& cmcs = color_map_mgr.ref_color_maps();
+			for(auto& cmc : cmcs) {
+				if(cmc.name == "imola") {
+					for(const auto& p : cmc.cm.ref_color_points())
+						volume_tf.add_color_point(p.first, p.second);
+
+					volume_tf.add_opacity_point(0.0f, 0.0f);
+					volume_tf.add_opacity_point(1.0f, 1.0f);
+
+					tf_editor_ptr->set_color_map(&volume_tf);
+					break;
+				}
+			}
+		}
+		*/
+
+		taa.set_view(view_ptr);
+	}
+
+	if (benchmark.running) {
 		++benchmark.total_frames;
 		double benchmark_time = 5.0;
 
@@ -2942,8 +3179,7 @@ void on_tube_vis::after_finish(context& ctx)
 
 		view_ptr->rotate(0.0, cgv::math::deg2rad(360.0 * alpha), depth);
 
-		if(seconds_since_start >= benchmark_time)
-		{
+		if(seconds_since_start >= benchmark_time) {
 			benchmark.running = false;
 			benchmark.requested = false;
 			update_member(&benchmark.requested);
@@ -3038,16 +3274,13 @@ void on_tube_vis::create_gui (void)
 	add_member_control(this, "Box", show_bbox, "toggle", "w=83", "%x+=2");
 	add_member_control(this, "Wireframe", show_wireframe_bbox, "toggle", "w=83");
 	/* Quick tube/ribbon toggle */ {
-		std::string label = "Current: ";
-		label += render.style.is_tube() ? "tubes" : "ribbons";
-		label += " (toggle)";
-		ui_state.tr_toggle.button = add_button(get_tube_ribbon_toggle_label());
+		ui_state.tr_toggle.button = add_button(get_tube_ribbon_toggle_label(), "tooltip='Hotkey [NumPad ENTER]'");
 		if(ui_state.tr_toggle.button)
 			connect_copy(
-				ui_state.tr_toggle.button->click,
-				cgv::signal::rebind(this, &on_tube_vis::toggle_tube_ribbon)
+				ui_state.tr_toggle.button->click, cgv::signal::rebind(this, &on_tube_vis::toggle_tube_ribbon)
 			);
 	}
+	add_member_control(this, "unlock camera after scene change", unlock_after_scene_switch, "check", "tooltip='Hotkey [U]'");
 
 	if (begin_tree_node("Playback", playback, false))
 	{
@@ -3275,9 +3508,14 @@ void on_tube_vis::create_vec3_gui (const std::string& name, vec3& value, float m
 
 void on_tube_vis::update_scene_extents (void)
 {
+	if (!view_ptr || !traj_mgr.has_data()) return;
+
+	view_ptr->set_focus(bbox.get_center());
+	double extent_factor = debug.near_view ? debug.near_extent_factor : debug.far_extent_factor;
+	view_ptr->set_y_extent_at_focus(extent_factor * (double)length(bbox.get_extent()));
+
 	auto* cview_ptr = dynamic_cast<clipped_view*>(view_ptr);
-	if(cview_ptr)
-	{
+	if(cview_ptr) {
 		// extent the bounding box to prevent accidental clipping of proxy geometry which could happen in certain scenarios.
 		box3 clip_bbox = bbox;
 		vec3 extent = bbox.get_extent();
@@ -3337,8 +3575,7 @@ void on_tube_vis::update_attribute_bindings(void)
 {
 	auto &ctx = *get_context();
 
-	if (traj_mgr.has_data())
-	{
+	if (traj_mgr.has_data()) {
 		if (!run_as_service) {
 			calculate_bounding_box();
 			set_view();
@@ -3372,21 +3609,18 @@ void on_tube_vis::update_attribute_bindings(void)
 		unsigned segment_count = node_indices_count / 2;
 
 		std::vector<unsigned> segment_indices(segment_count);
-
-		for(unsigned i = 0; i < segment_indices.size(); ++i)
-			segment_indices[i] = i;
+		std::iota(segment_indices.begin(), segment_indices.end(), 0);
 
 		// Upload render attributes to legacy buffers
-		auto &tstr = ref_textured_spline_tube_renderer(ctx);
+		auto& tstr = ref_textured_spline_tube_renderer(ctx);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 		tstr.set_node_id_array(ctx, reinterpret_cast<const uvec2*>(client.data->indices.data()), segment_count, sizeof(uvec2));
 		tstr.set_indices(ctx, segment_indices);
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
-		//if(!render.sorter.init(ctx, client.data->indices.size() / 2))
-		//	std::cout << "Could not initialize gpu sorter" << std::endl;
-
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
+
+		initialize_sorter();
 
 		debug.segment_count = segment_count;
 		debug.render_percentage = 1.0f;
@@ -3408,19 +3642,19 @@ void on_tube_vis::update_attribute_bindings(void)
 		// Allocate ring buffers.
 		const unsigned nodes_capacity = traj_mgr.dataset(0).positions().attrib.num() * buf_size_fract;
 		if (// - actual trajectories
-		    !(
-		    	render.create_geom_buffers(ctx,
-		    		/* number of maximally renderable elements */ nodes_capacity,
-		    		/* number of additional elements reserved at the end of the ringbuffer where new stuff can be added
-		    		   without having to wait for the current frame to finish rendering */ num_trajectories
-		    	)
-		    	&& render.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
-		    ) ||
-		    // - extrapolation
-		    !(
-		    	   client.num_extrapol_segments == 0
-		    	|| client.extrapol_mgr.create_geom_buffers(ctx, num_trajectories, client.num_extrapol_segments)
-		    )
+			!(
+				render.create_geom_buffers(ctx,
+					/* number of maximally renderable elements */ nodes_capacity,
+					/* number of additional elements reserved at the end of the ringbuffer where new stuff can be added
+					   without having to wait for the current frame to finish rendering */ num_trajectories
+				)
+				&& render.traj_glyph_mem.create(num_trajectories * max_glyph_layers)
+			) ||
+			// - extrapolation
+			!(
+				   client.num_extrapol_segments == 0
+				|| client.extrapol_mgr.create_geom_buffers(ctx, num_trajectories, client.num_extrapol_segments)
+			)
 		){
 			throw std::runtime_error("Error creating GPU buffers.");
 		}
@@ -3501,6 +3735,52 @@ void on_tube_vis::update_debug_attribute_bindings() {
 			segments.indices = client.data->indices;
 		}
 	}
+}
+
+void on_tube_vis::initialize_sorter(void) {
+	auto& ctx = *get_context();
+
+	// Define the type representing a spline node like it is used in the render data buffer.
+	const sl::data_type node_type = { "node_type", {
+		{ sl::Type::kVec4, "pos_rad" },
+		{ sl::Type::kVec4, "color" },
+		{ sl::Type::kVec4, "tangent" },
+		{ sl::Type::kVec4, "t" }
+	} };
+
+	// Define the arguments needed for computing the sort key.
+	const cgv::gpgpu::argument_definitions key_arguments = {
+		{ sl::Type::kVec3, "a_eye_pos" },
+		{ sl::Type::kVec3, "a_view_dir" },
+		{ sl::tag::buffer{}, { sl::Type::kUVec2, "a_node_indices", sl::varsize }, "node_index_buffer", { sl::MemoryQualifier::kReadOnly } }
+	};
+
+	// Define the sort key transform operation that computes a distance from the eye position to a given segment. For details see comments below.
+	const std::string key_transform = R"(
+		// Retrieve the two node indices that constitute the segment with the given index and then retrieve the actual node data.
+		uvec2 node_indices = a_node_indices[index];
+		node_type a = data_in[node_indices[0]];
+		node_type b = data_in[node_indices[1]];
+
+		// Compute the center point of the two node positions by approximating the segment as a straight line.
+		vec3 pos_a = a.pos_rad.xyz;
+		vec3 pos_b = b.pos_rad.xyz;
+		vec3 center = 0.5*(pos_a + pos_b);
+
+		// The sort key is the distance from the eye position to the center. If the center lies behind the eye, the distance is
+		// negated to ensure these segments are sorted to the front.
+		vec3 eye_to_pos = center - a_eye_pos;
+		float side = dot(eye_to_pos, a_view_dir);
+		float distance = (side < 0.0 ? -1.0 : 1.0) * dot(eye_to_pos, eye_to_pos);
+		return distance;
+	)";
+
+	size_t segment_count = traj_mgr.get_render_data().indices.size() / 2;
+
+	// The sorter takes a sequence of segment_count elements of node_type and uses key_arguments in key_transform to compute a sort key.
+	// The output is a sequence of length segment_count containing indices of type uint representing the sorted order of the input elements.
+	if(!render.sorter.init(ctx, node_type, sl::Type::kUInt, segment_count, key_arguments, key_transform))
+		std::cout << "Error: Could not initialize GPU visibility sort routine." << std::endl;
 }
 
 void on_tube_vis::calculate_bounding_box(void) {
@@ -3631,9 +3911,12 @@ void on_tube_vis::draw_dnd(context& ctx) {
 	// - then, absolutely prevent truncation at the top border
 	pos.y() = std::max(viewport[1] + signed(s), pos.y());
 	// draw the text
+	// ToDo: FixMe: This is a fix to get drawing text to work. The gl_context provides a default font face but does not set the current_font_face member of the context base class.
+	// Meanwhile the draw_text implementation of context uses the current_font member which is empty by default. It should instead get the current font facethrough a call to get_current_font_face.
+	ctx.enable_font_face(ctx.get_current_font_face(), ctx.get_current_font_size());
 	ctx.push_pixel_coords();
 	ctx.set_color(dnd_col);
-	ctx.set_cursor(vecn(float(pos.x()), float(pos.y())), "", TA_TOP_LEFT);
+	ctx.set_cursor(vec3(float(pos.x()), float(pos.y())), "", TA_TOP_LEFT);
 	ctx.output_stream() << dnd_drawtext.str();
 	ctx.output_stream().flush();
 	ctx.pop_pixel_coords();
@@ -3645,14 +3928,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 	// - place timer query
 	render.render_time_query.begin_scope();
 	// - view-related info
-	const vec3 &cyclopic_eye = view_ptr->get_eye();
-	const vec3 &view_dir = view_ptr->get_view_dir();
+	auto &sview_interactor = *dynamic_cast<stereo_view_interactor*>(view_ptr);
+	const vec3 cyclopic_eye = view_ptr->get_eye();
+	const vec3 view_dir = view_ptr->get_view_dir();
 	const vec3 &view_up_dir = view_ptr->get_view_up_dir();
-
-	vec2 viewport_size(
-		static_cast<float>(fbc.ref_frame_buffer().get_width()),
-		static_cast<float>(fbc.ref_frame_buffer().get_height())
-	);
 	// - spline stube renderer setup relevant to deferred shading pass
 	auto &tstr = ref_textured_spline_tube_renderer(ctx);
 	tstr.set_render_style(render.style);
@@ -3664,14 +3943,21 @@ void on_tube_vis::draw_trajectories(context& ctx)
 	texture &tex_depth = *fbc.attachment_texture_ptr("depth");
 #endif
 	// - node attribute data needed by both rasterization and raytracing
-	const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
+	const vertex_buffer *node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids"),
+	                    &node_idx_buffer = *node_idx_buffer_ptr;
 
 #ifdef RTX_SUPPORT
 	if (!optix.enabled || !optix.initialized)
 #endif
 	{
+		// push viewport
+		const cgv::ivec4 vp_bak(viewport[0], viewport[1], viewport[2], viewport[3]);
+		const cgv::ivec4 vp_offscreen = cgv::ivec4(0, 0, fbc.get_size().x(), fbc.get_size().y());
+		if (sview_interactor.is_stereo_enabled())
+			ctx.set_viewport(vp_offscreen);
+
 		// enable drawing framebuffer
-		fbc.enable(ctx);
+		fbc.enable(ctx, false);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		// render tubes
@@ -3694,18 +3980,27 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		}
 
 		// sort the segment indices
-		// if(debug.sort && do_sort && !debug.force_initial_order) {
-		// 	// measure sort time
-		// 	//render.sorter.begin_time_query();
-		// 	render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, cyclopic_eye, view_dir, node_idx_buffer_ptr);
-		// 	//benchmark.sort_time_total += render.sorter.end_time_query();
-		// 	++benchmark.num_sorts;
-		// }
+		if(render.sorter.is_initialized() && debug.sort && do_sort && !debug.force_initial_order) {
+			auto& render_data = traj_mgr.get_render_data();
+			size_t node_indices_count = render_data.indices.size();
+			size_t segment_count = node_indices_count / 2;
+			cgv::gpgpu::argument_binding_list sort_arguments;
+			sort_arguments.bind_uniform("a_eye_pos", cyclopic_eye);
+			sort_arguments.bind_uniform("a_view_dir", view_dir);
+			sort_arguments.bind_buffer("node_index_buffer", node_idx_buffer);
+			// measure sort time
+			//render.sorter.begin_time_query();
+			//render.sorter.execute(ctx, render.render_sbo, render_data.indices.size(), *segment_idx_buffer_ptr, sort_arguments);
+			//benchmark.sort_time_total += render.sorter.end_time_query();
+			++benchmark.num_sorts;
+		}
 
 		tstr.set_cyclopic_eye(cyclopic_eye);
 		tstr.set_view_dir(view_dir);
-		tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
+		//tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
+		tstr.set_viewport(vec4(vp_offscreen));
 		tstr.set_render_style(render.style);
+
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 
 		int count = static_cast<int>(client.data->indices.size() / 2);
@@ -3756,7 +4051,11 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
 		// disable the drawing framebuffer
-		fbc.disable(ctx);
+		fbc.disable(ctx, false);
+
+		// pop viewport
+		if (sview_interactor.is_stereo_enabled())
+			ctx.set_viewport(vp_bak);
 	}
 #ifdef RTX_SUPPORT
 	else
@@ -3786,14 +4085,22 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			#endif
 		);
 
+		prog.set_uniform(ctx, "length_scale", render.style.length_scale);
+		prog.set_uniform(ctx, "antialias_radius", render.style.antialias_radius);
+
+		ctx.set_material(render.style.material);
+		prog.set_uniform(ctx, "map_color_to_material", static_cast<int>(render.style.map_color_to_material));
+		prog.set_uniform(ctx, "culling_mode", static_cast<int>(render.style.culling_mode));
+		prog.set_uniform(ctx, "illumination_mode", static_cast<int>(render.style.illumination_mode));
+
 		#ifdef RTX_SUPPORT
 			prog.set_uniform(ctx, "holographic_raycast", optix.enabled && optix.initialized && optix.holographic);
 		#else
 			prog.set_uniform(ctx, "holographic_raycast", false);
 		#endif
-		prog.set_uniform(ctx, "viewport_width", (float)ctx.get_width());
+		prog.set_uniform(ctx, "viewport_width", static_cast<float>(viewport[2]));
 		const auto fb_size = fbc.get_size();
-		prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
+		prog.set_uniform(ctx, "framebuf_width", static_cast<float>(fb_size.x()));
 
 		fbc.enable_attachment(ctx, "albedo", 0);
 		fbc.enable_attachment(ctx, "position", 1);
@@ -3894,6 +4201,41 @@ void on_tube_vis::draw_density_volume(context& ctx)
 	vr.transform_to_bounding_box(true);
 
 	vr.render(ctx, 0, 0);
+}
+
+shader_compile_options on_tube_vis::build_tube_shading_options() {
+	shader_compile_options options;
+
+	// debug defines
+	options.define_macro_if_not_default("DEBUG_SEGMENTS", debug.highlight_segments, false);
+
+	// ambient occlusion defines
+	options.define_macro_if_not_default("ENABLE_AMBIENT_OCCLUSION", tube_shading.ao_style.enable, true);
+
+	// grid defines
+	options.define_macro_if_not_default("GRID_MODE", tube_shading.grid_mode, GridMode::kColor);
+	unsigned gs = static_cast<unsigned>(tube_shading.grid_normal_settings);
+	if(tube_shading.grid_normal_inwards) gs += 4u;
+	if(tube_shading.grid_normal_variant) gs += 8u;
+	options.define_macro_if_not_default("GRID_NORMAL_SETTINGS", gs, 0u);
+	options.define_macro_if_not_default("ENABLE_FUZZY_GRID", tube_shading.enable_fuzzy_grid, false);
+
+	// glyph layer defines
+	const auto &glyph_layers_config = render.visualizations.front().config;
+	options.define_macro_if_not_default("GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
+
+	options.define_macro_if_not_default("CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
+	options.define_macro_if_not_default("CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
+	options.define_macro_if_not_default("MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
+
+	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
+		const auto& lc = glyph_layers_config.layer_configs[i];
+		options.define_macro("L" + std::to_string(i) + "_VISIBLE", lc.visible);
+		options.define_macro_if_not_default("L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
+		options.define_macro_if_not_default("L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
+	}
+
+	return options;
 }
 
 

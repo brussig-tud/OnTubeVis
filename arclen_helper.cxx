@@ -220,7 +220,7 @@ cgv::render::vertex_buffer upload_renderdata (cgv::render::context& ctx, const s
 		std::cerr << "[arclen::upload_renderdata] !!! unable to create Storage Buffer Object !!!" <<std::endl<<std::endl;
 
 	// done
-	return std::move(new_sbo);
+	return new_sbo;
 }
 
 float eval (const cgv::mat4 &approx, float t)

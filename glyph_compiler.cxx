@@ -65,6 +65,19 @@ void layer_compile_state::place_glyph(
 	float length_scale,
 	bool show_hidden
 ) {
+	// Setup glyph parameters.
+	size_t parameter_index = 0;
+	for(const auto& mapping_triple : layer_config.glyph_mapping_parameters) {
+		if(mapping_triple.type == 0) {
+			// Constant attribute
+			glyph_params[parameter_index] = mapping_triple.v->output_range.y();
+		} else {
+			// Use windowing and remapping to get the value of the glyph parameter
+			glyph_params[parameter_index] = clamp_remap(attribute_values[mapping_triple.idx], mapping_triple.v->input_range, mapping_triple.v->output_range);
+		}
+		++parameter_index;
+	}
+
 	const float new_glyph_size = layer_config.glyph_length(attribute_values.data()) / length_scale;
 
 	// infer potential glyph extents

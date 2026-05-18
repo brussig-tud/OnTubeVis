@@ -44,7 +44,7 @@ struct topology_info {
 };
 
 // define GridMode outside of main on_tube_vis class to be able to use it with type reflection
-enum GridMode {
+enum class GridMode : unsigned {
 	kNone = 0,
 	kColor = 1,
 	kNormal = 2,
