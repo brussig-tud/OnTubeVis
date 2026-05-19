@@ -425,7 +425,7 @@ OTV_API OTV_Vec2 otv__instantiate_SignBlob (
 ////
 // Stringifier
 
-OTV_API const char *const otv__string_from_ColorMap (const OTV_ColorMap color_map)
+OTV_API const char * otv__string_from_ColorMap (const OTV_ColorMap color_map)
 {
 	switch (color_map)
 	{
@@ -472,7 +472,7 @@ OTV_API const char *const otv__string_from_ColorMap (const OTV_ColorMap color_ma
 	}
 }
 
-OTV_API const char *const otv__string_from_GlyphType (const OTV_GlyphType glyph_type)
+OTV_API const char * otv__string_from_GlyphType (const OTV_GlyphType glyph_type)
 {
 	switch (glyph_type)
 	{
@@ -492,7 +492,7 @@ OTV_API const char *const otv__string_from_GlyphType (const OTV_GlyphType glyph_
 	}
 }
 
-OTV_API const char *const otv__string_from_InterpolationMode (const OTV_InterpolationMode interpolation_mode)
+OTV_API const char * otv__string_from_InterpolationMode (const OTV_InterpolationMode interpolation_mode)
 {
 	switch (interpolation_mode)
 	{

@@ -2041,11 +2041,11 @@ extern otv__instantiate_SignBlob_funct otv__instantiate_SignBlob;
  *
  * @return A human-readable string representation of the given @c OTV_ColorMap enum.
  */
-OTV_API const char *const otv__string_from_ColorMap (const OTV_ColorMap color_map);
+OTV_API const char * otv__string_from_ColorMap (const OTV_ColorMap color_map);
 #endif
 
 /// @brief The function pointer type for @c otv__string_from_ColorMap().
-typedef const char *const(*otv__string_from_ColorMap_funct)(const OTV_ColorMap);
+typedef const char *(*otv__string_from_ColorMap_funct)(const OTV_ColorMap);
 
 #ifdef OTV_NO_PROTOTYPES
 /// @copydoc otv__string_from_ColorMap()
@@ -2064,11 +2064,11 @@ extern otv__string_from_ColorMap_funct otv__string_from_ColorMap;
  *
  * @return A human-readable string representation of the given @c OTV_GlyphType enum.
  */
-OTV_API const char *const otv__string_from_GlyphType (const OTV_GlyphType glyph_type);
+OTV_API const char * otv__string_from_GlyphType (const OTV_GlyphType glyph_type);
 #endif
 
 /// @brief The function pointer type for @c otv__string_from_GlyphType().
-typedef const char *const(*otv__string_from_GlyphType_funct)(const OTV_GlyphType);
+typedef const char *(*otv__string_from_GlyphType_funct)(const OTV_GlyphType);
 
 #ifdef OTV_NO_PROTOTYPES
 /// @copydoc otv__string_from_GlyphType()
@@ -2087,11 +2087,11 @@ extern otv__string_from_GlyphType_funct otv__string_from_GlyphType;
  *
  * @return A human-readable string representation of the given @c OTV_InterpolationMode enum.
  */
-OTV_API const char *const otv__string_from_InterpolationMode (const OTV_InterpolationMode interpolation_mode);
+OTV_API const char * otv__string_from_InterpolationMode (const OTV_InterpolationMode interpolation_mode);
 #endif
 
 /// @brief The function pointer type for @c otv__string_from_InterpolationMode().
-typedef const char *const(*otv__string_from_InterpolationMode_funct)(const OTV_InterpolationMode);
+typedef const char *(*otv__string_from_InterpolationMode_funct)(const OTV_InterpolationMode);
 
 #ifdef OTV_NO_PROTOTYPES
 /// @copydoc otv__string_from_InterpolationMode()
