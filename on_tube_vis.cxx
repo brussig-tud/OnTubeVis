@@ -2684,17 +2684,17 @@ void on_tube_vis::initialize_sorter(void) {
 
 	// Define the type representing a spline node like it is used in the render data buffer.
 	const sl::data_type node_type = { "node_type", {
-		{ sl::Type::kVec4, "pos_rad" },
-		{ sl::Type::kVec4, "color" },
-		{ sl::Type::kVec4, "tangent" },
-		{ sl::Type::kVec4, "t" }
+		{ sl::Type::Vec4, "pos_rad" },
+		{ sl::Type::Vec4, "color" },
+		{ sl::Type::Vec4, "tangent" },
+		{ sl::Type::Vec4, "t" }
 	} };
 
 	// Define the arguments needed for computing the sort key.
 	const cgv::gpgpu::argument_definitions key_arguments = {
-		{ sl::Type::kVec3, "a_eye_pos" },
-		{ sl::Type::kVec3, "a_view_dir" },
-		{ sl::tag::buffer{}, { sl::Type::kUVec2, "a_node_indices", sl::varsize }, "node_index_buffer", { sl::MemoryQualifier::kReadOnly } }
+		{ sl::Type::Vec3, "a_eye_pos" },
+		{ sl::Type::Vec3, "a_view_dir" },
+		{ sl::tag::buffer{}, { sl::Type::UVec2, "a_node_indices", sl::varsize }, "node_index_buffer", { sl::MemoryQualifier::ReadOnly } }
 	};
 
 	// Define the sort key transform operation that computes a distance from the eye position to a given segment. For details see comments below.
@@ -2722,7 +2722,7 @@ void on_tube_vis::initialize_sorter(void) {
 
 	// The sorter takes a sequence of segment_count elements of node_type and uses key_arguments in key_transform to compute a sort key.
 	// The output is a sequence of length segment_count containing indices of type uint representing the sorted order of the input elements.
-	if(!render.sorter.init(ctx, node_type, sl::Type::kUInt, segment_count, key_arguments, key_transform))
+	if(!render.sorter.init(ctx, node_type, sl::Type::UInt, segment_count, key_arguments, key_transform))
 		std::cout << "Error: Could not initialize GPU visibility sort routine." << std::endl;
 }
 
