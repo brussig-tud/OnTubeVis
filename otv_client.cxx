@@ -779,7 +779,7 @@ node_attribs otv_client::convert_api_node_to_internal (const OTV_HermiteNode &no
 	out.pos_rad.set(node.position.x, node.position.y, node.position.z);
 	out.tangent.set(node.tangent.x, node.tangent.y, node.tangent.z);
 	out.t.set(node.time, 0, 0, 0);
-	return std::move(out);
+	return out;
 }
 
 std::vector<extrapol::node> otv_client::convert_api_extrapol_to_internal (
@@ -816,7 +816,7 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 					data.emplace_back(gd.color);
 				}
 			}
-			return std::move(data);
+			return data;
 
 		case GlyphType::kLinePlot:
 			for (const auto &glyph: glyphs)
@@ -831,7 +831,7 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 						data.emplace_back(gd.values[i]);
 				}
 			}
-			return std::move(data);
+			return data;
 
 		case GlyphType::kCircle:
 			for (const auto &glyph: glyphs)
@@ -845,7 +845,7 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 				if (src_indices[vattrib_idx__radius] >= 0)
 					data.emplace_back(gd.radius);
 			}
-			return std::move(data);
+			return data;
 
 		case GlyphType::kRectangle:
 			for (const auto &glyph: glyphs)
@@ -861,7 +861,7 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 				if (src_indices[vattrib_idx__height] >= 0)
 					data.emplace_back(gd.height);
 			}
-			return std::move(data);
+			return data;
 
 		case GlyphType::kTriangle:
 			for (const auto &glyph: glyphs)
@@ -880,7 +880,7 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 				if (src_indices[vattrib_idx__orientation] >= 0)
 					data.emplace_back(gd.orientation);
 			}
-			return std::move(data);
+			return data;
 
 		case GlyphType::kSignBlob:
 			for (const auto &glyph: glyphs)
@@ -894,7 +894,7 @@ std::vector<float> otv_client::convert_api_glyphs_to_internal (
 				if (src_indices[vattrib_idx__value] >= 0)
 					data.emplace_back(gd.value);
 			}
-			return std::move(data);
+			return data;
 
 		case GlyphType::kWedge:
 		case GlyphType::kArcFlat:
