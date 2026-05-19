@@ -50,7 +50,7 @@ OTV_API OTV_GlyphInfo otv__construct_SurfaceColorInfo (
 }
 
 OTV_API OTV_GlyphInfo otv__construct_empty_SurfaceColorInfo (void) {
-	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_SurfaceColorInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
+	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_SurfaceColorInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float)), {}};
 	return gi;
 }
 
@@ -74,7 +74,8 @@ OTV_API OTV_GlyphData otv__construct_SurfaceColorData (const float s, const floa
 
 OTV_API OTV_GlyphData otv__construct_empty_SurfaceColorData (void) {
 	constexpr OTV_GlyphData gd{
-		uint32_t((sizeof(OTV_SurfaceColorData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
+		uint32_t((sizeof(OTV_SurfaceColorData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float)),
+		{}, {}
 	};
 	return gd;
 }
@@ -105,7 +106,7 @@ OTV_API OTV_GlyphInfo otv__construct_LinePlotInfo (
 }
 
 OTV_API OTV_GlyphInfo otv__construct_empty_LinePlotInfo (void) {
-	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_LinePlotInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
+	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_LinePlotInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float)), {}};
 	return gi;
 }
 
@@ -130,7 +131,8 @@ OTV_API OTV_GlyphData otv__construct_LinePlotData (const float s, const uint32_t
 
 OTV_API OTV_GlyphData otv__construct_empty_LinePlotData (void) {
 	constexpr OTV_GlyphData gd{
-		uint32_t((sizeof(OTV_LinePlotData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
+		uint32_t((sizeof(OTV_LinePlotData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float)),
+		{}, {}
 	};
 	return gd;
 }
@@ -161,7 +163,7 @@ OTV_API OTV_GlyphInfo otv__construct_CircleInfo (
 }
 
 OTV_API OTV_GlyphInfo otv__construct_empty_CircleInfo (void) {
-	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_CircleInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
+	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_CircleInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float)), {}};
 	return gi;
 }
 
@@ -186,7 +188,8 @@ OTV_API OTV_GlyphData otv__construct_CircleData (float s, const float color, con
 
 OTV_API OTV_GlyphData otv__construct_empty_CircleData (void) {
 	constexpr OTV_GlyphData gd{
-		uint32_t((sizeof(OTV_CircleData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
+		uint32_t((sizeof(OTV_CircleData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float)),
+		{}, {}
 	};
 	return gd;
 }
@@ -226,7 +229,7 @@ OTV_API OTV_GlyphInfo otv__construct_RectangleInfo (
 }
 
 OTV_API OTV_GlyphInfo otv__construct_empty_RectangleInfo (void) {
-	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_RectangleInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
+	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_RectangleInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float)), {}};
 	return gi;
 }
 
@@ -253,7 +256,8 @@ OTV_API OTV_GlyphData otv__construct_RectangleData (
 
 OTV_API OTV_GlyphData otv__construct_empty_RectangleData (void) {
 	constexpr OTV_GlyphData gd{
-		uint32_t((sizeof(OTV_RectangleData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
+		uint32_t((sizeof(OTV_RectangleData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float)),
+		{}, {}
 	};
 	return gd;
 }
@@ -295,7 +299,7 @@ OTV_API OTV_GlyphInfo otv__construct_IsoscelesTriangleInfo (
 
 OTV_API OTV_GlyphInfo otv__construct_empty_IsoscelesTriangleInfo (void) {
 	constexpr OTV_GlyphInfo gi{
-		uint32_t((sizeof(OTV_IsoscelesTriangleInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))
+		uint32_t((sizeof(OTV_IsoscelesTriangleInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float)), {}
 	};
 	return gi;
 }
@@ -324,7 +328,8 @@ OTV_API OTV_GlyphData otv__construct_IsoscelesTriangleData (
 
 OTV_API OTV_GlyphData otv__construct_empty_IsoscelesTriangleData (void) {
 	constexpr OTV_GlyphData gd{
-		uint32_t((sizeof(OTV_IsoscelesTriangleData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
+		uint32_t((sizeof(OTV_IsoscelesTriangleData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float)),
+		{}, {}
 	};
 	return gd;
 }
@@ -369,7 +374,7 @@ OTV_API OTV_GlyphInfo otv__construct_SignBlobInfo (
 }
 
 OTV_API OTV_GlyphInfo otv__construct_empty_SignBlobInfo (void) {
-	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_SignBlobInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float))};
+	constexpr OTV_GlyphInfo gi{uint32_t((sizeof(OTV_SignBlobInfo)-sizeof(OTV_GlyphInfo::N))/sizeof(float)), {}};
 	return gi;
 }
 
@@ -395,7 +400,8 @@ OTV_API OTV_GlyphData otv__construct_SignBlobData (
 
 OTV_API OTV_GlyphData otv__construct_empty_SignBlobData (void) {
 	constexpr OTV_GlyphData gd{
-		uint32_t((sizeof(OTV_SignBlobData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float))
+		uint32_t((sizeof(OTV_SignBlobData)-sizeof(OTV_GlyphData::N)-sizeof(OTV_GlyphData::s))/sizeof(float)),
+		{}, {}
 	};
 	return gd;
 }

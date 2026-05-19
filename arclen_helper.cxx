@@ -131,7 +131,9 @@ parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 			for (unsigned i=idx_offset, k=0; i<idx_n; i+=2, k++)
 			{
 				// global segment node indices
-				curve_segment<real> seg{rd.indices[i], rd.indices[i+1]};
+				curve_segment<real> seg;
+				seg.i0 = rd.indices[i];
+				seg.i1 = rd.indices[i+1];
 				// segment geometry
 				const Bezier<real> b = Hermite<real>(
 					rd.positions[seg.i0], rd.positions[seg.i1],

@@ -93,7 +93,7 @@ struct Nodes
 		cgv::vec3 tan;
 	};
 	struct Event : public EventData {
-		std::optional<EventData> extrapol_ref;
+		std::optional<EventData> extrapol_ref {};
 	};
 
 	struct Segment
