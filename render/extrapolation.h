@@ -314,14 +314,14 @@ struct extrapolation_manager
 
 	void update_tube_shading (
 		const tube_shading_settings &tube_shading, const glyph_layer_manager::configuration &layer_config
-	){
+	) {
 		render.tube_shading = tube_shading;
 		render.tube_shading.alternative_ring_buffer = true;
-		auto tube_shading_defines = render.tube_shading.build_tube_shading_defines(
+		auto tube_shading_options = render.tube_shading.build_tube_shading_options(
 			layer_config, false
 		);
-		cgv::render::shader_code::set_define(tube_shading_defines, "SHOW_CURSOR", true, false);
-		render.tstr.set_additional_defines(tube_shading_defines);
+		tube_shading_options.define_macro_if_not_default("SHOW_CURSOR", true, false);
+		render.tstr.set_additional_defines(tube_shading_options);
 	}
 
 	void clear (void);

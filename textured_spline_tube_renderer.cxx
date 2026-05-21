@@ -1,11 +1,6 @@
-// C++ STL
 #include <limits>
-
-// CGV framework
 #include <cgv_gl/gl/gl.h>
 #include <cgv_gl/gl/gl_tools.h>
-
-// implemented header
 #include "textured_spline_tube_renderer.h"
 
 namespace cgv {
@@ -16,11 +11,6 @@ namespace cgv {
 			static textured_spline_tube_renderer r;
 			r.manage_singleton(ctx, "textured_spline_tube_renderer", ref_count, ref_count_change);
 			return r;
-		}
-
-		render_style* textured_spline_tube_renderer::create_render_style() const
-		{
-			return new textured_spline_tube_render_style();
 		}
 
 		textured_spline_tube_render_style::textured_spline_tube_render_style()
@@ -50,99 +40,71 @@ namespace cgv {
 
 			rcribbon.debug.visualize_stats = rcribbon.debug.VS_OFF;
 			rcribbon.debug.visualize_leaf_bboxes = false;
+
+			gsribbon.subdivisions = 4;
 		}
 
-		textured_spline_tube_renderer::textured_spline_tube_renderer()
-		{
-			has_node_ids = false;
-			has_radii = false;
-			has_tangents = false;
-		}
-
-		/// call this before setting attribute arrays to manage attribute array in given manager
-		void textured_spline_tube_renderer::enable_attribute_array_manager(const context& ctx, attribute_array_manager& aam)
-		{
-			surface_renderer::enable_attribute_array_manager(ctx, aam);
-			if (has_attribute(ctx, "radius"))
-				has_radii = true;
-			if (has_attribute(ctx, "tangent"))
-				has_tangents = true;
-		}
-		/// call this after last render/draw call to ensure that no other users of renderer change attribute arrays of given manager
-		void textured_spline_tube_renderer::disable_attribute_array_manager(const context& ctx, attribute_array_manager& aam)
-		{
-			surface_renderer::disable_attribute_array_manager(ctx, aam);
-			has_radii = false;
-			has_tangents = false;
-		}
 		bool textured_spline_tube_renderer::validate_attributes(const context& ctx) const
 		{
-			// validate set attributes
-			//bool res = surface_renderer::validate_attributes(ctx);
-			//return res;
-
 			if(!has_node_ids) {
 				ctx.error("renderer::enable() node id attribute not set");
 				return false;
 			}
 			return true;
 		}
-		void textured_spline_tube_renderer::set_additional_defines(const shader_define_map &defines) {
-			additional_defines = defines;
+		void textured_spline_tube_renderer::set_additional_defines(const shader_compile_options &options) {
+			additional_options = options;
 		}
-		void textured_spline_tube_renderer::set_additional_defines(shader_define_map &&defines) {
-			additional_defines = std::move(defines);
+		void textured_spline_tube_renderer::set_additional_defines(shader_compile_options &&options) {
+			additional_options = std::move(options);
 		}
-		void textured_spline_tube_renderer::update_defines(shader_define_map& defines)
+		void textured_spline_tube_renderer::update_shader_program_options(shader_compile_options &options) const
 		{
-			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
+			const auto& rs = get_style<textured_spline_tube_render_style>();
 
-			defines.clear();
+			options.clear();
 
 			// forward shading
-			shader_code::set_define(defines, "FORWARD_SHADING", rs.forward, false);
+			options.define_macro_if_not_default("FORWARD_SHADING", rs.forward, false);
 
-			shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
+			options.define_macro_if_not_default("USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
 			if (rs.is_tube()) {
-				shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
-				shader_code::set_define(defines, "USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
-				shader_code::set_define(defines, "PRIMITIVE_INTERSECTOR", rs.line_primitive, rs.LP_TUBE_RUSSIG);
+				options.define_macro_if_not_default("USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
+				options.define_macro_if_not_default("USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
+				options.define_macro_if_not_default("PRIMITIVE_INTERSECTOR", rs.line_primitive, rs.LP_TUBE_RUSSIG);
 				static const bool no = false;
-				shader_code::set_define(defines, "USE_RIBBONS", no, false);
+				options.define_macro_if_not_default("USE_RIBBONS", no, false);
 			}
 			else if (rs.line_primitive == rs.LP_RIBBON_GEOMETRY) {
 				static const bool yes = true;
-				shader_code::set_define(defines, "USE_RIBBONS", yes, false);
+				options.define_macro_if_not_default("USE_RIBBONS", yes, false);
+				options.define_macro_if_not_default("NUM_SUBDIVISIONS", rs.gsribbon.subdivisions, 2);
 			}
-			shader_code::set_define(defines, "ATTRIB_MODE", rs.attrib_mode, rs.AM_ALL);
-			shader_code::set_define(defines, "MODE", rs.fragment_mode, rs.FM_RAY_CAST);
+			options.define_macro_if_not_default("ATTRIB_MODE", rs.attrib_mode, rs.AM_ALL);
+			options.define_macro_if_not_default("MODE", rs.fragment_mode, rs.FM_RAY_CAST);
 			if (rs.line_primitive != rs.LP_RIBBON_GEOMETRY)
-				shader_code::set_define(defines, "BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, rs.BG_ALIGNED_BOX_BILLBOARD);
+				options.define_macro_if_not_default("BOUNDING_GEOMETRY_TYPE", rs.bounding_geometry, rs.BG_ALIGNED_BOX_BILLBOARD);
 			if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED) {
-				shader_code::set_define(defines, "EXACT_RIBBON_BBOXES", rs.rcribbon.exact_ribbon_bboxes, false);
-				shader_code::set_define(defines, "BBOX_COORD_SYSTEM", rs.rcribbon.bbox_coord_system, rs.rcribbon.BBO_RCC);
-				shader_code::set_define(defines, "RAY_CENTRIC_ISECTS", rs.rcribbon.ray_centric_isects, false);
-				shader_code::set_define(defines, "MAX_INTERSECTION_STACK_SIZE", rs.rcribbon.max_intersection_stack_size, (unsigned)8);
-				shader_code::set_define(defines, "DBG_VISUALIZE_STATS", rs.rcribbon.debug.visualize_stats, rs.rcribbon.debug.VS_OFF);
-				shader_code::set_define(defines, "DBG_VISUALIZE_LEAF_BBOXES", rs.rcribbon.debug.visualize_leaf_bboxes, false);
+				options.define_macro_if_not_default("EXACT_RIBBON_BBOXES", rs.rcribbon.exact_ribbon_bboxes, false);
+				options.define_macro_if_not_default("BBOX_COORD_SYSTEM", rs.rcribbon.bbox_coord_system, rs.rcribbon.BBO_RCC);
+				options.define_macro_if_not_default("RAY_CENTRIC_ISECTS", rs.rcribbon.ray_centric_isects, false);
+				options.define_macro_if_not_default("MAX_INTERSECTION_STACK_SIZE", rs.rcribbon.max_intersection_stack_size, (unsigned)8);
+				options.define_macro_if_not_default("DBG_VISUALIZE_STATS", rs.rcribbon.debug.visualize_stats, rs.rcribbon.debug.VS_OFF);
+				options.define_macro_if_not_default("DBG_VISUALIZE_LEAF_BBOXES", rs.rcribbon.debug.visualize_leaf_bboxes, false);
 			}
 
-			for(const auto& define : additional_defines)
-				defines.insert(define);
+			options.extend(additional_options, false);
 		}
-		bool textured_spline_tube_renderer::build_shader_program(context& ctx, shader_program& prog, const shader_compile_options& defines)
-		{
-			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
+		std::string textured_spline_tube_renderer::get_default_prog_name() const {
+			const auto& rs = get_style<textured_spline_tube_render_style>();
 			last_active_line_primitive = rs.line_primitive;
 
-			shader_compile_options options = { defines };
-
 			if(rs.is_tube())
-				return prog.build_program(ctx, "textured_spline_tube.glpr", options, true);
-			else if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED)
-				return prog.build_program(ctx, "view_aligned_ribbon.glpr", options, true);
+				return "textured_spline_tube.glpr";
+			else if(rs.line_primitive == rs.LP_RIBBON_RAYCASTED)
+				return "view_aligned_ribbon.glpr";
 			else
-				return prog.build_program(ctx, "textured_spline_ribbon.glpr", options, true);
+				return "textured_spline_ribbon.glpr";
 		}
 		bool textured_spline_tube_renderer::enable(context& ctx)
 		{
@@ -152,9 +114,9 @@ namespace cgv {
 				init(ctx);
 			}
 
-			if (!surface_renderer::enable(ctx))
+			if (!renderer::enable(ctx))
 				return false;
-			
+
 			if(!ref_prog().is_linked())
 				return false;
 
@@ -172,16 +134,6 @@ namespace cgv {
 			}
 
 			return true;
-		}
-		///
-		bool textured_spline_tube_renderer::disable(context& ctx)
-		{
-			if (!attributes_persist()) {
-				has_radii = false;
-				has_tangents = false;
-			}
-
-			return surface_renderer::disable(ctx);
 		}
 
 		void textured_spline_tube_renderer::draw(context& ctx, size_t start, size_t count, bool use_strips, bool use_adjacency, uint32_t strip_restart_index)
@@ -207,7 +159,7 @@ namespace cgv {
 
 			// The index type is hard-coded since it cannot easily be accessed.
 			glMultiDrawElements(GL_POINTS, span_lens, GL_UNSIGNED_INT, span_starts, num_spans);
-			
+
 			// Copied from `draw`.
 			glEnable(GL_CULL_FACE);
 			// Copied from `renderer::render`,
@@ -217,7 +169,12 @@ namespace cgv {
 		bool textured_spline_tube_render_style_reflect::self_reflect(cgv::reflect::reflection_handler& rh)
 		{
 			return
-				rh.reflect_base(*static_cast<surface_render_style*>(this)) &&
+				rh.reflect_member("culling_mode", culling_mode) &&
+				rh.reflect_member("illumination_mode", illumination_mode) &&
+				rh.reflect_member("map_color_to_material", map_color_to_material) &&
+				rh.reflect_member("surface_color", surface_color) &&
+				rh.reflect_member("max_nr_lights", max_nr_lights) &&
+				rh.reflect_member("material", material);
 				rh.reflect_member("line_primitive", line_primitive) &&
 				rh.reflect_member("radius", radius) &&
 				rh.reflect_member("radius_scale", radius_scale) &&
@@ -287,6 +244,13 @@ namespace cgv {
 				p->end_tree_node(rs_ptr->rcribbon);
 			}
 
+			if(p->begin_tree_node("Ribbon - Geometry", rs_ptr->gsribbon)) {
+				p->align("\a");
+				p->add_member_control(b, "Subdivisions", rs_ptr->gsribbon.subdivisions, "value_slider", "min=2;step=1;max=7;ticks=true");
+				p->align("\b");
+				p->end_tree_node(rs_ptr->gsribbon);
+			}
+
 			const auto &[tmin, tmax] = rs_ptr->data_t_minmax;
 			p->add_member_control(
 				b, "Render up to t =", rs_ptr->max_t, "value_slider",
@@ -298,7 +262,29 @@ namespace cgv {
 			p->add_member_control(b, "Cap Clip Distance", rs_ptr->cap_clip_distance, "value_slider", "min=0.0;max=100.0;step=0.01;ticks=true");
 			p->add_member_control(b, "Attribute-Less Mode", rs_ptr->attrib_mode, "dropdown", "enums='Off,No curve data,No node color,Attribute-less'");
 
-			p->add_gui("surface_render_style", *static_cast<cgv::render::surface_render_style*>(rs_ptr));
+			if(p->begin_tree_node("Color Mapping", rs_ptr->map_color_to_material, false, "level=3")) {
+				p->align("\a");
+				p->add_gui("Map Color to Material", rs_ptr->map_color_to_material, "bit_field_control",
+					"enums='Color Front=1,Color Back=2,Opacity Front=4,Opacity Back=8'");
+				p->align("\b");
+				p->end_tree_node(rs_ptr->map_color_to_material);
+			}
+			p->add_member_control(b, "Illumination Mode", rs_ptr->illumination_mode, "dropdown", "enums='Off,One-Sided,Two-Sided'");
+			p->add_member_control(b, "Max Nr Light", rs_ptr->max_nr_lights, "value_slider", "min=1;max=8;ticks=true");
+			p->add_member_control(b, "Culling Mode", rs_ptr->culling_mode, "dropdown", "enums='Off,Backface,Frontface'");
+			if(p->begin_tree_node("Color and Materials", rs_ptr->surface_color, false, "level=3")) {
+				p->align("\a");
+				p->add_member_control(b, "Surface Color", rs_ptr->surface_color);
+				p->add_member_control(b, "Surface Opacity", rs_ptr->surface_opacity, "value_slider", "min=0.0;step=0.01;max=1.0;log=false;ticks=true");
+				if(p->begin_tree_node("Material", rs_ptr->material, false, "level=3")) {
+					p->align("\a");
+					p->add_gui("front_material", rs_ptr->material);
+					p->align("\b");
+					p->end_tree_node(rs_ptr->material);
+				}
+				p->align("\b");
+				p->end_tree_node(rs_ptr->surface_color);
+			}
 
 			if(p->begin_tree_node("Debug Options", rs_ptr->fragment_mode, false, "level=3")) {
 				p->align("\a");

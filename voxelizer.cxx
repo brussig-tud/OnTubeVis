@@ -18,8 +18,8 @@ bool voxelizer::init(cgv::render::context& ctx, size_t count) {
 		success = false;
 
 	std::string clamp = "element = clamp(element, 0, 1);";
-	success &= clamp_kernel.init(ctx, cgv::render::TT_3D, clamp);
-	success &= fill_kernel.init(ctx, cgv::render::TT_3D);
+	success &= clamp_kernel.init(ctx, cgv::render::TT_3D, sl::ImageFormatLayoutQualifier::k_r32f, clamp);
+	success &= fill_kernel.init(ctx, cgv::render::TT_3D, sl::ImageFormatLayoutQualifier::k_r32f);
 	success &= mipmap_kernel.init(ctx, cgv::render::TT_3D);
 
 	return success;

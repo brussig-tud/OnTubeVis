@@ -1,18 +1,17 @@
 #include "glyph_layer_manager.h"
 
+#include <cgv/math/compare_float.h>
 #include <cgv/utils/scan.h>
-
 
 namespace {
 
-// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
+// clamp value v to range in and remap to range out
 // Moved from `glyph_compiler.h`.
-float clamp_remap(float v, const cgv::vec4& r) {
-	v = cgv::math::clamp(v, r.x(), r.y());
-	float t = 0.0f;
-	if(abs(r.x() - r.y()) > std::numeric_limits<float>::epsilon())
-		t = (v - r.x()) / (r.y() - r.x());
-	return cgv::math::lerp(r.z(), r.w(), t);
+float clamp_remap(float v, const cgv::vec2 in, const cgv::vec2 out) {
+	if(cgv::math::is_zero(in.x() - in.y()))
+		return out.x();
+	v = cgv::math::clamp(v, in.x(), in.y());
+	return cgv::math::map(v, in.x(), in.y(), out.x(), out.y());
 }
 
 } // namespace
@@ -27,15 +26,14 @@ float glyph_layer_manager::configuration::layer_configuration::glyph_length (
 
 		_size_attrib_values[i] = mapping.type == 0
 			// Attribute is constant for the entire layer.
-			? (*mapping.v)[3]
+			? (*mapping.v).output_range.y()
 			// Attribute varies per glyph.
-			: clamp_remap(glyph_data[mapping.idx], *mapping.v);
+			: clamp_remap(glyph_data[mapping.idx], mapping.v->input_range, mapping.v->output_range);
 	}
 
 	// Determine the length of the glyph.
 	return shape_ptr->get_size(_size_attrib_values.get());
 }
-
 
 void glyph_layer_manager::clear() {
 	glyph_attribute_mappings.clear();
@@ -56,8 +54,6 @@ void glyph_layer_manager::set_visualization_variables(std::shared_ptr<const visu
 visualization_variables_info& glyph_layer_manager::ref_visualization_variables() {
 	return *const_cast<visualization_variables_info*>(visualization_variables.get());
 }
-
-
 const std::string glyph_layer_manager::configuration::constant_float_parameter_name_prefix = "glyph_cf_param";
 const std::string glyph_layer_manager::configuration::constant_color_parameter_name_prefix = "glyph_cc_param";
 const std::string glyph_layer_manager::configuration::mapped_parameter_name_prefix = "glyph_m_param";
@@ -74,7 +70,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 	// iterate over layers
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		const glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
-		const glyph_shape* shape_ptr = gam.get_shape_ptr();
+		const glyph_shape* shape_ptr = gam.get_shape();
 
 		config.layer_configs.push_back(configuration::layer_configuration());
 		auto& layer_config = config.layer_configs.back();
@@ -99,7 +95,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 			const std::vector<int> attrib_indices = gam.get_attrib_indices();
 			const std::vector<int> color_map_indices = gam.get_color_map_indices();
-			const std::vector<vec4> &attrib_values = gam.ref_attrib_mapping_values();
+			const std::vector<scalar_mapping> &attrib_values = gam.ref_attrib_mapping_values();
 			const std::vector<rgb> &attrib_colors = gam.ref_attrib_colors();
 
 			for(size_t j = 0; j < attrib_indices.size(); ++j) {
@@ -107,8 +103,8 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				int color_map_idx = color_map_indices[j];
 				GlyphAttributeType type = attribs[j].type;
 				GlyphAttributeModifier modifiers = attribs[j].modifiers;
-				bool is_global = modifiers & GAM_GLOBAL;
-				bool is_non_const = modifiers & GAM_NON_CONST;
+				bool is_global = (modifiers & GlyphAttributeModifier::kGlobal) != GlyphAttributeModifier::kNone;
+				bool is_non_const = (modifiers & GlyphAttributeModifier::kNonConst) != GlyphAttributeModifier::kNone;
 
 				std::string parameter_str = "";
 
@@ -120,7 +116,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					// constant non-mapped parameter
 					std::string uniform_name;
 
-					if(type == GAT_COLOR) {
+					if(type == GlyphAttributeType::kColor) {
 						uniform_name = config.constant_color_parameter_name_prefix + "[" + std::to_string(config.constant_color_parameters.size()) + "]";
 
 						config.constant_color_parameters.push_back(std::make_pair(uniform_name, &attrib_colors[j]));
@@ -128,7 +124,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 						uniform_name = config.constant_float_parameter_name_prefix + "[" + std::to_string(config.constant_float_parameters.size()) + "]";
 
 						layer_config.glyph_mapping_parameters.push_back({ 0, config.constant_float_parameters.size() - last_constant_float_parameters_size, &attrib_values[j] });
-						config.constant_float_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j][3]));
+						config.constant_float_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j].output_range.y()));
 					}
 
 					parameter_str = uniform_name;
@@ -139,14 +135,14 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 					std::string remap_func = "clamp_remap";
 					switch(type) {
-					case GAT_SIGNED_UNIT: remap_func = "clamp_remap11"; break;
-					case GAT_UNIT:
+					case GlyphAttributeType::kSignedUnit: remap_func = "clamp_remap11"; break;
+					case GlyphAttributeType::kUnit:
 					//case GAT_COLOR: remap_func = "clamp_remap01"; break;
 					default: break;
 					}
 					parameter_str = remap_func + "(glyph." + attrib_variable_name + ", " + uniform_name + ")";
 
-					if(type == GAT_COLOR) {
+					if(type == GlyphAttributeType::kColor) {
 						if(color_map_idx < 0)
 							parameter_str = "vec3(0.0)";
 						else
@@ -155,27 +151,29 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 						layer_config.glyph_mapping_parameters.push_back({ 1, config.mapping_parameters.size() - last_mapping_parameters_size, &attrib_values[j] });
 					}
 
-					config.mapping_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j]));
+					// reinterpret scalar mapping as vec4 to enable usage as uniforms
+					config.mapping_parameters.push_back(std::make_pair(uniform_name, reinterpret_cast<const cgv::vec4*>(&attrib_values[j])));
 					layer_config.mapped_attributes.push_back(idx);
 				}
 
 				switch(type) {
-				case GAT_ORIENTATION:
-				case GAT_ANGLE: parameter_str = "radians(" + parameter_str + ")"; break;
-				case GAT_DOUBLE_ANGLE: parameter_str = "radians(0.5*" + parameter_str + ")"; break;
+				case GlyphAttributeType::kOrientation:
+				case GlyphAttributeType::kAngle: parameter_str = "radians(" + parameter_str + ")"; break;
+				case GlyphAttributeType::kDoubleAngle: parameter_str = "radians(0.5*" + parameter_str + ")"; break;
 				default: break;
 				}
 
-				if(type == GAT_ORIENTATION) {
+				if(type == GlyphAttributeType::kOrientation) {
 					glyph_coord_str = "rotate(glyphuv, " + parameter_str + ")";
-				} else if(type == GAT_COLOR) {
+				} else if(type == GlyphAttributeType::kColor) {
 					color_parameter_strs.push_back(parameter_str);
-				} else if(type == GAT_OUTLINE) {
+				} else if(type == GlyphAttributeType::kOutline) {
 					glyph_outline_str = parameter_str;
 				} else {
 					float_parameter_strs.push_back(parameter_str);
 				}
 			}
+
 
 			// Allocate scratch buffer for `glyph_length()`.
 			layer_config._size_attrib_values =
@@ -209,26 +207,26 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					std::to_string(last_mapping_parameters_size);
 
 				switch(shape_ptr->type()) {
-				case GT_COLOR:
+				case GlyphType::kColor:
 				{
 					splat_func += layer_id + "(closest.id, uv, " + std::to_string(color_map_indices[1]) + ", ";
 					splat_func += index_params_string;
 					splat_func += ", non_outline_factor)";
 				} break;
-				case GT_STAR:
+				case GlyphType::kStar:
 				{
 					splat_func += layer_id + "(glyph, " + glyph_coord_str + ", ";
 					splat_func += index_params_string;
 					splat_func += ")";
 				} break;
-				case GT_LINE_PLOT:
+				case GlyphType::kLinePlot:
 				{
 					splat_func += layer_id + "(closest.id, uv, ";
 					splat_func += index_params_string + ", ";
 					splat_func += glyph_outline_str;
 					splat_func += ", non_outline_factor)";
 				} break;
-				case GT_TEMPORAL_HEAT_MAP:
+				case GlyphType::kTemporalHeatMap:
 				{
 					splat_func += layer_id + "(closest.id, uv, " + std::to_string(color_map_indices[2]) + ", ";
 					splat_func += index_params_string + ", ";
@@ -250,6 +248,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 	config.create_uniforms_definition();
 
 #ifdef _DEBUG
+	/*
 	std::cout << std::endl << ">>> SHADER DEFINES <<<" << std::endl;
 	std::cout << config.uniforms_definition << std::endl << std::endl;
 	int i = 0;
@@ -259,6 +258,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 		std::cout << lc.glyph_definition << std::endl << std::endl;
 	}
 	std::cout << ">>> ============== <<<" << std::endl << std::endl;
+	*/
 #endif
 
 	return config;
@@ -266,7 +266,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 ActionType glyph_layer_manager::action_type() {
 	ActionType temp = last_action_type;
-	last_action_type = AT_NONE;
+	last_action_type = ActionType::kUndefined;
 	return temp;
 }
 
@@ -321,7 +321,7 @@ void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p)
 }
 
 void glyph_layer_manager::notify_configuration_change() {
-	last_action_type = AT_CONFIGURATION_CHANGE;
+	last_action_type = ActionType::kConfigurationChange;
 	if(base_ptr)
 		base_ptr->on_set(this);
 }
@@ -338,7 +338,7 @@ void glyph_layer_manager::add_glyph_attribute_mapping(const glyph_attribute_mapp
 }
 
 void glyph_layer_manager::on_set(void* member_ptr) {
-	last_action_type = AT_MAPPING_VALUE_CHANGE;
+	last_action_type = ActionType::kMappingValueChange;
 
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
@@ -347,11 +347,11 @@ void glyph_layer_manager::on_set(void* member_ptr) {
 			last_action_type = gam.action_type();
 
 		if(member_ptr == &gam.ref_active())
-			last_action_type = AT_CONFIGURATION_CHANGE;
+			last_action_type = ActionType::kConfigurationChange;
 	}
 
 	if(member_ptr == &new_attribute_mapping_name)
-		last_action_type = AT_NONE;
+		last_action_type = ActionType::kUndefined;
 
 	if(base_ptr)
 		base_ptr->on_set(this);

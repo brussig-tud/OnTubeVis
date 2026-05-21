@@ -7,6 +7,7 @@
 
 // implemented header
 #include "render/hash_grid.h"
+#include "cgv/render/shader_code.h"
 
 
 /// Marks log messages from this file.
@@ -441,16 +442,15 @@ void hash_grid::add_segment (
 	add_interval(prev_index, {node_idcs, {min_time, end.t[0]}});
 }
 
-void hash_grid::set_defines (cgv::render::shader_define_map& d, GLuint buffer_binding) const
+void hash_grid::set_defines (cgv::render::shader_compile_options& opts, GLuint buffer_binding) const
 {
-	using sc = cgv::render::shader_code;
-	sc::set_define(d, "HASH_GRID_BUFFER_BINDING",   buffer_binding,         {});
-	sc::set_define(d, "HASH_GRID_ADDRESS_UNIT",     address_unit,           {});
-	sc::set_define(d, "HASH_GRID_NUM_HASH_FNS",     uint32_t{num_hash_fns}, {});
-	sc::set_define(d, "HASH_GRID_SLOTS_PER_BUCKET", bucket_t::num_slots,    {});
-	sc::set_define(d, "HASH_GRID_CELL_HEADER_SIZE", sizeof(cell_t::data_t), {});
-	sc::set_define(d, "HASH_GRID_LAYOUT",           _layout,                {});
-	sc::set_define(d, "HASH_GRID_SIGNATURE_FN",     _signature_fn,          {});
+	opts.define_macro("HASH_GRID_BUFFER_BINDING",   buffer_binding        );
+	opts.define_macro("HASH_GRID_ADDRESS_UNIT",     address_unit          );
+	opts.define_macro("HASH_GRID_NUM_HASH_FNS",     uint32_t{num_hash_fns});
+	opts.define_macro("HASH_GRID_SLOTS_PER_BUCKET", bucket_t::num_slots   );
+	opts.define_macro("HASH_GRID_CELL_HEADER_SIZE", sizeof(cell_t::data_t));
+	opts.define_macro("HASH_GRID_LAYOUT",           _layout               );
+	opts.define_macro("HASH_GRID_SIGNATURE_FN",     _signature_fn         );
 }
 
 void hash_grid::set_uniforms (cgv::render::context& c, cgv::render::shader_program& p) const

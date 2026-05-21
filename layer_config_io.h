@@ -1,12 +1,14 @@
 #pragma once
 
+#include <memory>
+
 // CGV framework core
 #include <cgv/utils/file.h>
 #include <cgv/utils/scan.h>
 
-// CGV framework application utility
-#include <cgv_app/color_map_reader.h>
-#include <cgv_app/color_map_writer.h>
+// CGV framework libraries
+#include <cmc_io/transfer_function_reader.h>
+#include <cmc_io/transfer_function_writer.h>
 
 // CGV framework 3rd party libraries
 #include <3rd/xml/tinyxml2/tinyxml2.h>
@@ -19,9 +21,6 @@
 
 
 class layer_configuration_io {
-public:
-	using vec2 = cgv::vec2;
-
 private:
 	static int index_of(const std::vector<std::string>& v, const std::string& elem) {
 
@@ -36,10 +35,9 @@ private:
 
 		printer.OpenElement("ColorMaps");
 
-		const auto& color_maps = color_map_mgr.ref_color_maps();
-		for(const auto& cmc : color_maps) {
-			if(cmc.custom)
-				cgv::app::color_map_writer::to_xml_printer(printer, cmc.name, cmc.cm, false);
+		for(const auto& color_map : color_map_mgr.ref_color_maps()) {
+			if(color_map.user_defined)
+				cgv::media::transfer_function_writer::to_xml_printer(printer, color_map.name, &color_map.ramp, false);
 		}
 
 		printer.CloseElement();
@@ -50,21 +48,21 @@ private:
 		std::shared_ptr<const visualization_variables_info> visualization_variables,
 		const glyph_attribute_mapping& gam) {
 
-		const auto* shape_ptr = gam.get_shape_ptr();
+		const glyph_shape* shape = gam.get_shape();
 
-		if(shape_ptr) {
+		if(shape) {
 			printer.OpenElement("Layer");
 
 			cgv::xml::PushAttribute(printer, "name", gam.get_name());
 			cgv::xml::PushAttribute(printer, "active", gam.get_active());
-			cgv::xml::PushAttribute(printer, "glyph", shape_ptr->name());
+			cgv::xml::PushAttribute(printer, "glyph", shape->name());
 
 			std::string sampling_type = "";
 
 			switch(gam.get_sampling_strategy()) {
-			case ASS_AT_SAMPLES: sampling_type = "original"; break;
-			case ASS_UNIFORM: sampling_type = "uniform"; break;
-			case ASS_EQUIDIST: sampling_type = "equidist"; break;
+			case AttributeSamplingStrategy::kOriginalSamples: sampling_type = "original"; break;
+			case AttributeSamplingStrategy::kUniformTime: sampling_type = "uniform"; break;
+			case AttributeSamplingStrategy::kEquidistant: sampling_type = "equidist"; break;
 			default: break;
 			}
 
@@ -74,7 +72,7 @@ private:
 					cgv::xml::PushAttribute(printer, "sampling_step", std::to_string(gam.get_sampling_step()));
 			}
 
-			write_layer_properties(printer, visualization_variables, gam, shape_ptr->supported_attributes());
+			write_layer_properties(printer, visualization_variables, gam, shape->supported_attributes());
 
 			printer.CloseElement();
 		}
@@ -117,13 +115,13 @@ private:
 			printer.OpenElement("Property");
 			cgv::xml::PushAttribute(printer, "name", attribute.name);
 
-			if(!(attribute.modifiers & GAM_GLOBAL)) {
+			if((attribute.modifiers & GlyphAttributeModifier::kGlobal) == GlyphAttributeModifier::kNone) {
 				int attribute_index = attribute_indices[i];
 				if(attribute_index > -1)
 					cgv::xml::PushAttribute(printer, "attrib_name", attribute_names[attribute_index]);
 			}
 
-			if(attribute.type == GAT_COLOR) {
+			if(attribute.type == GlyphAttributeType::kColor) {
 				int color_index = color_indices[i];
 				if(color_index > -1)
 					cgv::xml::PushAttribute(printer, "color_map_name", color_map_names[color_index]);
@@ -131,19 +129,18 @@ private:
 					cgv::xml::PushAttribute(printer, "color", colors[i]);
 			}
 
-			cgv::vec4 mr = mapping_ranges[i];
-			if(attribute.modifiers & GAM_GLOBAL) {
-				if(attribute.type != GAT_COLOR)
-					cgv::xml::PushAttribute(printer, "value", std::to_string(mr.w()));
+			scalar_mapping mr = mapping_ranges[i];
+			if((attribute.modifiers & GlyphAttributeModifier::kGlobal) != GlyphAttributeModifier::kNone) {
+				if(attribute.type != GlyphAttributeType::kColor)
+					cgv::xml::PushAttribute(printer, "value", std::to_string(mr.output_range.y()));
 			} else {
-				cgv::xml::PushAttribute(printer, "in_range", cgv::vec2(mr.x(), mr.y()));
+				cgv::xml::PushAttribute(printer, "in_range", mr.input_range);
 			}
-			if(attribute.type != GAT_UNIT &&
-			   attribute.type != GAT_SIGNED_UNIT &&
-			   //attribute.type != GAT_COLOR &&
-			   attribute.type != GAT_OUTLINE
+			if(attribute.type != GlyphAttributeType::kUnit &&
+			   attribute.type != GlyphAttributeType::kSignedUnit &&
+			   attribute.type != GlyphAttributeType::kOutline
 			   ) {
-				cgv::xml::PushAttribute(printer, "out_range", cgv::vec2(mr.z(), mr.w()));
+				cgv::xml::PushAttribute(printer, "out_range", mr.output_range);
 			}
 
 			printer.CloseElement();
@@ -152,14 +149,13 @@ private:
 
 	static void extract_color_maps(const tinyxml2::XMLElement& elem, color_map_manager& color_map_mgr) {
 
-		cgv::app::color_map_reader::result color_maps;
-		cgv::app::color_map_reader::read_from_xml(elem, color_maps);
+		cgv::media::transfer_function_reader_result read_result = cgv::media::transfer_function_reader::read_from_xml(elem);
 
 		// clear previous custom color maps
 		std::vector<std::string> current_names;
 		const auto& current_color_maps = color_map_mgr.ref_color_maps();
 		for(size_t i = 0; i < current_color_maps.size(); ++i) {
-			if(current_color_maps[i].custom)
+			if(current_color_maps[i].user_defined)
 				current_names.push_back(current_color_maps[i].name);
 		}
 
@@ -167,8 +163,9 @@ private:
 			color_map_mgr.remove_color_map_by_name(current_names[i]);
 
 		// add new custom color maps
-		for(const auto& entry : color_maps)
-			color_map_mgr.add_color_map(entry.first, entry.second, true);
+		for(const auto& entry : read_result.entries) {
+			color_map_mgr.add_color_map(entry.name, *entry.transfer_function.get(), true);
+		}
 	}
 
 	static void extract_layer(const tinyxml2::XMLElement& elem,
@@ -203,7 +200,7 @@ private:
 
 	static void extract_layer_attributes(const tinyxml2::XMLElement& elem,
 										 glyph_attribute_mapping& gam,
-										 const glyph_shape*& shape_ptr,
+										 const glyph_shape*& shape,
 										 std::vector<std::string>& shape_attribute_names) {
 
 		std::string layer_name = "";
@@ -216,22 +213,22 @@ private:
 
 		std::string glyph_name = "";
 		if(cgv::xml::QueryStringAttribute(elem, "glyph", glyph_name) == tinyxml2::XML_SUCCESS) {
-			GlyphType glyph_type = glyph_type_registry::type(glyph_name);
+			GlyphType glyph_type = glyph_type_registry::get_type_by_name(glyph_name);
 			gam.set_glyph_type(glyph_type);
-			shape_ptr = gam.get_shape_ptr();
+			shape = gam.get_shape();
 
-			for(const auto& a : shape_ptr->supported_attributes())
+			for(const auto& a : shape->supported_attributes())
 				shape_attribute_names.push_back(a.name);
 		}
 
 		std::string sampling = "";
 		if(cgv::xml::QueryStringAttribute(elem, "sampling", sampling) == tinyxml2::XML_SUCCESS) {
 			if(sampling == "original") {
-				gam.set_sampling_strategy(ASS_AT_SAMPLES);
+				gam.set_sampling_strategy(AttributeSamplingStrategy::kOriginalSamples);
 			} else if(sampling == "uniform") {
-				gam.set_sampling_strategy(ASS_UNIFORM);
+				gam.set_sampling_strategy(AttributeSamplingStrategy::kUniformTime);
 			} else if(sampling == "equidist") {
-				gam.set_sampling_strategy(ASS_EQUIDIST);
+				gam.set_sampling_strategy(AttributeSamplingStrategy::kEquidistant);
 			}
 		}
 
@@ -276,7 +273,7 @@ private:
 			gam.set_attrib_source_index(static_cast<size_t>(shape_attrib_idx), attrib_idx);
 		}
 
-		if(attrib.modifiers & GAM_GLOBAL) {
+		if((attrib.modifiers & GlyphAttributeModifier::kGlobal) != GlyphAttributeModifier::kNone) {
 			float value = 1.0f;
 			if(elem.QueryFloatAttribute("value", &value) == tinyxml2::XML_SUCCESS)
 				gam.set_attrib_out_range(shape_attrib_idx, cgv::vec2(0.0f, value));
@@ -290,17 +287,16 @@ private:
 			input_ranges.push_back({ -1, in_range });
 		}
 
-		if(attrib.type != GAT_UNIT &&
-		   attrib.type != GAT_SIGNED_UNIT &&
-		   //attrib.type != GAT_COLOR &&
-		   attrib.type != GAT_OUTLINE
+		if(attrib.type != GlyphAttributeType::kUnit &&
+		   attrib.type != GlyphAttributeType::kSignedUnit &&
+		   attrib.type != GlyphAttributeType::kOutline
 		   ) {
 			cgv::vec2 out_range(0.0f, 1.0f);
 			if(cgv::xml::QueryVecAttribute(elem, "out_range", out_range) == tinyxml2::XML_SUCCESS)
 				gam.set_attrib_out_range(shape_attrib_idx, out_range);
 		}
 
-		if(shape_ptr->supported_attributes()[shape_attrib_idx].type == GAT_COLOR) {
+		if(shape_ptr->supported_attributes()[shape_attrib_idx].type == GlyphAttributeType::kColor) {
 			int color_map_idx = -1;
 			std::string color_map_name = "";
 			if(cgv::xml::QueryStringAttribute(elem, "color_map_name", color_map_name) == tinyxml2::XML_SUCCESS) {

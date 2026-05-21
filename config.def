@@ -3,9 +3,9 @@ type(fltk_viewer_window):theme=dark
 
 // Data
 // - dataset to load
-type(on_tube_vis):datapath="./testdata/cps_drone.csv"
+//type(on_tube_vis):datapath=""
 // - initial glyph layer config
-type(on_tube_vis):layer_config_file="./testdata/cps_drone_apiGlyphs.xml"
+//type(on_tube_vis):layer_config_file="./testdata/layerconf_1layer_defaultprocedural.xml"
 // - what fraction of segments should fit in case of internally streamed datasets (default: 100%)
 type(on_tube_vis):buf_size_fract=1
 // - how many more glyphs than segments should fit into the per-traj-and-layer glyph buffers (default: 8)
@@ -21,6 +21,12 @@ type(maptiles):frustum_raster_tiles_count=8
 type(maptiles):frustum_raster_tiles_distance=0.02
 type(maptiles):frustum_3d_tiles_distance=0.02
 type(maptiles):frustum_based_tiles=true
+
+// Scene database
+// - the scene collection file (uncomment and set in your local config.cfg)
+//type(screenshot):screenshots_file="./testdata/scenes.xml"
+// - whether to immediately unlock  the camera controls after switching to a scene
+//type(on_tube_vis):unlock_after_scene_switch=true
 
 // Visualization and general settings
 // - How node attributes are made available to the spline tube shader when using the rasterization render path
@@ -41,8 +47,8 @@ type(maptiles):frustum_based_tiles=true
 // - Bounding box visibility
 type(on_tube_vis):show_bounding_box=false
 type(on_tube_vis):show_wireframe_box=true
-// - Grid mode: GM_NONE - no grid, GM_COLOR - color only, GM_NORMAL - normal mapping only, GM_COLOR_AND_NORMAL - color and normal mapping (default)
-type(on_tube_vis):grid_mode=GM_COLOR_AND_NORMAL
+// - Grid mode: None - no grid, Color - color only, Normal - normal mapping only, ColorAndNormal - color and normal mapping (default)
+type(on_tube_vis):grid_mode=ColorAndNormal
 // - Debugging
 type(on_tube_vis):show_hidden_glyphs=false
 // - Use ambient occlusion
@@ -52,6 +58,10 @@ type(on_tube_vis):ambient_occlusion=true
 
 // Framework settings
 name(Stereo Interactor):clip_relative_to_extent=false
+//name(Stereo Interactor):stereo_mode=vsplit
+name(Stereo Interactor):stereo_translate_in_model_view=true
+// Good eye distance setting for the LG 3D TV in Holodeck:
+//name(Stereo Interactor):eye_distance=0.00600
 
 // Raycasted ribbon renderer settings
 // - threshold for the linearity measure under which a (sub-)curve is considered linear (0 means actual true mathematical linearity)

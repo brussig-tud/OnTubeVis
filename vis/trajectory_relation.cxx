@@ -1,5 +1,6 @@
 #ifndef _USE_MATH_DEFINES
 	#define _USE_MATH_DEFINES
+#include "cgv/render/shader_code.h"
 #endif
 
 // CGV framework
@@ -93,12 +94,10 @@ void trajectory_relation::set_defaults (cgv::vec4 extent)
 	sample_rate = 1e3f / extent[3];
 }
 
-void trajectory_relation::set_defines (cgv::render::shader_define_map& d) const
+void trajectory_relation::set_defines (cgv::render::shader_compile_options& opts) const
 {
-	using sc = cgv::render::shader_code;
-	// Use an undefined value as default so the define is always stored explicitely.
-	sc::set_define(d, "TRAJ_REL_SHADING",  shading.value,                   ~0u);
-	sc::set_define(d, "TRAJ_REL_FUNCTION", static_cast<uint32_t>(function), ~0u);
+	opts.define_macro("TRAJ_REL_SHADING",  shading.value                  );
+	opts.define_macro("TRAJ_REL_FUNCTION", static_cast<uint32_t>(function));
 }
 
 void trajectory_relation::set_uniforms (

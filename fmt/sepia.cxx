@@ -1190,7 +1190,7 @@ traj_dataset<flt_type> sepia<flt_type>::read (
 		}
 
 		// load all trajectory files in the collection
-		for (const auto file : traj_files)
+		for (const auto& file : traj_files)
 		{
 			std::ifstream contents(file);
 			if (contents.is_open())

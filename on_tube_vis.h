@@ -9,9 +9,13 @@
 
 // CGV framework core
 #include <cgv/base/group.h>
+#include <cgv/gui/event_handler.h>
 #include <cgv/gui/provider.h>
 #include <cgv/gui/help_message.h>
 #include <cgv/gui/file_helper.h>
+#include <cgv/media/transfer_function.h>
+#include <cgv/render/color_scale_adapter.h>
+#include <cgv/render/drawable.h>
 #include <cgv/render/managed_frame_buffer.h>
 #include <cgv/render/shader_library.h>
 #include <cgv/utils/stopwatch.h>
@@ -22,16 +26,22 @@
 #include <cgv_gl/sphere_render_data.h>
 #include <cgv_gl/volume_renderer.h>
 
-// CGV framework application utility
-#include <cgv_app/color_map_editor.h>
-#include <cgv_app/navigator.h>
-#include <cgv_app/performance_monitor.h>
+// CGV framework overlays
+#include <cgv_overlay/navigator.h>
+#include <cgv_overlay/performance_monitor.h>
+#include <cgv_overlay/transfer_function_editor.h>
 
 // CGV framework post processing algorithms
 #include <cgv_post/temporal_anti_aliasing.h>
 
 // OnTubeVis private streaming API
 #include "api/state/core.h"
+
+// CGV framework plugins
+// - stereo_view_interactor for controlling/listening to camera changes
+#include <plugins/crg_stereo_view/stereo_view_interactor.h>
+// - screenshot plugin for saving/restoring scenes
+#include <plugins/screenshot/screenshot.h>
 
 // local includes
 #include "traj_loader.h"
@@ -50,20 +60,8 @@
 #include "optix_integration.h"
 #include "optixtracer_textured_spline_tube.h"
 #endif
+#include "userstudies/ribbons_vs_tubes/trial.h"
 
-
-namespace cgv {
-namespace reflect {
-
-// define custom reflection traits for the GridMode
-enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&);
-
-}
-}
-
-
-
-using namespace cgv::render;
 
 ////
 // Plugin definition
@@ -191,26 +189,26 @@ protected:
 
 		// framebuffer attachment references (except depth, which is a texture we own for an NVIDIA driver bug workaround)
 		struct {
-			texture *albedo, *position, *normal, *tangent, depth;
+			cgv::render::texture *albedo, *position, *normal, *tangent, depth;
 		} fb;
 	} optix;
 
 	void optix_cleanup (void);
 	void optix_unregister_resources (void);
 
-	bool optix_ensure_init (context &ctx);
+	bool optix_ensure_init (cgv::render::context &ctx);
 
 	bool optix_init (void);
-	bool optix_register_resources (context &ctx);
+	bool optix_register_resources (cgv::render::context &ctx);
 
-	void optix_draw_trajectories (context &ctx);
+	void optix_draw_trajectories (cgv::render::context &ctx);
 
 	// ###############################
 	// ###  END:  OptiX integration
 	// ###############################
 #endif
 
-	view* view_ptr = nullptr;
+	cgv::render::view* view_ptr = nullptr;
 
 	// don't load any dataset, disable most GUIs
 	bool run_as_service = false;
@@ -219,12 +217,12 @@ protected:
 	bool data_init_pending = true;
 	std::optional<std::string> layer_cfg_init_pending;
 
-	cgv::app::color_map_editor_ptr cm_editor_ptr;
-	cgv::app::color_map_editor_ptr tf_editor_ptr;
-	cgv::app::navigator_ptr navigator_ptr;
+	cgv::overlay::transfer_function_editor_ptr cm_editor_ptr;
+	cgv::overlay::transfer_function_editor_ptr tf_editor_ptr;
+	cgv::overlay::navigator_ptr navigator_ptr;
 	cgv::data::ref_ptr<color_map_viewer> cm_viewer_ptr;
 	cgv::data::ref_ptr<mapping_legend> mapping_legend_ptr;
-	cgv::app::performance_monitor_ptr perfmon_ptr;
+	cgv::overlay::performance_monitor_ptr perfmon_ptr;
 	bool show_mapping_legend = true;
 	bool show_color_map_viewer = false;
 	bool show_navigator = false;
@@ -235,10 +233,10 @@ protected:
 
 protected:
 	/// shader defines for the deferred shading pass
-	shader_define_map tube_shading_defines;
+	cgv::render::shader_compile_options tube_shading_options;
 
 	/// store the current OpenGL viewport configuration
-	GLint viewport[4];
+	GLint viewport[4] = { 0, 0, 0, 0 };
 
 	/// GUI help message
 	cgv::gui::help_message help;
@@ -285,13 +283,13 @@ protected:
 		bool rtlola_show_map = true;
 
 		/// the map texture that will be displayed under the RTLola drone flight demo dataset
-		texture rtlola_map_tex;
+		cgv::render::texture rtlola_map_tex;
 
 		/// VAO used to draw the map for the RTLola drone flight demo dataset
-		attribute_array_binding rtlola_map_vao;
+		cgv::render::attribute_array_binding rtlola_map_vao;
 
 		/// vertex buffer for the quad containing the map for the RTLola drone flight demo dataset
-		vertex_buffer rtlola_map_vbo;
+		cgv::render::vertex_buffer rtlola_map_vbo;
 	} dataset;
 
 public:
@@ -301,8 +299,9 @@ public:
 protected:
 	cgv::render::managed_frame_buffer fbc;
 	cgv::render::shader_library shaders;
-	volume_render_style vstyle;
-	cgv::render::gl_color_map volume_tf;
+	cgv::render::volume_render_style vstyle;
+	std::shared_ptr<cgv::media::transfer_function> volume_tf = std::make_shared<cgv::media::transfer_function>();
+	cgv::render::color_scale_adapter volume_tf_adapter;
 
 	// playback
 	struct {
@@ -319,6 +318,12 @@ protected:
 		double time_active = 0.;
 		cgv::utils::stopwatch timer = &time_active;
 	} playback;
+
+	// user studies
+	struct {
+		userstudies::trial *active_trial = nullptr;
+		userstudies::RvT::trial ribbons_vs_tubes_trial;
+	} user_studies;
 
 	void playback_rewind() {
 		render.style.max_t = client.playback_t = (float)playback.tstart;
@@ -379,6 +384,7 @@ public:
 
 protected:
 	int render_gui_dummy = 0;
+	cgv::render::textured_spline_tube_render_style::AttribMode attrib_mode_bak = render.style.attrib_mode;
 
 public:
 	/// trajectory manager
@@ -394,6 +400,11 @@ protected:
 	/// color map legend manager
 	color_legend_manager color_legend_mgr;
 	bool update_legends = false; // flag indicating whether the color and mapping legends need updating during init_frame
+
+	unsigned scene_switch_state = 0;
+	bool unlock_after_scene_switch = true;
+	signed selected_scene = -1;
+	screenshot *screenshot_ptr = nullptr;
 
 	/// benchmark state fields
 	struct {
@@ -420,17 +431,17 @@ protected:
 	} benchmark;
 
 	/// the different debug render modes
-	enum DebugRenderMode {
-		DRM_NONE,
-		DRM_NODES,
-		DRM_SEGMENTS,
-		DRM_NODES_SEGMENTS,
-		DRM_VOLUME
+	enum class DebugRenderMode {
+		kDisabled,
+		kNodes,
+		kSegments,
+		kNodesAndSegments,
+		kVolume
 	};
 
 	/// debug state fields
 	struct debug_settings {
-		DebugRenderMode render_mode = DRM_NONE;
+		DebugRenderMode render_mode = DebugRenderMode::kDisabled;
 
 		/// debug render data
 		struct {
@@ -438,6 +449,8 @@ protected:
 			cgv::render::cone_render_data<> segments;
 		} geometry;
 
+		// whether to print out information about placed glyphs like count and attribute count after compiling the layers
+		bool print_glyph_information = false;
 		/// whether to higlight individual segments in the textured spline tube renderer
 		bool highlight_segments = false;
 		/// whether to show glyphs that are normally not drawn due to overlap in a transparent fashion
@@ -469,9 +482,9 @@ protected:
 		/// "smart" tube/ribbon toggle
 		struct {
 			/// stores the most recent "explicitly" selected rasterization tube primitive type
-			textured_spline_tube_render_style::LinePrimitive last_tube_primitive = textured_spline_tube_render_style::LP_TUBE_RUSSIG;
+			cgv::render::textured_spline_tube_render_style::LinePrimitive last_tube_primitive = cgv::render::textured_spline_tube_render_style::LP_TUBE_RUSSIG;
 			/// stores the most recent "explicitly" selected ribbon tube primitive type
-			textured_spline_tube_render_style::LinePrimitive last_ribbon_primitive = textured_spline_tube_render_style::LP_RIBBON_RAYCASTED;
+			cgv::render::textured_spline_tube_render_style::LinePrimitive last_ribbon_primitive = cgv::render::textured_spline_tube_render_style::LP_RIBBON_RAYCASTED;
 			/// flags that the last change to the selected line primitive was from this toggle
 			bool was_toggled = false;
 			/// convencience function for check-and-resetting the toggle flag
@@ -492,8 +505,8 @@ protected:
 
 	box3 bbox;
 
-	texture density_tex;
-	texture tf_tex;
+	cgv::render::texture density_tex;
+	cgv::render::texture tf_tex;
 
 	voxelizer density_volume;
 	ambient_occlusion_style ao_style_bak; // used to restore defaults after demo data is unloaded
@@ -511,24 +524,29 @@ protected:
 	void update_scene_extents (void);
 	void set_view(void);
 
-	void ensure_initial_dataset(context& ctx);
-	void update_dataset(context &ctx, bool cause_new_session=true);
+	void ensure_initial_dataset(cgv::render::context& ctx);
+	void update_dataset(cgv::render::context &ctx, bool cause_new_session=true);
 	bool update_visualizations(bool may_cause_new_session=true);
 	void update_grid_ratios(void);
 	void update_attribute_bindings(void);
 	void update_debug_attribute_bindings(void);
+	void initialize_sorter(void);
 	void calculate_bounding_box(void);
 
-	void create_density_volume(context& ctx, unsigned resolution);
+	void create_density_volume(cgv::render::context& ctx, unsigned resolution);
 
 	/// draw methods
-	void draw_dnd(context& ctx);
-	void draw_trajectories(context& ctx);
-	void draw_density_volume(context& ctx);
+	void draw_dnd(cgv::render::context& ctx);
+	void draw_trajectories(cgv::render::context& ctx);
+	void draw_density_volume(cgv::render::context& ctx);
 
 	/// helper methods
-	void on_register();
+	cgv::render::shader_compile_options build_tube_shading_options();
+	void on_register() override;
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
+
+	void on_view_interaction (const view_interaction &interaction);
+	void handle_screenshot_change (screenshot::event &event);
 
 
 	/// Trajectory hash grid settings.
@@ -551,28 +569,27 @@ public:
 	on_tube_vis();
 	~on_tube_vis();
 
-	std::string get_type_name() const { return "on_tube_vis"; }
-	void handle_args(std::vector<std::string> &args);
+	std::string get_type_name() const override { return "on_tube_vis"; }
+	void handle_args(std::vector<std::string> &args) override;
 
-	void clear(context& ctx);
+	void clear(cgv::render::context& ctx) override;
 
-	bool self_reflect(cgv::reflect::reflection_handler& rh);
-	void stream_help(std::ostream& os);
-	void stream_stats(std::ostream& os) {}
+	bool self_reflect(cgv::reflect::reflection_handler& rh) override;
+	void stream_help(std::ostream& os) override;
+	void stream_stats(std::ostream& os) override {}
 
-	bool handle(cgv::gui::event& e);
+	bool handle(cgv::gui::event& e) override;
 	void handle_color_map_change();
-	void handle_transfer_function_change();
-	void on_set(void* member_ptr);
+	void on_set(void* member_ptr) override;
 	void quit();
-	bool on_exit_request();
+	bool on_exit_request() override;
 
-	bool init(context& ctx);
-	void init_frame(context& ctx);
-	void draw(context& ctx);
-	void after_finish(context& ctx);
+	bool init(cgv::render::context& ctx) override;
+	void init_frame(cgv::render::context& ctx) override;
+	void draw(cgv::render::context& ctx) override;
+	void after_finish(cgv::render::context& ctx) override;
 
-	void create_gui();
+	void create_gui() override;
 };
 
 

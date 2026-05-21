@@ -2,46 +2,46 @@
 // Implemented header
 #include "common.h"
 
-cgv::render::shader_define_map tube_shading_settings::build_tube_shading_defines(
+cgv::render::shader_compile_options tube_shading_settings::build_tube_shading_options (
 	const glyph_layer_manager::configuration &glyph_layers_config, bool debug_highlight_segments
 ) const {
-	cgv::render::shader_define_map defines;
+	cgv::render::shader_compile_options options;
 
 	// streaming-related defines
-	cgv::render::shader_code::set_define(defines, "ALTERNATIVE_RING_BUFFER", alternative_ring_buffer, false);
+	options.define_macro_if_not_default("ALTERNATIVE_RING_BUFFER", alternative_ring_buffer, false);
 
 	// debug defines
-	cgv::render::shader_code::set_define(defines, "DEBUG_SEGMENTS", debug_highlight_segments, false);
+	options.define_macro_if_not_default("DEBUG_SEGMENTS", debug_highlight_segments, false);
 
 	// ambient occlusion defines
-	cgv::render::shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
+	options.define_macro_if_not_default("ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
 
 	// grid defines
-	cgv::render::shader_code::set_define(defines, "GRID_MODE", grid_mode, GM_COLOR);
+	options.define_macro_if_not_default("GRID_MODE", grid_mode, GridMode::kColor);
 	auto gs = static_cast<unsigned>(grid_normal_settings);
 	if(grid_normal_inwards) gs += 4u;
 	if(grid_normal_variant) gs += 8u;
-	cgv::render::shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
-	cgv::render::shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
+	options.define_macro_if_not_default("GRID_NORMAL_SETTINGS", gs, 0u);
+	options.define_macro_if_not_default("ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
 	// glyph layer defines
 	//if (render.visualizations.size() > 0)
 	{
-		cgv::render::shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
+		options.define_macro_if_not_default("GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
 
-		cgv::render::shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
-		cgv::render::shader_code::set_define(defines, "CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
-		cgv::render::shader_code::set_define(defines, "MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
+		options.define_macro_if_not_default("CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
+		options.define_macro_if_not_default("CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
+		options.define_macro_if_not_default("MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
 
 		for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
 			const auto& lc = glyph_layers_config.layer_configs[i];
-			cgv::render::shader_code::set_define(defines, "L" + std::to_string(i) + "_VISIBLE", lc.visible, true);
-			cgv::render::shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
-			cgv::render::shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
+			options.define_macro_if_not_default("L" + std::to_string(i) + "_VISIBLE", lc.visible, true);
+			options.define_macro_if_not_default("L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
+			options.define_macro_if_not_default("L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
 		}
 	}
 
-	return defines;
+	return options;
 }
 
 void tube_shading_settings::set_uniforms (
@@ -105,8 +105,8 @@ void tube_shading_settings::set_uniforms (
 	prog.set_uniform(ctx, "antialias_radius", render_style.antialias_radius);
 
 	// CGV surface/lighting parameters
-	const auto &srs = *static_cast<const cgv::render::surface_render_style*>(&render_style);
-	prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
-	prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
-	prog.set_uniform(ctx, "illumination_mode", int(srs.illumination_mode));
+	ctx.set_material(render_style.material);
+	prog.set_uniform(ctx, "map_color_to_material", static_cast<int>(render_style.map_color_to_material));
+	prog.set_uniform(ctx, "culling_mode", static_cast<int>(render_style.culling_mode));
+	prog.set_uniform(ctx, "illumination_mode", static_cast<int>(render_style.illumination_mode));
 }

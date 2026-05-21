@@ -121,17 +121,17 @@ struct node_data_type {
 
 // node attribute buffer
 layout(std430, binding = 0) readonly buffer data_buffer {
-    node_data_type nodes[];
+	node_data_type nodes[];
 };
 
 // arclen approximations SBO
 layout (std430, binding = 1) readonly buffer arclen_buffer {
-    mat4 b[]; // 4 cubic beziers packed into columns of mat4
+	mat4 b[]; // 4 cubic beziers packed into columns of mat4
 };
 
 // node index pair buffer
 layout(std430, binding = 2) readonly buffer nid_buffer {
-    uvec2 node_ids[];
+	uvec2 node_ids[];
 };
 
 // buffer storing which trajectory each segment belongs to.
@@ -196,8 +196,8 @@ float alen (float t)
 	return eval_cubic_bezier(t_inner, b[segment_id_fs][seg]);
 }
 
-// Produces an orthogonal vector to v. Doesn�t require the input
-// to be normalized and doesn�t normalise the output.
+// Produces an orthogonal vector to v. Doesn't require the input
+// to be normalized and doesn't normalise the output.
 // source: http://lolengine.net/blog/2013/09/21/picking-orthogonal-vector-combing-coconuts
 vec3 GetOrthoVec(vec3 v)
 {

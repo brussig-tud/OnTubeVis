@@ -100,7 +100,7 @@ public:
 
 	/// Statically configure shaders through macros.
 	/// `buffer_binding` must be the index at which the GPU buffer used by this grid will be bound.
-	void set_defines (cgv::render::shader_define_map&, GLuint buffer_binding) const;
+	void set_defines (cgv::render::shader_compile_options&, GLuint buffer_binding) const;
 	/// Dynamically configure shaders through uniforms.
 	void set_uniforms (cgv::render::context&, cgv::render::shader_program&) const;
 
