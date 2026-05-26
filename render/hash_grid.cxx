@@ -456,17 +456,14 @@ void hash_grid::set_defines (cgv::render::shader_compile_options& opts, GLuint b
 void hash_grid::set_uniforms (cgv::render::context& c, cgv::render::shader_program& p) const
 {
 	auto const memory = _memory->span();
-	auto ok = true
-	&& p.set_uniform(c, "hash_grid_cell_size", _cell_size)
-	&& p.set_uniform(c, "hash_grid_scale",     _scale)
+	p.set_uniform(c, "hash_grid_cell_size", _cell_size);
+	p.set_uniform(c, "hash_grid_scale",     _scale);
 	// All members of `_data` have a common `span_t` subsequence, so reading `buckets` is always
 	// valid.
-	&& p.set_uniform(c, "hash_grid_data.start.address", _data.buckets.start.address)
-	&& p.set_uniform(c, "hash_grid_data.len",           _data.buckets.len)
-	;
+	p.set_uniform(c, "hash_grid_data.start.address", _data.buckets.start.address);
+	p.set_uniform(c, "hash_grid_data.len",           _data.buckets.len);
 	if (_layout == layout::t_xyz)
-		ok &= p.set_uniform(c, "hash_grid_timesteps.address", _data.tables.timesteps.address);
-	assert(ok);
+		p.set_uniform(c, "hash_grid_timesteps.address", _data.tables.timesteps.address);
 }
 
 void hash_grid::free () noexcept

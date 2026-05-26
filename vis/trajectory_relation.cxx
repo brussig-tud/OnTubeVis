@@ -104,19 +104,16 @@ void trajectory_relation::set_uniforms (
 	cgv::render::context&        c,
 	cgv::render::shader_program& p
 ) const {
-	auto ok = true
-	&& p.set_uniform(c, "traj_rel_radius",                radius)
-	&& p.set_uniform(c, "traj_rel_sample_rate",           sample_rate)
-	&& p.set_uniform(c, "traj_rel_direction.value",       static_cast<uint32_t>(direction))
-	&& p.set_uniform(c, "traj_rel_ref_traj",              reference_trajectory)
-	&& p.set_uniform(c, "traj_rel_normalize",             normalize)
-	&& p.set_uniform(c, "traj_rel_color_map",             color_map.value)
-	&& p.set_uniform(c, "traj_rel_color_range",           color_range)
-	&& p.set_uniform(c, "traj_rel_color_transform.value", static_cast<uint32_t>(color_transform))
-	&& p.set_uniform(c, "traj_rel_highlight_color",       highlight_color)
-	&& p.set_uniform(c, "traj_rel_background_color",      background_color)
-	;
-	assert(ok);
+	p.set_uniform(c, "traj_rel_radius",                radius);
+	p.set_uniform(c, "traj_rel_sample_rate",           sample_rate);
+	p.set_uniform(c, "traj_rel_direction.value",       static_cast<uint32_t>(direction));
+	p.set_uniform(c, "traj_rel_ref_traj",              reference_trajectory);
+	p.set_uniform(c, "traj_rel_normalize",             normalize);
+	p.set_uniform(c, "traj_rel_color_map",             color_map.value);
+	p.set_uniform(c, "traj_rel_color_range",           color_range);
+	p.set_uniform(c, "traj_rel_color_transform.value", static_cast<uint32_t>(color_transform));
+	p.set_uniform(c, "traj_rel_highlight_color",       highlight_color);
+	p.set_uniform(c, "traj_rel_background_color",      background_color);
 }
 
 auto get_reflection_traits(enum otv::vis::trajectory_relation::function const&)
