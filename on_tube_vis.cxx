@@ -380,7 +380,7 @@ bool on_tube_vis::init(context& ctx) {
 	// init color maps
 	// - populate registry
 	auto& color_scheme_registry = cgv::media::get_global_continuous_color_scheme_registry();
-	crameri::load_continuous_color_scheme_presets(color_scheme_registry, { cgv::media::ColorSchemeType::kSequential, cgv::media::ColorSchemeType::kDiverging });
+	crameri::load_continuous_color_scheme_presets(color_scheme_registry, { cgv::media::ColorSchemeType::Sequential, cgv::media::ColorSchemeType::Diverging });
 
 	// - manager
 	color_map_mgr.init(ctx);
@@ -1083,7 +1083,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 				cgv::media::transfer_function* color_ramp = color_map_mgr.get_edited_color_ramp();
 				if(color_ramp) {
 					auto transfer_function = std::make_shared<cgv::media::transfer_function>(*color_ramp);
-					transfer_function->set_interpolation(cgv::media::transfer_function::InterpolationMode::kSmooth);
+					transfer_function->set_interpolation(cgv::media::transfer_function::InterpolationMode::Smooth);
 					cm_editor_ptr->set_transfer_function(transfer_function);
 					cm_editor_ptr->set_visibility(true);
 				} else {
