@@ -557,8 +557,9 @@ protected:
 
 	/// Create a new trajectory hash grid with the current parameters, then insert all segments.
 	void build_hash_grid ();
-	/// Set shader defines for calculating and visualizing trajectory relations using the hash grid.
-	void set_traj_rel_defines (cgv::render::context&);
+	/// Set shader compile options for calculating and visualizing trajectory relations using the
+	/// hash grid.
+	void set_traj_rel_shader_opts (cgv::render::context&);
 	/// Begin a render time benchmark for the visualization of trajectory relations.
 	void start_traj_rel_benchmark ();
 	/// Called when all measurements for a trajectory relation benchmark have been taken.

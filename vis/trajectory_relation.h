@@ -106,8 +106,8 @@ struct trajectory_relation {
 	/// Select sensible default values for a dataset of the given size.
 	void set_defaults (cgv::vec4 extent);
 
-	/// Statically configure shaders through macros.
-	void set_defines (cgv::render::shader_compile_options&) const;
+	/// Statically configure shaders through text substitution.
+	void set_shader_opts (cgv::render::shader_compile_options&) const;
 	/// Dynamically configure shaders through uniforms.
 	void set_uniforms (cgv::render::context&, cgv::render::shader_program&) const;
 };

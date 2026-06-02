@@ -94,7 +94,7 @@ void trajectory_relation::set_defaults (cgv::vec4 extent)
 	sample_rate = 1e3f / extent[3];
 }
 
-void trajectory_relation::set_defines (cgv::render::shader_compile_options& opts) const
+void trajectory_relation::set_shader_opts (cgv::render::shader_compile_options& opts) const
 {
 	opts.define_macro("TRAJ_REL_SHADING",  shading.value                  );
 	opts.define_macro("TRAJ_REL_FUNCTION", static_cast<uint32_t>(function));

@@ -442,7 +442,7 @@ void hash_grid::add_segment (
 	add_interval(prev_index, {node_idcs, {min_time, end.t[0]}});
 }
 
-void hash_grid::set_defines (cgv::render::shader_compile_options& opts, GLuint buffer_binding) const
+void hash_grid::set_shader_opts (cgv::render::shader_compile_options& opts, GLuint buffer_binding) const
 {
 	opts.define_macro("HASH_GRID_BUFFER_BINDING",   buffer_binding        );
 	opts.define_macro("HASH_GRID_ADDRESS_UNIT",     address_unit          );

@@ -1414,7 +1414,7 @@ void on_tube_vis::update_dataset(context &ctx, bool cause_new_session)
 	tube_shading_options = tube_shading.build_tube_shading_options(
 		render.visualizations.front().config, debug.highlight_segments
 	);
-	set_traj_rel_defines(ctx);
+	set_traj_rel_shader_opts(ctx);
 	shaders.reload(ctx, "tube_shading", tube_shading_options);
 
 	// reset glyph layer configuration file
@@ -1467,7 +1467,7 @@ bool on_tube_vis::update_visualizations(bool may_cause_new_session) {
 		tube_shading_options = tube_shading.build_tube_shading_options(
 			render.visualizations.front().config, debug.highlight_segments
 		);
-		set_traj_rel_defines(ctx);
+		set_traj_rel_shader_opts(ctx);
 		shaders.reload(ctx, "tube_shading", tube_shading_options);
 
 		compile_glyph_attribs();
@@ -1598,7 +1598,7 @@ void on_tube_vis::on_set(void* member_ptr)
 		context& ctx = *get_context();
 		tube_shading_options = options;
 		client.extrapol_mgr.update_tube_shading(tube_shading, render.visualizations.front().config);
-		set_traj_rel_defines(ctx);
+		set_traj_rel_shader_opts(ctx);
 		shaders.reload(ctx, "tube_shading", tube_shading_options);
 	}
 
@@ -4380,28 +4380,28 @@ void on_tube_vis::build_hash_grid ()
 	render.build_hash_grid(hash_grid_params);
 	// Update shaders.
 	auto& ctx = *get_context();
-	set_traj_rel_defines(ctx);
+	set_traj_rel_shader_opts(ctx);
 	shaders.reload(ctx, "tube_shading", tube_shading_options);
 	// Show new state.
 	taa.reset();
 	post_redraw();
 }
 
-void on_tube_vis::set_traj_rel_defines (cgv::render::context& ctx)
+void on_tube_vis::set_traj_rel_shader_opts (cgv::render::context& ctx)
 {
-	// Set defines for trajectory relation shading.
-	render.hash_grid.set_defines(tube_shading_options, buffer_bindings::grid_memory);
-	traj_rel.set_defines(tube_shading_options);
+	// Set compile options for trajectory relation shading.
+	render.hash_grid.set_shader_opts(tube_shading_options, buffer_bindings::grid_memory);
+	traj_rel.set_shader_opts(tube_shading_options);
 
-	auto& tstr_defines = ref_textured_spline_tube_renderer(ctx, 1).additional_options;
+	auto& tstr_opts = ref_textured_spline_tube_renderer(ctx, 1).additional_options;
 
 	// Select shading style.
 	if ((render.style.forward = !(traj_rel.shading.value & decltype(traj_rel)::shading::deferred)))
 		// In forward shading, all visualization defines must be set in the geometry render pass.
-		tstr_defines.extend(tube_shading_options, true);
+		tstr_opts.extend(tube_shading_options, true);
 	else {
-		render.hash_grid.set_defines(tstr_defines, buffer_bindings::grid_memory);
-		traj_rel.set_defines(tstr_defines);
+		render.hash_grid.set_shader_opts(tstr_opts, buffer_bindings::grid_memory);
+		traj_rel.set_shader_opts(tstr_opts);
 	}
 }
 
