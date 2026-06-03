@@ -574,6 +574,14 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 					handled = true;
 				}
 				break;
+			case 'F':
+				if (perfmon_ptr) {
+					show_performance_monitor = !show_performance_monitor;
+					update_member(&show_performance_monitor);
+					perfmon_ptr->set_visibility(show_performance_monitor);
+					handled = true;
+				}
+				break;
 			case 'G':
 				tube_shading.grid_mode = static_cast<GridMode>((static_cast<int>(tube_shading.grid_mode) + 1) % 4);
 				on_set(&tube_shading.grid_mode);
