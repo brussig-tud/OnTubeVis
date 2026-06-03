@@ -48,11 +48,11 @@ type(maptiles):frustum_based_tiles=true
 type(on_tube_vis):show_bounding_box=false
 type(on_tube_vis):show_wireframe_box=true
 // - Grid mode: None - no grid, Color - color only, Normal - normal mapping only, ColorAndNormal - color and normal mapping (default)
-type(on_tube_vis):grid_mode=ColorAndNormal
+type(on_tube_vis):grid_mode=None
 // - Debugging
 type(on_tube_vis):show_hidden_glyphs=false
 // - Use ambient occlusion
-type(on_tube_vis):ambient_occlusion=true
+type(on_tube_vis):ambient_occlusion=false
 // - Voxelization device
 //type(on_tube_vis):voxelize_gpu=true
 
