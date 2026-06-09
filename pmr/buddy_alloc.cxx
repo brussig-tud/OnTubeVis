@@ -39,13 +39,13 @@ buddy_alloc::buddy_alloc(std::span<std::byte> memory, uint8_t base_order)
 	// The root block contains all memory, rounded up to the next block order.
 	_max_order = required_order(memory.size());
 	// Allocate binary tree, initializing every node to 0 (block unavailable).
-	_capacity = std::make_unique<uint8_t[]>(
+	auto capacity_tree_size =
 		// Perfect binary tree for all levels except the last one, plus an unused node at index 0
 		// to simplify traversal with 1-based indexing.
 		(1 << (_max_order - 1))
 		// 1-blocks on the lowest level, rounded up to an even number so every block has a buddy.
-		+ min_blocks + min_blocks%2
-	);
+		+ min_blocks + min_blocks%2;
+	_capacity = std::make_unique<uint8_t[]>(capacity_tree_size);
 
 	auto const block_size = 1 << _base_order;
 
@@ -54,7 +54,8 @@ buddy_alloc::buddy_alloc(std::span<std::byte> memory, uint8_t base_order)
 			"\tRange:       ",_span.data(),"..",&*_span.end()," (",_span.size()," bytes)\n"
 			"\tCapacity:    ",block_size * min_blocks," bytes\n"
 			"\tGranularity: ",block_size," bytes\n"
-			"\tLevels:      ",_max_order,"\n"
+			"\tLevels:      ",unsigned{_max_order},"\n"
+			"\tOverhead:    ",capacity_tree_size," bytes\n"
 		);
 
 	// Initialize blocks as free.
@@ -108,7 +109,7 @@ void buddy_alloc::clear ()
 		}
 
 		if constexpr (log_level > 2)
-			log("\tOrder ",order,": ",full_blocks," blocks, remainder ",rem_order,".\n");
+			log("\tOrder ",unsigned{order},": ",full_blocks," blocks, remainder ",rem_order,".\n");
 
 		// The next level starts at the left child of the current layer's first node.
 		first_block *= 2;
@@ -128,7 +129,8 @@ auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 	auto const req_order = required_order(num_bytes);
 
 	if constexpr (log_level > 1)
-		log(LOG_TAG" Allocating ",num_bytes," bytes in a block of order ",req_order,".\n");
+		log(LOG_TAG" Allocating ",num_bytes," bytes"
+			" in a block of order ", unsigned{req_order},".\n");
 
 	auto block = size_t{1};
 	// The root node stores the order of the largest block currently available.
@@ -139,7 +141,8 @@ auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 	// Descend the tree of blocks down to the lowest order large enough to fulfill the request.
 	for (auto order = _max_order; order > req_order; --order) {
 		if constexpr (log_level > 2)
-			log("Order ",order,", block ",block,", capacity ",_capacity[block],".\n");
+			log("Order ",unsigned{order},", block ",block,
+				", capacity ",unsigned{_capacity[block]},".\n");
 
 		auto const lchild = block * 2;
 
@@ -186,7 +189,8 @@ auto buddy_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 		block = parent;
 
 		if constexpr (log_level > 2)
-			log("Order ",order + 1,", block ",block,", capacity ",_capacity[block],".\n");
+			log("Order ",unsigned{order} + 1,", block ",block,
+				", capacity ",unsigned{_capacity[block]},".\n");
 	}
 
 	return allocation;
@@ -212,7 +216,7 @@ void buddy_alloc::do_deallocate (void* ptr, size_t num_bytes, size_t align) noex
 		+ (offset >> (_base_order + order - 1)); // Offset within the level.
 
 	if constexpr (log_level > 2)
-		log("Allocated in block ",block,", order ",order,".\n");
+		log("Allocated in block ",block,", order ",unsigned{order},".\n");
 
 	// A free block's capacity is equal to its order.
 	auto new_cap = _capacity[block] = order;
@@ -236,7 +240,8 @@ void buddy_alloc::do_deallocate (void* ptr, size_t num_bytes, size_t align) noex
 		block /= 2;
 
 		if constexpr (log_level > 2)
-			log("Order ",order + 1,", block ",block,", capacity ",new_cap,".\n");
+			log("Order ",unsigned{order} + 1,", block ",block,
+				", capacity ",unsigned{new_cap},".\n");
 	}
 }
 
