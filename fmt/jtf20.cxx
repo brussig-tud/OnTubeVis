@@ -461,8 +461,8 @@ auto jtf20<flt_type>::read_simulation(std::span<std::string const> files, config
 		if (!timestep.num_particles.check()) [[unlikely]] {
 			log("\x1b[KSkip ",files[i],": Invalid header.\n");
 			goto next_file;
-		}{
-
+		}
+		{
 		// Check timestamp order.
 		auto const timestamp = timestep.timestamp->get();
 		if (timestamp <= prev_timestamp) [[unlikely]] {
@@ -499,8 +499,8 @@ auto jtf20<flt_type>::read_simulation(std::span<std::string const> files, config
 			trace.med_axis.push_back(particle.med_axis->get());
 			trace.min_axis.push_back(particle.min_axis->get());
 		}
-
-		} next_file:
+		}
+		next_file:
 		// Close the input stream so it can be reused for the next file.
 		file.close();
 	}
