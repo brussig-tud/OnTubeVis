@@ -663,7 +663,9 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 
 	// Iterate over the AABB's spatial extent
 	for (int z = min_cell.z; z <= max_cell.z; ++z)
-	for (int y = min_cell.y; y <= max_cell.y; ++y)
+	for (int y = min_cell.y; y <= max_cell.y; ++y) {
+		// Tracks whether we have found a cell that intersects the query sphere in this loop.
+		bool found_cell_y = false;
 	for (int x = min_cell.x; x <= max_cell.x; ++x) {
 		const index_t index = {x, y, z
 			#if HASH_GRID_LAYOUT == LAYOUT_XYZT
@@ -675,8 +677,12 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 		const vec3 offset = local_point.xyz - index.xyz*hash_grid_cell_size.xyz;
 		if (dot(offset, offset) > max_cell_dist2) {
 			if (TRAJ_REL_FUNCTION == FN_DBG_SKIPPED_CELLS) ++result;
+			// The query sphere is convex, so once we leave it, all remaining cells in this row must
+			// lie outside the query radius as well.
+			else if (found_cell_y) break;
 			continue;
 		}
+		found_cell_y = true;
 
 		// Search the hash table for the current cell and return the intervals it contains.
 		const span_t intervals = query(table, index);
@@ -706,7 +712,7 @@ float otv_trajectory_relation (uvec2 node_ids, float seg_t)
 				interval
 			);
 		}
-	}
+	}}
 	}
 
 	// Normalize the relation value.
