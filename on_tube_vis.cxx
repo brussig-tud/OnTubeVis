@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <numeric>
+#include <sstream>
 
 // OS access
 #ifdef _WIN32
@@ -3307,10 +3308,23 @@ void on_tube_vis::create_gui (void)
 		);
 	}*/
 
-	if (traj_mgr.has_data()) { // Display the scene's spatial and temporal extent.
-		auto const [tmin, tmax] = client.data ? client.data->t_minmax : std::pair{0.0f, 0.0f};
-		add_decorator(concat("Extent: ",bbox.get_extent(),"\nDuration: ",tmax - tmin), "text");
-	}
+	connect_copy(
+		add_button("Stats")->click,
+		[this](cgv::gui::button const&) {
+			if (!traj_mgr.has_data() || !client.data) {
+				cgv::gui::message("No dataset loaded");
+				return;
+			}
+			std::stringstream msg {};
+			auto const [tmin, tmax] = client.data->t_minmax;
+			msg << "#Trajs.:   " << client.data->datasets[0].trajs.size() << "\n"
+			       "#Nodes:    " << client.data->positions.size() << "\n"
+			       "#Segments: " << client.data->indices.size() / 2 << "\n"
+			       "Extent:    " << bbox.get_extent() << "\n"
+			       "Duration:  " << tmax - tmin;
+			cgv::gui::message(std::move(msg).str());
+		}
+	);
 
 	add_member_control(this, "Bounds", bbox_rd.style.surface_color, "", "w=20", " ");
 	add_member_control(this, "Box", show_bbox, "toggle", "w=83", "%x+=2");
@@ -3367,9 +3381,8 @@ void on_tube_vis::create_gui (void)
 	}
 
 	add_decorator("", "separator");
-	add_heading("Visualization");
 
-	if (begin_tree_node("Trajectory Relation", traj_rel)) {
+	if (begin_tree_node("Trajectory Relations", traj_rel)) {
 		if (traj_mgr.has_data()) {
 		align("\a");
 
@@ -3405,8 +3418,28 @@ void on_tube_vis::create_gui (void)
 			concat("min=0;max=",hash_grid_params.cell_size[3] * 0.2f,";log=true;ticks=true")
 		);
 		connect_copy(
-			add_button("Rebuild Grid")->click,
+			add_button("Rebuild")->click,
 			cgv::signal::rebind(this, &on_tube_vis::build_hash_grid)
+		);
+		connect_copy(
+			add_button("Stats")->click,
+			[this](cgv::gui::button const&) {
+				std::stringstream msg {};
+				render.hash_grid.write_stats(msg);
+
+				using std::literals::operator""sv;
+				auto const     bytes = render.grid_mem->allocated_bytes();
+				constexpr auto units = std::array{" B"sv, " kiB"sv, " MiB"sv, " GiB"sv};
+
+				unsigned ord_of_mag = 0;
+				while (++ord_of_mag < units.size() && bytes >> (10*ord_of_mag));
+				--ord_of_mag;
+
+				msg << "\nMemory usage: " << std::fixed << std::setprecision(ord_of_mag > 0)
+				    << static_cast<float>(bytes) / (1 << 10*ord_of_mag) << units[ord_of_mag];
+				if (ord_of_mag > 0) msg << " (" <<  bytes << " bytes)";
+				cgv::gui::message(std::move(msg).str());
+			}
 		);
 
 		add_decorator("Shading", "heading", "level=2");

@@ -135,6 +135,28 @@ hash_grid::cell_t::cell_t(pmr::memory_region& memory, index_t index)
 	};
 }
 
+
+auto hash_grid::write_stats (std::ostream& out) const -> std::ostream&
+{
+	uint32_t num_buckets {0};
+	switch (_layout) {
+	case layout::xyz: case layout::xyzt:
+		num_buckets = _data.buckets.len;
+		break;
+	case layout::t_xyz:
+		for (uint32_t i = 0; i < _data.tables.buckets.len; ++i)
+			num_buckets += _data.tables.buckets.get(_memory->span())[i].len;
+		out << "#Tables:    " << _data.tables.buckets.len << '\n';
+		break;
+	}
+	out << "#Buckets:   " << num_buckets << " (" << num_buckets*bucket_t::num_slots << " slots)\n";
+#ifndef OTV_HASH_GRID_NO_STATS
+	out << "#Cells:     " << _stats.num_cells << "\n"
+	       "#Intervals: " << _stats.num_intervals << '\n';
+#endif
+	return out;
+}
+
 void hash_grid::cell_t::add_interval (pmr::memory_region& memory, interval_t interval)
 {
 	auto const region = memory.span();
@@ -251,9 +273,12 @@ hash_grid::hash_grid(pmr::memory_region* memory, params const& params, uint32_t 
 }
 
 hash_grid::hash_grid(hash_grid&& src) noexcept
-	: _rng     {std::move(src._rng)}
-	, _memory  {std::move(src._memory)}
-	, _data    {std::move(src._data)}
+	: _rng    {std::move(src._rng)}
+	, _memory {std::move(src._memory)}
+#ifndef OTV_HASH_GRID_NO_STATS
+	, _stats {std::move(src._stats)}
+#endif
+	, _data {std::move(src._data)}
 #if OTV_HASH_GRID_VALIDATION
 	, _validation {std::move(src._validation)}
 #endif
@@ -279,7 +304,10 @@ auto hash_grid::operator= (hash_grid&& src) noexcept -> hash_grid&
 	// Move member variables.
 	_rng    = std::move(src._rng);
 	_memory = std::move(src._memory);
-	_data   = std::move(src._data);
+#ifndef OTV_HASH_GRID_NO_STATS
+	_stats = std::move(src._stats);
+#endif
+	_data = std::move(src._data);
 #if OTV_HASH_GRID_VALIDATION
 	_validation = std::move(src._validation);
 #endif
@@ -503,6 +531,9 @@ void hash_grid::leak () noexcept
 	else _data.buckets = {};
 
 	// The grid is now empty.
+#ifndef  OTV_HASH_GRID_NO_STATS
+	_stats = {};
+#endif
 #if OTV_HASH_GRID_VALIDATION
 	_validation.cell_fill = {};
 #endif
@@ -534,6 +565,9 @@ void hash_grid::add_interval (index_t index, interval_t interval)
 
 	cell(index).add_interval(*_memory, interval);
 
+#ifndef OTV_HASH_GRID_NO_STATS
+	++_stats.num_intervals;
+#endif
 #if OTV_HASH_GRID_VALIDATION
 	// Track the number of intervals in each cell.
 	++_validation.cell_fill[index];
@@ -740,6 +774,9 @@ auto hash_grid::find_or_insert (std::span<bucket_t> buckets, index_t query, cell
 	else {
 		// If no cell has been given to insert, allocate a new one.
 		new_cell = cell_t{*_memory, query};
+#ifndef OTV_HASH_GRID_NO_STATS
+		++_stats.num_cells;
+#endif
 #if OTV_HASH_GRID_VALIDATION
 		// Check that the index really does not exist in the table, then insert it into the
 		// validation map with zero trajectory intervals.

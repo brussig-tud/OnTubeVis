@@ -12,6 +12,7 @@
 // C++ STL
 #include <array>
 #include <cstdint>
+#include <ostream>
 #include <random>
 #include <span>
 
@@ -97,6 +98,10 @@ public:
 		cgv::uvec2          node_idcs,
 		cgv::mat4 const&    t_to_s
 	);
+
+	/// Write some metrics useful for evaluation to the given stream. If the macro
+	/// OTV_HASH_GRID_NO_STATS is defined, output is reduced.
+	auto write_stats (std::ostream&) const -> std::ostream&;
 
 	/// Statically configure shaders through text substitution.
 	/// `buffer_binding` must be the index at which the GPU buffer used by this grid will be bound.
@@ -232,6 +237,16 @@ private:
 	std::minstd_rand _rng {std::random_device{}()};
 	/// The memory resource in which hash buckets and grid cells are dynamically allocated.
 	pmr::memory_region* _memory {};
+#ifndef OTV_HASH_GRID_NO_STATS
+	struct {
+		/// The number of occupied grid cells.
+		uint32_t num_cells {0};
+		/// The total number of segment intervals stored in the grid.
+		uint32_t num_intervals {0};
+	}
+	/// Tracks additional metrics for evaluation.
+	_stats {};
+#endif
 	union {
 		/// Hash table buckets each containing multiple slots for cells.
 		/// Length is a power of two.
