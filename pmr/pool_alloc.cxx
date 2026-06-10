@@ -103,7 +103,7 @@ auto pool_alloc::do_allocate (size_t num_bytes, size_t align) -> void*
 	auto const order = required_order(num_bytes);
 
 	if constexpr (log_level > 1)
-		log(LOG_TAG" Allocating ",num_bytes," bytes in a block of order ",order,".\n");
+		log(LOG_TAG" Allocating ",num_bytes," bytes in a block of order ",unsigned{order},".\n");
 
 	// Requests for more than half a chunk are forwarded to the parent allocator.
 	if (order >= _max_order) {
