@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <chrono>
 #include <optional>
+#include <vector>
 
 
 /// The duration type for the platform high-resolution clock
