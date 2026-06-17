@@ -592,7 +592,7 @@ struct OTVConfiguration
 		bool success = true;
 		for (unsigned l=0; l<num_layers; ++l) {
 			const auto &layer = get_layer_config(l);
-			success &= otv__add_layer(setup.handle, &layer);
+			success &= otv__add_layer(setup.handle(), &layer);
 		}
 		if (!success)
 			return false;
@@ -600,13 +600,13 @@ struct OTVConfiguration
 		// Add configured amount of trajectories and store their IDs
 		traj_ids.reserve(num_trajs);
 		for (unsigned i=0; i<num_trajs; ++i)
-			traj_ids.emplace_back(otv__add_trajectory(setup.handle, tube_radius));
+			traj_ids.emplace_back(otv__add_trajectory(setup.handle(), tube_radius));
 
 		// Set configured extrapolation length
-		otv__extrapolation_length(setup.handle, extrapol_length);
+		otv__extrapolation_length(setup.handle(), extrapol_length);
 
 		// Set configured progression mode
-		otv__extrapol_progression(setup.handle, progression_mode);
+		otv__extrapol_progression(setup.handle(), progression_mode);
 
 		// Done!
 		return true;

@@ -166,15 +166,18 @@ template <
 	class ResourceHandle,
 	void(*finalizer)(ResourceHandle),
 	ResourceHandle(*none)() = default_construct<ResourceHandle>
-> struct RAII
+> class RAII
 {
 	/// Handle for the wrapped resource.
-	ResourceHandle handle = none();
+	ResourceHandle _handle = none();
+
+public:
+	using handle_type = ResourceHandle;
 
 	/// Default-construct with a `none` handle.
-	constexpr RAII() = default;
+	[[nodiscard]] constexpr RAII() = default;
 	/// Construct by taking ownership of the given resource.
-	constexpr RAII(ResourceHandle handle) : handle(std::move(handle))
+	[[nodiscard]] constexpr RAII(handle_type handle) : _handle(std::move(handle))
 	{}
 
 	// No copy construction/assignment.
@@ -182,11 +185,11 @@ template <
 	constexpr RAII& operator= (const RAII&) = delete;
 
 	/// The move constructor.
-	constexpr RAII(RAII &&other)
-		: handle {std::move(other.handle)}
+	[[nodiscard]] constexpr RAII(RAII &&other)
+		: _handle {std::move(other._handle)}
 	{
 		// Clear the previous owner to avoid double-free.
-		other.handle = none();
+		other._handle = none();
 	}
 
 	/// Move assignment.
@@ -197,8 +200,8 @@ template <
 		// Release any currently held resource.
 		drop();
 		// Take the handle from its previous owner.
-		handle = std::move(other.handle);
-		other.handle = none();
+		_handle = std::move(other._handle);
+		other._handle = none();
 		return *this;
 	}
 
@@ -207,11 +210,16 @@ template <
 		drop();
 	}
 
+	[[nodiscard]] constexpr auto handle () const noexcept -> handle_type const&
+	{
+		return _handle;
+	}
+
 	/// Explicitly call the finalizer on the wrapped resource. Leaves the RAII wrapper in an undefined state.
 	inline void drop (void) {
-		if (handle != none()) {
-			finalizer(handle);
-			handle = none();
+		if (_handle != none()) {
+			finalizer(_handle);
+			_handle = none();
 		}
 	}
 };

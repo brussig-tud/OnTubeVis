@@ -91,7 +91,7 @@ int main (int argc, char** argv)
 	config.apply(setup);
 
 	// Start a visualization session with the obtained setup
-	const bool session_started = otv__start_vis_session(setup.handle);
+	const bool session_started = otv__start_vis_session(setup.handle());
 	if (!session_started) {
 		std::clog << "Unable to start visualization session!" << std::endl;
 		const int exit_code = shutdown_otv();
