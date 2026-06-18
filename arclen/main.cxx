@@ -14,15 +14,18 @@
 #include <cgv/math/functions.h>
 
 // arclength library
-#include "arclength/bezier.h"
-#include "arclength/hermite.h"
+#include "bezier.h"
+#include "hermite.h"
 
 // internal
 #include "curveutils.h"
 
 // implemented header
-#include "arclen_helper.h"
+#include "main.h"
 
+
+// namespace open
+namespace arclen {
 
 ////
 // Local types and variables
@@ -38,7 +41,7 @@ struct curve_segment
 	struct {
 		Bezier<flt_type> t_to_s [4]; // 4 cubic Bezier segments approximating the arclength with respect to t
 		Bezier<flt_type> s_to_t [4]; // 4 cubic Bezier segments approximating the inverse mapping of t_to_s
-	} param;
+	} param {};
 };
 
 // Anonymous namespace end
@@ -47,9 +50,6 @@ struct curve_segment
 
 ////
 // Class implementation - arclen
-
-// namespace open
-namespace arclen {
 
 template <class flt_type>
 parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
@@ -74,7 +74,7 @@ parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 			const auto &traj = dataset.trajs[traj_idx];
 			const unsigned idx_offset = dataset.irange.i0 + traj.i0,
 			               idx_n = idx_offset + traj.n;
-			// compute individual segment global (w.r.t. current trajectory) arclength approximation 
+			// compute individual segment global (w.r.t. current trajectory) arclength approximation
 			real length_sum = 0;
 			for (unsigned i=idx_offset, k=0; i<idx_n; i+=2, k++)
 			{

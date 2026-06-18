@@ -4,6 +4,9 @@
 
 #include "bezier.h"
 
+
+namespace arclen {
+
 template <typename FLOAT_TYPE> v3<FLOAT_TYPE> Hermite<FLOAT_TYPE>::evaluate(FLOAT_TYPE t) const {
     auto t2 = t * t;
     auto t3 = t * t * t;
@@ -36,3 +39,5 @@ template <typename FLOAT_TYPE> Bezier<FLOAT_TYPE> Hermite<FLOAT_TYPE>::to_bezier
 
 template struct Hermite<float>;
 template struct Hermite<double>;
+
+} // namespace arclen

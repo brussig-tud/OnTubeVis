@@ -1,6 +1,6 @@
 #pragma once
 
-#include "arclen_helper.h"
+#include "arclen/main.h"
 #include "traj_loader.h"
 #include "glyph_layer_manager.h"
 

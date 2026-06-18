@@ -1,4 +1,3 @@
-
 // Implemented header
 #include "on_tube_vis.h"
 
@@ -31,7 +30,6 @@
 #include <3rd/xml/cgv_xml/query.h>
 
 // Local includes
-#include "arclen_helper.h"
 #include "glyph_compiler.h"
 #ifdef RTX_SUPPORT
 #include "cuda/optix_interface.h"

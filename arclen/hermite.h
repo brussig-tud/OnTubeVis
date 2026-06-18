@@ -4,6 +4,9 @@
 
 #include "v3.h"
 
+
+namespace arclen {
+
 template <typename FLOAT_TYPE> struct Bezier;
 
 template <typename FLOAT_TYPE> struct Hermite {
@@ -21,3 +24,5 @@ template <typename FLOAT_TYPE> struct Hermite {
   Bezier<FLOAT_TYPE> to_bezier() const;
   void to_csv(const std::string &fileName, int numTestPoints) const;
 };
+
+} // namespace arclen

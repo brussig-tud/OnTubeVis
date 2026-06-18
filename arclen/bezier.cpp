@@ -9,6 +9,16 @@
 #include "PolynomialRegression.h"
 #include "hermite.h"
 
+
+namespace std {
+template <typename FLOAT_TYPE> arclen::v3<FLOAT_TYPE> sqrt(arclen::v3<FLOAT_TYPE> v) {
+    return arclen::v3<FLOAT_TYPE>(std::sqrt(v.x), std::sqrt(v.y), std::sqrt(v.z));
+}
+} // namespace std
+
+
+namespace arclen {
+
 template <typename FLOAT_TYPE> v3<FLOAT_TYPE> Bezier<FLOAT_TYPE>::evaluate(const FLOAT_TYPE t) const {
     auto t0 = (1.0 - t) * (1.0 - t) * (1.0 - t) * points[0];
     auto t1 = 3.0 * (1.0 - t) * (1.0 - t) * t * points[1];
@@ -201,7 +211,7 @@ FLOAT_TYPE arc_length_adaptive_subdivision(const Bezier<FLOAT_TYPE> &b, FLOAT_TY
 template <typename FLOAT_TYPE>
 FLOAT_TYPE Bezier<FLOAT_TYPE>::arc_length_adaptive_subdivision(FLOAT_TYPE t, FLOAT_TYPE epsilon) const {
     auto parts = split(t);
-    return ::arc_length_adaptive_subdivision(parts.first, epsilon);
+    return arclen::arc_length_adaptive_subdivision(parts.first, epsilon);
 }
 
 template <typename FLOAT_TYPE>
@@ -299,12 +309,6 @@ FLOAT_TYPE ParameterizationSubdivisionLegendreGauss<FLOAT_TYPE>::evaluate(const 
 template <typename FLOAT_TYPE> FLOAT_TYPE ParameterizationSubdivisionLegendreGauss<FLOAT_TYPE>::length() const {
     return b.arc_length_legendre_gauss();
 }
-
-namespace std {
-template <typename FLOAT_TYPE> v3<FLOAT_TYPE> sqrt(v3<FLOAT_TYPE> v) {
-    return v3<FLOAT_TYPE>(std::sqrt(v.x), std::sqrt(v.y), std::sqrt(v.z));
-}
-} // namespace std
 
 template <typename FLOAT_TYPE>
 std::vector<FLOAT_TYPE> intersection(const std::vector<FLOAT_TYPE> &v1, const std::vector<FLOAT_TYPE> &v2) {
@@ -626,3 +630,5 @@ template struct ParameterizationAdaptive<double>;
 template struct ParameterizationBezierApproximation<double>;
 template struct ParameterizationSubdivisionLegendreGauss<double>;
 template struct ParameterizationSubdivisionBezierApproximation<double>;
+
+} // namespace arclen

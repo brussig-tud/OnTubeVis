@@ -86,14 +86,14 @@ set(SOURCES
 	3rd/fastgl/fastgl.cpp
 
 	# arclength helpers
-	arclength/bezier.cpp
-	arclength/hermite.cpp
+	arclen/bezier.cpp
+	arclen/hermite.cpp
+	arclen/main.cxx
 
 	# user study code
 	userstudies/view_interaction.cxx
 
 	# main app
-	arclen_helper.cxx
 	attrib_handle_manager.cxx
 	bcc_handler.cxx
 	bezdat_handler.cxx
@@ -126,12 +126,13 @@ set(HEADERS
 	3rd/peridetic/peridetic.h
 	# - Wgs84mercator geoid utility header-only library
 	3rd/wgs84mercator/WGS84toCartesian.hpp
-	
+
 	# arclength helpers
-	arclength/bezier.h
-	arclength/hermite.h
-	arclength/PolynomialRegression.h
-	arclength/v3.h
+	arclen/bezier.h
+	arclen/hermite.h
+	arclen/main.h
+	arclen/PolynomialRegression.h
+	arclen/v3.h
 
 	# user study code
 	userstudies/ribbons_vs_tubes/trial.h
@@ -139,7 +140,6 @@ set(HEADERS
 
 	# main app
 	ambient_occlusion_style.h
-	arclen_helper.h
 	attrib_handle_manager.h
 	bcc_handler.h
 	bezdat_handler.h

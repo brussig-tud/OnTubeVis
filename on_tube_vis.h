@@ -42,7 +42,7 @@
 
 // local includes
 #include "traj_loader.h"
-#include "arclen_helper.h"
+#include "arclen/main.h"
 #include "demo.h" // interactive testbed helper classes and data
 #include "attrib_handle_manager.h"
 #include "voxelizer.h"
