@@ -1,6 +1,8 @@
-
 # CMake in-source build
 /build
+
+# In-source doc generation output
+/doc
 
 # Prerequisites
 *.d
@@ -38,11 +40,11 @@
 # CGV framework stuff
 config.cfg
 
-# OnTubeVis streaming branch API documentation
-/doc
-
 # IDE folders
 .vs
 .vscode
 .idea
 .run
+
+# clangd
+.cache/
