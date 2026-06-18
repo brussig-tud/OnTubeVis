@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <utility>
 #include <functional>
+#include <span>
 #include <type_traits>
 
 // CGV framework core
@@ -921,6 +922,192 @@ inline segment_time<typename attrib_type::real> segment_time_get (const attrib_t
 }
 
 
+/// common trajectory data loader class
+template <class flt_type>
+class traj_manager
+{
+
+public:
+
+	/// real number type
+	typedef flt_type real;
+
+	/// 2D vector type
+	typedef typename traj_attribute<real>::Vec2 Vec2;
+
+	/// 3D vector type
+	typedef typename traj_attribute<real>::Vec3 Vec3;
+
+	/// 4D vector type
+	typedef typename traj_attribute<real>::Vec4 Vec4;
+
+	/// color type
+	typedef typename visual_attribute_mapping<real>::Color Color;
+
+	/// encapsulates data for all visual attributes for use by renderers
+	struct render_data
+	{
+		// types
+		typedef flt_type real;
+		typedef typename traj_manager<real>::Vec2 Vec2;
+		typedef typename traj_manager<real>::Vec3 Vec3;
+		typedef typename traj_manager<real>::Vec4 Vec4;
+		typedef typename traj_manager<real>::Color Color;
+
+		/// encapsulates various kinds of per-dataset ranges over the render attributes
+		struct dataset
+		{
+			/// Computes an arclength parametrization for each segment in a dataset.
+			/// `ds` must belong to `rd`, and the spans must correspond to the dataset's segments.
+			using pfn_arclen = void(*)(
+				render_data const&   rd,
+				dataset const&       ds,
+				std::span<cgv::mat4> t_to_s,
+				std::span<cgv::mat4> s_to_t
+			);
+
+			dataset(const range irange, std::vector<range> &&trajs, pfn_arclen arclen_fn = {})
+				: irange(irange), trajs(std::move(trajs)), arclen_fn(arclen_fn)
+			{}
+
+			/// per-trajectory ranges over the index pairs for this dataset
+			std::vector<range> trajs;
+
+			/// per attribute (keyed via its unique id) and dataset trajectory, the ranges
+			/// over the datapoints that fall into each trajectory segment
+			std::unordered_map<unsigned, std::vector<std::vector<range>>> seg_attribs;
+
+			/// Computes the arclength parametrizations of this dataset's segments.
+			/// If set to `nullptr`, the default computation will be used.
+			pfn_arclen arclen_fn = nullptr;
+
+			/// range over the index pairs occupied by the dataset
+			range irange;
+		};
+
+		/// all node positions
+		std::vector<Vec3> positions;
+
+		/// all node tangents
+		std::vector<Vec4> tangents;
+
+		/// all node radii
+		std::vector<real> radii;
+
+		/// all node colors
+		std::vector<Color> colors;
+
+		/// node timestamps
+		std::vector<real> timestamps;
+
+		/// all indices (line-list semantics)
+		std::vector<unsigned> indices;
+
+		/// all dataset-related ranges over the index pairs forming individual segments
+		std::vector<dataset> datasets;
+
+		/// the earliest and latest timestamp of any position sample across all datasets
+		std::pair<real, real> t_minmax;
+	};
+
+	/// convenience helper for iterating over datasets in the manager using range-based for loops
+	struct dataset_range
+	{
+		friend class traj_manager;
+
+	public:
+		/// dereference to current dataset
+		inline const traj_dataset<real>& operator* (void) const { return mgr.dataset(index); }
+
+		/// start iterating
+		inline dataset_range begin (void) { return dataset_range(mgr); }
+
+		/// end iterating
+		inline dataset_range end (void) { return dataset_range(mgr, mgr.num_datasets()); }
+
+		/// iterate forward
+		inline dataset_range& operator++ (void) { index++; return *this; }
+
+		/// iterate forward
+		inline dataset_range operator++ (int) { dataset_range copy(*this); index++; return copy; }
+
+		/// equality comparison
+		inline bool operator== (const dataset_range &other) const { return index == other.index; }
+
+		/// inequality comparison
+		inline bool operator!= (const dataset_range &other) const { return index != other.index; }
+
+	protected:
+		/// construct for the given manager and start index
+		inline dataset_range(const traj_manager<real> &mgr, unsigned start_index=0) : mgr(mgr), index(start_index) {}
+
+	private:
+		/// trajectory  manager back-reference
+		const traj_manager<real> &mgr;
+
+		/// current index counter
+		unsigned index;
+	};
+
+
+private:
+
+	/// implementation forward
+	struct Impl;
+
+	/// implementation handle
+	Impl *pimpl;
+
+
+public:
+
+	/// default constructor
+	traj_manager();
+
+	/// the destructor
+	~traj_manager();
+
+	/// test if the given file or directory can be loaded
+	bool can_load (const std::string &path) const;
+
+	/// load trajectories from a file or directory and add them to the internal database, returning the index of the loaded dataset
+	/// if successfull, and -1 otherwise.
+	unsigned load (const std::string &path);
+
+	/// copy a custom dataset to the internally managed list, returning the resulting access index
+	unsigned add_dataset (const traj_dataset<real> &dataset);
+
+	/// move a custom dataset into the internally managed list (i.e. takes ownership of all memory etc), returning the resulting
+	/// access index
+	unsigned add_dataset (traj_dataset<real> &&dataset);
+
+	/// query the number of currently loaded datasets
+	unsigned num_datasets (void) const;
+
+	/// read-only reference the dataset of the given index
+	const traj_dataset<real>& dataset (unsigned index) const;
+
+	/// return a range over all datasets of the manager
+	dataset_range datasets (void) const;
+
+	/// reset internal trajectory database (e.g. for loading a new, unrelated set of trajectories into this existing instance)
+	void clear (void);
+
+	/// check if the manager currently stores valid loaded data
+	bool has_data (void) const { return num_datasets() > 0; }
+
+	/// returns the visual attributes of all dataset laid out in a way suitable for rendering
+	/// \param auto_tangents
+	///		whether to auto-derive tangents from curve geometry when they don't have a mapped data attribute
+	/// ToDo: make auto-tangent generation configurable and preset-able (e.g. simple forward diff, catmul-rom, etc.)
+	const render_data& get_render_data (bool auto_tangents=true);
+
+	/// returns the visual attributes of all dataset laid out in a way suitable for rendering. since this is for read-only access,
+	/// the method will fail if the render data is out-of-date!
+	const render_data& get_render_data (void) const;
+};
+
+
 /// trajectory data storage
 template <class flt_type>
 class traj_dataset
@@ -939,16 +1126,16 @@ public:
 	typedef flt_type real;
 
 	/// 2D vector type
-	typedef typename traj_attribute<real>::Vec2 Vec2;
+	typedef typename traj_manager<real>::Vec2 Vec2;
 
 	/// 3D vector type
-	typedef typename traj_attribute<real>::Vec3 Vec3;
+	typedef typename traj_manager<real>::Vec3 Vec3;
 
 	/// 4D vector type
-	typedef typename traj_attribute<real>::Vec4 Vec4;
+	typedef typename traj_manager<real>::Vec4 Vec4;
 
 	/// color type
-	typedef typename visual_attribute_mapping<float>::Color Color;
+	typedef typename traj_manager<float>::Color Color;
 
 	/// convenience struct that \ref add_attribute uses to return a reference to both the attribute interface and the data container
 	template <class T>
@@ -984,6 +1171,11 @@ protected:
 
 	/// write-access the timestamps at each position (for use by trajectory format handlers)
 	flt_type* timestamps (void);
+
+	using pfn_arclen = typename traj_manager<flt_type>::render_data::dataset::pfn_arclen;
+	/// Access the function pointer used to compute the arclength parametrization of the segments in
+	/// this dataset.
+	pfn_arclen& arclen_fn (void);
 
 	/// helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access
@@ -1199,6 +1391,11 @@ protected:
 	/// Proxy for derived classes to gain write-access the list of individual trajectory ranges for the given attribute
 	static std::vector<range>& trajectories (traj_dataset<real> &dataset, const traj_attribute<real> &attribute);
 
+	using pfn_arclen = typename traj_dataset<real>::pfn_arclen;
+	/// Proxy for derived classes to gain access to the function pointer used to compute the
+	/// arclength parametrization of the segments in the loaded dataset.
+	static pfn_arclen& arclen_fn (traj_dataset<real>&);
+
 	/// Helper for derived classes to create an attribute of given name and type and obtain a reference for easy immediate
 	/// access
 	template <class T>
@@ -1253,177 +1450,6 @@ public:
 	/// parse the given stream containing the file contents to load trajectories stored in it (optionally offsetting sample indices by
 	/// the specified amount) and report whether any data was loaded
 	virtual traj_dataset<real> read (std::istream &contents, DatasetOrigin source, const std::string &path) = 0;
-};
-
-
-/// common trajectory data loader class
-template <class flt_type>
-class traj_manager
-{
-
-public:
-
-	/// real number type
-	typedef flt_type real;
-
-	/// 2D vector type
-	typedef typename traj_format_handler<real>::Vec2 Vec2;
-
-	/// 3D vector type
-	typedef typename traj_format_handler<real>::Vec3 Vec3;
-
-	/// 4D vector type
-	typedef typename traj_format_handler<real>::Vec4 Vec4;
-
-	/// color type
-	typedef typename traj_format_handler<real>::Color Color;
-
-	/// encapsulates data for all visual attributes for use by renderers
-	struct render_data
-	{
-		// types
-		typedef flt_type real;
-		typedef typename traj_manager<real>::Vec2 Vec2;
-		typedef typename traj_manager<real>::Vec3 Vec3;
-		typedef typename traj_manager<real>::Vec4 Vec4;
-		typedef typename traj_manager<real>::Color Color;
-
-		/// encapsulates various kinds of per-dataset ranges over the render attributes
-		struct dataset
-		{
-			dataset(const range irange, std::vector<range> &&trajs) : irange(irange), trajs(std::move(trajs)) {}
-
-			/// range over the index pairs occupied by the dataset
-			range irange;
-
-			/// per-trajectory ranges over the index pairs for this dataset, 
-			std::vector<range> trajs;
-
-			/// per attribute (keyed via its unique id) and dataset trajectory, the ranges
-			/// over the datapoints that fall into each trajectory segment
-			std::unordered_map<unsigned, std::vector<std::vector<range>>> seg_attribs;
-		};
-
-		/// all node positions
-		std::vector<Vec3> positions;
-
-		/// all node tangents
-		std::vector<Vec4> tangents;
-
-		/// all node radii
-		std::vector<real> radii;
-
-		/// all node colors
-		std::vector<Color> colors;
-
-		/// node timestamps
-		std::vector<real> timestamps;
-
-		/// all indices (line-list semantics)
-		std::vector<unsigned> indices;
-
-		/// all dataset-related ranges over the index pairs forming individual segments
-		std::vector<dataset> datasets;
-
-		/// the earliest and latest timestamp of any position sample across all datasets
-		std::pair<real, real> t_minmax;
-	};
-
-	/// convenience helper for iterating over datasets in the manager using range-based for loops
-	struct dataset_range
-	{
-		friend class traj_manager;
-
-	public:
-		/// dereference to current dataset
-		inline const traj_dataset<real>& operator* (void) const { return mgr.dataset(index); }
-
-		/// start iterating
-		inline dataset_range begin (void) { return dataset_range(mgr); }
-
-		/// end iterating
-		inline dataset_range end (void) { return dataset_range(mgr, mgr.num_datasets()); }
-
-		/// iterate forward
-		inline dataset_range& operator++ (void) { index++; return *this; }
-
-		/// iterate forward
-		inline dataset_range operator++ (int) { dataset_range copy(*this); index++; return copy; }
-
-		/// equality comparison
-		inline bool operator== (const dataset_range &other) const { return index == other.index; }
-
-		/// inequality comparison
-		inline bool operator!= (const dataset_range &other) const { return index != other.index; }
-
-	protected:
-		/// construct for the given manager and start index
-		inline dataset_range(const traj_manager<real> &mgr, unsigned start_index=0) : mgr(mgr), index(start_index) {}
-
-	private:
-		/// trajectory  manager back-reference
-		const traj_manager<real> &mgr;
-
-		/// current index counter
-		unsigned index;
-	};
-
-
-private:
-
-	/// implementation forward
-	struct Impl;
-
-	/// implementation handle
-	Impl *pimpl;
-
-
-public:
-
-	/// default constructor
-	traj_manager();
-
-	/// the destructor
-	~traj_manager();
-
-	/// test if the given file or directory can be loaded
-	bool can_load (const std::string &path) const;
-
-	/// load trajectories from a file or directory and add them to the internal database, returning the index of the loaded dataset
-	/// if successfull, and -1 otherwise.
-	unsigned load (const std::string &path);
-
-	/// copy a custom dataset to the internally managed list, returning the resulting access index
-	unsigned add_dataset (const traj_dataset<real> &dataset);
-
-	/// move a custom dataset into the internally managed list (i.e. takes ownership of all memory etc), returning the resulting
-	/// access index
-	unsigned add_dataset (traj_dataset<real> &&dataset);
-
-	/// query the number of currently loaded datasets
-	unsigned num_datasets (void) const;
-
-	/// read-only reference the dataset of the given index
-	const traj_dataset<real>& dataset (unsigned index) const;
-
-	/// return a range over all datasets of the manager
-	dataset_range datasets (void) const;
-
-	/// reset internal trajectory database (e.g. for loading a new, unrelated set of trajectories into this existing instance)
-	void clear (void);
-
-	/// check if the manager currently stores valid loaded data
-	bool has_data (void) const { return num_datasets() > 0; }
-
-	/// returns the visual attributes of all dataset laid out in a way suitable for rendering
-	/// \param auto_tangents
-	///		whether to auto-derive tangents from curve geometry when they don't have a mapped data attribute
-	/// ToDo: make auto-tangent generation configurable and preset-able (e.g. simple forward diff, catmul-rom, etc.)
-	const render_data& get_render_data (bool auto_tangents=true);
-
-	/// returns the visual attributes of all dataset laid out in a way suitable for rendering. since this is for read-only access,
-	/// the method will fail if the render data is out-of-date!
-	const render_data& get_render_data (void) const;
 };
 
 

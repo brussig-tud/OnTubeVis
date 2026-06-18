@@ -1115,6 +1115,7 @@ struct traj_dataset<flt_type>::Impl
 	std::unordered_map<unsigned, std::vector<range>> trajs;
 	std::vector<range> empty_default_trajectories;
 	visual_attribute_mapping<flt_type> attrmap;
+	typename traj_manager<flt_type>::render_data::dataset::pfn_arclen arclen_fn {};
 	std::pair<real, real> minmax_pos_ts;
 	real avg_seg_len;
 
@@ -1323,6 +1324,12 @@ std::vector<range>& traj_dataset<flt_type>::trajectories (const traj_attribute<r
 }
 
 template <class flt_type>
+auto traj_dataset<flt_type>::arclen_fn () -> pfn_arclen&
+{
+	return pimpl->arclen_fn;
+}
+
+template <class flt_type>
 std::string& traj_dataset<flt_type>::name (void)
 {
 	return pimpl->name;
@@ -1435,7 +1442,7 @@ bool traj_dataset<flt_type>::set_mapping (const visual_attribute_mapping<real> &
 			return true;
 		}
 	}
-	return false; 
+	return false;
 }
 
 template <class flt_type>
@@ -1499,11 +1506,17 @@ std::vector<range>& traj_format_handler<flt_type>::trajectories (traj_dataset<re
 }
 
 template <class flt_type>
+auto traj_format_handler<flt_type>::arclen_fn (traj_dataset<real> &dataset) -> pfn_arclen&
+{
+	return dataset.arclen_fn();
+}
+
+template <class flt_type>
 const std::vector<std::string>& traj_format_handler<flt_type>::handled_extensions (void) const
 {
 	static const std::vector<std::string> empty;
 	return empty;
-}	
+}
 
 template <class flt_type>
 bool traj_format_handler<flt_type>::can_handle_file (const std::string &file_extension, std::istream &contents) const
@@ -2069,7 +2082,8 @@ const typename traj_manager<flt_type>::render_data& traj_manager<flt_type>::get_
 			}
 			impl.rd.datasets.emplace_back(typename traj_manager<flt_type>::render_data::dataset(
 				/* full dataset range */ { idx_base, (unsigned)impl.rd.indices.size()-idx_base },
-				/* individual trajectory ranges*/ std::move(traj_ranges)
+				/* individual trajectory ranges*/ std::move(traj_ranges),
+				dataset.arclen_fn()
 			));
 			auto &ds_info = impl.rd.datasets.back();
 
@@ -2174,7 +2188,7 @@ unsigned find_sample(const traj_attribute<flt_type> &attrib, const range &traj, 
 	flt_type t0 = timestamps[i0], tc = timestamps[ic], t1 =timestamps[i1];
 	while (w > 1)
 	{
-		if (timestamp <= t0 || timestamp >= 1)
+		if (timestamp <= t0 || timestamp >= t1)
 			return timestamp < t1 ? i0 : i1;
 		if (timestamp < tc) {
 			i1 = ic;
@@ -2202,7 +2216,7 @@ unsigned find_sample_linear (const traj_attribute<flt_type> &attrib, const range
 		for (unsigned i=hint+1; i<traj.i0+traj.n; i++)
 			if (timestamps[i] > timestamp)
 				return i-1;
-		return traj.n-1;
+		return traj.i0+traj.n-1;
 	}
 	for (signed i=signed(hint)-1; ((unsigned)i)>=traj.i0; i--)
 		if (timestamps[i] < timestamp)

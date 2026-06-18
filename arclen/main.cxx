@@ -1,9 +1,8 @@
 
 // C++ STL
-#include <vector>
-#include <unordered_map>
 #include <algorithm>
 #include <utility>
+#include <vector>
 
 // OpenMP
 #ifdef OMP_SUPPORT
@@ -52,6 +51,58 @@ struct curve_segment
 // Class implementation - arclen
 
 template <class flt_type>
+cgv::math::fmat<flt_type, 4, 4> single_linear_t_to_s (flt_type dist, flt_type offset)
+{
+	static constexpr flt_type one_over_12 = 1/flt_type(12.f);
+	dist = dist*one_over_12;
+	cgv::math::fmat<flt_type, 4, 4> out;
+	for (unsigned sub=0; sub<4; ++sub) {
+		const unsigned sub_id = sub*4;
+		flt_type a;
+		for (unsigned i=0; i<4; ++i) {
+			a = flt_type(i)*dist;
+			out[sub_id+i] = offset + a;
+		}
+		offset += a;
+	}
+	return out;
+}
+
+template <class flt_type>
+cgv::math::fmat<flt_type, 4, 4> compute_single_t_to_s (
+	const typename traj_manager<flt_type>::render_data::Vec3 &pos0,
+	const typename traj_manager<flt_type>::render_data::Vec3 &tan0,
+	const typename traj_manager<flt_type>::render_data::Vec3 &pos1,
+	const typename traj_manager<flt_type>::render_data::Vec3 &tan1,
+	const flt_type offset
+){
+	typedef flt_type real;
+	const Bezier<real> b = Hermite<real>(pos0, pos1, tan0, tan1).to_bezier();
+	const auto alen_approx = b.arc_length_bezier_approximation(4);
+	Bezier<flt_type> t_to_s[4];
+	for (unsigned j=0; j<4; j++)
+	{
+		const real length_j = alen_approx.lengths[j+1] - alen_approx.lengths[j],
+		           length_jsum = offset + alen_approx.lengths[j];
+		t_to_s[j].points[0].y = length_jsum;
+		t_to_s[j].points[1].y = length_jsum + alen_approx.y1[j]*length_j;
+		t_to_s[j].points[2].y = length_jsum + alen_approx.y2[j]*length_j;
+		t_to_s[j].points[3].y = offset      + alen_approx.lengths[j+1];
+	}
+	cgv::math::fmat<real, 4, 4> out {
+		/* col1 */ t_to_s[0].points[0].y, t_to_s[0].points[1].y,
+		           t_to_s[0].points[2].y, t_to_s[0].points[3].y,
+		/* col2 */ t_to_s[1].points[0].y, t_to_s[1].points[1].y,
+		           t_to_s[1].points[2].y, t_to_s[1].points[3].y,
+		/* col3 */ t_to_s[2].points[0].y, t_to_s[2].points[1].y,
+		           t_to_s[2].points[2].y, t_to_s[2].points[3].y,
+		/* col4 */ t_to_s[3].points[0].y, t_to_s[3].points[1].y,
+		           t_to_s[3].points[2].y, t_to_s[3].points[3].y
+	};
+	return out;
+}
+
+template <class flt_type>
 parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 {
 	typedef flt_type real;
@@ -67,6 +118,18 @@ parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 	// approximate arclength for all datasets
 	for (const auto &dataset : rd.datasets)
 	{
+		// Trajectory format handlers can hook a function to compute the arclength parametrization.
+		// Otherwise the default implementation below is used.
+		if (dataset.arclen_fn) {
+			dataset.arclen_fn(
+				rd,
+				dataset,
+				std::span{t_to_s.data() + dataset.irange.i0/2, dataset.irange.n/2},
+				std::span{s_to_t.data() + dataset.irange.i0/2, dataset.irange.n/2}
+			);
+			continue;
+		}
+
 		// approximate arclength for each trajectory in order
 		#pragma omp parallel for
 		for (int traj_idx=0; traj_idx<dataset.trajs.size(); traj_idx++)
@@ -79,7 +142,9 @@ parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 			for (unsigned i=idx_offset, k=0; i<idx_n; i+=2, k++)
 			{
 				// global segment node indices
-				curve_segment<real> seg{rd.indices[i], rd.indices[i+1]};
+				curve_segment<real> seg;
+				seg.i0 = rd.indices[i];
+				seg.i1 = rd.indices[i+1];
 				// segment geometry
 				const Bezier<real> b = Hermite<real>(
 					rd.positions[seg.i0], rd.positions[seg.i1],
@@ -160,6 +225,39 @@ parametrization compute_parametrization (const traj_manager<flt_type> &mgr)
 	return {std::move(t_to_s), std::move(s_to_t)};
 }
 
+template <class flt_type>
+void linear_parametrization(
+	typename traj_manager<flt_type>::render_data const&          render,
+	typename traj_manager<flt_type>::render_data::dataset const& dataset,
+	std::span<cgv::mat4> t_to_s,
+	std::span<cgv::mat4> s_to_t
+) {
+	// Node indices of segments in this dataset.
+	auto const indices = std::span{render.indices.data() + dataset.irange.i0, dataset.irange.n};
+
+	// t to s:
+	#pragma omp parallel for
+	for (auto i = 0; i < dataset.trajs.size(); ++i) {
+		auto const& traj = dataset.trajs[i];
+		// Total length of this trajectory.
+		auto len = flt_type{0};
+		// Node indices and arclength parametrization of segments in this trajectory.
+		auto const idcs = indices.subspan(traj.i0);
+		auto const t2s  = t_to_s.subspan(traj.i0/2);
+
+		// For every segment:
+		for (auto i = 0u; i < traj.n; i += 2) {
+			auto const seg_len =
+				(render.positions[idcs[i + 1]] - render.positions[idcs[i]]).length();
+			t2s[i/2] = single_linear_t_to_s(seg_len, len);
+			len     += seg_len;
+		}
+	};
+
+	// s to t: Local to each segment, thus identical for all.
+	std::fill(s_to_t.begin(), s_to_t.end(), single_linear_t_to_s<flt_type>(1, 0));
+}
+
 cgv::render::vertex_buffer upload_renderdata (cgv::render::context& ctx, const std::vector<cgv::mat4> &approximations)
 {
 	// init new buffer object
@@ -185,8 +283,33 @@ float eval (const cgv::mat4 &approx, float t)
 // Explicit template instantiations
 
 // Only float and double variants are intended
+template cgv::math::fmat<float, 4, 4> single_linear_t_to_s<float> (const float, const float);
+template cgv::math::fmat<double, 4, 4> single_linear_t_to_s<double> (const double, const double);
+template cgv::math::fmat<float, 4, 4> compute_single_t_to_s<float> (
+	const typename traj_manager<float>::render_data::Vec3&, const typename traj_manager<float>::render_data::Vec3&,
+	const typename traj_manager<float>::render_data::Vec3&, const typename traj_manager<float>::render_data::Vec3&,
+	const float
+);
+template cgv::math::fmat<double, 4, 4> compute_single_t_to_s<double> (
+	const typename traj_manager<double>::render_data::Vec3&, const typename traj_manager<double>::render_data::Vec3&,
+	const typename traj_manager<double>::render_data::Vec3&, const typename traj_manager<double>::render_data::Vec3&,
+	const double
+);
 template parametrization compute_parametrization<float>(const traj_manager<float>&);
 template parametrization compute_parametrization<double>(const traj_manager<double>&);
+
+template void linear_parametrization<float>(
+	traj_manager<float>::render_data const&,
+	traj_manager<float>::render_data::dataset const&,
+	std::span<cgv::mat4>,
+	std::span<cgv::mat4>
+);
+template void linear_parametrization<double>(
+	traj_manager<double>::render_data const&,
+	traj_manager<double>::render_data::dataset const&,
+	std::span<cgv::mat4>,
+	std::span<cgv::mat4>
+);
 
 // namespace close
 };
