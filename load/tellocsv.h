@@ -13,6 +13,8 @@
 #include "traj_loader.h"
 
 
+namespace load {
+
 /// provides read capabilites for Trello flight logs in .csv format
 template <class flt_type>
 class tellocsv_handler : public traj_format_handler<flt_type>
@@ -52,3 +54,5 @@ public:
 	/// parse the given stream containing the file contents and report whether any data was loaded
 	virtual traj_dataset<flt_type> read (std::istream &contents, DatasetOrigin source, const std::string &path);
 };
+
+} // namespace load

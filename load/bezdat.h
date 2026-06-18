@@ -13,6 +13,8 @@
 #include "traj_loader.h"
 
 
+namespace load {
+
 /// provides read capabilites for Hermite splines in .bezdat format. Individual trajectories are being inferred from
 /// parametric continuity between segments according to certain (currently hardcoded) thresholds.
 template <class flt_type>
@@ -45,3 +47,5 @@ struct bezdat_handler : public traj_format_handler<flt_type>
 	/// parse the given stream containing the .bezdat file contents and report whether any data was loaded
 	traj_dataset<flt_type> read (std::istream &contents, DatasetOrigin source, const std::string &path);
 };
+
+} // namespace load

@@ -14,6 +14,8 @@
 #include "traj_loader.h"
 
 
+namespace load {
+
 /// possible special semantics of attributes found in .csv column(s)
 enum class CSV_AttribSemantics
 {
@@ -387,3 +389,5 @@ public:
 	/// cheap - does not catch all inconsistencies possible in a \ref csv_descriptor !
 	static bool is_csv_descriptor_valid (const csv_descriptor &csv_desc);
 };
+
+} // namespace load

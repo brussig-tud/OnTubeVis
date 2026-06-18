@@ -1,4 +1,3 @@
-
 // C++ STL
 #include <vector>
 #include <unordered_set>
@@ -22,10 +21,10 @@
 #include <WGS84toCartesian.hpp>
 
 // local includes
-#include "csv_handler_detail.h"
+#include "csv_detail.h"
 
 // implemented header
-#include "tellocsv_handler.h"
+#include "tellocsv.h"
 
 
 // identifyier to use for position data
@@ -49,6 +48,8 @@
 // Declare the proper csv_handler implementation type
 #define DECLARE_CSV_IMPL_TYPE typedef typename csv_handler<real>::Impl CSVImpl
 
+
+namespace load {
 
 ////
 // Module-private globals
@@ -467,3 +468,5 @@ template class tellocsv_handler<double>;
 // Register both float and double handlers
 cgv::base::object_registration<tellocsv_handler<float> >  flt_tello_reg("Tello flight log handler (float)");
 cgv::base::object_registration<tellocsv_handler<double> > dbl_tello_reg("Tello flight log handler (double)");
+
+} // namespace load

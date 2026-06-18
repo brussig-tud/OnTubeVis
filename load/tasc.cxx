@@ -1,4 +1,3 @@
-
 // C++ STL
 #include <vector>
 #include <unordered_map>
@@ -24,11 +23,11 @@
 #include <WGS84toCartesian.hpp>
 
 // implemented header
-#include "tasc_handler.h"
+#include "tasc.h"
 
 // local includes
-#include "csv_handler.h"
-#include "csv_handler_detail.h"
+#include "csv.h"
+#include "csv_detail.h"
 
 
 // the desired minimum time between position samples (typically, in seconds)
@@ -55,6 +54,8 @@
 // whether to use ECEF coordinates instead of Mercator cartesian + altitude
 #define TASC_USE_ECEF_COORDINATES 0
 
+
+namespace load {
 
 ////
 // Private implementation details
@@ -360,3 +361,5 @@ template class tasc_handler<double>;
 // Register both float and double handlers
 cgv::base::object_registration<tasc_handler<float> >  flt_tasc_reg("TASC trajectory handler (float)");
 cgv::base::object_registration<tasc_handler<double> > dbl_tasc_reg("TASC trajectory handler (double)");
+
+} // namespace load

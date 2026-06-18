@@ -12,9 +12,11 @@
 #include "traj_loader.h"
 
 
+namespace load {
+
 /// provides read capabilites for TGEN random trajectory dataset specification files
 template <class flt_type>
-struct tgen_handler : public traj_format_handler<flt_type>
+struct sepia_handler : public traj_format_handler<flt_type>
 {
 	/// real number type
 	typedef typename traj_format_handler<flt_type>::real real;
@@ -39,7 +41,7 @@ private:
 
 public:
 
-	/// reports the name "TGEN"
+	/// reports the name "SePIA"
 	const std::string& format_name (void) const;
 
 	/// test if the given data stream appears to be a .tgen file
@@ -48,3 +50,5 @@ public:
 	/// parse the given stream containing the .tgen file contents and report whether any data was loaded
 	virtual traj_dataset<flt_type> read (std::istream &contents, DatasetOrigin source, const std::string &path);
 };
+
+} // namespace load

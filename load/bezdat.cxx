@@ -1,4 +1,3 @@
-
 // C++ STL
 #include <list>
 #include <vector>
@@ -20,7 +19,7 @@
 #include "regulargrid.h"
 
 // implemented header
-#include "bezdat_handler.h"
+#include "bezdat.h"
 
 
 /////
@@ -59,6 +58,8 @@
 /// identifyier to use for color data
 #define BEZDAT_DCOLOR_ATTRIB_NAME "dcolor"
 
+
+namespace load {
 
 ////
 // Local types and variables
@@ -474,3 +475,5 @@ template struct bezdat_handler<double>;
 // Register both float and double handlers
 cgv::base::object_registration<bezdat_handler<float> > flt_bezdat_reg("bezdat trajectory handler (float)");
 cgv::base::object_registration<bezdat_handler<double> > dbl_bezdat_reg("bezdat trajectory handler (double)");
+
+} // namespace load

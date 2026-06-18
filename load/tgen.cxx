@@ -1,4 +1,3 @@
-
 // C++ STL
 #include <vector>
 #include <unordered_map>
@@ -20,7 +19,7 @@
 #include "demo.h"
 
 // implemented header
-#include "tgen_handler.h"
+#include "tgen.h"
 
 
 /////
@@ -41,6 +40,8 @@
 /// identifyier to use for color gradients
 #define TGEN_DCOLOR_ATTRIB_NAME "dcolor"
 
+
+namespace load {
 
 ////
 // Local types and variables
@@ -290,3 +291,5 @@ template struct tgen_handler<float>;
 // Register both float and double handlers
 cgv::base::object_registration<tgen_handler<float> > flt_tgen_reg("tgen trajectory handler (float)");
 //cgv::base::object_registration<tgen_handler<double> > dbl_tgen_reg("tgen trajectory handler (double)");
+
+} // namespace load

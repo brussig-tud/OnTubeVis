@@ -1,4 +1,3 @@
-
 // C++ STL
 #include <vector>
 #include <unordered_map>
@@ -22,7 +21,7 @@
 #include <WGS84toCartesian.hpp>
 
 // implemented header
-#include "obd_handler.h"
+#include "obd.h"
 
 
 // identifyier to use for position data
@@ -46,6 +45,8 @@
 // whether to use ECEF coordinates instead of Mercator cartesian + altitude
 #define OBD_USE_ECEF_COORDINATES 0
 
+
+namespace load {
 
 template <class flt_type>
 const std::string& obd_handler<flt_type>::format_name (void) const
@@ -384,3 +385,5 @@ template struct obd_handler<double>;
 // Register both float and double handlers
 cgv::base::object_registration<obd_handler<float> >  flt_obd_reg("obd trajectory handler (float)");
 cgv::base::object_registration<obd_handler<double> > dbl_obd_reg("obd trajectory handler (double)");
+
+} // namespace load

@@ -1,4 +1,3 @@
-
 // C++ STL
 #include <vector>
 #include <unordered_set>
@@ -25,7 +24,7 @@
 #include <WGS84toCartesian.hpp>
 
 // implemented header
-#include "sepia_handler.h"
+#include "sepia.h"
 
 
 /////
@@ -49,6 +48,8 @@
 // whether to use ECEF coordinates instead of Mercator cartesian + altitude
 #define SEPIA_USE_ECEF_COORDINATES 0
 
+
+namespace load {
 
 ////
 // Local types and variables
@@ -1324,3 +1325,5 @@ template struct sepia_handler<double>;
 // Register both float and double handlers
 cgv::base::object_registration<sepia_handler<float> > flt_sepia_reg("sepia trajectory handler (float)");
 cgv::base::object_registration<sepia_handler<double> > dbl_sepia_reg("sepia trajectory handler (double)");
+
+} // namespace load

@@ -1,4 +1,3 @@
-
 // C++ STL
 #include <vector>
 #include <unordered_map>
@@ -24,7 +23,7 @@
 #include <WGS84toCartesian.hpp>
 
 // implemented header
-#include "bcc_handler.h"
+#include "bcc.h"
 
 
 // identifyier to use for position data
@@ -39,6 +38,8 @@
 // identifyier to use for timestamp attribute
 #define BCC_CURVE_PARAM_ATTRIB_NAME "t"
 
+
+namespace load {
 
 ////
 // Local helpers
@@ -251,3 +252,5 @@ template class bcc_handler<double>;
 // Register both float and double handlers
 cgv::base::object_registration<bcc_handler<float> >  flt_bcc_reg("BCC trajectory handler (float)");
 cgv::base::object_registration<bcc_handler<double> > dbl_bcc_reg("BCC trajectory handler (double)");
+
+} // namespace load

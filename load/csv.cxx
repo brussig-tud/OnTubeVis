@@ -1,4 +1,3 @@
-
 // C++ STL
 #include <cmath>
 #include <array>
@@ -25,9 +24,11 @@
 #include "regulargrid.h"
 
 // implemented header
-#include "csv_handler.h"
-#include "csv_handler_detail.h"
+#include "csv.h"
+#include "csv_detail.h"
 
+
+namespace load {
 
 ////
 // Class implementation - csv_descriptor
@@ -926,3 +927,5 @@ cgv::base::object_registration_2<
     }),
 	"csv handler (float) - " + csv_dbg_trace_desc.name()
 );
+
+} // namespace load

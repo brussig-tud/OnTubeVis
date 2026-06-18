@@ -1,8 +1,10 @@
 #pragma once
 
 // parent module
-#include "csv_handler.h"
+#include "csv.h"
 
+
+namespace load {
 
 ////
 // Class implementation - csv_handler
@@ -346,3 +348,5 @@ struct csv_handler<flt_type>::Impl
 		return 0;
 	}
 };
+
+} // namespace load

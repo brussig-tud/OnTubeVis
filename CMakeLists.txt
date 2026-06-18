@@ -90,30 +90,32 @@ set(SOURCES
 	arclen/hermite.cpp
 	arclen/main.cxx
 
+	# format handlers
+	load/bcc.cxx
+	load/bezdat.cxx
+	load/csv.cxx
+	load/obd.cxx
+	load/sepia.cxx
+	load/tasc.cxx
+	load/tgen.cxx
+	load/tellocsv.cxx
+
 	# user study code
 	userstudies/view_interaction.cxx
 
 	# main app
 	attrib_handle_manager.cxx
-	bcc_handler.cxx
-	bezdat_handler.cxx
 	color_legend_manager.cxx
 	color_map_manager.cxx
 	color_map_viewer.cxx
-	csv_handler.cxx
 	glyph_attribute_mapping.cxx
 	glyph_compiler.cxx
 	glyph_layer_manager.cxx
 	mapping_legend.cxx
-	obd_handler.cxx
 	on_tube_vis.cxx
 	regulargrid.cxx
-	sepia_handler.cxx
-	tasc_handler.cxx
 	textured_spline_tube_renderer.cxx
-	tgen_handler.cxx
 	traj_loader.cxx
-	tellocsv_handler.cxx
 	voxelizer.cxx
 )
 # - C/C++ headers
@@ -134,6 +136,17 @@ set(HEADERS
 	arclen/PolynomialRegression.h
 	arclen/v3.h
 
+	# format handlers
+	load/bcc.h
+	load/bezdat.h
+	load/csv.h
+	load/csv_detail.h
+	load/obd.h
+	load/sepia.h
+	load/tasc.h
+	load/tgen.h
+	load/tellocsv.h
+
 	# user study code
 	userstudies/ribbons_vs_tubes/trial.h
 	userstudies/view_interaction.h
@@ -141,13 +154,9 @@ set(HEADERS
 	# main app
 	ambient_occlusion_style.h
 	attrib_handle_manager.h
-	bcc_handler.h
-	bezdat_handler.h
 	color_legend_manager.h
 	color_map_manager.h
 	color_map_viewer.h
-	csv_handler.h
-	csv_handler_detail.h
 	curveutils.h
 	demo.h
 	glyph_attribute_mapping.h
@@ -158,16 +167,11 @@ set(HEADERS
 	hermite_spline_tube.h
 	layer_config_io.h
 	mapping_legend.h
-	obd_handler.h
 	on_tube_vis.h
 	quadratic_bezier_tube.h
 	regulargrid.h
-	sepia_handler.h
-	tasc_handler.h
 	textured_spline_tube_renderer.h
-	tgen_handler.h
 	traj_loader.h
-	tellocsv_handler.h
 	voxel_grid.h
 	voxelizer.h
 )
