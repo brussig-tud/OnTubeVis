@@ -1,6 +1,7 @@
-#include "glyph_layer_manager.h"
+#include "layer_manager.h"
 
 #include <cgv/utils/scan.h>
+
 
 void glyph_layer_manager::clear() {
 	glyph_attribute_mappings.clear();

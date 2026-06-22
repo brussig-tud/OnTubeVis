@@ -30,7 +30,8 @@
 #include <3rd/xml/cgv_xml/query.h>
 
 // Local includes
-#include "glyph_compiler.h"
+#include "glyph/compiler.h"
+#include "glyph/layer_config_io.h"
 #ifdef RTX_SUPPORT
 #include "cuda/optix_interface.h"
 

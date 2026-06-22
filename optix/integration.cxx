@@ -20,7 +20,7 @@
 #include <optix_function_table_definition.h>
 
 // Implemented header
-#include "optix_integration.h"
+#include "optix/integration.h"
 
 
 

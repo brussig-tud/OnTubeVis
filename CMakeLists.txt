@@ -90,6 +90,15 @@ set(SOURCES
 	arclen/hermite.cpp
 	arclen/main.cxx
 
+	color/color_legend_manager.cxx
+	color/color_map_manager.cxx
+	color/color_map_viewer.cxx
+
+	glyph/attribute_mapping.cxx
+	glyph/compiler.cxx
+	glyph/layer_manager.cxx
+	glyph/mapping_legend.cxx
+
 	# format handlers
 	load/bcc.cxx
 	load/bezdat.cxx
@@ -105,19 +114,13 @@ set(SOURCES
 	# user study code
 	userstudies/view_interaction.cxx
 
+	voxel/voxelizer.cxx
+
 	# main app
 	attrib_handle_manager.cxx
-	color_legend_manager.cxx
-	color_map_manager.cxx
-	color_map_viewer.cxx
-	glyph_attribute_mapping.cxx
-	glyph_compiler.cxx
-	glyph_layer_manager.cxx
-	mapping_legend.cxx
 	on_tube_vis.cxx
 	regulargrid.cxx
 	textured_spline_tube_renderer.cxx
-	voxelizer.cxx
 )
 # - C/C++ headers
 set(HEADERS
@@ -137,6 +140,21 @@ set(HEADERS
 	arclen/PolynomialRegression.h
 	arclen/v3.h
 
+	color/color_legend_manager.h
+	color/color_map_manager.h
+	color/color_map_viewer.h
+
+	curve/hermite_spline_tube.h
+	curve/quadratic_bezier_tube.h
+	curve/utils.h
+
+	glyph/attribute_mapping.h
+	glyph/compiler.h
+	glyph/layer_config_io.h
+	glyph/layer_manager.h
+	glyph/mapping_legend.h
+	glyph/shapes.h
+
 	# format handlers
 	load/bcc.h
 	load/bezdat.h
@@ -153,28 +171,17 @@ set(HEADERS
 	userstudies/ribbons_vs_tubes/trial.h
 	userstudies/view_interaction.h
 
+	voxel/grid.h
+	voxel/voxelizer.h
+
 	# main app
 	ambient_occlusion_style.h
 	attrib_handle_manager.h
-	color_legend_manager.h
-	color_map_manager.h
-	color_map_viewer.h
-	curveutils.h
 	demo.h
-	glyph_attribute_mapping.h
-	glyph_compiler.h
-	glyph_layer_manager.h
-	glyph_shapes.h
 	gui_util.h
-	hermite_spline_tube.h
-	layer_config_io.h
-	mapping_legend.h
 	on_tube_vis.h
-	quadratic_bezier_tube.h
 	regulargrid.h
 	textured_spline_tube_renderer.h
-	voxel_grid.h
-	voxelizer.h
 )
 # - GLSL shaders
 set (SHADERS
@@ -201,12 +208,12 @@ set (SHADERS
 # - add contitional source files
 if (ENABLE_OPTIX_SUPPORT)
 	list(APPEND SOURCES
-		optix_integration.cxx
-		optixtracer_textured_spline_tube.cxx
+		optix/integration.cxx
+		optix/textured_spline_tube_tracer.cxx
 	)
 	list(APPEND HEADERS
-		optix_integration.h
-		optixtracer_textured_spline_tube.h
+		optix/integration.h
+		optix/textured_spline_tube_tracer.h
 	)
 endif()
 # - resources

@@ -10,8 +10,6 @@
 #include <cgv/media/transfer_function.h>
 
 #include "gui_util.h"
-#include "glyph_attribute_mapping.h"
-
 
 
 class color_map_manager : public cgv::base::base {

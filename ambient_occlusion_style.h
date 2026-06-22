@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "voxel_grid.h"
+#include "voxel/grid.h"
 
 
 struct ambient_occlusion_style

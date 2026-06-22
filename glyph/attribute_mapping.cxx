@@ -1,4 +1,4 @@
-#include "glyph_attribute_mapping.h"
+#include "attribute_mapping.h"
 
 #include <cgv/data/informed_ptr.h>
 #include <cgv/utils/algorithm.h>

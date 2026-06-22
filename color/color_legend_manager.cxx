@@ -1,5 +1,5 @@
 #include <sstream>
-#include "glyph_shapes.h"
+#include "glyph/shapes.h"
 #include "color_legend_manager.h"
 
 #include "load/traj_loader.h"

@@ -4,6 +4,7 @@
 #include <cgv/utils/number_format.h>
 #include <cgv_gl/gl/gl.h>
 
+#include "glyph/layer_manager.h"
 #include "load/traj_loader.h"
 
 

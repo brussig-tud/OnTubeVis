@@ -5,9 +5,8 @@
 #include <cgv_g2d/shape2d_styles.h>
 #include <cgv_overlay/themed_canvas_overlay.h>
 
-#include "glyph_layer_manager.h"
 
-
+class glyph_layer_manager;
 template <class flt_type> class traj_dataset;
 
 

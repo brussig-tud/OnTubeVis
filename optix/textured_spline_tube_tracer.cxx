@@ -1,4 +1,3 @@
-
 //////
 //
 // Includes
@@ -14,14 +13,14 @@
 #include <cgv/render/texture.h>
 
 // local includes
-#include "optix_integration.h"
-#include "curveutils.h"
+#include "curve/utils.h"
+#include "integration.h"
 
 // OptiX/CUDA kernels
 #include "cuda/optix_interface.h"
 
 // implemented header
-#include "optixtracer_textured_spline_tube.h"
+#include "textured_spline_tube_tracer.h"
 
 
 

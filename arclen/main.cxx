@@ -17,7 +17,7 @@
 #include "hermite.h"
 
 // internal
-#include "curveutils.h"
+#include "curve/utils.h"
 
 // implemented header
 #include "main.h"

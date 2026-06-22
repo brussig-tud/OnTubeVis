@@ -41,23 +41,22 @@
 #include <plugins/screenshot/screenshot.h>
 
 // local includes
+#include "ambient_occlusion_style.h"
 #include "arclen/main.h"
+#include "color/color_legend_manager.h"
+#include "color/color_map_manager.h"
+#include "color/color_map_viewer.h"
 #include "demo.h" // interactive testbed helper classes and data
+#include "glyph/layer_manager.h"
+#include "glyph/mapping_legend.h"
 #include "attrib_handle_manager.h"
 #include "load/traj_loader.h"
-#include "voxelizer.h"
-#include "ambient_occlusion_style.h"
 #include "visualization_variables_info.h"
-#include "glyph_layer_manager.h"
-#include "color_map_manager.h"
-#include "color_legend_manager.h"
-#include "layer_config_io.h"
+#include "voxel/voxelizer.h"
 #include "textured_spline_tube_renderer.h"
-#include "color_map_viewer.h"
-#include "mapping_legend.h"
 #ifdef RTX_SUPPORT
-#include "optix_integration.h"
-#include "optixtracer_textured_spline_tube.h"
+#include "optix/integration.h"
+#include "optix/textured_spline_tube_tracer.h"
 #endif
 #include "userstudies/ribbons_vs_tubes/trial.h"
 

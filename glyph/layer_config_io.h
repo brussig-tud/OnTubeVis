@@ -16,8 +16,8 @@
 #include <3rd/xml/cgv_xml/query.h>
 
 // local includes
-#include "glyph_layer_manager.h"
-#include "color_map_manager.h"
+#include "color/color_map_manager.h"
+#include "layer_manager.h"
 
 
 class layer_configuration_io {

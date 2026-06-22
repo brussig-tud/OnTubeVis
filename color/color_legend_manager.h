@@ -10,8 +10,8 @@
 #include <cgv/render/texture.h>
 #include <cgv_overlay/color_scale_legend.h>
 
-#include "glyph_attribute_mapping.h"
 #include "color_map_manager.h"
+#include "glyph/attribute_mapping.h"
 
 
 template <class flt_type> class traj_dataset;

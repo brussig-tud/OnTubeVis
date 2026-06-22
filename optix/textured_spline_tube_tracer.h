@@ -12,7 +12,7 @@
 //#include <cgv/render/render_types.h>
 
 // local includes
-#include "optix_integration.h"
+#include "optix/integration.h"
 	#undef min
 	#undef max
 #include "load/traj_loader.h"

@@ -12,9 +12,8 @@
 #include <cgv/media/color.h>
 #include <cgv/gui/provider.h>
 
+#include "attribute_mapping.h"
 #include "gui_util.h"
-#include "glyph_attribute_mapping.h"
-
 
 
 class glyph_layer_manager : public cgv::base::base

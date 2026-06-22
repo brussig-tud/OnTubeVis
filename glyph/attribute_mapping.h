@@ -16,7 +16,7 @@
 #include <cgv/type/bool32_t.h>
 
 #include "gui_util.h"
-#include "glyph_shapes.h"
+#include "shapes.h"
 #include "visualization_variables_info.h"
 
 

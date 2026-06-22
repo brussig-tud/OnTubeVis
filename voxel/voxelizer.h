@@ -10,9 +10,9 @@
 #include <cgv_gpgpu/texture_fill.h>
 #include <cgv_gpgpu/mipmap.h>
 
-#include "voxel_grid.h"
+#include "curve/hermite_spline_tube.h"
+#include "grid.h"
 #include "load/traj_loader.h"
-#include "hermite_spline_tube.h"
 
 
 class voxelizer {
