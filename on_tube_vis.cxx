@@ -650,6 +650,13 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 				}
 				handled = true;
 				break;
+			case 'F':
+				if (!perfmon_ptr) break;
+				show_performance_monitor = !show_performance_monitor;
+				update_member(&show_performance_monitor);
+				perfmon_ptr->set_visibility(show_performance_monitor);
+				handled = true;
+				break;
 			case 'G':
 				grid_mode = static_cast<GridMode>((static_cast<int>(grid_mode) + 1) % 4);
 				on_set(&grid_mode);
@@ -713,6 +720,15 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 				handled = true;
 				break;
 		#endif
+			case 'V':
+				/* toggle vsync */ {
+					const auto ctx_as_base =  dynamic_cast<base*>(get_context());
+					const bool new_state =   !ctx_as_base->get<bool>("vsync");
+					ctx_as_base->set("vsync", new_state);
+					std::clog << "vsync "<<(new_state?"on":"off") << std::endl;
+					handled = true;
+				}
+				break;
 			case 'W':
 				show_wireframe_bbox = !show_wireframe_bbox;
 				on_set(&show_wireframe_bbox);
@@ -2266,9 +2282,26 @@ void on_tube_vis::create_gui(void)
 	add_heading("Scene");
 
 	help.create_gui(this);
-	
+
 	datapath_helper.create_gui("Data Path");
 
+	connect_copy(
+		add_button("Stats")->click,
+		[this](cgv::gui::button const&) {
+			if (!traj_mgr.has_data()) {
+				cgv::gui::message("No dataset loaded");
+				return;
+			}
+			std::stringstream msg {};
+			auto const [tmin, tmax] = render.data->t_minmax;
+			msg << "Trajs.:   " << render.data->datasets[0].trajs.size() << "\n"
+			       "Nodes:    " << render.data->positions.size() << "\n"
+			       "Segments: " << render.data->indices.size() / 2 << "\n"
+			       "Extent:   " << bbox.get_extent() << "\n"
+			       "Duration: " << tmax - tmin;
+			cgv::gui::message(std::move(msg).str());
+		}
+	);
 	add_member_control(this, "Bounds", bbox_rd.style.surface_color, "", "w=20", " ");
 	add_member_control(this, "Box", show_bbox, "toggle", "w=83", "%x+=2");
 	add_member_control(this, "Wireframe", show_wireframe_bbox, "toggle", "w=83");
