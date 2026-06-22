@@ -10,9 +10,11 @@
 #include <cgv/render/texture.h>
 #include <cgv_overlay/color_scale_legend.h>
 
-#include "traj_loader.h"
 #include "glyph_attribute_mapping.h"
 #include "color_map_manager.h"
+
+
+template <class flt_type> class traj_dataset;
 
 
 /// a manager automatically creating and maintaining color legend overlays for each mapped color scale in the given

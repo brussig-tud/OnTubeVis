@@ -6,7 +6,9 @@
 #include <cgv_overlay/themed_canvas_overlay.h>
 
 #include "glyph_layer_manager.h"
-#include "traj_loader.h"
+
+
+template <class flt_type> class traj_dataset;
 
 
 class mapping_legend : public cgv::overlay::themed_canvas_overlay {

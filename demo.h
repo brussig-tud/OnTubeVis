@@ -7,7 +7,7 @@
 #include <numeric>
 
 // Local includes
-#include <traj_loader.h>
+#include "load/traj_loader.h"
 
 
 // work around Clang/VS differing opinions on how to interprete the C++ standard

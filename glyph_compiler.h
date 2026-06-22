@@ -1,8 +1,9 @@
 #pragma once
 
 #include "arclen/main.h"
-#include "traj_loader.h"
+#include "load/traj_loader.h"
 #include "glyph_layer_manager.h"
+
 
 // A helper struct for range entries with start index i0 and count n.
 struct irange { int i0, n; };

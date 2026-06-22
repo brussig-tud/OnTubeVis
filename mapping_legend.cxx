@@ -4,6 +4,9 @@
 #include <cgv/utils/number_format.h>
 #include <cgv_gl/gl/gl.h>
 
+#include "load/traj_loader.h"
+
+
 mapping_legend::mapping_legend() {
 
 	set_name("Mapping Legend");

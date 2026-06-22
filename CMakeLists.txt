@@ -100,6 +100,7 @@ set(SOURCES
 	load/tasc.cxx
 	load/tgen.cxx
 	load/tellocsv.cxx
+	load/traj_loader.cxx
 
 	# user study code
 	userstudies/view_interaction.cxx
@@ -116,7 +117,6 @@ set(SOURCES
 	on_tube_vis.cxx
 	regulargrid.cxx
 	textured_spline_tube_renderer.cxx
-	traj_loader.cxx
 	voxelizer.cxx
 )
 # - C/C++ headers
@@ -147,6 +147,7 @@ set(HEADERS
 	load/tasc.h
 	load/tgen.h
 	load/tellocsv.h
+	load/traj_loader.h
 
 	# user study code
 	userstudies/ribbons_vs_tubes/trial.h
@@ -172,7 +173,6 @@ set(HEADERS
 	quadratic_bezier_tube.h
 	regulargrid.h
 	textured_spline_tube_renderer.h
-	traj_loader.h
 	voxel_grid.h
 	voxelizer.h
 )

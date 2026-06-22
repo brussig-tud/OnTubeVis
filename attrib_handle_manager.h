@@ -10,7 +10,7 @@
 #include <cgv/media/color.h>
 
 // local includes
-#include "traj_loader.h"
+#include "load/traj_loader.h"
 
 
 /// provides read and write capabilites for Hermite splines in .bezdat format

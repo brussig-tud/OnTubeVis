@@ -11,8 +11,9 @@
 #include <cgv_gpgpu/mipmap.h>
 
 #include "voxel_grid.h"
-#include "traj_loader.h"
+#include "load/traj_loader.h"
 #include "hermite_spline_tube.h"
+
 
 class voxelizer {
 public:

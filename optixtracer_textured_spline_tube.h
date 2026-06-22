@@ -15,7 +15,7 @@
 #include "optix_integration.h"
 	#undef min
 	#undef max
-#include "traj_loader.h"
+#include "load/traj_loader.h"
 
 
 

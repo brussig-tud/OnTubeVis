@@ -9,7 +9,7 @@
 #include <cgv/render/vertex_buffer.h>
 
 // Local includes
-#include "traj_loader.h"
+#include "load/traj_loader.h"
 
 
 /// helper functions for generating arc length estimations and parametrizations for trajectories loaded

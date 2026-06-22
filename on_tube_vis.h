@@ -41,10 +41,10 @@
 #include <plugins/screenshot/screenshot.h>
 
 // local includes
-#include "traj_loader.h"
 #include "arclen/main.h"
 #include "demo.h" // interactive testbed helper classes and data
 #include "attrib_handle_manager.h"
+#include "load/traj_loader.h"
 #include "voxelizer.h"
 #include "ambient_occlusion_style.h"
 #include "visualization_variables_info.h"

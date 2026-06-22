@@ -2,6 +2,8 @@
 #include "glyph_shapes.h"
 #include "color_legend_manager.h"
 
+#include "load/traj_loader.h"
+
 
 color_legend_manager::color_legend_manager(cgv::base::group &owner) : owner(owner) {
 	std::stringstream str;
