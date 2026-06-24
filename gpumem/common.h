@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <cstdint>
 
 // CGV framework
 #include <cgv_gl/gl/gl.h>
