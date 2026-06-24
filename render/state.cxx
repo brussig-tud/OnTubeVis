@@ -1,4 +1,5 @@
 // local includes
+#include "gl_util.h"
 #include "gpumem/memory_pool.inl"
 #include "gpumem/ring_buffer.inl"
 
@@ -293,8 +294,14 @@ void render_state::build_hash_grid (hash_grid::params const& params)
 		hash_grid.leak();
 		grid_mem->clear();
 	} else {
-		// Allocate a coherently mapped 1 GiB GL buffer.
-		grid_mem = std::make_unique<gpumem::heap_buffer>(1 << 30, gpumem::sync_mode::coherent, 64);
+		// Allocate a 512 MiB host buffer to build the grid in. The memory is initialized so it is valid to read.
+		grid_mem = std::make_unique<pmr::owned_heap>(pmr::owned_heap::args{
+			.size        = 1 << 29,
+			.align       = hash_grid::max_align,
+			.granularity = 64,
+			.init_val    = std::byte{},
+		});
+		grid_buf = gpumem::buffer::create();
 	}
 
 	// Construct a new hash grid in place.
@@ -312,6 +319,14 @@ void render_state::build_hash_grid (hash_grid::params const& params)
 			t_to_s[idx]
 		);
 	}
+
+	upload_hash_grid();
+}
+
+void render_state::upload_hash_grid () const
+{
+	glNamedBufferData(grid_buf.handle, grid_mem->span().size(), grid_mem->span().data(), GL_STATIC_DRAW);
+	check_gl_errors("render_state::build_hash_grid");
 }
 
 void render_state::collect_timer_queries (const bool collect_render)

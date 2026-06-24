@@ -333,6 +333,9 @@ private:
 	/// Access the bucket in which a cell with the given signature is stored by `hash_fn`.
 	[[nodiscard]] auto bucket (std::span<bucket_t>, signature_t, uint8_t hash_fn) noexcept
 		-> bucket_t&;
+
+public:
+	static constexpr auto max_align = alignof(bucket_t);
 };
 
 /// Return the unqualified identifier for the given enum value.

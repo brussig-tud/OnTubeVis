@@ -127,6 +127,7 @@ set(SOURCES
 	fmt/tgen.cxx
 
 	# GPU-accessible memory.
+	gpumem/buffer.cxx
 	gpumem/heap_buffer.cxx
 	gpumem/memory_pool.cxx
 
@@ -206,6 +207,7 @@ set(HEADERS
 	gpumem/alloc.inl
 	gpumem/array.h
 	gpumem/array.inl
+	gpumem/buffer.h
 	gpumem/common.h
 	gpumem/heap_buffer.h
 	gpumem/memory_pool.h

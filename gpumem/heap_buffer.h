@@ -1,10 +1,10 @@
 #pragma once
 
 // local includes
+#include "gpumem/buffer.h"
 #include "gpumem/common.h"
 #include "gpumem/span.h"
 #include "pmr/heap.h"
-#include "util.h"
 
 
 namespace otv::gpumem {
@@ -25,12 +25,8 @@ public:
 	}
 
 private:
-	/// Destroy a GL buffer object.
-	/// Used to clean up `_buffer` in its destructor.
-	static void free_buffer (handle_type) noexcept;
-
-	/// Handle to the persistently mapped buffer containing the managed memory.
-	RAII<handle_type, free_buffer> _buffer {0};
+	/// Persistently mapped buffer containing the managed memory.
+	buffer _buffer {};
 
 	/// Create an instance that owns and manages the given buffer.
 	[[nodiscard]] heap_buffer(gpumem::span<std::byte>, size_t granularity);

@@ -3422,6 +3422,10 @@ void on_tube_vis::create_gui (void)
 			cgv::signal::rebind(this, &on_tube_vis::build_hash_grid)
 		);
 		connect_copy(
+			add_button("Upload")->click,
+			cgv::signal::rebind(&render, &otv::render_state::upload_hash_grid)
+		);
+		connect_copy(
 			add_button("Stats")->click,
 			[this](cgv::gui::button const&) {
 				std::stringstream msg {};
@@ -4132,7 +4136,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 	// bind further SBOs
 	glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, buffer_bindings::glyph_memory, 2, std::array{
 		render.traj_glyph_mem.handle(),
-		render.grid_mem->handle(),
+		render.grid_buf.handle,
 	}.data());
 
 	// Enable textures.

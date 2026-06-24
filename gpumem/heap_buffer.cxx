@@ -55,12 +55,4 @@ heap_buffer::heap_buffer(gpumem::span<std::byte> buffer, size_t granularity)
 	, _buffer {buffer.handle()}
 {}
 
-void heap_buffer::free_buffer (handle_type handle) noexcept
-{
-	if (handle == 0) return;
-
-	glDeleteBuffers(1, &handle);
-	check_gl_errors("gpumem::heap_buffer::free");
-}
-
 } // namespace otv::gpumem

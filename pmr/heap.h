@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstddef>
+#include <optional>
+
 // local includes
 #include "pmr/buddy_alloc.h"
 #include "pmr/pool_alloc.h"
@@ -58,6 +61,25 @@ private:
 	{
 		return &other == this;
 	}
+};
+
+/// `heap` backed by an allocation obtained through `new`. Frees its backing memory when destroyed.
+class owned_heap : public heap
+{
+public:
+	struct args
+	{
+		size_t size        = 0;
+		size_t align       = alignof(std::max_align_t);
+		size_t granularity = 1;
+		std::optional<std::byte> init_val {};
+	};
+
+	[[nodiscard]] owned_heap() = default;
+	[[nodiscard]] owned_heap(args const&);
+	~owned_heap() noexcept;
+
+	void free ();
 };
 
 } // namespace otv::pmr

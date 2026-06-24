@@ -1,5 +1,7 @@
 // C++ STL
 #include <bit>
+#include <cstddef>
+#include <new>
 
 // local includes
 #include <gl_util.h>
@@ -27,6 +29,29 @@ void heap::clear ()
 {
 	_pool_alloc.leak();
 	_buddy_alloc.clear();
+}
+
+
+owned_heap::owned_heap(args const& args)
+	: heap{
+		{
+			args.init_val ? new(std::align_val_t{args.align}) std::byte[args.size]{*args.init_val}
+			              : new(std::align_val_t{args.align}) std::byte[args.size],
+			args.size
+		},
+		args.granularity
+	}
+{}
+
+owned_heap::~owned_heap() noexcept
+{
+	free();
+}
+
+void owned_heap::free ()
+{
+	delete[] _span.data();
+	_span = {};
 }
 
 } // namespace otv::pmr

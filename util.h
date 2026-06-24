@@ -182,12 +182,12 @@ template <
 	ResourceHandle handle = none();
 
 	// No default and copy construction/assignment.
-	RAII() = delete;
+	RAII() = default;
 	RAII(const ResourceHandle&) = delete;
 	RAII& operator= (const ResourceHandle&) = delete;
 
 	/// The move constructor.
-	inline RAII(RAII &&other)
+	constexpr RAII(RAII &&other)
 		: handle {std::move(other.handle)}
 	{
 		// Clear the previous owner to avoid double-free.
@@ -195,7 +195,7 @@ template <
 	}
 
 	/// Move assignment.
-	inline RAII& operator= (RAII &&other)
+	constexpr RAII& operator= (RAII &&other)
 	{
 		// Make self-assignment a NOP.
 		if (&other == this) return *this;
@@ -208,16 +208,16 @@ template <
 	}
 
 	/// Construct by moving in the given resource.
-	inline RAII(ResourceHandle &&handle) : handle(std::move(handle))
+	constexpr RAII(ResourceHandle &&handle) : handle(std::move(handle))
 	{}
 
 	/// The destructor. Calls the finalizer on the wrapped resource.
-	inline ~RAII() {
+	~RAII() {
 		drop();
 	}
 
 	/// Explicitly call the finalizer on the wrapped resource. Leaves the RAII wrapper in an undefined state.
-	inline void drop (void) {
+	void drop (void) {
 		if (handle != none()) {
 			finalizer(handle);
 			handle = none();
