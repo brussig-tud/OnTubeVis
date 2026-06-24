@@ -51,7 +51,7 @@ buddy_alloc::buddy_alloc(std::span<std::byte> memory, uint8_t base_order)
 
 	if constexpr (log_level > 0)
 		log(LOG_TAG" Create instance.\n"
-			"\tRange:       ",_span.data(),"..",&*_span.end()," (",_span.size()," bytes)\n"
+			"\tRange:       ",_span.data(),"..",_span.data()+_span.size(), " (", _span.size(), " bytes)\n"
 			"\tCapacity:    ",block_size * min_blocks," bytes\n"
 			"\tGranularity: ",block_size," bytes\n"
 			"\tLevels:      ",unsigned{_max_order},"\n"
