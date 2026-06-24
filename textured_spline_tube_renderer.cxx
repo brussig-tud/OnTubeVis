@@ -172,9 +172,9 @@ namespace cgv {
 				rh.reflect_member("culling_mode", culling_mode) &&
 				rh.reflect_member("illumination_mode", illumination_mode) &&
 				rh.reflect_member("map_color_to_material", map_color_to_material) &&
-				rh.reflect_member("surface_color", surface_color) &&
+				//rh.reflect_member("surface_color", surface_color) &&
 				rh.reflect_member("max_nr_lights", max_nr_lights) &&
-				rh.reflect_member("material", material);
+				//rh.reflect_member("material", material);
 				rh.reflect_member("line_primitive", line_primitive) &&
 				rh.reflect_member("radius", radius) &&
 				rh.reflect_member("radius_scale", radius_scale) &&
