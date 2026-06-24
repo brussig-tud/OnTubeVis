@@ -1,7 +1,7 @@
 // C++ STL
 #include <bit>
 #include <cstddef>
-#include <new>
+#include <cstring>
 
 // local includes
 #include <gl_util.h>
@@ -35,13 +35,22 @@ void heap::clear ()
 owned_heap::owned_heap(args const& args)
 	: heap{
 		{
-			args.init_val ? new(std::align_val_t{args.align}) std::byte[args.size]{*args.init_val}
-			              : new(std::align_val_t{args.align}) std::byte[args.size],
+			static_cast<std::byte*>(
+				#ifdef _MSC_VER
+					_aligned_malloc(args.size, args.align)
+				#else
+					std::aligned_alloc(args.align, args.size)
+				#endif
+			),
 			args.size
 		},
 		args.granularity
 	}
-{}
+{
+	if (args.init_val) {
+		std::memset(_span.data(), static_cast<int>(*args.init_val), _span.size());
+	}
+}
 
 owned_heap::~owned_heap() noexcept
 {
@@ -50,7 +59,11 @@ owned_heap::~owned_heap() noexcept
 
 void owned_heap::free ()
 {
-	delete[] _span.data();
+	#ifdef _MSC_VER
+		_aligned_free(_span.data());
+	#else
+		std::free(_span.data());
+	#endif
 	_span = {};
 }
 
