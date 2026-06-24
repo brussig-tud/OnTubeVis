@@ -3431,9 +3431,9 @@ void on_tube_vis::create_gui (void)
 				std::stringstream msg {};
 				render.hash_grid.write_stats(msg);
 
-				using std::literals::operator""sv;
+				//using std::literals::operator""sv;
 				auto const     bytes = render.grid_mem->allocated_bytes();
-				constexpr auto units = std::array{" B"sv, " kiB"sv, " MiB"sv, " GiB"sv};
+				constexpr auto units = std::array{" B", " kiB", " MiB", " GiB"};
 
 				unsigned ord_of_mag = 0;
 				while (++ord_of_mag < units.size() && bytes >> (10*ord_of_mag));
