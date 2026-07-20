@@ -5,7 +5,6 @@
 #ifndef _USE_MATH_DEFINES
 	#define _USE_MATH_DEFINES 1
 #endif
-#include <list>
 #include <vector>
 
 #include <cgv/base/base.h>
@@ -13,7 +12,6 @@
 #include <cgv/gui/provider.h>
 
 #include "attribute_mapping.h"
-#include "gui_util.h"
 
 
 class glyph_layer_manager : public cgv::base::base

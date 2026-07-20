@@ -1,6 +1,5 @@
 #pragma once
 
-#include <memory>
 #include <vector>
 
 #include <cgv/base/base.h>
@@ -9,7 +8,7 @@
 #include <cgv/render/texture.h>
 #include <cgv/media/transfer_function.h>
 
-#include "gui_util.h"
+#include "util/gui.h"
 
 
 class color_map_manager : public cgv::base::base {

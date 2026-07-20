@@ -160,8 +160,12 @@ namespace cgv { // @<
 			vec3 view_dir;
 			/// viewport rectangle (offset and size)
 			vec4 viewport;
+
+		public:
 			/// additional options not dependant on the style and set from outside the renderer
 			shader_compile_options additional_options;
+
+		protected:
 			/// keep track of which line primitive was active the last time the renderer drew something
 			mutable textured_spline_tube_render_style::LinePrimitive last_active_line_primitive = textured_spline_tube_render_style::LP_TUBE_RUSSIG;
 
@@ -183,11 +187,6 @@ namespace cgv { // @<
 			}
 			///
 			void set_viewport(const vec4& viewport) { this->viewport = viewport; }
-			/// set additional defines contained in the given shader_compile_options that do not depend on the style
-			void set_additional_defines(const shader_compile_options &options);
-			/// set additional defines contained in the given shader_compile_options that do not depend on the style,
-			/// moving the relevant maps instead of copying them
-			void set_additional_defines(shader_compile_options &&options);
 			///
 			template <typename T = float>
 			void set_node_id_array(const context& ctx, const std::vector<T>& node_ids) { has_node_ids = true; set_attribute_array(ctx, "node_ids", node_ids); }

@@ -111,8 +111,13 @@ set(SOURCES
 	load/tellocsv.cxx
 	load/traj_loader.cxx
 
+	relations/hash_grid.cxx
+	relations/visualization.cxx
+
 	# user study code
 	userstudies/view_interaction.cxx
+
+	util/gl.cxx
 
 	voxel/voxelizer.cxx
 
@@ -167,9 +172,16 @@ set(HEADERS
 	load/tellocsv.h
 	load/traj_loader.h
 
+	# trajectory relations
+	relations/hash_grid.h
+	relations/visualization.h
+
 	# user study code
 	userstudies/ribbons_vs_tubes/trial.h
 	userstudies/view_interaction.h
+
+	util/gl.h
+	util/gui.h
 
 	voxel/grid.h
 	voxel/voxelizer.h
@@ -178,7 +190,6 @@ set(HEADERS
 	ambient_occlusion_style.h
 	attrib_handle_manager.h
 	demo.h
-	gui_util.h
 	on_tube_vis.h
 	regulargrid.h
 	textured_spline_tube_renderer.h
@@ -189,6 +200,7 @@ set (SHADERS
 	glsl/optix_display.glfs
 	glsl/optix_display.glpr
 	glsl/rcc.glsl
+	glsl/relations.glsl
 	glsl/surface_mod.glsl
 	glsl/textured_line_primitive.glvs
 	glsl/textured_spline_ribbon.glfs

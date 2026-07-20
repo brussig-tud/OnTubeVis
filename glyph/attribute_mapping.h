@@ -15,7 +15,7 @@
 #include <cgv/media/color.h>
 #include <cgv/type/bool32_t.h>
 
-#include "gui_util.h"
+#include "util/gui.h"
 #include "shapes.h"
 #include "visualization_variables_info.h"
 

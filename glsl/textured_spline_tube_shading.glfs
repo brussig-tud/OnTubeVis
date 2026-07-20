@@ -10,6 +10,9 @@
 #define GRID_NORMAL_SETTINGS 0
 #define OUTLINE_INWARDS 0
 
+// Trajectory relation to evaluate.
+#define RELATION_FUNCTION 0
+
 #define CONSTANT_FLOAT_UNIFORM_COUNT 0
 #define CONSTANT_COLOR_UNIFORM_COUNT 0
 #define MAPPING_PARAMETER_UNIFORM_COUNT 0
@@ -40,7 +43,12 @@ mat3 get_inverse_normal_matrix();
 vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color, int side, float specular_factor);
 ////***** end interface of surface.glsl ***********************************
 
-layout (binding = 0) uniform sampler2D albedo_tex;
+////***** begin interface of relations.glsl ***********************************
+float trajectory_relation (uvec2 node_ids, float seg_t);
+vec3 shade_relation (float value);
+////***** end interface of relations.glsl ***********************************
+
+layout (binding = 0) uniform usampler2D albedo_tex;
 layout (binding = 1) uniform sampler2D position_tex;
 layout (binding = 2) uniform sampler2D normal_tex;
 layout (binding = 3) uniform sampler2D tangent_tex;
@@ -104,6 +112,10 @@ out vec4 frag_color;
 
 struct irange {
 	int i0, n;
+};
+
+layout(std430, binding = 2) readonly buffer nid_buffer {
+	uvec2 node_ids[];
 };
 
 // attribute and range buffers for each glyph layer
@@ -1417,10 +1429,10 @@ void main()
 		/*(holographic_raycast ? pxl*subpxl_width : */pxl*pxl_width + subp*subpxl_width + intra_fbtexel_offset,
 		texcoord_fs.y
 	);
-	vec4 albedo_texcoord_seg = texture(albedo_tex, fb_uv);
-	vec3 color = unpackUnorm4x8(floatBitsToUint(albedo_texcoord_seg.x)).rgb;
-	vec2 texcoord = albedo_texcoord_seg.yz;
-	int segment_id = floatBitsToInt(albedo_texcoord_seg.w);
+	uvec4 albedo_texcoord_seg = texture(albedo_tex, fb_uv);
+	vec3 color = RELATION_FUNCTION == 0 ? unpackUnorm4x8(albedo_texcoord_seg.x).rgb : vec3(0);
+	vec2 texcoord = uintBitsToFloat(albedo_texcoord_seg.yz);
+	int segment_id = int(albedo_texcoord_seg.w);
 
 	vec3 pos_eye = texture(position_tex, fb_uv).xyz;
 	vec3 normal_eye = texture(normal_tex, fb_uv).xyz;
@@ -1447,6 +1459,10 @@ void main()
 			uv.t = sin(0.5*M_PI*uv.t);
 
 		//subp_color = vec4(uv.s, uv.t, 0.0, 1.0);
+
+	#if RELATION_FUNCTION != 0
+		color = shade_relation(trajectory_relation(node_ids[segment_id], uintBitsToFloat(albedo_texcoord_seg[0])));
+	#endif
 
 		// glyph layer 0
 #if L0_VISIBLE > 0 && L0_MAPPED_ATTRIB_COUNT > 0

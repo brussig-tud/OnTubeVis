@@ -14,6 +14,9 @@
    3: Attribute-less (except segment and sub-curve ids) */
 #define ATTRIB_MODE 0
 
+/// Trajectory relation to evaluate.
+#define RELATION_FUNCTION 0
+
 #define FLT_EPS 1.19209290e-07
 #define POS_INF 3e+37
 #define NEG_INF -3e+37
@@ -322,10 +325,15 @@ void main()
 	vec3 tangent = eval_cubic_hermite_tangent(SM, spline_t);
 	// transform the tangent from object space to eye space
 	tangent = normalize(get_normal_matrix() * tangent);
-	
+
 	float v = texcoords_fs.y;
 
-	frag_albedo = uvec4(packUnorm4x8(col), floatBitsToUint(alen(spline_t)), floatBitsToUint(v), segment_id_fs);
+	frag_albedo = uvec4(
+		RELATION_FUNCTION == 0 ? packUnorm4x8(col) : floatBitsToUint(spline_t),
+		floatBitsToUint(alen(spline_t)),
+		floatBitsToUint(v),
+		segment_id_fs
+	);
 	frag_position = vec3(hit_pos_eye);
 	frag_normal = normal_fs;
 	frag_tangent = tangent;

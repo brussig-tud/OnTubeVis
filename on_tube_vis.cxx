@@ -2,7 +2,11 @@
 #include "on_tube_vis.h"
 
 // C++ STL
+#include <chrono>
 #include <filesystem>
+#include <format>
+#include <fstream>
+#include <iterator>
 #include <numeric>
 
 // CGV framework core
@@ -32,6 +36,7 @@
 // Local includes
 #include "glyph/compiler.h"
 #include "glyph/layer_config_io.h"
+#include "render_types.h"
 #ifdef RTX_SUPPORT
 #include "cuda/optix_interface.h"
 
@@ -69,8 +74,24 @@ cgv::reflect::enum_reflection_traits<GridMode> get_reflection_traits(const GridM
 }
 
 namespace {
-	std::filesystem::path startupCWD = std::filesystem::current_path();
-}
+
+std::filesystem::path startupCWD = std::filesystem::current_path();
+
+constexpr uint8_t max_glyph_layers = 4;
+
+/// Bind indices used for SSBOs. "Scoped enum" with implicit conversion to the underlying integer type.
+struct sbo_idx {enum : GLuint {
+	nodes,
+	t_to_s,
+	node_idcs,
+	seg_to_traj,
+	glyphs_base,
+	glyph_memory = glyphs_base + max_glyph_layers*2,
+	grid_memory,
+	count
+};};
+
+} // namespace
 
 
 
@@ -350,6 +371,7 @@ bool on_tube_vis::init(context& ctx) {
 		vis.config = vis.manager.get_configuration();
 	}
 
+	set_relation_shader_opts(tstr.additional_options);
 	tube_shading_options = build_tube_shading_options();
 	shaders.reload(ctx, "tube_shading", tube_shading_options);
 
@@ -517,6 +539,7 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("layer_config_file", layer_config_file_helper.file_name) && // ToDo: figure out proper reflection name
 		rh.reflect_member("show_hidden_glyphs", debug.show_hidden_glyphs) &&
 		rh.reflect_member("render_style", render.style) &&
+		rh.reflect_member("trajectory_relation", relations.vis.function) &&
 		rh.reflect_member("attrib_mode", (unsigned&)render.style.attrib_mode) &&
 		rh.reflect_member("bounding_geometry", render.style.bounding_geometry) &&
 		rh.reflect_member("bounding_box_color", bbox_rd.style.surface_color) &&
@@ -537,7 +560,7 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
-		rh.reflect_member("benchmark_mode", benchmark_mode) &&
+		rh.reflect_member("benchmark_mode", benchmark.set_render_style) &&
 		rh.reflect_member("unlock_after_scene_switch", unlock_after_scene_switch);
 }
 
@@ -958,6 +981,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 		ah_mgr.set_dataset(traj_mgr.dataset(0));
 
 		context& ctx = *get_context();
+		set_relation_shader_opts(ref_textured_spline_tube_renderer(ctx).additional_options);
 		tube_shading_options = build_tube_shading_options();
 		shaders.reload(ctx, "tube_shading", tube_shading_options);
 
@@ -999,13 +1023,30 @@ void on_tube_vis::on_set(void* member_ptr) {
 				grid_normal_settings,
 				grid_normal_inwards,
 				grid_normal_variant,
-				enable_fuzzy_grid)) {
-		shader_compile_options options = build_tube_shading_options();
-		if(options != tube_shading_options) {
-			context& ctx = *get_context();
-			tube_shading_options = options;
-			shaders.reload(ctx, "tube_shading", tube_shading_options);
-		}
+				enable_fuzzy_grid,
+				relations.vis.function)) {
+		context& ctx = *get_context();
+		if (ptr.points_to_member_of(relations.vis))
+			set_relation_shader_opts(ref_textured_spline_tube_renderer(ctx).additional_options);
+		tube_shading_options = build_tube_shading_options();
+		shaders.reload(ctx, "tube_shading", tube_shading_options);
+	}
+
+	if (ptr.points_to(benchmark.set_render_style)) {
+		misc_cfg.instant_redraw_proxy = true;
+		on_set(&misc_cfg.instant_redraw_proxy);
+		misc_cfg.vsync_proxy = false;
+		on_set(&misc_cfg.vsync_proxy);
+		show_bbox = false;
+		update_member(&show_bbox);
+		show_wireframe_bbox = false;
+		update_member(&show_wireframe_bbox);
+		cm_viewer_ptr->set_visibility(false);
+		navigator_ptr->set_visibility(false);
+		perfmon_ptr->set_visibility(false);
+		debug.far_extent_factor = 0.4;
+		debug.near_extent_factor = 0.333333*debug.far_extent_factor;
+		set_view();
 	}
 
 	// - debug render setting
@@ -1050,6 +1091,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 			glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 			context& ctx = *get_context();
+			set_relation_shader_opts(ref_textured_spline_tube_renderer(ctx).additional_options);
 			tube_shading_options = build_tube_shading_options();
 			shaders.reload(ctx, "tube_shading", tube_shading_options);
 
@@ -1945,27 +1987,11 @@ void on_tube_vis::init_frame (context &ctx)
 			benchmark.last_seconds_since_start = 0.0;
 			benchmark.sort_time_total = 0.0;
 			benchmark.num_sorts = 0;
-		}
-	}
 
-	if(!benchmark_mode_setup && benchmark_mode) {
-		misc_cfg.instant_redraw_proxy = true;
-		on_set(&misc_cfg.instant_redraw_proxy);
-		misc_cfg.vsync_proxy = false;
-		on_set(&misc_cfg.vsync_proxy);
-		show_bbox = false;
-		update_member(&show_bbox);
-		show_wireframe_bbox = false;
-		update_member(&show_wireframe_bbox);
-		cm_viewer_ptr->set_visibility(false);
-		navigator_ptr->set_visibility(false);
-		perfmon_ptr->set_visibility(false);
-		debug.far_extent_factor = 0.4;
-		debug.near_extent_factor = 0.333333*debug.far_extent_factor;
-		set_view();
-		//grid_mode = GM_COLOR_NORMAL;
-		//on_set(&grid_mode);
-		benchmark_mode_setup = true;
+			if (!benchmark.render_time_query.is_initialized())
+				benchmark.render_time_query.init(ctx);
+			benchmark.render_times.clear();
+		}
 	}
 }
 
@@ -2246,7 +2272,9 @@ void on_tube_vis::after_finish(context& ctx) {
 
 		view_ptr->rotate(0.0, cgv::math::deg2rad(360.0 * alpha), depth);
 
-		if(seconds_since_start >= benchmark_time) {
+		benchmark.render_times.emplace_back(benchmark.render_time_query.collect());
+
+		if(seconds_since_start >= benchmark_time && benchmark.total_frames >= benchmark.min_frames) {
 			benchmark.running = false;
 			benchmark.requested = false;
 			update_member(&benchmark.requested);
@@ -2262,6 +2290,7 @@ void on_tube_vis::after_finish(context& ctx) {
 			//ss << "Sorted " << benchmark.num_sorts << " times with mean duration of " << (benchmark.sort_time_total / static_cast<double>(benchmark.num_sorts)) << "ms" << std::endl;
 
 			std::cout << ss.str() << std::endl;
+			if (benchmark.relations) end_relations_benchmark();
 		}
 	}
 }
@@ -2348,6 +2377,69 @@ void on_tube_vis::create_gui(void)
 
 	add_decorator("", "separator");
 	add_heading("Visualization");
+
+	if (begin_tree_node("Relations", relations.vis)) {
+		if (traj_mgr.has_data()) {
+		align("\a");
+
+		add_decorator("Hash Grid", "heading", "level=2");
+		add_member_control(this, "Layout", relations.grid_params.layout, "dropdown",
+			"enums='3D,Strided 3D,4D'"
+		);
+		add_member_control(this, "Hash function", relations.grid_params.signature_fn, "dropdown",
+			"enums='Multiply and XOR,xxHash32,Z-Order'"
+		);
+		auto const extent = vec4{
+			bbox.get_extent(),
+			render.data->t_minmax.second - render.data->t_minmax.first
+		};
+		add_member_control(this, "Cell size x", relations.grid_params.cell_size[0], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true", extent[0] * 0.1f)
+		);
+		add_member_control(this, "Cell size y", relations.grid_params.cell_size[1], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true", extent[1] * 0.1f)
+		);
+		add_member_control(this, "Cell size z", relations.grid_params.cell_size[2], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true", extent[2] * 0.1f)
+		);
+		add_member_control(this, "Cell size t", relations.grid_params.cell_size[3], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true", extent[3] * 0.1f)
+		);
+		add_member_control(this, "Sample step space", relations.grid_params.sample_step[0], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true", min_value(relations.grid_params.cell_size) * 0.2f)
+		);
+		add_member_control(this, "Sample step time", relations.grid_params.sample_step[1], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true", relations.grid_params.cell_size[3] * 0.2f)
+		);
+		connect_copy(
+			add_button("Rebuild")->click,
+			[this](auto const&) {build_hash_grid();}
+		);
+		connect_copy(
+			add_button("Stats")->click,
+			[this](auto const&) {cgv::gui::message(relations.grid.stats());}
+		);
+
+		add_decorator("Shading", "heading", "level=2");
+		relations.vis.build_gui(
+			*this,
+			render.data->datasets[0].trajs.size(),
+			extent,
+			color_map_mgr.get_names()
+		);
+
+		add_decorator("Benchmark", "heading", "level=2");
+		add_member_control(this, "#Frames", benchmark.min_frames);
+		connect_copy(
+			add_button("Run Benchmark")->click,
+			cgv::signal::rebind(this, &on_tube_vis::start_relations_benchmark)
+		);
+
+		align("\b");
+		}
+
+		end_tree_node(relations);
+	}
 
 	// Attribute mapping settings
 	for(unsigned ds = 0; ds < (unsigned)render.visualizations.size(); ds++) {
@@ -2627,17 +2719,28 @@ void on_tube_vis::update_attribute_bindings(void) {
 		// - compile data
 		const size_t num_nodes = render.data->positions.size();
 		std::vector<node_attribs> render_attribs; render_attribs.reserve(num_nodes);
-		for(size_t i = 0; i < num_nodes; i++) {
-			// convenience shortcut
-			const auto& col = render.data->colors[i];
-			// interleave and commit
-			render_attribs.emplace_back(node_attribs{
-				/* .pos_rad */  vec4(render.data->positions[i], render.data->radii[i]),
-				/* .color */    vec4(col.R(), col.G(), col.B(), 1),
-				/* .tangent */  render.data->tangents[i],  // <- does already contain radius deriv. in w-component
-				/* .t */        vec4(render.data->timestamps[i], 0, 0, 0)
-				});
+		// Global across all datasets.
+		auto traj_id  = 0u;
+		auto node_idx = 0u;
+		for (auto const& ds : render.data->datasets) {
+			for (auto const& traj : ds.trajs) {
+				auto const end = node_idx + traj.n/2;
+				for (; node_idx <= end; ++node_idx) {
+					// convenience shortcut
+					const auto& col = render.data->colors[node_idx];
+					// interleave and commit
+					render_attribs.emplace_back(node_attribs{
+						.pos_rad = vec4(render.data->positions[node_idx], render.data->radii[node_idx]),
+						.color   = vec4(col.R(), col.G(), col.B(), 1),
+						.tangent = render.data->tangents[node_idx],  // <- does already contain radius deriv. in w-component
+						.t       = render.data->timestamps[node_idx],
+						.traj_id = traj_id,
+					});
+				}
+				++traj_id;
+			}
 		}
+		assert(render_attribs.size() == num_nodes);
 		// - upload
 		vertex_buffer new_sbo(VertexBufferType::VBT_STORAGE, VertexBufferUsage::VBU_STATIC_READ);
 		if(!new_sbo.create(ctx, render_attribs))
@@ -2668,11 +2771,66 @@ void on_tube_vis::update_attribute_bindings(void) {
 
 		// Generate the density volume (uses GPU buffer data so we need to do this after upload)
 		create_density_volume(ctx, voxel_grid_resolution);
+
+		// Initialize the trajectory hash grid. Cell size is chosen such that the number of segments
+		// per cell is approximately constant.
+		{
+		auto const extent = bbox.get_extent();
+		relations.vis.set_defaults({extent, tmax - tmin});
+		relations.grid_params.cell_size =
+			1.5f * vec4{vec3{relations.vis.radius[0]}, relations.vis.radius[1]};
+		relations.grid_params.sample_step =
+			vec2{relations.grid_params.cell_size[0], relations.grid_params.cell_size[3]} * 0.05f;
+		build_hash_grid();
+		}
 	}
 
 	// reset the last sort pos and direction to zero when the render data changed to force a sorting step
 	last_sort_pos = vec3(0.0f);
 	last_sort_dir = vec3(0.0f);
+}
+
+void on_tube_vis::build_hash_grid () {
+	// Reset grid with new parameters.
+	auto const initial_buckets = relations.grid_params.layout == hash_grid::layout::t_xyz ? 10u : 1000u;
+	relations.grid = {relations.grid_params, initial_buckets};
+
+	// Insert all segments into the new grid.
+	auto const node = [this](size_t idx) {
+		return hash_grid::node_attribs{
+			render.data->positions[idx],
+			render.data->timestamps[idx],
+			render.data->tangents[idx]
+		};
+	};
+	for (size_t i = 0; i < render.arclen_data.t_to_s.size(); ++i) {
+		auto const start = render.data->indices[2*i], end = render.data->indices[2*i + 1];
+		relations.grid.add_segment(
+			node(start),
+			node(end),
+			{start, end},
+			render.arclen_data.t_to_s[i]
+		);
+	}
+
+	// Upload grid to GPU for rendering.
+	relations.grid_sbo = {};
+	relations.grid_sbo = relations.grid.upload();
+
+	// Update shaders.
+	auto& ctx = *get_context();
+	set_relation_shader_opts(ref_textured_spline_tube_renderer(ctx).additional_options);
+	set_relation_shader_opts(tube_shading_options);
+	shaders.reload(ctx, "tube_shading", tube_shading_options);
+
+	// Show new state.
+	taa.reset();
+	post_redraw();
+}
+
+void on_tube_vis::set_relation_shader_opts (cgv::render::shader_compile_options& opts) {
+	relations.grid.set_shader_opts(opts, sbo_idx::grid_memory);
+	relations.vis.set_shader_opts(opts);
 }
 
 void on_tube_vis::update_debug_attribute_bindings() {
@@ -2918,7 +3076,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 	// - node attribute data needed by both rasterization and raytracing
 	const vertex_buffer *node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids"),
 	                    &node_idx_buffer = *node_idx_buffer_ptr;
-	
+
 #ifdef RTX_SUPPORT
 	if (!optix.enabled || !optix.initialized)
 #endif
@@ -2970,6 +3128,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			++benchmark.num_sorts;
 		}
 
+		if (benchmark.running) benchmark.render_time_query.begin_scope();
+
 		tstr.set_cyclopic_eye(cyclopic_eye);
 		tstr.set_view_dir(view_dir);
 		//tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
@@ -2983,11 +3143,11 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			count = static_cast<int>(debug.render_count);
 		}
 
-		render.render_sbo.bind(ctx, VBT_STORAGE, 0);
-		render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
+		render.render_sbo.bind(ctx, VBT_STORAGE, sbo_idx::nodes);
+		render.arclen_sbo.bind(ctx, VBT_STORAGE, sbo_idx::t_to_s);
 		//if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
 			// for now we always bind the node indices buffer to enable smooth intra-segment t filtering
-			node_idx_buffer_ptr->bind(ctx, VBT_STORAGE, 2);
+			node_idx_buffer_ptr->bind(ctx, VBT_STORAGE, sbo_idx::node_idcs);
 			tstr.render(ctx, 0, count);
 		/*}
 		else
@@ -3038,6 +3198,9 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			prog.set_uniform(ctx, "ambient_occlusion.cone_angle_factor", ao_style.angle_factor);
 			prog.set_uniform_array(ctx, "ambient_occlusion.sample_directions", ao_style.sample_directions);
 		}
+
+		relations.grid.set_uniforms(ctx, prog);
+		relations.vis.set_uniforms(ctx, prog);
 
 		// set grid parameters
 		prog.set_uniform(ctx, "grid_color", grid_color);
@@ -3104,6 +3267,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 				render.aindex_sbos[i].bind(ctx, base_index + 1);
 			}
 		}
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, sbo_idx::grid_memory, relations.grid_sbo.handle());
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
@@ -3126,6 +3290,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		color_map_mgr.ref_texture().disable(ctx);
 
 		prog.disable(ctx);
+
+		if (benchmark.running) benchmark.render_time_query.end_scope();
 
 		if(playback.active)
 			post_redraw();
@@ -3177,9 +3343,78 @@ shader_compile_options on_tube_vis::build_tube_shading_options() {
 		options.define_macro_if_not_default("L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
 	}
 
+	set_relation_shader_opts(options);
+
 	return options;
 }
 
+void on_tube_vis::start_relations_benchmark ()
+{
+	// Render only trajectories and GUI.
+	benchmark.relations        = true;
+	benchmark.set_render_style = true;
+	on_set(&benchmark.set_render_style);
+	// Disable antialiasing.
+	taa.set_enabled(false);
+	on_set(&taa);
+	// Trigger benchmark starting with the next frame.
+	SET_MEMBER(benchmark.requested, true);
+	post_redraw();
+}
+
+void on_tube_vis::end_relations_benchmark ()
+{
+	// Write results to a CSV file.
+	using namespace std::chrono;
+	auto result_file = std::ofstream{std::format(
+		"{:%F_%T}.csv",
+		zoned_seconds{current_zone(), round<seconds>(system_clock::now())}
+	)};
+
+	// Write parameters.
+	auto const& frame_buffer = fbc.ref_frame_buffer();
+	std::format_to(std::ostreambuf_iterator{result_file},
+		"dataset\t{}\n"
+		"num_pixels\t{}\n"
+		"grid_layout\t{}\n"
+		"cell_size_x\t{}\n"
+		"cell_size_y\t{}\n"
+		"cell_size_z\t{}\n"
+		"cell_size_t\t{}\n"
+		"sampling_space\t{}\n"
+		"sampling_time\t{}\n"
+		"function\t{}\n"
+		"radius_space\t{}\n"
+		"radius_time\t{}\n"
+		"sample_rate\t{}\n"
+		"direction\t{}\n"
+		"memory\t{}\n",
+		traj_mgr.dataset(0).data_source(),
+		frame_buffer.get_width() * frame_buffer.get_height(),
+		enum_id(relations.grid_params.layout),
+		relations.grid_params.cell_size.x(),
+		relations.grid_params.cell_size.y(),
+		relations.grid_params.cell_size.z(),
+		relations.grid_params.cell_size[3],
+		relations.grid_params.sample_step[0],
+		relations.grid_params.sample_step[1],
+		get_reflection_traits(relations.vis.function)
+			.get_enum_name(static_cast<unsigned>(relations.vis.function)),
+		relations.vis.radius[0],
+		relations.vis.radius[1],
+		relations.vis.sample_rate,
+		enum_id(relations.vis.direction),
+		relations.grid.buffer_size()
+	);
+	// Write render time measurements.
+	for (auto const t : benchmark.render_times) result_file << "time\t" << t.count() << "\n";
+
+	// Exit benchmark mode.
+	benchmark.set_render_style = false;
+	benchmark.relations        = false;
+	// Render additonal elements.
+	navigator_ptr->set_visibility(true);
+}
 
 ////
 // Object registration

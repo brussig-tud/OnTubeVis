@@ -52,12 +52,6 @@ namespace cgv {
 			}
 			return true;
 		}
-		void textured_spline_tube_renderer::set_additional_defines(const shader_compile_options &options) {
-			additional_options = options;
-		}
-		void textured_spline_tube_renderer::set_additional_defines(shader_compile_options &&options) {
-			additional_options = std::move(options);
-		}
 		void textured_spline_tube_renderer::update_shader_program_options(shader_compile_options &options) const
 		{
 			const auto& rs = get_style<textured_spline_tube_render_style>();

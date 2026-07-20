@@ -7,6 +7,9 @@
 #define USE_CUBIC_TANGENTS 1
 #define USE_VIEW_SPACE_POSITION 1
 
+// Trajectory relation to evaluate.
+#define RELATION_FUNCTION 0
+
 #if USE_CONSERVATIVE_DEPTH == 1
 #extension GL_ARB_conservative_depth : enable
 #endif
@@ -153,8 +156,7 @@ float alen (float t)
 	return eval_cubic_bezier(t_inner, b[segment_id_fs][seg]);
 }
 
-// Produces an orthogonal vector to v. Doesn�t require the input
-// to be normalized and doesn�t normalise the output. 
+// Produces an orthogonal vector to v. Doesn't require the input to be normalized and doesn't normalise the output.
 // source: http://lolengine.net/blog/2013/09/21/picking-orthogonal-vector-combing-coconuts
 vec3 GetOrthoVec(vec3 v)
 {
@@ -943,12 +945,16 @@ void main()
 		vec3 hit_pos_eye = direction * hit.t;
 		float spline_t = hit.l * 0.5 + l_offset_fs;
 		// determine color - since we ignore the tangents, interpolation is just linear
+	#if RELATION_FUNCTION == 0
 		const vec4 col = spline_t >= max_t ? vec4(0.75, 0.75, 0.75, 1) :
 		#if ATTRIB_MODE & 2
 			vec4(mix(color0, color1, spline_t), 1.0);
 		#else
 			vec4(mix(unpackUnorm4x8(color0_fs).rgb, unpackUnorm4x8(color1_fs).rgb, spline_t), 1.0);
 		#endif
+	#else
+		const vec4 col = vec4(0);
+	#endif
 
 		vec4 v_eye = vec4(hit_pos_eye, 1.0);
 		vec4 depth = get_projection_matrix() * v_eye;
@@ -972,7 +978,10 @@ void main()
 
 		//frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(col)), spline_t, v, intBitsToFloat(segment_id_fs));
 		frag_albedo = uvec4(
-			packUnorm4x8(col), floatBitsToUint(alen(spline_t)), floatBitsToUint(v), uint(segment_id_fs) // "guaranteed to preserve the bit pattern"
+			RELATION_FUNCTION == 0 ? packUnorm4x8(col) : floatBitsToUint(spline_t),
+			floatBitsToUint(alen(spline_t)),
+			floatBitsToUint(v),
+			uint(segment_id_fs) // "guaranteed to preserve the bit pattern"
 		);
 		frag_position = vec3(hit_pos_eye);
 		frag_normal = hit.normal;
