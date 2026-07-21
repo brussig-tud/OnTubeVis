@@ -166,17 +166,17 @@ on_tube_vis::on_tube_vis() : cgv::base::group("OnTubeVis"), color_legend_mgr(thi
 	tf_editor_ptr->set_stretch_mode(cgv::overlay::StretchMode::kHorizontal);
 	
 	navigator_ptr = create_and_append_child<cgv::overlay::navigator>("Navigator");
-	navigator_ptr->set_visibility(false);
+	navigator_ptr->set_visibility(show_navigator);
 	navigator_ptr->gui_options.show_layout_options = false;
 	navigator_ptr->set_alignment(cgv::overlay::Alignment::kEnd, cgv::overlay::Alignment::kStart);
 	navigator_ptr->set_size(100);
 	
 	cm_viewer_ptr = create_and_append_child<color_map_viewer>("Color Scale Viewer");
 	cm_viewer_ptr->set_alignment(cgv::overlay::Alignment::kEnd, cgv::overlay::Alignment::kEnd);
-	cm_viewer_ptr->set_visibility(false);
+	cm_viewer_ptr->set_visibility(show_color_map_viewer);
 
 	perfmon_ptr = create_and_append_child<cgv::overlay::performance_monitor>("Performance Monitor");
-	perfmon_ptr->set_visibility(false);
+	perfmon_ptr->set_visibility(show_performance_monitor);
 	//perfmon_ptr->set_show_background(false);
 	perfmon_ptr->enable_monitoring_only_when_visible(true);
 	perfmon_ptr->set_alignment(cgv::overlay::Alignment::kEnd, cgv::overlay::Alignment::kEnd);

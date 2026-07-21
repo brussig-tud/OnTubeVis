@@ -76,7 +76,7 @@ void relation_vis::build_gui (
 
 void relation_vis::set_defaults (cgv::vec4 extent)
 {
-	radius[0]   = max_value(cgv::vec3{extent}) * 0.05f;
+	radius[0]   = max_value(cgv::vec3{extent}) * 0.01f;
 	radius[1]   = extent[3] * 0.01f;
 	sample_rate = 1e3f / extent[3];
 }

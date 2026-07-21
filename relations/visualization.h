@@ -59,7 +59,7 @@ struct relation_vis {
 		all_to_all,
 	}
 	/// Determines for which pairs of trajectories the relation is visualized.
-	direction {direction::all_to_ref};
+	direction {direction::all_to_all};
 	/// Trajectory evaluations per unit of time to calculate relation.
 	float sample_rate {1};
 	/// Color scale used to visualize the relation value.
