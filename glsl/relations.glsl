@@ -40,11 +40,6 @@ const Transform transform_linear = {0};
 const Transform transform_log    = {1};
 const Transform transform_symlog = {2};
 
-// Special values returned by `otv_trajectory_relation`, encoded as quiet NaNs.
-const uint nan              = 0xffc00000u;
-const uint background_value = nan | 1u;
-const uint highlight_value  = nan | 2u;
-
 // Static configuration ############################################################################
 // Default values are provided only for linting and must be replaced at runtime.
 #define HASH_GRID_BUFFER_BINDING   0
@@ -472,6 +467,38 @@ vec3 trajectory_derivative (Node start, Node end, float t)
 }
 
 // Shading =========================================================================================
+
+// Visualize a trajectory relation value as a color.
+vec3 relation_to_color (float value)
+{
+	// Mapping parameters.
+	vec2 range   = relation_color_range;
+	Transform tf = relation_color_transform;
+	// The diverging logarithmic transform is constructed by applying a logarithmic transform to the
+	// upper half of the range, then rotating it into the lower half around the midpoint.
+	if (tf == transform_symlog) range[0] = 0.5*(range[0] + range[1]);
+
+	// Linearly map `range` to [0, 1].
+	value = (value - range[0])/(range[1] - range[0]);
+
+	if (tf != transform_linear) {
+		// Symlog: Reflect the upper half of the original range into the lower half.
+		const bool rotate = value < 0;
+		if (tf == transform_symlog) value = abs(value);
+
+		// Apply base 10 logarithm, preserving points (range[0], 0) and (range[1], 1).
+		value = log2(9*value + 1) / 3.32192809489;
+
+		if (tf == transform_symlog) {
+			// Complete the rotation by reflecting values in the lower half range.
+			if (rotate) value = -value;
+			value = 0.5*value + 0.5; // Map values from [-1, 1] to [0, 1].
+		}
+	}
+	// Get color from texture.
+	return map_to_color(value, relation_color_map);
+}
+
 // Calculate the trajectory relation selected by `RELATION_FUNCTION` from a fixed starting point to
 // one or more sampled points on a given interval, provided the samples lie within the query radius.
 float eval_relation (
@@ -540,9 +567,8 @@ float eval_relation (
 }
 
 // Evaluate the relation selected by `RELATION_FUNCTION` between one point of a segment and the
-// surrounding trajectories using the hash grid.
-// The return value can be mapped to a color using `shade_relation`.
-float trajectory_relation (uvec2 node_ids, float seg_t)
+// surrounding trajectories, then map it to a color.
+vec3 color_by_relation (uvec2 node_ids, float seg_t)
 {
 	// Load node data.
 	const Node start = nodes[node_ids[0]];
@@ -550,17 +576,19 @@ float trajectory_relation (uvec2 node_ids, float seg_t)
 
 	// If only the reference trajectory is to be shaded, mark all others as background.
 	if (relation_direction == dir_ref_to_all && start.traj_id != relation_ref_traj)
-		return uintBitsToFloat(background_value);
+		return relation_background_color;
 	// Mark the reference trajectory.
 	if (relation_direction == dir_all_to_ref && start.traj_id == relation_ref_traj)
-		return uintBitsToFloat(highlight_value);
+		return relation_highlight_color;
 
 	// Color by local time.
 	#if RELATION_FUNCTION == FN_DBG_SEG_T
-		return seg_t;
+		return relation_to_color(seg_t);
 	#elif RELATION_FUNCTION == FN_DBG_VELOCITY
 		// Derivative w.r.t. curve parameter, divide by duration to get physical velocity.
-		return length(trajectory_derivative(start, end, seg_t)) / (end.t - start.t);
+		return relation_to_color(
+			length(trajectory_derivative(start, end, seg_t)) / (end.t - start.t)
+		);
 	#endif
 
 	// Calculate data-space coordinates and grid cell at the given trajectory point.
@@ -569,34 +597,32 @@ float trajectory_relation (uvec2 node_ids, float seg_t)
 
 	// Color by grid cell (spatial).
 	#if RELATION_FUNCTION == FN_DBG_INDEX_XYZ
-		return uintBitsToFloat(packUnorm4x8(
-			vec4(vec3(local_point * hash_grid_scale - local_index + 0.5), 0)
-		));
+		return vec3(local_point * hash_grid_scale - local_index + 0.5);
 	// Color by grid cell (temporal).
 	#elif RELATION_FUNCTION == FN_DBG_INDEX_T
-		return local_point[3] * hash_grid_scale[3] - local_index[3] + 0.5;
+		return relation_to_color(local_point[3] * hash_grid_scale[3] - local_index[3] + 0.5);
 	// Color by cell hash.
 	#elif RELATION_FUNCTION == FN_DBG_SIGNATURE
-		return signature(Index(local_index)) / float(~0u);
+		return map_to_color(signature(Index(local_index)) / float(~0u), 31);
 	// Color by hash bucket load.
 	#elif RELATION_FUNCTION == FN_DBG_BUCKET_LOAD
 	{
 		// Find the bucket containing the local point.
 		const Span table = find_table(local_index[3]);
-		if (table.base == null) return uintBitsToFloat(highlight_value);
+		if (table.base == null) return relation_highlight_color;
 		const Ptr bucket = bucket(table, signature(Index(local_index)), 1);
-		if (bucket == null) return uintBitsToFloat(highlight_value);
+		if (bucket == null) return relation_highlight_color;
 		// Count how many of its slots are in use.
 		uint fill = slots_per_bucket;
 		while (fill > 0 && load_slot(bucket, fill - 1).cell == null) --fill;
-		return float(fill) / slots_per_bucket;
+		return relation_to_color(float(fill) / slots_per_bucket);
 	}
 	// Color by local trajectory interval.
 	#elif RELATION_FUNCTION == FN_DBG_LOCAL_INTERVAL
 	{
 		// Load the bucket range for the local timestep.
 		const Span table = find_table(local_index[3]);
-		if (table.base == null) return uintBitsToFloat(highlight_value);
+		if (table.base == null) return relation_to_color(uintBitsToFloat(highlight_value));
 		// Find the cell containing this fragment.
 		const Span local_intervals = query(table, Index(local_index));
 		// Within that cell, find the interval containing the fragment.
@@ -607,10 +633,10 @@ float trajectory_relation (uvec2 node_ids, float seg_t)
 
 			if (interval.nodes == node_ids && local_point[3] >= t0 && local_point[3] <= t1)
 				// Color by interval-local curve parameter.
-				return (local_point[3] - t0)/(t1 - t0);
+				return relation_to_color((local_point[3] - t0)/(t1 - t0));
 		}
 		// Mark points not stored within their local cell.
-		return uintBitsToFloat(highlight_value);
+		return relation_highlight_color;
 	}
 	#endif
 
@@ -715,43 +741,6 @@ float trajectory_relation (uvec2 node_ids, float seg_t)
 		result /= float(extent.x * extent.y * extent.z * extent.w);
 	}
 	#endif
-	return result;
-}
 
-// Visualize a trajectory relation value as a color.
-vec3 shade_relation (float value)
-{
-	const uint bits = floatBitsToUint(value);
-	// Special values.
-	if (bits == background_value) return relation_background_color;
-	if (bits == highlight_value)  return relation_highlight_color;
-	// Multivariate mapping.
-	if (RELATION_FUNCTION == FN_DBG_INDEX_XYZ) return unpackUnorm4x8(bits).xyz;
-
-	// Mapping parameters.
-	vec2 range     = relation_color_range;
-	Transform tf = relation_color_transform;
-	// The diverging logarithmic transform is constructed by applying a logarithmic transform to the
-	// upper half of the range, then rotating it into the lower half around the midpoint.
-	if (tf == transform_symlog) range[0] = 0.5*(range[0] + range[1]);
-
-	// Linearly map `range` to [0, 1].
-	value = (value - range[0])/(range[1] - range[0]);
-
-	if (tf != transform_linear) {
-		// Symlog: Reflect the upper half of the original range into the lower half.
-		const bool rotate = value < 0;
-		if (tf == transform_symlog) value = abs(value);
-
-		// Apply base 10 logarithm, preserving points (range[0], 0) and (range[1], 1).
-		value = log2(9*value + 1) / 3.32192809489;
-
-		if (tf == transform_symlog) {
-			// Complete the rotation by reflecting values in the lower half range.
-			if (rotate) value = -value;
-			value = 0.5*value + 0.5; // Map values from [-1, 1] to [0, 1].
-		}
-	}
-	// Get color from texture.
-	return map_to_color(value, RELATION_FUNCTION == FN_DBG_SIGNATURE ? 31 : relation_color_map);
+	return relation_to_color(result);
 }
