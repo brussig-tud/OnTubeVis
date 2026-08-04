@@ -1,8 +1,9 @@
 #include <sstream>
-#include "glyph/shapes.h"
-#include "color_legend_manager.h"
 
+#include "color_legend_manager.h"
+#include "glyph/shapes.h"
 #include "load/traj_loader.h"
+#include "relations/visualization.h"
 
 
 color_legend_manager::color_legend_manager(cgv::base::group &owner) : owner(owner) {
@@ -28,15 +29,32 @@ void color_legend_manager::clear() {
 
 void color_legend_manager::compose (
 	const traj_dataset<float> &dataset, const color_map_manager &color_map_mgr,
-	const std::vector<glyph_attribute_mapping> &layers
+	relation_vis const& relvis, const std::vector<glyph_attribute_mapping> &layers
 ){
 	// throw out old configuration
 	clear();
 
 	// collect in-use color maps
+	int voffset = -1;
+
+	// Base color can be provided by a relation calculated on the fly.
+	if (bool(relvis.function)) {
+		auto& legend = legends[num_active];
+		legend->set_title(std::format(
+			"Color -- Relation \"{}\"",
+			relation_vis::function_names[static_cast<size_t>(relvis.function)]
+		));
+		legend->set_color_scale(relvis.color_scale.scale);
+
+		legend->set_margin({-1, voffset});
+		legend->set_visibility(true);
+		voffset += legend->get_rectangle().h()-1;
+		num_active++;
+	}
+
 	if (layers.empty())
 		return;
-	int voffset = -1;
+
 	const auto attrib_names = dataset.get_attribute_names();
 	for (const auto &layer : layers)
 	{

@@ -106,8 +106,7 @@ public:
 	auto upload () -> gl_buffer;
 
 	/// Statically configure shaders through text substitution.
-	/// `buffer_binding` must be the index at which the GPU buffer used by this grid will be bound.
-	void set_shader_opts (cgv::render::shader_compile_options&, uint32_t buffer_binding) const;
+	void set_shader_opts (cgv::render::shader_compile_options&) const;
 	/// Dynamically configure shaders through uniforms.
 	void set_uniforms (cgv::render::context&, cgv::render::shader_program&) const;
 

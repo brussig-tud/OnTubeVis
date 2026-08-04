@@ -192,6 +192,7 @@ set(HEADERS
 	demo.h
 	on_tube_vis.h
 	regulargrid.h
+	render_layout.h
 	textured_spline_tube_renderer.h
 )
 # - GLSL shaders

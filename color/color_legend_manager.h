@@ -16,6 +16,8 @@
 
 template <class flt_type> class traj_dataset;
 
+struct relation_vis;
+
 
 /// a manager automatically creating and maintaining color legend overlays for each mapped color scale in the given
 /// on-tube visualization layers.
@@ -43,8 +45,9 @@ protected:
 	/// reference to the application plugin using the manager
 	cgv::base::group &owner;
 
-	/// the (fixed) pool of color scale legend overlays. currently set to 4 since we can have max. 4 on-tube glyph layers.
-	std::array<cgv::overlay::color_scale_legend_ptr, 4> legends;
+	/// the (fixed) pool of color scale legend overlays for up to four glyph layers and an optional
+	/// relation
+	std::array<cgv::overlay::color_scale_legend_ptr, 5> legends;
 
 	/// the number of active legends
 	unsigned num_active;
@@ -64,10 +67,10 @@ public:
 	/// disable / un-use all managed color map legends in the pool
 	void clear (void);
 
-	/// compose the legend for the given glyph layer configuration.
+	/// compose the legend for the given configuration.
 	void compose (
 		const traj_dataset<float> &dataset, const color_map_manager &color_map_mgr,
-		const std::vector<glyph_attribute_mapping> &layers
+		relation_vis const&, const std::vector<glyph_attribute_mapping> &layers
 	);
 
 	/// create the gui for this manager

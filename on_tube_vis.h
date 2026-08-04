@@ -464,12 +464,9 @@ protected:
 		bool requested = false;
 		/// whether a benchmark is currently running
 		bool running = false;
-		/// Whether the current benchmark is for relation visualization, started by `start_relations_benchmark`.
-		bool relations: 1 = false;
 	} benchmark;
-
-	void start_relations_benchmark ();
-	void end_relations_benchmark ();
+	/// Write the setup and results of a benchmark with relations enabled to a file.
+	void save_relations_benchmark ();
 
 	/// the different debug render modes
 	enum class DebugRenderMode {

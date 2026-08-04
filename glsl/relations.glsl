@@ -49,6 +49,7 @@ const Transform transform_symlog = {2};
 #define HASH_GRID_LAYOUT           0
 #define HASH_GRID_SIGNATURE_FN     0
 #define RELATION_FUNCTION          0
+#define RELATION_COLOR_SCALE_TEX   0
 
 // Boolean expression determining whether or not the evaluated function depends on trajectories'
 // derivatives.
@@ -119,13 +120,14 @@ struct Interval {
 };
 const uint sizeof_interval = 16; // in bytes
 
-// SSBOs ###########################################################################################
+// Bindings ########################################################################################
 layout(std430, binding = 0) readonly buffer data_buffer {
 	Node nodes[];
 };
 layout(binding = HASH_GRID_BUFFER_BINDING) readonly buffer hash_grid_buffer {
 	uint hash_grid_data[];
 };
+layout(binding = RELATION_COLOR_SCALE_TEX) uniform sampler2D color_scale_tex;
 
 // Uniforms ########################################################################################
 uniform vec4      hash_grid_cell_size;
@@ -137,14 +139,10 @@ uniform Direction relation_direction;
 uniform uint      relation_ref_traj;
 uniform bool      relation_normalize;
 uniform int       relation_color_map;
-uniform vec2      relation_color_range;
+uniform vec2      relation_color_domain;
 uniform Transform relation_color_transform;
 uniform vec3      relation_highlight_color;
 uniform vec3      relation_background_color;
-
-// External functions ##############################################################################
-// Defined in textured_spline_tube_shading.glfs.
-vec3 map_to_color (float v, int color_map_idx);
 
 // Local functions #################################################################################
 // Memory ==========================================================================================
@@ -468,35 +466,19 @@ vec3 trajectory_derivative (Node start, Node end, float t)
 
 // Shading =========================================================================================
 
-// Visualize a trajectory relation value as a color.
+// Map a trajectory relation value using the precalculated color scale.
 vec3 relation_to_color (float value)
 {
-	// Mapping parameters.
-	vec2 range   = relation_color_range;
-	Transform tf = relation_color_transform;
-	// The diverging logarithmic transform is constructed by applying a logarithmic transform to the
-	// upper half of the range, then rotating it into the lower half around the midpoint.
-	if (tf == transform_symlog) range[0] = 0.5*(range[0] + range[1]);
+	// Map the color scale's domain to texture coordinates.
+	const vec2 domain = relation_color_domain;
+	value = (value - domain[0])/(domain[1] - domain[0]);
 
-	// Linearly map `range` to [0, 1].
-	value = (value - range[0])/(range[1] - range[0]);
+	// Sample the color scale texture.
+	const float N     = textureSize(color_scale_tex, 0).x;
+	const vec3  color = texture(color_scale_tex, vec2(0.5/N + value*((N - 1)/N), 0.5)).rgb;
 
-	if (tf != transform_linear) {
-		// Symlog: Reflect the upper half of the original range into the lower half.
-		const bool rotate = value < 0;
-		if (tf == transform_symlog) value = abs(value);
-
-		// Apply base 10 logarithm, preserving points (range[0], 0) and (range[1], 1).
-		value = log2(9*value + 1) / 3.32192809489;
-
-		if (tf == transform_symlog) {
-			// Complete the rotation by reflecting values in the lower half range.
-			if (rotate) value = -value;
-			value = 0.5*value + 0.5; // Map values from [-1, 1] to [0, 1].
-		}
-	}
-	// Get color from texture.
-	return map_to_color(value, relation_color_map);
+	// Apply gamma correction.
+	return pow(color, vec3(2.2));
 }
 
 // Calculate the trajectory relation selected by `RELATION_FUNCTION` from a fixed starting point to
@@ -603,7 +585,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t)
 		return relation_to_color(local_point[3] * hash_grid_scale[3] - local_index[3] + 0.5);
 	// Color by cell hash.
 	#elif RELATION_FUNCTION == FN_DBG_SIGNATURE
-		return map_to_color(signature(Index(local_index)) / float(~0u), 31);
+		return relation_to_color(signature(Index(local_index)));
 	// Color by hash bucket load.
 	#elif RELATION_FUNCTION == FN_DBG_BUCKET_LOAD
 	{

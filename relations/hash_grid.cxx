@@ -5,6 +5,7 @@
 #include <cgv/render/shader_program.h>
 
 #include "hash_grid.h"
+#include "render_layout.h"
 
 
 /// Marks log messages from this file.
@@ -320,10 +321,8 @@ auto hash_grid::upload () -> gl_buffer
 	return buffer;
 }
 
-void hash_grid::set_shader_opts (
-	cgv::render::shader_compile_options& opts, uint32_t buffer_binding
-) const {
-	opts.define_macro("HASH_GRID_BUFFER_BINDING",   buffer_binding        );
+void hash_grid::set_shader_opts (cgv::render::shader_compile_options& opts) const {
+	opts.define_macro("HASH_GRID_BUFFER_BINDING",   ssbo_idx::grid_memory );
 	opts.define_macro("HASH_GRID_ADDRESS_UNIT",     address_unit          );
 	opts.define_macro("HASH_GRID_NUM_HASH_FNS",     uint32_t{num_hash_fns});
 	opts.define_macro("HASH_GRID_SLOTS_PER_BUCKET", Bucket::num_slots     );
