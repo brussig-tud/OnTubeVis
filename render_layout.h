@@ -6,13 +6,12 @@
 
 
 /// data layout for per-node attributes within the attribute render SSBO
-struct node_attribs {
-	cgv::vec4  pos_rad;
-	cgv::vec4  color;
-	cgv::vec4  tangent;
-	float      t;
-	uint32_t   traj_id; // unique across all datasets
-	cgv::uvec2 pad {};
+struct alignas(16) node_attribs {
+	cgv::vec4 pos_rad;
+	cgv::vec4 color;
+	cgv::vec4 tangent;
+	float     t;
+	uint32_t  traj_id; // unique across all datasets
 };
 
 /// Maximum supported number of simultaneous glyph layers.
@@ -23,11 +22,9 @@ struct ssbo_idx {enum : uint32_t {
 	nodes,
 	t_to_s,
 	node_idcs,
-	seg_to_traj,
-	glyphs_base,
-	glyph_memory = glyphs_base + max_glyph_layers*2,
 	grid_memory,
-	count
+	glyphs_base,
+	count = glyphs_base + max_glyph_layers*2
 };};
 
 /// Bind indices used for textures.

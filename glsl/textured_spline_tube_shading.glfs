@@ -1,4 +1,4 @@
-#version 430
+#version 440 core
 #define M_PI 3.14159265359
 
 #define DEBUG_SEGMENTS 0
@@ -16,6 +16,7 @@
 #define CONSTANT_FLOAT_UNIFORM_COUNT 0
 #define CONSTANT_COLOR_UNIFORM_COUNT 0
 #define MAPPING_PARAMETER_UNIFORM_COUNT 0
+#define GLYPH_BUFFER_BASE 0
 #define L0_VISIBLE 1
 #define L0_MAPPED_ATTRIB_COUNT 0
 #define L0_GLYPH_DEFINITION
@@ -120,16 +121,16 @@ layout(std430, binding = 2) readonly buffer nid_buffer {
 // attribute and range buffers for each glyph layer
 // free attributes ssbos
 // free attributes per-segment index ranges
-#define DEF_GLYPH_DESC_AND_BUFFERS(I, N, B0, B1) \
+#define DEF_GLYPH_DESC_AND_BUFFERS(I, N) \
 struct glyph_desc##I { \
 	float s; \
 	uint debug_info; \
 	float v[N]; \
 }; \
-layout (std430, binding=B0) readonly buffer attribs_buffer##I { \
+layout (std430, binding=GLYPH_BUFFER_BASE + 2*I) readonly buffer attribs_buffer##I { \
 	glyph_desc##I glyphs##I[]; \
 }; \
-layout (std430, binding=B1) readonly buffer ranges_buffer##I { \
+layout (std430, binding=GLYPH_BUFFER_BASE + 2*I + 1) readonly buffer ranges_buffer##I { \
 	irange ranges##I[]; \
 }; \
 
@@ -161,22 +162,22 @@ bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info cl
 }
 
 #if L0_MAPPED_ATTRIB_COUNT > 0
-DEF_GLYPH_DESC_AND_BUFFERS(0, L0_MAPPED_ATTRIB_COUNT, 0, 1)
+DEF_GLYPH_DESC_AND_BUFFERS(0, L0_MAPPED_ATTRIB_COUNT)
 DEF_CLOSEST_SAMPLES(0, ranges0, glyphs0)
 #endif
 
 #if L1_MAPPED_ATTRIB_COUNT > 0
-DEF_GLYPH_DESC_AND_BUFFERS(1, L1_MAPPED_ATTRIB_COUNT, 2, 3)
+DEF_GLYPH_DESC_AND_BUFFERS(1, L1_MAPPED_ATTRIB_COUNT)
 DEF_CLOSEST_SAMPLES(1, ranges1, glyphs1)
 #endif
 
 #if L2_MAPPED_ATTRIB_COUNT > 0
-DEF_GLYPH_DESC_AND_BUFFERS(2, L2_MAPPED_ATTRIB_COUNT, 4, 5)
+DEF_GLYPH_DESC_AND_BUFFERS(2, L2_MAPPED_ATTRIB_COUNT)
 DEF_CLOSEST_SAMPLES(2, ranges2, glyphs2)
 #endif
 
 #if L3_MAPPED_ATTRIB_COUNT > 0
-DEF_GLYPH_DESC_AND_BUFFERS(3, L3_MAPPED_ATTRIB_COUNT, 6, 7)
+DEF_GLYPH_DESC_AND_BUFFERS(3, L3_MAPPED_ATTRIB_COUNT)
 DEF_CLOSEST_SAMPLES(3, ranges3, glyphs3)
 #endif
 

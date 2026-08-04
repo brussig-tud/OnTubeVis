@@ -2486,7 +2486,7 @@ void on_tube_vis::create_gui(void)
 		} // hash grid
 
 		connect_copy(
-			add_button("Default grid")->click,
+			add_button("Adapt grid")->click,
 			[this](auto&&) {default_hash_grid();}
 		);
 
@@ -2774,7 +2774,8 @@ void on_tube_vis::update_attribute_bindings(void) {
 		render.render_sbo.destruct(ctx);
 		// - compile data
 		const size_t num_nodes = render.data->positions.size();
-		std::vector<node_attribs> render_attribs; render_attribs.reserve(num_nodes);
+		std::vector<node_attribs> render_attribs;
+		render_attribs.reserve(num_nodes);
 		// Global across all datasets.
 		auto traj_id  = 0u;
 		auto node_idx = 0u;
@@ -3324,11 +3325,9 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		// bind range attribute sbos of active glyph layers
 		for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
-			if(!glyph_layers_config.layer_configs[i].mapped_attributes.empty()) {
-				const GLuint base_index = static_cast<GLuint>(2 * i);
-				render.attribs_sbos[i].bind(ctx, base_index);
-				render.aindex_sbos[i].bind(ctx, base_index + 1);
-			}
+			if(glyph_layers_config.layer_configs[i].mapped_attributes.empty()) continue;
+			render.attribs_sbos[i].bind(ctx, ssbo_idx::glyphs_base + 2*i);
+			render.aindex_sbos[i].bind(ctx, ssbo_idx::glyphs_base + 2*i + 1);
 		}
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, ssbo_idx::grid_memory, relations.grid_sbo.handle());
 
@@ -3336,11 +3335,9 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 		// unbind range attribute sbos of active glyph layers
 		for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
-			if(!glyph_layers_config.layer_configs[i].mapped_attributes.empty()) {
-				const GLuint base_index = static_cast<GLuint>(2 * i);
-				render.attribs_sbos[i].unbind(ctx, base_index);
-				render.aindex_sbos[i].unbind(ctx, base_index + 1);
-			}
+			if(glyph_layers_config.layer_configs[i].mapped_attributes.empty()) continue;
+			render.attribs_sbos[i].unbind(ctx, ssbo_idx::glyphs_base + 2*i);
+			render.aindex_sbos[i].unbind(ctx, ssbo_idx::glyphs_base + 2*i + 1);
 		}
 
 		fbc.disable_attachment(ctx, "albedo");
@@ -3400,6 +3397,8 @@ shader_compile_options on_tube_vis::build_tube_shading_options() {
 	options.define_macro_if_not_default("CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
 	options.define_macro_if_not_default("CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
 	options.define_macro_if_not_default("MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
+
+	options.define_macro("GLYPH_BUFFER_BASE", ssbo_idx::glyphs_base);
 
 	for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
 		const auto& lc = glyph_layers_config.layer_configs[i];
