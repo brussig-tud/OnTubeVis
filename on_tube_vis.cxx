@@ -2485,6 +2485,11 @@ void on_tube_vis::create_gui(void)
 		end_tree_node(relations.grid_params);
 		} // hash grid
 
+		connect_copy(
+			add_button("Default grid")->click,
+			[this](auto&&) {default_hash_grid();}
+		);
+
 		align("\b");
 		} // if has data
 
@@ -2828,17 +2833,22 @@ void on_tube_vis::update_attribute_bindings(void) {
 		{
 		auto const extent = bbox.get_extent();
 		relations.vis.set_defaults({extent, tmax - tmin});
-		relations.grid_params.cell_size =
-			1.5f * vec4{vec3{relations.vis.radius[0]}, relations.vis.radius[1]};
-		relations.grid_params.sample_step =
-			vec2{relations.grid_params.cell_size[0], relations.grid_params.cell_size[3]} * 0.05f;
-		build_hash_grid();
+		default_hash_grid();
 		}
 	}
 
 	// reset the last sort pos and direction to zero when the render data changed to force a sorting step
 	last_sort_pos = vec3(0.0f);
 	last_sort_dir = vec3(0.0f);
+}
+
+void on_tube_vis::default_hash_grid () {
+	relations.grid_params.cell_size =
+		vec4{vec3{relations.vis.radius[0]}, relations.vis.radius[1]} * 2;
+	relations.grid_params.sample_step =
+		vec2{relations.grid_params.cell_size[0], relations.grid_params.cell_size[3]} * 0.05f;
+	post_recreate_gui();
+	build_hash_grid();
 }
 
 void on_tube_vis::build_hash_grid () {
