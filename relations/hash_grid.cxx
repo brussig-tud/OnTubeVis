@@ -270,12 +270,12 @@ auto hash_grid::upload () -> gl_buffer
 		auto const timesteps  = reinterpret_cast<int32_t*>(base);
 		auto const tables     = reinterpret_cast<cgv::uvec2*>(timesteps + _tables.size());
 		           buckets    = reinterpret_cast<Bucket*>(tables + _tables.size());
-		uint32_t   table_addr = (reinterpret_cast<std::byte*>(buckets) - base) / address_unit;
+		size_t     table_addr = reinterpret_cast<std::byte*>(buckets) - base;
 
 		for (auto i = 0u; i < _tables.size(); ++i) {
 			timesteps[i] = _tables[i].timestep;
-			tables[i]    = {table_addr, _tables[i].length};
-			table_addr  += _tables[i].length * sizeof(Bucket) / address_unit;
+			tables[i]    = {static_cast<uint32_t>(table_addr / address_unit), _tables[i].length};
+			table_addr  += _tables[i].length * sizeof(Bucket);
 		}
 	}
 
@@ -308,7 +308,7 @@ auto hash_grid::upload () -> gl_buffer
 				write(cell.intervals.data(), num_intervals);
 			}
 			/// Mark the remaining slots as empty.
-			for (; slot_idx++ < Bucket::num_slots;) dest_slots[slot_idx] = {};
+			for (; slot_idx < Bucket::num_slots;) dest_slots[slot_idx++] = {};
 		}
 		buckets += table.length;
 	}
@@ -419,7 +419,7 @@ auto hash_grid::cell (Index index) -> Cell&
 			auto const prec      = std::clog.precision();
 			std::clog << std::format(LOG_TAG" Rehashed table after insertion failed with {}/{}"
 				" slots occupied (load factor {:.1f}%).\n",
-				num_cells, num_slots, static_cast<float>(_cells.size()) / num_slots
+				num_cells, num_slots, static_cast<float>(_cells.size()) / num_slots * 100.f
 			);
 		}
 

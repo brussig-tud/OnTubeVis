@@ -78,7 +78,7 @@ struct Node {
 struct Ptr {
 	uint address;
 };
-const Ptr null = {~0u};
+const Ptr null = {-1};
 
 // Pointer to a contiguous array with runtime length.
 struct Span {
@@ -165,12 +165,7 @@ uvec2 load2 (Ptr ptr)
 }
 uvec4 load4 (Ptr ptr)
 {
-	return uvec4(
-		load1(ptr),
-		load1(offset_bytes(ptr,  4)),
-		load1(offset_bytes(ptr,  8)),
-		load1(offset_bytes(ptr, 12))
-	);
+	return uvec4(load2(ptr), load2(offset_bytes(ptr, 8)));
 }
 
 // Hash grid =======================================================================================
@@ -187,13 +182,13 @@ Span find_table (int timestep)
 // Load the timestep corresponding to the given index in the table vector.
 int load_timestep (uint table_idx)
 {
-	return int(load1(Ptr(table_idx * 4)));
+	return int(hash_grid_data[table_idx]);
 }
 
 // Load a bucket range from the table vector.
 Span load_table (uint table_idx)
 {
-	const uvec2 data = load2(Ptr(hash_grid_data_len*4 + table_idx*8));
+	const uvec2 data = load2(Ptr((hash_grid_data_len*4 + table_idx*8) / address_unit));
 	return Span(Ptr(data[0]), data[1]);
 }
 
@@ -617,16 +612,16 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	{
 		// Load the bucket range for the local timestep.
 		const Span table = find_table(local_index[3]);
-		if (table.base == null) return relation_to_color(uintBitsToFloat(highlight_value));
+		if (table.base == null) return relation_highlight_color;
 		// Find the cell containing this fragment.
 		const Span local_intervals = query(table, Index(local_index));
 		// Within that cell, find the interval containing the fragment.
 		for (uint i = 0; i < local_intervals.len; ++i) {
 			const Interval interval = load_interval(local_intervals, i);
-			const float t0            = interval.time[0];
-			const float t1            = interval.time[1];
+			const float t0          = interval.time[0];
+			const float t1          = interval.time[1];
 
-			if (interval.nodes == node_ids && local_point[3] >= t0 && local_point[3] <= t1)
+			if (interval.nodes == node_ids && t0 <= local_point[3] && local_point[3] <= t1)
 				// Color by interval-local curve parameter.
 				return relation_to_color((local_point[3] - t0)/(t1 - t0));
 		}
