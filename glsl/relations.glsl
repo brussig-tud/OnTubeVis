@@ -50,6 +50,7 @@ const Transform transform_symlog = {2};
 #define HASH_GRID_SIGNATURE_FN     0
 #define RELATION_FUNCTION          0
 #define RELATION_COLOR_SCALE_TEX   0
+#define RELATION_SCALE_BY_COS      1
 
 // Boolean expression determining whether or not the evaluated function depends on trajectories'
 // derivatives.
@@ -143,6 +144,7 @@ uniform vec2      relation_color_domain;
 uniform Transform relation_color_transform;
 uniform vec3      relation_highlight_color;
 uniform vec3      relation_background_color;
+uniform float     relation_cos_exp;
 
 // Local functions #################################################################################
 // Memory ==========================================================================================
@@ -471,11 +473,11 @@ vec3 relation_to_color (float value)
 {
 	// Map the color scale's domain to texture coordinates.
 	const vec2 domain = relation_color_domain;
-	value = (value - domain[0])/(domain[1] - domain[0]);
+	value = 1.0/(domain[1] - domain[0]) * (value - domain[0]);
 
 	// Sample the color scale texture.
 	const float N     = textureSize(color_scale_tex, 0).x;
-	const vec3  color = texture(color_scale_tex, vec2(0.5/N + value*((N - 1)/N), 0.5)).rgb;
+	const vec3  color = texture(color_scale_tex, vec2(0.5/N + (N - 1)/N * value, 0.5)).rgb;
 
 	// Apply gamma correction.
 	return pow(color, vec3(2.2));
@@ -488,6 +490,7 @@ float eval_relation (
 #if FN_USES_DERIVATIVE
 	vec3 base_derivative,
 #endif
+	vec3 base_normal, // world-space normal at the base point
 	Interval interval
 ) {
 	// Load node data.
@@ -534,13 +537,23 @@ float eval_relation (
 
 		// Evaluate the relation.
 		#if RELATION_FUNCTION == FN_PROXIMITY
-			result += relation_radius[0] - sqrt(dist2);
+			float value = relation_radius[0] - sqrt(dist2);
 		#elif RELATION_FUNCTION == FN_ALIGNMENT
-			result += dot(base_derivative, normalize(trajectory_derivative(coeffs_dt, t)))
+			float value = dot(base_derivative, normalize(trajectory_derivative(coeffs_dt, t)))
 				* exp(dist2 * (-6/radius2)); // Gaussian weight function.
 		#elif RELATION_FUNCTION == FN_DBG_NUM_EVALS
-			result += 1;
+			float value = 1;
+		#else
+			float value = 0;
 		#endif
+
+		// Optionally focus the relation around the surface normal at the base point using a cosine
+		// term mapped to [0, 1] and exponentiated.
+		#if RELATION_SCALE_BY_COS
+			value *= pow(.5 + .5*dot(base_normal, normalize(offset)), relation_cos_exp);
+		#endif
+
+		result += value;
 	}
 	if (RELATION_FUNCTION == FN_DBG_NUM_EVALS) return result;
 
@@ -550,7 +563,7 @@ float eval_relation (
 
 // Evaluate the relation selected by `RELATION_FUNCTION` between one point of a segment and the
 // surrounding trajectories, then map it to a color.
-vec3 color_by_relation (uvec2 node_ids, float seg_t)
+vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 {
 	// Load node data.
 	const Node start = nodes[node_ids[0]];
@@ -704,6 +717,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t)
 			#if FN_USES_DERIVATIVE
 				local_derivative,
 			#endif
+				world_normal,
 				interval
 			);
 		}

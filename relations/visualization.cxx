@@ -61,6 +61,9 @@ void relation_vis::build_gui (
 	p.add_member_control(b, "Sample rate", sample_rate, "value_slider",
 		std::format("min=0;max={};ticks=true;log=true", 1e4 / data_extent[3])
 	);
+	p.add_member_control(b, "Directionality", cos_exp, "value_slider",
+		"min=0;max=100;ticks=true;log=true"
+	);
 
 	if (p.begin_tree_node("Color scale", color_scale)) {
 		p.add_member_control(b, "Base", color_scale.base, "dropdown", p.concat_enum_def(color_maps));
@@ -103,14 +106,20 @@ void relation_vis::build_gui (
 	}
 }
 
-auto relation_vis::on_set (void* member, cgv::render::context& ctx, color_map_manager const& colors) -> bool
+auto relation_vis::on_set (void* member, cgv::render::context& ctx, color_map_manager const& colors)
+	-> UpdateFlags
 {
 	auto const ptr = cgv::data::informed_ptr{member};
-	if (ptr.points_to(direction)) return true;
-	if (!ptr.points_to_member_of(color_scale)) return false;
+	if (ptr.points_to(direction)) return UpdateFlag::gui;
+	if (ptr.points_to(cos_exp)) {
+		if (scale_by_cos == (cos_exp > 0)) return 0;
+		scale_by_cos = cos_exp > 0;
+		return UpdateFlag::shader_opts;
+	}
+	if (!ptr.points_to_member_of(color_scale)) return 0;
 
 	update_color_scale(ctx, colors);
-	return ptr.points_to_one_of(color_scale.diverging, color_scale.transform);
+	return ptr.points_to_one_of(color_scale.diverging, color_scale.transform) ? UpdateFlag::gui : 0;
 }
 
 void relation_vis::update_color_scale (cgv::render::context& ctx, color_map_manager const& colors)
@@ -152,6 +161,7 @@ void relation_vis::set_shader_opts (cgv::render::shader_compile_options& opts) c
 {
 	opts.define_macro("RELATION_FUNCTION",        static_cast<uint32_t>(function));
 	opts.define_macro("RELATION_COLOR_SCALE_TEX", texture_idx::relation_color_map);
+	opts.define_macro("RELATION_SCALE_BY_COS",    scale_by_cos                   );
 }
 
 void relation_vis::set_uniforms (
@@ -168,6 +178,7 @@ void relation_vis::set_uniforms (
 	p.set_uniform(c, "relation_color_domain",     cgv::vec2{min, max}             );
 	p.set_uniform(c, "relation_highlight_color",  color_scale.highlight           );
 	p.set_uniform(c, "relation_background_color", color_scale.background          );
+	p.set_uniform(c, "relation_cos_exp",          cos_exp                         );
 }
 
 auto get_reflection_traits(enum relation_vis::Function const&)

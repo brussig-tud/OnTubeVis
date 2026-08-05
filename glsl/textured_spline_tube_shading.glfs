@@ -45,7 +45,7 @@ vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color
 ////***** end interface of surface.glsl ***********************************
 
 ////***** begin interface of relations.glsl ***********************************
-vec3 color_by_relation (uvec2 node_ids, float seg_t);
+vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal);
 ////***** end interface of relations.glsl ***********************************
 
 layout (binding = 0) uniform usampler2D albedo_tex;
@@ -1461,7 +1461,11 @@ void main()
 		//subp_color = vec4(uv.s, uv.t, 0.0, 1.0);
 
 	#if RELATION_FUNCTION != 0
-		color = color_by_relation(node_ids[segment_id], uintBitsToFloat(albedo_texcoord_seg[0]));
+		color = color_by_relation(
+			node_ids[segment_id],
+			uintBitsToFloat(albedo_texcoord_seg[0]),
+			get_inverse_normal_matrix() * normal_eye
+		);
 	#endif
 
 		// glyph layer 0

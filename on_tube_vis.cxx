@@ -1082,9 +1082,17 @@ void on_tube_vis::on_set(void* member_ptr) {
 
 	// visualization settings
 	if (ptr.points_to_member_of(relations.vis)) {
-		do_full_gui_update |= relations.vis.on_set(member_ptr, *get_context(), color_map_mgr);
+		auto& ctx = *get_context();
+		auto const update_flags = relations.vis.on_set(member_ptr, ctx, color_map_mgr);
+
+		do_full_gui_update |= update_flags & relation_vis::UpdateFlag::gui;
 		update_legends |= ptr.points_to(relations.vis.function)
 			|| ptr.points_to_member_of(relations.vis.color_scale);
+
+		if (update_flags & relation_vis::UpdateFlag::shader_opts) {
+			relations.vis.set_shader_opts(tube_shading_options);
+			shaders.reload(ctx, "tube_shading", tube_shading_options);
+		}
 	}
 
 	if(ptr.points_to(render.visualizations.front().manager)) {

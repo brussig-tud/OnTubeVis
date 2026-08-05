@@ -112,6 +112,10 @@ struct relation_vis {
 	/// Relations are calculated between points no further apart than `radius[0]` in space and
 	/// `radius[1]` in time.
 	cgv::vec2 radius {1};
+	/// Exponent of the cosine term optionally applied to the relation. Larger values reduce the
+	/// influence of samples further away from the surface normal on the relation value at any given
+	/// point.
+	float cos_exp {5};
 	/// The relation to evaluate.
 	Function function {};
 	/// Determines between which trajectories the relation is evaluated.
@@ -123,6 +127,8 @@ struct relation_vis {
 	/// Determines whether the relation is averaged (true) or accumulated (false) over time.
 	/// The exact meaning, howver, depends on the relation.
 	bool normalize {true};
+	/// True iff cos_exp != 0 the last time the shader was compiled.
+	bool scale_by_cos: 1 {true};
 
 	/// Generate GUI elements to control member variables.
 	void build_gui (
@@ -131,9 +137,18 @@ struct relation_vis {
 		cgv::vec4 data_extent,
 		std::vector<std::string> const& color_maps
 	);
+
+	using UpdateFlags = uint32_t;
+	/// Bitflags indicating which parts of the application need to be refreshed after a member
+	/// variable was changed.
+	struct UpdateFlag {enum : UpdateFlags {
+		gui         = 1 << 0,
+		shader_opts = 1 << 1,
+	};};
 	/// Must be called when a member variable has been changed. The return value indicates whether
 	/// the GUI needs to be updated.
-	auto on_set (void* member, cgv::render::context&, color_map_manager const&) -> bool;
+	auto on_set (void* member, cgv::render::context&, color_map_manager const&) -> UpdateFlags;
+
 	/// Regenerate the color scale object and texture according to the selected parameters.
 	void update_color_scale (cgv::render::context& ctx, color_map_manager const& colors);
 
