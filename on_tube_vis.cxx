@@ -2795,17 +2795,28 @@ void on_tube_vis::update_attribute_bindings(void) {
 					const auto& col = render.data->colors[node_idx];
 					// interleave and commit
 					render_attribs.emplace_back(node_attribs{
-						.pos_rad = vec4(render.data->positions[node_idx], render.data->radii[node_idx]),
-						.color   = vec4(col.R(), col.G(), col.B(), 1),
-						.tangent = render.data->tangents[node_idx],  // <- does already contain radius deriv. in w-component
-						.t       = render.data->timestamps[node_idx],
-						.traj_id = traj_id,
+						.pos_rad  = vec4(render.data->positions[node_idx], render.data->radii[node_idx]),
+						.color    = vec4(col.R(), col.G(), col.B(), 1),
+						.tangent  = render.data->tangents[node_idx],  // <- does already contain radius deriv. in w-component
+						.time     = render.data->timestamps[node_idx],
+						.duration = 0,
+						.traj_id  = traj_id,
+						.next     = ~0u,
 					});
 				}
 				++traj_id;
 			}
 		}
 		assert(render_attribs.size() == num_nodes);
+
+		// Set node attribs depending on the following segment.
+		auto const& idcs = render.data->indices;
+		for (auto i = 0u; i < idcs.size(); i += 2) {
+			auto& attrs = render_attribs[idcs[i]];
+			attrs.next = idcs[i + 1];
+			attrs.duration = render_attribs[attrs.next].time - attrs.time;
+		}
+
 		// - upload
 		vertex_buffer new_sbo(VertexBufferType::VBT_STORAGE, VertexBufferUsage::VBU_STATIC_READ);
 		if(!new_sbo.create(ctx, render_attribs))

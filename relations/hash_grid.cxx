@@ -147,7 +147,7 @@ void hash_grid::add_segment (
 		&& vec3{start_index} == round(b1)
 		&& vec3{start_index} == round(b2)
 	) {
-		add_interval(start_index, {node_idcs, {start.time, end.time}});
+		add_interval(start_index, node_idcs[0], {0, 1});
 		return;
 	}
 
@@ -171,10 +171,8 @@ void hash_grid::add_segment (
 		"\tMin sampling: " << min_step        << "\n"
 		"\tMax sampling: ("<< max_step * 0.5f <<")\n";
 
-	/// Start of the current interval.
-	auto min_time = start.time;
-
 	// Begin at the start node.
+	auto min_t      = 0.0f;
 	auto prev_t     = 0.0f;
 	auto prev_point = start_point;
 	auto prev_index = start_index;
@@ -238,14 +236,12 @@ void hash_grid::add_segment (
 			}
 			assert(isect_count >= 0 && isect_count < index.size());
 			/// End the interval at the average of all grid crossings.
-			auto const max_time =
-				start.time
-				+ (prev_t + isect_offset*std::array{1.0f, 0.5f, 1.0f/3, 0.25f}[isect_count])
-				* duration;
+			auto const max_t =
+				prev_t + isect_offset*std::array{1.0f, 0.5f, 1.0f/3, 0.25f}[isect_count];
 			// Store the interval in the grid.
-			add_interval(prev_index, {node_idcs, {min_time, max_time}});
+			add_interval(prev_index, node_idcs[0], {min_t, max_t});
 			// The next interval begins where the previous one ends.
-			min_time = max_time;
+			min_t = max_t;
 		}
 		// Remember the current sample for the next iteration.
 		prev_t     = t;
@@ -253,7 +249,7 @@ void hash_grid::add_segment (
 		prev_index = index;
 	} while (prev_t < 1.0f);
 	// Create a final interval up to the end of the segment.
-	add_interval(prev_index, {node_idcs, {min_time, end.time}});
+	add_interval(prev_index, node_idcs[0], {min_t, 1});
 }
 
 auto hash_grid::upload () -> gl_buffer
@@ -357,12 +353,13 @@ auto hash_grid::buffer_size () const -> size_t
 }
 
 
-void hash_grid::add_interval (Index index, Interval interval)
-{
+void hash_grid::add_interval (Index index, uint32_t start_node, vec2 range) {
 	if constexpr (log_level > 2)
-		std::clog << LOG_TAG" Add interval ("<< interval.time <<") to cell ("<< index <<").\n";
+		std::clog << LOG_TAG" Add interval ("<< range <<") to cell ("<< index <<").\n";
 
-	cell(index).intervals.push_back(interval);
+	// Convert range into normalized integers and pack them.
+	auto const irange = cgv::uvec2{round(range * 0xffff)};
+	cell(index).intervals.emplace_back(start_node, irange[0] | (irange[1] << 16));
 
 	++_num_intervals;
 #if OTV_HASH_GRID_VALIDATION

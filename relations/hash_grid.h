@@ -116,11 +116,12 @@ public:
 private:
 	/// The interval of a trajectory segment that lies within a given grid cell.
 	struct Interval {
-		/// Indices into the render buffer of the nodes defining the segment.
-		/// Both nodes may lie outside the grid cell this interval belongs to.
-		cgv::uvec2 nodes;
-		/// Timestamps at which the segment enters and exits the grid cell this interval belongs to.
-		vec2 time;
+		/// Index into the render buffer of the segment's start node.
+		uint32_t start_node;
+		/// Two packed 16 bit unsigned normalized integers in range [0, 1] indicating which part of
+		/// the segment lies in the cell, relative to the segment's duration. The lower bound is
+		/// stored in the less significant, the upper bound in the more significant bytes.
+		uint32_t range;
 	};
 
 	/// Spatiotemporal vector (x, y, z, t) used to identify a cell in the grid.
@@ -204,7 +205,7 @@ private:
 	uint8_t _initial_buckets {};
 
 	/// Find or create a cell by index, then insert a trajectory interval into that cell.
-	void add_interval (Index, Interval);
+	void add_interval (Index cell, uint32_t start_node, vec2 range);
 	/// Access an existing cell by its linear index.
 	[[nodiscard]] auto cell (uint32_t idx) -> Cell&;
 	/// Access a cell by its spatiotemporal index. If the cell is not yet stored in the grid,

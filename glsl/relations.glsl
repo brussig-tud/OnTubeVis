@@ -66,12 +66,16 @@ const uint num_hash_fns = HASH_GRID_NUM_HASH_FNS;
 const uint slots_per_bucket = HASH_GRID_SLOTS_PER_BUCKET;
 
 // Types ###########################################################################################
+
+// Corresponds to `node_attribs` in `render_layout.h`.
 struct Node {
 	vec4  pos_rad;
 	vec4  color;
 	vec4  tangent;
-	float t;
+	float time;
+	float duration;
 	uint  traj_id;
+	uint  next;
 };
 
 // An offset into the grid buffer in units of `address_unit` bytes.
@@ -116,10 +120,17 @@ struct Cell {
 
 // Part of a trajectory segment contained in a single grid cell.
 struct Interval {
-	uvec2 nodes;
-	vec2  time;
+	uint start_node; // index into `nodes`
+	uint range; // access using `unpack_interval_range`
 };
-const uint sizeof_interval = 16; // in bytes
+const uint sizeof_interval = 8; // in bytes
+
+// Extract an interval's range from the compact storage representation. Returns lower and upper
+// bound, both in range [0, 1], relative to the segment's duration.
+vec2 unpack_interval_range(Interval interval)
+{
+	return vec2(interval.range & 0xffff, interval.range >> 16) * (1.0/0xffff);
+}
 
 // Bindings ########################################################################################
 layout(std430, binding = 0) readonly buffer data_buffer {
@@ -381,14 +392,8 @@ Span query (Span table, Index index)
 // Load one of the trajectory intervals in a cell from the grid buffer.
 Interval load_interval (Span intervals, uint index)
 {
-	Ptr base = offset_bytes(intervals.base, index * sizeof_interval);
-	const uvec4 data = {
-		load1(base),
-		load1(offset_bytes(base, 4)),
-		load1(offset_bytes(base, 8)),
-		load1(offset_bytes(base, 12)),
-	};
-	return Interval(data.xy, uintBitsToFloat(data.zw));
+	const uvec2 data = load2(offset_bytes(intervals.base, index * sizeof_interval));
+	return Interval(data[0], data[1]);
 }
 
 // Trajectories ====================================================================================
@@ -434,7 +439,7 @@ vec4 trajectory_point (Node start, Node end, float t)
 		+ (   t3 - 2*t2 + t) * start.tangent.xyz
 		+ (-2*t3 + 3*t2    ) * end.pos_rad.xyz
 		+ (   t3 -   t2    ) * end.tangent.xyz,
-		mix(start.t, end.t, t)
+		mix(start.time, end.time, t)
 	);
 }
 
@@ -489,12 +494,13 @@ float eval_relation (
 	Interval interval
 ) {
 	// Load node data.
-	const Node n0 = nodes[interval.nodes[0]];
-	const Node n1 = nodes[interval.nodes[1]];
+	const Node n0 = nodes[interval.start_node];
+	const Node n1 = nodes[n0.next];
+	const vec2 time = unpack_interval_range(interval) * n0.duration + n0.time;
 
 	// Intersect trajectory interval and evaluated time frame.
-	const float start    = max(interval.time[0], base_point[3] - relation_radius[1]);
-	const float end      = min(interval.time[1], base_point[3] + relation_radius[1]);
+	const float start    = max(time[0], base_point[3] - relation_radius[1]);
+	const float end      = min(time[1], base_point[3] + relation_radius[1]);
 	const float timespan = end - start;
 	if (timespan <= 0) return 0;
 
@@ -503,13 +509,13 @@ float eval_relation (
 	if (RELATION_FUNCTION == FN_DBG_NUM_SAMPLES) return num_samples;
 
 	// Divide the evaluated range into equal steps.
-	const float time_scale  = 1.0 / (n1.t - n0.t);
+	const float time_scale  = 1.0 / n0.duration;
 	const float sampling    = 1.0 / num_samples;
 	const float sample_step = timespan * time_scale * sampling;
 
 	// Map time to curve parameter.
-	const float tmin = (start - n0.t) * time_scale;
-	const float tmax = (end   - n0.t) * time_scale;
+	const float tmin = (start - n0.time) * time_scale;
+	const float tmax = (end   - n0.time) * time_scale;
 
 	// Calculate spline coefficients.
 	const mat4x3 coeffs = position_coeffs(n0, n1);
@@ -618,12 +624,14 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		// Within that cell, find the interval containing the fragment.
 		for (uint i = 0; i < local_intervals.len; ++i) {
 			const Interval interval = load_interval(local_intervals, i);
-			const float t0          = interval.time[0];
-			const float t1          = interval.time[1];
+			const Node n0 = nodes[interval.start_node];
+			const vec2 time = unpack_interval_range(interval) * n0.duration + n0.time;
 
-			if (interval.nodes == node_ids && t0 <= local_point[3] && local_point[3] <= t1)
+			if (interval.start_node == node_ids[0]
+				&& time[0] <= local_point[3] && local_point[3] <= time[1]
+			)
 				// Color by interval-local curve parameter.
-				return relation_to_color((local_point[3] - t0)/(t1 - t0));
+				return relation_to_color((local_point[3] - time[0])/(time[1] - time[0]));
 		}
 		// Mark points not stored within their local cell.
 		return relation_highlight_color;
@@ -704,9 +712,9 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 
 			if (relation_direction == dir_all_to_ref
 				// Only evaluate intervals of the reference trajectory.
-				? nodes[interval.nodes[0]].traj_id == relation_ref_traj
+				? nodes[interval.start_node].traj_id == relation_ref_traj
 				// Evaluate all intervals on different trajectories.
-				: nodes[interval.nodes[0]].traj_id != start.traj_id
+				: nodes[interval.start_node].traj_id != start.traj_id
 			) result += eval_relation(
 				local_point,
 			#if FN_USES_DERIVATIVE

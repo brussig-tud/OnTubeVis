@@ -10,8 +10,10 @@ struct alignas(16) node_attribs {
 	cgv::vec4 pos_rad;
 	cgv::vec4 color;
 	cgv::vec4 tangent;
-	float     t;
+	float     time;
+	float     duration; // time difference between this node and its successor
 	uint32_t  traj_id; // unique across all datasets
+	uint32_t  next; // index of the next node in the trajectory, if there is one
 };
 
 /// Maximum supported number of simultaneous glyph layers.
