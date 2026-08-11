@@ -2864,7 +2864,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 
 void on_tube_vis::default_hash_grid () {
 	relations.grid_params.cell_size =
-		vec4{vec3{relations.vis.radius[0]}, relations.vis.radius[1]} * 2;
+		vec4{vec3{relations.vis.radius[0]}, relations.vis.radius[1]} * 1.5f;
 	relations.grid_params.sample_step =
 		vec2{relations.grid_params.cell_size[0], relations.grid_params.cell_size[3]} * 0.05f;
 	post_recreate_gui();
