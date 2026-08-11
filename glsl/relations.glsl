@@ -474,7 +474,7 @@ vec3 relation_to_color (float value)
 {
 	// Map the color scale's domain to texture coordinates.
 	const vec2 domain = relation_color_domain;
-	value = 1.0/(domain[1] - domain[0]) * (value - domain[0]);
+	value = (value - domain[0]) / (domain[1] - domain[0]);
 
 	// Sample the color scale texture.
 	const float N     = textureSize(color_scale_tex, 0).x;

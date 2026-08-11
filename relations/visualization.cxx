@@ -144,7 +144,7 @@ void relation_vis::update_color_scale (cgv::render::context& ctx, color_map_mana
 	// Generate texture.
 	std::array<cgv::rgb8, 256> samples;
 	for (auto i = 0; i < samples.size(); ++i) samples[i] = scale->map_value(
-		min + 1.0/(samples.size() - 1) * (max - min) * i
+		min + 1.f/(samples.size() - 1) * (max - min) * i
 	);
 	cgv::data::data_format fmt {samples.size(), 1, cgv::type::info::TI_UINT8, cgv::data::CF_RGB};
 	color_scale.texture.create(ctx, {&fmt, samples.data()}, 0);
