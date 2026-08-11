@@ -2873,7 +2873,7 @@ void on_tube_vis::default_hash_grid () {
 
 void on_tube_vis::build_hash_grid () {
 	// Reset grid with new parameters.
-	auto const initial_buckets = relations.grid_params.layout == hash_grid::layout::t_xyz ? 10u : 1000u;
+	auto const initial_buckets = relations.grid_params.layout == hash_grid::layout::t_xyz ? 15u : 1023u;
 	relations.grid = {relations.grid_params, initial_buckets};
 
 	// Insert all segments into the new grid.
@@ -2893,6 +2893,7 @@ void on_tube_vis::build_hash_grid () {
 			render.arclen_data.t_to_s[i]
 		);
 	}
+	relations.grid.reorganize();
 
 	// Upload grid to GPU for rendering.
 	relations.grid_sbo = {};

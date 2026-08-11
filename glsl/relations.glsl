@@ -112,11 +112,12 @@ struct Slot {
 const uint sizeof_slot = 8; // bytes
 
 // Header of a cell allocation, corresponding to hash_grid::Cell::data_t.
-// Trajectory intervals start at an offset of cell_header_size bytes from the header's base address.
+// Trajectory intervals start at an offset of sizeof_cell bytes from the header's base address.
 struct Cell {
 	Index index;
 	uint  size;
 };
+const uint sizeof_cell = 20; // in bytes
 
 // Part of a trajectory segment contained in a single grid cell.
 struct Interval {
@@ -341,7 +342,7 @@ Ptr bucket (Span table, uint signature, uint hash_fn)
 
 	return offset_bytes(
 		table.base,
-		(hash & (table.len - 1)) * slots_per_bucket * sizeof_slot
+		(hash % table.len) * slots_per_bucket * sizeof_slot
 	);
 }
 
@@ -381,7 +382,7 @@ Span query (Span table, Index index)
 			if (cell.index != index) continue;
 
 			// The cell has been found.
-			return Span(offset_bytes(slot.cell, 20), cell.size);
+			return Span(offset_bytes(slot.cell, sizeof_cell), cell.size);
 		}
 	}
 

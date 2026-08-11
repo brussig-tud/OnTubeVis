@@ -99,11 +99,16 @@ public:
 		cgv::mat4 const&    t_to_s
 	);
 
+	/// Adapt the grid to its content without changing parameters. Currently, this means sorting
+	/// cells along a Z-order curve and rebuilding tables to reduce empty slots. To be called after
+	/// all segments have been inserted.
+	void reorganize ();
+
 	/// Return some metrics for evaluation in human-readable form.
-	auto stats () const -> std::string;
+	[[nodiscard]] auto stats () const -> std::string;
 
 	/// Store a linear representation of the grid in a newly created GL buffer.
-	auto upload () -> gl_buffer;
+	[[nodiscard]] auto upload () -> gl_buffer;
 
 	/// Statically configure shaders through text substitution.
 	void set_shader_opts (cgv::render::shader_compile_options&) const;
@@ -153,14 +158,16 @@ private:
 
 	/// Bucket vector for a hash table.
 	struct Table {
-		std::unique_ptr<Bucket[]> buckets {};
-		uint32_t length {};
+		std::unique_ptr<Bucket[]> data {};
+		uint32_t length {}; // number of buckets
+		uint32_t num_entries {}; // number of filled slots
 		/// Only used by the strided 3D layout, which has one table per temporal index value.
 		int32_t timestep {};
 
 		[[nodiscard]] constexpr Table() = default;
 		[[nodiscard]] Table(uint32_t num_buckets, int32_t timestep);
-		[[nodiscard]] constexpr auto span() noexcept -> std::span<Bucket>;
+		[[nodiscard]] constexpr auto buckets () noexcept -> std::span<Bucket>;
+		[[nodiscard]] constexpr auto buckets () const noexcept -> std::span<const Bucket>;
 	};
 	/// Hash buckets. Length one unless the strided layout is used.
 	std::vector<Table> _tables {};
@@ -196,27 +203,31 @@ private:
 	vec4 _scale {};
 	/// Minimum distance (arclength, time) between sample points when adding a segment to the grid.
 	vec2 _sample_step {};
+	/// Number of buckets in a newly allocated table.
+	uint32_t _initial_buckets {};
+	/// Total number of segment intervals stored in all grid cells.
 	uint32_t _num_intervals {};
 	/// Describes which dimensions the grid indexes and how it is organized in memory.
 	layout _layout {};
 	/// Determines the function used to calculate cell signatures.
 	signature_fn _signature_fn {};
-	/// New hash tables are allocated with 2 ^ `_initial_buckets` buckets.
-	uint8_t _initial_buckets {};
 
 	/// Find or create a cell by index, then insert a trajectory interval into that cell.
 	void add_interval (Index cell, uint32_t start_node, vec2 range);
-	/// Access an existing cell by its linear index.
-	[[nodiscard]] auto cell (uint32_t idx) -> Cell&;
-	/// Access a cell by its spatiotemporal index. If the cell is not yet stored in the grid,
-	/// it is created.
-	[[nodiscard]] auto cell (Index) -> Cell&;
+	/// Access a grid cell by its spatiotemporal index. If the cell does not yet exist, it is
+	/// created empty and added to the grid. If the cell exists in `_cells` but is not stored in the
+	/// correct hash table (e.g. when recreating tables as part of `reorganize`), its handle may be
+	/// given as `new_cell`, which will then be inserted into the appropriate table instead.
+	/// During insertion, hash tables may be resized if necessary, with capacity multiplied by
+	/// `growth_factor` each time. Therefore, `growth_factor` must be > 1.
+	[[nodiscard]] auto find_or_insert (Index, float growth_factor, uint32_t new_cell = no_cell)
+		-> Cell&;
 	/// Access the hash buckets containing all cells for a given temporal index.
 	auto table (int32_t timestep) -> Table&;
 	/// Find a cell in a hash table by its index. If there is no matching entry, insert `new_cell`,
 	/// which must have the same index. If `new_cell` is `no_cell`, it is allocated on demand.
 	/// Returns a pointer to the queried entry in the table, or nullptr if insertion failed.
-	auto find_or_insert (std::span<Bucket>, Index, uint32_t new_cell = no_cell) -> Cell*;
+	auto try_find_or_insert (Table&, Index, uint32_t new_cell = no_cell) -> Cell*;
 
 	/// Hash a cell index into a shorter signature.
 	[[nodiscard]] auto signature (Index) const noexcept -> Signature;

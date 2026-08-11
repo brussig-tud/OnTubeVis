@@ -63,11 +63,9 @@ hash_grid::hash_grid(params const& params, uint32_t initial_buckets)
 	, _sample_step     {max(params.sample_step, vec2{0.001})}
 	, _layout          {params.layout}
 	, _signature_fn    {params.signature_fn}
-	, _initial_buckets {static_cast<uint8_t>(
-		std::bit_width(std::max(initial_buckets, 1u) - 1)) // ceil(log2)
-	}
+	, _initial_buckets {initial_buckets}
 {
-	if (_layout != layout::t_xyz) _tables.emplace_back(1u << _initial_buckets, 0);
+	if (_layout != layout::t_xyz) _tables.emplace_back(_initial_buckets, 0);
 
 	if constexpr (log_level > 0) {
 		using std::operator""sv;
@@ -76,14 +74,47 @@ hash_grid::hash_grid(params const& params, uint32_t initial_buckets)
 		auto const signature_fn = std::array{"Multiply and XOR"sv, "xxHash32"sv, "Z-Order Curve"sv}
 			[static_cast<size_t>(_signature_fn)];
 		std::clog << LOG_TAG" Create instance.\n"
-			"\tLayout:          " << layout_name              << "\n"
-			"\tSignature:       " << signature_fn             << "\n"
-			"\tCell size:       ("<< _cell_size               <<")\n"
-			"\tSample step:     " << _sample_step[0]          << " (space), "
-			                      << _sample_step[1]          << " (time)\n"
-			"\tInitial buckets: " << (1u << _initial_buckets) << "\n";
+			"\tLayout:          " << layout_name      << "\n"
+			"\tSignature:       " << signature_fn     << "\n"
+			"\tCell size:       ("<< _cell_size       <<")\n"
+			"\tSample step:     " << _sample_step[0]  << " (space), "
+			                      << _sample_step[1]  << " (time)\n"
+			"\tInitial buckets: " << _initial_buckets << "\n";
 	}
 }
+
+void hash_grid::reorganize ()
+{
+	// Sort cells along a Z-order curve to improve data locality in the shader.
+	std::sort(_cells.begin(), _cells.end(), [this](auto const& l, auto const& r) {
+		auto const& lidx = l.index;
+		auto const& ridx = r.index;
+
+		// Compare the coordinates with the most significant differing bit. In case of a tie, prefer
+		// t > z > y > x, i.e. prefer outer over inner loops in the shader.
+		auto sortdim = 0u;
+		auto min_lzeroes = ~0u;
+		for (auto d : {3, 2, 1, 0}) {
+			auto const lzeroes = std::countl_zero(
+				std::bit_cast<uint32_t>(lidx[d]) ^ std::bit_cast<uint32_t>(ridx[d]));
+			if (lzeroes >= min_lzeroes) continue;
+			min_lzeroes = lzeroes;
+			sortdim = d;
+		}
+		return lidx[sortdim] < ridx[sortdim];
+	});
+
+	// Replace tables with new, smaller ones, sized to match the actual number of entries plus a
+	// small amount of spare capacity for hash collisions.
+	for (auto& table : _tables) table = {
+		std::min<uint32_t>(ceil(table.num_entries * 1.02f / Bucket::num_slots), table.length),
+		table.timestep
+	};
+
+	// Reinsert all cells into the new tables.
+	uint32_t idx = 0;
+	for (auto const& cell : _cells) find_or_insert(cell.index, 1.05, idx++);
+	}
 
 auto hash_grid::stats () const -> std::string
 {
@@ -91,7 +122,7 @@ auto hash_grid::stats () const -> std::string
 	for (auto const& table : _tables) num_buckets += table.length;
 	auto const num_slots = num_buckets * Bucket::num_slots;
 
-	using std::literals::operator""sv;
+	using std::operator""sv;
 	auto const     bytes = buffer_size();
 	constexpr auto units = std::array{"B"sv, "kiB"sv, "MiB"sv, "GiB"sv};
 
@@ -101,7 +132,7 @@ auto hash_grid::stats () const -> std::string
 
 	return std::format(
 		"Tables:      {}\n"
-		"Buckets:     {}, (avg. {:.3} per table)\n"
+		"Buckets:     {} (avg. {:.3} per table)\n"
 		"Slots:       {} ({} per bucket)\n"
 		"Cells:       {} ({:.1f}%% of slots)\n"
 		"Intervals:   {} (avg. {:.3} per cell)\n"
@@ -150,6 +181,8 @@ void hash_grid::add_segment (
 		add_interval(start_index, node_idcs[0], {0, 1});
 		return;
 	}
+
+	// TODO: Calculate intersections analytically instead of sampling.
 
 	/// Spatial and temporal extent of the segment.
 	auto const arclen   = t_to_s[15] - t_to_s[0];
@@ -284,9 +317,9 @@ auto hash_grid::upload () -> gl_buffer
 	};
 	for (auto const& table : _tables) {
 		for (auto bucket_idx = 0u; bucket_idx < table.length; ++bucket_idx) {
-			auto const& slots      = table.buckets[bucket_idx].slots;
-			auto&       dest_slots = buckets[bucket_idx].slots;
-			auto        slot_idx   = 0u;
+			auto const& slots = table.buckets()[bucket_idx].slots;
+			auto& dest_slots = buckets[bucket_idx].slots;
+			uint32_t slot_idx {};
 
 			// Filled slots.
 			for (; slot_idx < Bucket::num_slots && slots[slot_idx].cell != no_cell; ++slot_idx) {
@@ -297,8 +330,8 @@ auto hash_grid::upload () -> gl_buffer
 				};
 				// Append the cell to the buffer. First write a header consisting of the cell's
 				// index and number of contained intervals, then copy the intervals themselves.
-				auto const& cell          = this->cell(slots[slot_idx].cell);
-				auto const  num_intervals = static_cast<uint32_t>(cell.intervals.size());
+				auto const& cell = _cells[slots[slot_idx].cell];
+				auto const num_intervals = static_cast<uint32_t>(cell.intervals.size());
 				write(&cell.index, 1);
 				write(&num_intervals, 1);
 				write(cell.intervals.data(), num_intervals);
@@ -359,7 +392,8 @@ void hash_grid::add_interval (Index index, uint32_t start_node, vec2 range) {
 
 	// Convert range into normalized integers and pack them.
 	auto const irange = cgv::uvec2{round(range * 0xffff)};
-	cell(index).intervals.emplace_back(start_node, irange[0] | (irange[1] << 16));
+	find_or_insert(index, 2, no_cell)
+		.intervals.emplace_back(start_node, irange[0] | (irange[1] << 16));
 
 	++_num_intervals;
 #if OTV_HASH_GRID_VALIDATION
@@ -368,11 +402,7 @@ void hash_grid::add_interval (Index index, uint32_t start_node, vec2 range) {
 #endif
 }
 
-auto hash_grid::cell (uint32_t id) -> Cell&
-{
-	return _cells[id];
-}
-auto hash_grid::cell (Index index) -> Cell&
+auto hash_grid::find_or_insert (Index index, float growth_factor, uint32_t new_cell) -> Cell&
 {
 	// Find or create the table for this timestep.
 	auto& table = this->table(index[3]);
@@ -380,51 +410,53 @@ auto hash_grid::cell (Index index) -> Cell&
 	while (true) {
 		// In the vast majority of cases, the cell is already stored in the table or can be
 		// inserted into the existing buckets.
-		if (auto const cell = find_or_insert(table.span(), index)) return *cell;
+		if (auto const cell = try_find_or_insert(table, index, new_cell)) return *cell;
 
 		// In the unlikely event that a new cell cannot be inserted, more buckets must be allocated.
-		auto const prev_size = table.length;
-		auto       num_cells = 0u;
+		auto const old_table = std::move(table);
+		auto new_length = old_table.length;
+		uint32_t num_cells;
 
 		// Rebuild the table with double capacity.
-		rehash: {
-			auto const new_size = table.length * 2;
-			if constexpr (log_level > 2)
-				std::clog << LOG_TAG" Grow table "<< table.timestep <<" from "<< table.length
-					<<" to "<< new_size <<" buckets.\n";
+		grow: {
+			new_length = static_cast<uint32_t>(ceil(new_length * growth_factor));
 
-			if (new_size > 1 << 20) std::abort(); // sanity check
+			if constexpr (log_level > 0) {
+				// Print the load factor before resizing to determine efficiency.
+				auto const num_slots = old_table.length * Bucket::num_slots;
+				std::clog << std::format(LOG_TAG" Insert failed with {}/{} slots occupied "
+					"({:.1f}%), growing to {} slots.\n",
+					old_table.num_entries, num_slots,
+					float(old_table.num_entries) / num_slots * 100.f,
+					new_length * Bucket::num_slots
+				);
+			}
+
+			// Prevent excessive memory use in case of bugs in the resize implementation.
+			if (new_length > 1 << 20) std::abort();
 
 			// Reinsert all entries into the new buckets.
-			Table new_table {new_size, table.timestep};
-			for (auto const& bucket : table.span()) for (auto const slot : bucket.slots) {
+			table = {new_length, table.timestep};
+			num_cells = 0;
+			for (auto const& bucket : old_table.buckets()) for (auto const slot : bucket.slots) {
 				if (slot.cell == no_cell) break; // next bucket
-
 				++num_cells;
 
 				// If insertion fails during a rehash (extremely unlikely), abort the current
 				// attempt and try again with yet more buckets.
-				if (!find_or_insert(new_table.span(), cell(slot.cell).index, slot.cell))
-					goto rehash;
-				}
-			table = std::move(new_table);
+				if (!try_find_or_insert(table, _cells[slot.cell].index, slot.cell))
+					goto grow;
+			}
 		}
 
-		if constexpr (log_level > 0) {
-			// Print the load factor before resizing to determine efficiency.
-			auto const num_slots = prev_size * Bucket::num_slots;
-			auto const prec      = std::clog.precision();
-			std::clog << std::format(LOG_TAG" Rehashed table after insertion failed with {}/{}"
-				" slots occupied (load factor {:.1f}%).\n",
-				num_cells, num_slots, static_cast<float>(_cells.size()) / num_slots * 100.f
-			);
-		}
+		assert(num_cells = old_table.num_entries);
 
 #if OTV_HASH_GRID_VALIDATION > 1
 		// Check that no entries have been lost.
-		for (auto const& [idx, fill] : _validation.cell_fill) {
-			if (_layout == layout::t_xyz && idx[3] != index[3]) continue;
-			assert(find_or_insert(table.span(), idx)->intervals.size() == fill);
+		for (auto const& bucket : old_table.buckets()) for (auto const slot : bucket.slots) {
+			if (slot.cell == no_cell) continue;
+			auto const& idx = _cells[slot.cell].index;
+			assert(try_find_or_insert(table, idx)->intervals.size() == _validation.cell_fill[idx]);
 		}
 #endif
 		// Once all previous entries have been restored, reattempt to insert the new index.
@@ -436,9 +468,6 @@ auto hash_grid::table (int32_t timestep) -> Table&
 	// Only strided grids have more than one table.
 	if (_layout != layout::t_xyz) return _tables[0];
 
-	// Number of tables that have actually been initialized.
-	auto const num_tables = _tables.size();
-
 	// Search for the requested timestep.
 	auto const table = std::ranges::lower_bound(_tables, timestep, {}, [](auto const& table) {
 		return table.timestep;
@@ -447,17 +476,17 @@ auto hash_grid::table (int32_t timestep) -> Table&
 	if (table < _tables.end() && table->timestep == timestep) return *table;
 
 	// Otherwise, a new table must be allocated.
-	auto const num_buckets = 1u << _initial_buckets;
 	if (log_level > 1)
-		std::clog << LOG_TAG" Allocate "<< num_buckets <<" buckets for timestep "<< timestep <<".\n";
+		std::clog << LOG_TAG" Allocate "<< _initial_buckets <<" buckets for timestep "<< timestep <<".\n";
 
-	return *_tables.emplace(table, num_buckets, timestep);
+	return *_tables.emplace(table, _initial_buckets, timestep);
 }
 
-auto hash_grid::find_or_insert (std::span<Bucket> buckets, Index query, uint32_t new_cell) -> Cell*
+auto hash_grid::try_find_or_insert (Table& table, Index query, uint32_t new_cell) -> Cell*
 {
 	/// Hash the query index into its shorter signature for quick comparison.
 	auto const signature = this->signature(query);
+	auto const buckets = table.buckets();
 
 	struct {
 		Bucket*  data {};
@@ -478,7 +507,7 @@ auto hash_grid::find_or_insert (std::span<Bucket> buckets, Index query, uint32_t
 			// slot, all following ones must be free as well.
 			if (slot.cell == no_cell) break;
 			if (slot.signature.value == signature.value) {
-				auto& cell = this->cell(slot.cell);
+				auto& cell = _cells[slot.cell];
 				// Since many indices map to the same signature, we must load the index of the
 				// possible match for an exact comparison.
 				// In practice, a good hash makes signature collisions unlikely.
@@ -501,9 +530,10 @@ auto hash_grid::find_or_insert (std::span<Bucket> buckets, Index query, uint32_t
 	}
 	// If the index cannot be found in the table, insert it.
 
-	if (new_cell != no_cell)
+	auto const new_cell_given = new_cell != no_cell;
+	if (new_cell_given)
 		// Check that the given cell actually matches the query index.
-		assert(cell(new_cell).index == query);
+		assert(_cells[new_cell].index == query);
 	else {
 		// If no cell has been given to insert, allocate a new one.
 		new_cell = _cells.size();
@@ -545,7 +575,8 @@ auto hash_grid::find_or_insert (std::span<Bucket> buckets, Index query, uint32_t
 				std::clog << LOG_TAG" Inserted cell ("<< query <<") after "
 					<< cuckoo_chain <<" cuckoos.\n";
 
-			return &cell(new_cell);
+			++table.num_entries;
+			return &_cells[new_cell];
 		}
 
 		// Count iterations and abort insertion after maximum.
@@ -596,7 +627,7 @@ auto hash_grid::find_or_insert (std::span<Bucket> buckets, Index query, uint32_t
 	// It will be in the wrong bucket with the wrong signature, but for rehashing that is OK.
 	// The new cell will be added to the expanded table after all previous entries have been moved.
 	if (floating_entry.cell != new_cell) *new_entry = floating_entry;
-	_cells.pop_back();
+	if (!new_cell_given) _cells.pop_back();
 	return nullptr;
 }
 
@@ -671,17 +702,21 @@ auto hash_grid::bucket (std::span<Bucket> buckets, Signature signature, uint8_t 
 	};
 
 	// The number of buckets is a power of two, so the modulo simplifies to a bit-wise and.
-	return buckets[hash & buckets.size() - 1];
+	return buckets[hash % buckets.size()];
 }
 
 
 hash_grid::Table::Table(uint32_t num_buckets, int32_t timestep)
-	: buckets  {std::make_unique<Bucket[]>(num_buckets)}
+	: data     {std::make_unique<Bucket[]>(num_buckets)}
 	, length   {num_buckets}
 	, timestep {timestep}
 {}
 
-constexpr auto hash_grid::Table::span () noexcept -> std::span<Bucket>
+constexpr auto hash_grid::Table::buckets () noexcept -> std::span<Bucket>
 {
-	return {buckets.get(), length};
+	return {data.get(), length};
+}
+constexpr auto hash_grid::Table::buckets () const noexcept -> std::span<const Bucket>
+{
+	return {data.get(), length};
 }
