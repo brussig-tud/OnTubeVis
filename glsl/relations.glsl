@@ -484,6 +484,20 @@ vec3 relation_to_color (float value)
 	return pow(color, vec3(2.2));
 }
 
+float sqr (float x) {return x*x;}
+
+// "A Simple Method for Box-Sphere Intersection Testing", by Jim Arvo, in "Graphics Gems",
+// Academic Press, 1990. The AABB is defined by its minimum and maximum coordinates bmin and bmax,
+// the sphere by its center and the square of its radius.
+bool isect_aabb_sphere (vec3 bmin, vec3 bmax, vec3 center, float radius2)
+{
+	float dmin = 0;
+	for (uint d = 0; d < 3; ++d)
+		if (center[d] < bmin[d]) dmin += sqr(center[d] - bmin[d]);
+		else if (center[d] > bmax[d]) dmin += sqr(center[d] - bmax[d]);
+	return dmin <= radius2;
+}
+
 // Calculate the trajectory relation selected by `RELATION_FUNCTION` from a fixed starting point to
 // one or more sampled points on a given interval, provided the samples lie within the query radius.
 float eval_relation (
@@ -507,7 +521,6 @@ float eval_relation (
 
 	// Determine how often the interval should be sampled.
 	const float num_samples = max(ceil(timespan * relation_sample_rate), 1);
-	if (RELATION_FUNCTION == FN_DBG_NUM_SAMPLES) return num_samples;
 
 	// Divide the evaluated range into equal steps.
 	const float time_scale  = 1.0 / n0.duration;
@@ -524,7 +537,17 @@ float eval_relation (
 	const mat3 coeffs_dt = derive_coeffs(coeffs);
 #endif
 
-	const float radius2 = relation_radius[0] * relation_radius[0];
+	// Skip segments fully outside the query radius
+	const float radius2 = sqr(relation_radius[0]);
+	const vec4 p1 = n0.pos_rad + (1/3.)*n0.tangent;
+	const vec4 p2 = n1.pos_rad - (1/3.)*n1.tangent;
+	if (!isect_aabb_sphere(
+		min(n0.pos_rad, min(p1, min(p2, n1.pos_rad))).xyz,
+		max(n0.pos_rad, max(p1, max(p2, n1.pos_rad))).xyz,
+		base_point.xyz,
+		radius2
+	)) return 0;
+	if (RELATION_FUNCTION == FN_DBG_NUM_SAMPLES) return num_samples;
 
 	// Evaluate the relation at one or more sample points along the interval.
 	float result = 0.0;
@@ -584,7 +607,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	#elif RELATION_FUNCTION == FN_DBG_VELOCITY
 		// Derivative w.r.t. curve parameter, divide by duration to get physical velocity.
 		return relation_to_color(
-			length(trajectory_derivative(start, end, seg_t)) / (end.t - start.t)
+			length(trajectory_derivative(start, end, seg_t)) / start.duration
 		);
 	#endif
 
@@ -644,11 +667,6 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	const ivec4 min_cell  = cell_index(local_point - max_offset);
 	const ivec4 max_cell  = cell_index(local_point + max_offset);
 
-	// Iff the distance squared between a cell's center and the local point is larger than this
-	// value, all points within that cell are outside the evaluation radius.
-	const float max_cell_dist  = relation_radius[0] + length(hash_grid_cell_size.xyz)*0.5;
-	const float max_cell_dist2 = max_cell_dist*max_cell_dist;
-
 #if RELATION_FUNCTION == FN_ALIGNMENT
 	// Normalized trajectory direction for calculating angle to other trajectories.
 	const vec3 local_derivative = normalize(trajectory_derivative(start, end, seg_t));
@@ -686,8 +704,11 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		};
 
 		// Skip cells within the AABB, but outside the evaluation radius.
-		const vec3 offset = local_point.xyz - index.xyz*hash_grid_cell_size.xyz;
-		if (dot(offset, offset) > max_cell_dist2) {
+		const vec3 cell_center = index.xyz*hash_grid_cell_size.xyz;
+		const vec3 hdiag = 0.5 * hash_grid_cell_size.xyz; // half of a cell's diagonal
+		if (!isect_aabb_sphere(
+			cell_center - hdiag, cell_center + hdiag, local_point.xyz, sqr(relation_radius[0])
+		)) {
 			if (RELATION_FUNCTION == FN_DBG_SKIPPED_CELLS) ++result;
 			// The query sphere is convex, so once we leave it, all remaining cells in this row must
 			// lie outside the query radius as well.
