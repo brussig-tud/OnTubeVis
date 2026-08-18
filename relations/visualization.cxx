@@ -199,7 +199,6 @@ auto get_reflection_traits(enum relation_vis::Function const&)
 		"dbg_signature,"
 		"dbg_bucket_load,"
 		"dbg_local_interval,"
-		"dbg_skipped_cells,"
 		"dbg_num_cells,"
 		"dbg_num_intervals,"
 		"dbg_num_samples,"

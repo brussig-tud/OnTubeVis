@@ -18,8 +18,7 @@ const Direction dir_all_to_all = {2};
 #define FN_DBG_SIGNATURE      1 + FN_DBG_INDEX_T
 #define FN_DBG_BUCKET_LOAD    1 + FN_DBG_SIGNATURE
 #define FN_DBG_LOCAL_INTERVAL 1 + FN_DBG_BUCKET_LOAD
-#define FN_DBG_SKIPPED_CELLS  1 + FN_DBG_LOCAL_INTERVAL
-#define FN_DBG_NUM_CELLS      1 + FN_DBG_SKIPPED_CELLS
+#define FN_DBG_NUM_CELLS      1 + FN_DBG_LOCAL_INTERVAL
 #define FN_DBG_NUM_INTERVALS  1 + FN_DBG_NUM_CELLS
 #define FN_DBG_NUM_SAMPLES    1 + FN_DBG_NUM_INTERVALS
 #define FN_DBG_NUM_EVALS      1 + FN_DBG_NUM_SAMPLES
@@ -243,6 +242,12 @@ Span find_table (int timestep)
 	return load_table(table_idx);
 }
 #endif
+
+// Calculate the grid cell index for coordinate value c in dimension dim where 0 ≤ dim < 4.
+int index_coord (float c, uint dim)
+{
+	return int(round(c * hash_grid_scale[dim]));
+}
 
 // Calculate the index of the cell containing a given point.
 ivec4 cell_index (vec4 point)
@@ -703,6 +708,8 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	}
 	#endif
 
+	// Square of the spatial query radius.
+	const float radius2 = sqr(relation_radius[0]);
 	// AABB of cells to include in the relation.
 	const GridRange qrange = query_range(local_point, world_normal);
 
@@ -724,43 +731,49 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	const Span table = Span(Ptr(0), hash_grid_data_len);
 
 #if HASH_GRID_LAYOUT == LAYOUT_XYZT
-	// Iterate over the AABB's temporal extent.
+	// Iterate over the query's temporal extent.
 	for (int time = qrange.min[3]; time <= qrange.max[3]; ++time)
 #endif
 	{
 #endif
 
-	// Iterate over the AABB's spatial extent
-	for (int z = qrange.min.z; z <= qrange.max.z; ++z)
-	for (int y = qrange.min.y; y <= qrange.max.y; ++y) {
-		// Tracks whether we have found a cell that intersects the query sphere in this loop.
-		bool found_cell_y = false;
-	for (int x = qrange.min.x; x <= qrange.max.x; ++x) {
+	// Iterate over the query's spatial extent.
+
+	// Assuming a spherical query, i.e. ignoring cosine cutoff, this is the radius of the circle
+	// obtained by intersecting the query sphere with the current cell's lower z bound.
+	float ry_lo = 0;
+	for (int z = qrange.min.z; z <= qrange.max.z; ++z) {
+		// y radius at the upper z bound
+		const float ry_hi = z == qrange.max.z ? 0
+			: sqrt(radius2 - sqr((z + .5) * hash_grid_cell_size.z - local_point.z));
+		// maximum y radius for the current z index, ignoring cosine cutoff
+		const float ry = z == local_index.z ? relation_radius[0] : max(ry_lo, ry_hi);
+		// Intersect the index range defined by the y radius, which is tight for the current z
+		// index, but ignores cosine cutoff, and the AABB which takes into account cosine cutoff,
+		// but contains the entire query, not just cells with this z index.
+		const int y_min = max(qrange.min.y, index_coord(local_point.y - ry, 1));
+		const int y_max = min(qrange.max.y, index_coord(local_point.y + ry, 1));
+
+		float rx_lo = 0; // analogous to the y radius
+	for (int y = y_min; y <= y_max; ++y) {
+		const float rx_hi = y == y_max ? 0
+			: sqrt(ry - sqr((y + .5) * hash_grid_cell_size.y - local_point.y));
+		const float rx = y == local_index.y ? ry : max(rx_lo, rx_hi);
+		const int x_min = max(qrange.min.x, index_coord(local_point.x - rx, 0));
+		const int x_max = min(qrange.max.x, index_coord(local_point.x + rx, 0));
+
+	for (int x = x_min; x <= x_max; ++x) {
 		const Index index = {x, y, z
 			#if HASH_GRID_LAYOUT == LAYOUT_XYZT
 				, time
 			#endif
 		};
 
-		// Skip cells within the AABB, but outside the evaluation radius.
-		const vec3 cell_center = index.xyz*hash_grid_cell_size.xyz;
-		const vec3 hdiag = 0.5 * hash_grid_cell_size.xyz; // half of a cell's diagonal
-		if (!isect_aabb_sphere(
-			cell_center - hdiag, cell_center + hdiag, local_point.xyz, sqr(relation_radius[0])
-		)) {
-			if (RELATION_FUNCTION == FN_DBG_SKIPPED_CELLS) ++result;
-			// The query sphere is convex, so once we leave it, all remaining cells in this row must
-			// lie outside the query radius as well.
-			else if (found_cell_y) break;
-			continue;
-		}
-		found_cell_y = true;
-
 		// Search the hash table for the current cell and return the intervals it contains.
 		const Span intervals = query(table, index);
 
 		#if RELATION_FUNCTION == FN_DBG_NUM_CELLS
-			result += float(intervals.len != 0);
+			++result;
 			continue;
 		#elif RELATION_FUNCTION == FN_DBG_NUM_INTERVALS
 			result += intervals.len;
@@ -785,8 +798,12 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 				interval
 			);
 		}
-	}}
-	}
+	} // for x
+		rx_lo = rx_hi;
+	} // for y
+		ry_lo = ry_hi;
+	} // for z
+	} // for t
 
 	// Normalize the relation value.
 	const float norm_time = relation_normalize ? 2*relation_radius[1] : 1;
@@ -795,11 +812,6 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		result /= (relation_radius[0] * norm_time);
 	#elif RELATION_FUNCTION == FN_ALIGNMENT
 		result /= norm_time;
-	#elif RELATION_FUNCTION == FN_DBG_SKIPPED_CELLS
-	if (relation_normalize) {
-		const uvec4 extent = qrange.max - qrange.min + 1;
-		result /= float(extent.x * extent.y * extent.z * extent.w);
-	}
 	#endif
 
 	return relation_to_color(result);

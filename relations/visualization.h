@@ -42,7 +42,6 @@ struct relation_vis {
 		dbg_signature,      /// Index hash signature.
 		dbg_bucket_load,    /// Hash bucket load factor.
 		dbg_local_interval, /// Curve parameter relative to local trajectory interval.
-		dbg_skipped_cells,  /// Number of cells in query AABB but outside query radius.
 		dbg_num_cells,      /// Number of cells within the query radius.
 		dbg_num_intervals,  /// Number of trajectory intervals within queried cells.
 		dbg_num_samples,    /// Number of sampled trajectory points.
@@ -60,7 +59,6 @@ struct relation_vis {
 		"[debug] Index hash",
 		"[debug] Bucket load",
 		"[debug] Trajectory interval",
-		"[debug] Skipped cells",
 		"[debug] Queried cells",
 		"[debug] Intervals found",
 		"[debug] Sampled points",
