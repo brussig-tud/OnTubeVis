@@ -157,6 +157,10 @@ uniform Transform relation_color_transform;
 uniform vec3      relation_highlight_color;
 uniform vec3      relation_background_color;
 uniform float     relation_cos_exp;
+// When evaluating relations, samples may be ignored if the cosine of the angle between the
+// direction from the base point to the sample point and the surface normal at the base point is
+// less than this value.
+uniform float relation_min_cos;
 
 // Local functions #################################################################################
 // Memory ==========================================================================================
@@ -486,6 +490,43 @@ vec3 relation_to_color (float value)
 
 float sqr (float x) {return x*x;}
 
+// A 4D spatiotemporal range of grid cell indices.
+struct GridRange
+{
+	ivec4 min;
+	ivec4 max;
+};
+// Calculate the range of grid cells intersecting the relation query.
+GridRange query_range (vec4 center, vec3 normal)
+{
+	// Limits of the query's AABB in world space.
+	vec4 pmin, pmax;
+
+	// In the three spatial dimensions, the query encompasses a spherical sector; its AABB is
+	// calculated according to https://stackoverflow.com/a/64689996
+	for (uint d = 0; d < 3; ++d) {
+		const float min_cos = relation_min_cos;
+		const float n = normal[d];
+		float lo = 0, hi = 0;
+
+		if (-n >= min_cos) lo = -1;
+		if (n >= min_cos) hi = 1;
+
+		if (lo == 0 || hi == 0) {
+			const float a = n * min_cos;
+			const float b = sqrt((1 - sqr(min_cos)) / (1 - sqr(n))) * (1 - sqr(n));
+			lo = min(lo, a - b);
+			hi = max(hi, a + b);
+		}
+		pmin[d] = center[d] + relation_radius[0] * lo;
+		pmax[d] = center[d] + relation_radius[0] * hi;
+	}
+	// Temporally, the query is simply an interval.
+	pmin[3] = center[3] - relation_radius[1];
+	pmax[3] = center[3] + relation_radius[1];
+	return GridRange(cell_index(pmin), cell_index(pmax));
+}
+
 // "A Simple Method for Box-Sphere Intersection Testing", by Jim Arvo, in "Graphics Gems",
 // Academic Press, 1990. The AABB is defined by its minimum and maximum coordinates bmin and bmax,
 // the sphere by its center and the square of its radius.
@@ -662,10 +703,8 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	}
 	#endif
 
-	// AABB of cells to query.
-	const vec4 max_offset = vec4(vec3(relation_radius[0]), relation_radius[1]);
-	const ivec4 min_cell  = cell_index(local_point - max_offset);
-	const ivec4 max_cell  = cell_index(local_point + max_offset);
+	// AABB of cells to include in the relation.
+	const GridRange qrange = query_range(local_point, world_normal);
 
 #if RELATION_FUNCTION == FN_ALIGNMENT
 	// Normalized trajectory direction for calculating angle to other trajectories.
@@ -677,7 +716,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 
 #if HASH_GRID_LAYOUT == LAYOUT_T_XYZ
 	// Iterate over the hash tables of all timesteps within the evaluated radius.
-	const uvec2 table_range = table_range(min_cell[3], max_cell[3]);
+	const uvec2 table_range = table_range(qrange.min[3], qrange.max[3]);
 	for (uint table_idx = table_range[0]; table_idx <= table_range[1]; ++table_idx) {
 		const Span table = load_table(table_idx);
 #else
@@ -686,17 +725,17 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 
 #if HASH_GRID_LAYOUT == LAYOUT_XYZT
 	// Iterate over the AABB's temporal extent.
-	for (int time = min_cell[3]; time <= max_cell[3]; ++time)
+	for (int time = qrange.min[3]; time <= qrange.max[3]; ++time)
 #endif
 	{
 #endif
 
 	// Iterate over the AABB's spatial extent
-	for (int z = min_cell.z; z <= max_cell.z; ++z)
-	for (int y = min_cell.y; y <= max_cell.y; ++y) {
+	for (int z = qrange.min.z; z <= qrange.max.z; ++z)
+	for (int y = qrange.min.y; y <= qrange.max.y; ++y) {
 		// Tracks whether we have found a cell that intersects the query sphere in this loop.
 		bool found_cell_y = false;
-	for (int x = min_cell.x; x <= max_cell.x; ++x) {
+	for (int x = qrange.min.x; x <= qrange.max.x; ++x) {
 		const Index index = {x, y, z
 			#if HASH_GRID_LAYOUT == LAYOUT_XYZT
 				, time
@@ -758,7 +797,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		result /= norm_time;
 	#elif RELATION_FUNCTION == FN_DBG_SKIPPED_CELLS
 	if (relation_normalize) {
-		const uvec4 extent = max_cell - min_cell + 1;
+		const uvec4 extent = qrange.max - qrange.min + 1;
 		result /= float(extent.x * extent.y * extent.z * extent.w);
 	}
 	#endif

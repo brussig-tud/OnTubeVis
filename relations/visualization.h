@@ -116,6 +116,9 @@ struct relation_vis {
 	/// influence of samples further away from the surface normal on the relation value at any given
 	/// point.
 	float cos_exp {5};
+	/// Samples for which the cosine term is no larger than this value may be ignored. Larger values
+	/// may improve performance at the cost of accuracy. Range [0, 1].
+	float cos_cutoff {0.05};
 	/// The relation to evaluate.
 	Function function {};
 	/// Determines between which trajectories the relation is evaluated.
