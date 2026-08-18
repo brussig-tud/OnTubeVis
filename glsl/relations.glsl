@@ -729,12 +729,6 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 #else
 	// All layouts other than t_xyz have only one hash table.
 	const Span table = Span(Ptr(0), hash_grid_data_len);
-
-#if HASH_GRID_LAYOUT == LAYOUT_XYZT
-	// Iterate over the query's temporal extent.
-	for (int time = qrange.min[3]; time <= qrange.max[3]; ++time)
-#endif
-	{
 #endif
 
 	// Iterate over the query's spatial extent.
@@ -763,6 +757,11 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		const int x_max = min(qrange.max.x, index_coord(local_point.x + rx, 0));
 
 	for (int x = x_min; x <= x_max; ++x) {
+
+#if HASH_GRID_LAYOUT == LAYOUT_XYZT
+	// Iterate over the query's temporal extent.
+	for (int time = qrange.min[3]; time <= qrange.max[3]; ++time) {
+#endif
 		const Index index = {x, y, z
 			#if HASH_GRID_LAYOUT == LAYOUT_XYZT
 				, time
@@ -798,12 +797,17 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 				interval
 			);
 		}
+#if HASH_GRID_LAYOUT == LAYOUT_XYZT
+	} // for t
+#endif
 	} // for x
 		rx_lo = rx_hi;
 	} // for y
 		ry_lo = ry_hi;
 	} // for z
-	} // for t
+#if HASH_GRID_LAYOUT == LAYOUT_T_XYZ
+	} // for table
+#endif
 
 	// Normalize the relation value.
 	const float norm_time = relation_normalize ? 2*relation_radius[1] : 1;

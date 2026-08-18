@@ -90,17 +90,24 @@ void hash_grid::reorganize ()
 		auto const& lidx = l.index;
 		auto const& ridx = r.index;
 
-		// Compare the coordinates with the most significant differing bit. In case of a tie, prefer
-		// t > z > y > x, i.e. prefer outer over inner loops in the shader.
+		// Compare the coordinates with the most significant differing bit. Ties are broken such
+		// that iterations of the inner loops in the shader's query traversal are ordered closer
+		// together. In practice, however, the ordering of dimensions here had no observable impact
+		// on performance.
 		auto sortdim = 0u;
 		auto min_lzeroes = ~0u;
-		for (auto d : {3, 2, 1, 0}) {
+		auto const sort_by = [&](unsigned dim) {
 			auto const lzeroes = std::countl_zero(
-				std::bit_cast<uint32_t>(lidx[d]) ^ std::bit_cast<uint32_t>(ridx[d]));
-			if (lzeroes >= min_lzeroes) continue;
+				std::bit_cast<uint32_t>(lidx[dim]) ^ std::bit_cast<uint32_t>(ridx[dim]));
+			if (lzeroes >= min_lzeroes) return;
 			min_lzeroes = lzeroes;
-			sortdim = d;
-		}
+			sortdim = dim;
+		};
+
+		if (_layout != layout::xyzt) sort_by(3); // time
+		for (auto dim : {2, 1, 0}) sort_by(dim); // z, y, x
+		if (_layout == layout::xyzt) sort_by(3); // time
+
 		return lidx[sortdim] < ridx[sortdim];
 	});
 
