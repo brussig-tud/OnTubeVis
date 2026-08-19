@@ -421,7 +421,68 @@ void otv_client::commit_session (void)
 				break;
 			}
 
-			case GlyphType::kTriangle:
+		case GlyphType::kTriangle:
+			{
+				// obtain values of 'outline' meta attribute
+				constexpr unsigned metaattrib_idx__outline=0;
+				const auto outline= lmappings.ref_attrib_mapping_values()[metaattrib_idx__outline].output_range.y();
+				// get static color or colormap
+				constexpr unsigned vattrib_idx__color=1;
+				const int cidx = lmappings.get_attrib_indices()[vattrib_idx__color];
+				const std::optional<OTV_Rgb> color = [&]() -> std::optional<OTV_Rgb> {
+					if (cidx < 0) {
+						const auto &color = lmappings.ref_attrib_colors()[vattrib_idx__color];
+						return otv__Rgb(color.R(), color.G(), color.B());
+					}
+					return {};
+				}();
+				const std::optional<OTV_ColorMap> colormap = [&]() -> std::optional<OTV_ColorMap> {
+					if (cidx > -1)
+						return colormap_name_to_api_enum(colormaps[cidx]);
+					return {};
+				}();
+				// get static 'base_width' visual attribute if used
+				constexpr unsigned vattrib_idx__width=2;
+				const std::optional<float> width = [&]() -> std::optional<float> {
+					const auto idx = lmappings.get_attrib_indices()[vattrib_idx__width];
+					if (idx < 0)
+						return lmappings.ref_attrib_mapping_values()[vattrib_idx__width].output_range.y();
+					return {};
+				}();
+				// get static 'height' visual attribute if used
+				constexpr unsigned vattrib_idx__height=3;
+				const std::optional<float> height = [&]() -> std::optional<float> {
+					const auto idx = lmappings.get_attrib_indices()[vattrib_idx__height];
+					if (idx < 0)
+						return lmappings.ref_attrib_mapping_values()[vattrib_idx__height].output_range.y();
+					return {};
+				}();
+				// get static 'orientation' visual attribute if used
+				constexpr unsigned vattrib_idx__orientation=4;
+				const std::optional<float> orientation = [&]() -> std::optional<float> {
+					const auto idx = lmappings.get_attrib_indices()[vattrib_idx__orientation];
+					if (idx < 0)
+						return lmappings.ref_attrib_mapping_values()[vattrib_idx__orientation].output_range.y();
+					return {};
+				}();
+				// create the layer config
+				OTV_LayerConfig cfg {
+					OTV_GlyphType::IsoscelesTriangle,
+					outline,
+					otv__construct_IsoscelesTriangleInfo(
+						color.value_or(OTV_Rgb{}), colormap.value_or(OTV_ColorMap{}),
+						width.value_or(0), height.value_or(0), orientation.value_or(0),
+						(OTV_IsoscelesTriangleInfoStaticFlags)(
+							  (color.has_value()?SBI_STATIC_COLOR:0) | (width.has_value()?ITI_STATIC_WIDTH:0)
+							| (height.has_value()?ITI_STATIC_HEIGHT:0)
+							| (orientation.has_value()?ITI_STATIC_ORIENTATION:0)
+						)
+					)
+				};
+				otv__add_layer(setup, &cfg);
+				break;
+			}
+
 			case GlyphType::kCircle:
 			case GlyphType::kWedge:
 			case GlyphType::kArcFlat:
