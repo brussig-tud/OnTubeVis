@@ -160,20 +160,20 @@ bool extrapolation_manager::create_geom_buffers (
 	} else {
 		// Define the data type of a segment node
 		sl::data_type node_type = { "node_type", {
-			{ sl::Type::kVec4, "pos_rad" },
-			{ sl::Type::kVec4, "color" },
-			{ sl::Type::kVec4, "tangent" },
-			{ sl::Type::kVec4, "t" },
+			{ sl::Type::Vec4, "pos_rad" },
+			{ sl::Type::Vec4, "color" },
+			{ sl::Type::Vec4, "tangent" },
+			{ sl::Type::Vec4, "t" },
 		} };
 
 		// Define an array of type uvec2 with variable size to use in the node indices buffer
-		sl::named_variable node_indices = { sl::Type::kUVec2, "node_indices", sl::varsize };
+		sl::named_variable node_indices = { sl::Type::UVec2, "node_indices", sl::varsize };
 
 		// Define arguments used for the key generation step of the sorting
 		cgv::gpgpu::argument_definitions key_arguments = {
-			{ sl::Type::kVec3, "u_eye_pos" },
-			{ sl::Type::kVec3, "u_view_dir" },
-			{ sl::tag::buffer{}, node_indices, "node_index_buffer" , { sl::MemoryQualifier::kReadOnly } }
+			{ sl::Type::Vec3, "u_eye_pos" },
+			{ sl::Type::Vec3, "u_view_dir" },
+			{ sl::tag::buffer{}, node_indices, "node_index_buffer" , { sl::MemoryQualifier::ReadOnly } }
 		};
 
 		// Define a function that takes in node pairs and returns distances based on the passed arguments
@@ -191,7 +191,7 @@ bool extrapolation_manager::create_geom_buffers (
 
 		// Initialize the sorter with the given data types and key arguments/transform. Use descending order to sort most distant elements last,
 		// which is needed for back-to-front rendering.
-		success &= render.sorter.init(ctx, node_type, sl::Type::kUInt, geom.node_indices.size(), key_arguments, key_transform, cgv::gpgpu::SortOrder::kDescending);
+		success &= render.sorter.init(ctx, node_type, sl::Type::UInt, geom.node_indices.size(), key_arguments, key_transform, cgv::gpgpu::SortOrder::Descending);
 	}
 
 	// Done!

@@ -30,7 +30,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG a9836fe23ac9155f8f0415c979e0266b21f289a4
+		GIT_TAG 39a35d1fe9b6d3d0e6c7026fd22d55495494c508
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -57,9 +57,11 @@ find_package(OpenMP)
 
 # handle optional dependencies
 set(OPTIONAL_PLUGINS "")
+set(OPTIONAL_PLUGIN_DEPS "")
 set(OPTIONAL_PLUGINS_CONFIG_DEFS "")
 if (ENABLE_MAPTILES)
 	list(APPEND OPTIONAL_PLUGINS maptiles_plugin)
+	list(APPEND OPTIONAL_PLUGIN_DEPS maptiles_plugin)
 	list(APPEND OPTIONAL_PLUGINS_CONFIG_DEFS "OTV_WITH_MAPTILES=1")
 endif()
 set(OPTIONAL_DEPENDENCIES "")
@@ -314,6 +316,7 @@ cgv_add_target(OnTubeVis
 		cg_fltk # <-- we're directly using exported symbols from the cg_fltk GUI provider plugin
 		crg_stereo_view  # <-- we're directly using exported symbols from the crg_stereo_view plugin
 		screenshot # <-- we're directly using exported symbols from the screenshot plugin
+		${OPTIONAL_PLUGIN_DEPS}
 
 	ADDITIONAL_INCLUDE_PATHS ${ADDITIONAL_INCLUDE_PATHS}
 
