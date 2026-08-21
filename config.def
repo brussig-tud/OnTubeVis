@@ -17,9 +17,12 @@ type(on_tube_vis):playback_speed=1
 type(on_tube_vis):override_cap_clip_distance=1024
 
 // Maptiles
+type(maptiles):tiles_3d_size=0.0009765625
+type(maptiles):grid_raster_tiles_count=7
+type(maptiles):grid_tiles_3d_count=1
 type(maptiles):frustum_raster_tiles_count=8
 type(maptiles):frustum_raster_tiles_distance=0.02
-type(maptiles):frustum_3d_tiles_distance=0.02
+type(maptiles):frustum_tiles_3d_distance=0.02
 type(maptiles):frustum_based_tiles=true
 
 // Scene database
