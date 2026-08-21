@@ -529,6 +529,13 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("grid_normal_variant", grid_normal_variant) &&
 		rh.reflect_member("ambient_occlusion", ao_style.enable) &&
 		rh.reflect_member("voxelize_gpu", voxelize_gpu) &&
+		rh.reflect_member("rcribbon_linearity_thr", render.style.rcribbon.linearity_thr) &&
+		rh.reflect_member("rcribbon_screwiness_thr", render.style.rcribbon.screwiness_thr) &&
+		rh.reflect_member("rcribbon_subdiv_abort_thr", render.style.rcribbon.subdiv_abort_thr) &&
+		rh.reflect_member("rcribbon_max_intersection_stack_size", render.style.rcribbon.max_intersection_stack_size) &&
+		rh.reflect_member("rcribbon_exact_ribbon_bboxes", render.style.rcribbon.exact_ribbon_bboxes) &&
+		rh.reflect_member("rcribbon_ray_centric_isects", render.style.rcribbon.ray_centric_isects) &&
+		rh.reflect_member("rcribbon_bbox_coord_system", render.style.rcribbon.bbox_coord_system) &&
 #ifdef RTX_SUPPORT
 		rh.reflect_member("use_optix", optix.enabled) &&
 		rh.reflect_member("optix_primitive", optix.primitive) &&
