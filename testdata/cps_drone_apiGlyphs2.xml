@@ -1,0 +1,44 @@
+<GlyphConfiguration>
+    <ColorMaps>
+        <ColorMap name="yaw" custom="1" >
+            <Point x="0.000000" o="1" r="1.000000" g="0.000000" b="1.000000"/>
+            <Point x="0.500000" o="1" r="1.000000" g="1.000000" b="1.000000"/>
+            <Point x="1.000000" o="1" r="0.000000" g="0.000000" b="1.000000"/>
+        </ColorMap>
+    </ColorMaps>
+    <Layers>
+        <Layer name="Power" active="true" glyph="color" sampling="original">
+            <Property name="interpolate" value="1.000000"/>
+            <Property name="color" attrib_name="Bat.Current (mA)" color_map_name="bilbao" in_range="1250 7880.81" out_range="0 1"/>
+        </Layer>
+        <Layer name="Motors" active="true" glyph="line_plot" sampling="original">
+            <Property name="outline" value="0.015000"/>
+            <Property name="interpolate" value="1.000000"/>
+            <Property name="color_0" color="0.394286 0.148702 0.155109" out_range="0 1"/>
+            <Property name="value_0" attrib_name="Motor.LBack (Amperes)" in_range="2 4" out_range="0 1"/>
+            <Property name="color_1" color="0.92 0.02392 0" out_range="0 1"/>
+            <Property name="value_1" attrib_name="Motor.LFront (Amperes)" in_range="2 4" out_range="0 1"/>
+            <Property name="color_2" color="0.0323265 0.0787081 0.565714" out_range="0 1"/>
+            <Property name="value_2" attrib_name="Motor.RFront (Amperes)" in_range="2 4" out_range="0 1"/>
+            <Property name="color_3" color="0.153012 0.225124 0.377143" out_range="0 1"/>
+            <Property name="value_3" attrib_name="Motor.RBack (Amperes)" in_range="2 4" out_range="0 1"/>
+        </Layer>
+        <Layer name="Velocity" active="true" glyph="triangle_isosceles" sampling="equidist" sampling_step="0.125">
+            <Property name="outline" value="0.05"/>
+            <Property name="color" attrib_name="GPS.velComposite (m/s)" color_map_name="imola" in_range="0 4" out_range="0 1"/>
+            <Property name="base_width" attrib_name="GPS.velComposite (m/s)" in_range="0 4" out_range="0.75 0.367"/>
+            <Property name="height" attrib_name="GPS.velComposite (m/s)" in_range="0 4" out_range="0.25 4"/>
+            <Property name="orientation" in_range="0 1" out_range="0 360"/>
+        </Layer>
+        <Layer name="Yaw" active="true" glyph="sign_blob" sampling="equidist" sampling_step="0.333000">
+            <Property name="outline" value="0.031250"/>
+            <Property name="size" value="1.000000" out_range="0 1"/>
+            <Property name="color" attrib_name="Control.yaw" color_map_name="yaw" in_range="-1 1" out_range="1 0"/>
+            <Property name="value" attrib_name="Control.yaw" in_range="-1 1"/>
+        </Layer>
+    </Layers>
+    <Settings>
+        <Setting name="ambient_occlusion" value="false"/>
+        <Setting name="line_primitve" value="LP_TUBE_RUSSIG"/>
+    </Settings>
+</GlyphConfiguration>
