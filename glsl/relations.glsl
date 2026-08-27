@@ -476,22 +476,7 @@ vec3 trajectory_derivative (Node start, Node end, float t)
 		+ (   dt3 -   dt2    ) * end.tangent.xyz;
 }
 
-// Shading =========================================================================================
-
-// Map a trajectory relation value using the precalculated color scale.
-vec3 relation_to_color (float value)
-{
-	// Map the color scale's domain to texture coordinates.
-	const vec2 domain = relation_color_domain;
-	value = (value - domain[0]) / (domain[1] - domain[0]);
-
-	// Sample the color scale texture.
-	const float N     = textureSize(color_scale_tex, 0).x;
-	const vec3  color = texture(color_scale_tex, vec2(0.5/N + (N - 1)/N * value, 0.5)).rgb;
-
-	// Apply gamma correction.
-	return pow(color, vec3(2.2));
-}
+// Query Shape =====================================================================================
 
 float sqr (float x) {return x*x;}
 
@@ -504,6 +489,13 @@ struct GridRange
 // Calculate the range of grid cells intersecting the relation query.
 GridRange query_range (vec4 center, vec3 normal)
 {
+#if !RELATION_SCALE_BY_COS
+	// Without a maximum angle, the query volume is simply a ball.
+	return GridRange(
+		cell_index(center - vec4(vec3(relation_radius[0]), relation_radius[1])),
+		cell_index(center + vec4(vec3(relation_radius[0]), relation_radius[1]))
+	);
+#else
 	// Limits of the query's AABB in world space.
 	vec4 pmin, pmax;
 
@@ -530,6 +522,7 @@ GridRange query_range (vec4 center, vec3 normal)
 	pmin[3] = center[3] - relation_radius[1];
 	pmax[3] = center[3] + relation_radius[1];
 	return GridRange(cell_index(pmin), cell_index(pmax));
+#endif
 }
 
 // "A Simple Method for Box-Sphere Intersection Testing", by Jim Arvo, in "Graphics Gems",
@@ -542,6 +535,113 @@ bool isect_aabb_sphere (vec3 bmin, vec3 bmax, vec3 center, float radius2)
 		if (center[d] < bmin[d]) dmin += sqr(center[d] - bmin[d]);
 		else if (center[d] > bmax[d]) dmin += sqr(center[d] - bmax[d]);
 	return dmin <= radius2;
+}
+
+#if RELATION_SCALE_BY_COS
+// The following two functions are adapted from David Eberly, Geometric Tools, “Intersection of a
+// Box and a Cone or Cone Frustum”,
+// online: https://www.geometrictools.com/Documentation/IntersectionBoxCone.pdf
+
+// Project an AABB onto the query's central axis (the surface normal). The upper bound of the
+// projection relative to the query's origin (the surface point) is returned and compared against
+// the lower bound of the query volume's projection. The other ends of each projection's interval
+// are not checked, since this function is only called with AABBs that are already known to lie
+// within the query radius.
+// If the projections are disjunct, then the AABB does not intersect the query volume, and all
+// trajectory intervals within can be ignored (return value true). An overlap of the projected
+// intervals, however, (return value false) does not necessarily imply that the box and query
+// actually intersect. For an exact, but more expensive intersection test, use `isect_aabb_query`.
+bool aabb_outside_query (
+	/*AABB*/ vec3 center, vec3 halfext, /*query*/ vec3 origin, vec3 dir, out float proj_max
+) {
+	const vec3 c = center - origin;
+	proj_max = dot(c, dir) + dot(halfext, abs(dir));
+	return proj_max < min(0, relation_radius[0] * relation_min_cos);
+}
+// Test whether a given AABB intersects the query volume, a spherical sector around the surface
+// normal, whose opening angle is defined by the cosine term's exponent and cutoff. The function
+// assumes that the AABB is within the query radius and ignores the temporal dimension, these
+// conditions should be ensured separately.
+// The out parameter is the upper bound of the box's projection onto the query's central axis,
+// see `aabb_outside_query` for details.
+bool isect_aabb_query (
+	/*AABB*/ vec3 center, vec3 halfext, /*query*/ vec3 origin, vec3 dir, out float proj_max
+) {
+	// Projections onto the query direction must intersect.
+	if (aabb_outside_query(center, halfext, origin, dir, proj_max)) return false;
+
+	// Inverse of Eberly's implementation, which places the box at the origin.
+	const vec3 c = center - origin;
+
+	// If the ray at the query's center hits the box, they intersect.
+	if (
+		all(lessThanEqual(abs(c), halfext) || greaterThan(c * dir, vec3(0)))
+		&& all(lessThan(
+			abs(cross(c, dir)),
+			halfext.yxx * abs(dir.zzy) + halfext.zzy * abs(dir.yxx)
+		))
+	) return true;
+
+	// Check whether any of the box's twelve edges intersect the query. Clipping the box should be
+	// unnecessary and would be expensive.
+	const vec3[] verts = {
+		c + vec3(-1,-1,-1)*halfext,
+		c + vec3(-1,-1, 1)*halfext,
+		c + vec3(-1, 1,-1)*halfext,
+		c + vec3(-1, 1, 1)*halfext,
+		c + vec3( 1,-1,-1)*halfext,
+		c + vec3( 1,-1, 1)*halfext,
+		c + vec3( 1, 1,-1)*halfext,
+		c + vec3( 1, 1, 1)*halfext,
+	};
+	const uvec2[] edges = {
+		{0, 1}, {2, 3}, {4, 5}, {6, 7},
+		{0, 2}, {1, 3}, {4, 6}, {5, 7},
+		{0, 4}, {1, 5}, {2, 6}, {3, 7},
+	};
+	for (uint i = 0; i < 12; ++i) {
+		const vec3 p0 = verts[edges[i][0]];
+		const vec3 p1 = verts[edges[i][1]];
+
+		// Check whether either of the end points lies inside the query.
+		if (dot(p0, dir) > length(p0) * relation_min_cos) return true;
+		if (dot(p1, dir) > length(p1) * relation_min_cos) return true;
+
+		// If not, find the point on the edge with minimal angle to the query axis and check whether
+		// it lies inside the query.
+		const vec3 e = p1 - p0;
+		const vec3 p0xd = cross(p0, dir);
+		const vec3 p0xe = cross(p0, e);
+		const float d0 = dot(p0xd, p0xe);
+		if (d0 <= 0) continue;
+
+		const vec3 p1xd = cross(p1, dir);
+		const float d1 = dot(p1xd, p0xe);
+		if (d1 >= 0) continue;
+
+		const float t = d0 / (d0 - d1);
+		const vec3 pmax = p0 + t*e;
+		if (dot(pmax, dir) >= length(pmax) * relation_min_cos) return true;
+	}
+	return false;
+}
+#endif // SCALE_BY_COS
+
+// Shading =========================================================================================
+
+// Map a trajectory relation value using the precalculated color scale.
+vec3 relation_to_color (float value)
+{
+	// Map the color scale's domain to texture coordinates.
+	const vec2 domain = relation_color_domain;
+	value = (value - domain[0]) / (domain[1] - domain[0]);
+
+	// Sample the color scale texture.
+	const float N     = textureSize(color_scale_tex, 0).x;
+	const vec3  color = texture(color_scale_tex, vec2(0.5/N + (N - 1)/N * value, 0.5)).rgb;
+
+	// Apply gamma correction.
+	return pow(color, vec3(2.2));
 }
 
 // Calculate the trajectory relation selected by `RELATION_FUNCTION` from a fixed starting point to
@@ -583,16 +683,26 @@ float eval_relation (
 	const mat3 coeffs_dt = derive_coeffs(coeffs);
 #endif
 
-	// Skip segments fully outside the query radius
 	const float radius2 = sqr(relation_radius[0]);
 	const vec4 p1 = n0.pos_rad + (1/3.)*n0.tangent;
 	const vec4 p2 = n1.pos_rad - (1/3.)*n1.tangent;
-	if (!isect_aabb_sphere(
-		min(n0.pos_rad, min(p1, min(p2, n1.pos_rad))).xyz,
-		max(n0.pos_rad, max(p1, max(p2, n1.pos_rad))).xyz,
+
+	// Skip segments fully outside the query.
+	const vec3 aabb_min = min(n0.pos_rad, min(p1, min(p2, n1.pos_rad))).xyz;
+	const vec3 aabb_max = max(n0.pos_rad, max(p1, max(p2, n1.pos_rad))).xyz;
+	if (!isect_aabb_sphere(aabb_min, aabb_max, base_point.xyz, radius2)) return 0;
+#if RELATION_SCALE_BY_COS
+	// The exact intersection test is too expensive at this point, so only the quick exclusion check
+	// is performed.
+	float proj_max;
+	if (aabb_outside_query(
+		mix(aabb_min, aabb_max, .5),
+		.5*(aabb_max - aabb_min),
 		base_point.xyz,
-		radius2
+		base_normal,
+		proj_max
 	)) return 0;
+#endif
 	if (RELATION_FUNCTION == FN_DBG_NUM_SAMPLES) return num_samples;
 
 	// Evaluate the relation at one or more sample points along the interval.
@@ -749,14 +859,46 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		const int y_max = min(qrange.max.y, index_coord(local_point.y + ry, 1));
 
 		float rx_lo = 0; // analogous to the y radius
+		// The query volume's projection onto the yz-plane is convex, so if the y loop enters and
+		// then exits the volume, all other y indices for the current z index can be skipped, since
+		// they will not intersect the query either.
+		bool entered_query_y = false;
 	for (int y = y_min; y <= y_max; ++y) {
+	#if RELATION_SCALE_BY_COS
+		// Check if any grid cell with the current y and z index intersects the query volume.
+		float proj_max;
+		if (!isect_aabb_query(
+			vec3(local_point.x, vec2(y, z) * hash_grid_cell_size.yz),
+			vec3(relation_radius[0], .5 * hash_grid_cell_size.yz),
+			local_point.xyz,
+			world_normal,
+			proj_max
+		)) if (entered_query_y) break; else continue;
+		entered_query_y = true;
+	#endif
+
 		const float rx_hi = y == y_max ? 0
 			: sqrt(ry - sqr((y + .5) * hash_grid_cell_size.y - local_point.y));
 		const float rx = y == local_index.y ? ry : max(rx_lo, rx_hi);
 		const int x_min = max(qrange.min.x, index_coord(local_point.x - rx, 0));
 		const int x_max = min(qrange.max.x, index_coord(local_point.x + rx, 0));
 
+		bool entered_query_x = false;
 	for (int x = x_min; x <= x_max; ++x) {
+	#if RELATION_SCALE_BY_COS
+		// Skip cells outside the query volume.
+		if (!isect_aabb_query(
+			vec3(x, y, z) * hash_grid_cell_size.xyz,
+			.5 * hash_grid_cell_size.xyz,
+			local_point.xyz,
+			world_normal,
+			proj_max
+		))
+			// We can only exit the loop early if the grid cell intersects the convex part of the
+			// query volume (above the plane defined by the query's origin and direction).
+			if (entered_query_x && proj_max >= 0) break; else continue;
+		entered_query_x = true;
+	#endif
 
 #if HASH_GRID_LAYOUT == LAYOUT_XYZT
 	// Iterate over the query's temporal extent.
