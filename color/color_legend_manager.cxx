@@ -75,16 +75,13 @@ void color_legend_manager::compose (
 			stitle << " -- " <<attrib_names[ai];
 
 			// set up a legend for the found color mapping
-			const auto &color_map = color_map_mgr.ref_color_maps()[cmi];
 			auto &new_legend = legends[num_active];
 			new_legend->set_title(stitle.str());
 
 			// set the color map
 			const auto& mapping = layer.ref_attrib_mapping_values()[id];
-			auto color_scale = std::make_shared<cgv::media::continuous_color_scale>();
-			// convert the color ramp of type transfer function to a scheme and use this in a continuous color scale as
-			// this allows us to set the domain without altering the original color ramp
-			color_scale->set_scheme(cgv::media::continuous_color_scheme::linear(color_map.ramp.quantize_color(256)));
+			auto color_scale = std::make_shared<cgv::media::continuous_color_scale>(
+				color_map_mgr.get_color_scheme(cmi) );
 			color_scale->set_domain(mapping.input_range);
 			// for color-mapped attributes an "invalid" output range of 1 to 0 indicates reversed color mapping
 			color_scale->set_reversed(mapping.output_range.x() > mapping.output_range.y());

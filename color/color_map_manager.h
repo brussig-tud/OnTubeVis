@@ -1,5 +1,6 @@
 #pragma once
 
+#include <variant>
 #include <vector>
 
 #include <cgv/base/base.h>
@@ -13,15 +14,13 @@
 
 class color_map_manager : public cgv::base::base {
 public:
-	/// container to store color map with name and additional info
-	struct entry_type {
-		/// the name of this color map
-		std::string name;
-		/// a transfer function acts as a color ramp allowing for later editing
-		cgv::media::transfer_function ramp;
-		/// true for user-defined color maps that can be deleted and edited.
-		bool user_defined = false;
-	};
+	using TransferFunctionPtr = std::shared_ptr<cgv::media::transfer_function>;
+
+	/// Tagged union of supported color map types.
+	using ColorMap = std::variant<
+		cgv::media::continuous_color_scheme, // predefined
+		TransferFunctionPtr // user defined
+	>;
 
 	/// clear all color maps (this will not update the texture)
 	void clear();
@@ -33,16 +32,24 @@ public:
 	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
 	/// return and clear the last action
 	ActionType action_type();
-	/// get the currently edited color ramp or nullptr
-	cgv::media::transfer_function* get_edited_color_ramp();
-	/// const reference to the list of color maps
-	const std::vector<entry_type>& ref_color_maps() const { return color_maps; }
+	/// Get the currently edited color ramp or nullptr. Color schemes cannot be edited.
+	TransferFunctionPtr* get_edited_transfer_function();
+	/// Return the index of the color map selected for GUI editing. May return invalid indices.
+	auto get_edit_index() const -> int { return edit_idx; };
+	/// Return a view of all registered color maps.
+	std::span<ColorMap> ref_color_maps() { return color_maps; }
+	/// Return a readonly view of all registered color maps.
+	std::span<const ColorMap> ref_color_maps() const { return color_maps; }
+	/// The list of all color map names. Entries correspond to those in `ref_color_maps` (SoA).
+	std::vector<std::string> const& ref_names() const { return color_map_names; }
 	/// reference to the texture
 	cgv::render::texture& ref_texture() { return tex; }
-	/// return a list of all color map names
-	std::vector<std::string> get_names();
+	/// Return the color map with the given index as a color scheme, converting it if necessary.
+	auto get_color_scheme (size_t idx) const -> cgv::media::continuous_color_scheme;
 	/// add a color map from outside of this manager
-	void add_color_map(const std::string& name, const cgv::media::transfer_function& cm, bool user_defined);
+	void add_color_map(std::string name, ColorMap&&);
+	/// Return the index of the color map with the given name, or -1 if the name is not registered.
+	auto find_name(std::string const&) -> size_t;
 	/// remove a color map by its name
 	void remove_color_map_by_name(const std::string& name);
 	/// update the color map texture to the contents of the color maps
@@ -50,7 +57,7 @@ public:
 
 private:
 	/// resolution (width) of the created texture
-	static const size_t discretization_resolution = 256;
+	static constexpr size_t discretization_resolution = 256;
 
 	/// pointer to the base that uses this manager
 	cgv::base::base_ptr base_ptr = nullptr;
@@ -61,7 +68,9 @@ private:
 	/// name of the new color map
 	std::string new_name = "";
 	/// list of all currently managed color maps
-	std::vector<entry_type> color_maps;
+	std::vector<ColorMap> color_maps;
+	/// The names of each registered color map. Entries correspond to `color_maps` (SoA).
+	std::vector<std::string> color_map_names;
 	/// 2d texture to store the sampled color map data
 	cgv::render::texture tex = { "uint8[R,G,B]", cgv::render::TF_LINEAR, cgv::render::TF_LINEAR, cgv::render::TW_CLAMP_TO_EDGE, cgv::render::TW_CLAMP_TO_EDGE };
 	/// handle gui changes

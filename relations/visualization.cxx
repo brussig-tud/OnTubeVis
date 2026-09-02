@@ -121,6 +121,10 @@ auto relation_vis::on_set (void* member, cgv::render::context& ctx, color_map_ma
 	}
 	if (!ptr.points_to_member_of(color_scale)) return 0;
 
+	if (ptr.points_to(color_scale.base)) {
+		color_scale.scheme = colors.get_color_scheme(color_scale.base.value);
+		color_scale.scale->set_scheme(color_scale.scheme);
+	}
 	update_color_scale(ctx, colors);
 	return ptr.points_to_one_of(color_scale.diverging, color_scale.transform) ? UpdateFlag::gui : 0;
 }
@@ -129,9 +133,6 @@ void relation_vis::update_color_scale (cgv::render::context& ctx, color_map_mana
 {
 	// Configure color scale object.
 	auto& scale = color_scale.scale;
-	scale->set_scheme(cgv::media::continuous_color_scheme::linear(
-		colors.ref_color_maps().at(color_scale.base.value).ramp.get_color_points()
-	));
 
 	auto min = color_scale.domain[0], max = color_scale.domain[1];
 	scale->set_reversed(min > max);

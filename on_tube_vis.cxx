@@ -391,15 +391,12 @@ bool on_tube_vis::init(context& ctx) {
 
 	// - manager
 	color_map_mgr.init(ctx);
-	for(const auto& entry : color_scheme_registry) {
-		cgv::media::transfer_function tf;
-		tf.set_color_points_from_scheme(entry.second, 256);
-		color_map_mgr.add_color_map(entry.first, tf, false);
-	}
+	for(const auto& [name, scheme] : color_scheme_registry)
+		color_map_mgr.add_color_map(name, scheme);
 
 	color_map_mgr.update_texture(ctx);
 	if(cm_viewer_ptr) {
-		cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
+		cm_viewer_ptr->set_color_map_names(color_map_mgr.ref_names());
 		cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 	}
 
@@ -409,15 +406,15 @@ bool on_tube_vis::init(context& ctx) {
 
 	// - relation visualization
 	{
-	uint32_t i = 0;
-	for (auto& map : color_map_mgr.ref_color_maps()) {
-		if (map.name == "imola") {
+	auto i = 0u;
+	for (auto const& name : color_map_mgr.ref_names()) {
+		if (name == "imola") {
 			relations.vis.color_scale.base = {i};
 			break;
 		}
 		++i;
 	}
-	relations.vis.update_color_scale(ctx, color_map_mgr);
+	on_set(&relations.vis.color_scale.base);
 	}
 
 	// - volume transfer function
@@ -871,18 +868,17 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 }
 
 void on_tube_vis::handle_color_map_change() {
-	if(cm_editor_ptr) {
-		cgv::media::transfer_function* color_ramp = color_map_mgr.get_edited_color_ramp();
-		if(color_ramp) {
-			*color_ramp = *cm_editor_ptr->get_transfer_function();
-			color_map_mgr.update_texture(*get_context());
-			if(cm_viewer_ptr)
-				cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
-			update_legends = true;
-			taa.reset();
-			post_redraw();
-		}
-	}
+	if(!cm_editor_ptr) return;
+
+	color_map_mgr.update_texture(*get_context());
+	if(cm_viewer_ptr) cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+
+	if (relations.vis.color_scale.base.value == color_map_mgr.get_edit_index())
+		on_set(&relations.vis.color_scale.base);
+
+	update_legends = true;
+	taa.reset();
+	post_redraw();
 }
 
 void on_tube_vis::on_set(void* member_ptr) {
@@ -1136,12 +1132,11 @@ void on_tube_vis::on_set(void* member_ptr) {
 				cm_editor_ptr->set_transfer_function(nullptr);
 				cm_editor_ptr->set_visibility(false);
 			}
-			
-			render.visualizations.front().variables->set_color_map_names(color_map_mgr.get_names());
+			render.visualizations.front().variables->set_color_map_names(color_map_mgr.ref_names());
 
 			color_map_mgr.update_texture(*get_context());
 			if(cm_viewer_ptr) {
-				cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
+				cm_viewer_ptr->set_color_map_names(color_map_mgr.ref_names());
 				cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 			}
 
@@ -1149,17 +1144,13 @@ void on_tube_vis::on_set(void* member_ptr) {
 			break;
 		}
 		case ActionType::kEditRequest:
-			if(cm_editor_ptr) {
-				cgv::media::transfer_function* color_ramp = color_map_mgr.get_edited_color_ramp();
-				if(color_ramp) {
-					auto transfer_function = std::make_shared<cgv::media::transfer_function>(*color_ramp);
-					transfer_function->set_interpolation(cgv::media::transfer_function::InterpolationMode::Smooth);
-					cm_editor_ptr->set_transfer_function(transfer_function);
-					cm_editor_ptr->set_visibility(true);
-				} else {
-					cm_editor_ptr->set_transfer_function(nullptr);
-					cm_editor_ptr->set_visibility(false);
-				}
+			if(!cm_editor_ptr) break;
+			if(auto const color_ramp = color_map_mgr.get_edited_transfer_function()) {
+				cm_editor_ptr->set_transfer_function(*color_ramp);
+				cm_editor_ptr->set_visibility(true);
+			} else {
+				cm_editor_ptr->set_transfer_function(nullptr);
+				cm_editor_ptr->set_visibility(false);
 			}
 			break;
 		default: break;
@@ -1409,7 +1400,7 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 		// update the dependent members
 		color_map_mgr.update_texture(*get_context());
 		if(cm_viewer_ptr) {
-			cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
+			cm_viewer_ptr->set_color_map_names(color_map_mgr.ref_names());
 			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 		}
 
@@ -1456,7 +1447,7 @@ void on_tube_vis::update_glyph_layer_managers() {
 		// set new information of available attributes and ranges
 		new_layer_config.variables->set_attribute_names(attrib_names);
 		new_layer_config.variables->set_attribute_ranges(attrib_ranges);
-		new_layer_config.variables->set_color_map_names(color_map_mgr.get_names());
+		new_layer_config.variables->set_color_map_names(color_map_mgr.ref_names());
 		// clear old configuration of glyph layers and reset shader
 		new_layer_config.manager.clear();
 		// set visualization variable information in glyph layer manager
@@ -2453,7 +2444,7 @@ void on_tube_vis::create_gui(void)
 			*this,
 			render.data->datasets[0].trajs.size(),
 			extent,
-			color_map_mgr.get_names()
+			color_map_mgr.ref_names()
 		);
 
 		if (begin_tree_node("Hash grid", relations.grid_params))

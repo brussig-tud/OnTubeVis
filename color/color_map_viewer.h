@@ -27,7 +27,6 @@ protected:
 		}
 	} layout;
 
-	std::vector<std::string> names;
 	bool texts_out_of_date = false;
 
 	cgv::g2d::shape2d_style solid_style, color_map_style;
@@ -59,8 +58,8 @@ public:
 	bool init(cgv::render::context& ctx);
 	void init_frame(cgv::render::context& ctx);
 	void draw_content(cgv::render::context& ctx);
-	
-	void set_color_map_names(const std::vector<std::string>& names);
+
+	void set_color_map_names(std::vector<std::string> names);
 
 	void set_color_map_texture(cgv::render::texture* texture);
 };

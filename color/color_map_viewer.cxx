@@ -95,11 +95,11 @@ void color_map_viewer::draw_content(cgv::render::context& ctx) {
 	color_map_rectangle.h() = layout.band_height;
 
 	texture->enable(ctx, 0);
-	
-	const float u_step = 1.0f / static_cast<float>(names.size());
+
+	const float u_step = 1.0f / static_cast<float>(texts.texts.size());
 	float u_coord = 0.5f * u_step;
 
-	for(const auto& name : names) {
+	for(const auto& _ : texts.texts) {
 		color_map_style.texcoord_offset = { 0.0f, u_coord };
 		content_canvas.set_style(ctx, color_map_style);
 		content_canvas.draw_shape(ctx, color_map_rectangle);
@@ -122,9 +122,11 @@ void color_map_viewer::create_gui_impl() {
 	add_member_control(this, "Band Height", layout.band_height, "value_slider", "min=5;max=50;step=5;ticks=true");
 }
 
-void color_map_viewer::set_color_map_names(const std::vector<std::string>& names) {
+void color_map_viewer::set_color_map_names(std::vector<std::string> names) {
+	texts.clear();
+	if(names.empty()) return;
 
-	this->names = names;
+	texts.texts = std::move(names);
 	texts_out_of_date = true;
 	post_damage();
 }
@@ -155,16 +157,9 @@ void color_map_viewer::init_styles() {
 }
 
 void color_map_viewer::update_texts(cgv::render::context& ctx) {
-
-	texts.clear();
-	if(names.empty())
-		return;
-
-	texts.texts = names;
-
 	cgv::vec3 position = cgv::vec3(static_cast<float>(layout.color_map_rect.x1() + layout.label_margin), static_cast<float>(layout.color_map_rect.y1() - layout.band_height), 0.0f);
 	position.y() += 0.5f * static_cast<float>(layout.band_height);
-	for(const auto& name : names) {
+	for(const auto& _ : texts.texts) {
 		texts.positions.push_back(position);
 		position.y() -= static_cast<float>(layout.band_height) + 1.0f;
 	}

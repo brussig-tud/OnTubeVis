@@ -35,10 +35,12 @@ private:
 
 		printer.OpenElement("ColorMaps");
 
-		for(const auto& color_map : color_map_mgr.ref_color_maps()) {
-			if(color_map.user_defined)
-				cgv::media::transfer_function_writer::to_xml_printer(printer, color_map.name, &color_map.ramp, false);
-		}
+		// TODO: Consider writing only color maps actually used by the visualization.
+		for(auto i = 0u; i < color_map_mgr.ref_color_maps().size(); ++i)
+			if(auto const tf = std::get_if<color_map_manager::TransferFunctionPtr>(
+				&color_map_mgr.ref_color_maps()[i]
+			)) cgv::media::transfer_function_writer::to_xml_printer(
+				printer, color_map_mgr.ref_names()[i], tf->get(), false );
 
 		printer.CloseElement();
 	}
@@ -151,21 +153,11 @@ private:
 
 		cgv::media::transfer_function_reader_result read_result = cgv::media::transfer_function_reader::read_from_xml(elem);
 
-		// clear previous custom color maps
-		std::vector<std::string> current_names;
-		const auto& current_color_maps = color_map_mgr.ref_color_maps();
-		for(size_t i = 0; i < current_color_maps.size(); ++i) {
-			if(current_color_maps[i].user_defined)
-				current_names.push_back(current_color_maps[i].name);
-		}
-
-		for(size_t i = 0; i < current_names.size(); ++i)
-			color_map_mgr.remove_color_map_by_name(current_names[i]);
-
-		// add new custom color maps
-		for(const auto& entry : read_result.entries) {
-			color_map_mgr.add_color_map(entry.name, *entry.transfer_function.get(), true);
-		}
+		// Add new custom color maps, replacing existing ones with the same name.
+		for(auto& [name, transfer_function] : read_result.entries)
+			if (auto const idx = color_map_mgr.find_name(name); idx != -1)
+				color_map_mgr.ref_color_maps()[idx] = std::move(transfer_function);
+			else color_map_mgr.add_color_map(std::move(name), std::move(transfer_function));
 	}
 
 	static void extract_layer(const tinyxml2::XMLElement& elem,
@@ -386,9 +378,9 @@ public:
 			extract_color_maps(*color_maps_elem, color_map_mgr);
 
 		// get a list of color map names
-		std::vector<std::string> color_map_names = color_map_mgr.get_names();
+		auto const& color_map_names = color_map_mgr.ref_names();
 		visualization_variables->set_color_map_names(color_map_names);
-		
+
 		findElementByName.SetQueryName("Layers");
 		doc.Accept(&findElementByName);
 

@@ -25,9 +25,8 @@ public:
 		attribute_ranges = ranges;
 	}
 
-	void set_color_map_names(const std::vector<std::string>& names) {
-
-		color_map_names = names;
+	void set_color_map_names(std::vector<std::string> names) {
+		color_map_names = std::move(names);
 		color_map_names_list = cgv::utils::join(color_map_names, ",");
 	}
 

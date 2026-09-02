@@ -77,6 +77,7 @@ struct relation_vis {
 		/// Instance of the color scale used to visualize relations. Configured according to the
 		/// parameters in this struct.
 		std::shared_ptr<Scale> scale = std::make_shared<Scale>();
+		cgv::media::continuous_color_scheme scheme {};
 
 		/// Precalculated lookup for the configured color scale. Generated from `instance`.
 		cgv::render::texture texture {

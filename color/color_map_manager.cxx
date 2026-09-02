@@ -1,5 +1,17 @@
 #include "color_map_manager.h"
 
+#include <utility>
+
+
+namespace {
+	/// Utility for constructing an invocable from multiple overloads, which can be used to branch
+	/// on the type of an expression. This is an established pattern for variant visitors, see e.g.
+	/// https://en.cppreference.com/cpp/utility/variant/visit2. Note that the arguments may be
+	/// implicitely converted, add an `auto` overload to prevent this.
+	template <class... T> struct TypeSwitch : T... { using T::operator()...; };
+}
+
+
 void color_map_manager::clear() {
 	color_maps.clear();
 }
@@ -19,13 +31,13 @@ void color_map_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
 	base_ptr = bp;
 
 	for(size_t i = 0; i < color_maps.size(); ++i) {
-		entry_type& color_map = color_maps[i];
-		p.add_view("", color_map.name, "string", color_map.user_defined ? "w=136" : "", color_map.user_defined ? " " : "\n");
-		if(color_map.user_defined) {
-			const std::string button_options = "w=20";
-			connect_copy(p.add_button("@1edit", button_options, " ")->click, cgv::signal::rebind(this, &color_map_manager::edit_color_map, cgv::signal::_c<size_t>(i)));
-			connect_copy(p.add_button("@9+", button_options)->click, cgv::signal::rebind(this, &color_map_manager::remove_color_map, cgv::signal::_c<size_t>(i)));
-		}
+		auto const user_defined = std::holds_alternative<TransferFunctionPtr>(color_maps[i]);
+		p.add_view("", color_map_names[i], "string", user_defined ? "w=136" : "", user_defined ? " " : "\n");
+		if(!user_defined) continue;
+
+		const std::string button_options = "w=20";
+		connect_copy(p.add_button("@1edit", button_options, " ")->click, cgv::signal::rebind(this, &color_map_manager::edit_color_map, cgv::signal::_c<size_t>(i)));
+		connect_copy(p.add_button("@9+", button_options)->click, cgv::signal::rebind(this, &color_map_manager::remove_color_map, cgv::signal::_c<size_t>(i)));
 	}
 
 	p.add_member_control(bp, "Name", new_name);
@@ -33,39 +45,36 @@ void color_map_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
 }
 
 ActionType color_map_manager::action_type() {
-	ActionType temp = last_action_type;
-	last_action_type = ActionType::kUndefined;
-	return temp;
+	return std::exchange(last_action_type, ActionType::kUndefined);
 }
 
-cgv::media::transfer_function* color_map_manager::get_edited_color_ramp() {
-	if(edit_idx > -1 && static_cast<size_t>(edit_idx) < color_maps.size())
-		return &color_maps[static_cast<size_t>(edit_idx)].ramp;
-	return nullptr;
+auto color_map_manager::get_edited_transfer_function() -> TransferFunctionPtr* {
+	if(edit_idx < 0 || static_cast<size_t>(edit_idx) >= color_maps.size()) return nullptr;
+	return &std::get<TransferFunctionPtr>(color_maps[static_cast<size_t>(edit_idx)]);
 }
 
-std::vector<std::string> color_map_manager::get_names() {
-	std::vector<std::string> names;
-	for(size_t i = 0; i < color_maps.size(); ++i)
-		names.push_back(color_maps[i].name);
-	return names;
+auto color_map_manager::get_color_scheme(size_t idx) const -> cgv::media::continuous_color_scheme {
+	return std::visit(TypeSwitch{
+		[](cgv::media::continuous_color_scheme const& cs) {return cs;},
+		[](color_map_manager::TransferFunctionPtr const& tf) {
+			// Because interpolation mode is ignored the scheme may look different.
+			return cgv::media::continuous_color_scheme::linear(tf->get_color_points());
+		},
+	}, color_maps[idx]);
 }
 
-void color_map_manager::add_color_map(const std::string& name, const cgv::media::transfer_function& color_ramp, bool user_defined) {
-	entry_type color_map;
-	color_map.name = name;
-	color_map.ramp = color_ramp;
-	color_map.user_defined = user_defined;
-	color_maps.push_back(color_map);
+void color_map_manager::add_color_map(std::string name, ColorMap&& color_map) {
+	color_maps.emplace_back(std::move(color_map));
+	color_map_names.emplace_back(std::move(name));
+}
+
+auto color_map_manager::find_name(std::string const& name) -> size_t {
+	auto const hit = std::find(color_map_names.begin(), color_map_names.end(), name);
+	return hit == color_map_names.end() ? -1 : hit - color_map_names.begin();
 }
 
 void color_map_manager::remove_color_map_by_name(const std::string& name) {
-	for(size_t i = 0; i < color_maps.size(); ++i) {
-		if(color_maps[i].name == name) {
-			remove_color_map(i);
-			break;
-		}
-	}
+	if (auto const idx = find_name(name); idx != -1) remove_color_map(idx);
 }
 
 bool color_map_manager::update_texture(cgv::render::context& ctx) {
@@ -75,15 +84,17 @@ bool color_map_manager::update_texture(cgv::render::context& ctx) {
 	std::vector<cgv::rgb8> data;
 	data.reserve(discretization_resolution * color_maps.size());
 
-	for(const auto& color_map : color_maps) {
-		size_t offset = data.size();
-		data.resize(data.size() + discretization_resolution);
-		std::vector<cgv::rgb> colors = color_map.ramp.quantize_color(discretization_resolution);
-		std::transform(colors.begin(), colors.end(), data.begin() + offset, [](const cgv::rgba& color) {
-			return cgv::rgb8(color);
-		});
-	}
+	#define QUANTIZE(SAMPLE) \
+		for (auto i = 0u; i < discretization_resolution; ++i) \
+			data.emplace_back((SAMPLE)(1.f/(discretization_resolution - 1) * i));
 
+	for(const auto& color_map : color_maps)
+		std::visit(TypeSwitch{
+			[&](TransferFunctionPtr const& tf) {QUANTIZE(tf->get_mapped_color);},
+			[&](cgv::media::continuous_color_scheme const& cs) {QUANTIZE(cs.interpolate);},
+		}, color_map);
+
+	#undef QUANTIZE
 	return create_or_replace_texture(ctx, discretization_resolution, color_maps.size(), data);
 }
 
@@ -93,23 +104,15 @@ void color_map_manager::on_set(void* member_ptr) {
 }
 
 void color_map_manager::create_color_map() {
-	if(new_name == "")
-		return;
+	if(new_name.empty() || find_name(new_name) != -1) return;
 
-	for(size_t i = 0; i < color_maps.size(); ++i) {
-		if(color_maps[i].name == new_name)
-			return;
-	}
+	add_color_map(
+		std::exchange(new_name, {}),
+		TransferFunctionPtr{new cgv::media::transfer_function({
+			{0.f, cgv::rgb{0.f}}, {1.f, cgv::rgb{1.f}}
+		})}
+	);
 
-	entry_type color_map;
-	color_map.name = new_name;
-	color_map.user_defined = true;
-	color_map.ramp.add_color_point(0.0f, cgv::rgb(0.0f));
-	color_map.ramp.add_color_point(1.0f, cgv::rgb(1.0f));
-	color_maps.push_back(color_map);
-
-	new_name.clear();
-	
 	last_action_type = ActionType::kConfigurationChange;
 	if(base_ptr) {
 		auto provider = dynamic_cast<cgv::gui::provider*>(&(*base_ptr));
@@ -122,7 +125,8 @@ void color_map_manager::create_color_map() {
 void color_map_manager::remove_color_map(const size_t index) {
 	if(index < color_maps.size()) {
 		color_maps.erase(color_maps.begin() + index);
-		
+		color_map_names.erase(color_map_names.begin() + index);
+
 		last_action_type = ActionType::kConfigurationChange;
 		if(base_ptr)
 			base_ptr->on_set(this);
