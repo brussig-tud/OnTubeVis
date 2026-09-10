@@ -133,7 +133,7 @@ public:
 	DataVar data_var {};
 	/// Determines between which trajectories the relation is evaluated.
 	Direction direction {Direction::all_to_all};
-	QueryIntersectionTest query_isect_test {QueryIntersectionTest::exact};
+	QueryIntersectionTest query_isect_test {QueryIntersectionTest::fast};
 	/// ID of the "reference trajectory" whose meaning depends on `direction`.
 	uint32_t reference_trajectory {0};
 	/// Trajectory evaluations per unit of time to calculate relation.
