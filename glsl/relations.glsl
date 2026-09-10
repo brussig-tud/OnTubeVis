@@ -136,7 +136,7 @@ layout(binding = RELATION_COLOR_MAP_TEX) uniform sampler2D color_map_tex;
 uniform vec4      hash_grid_cell_size;
 uniform vec4      hash_grid_scale; // == 1 / hash_grid_cell_size
 uniform uint      hash_grid_data_len;
-uniform vec2      relation_radius;
+uniform vec3      relation_radius;
 uniform float     relation_sample_rate;
 uniform Direction relation_direction;
 uniform uint      relation_ref_traj;
@@ -483,7 +483,7 @@ GridRange query_range (vec4 center, vec3 normal)
 		// Without a maximum angle, the query volume is simply a ball.
 		return GridRange(
 			cell_index(center - vec4(vec3(relation_radius[0]), relation_radius[1])),
-			cell_index(center + vec4(vec3(relation_radius[0]), relation_radius[1]))
+			cell_index(center + vec4(vec3(relation_radius[0]), relation_radius[2]))
 		);
 
 	// Limits of the query's AABB in world space.
@@ -510,7 +510,7 @@ GridRange query_range (vec4 center, vec3 normal)
 	}
 	// Temporally, the query is simply an interval.
 	pmin[3] = center[3] - relation_radius[1];
-	pmax[3] = center[3] + relation_radius[1];
+	pmax[3] = center[3] + relation_radius[2];
 	return GridRange(cell_index(pmin), cell_index(pmax));
 }
 
@@ -697,7 +697,7 @@ void sample_interval (
 
 	// Intersect trajectory interval and evaluated time frame.
 	const float start    = max(time[0], base_point.time - relation_radius[1]);
-	const float end      = min(time[1], base_point.time + relation_radius[1]);
+	const float end      = min(time[1], base_point.time + relation_radius[2]);
 	const float timespan = end - start;
 	if (timespan <= 0) return;
 

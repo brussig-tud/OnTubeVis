@@ -2316,7 +2316,8 @@ void on_tube_vis::save_relations_benchmark ()
 		"sampling_time\t{}\n"
 		"function\t{}\n"
 		"radius_space\t{}\n"
-		"radius_time\t{}\n"
+		"radius_pre\t{}\n"
+		"radius_post\t{}\n"
 		"sample_rate\t{}\n"
 		"direction\t{}\n"
 		"memory\t{}\n",
@@ -2331,8 +2332,9 @@ void on_tube_vis::save_relations_benchmark ()
 		relations.grid_params.sample_step[1],
 		get_reflection_traits(relations.vis.data_var)
 			.get_enum_name(static_cast<unsigned>(relations.vis.data_var)),
-		relations.vis.radius[0],
-		relations.vis.radius[1],
+		relations.vis.radius.space,
+		relations.vis.radius.pre,
+		relations.vis.radius.post,
 		relations.vis.sample_rate,
 		enum_id(relations.vis.direction),
 		relations.grid.buffer_size()
@@ -2845,8 +2847,8 @@ void on_tube_vis::update_attribute_bindings(void) {
 }
 
 void on_tube_vis::default_hash_grid () {
-	relations.grid_params.cell_size =
-		vec4{vec3{relations.vis.radius[0]}, relations.vis.radius[1]} * 1.5f;
+	auto const r = relations.vis.radius;
+	relations.grid_params.cell_size = vec4{vec3{r.space}, std::max(r.pre, r.post)} * 1.5f;
 	relations.grid_params.sample_step =
 		vec2{relations.grid_params.cell_size[0], relations.grid_params.cell_size[3]} * 0.05f;
 	post_recreate_gui();

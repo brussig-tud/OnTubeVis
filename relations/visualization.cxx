@@ -89,10 +89,14 @@ void relation_vis::build_gui (
 		p.add_member_control(b, "Reference traj.", reference_trajectory, "value_slider",
 			std::format("min=0;max={};step=1;ticks=true", num_trajectories - 1)
 		);
-	p.add_member_control(b, "Spatial radius", radius[0], "value_slider",
+	p.add_decorator("Query radius", "text");
+	p.add_member_control(b, "Spatial", radius.space, "value_slider",
 		std::format("min=0;max={};ticks=true;log=true", max_value(cgv::vec3{data_extent}) * 0.1f)
 	);
-	p.add_member_control(b, "Temporal radius", radius[1], "value_slider",
+	p.add_member_control(b, "Past", radius.pre, "value_slider",
+		std::format("min=0;max={};ticks=true;log=true", data_extent[3] * 0.1f)
+	);
+	p.add_member_control(b, "Future", radius.post, "value_slider",
 		std::format("min=0;max={};ticks=true;log=true", data_extent[3] * 0.1f)
 	);
 	p.add_member_control(b, "Sample rate", sample_rate, "value_slider",
@@ -201,8 +205,8 @@ void relation_vis::update_color_scale (cgv::render::context& ctx, color_map_mana
 
 void relation_vis::set_to_default (cgv::vec4 extent)
 {
-	radius[0]   = max_value(cgv::vec3{extent}) * 0.01f;
-	radius[1]   = extent[3] * 0.01f;
+	radius.space = max_value(cgv::vec3{extent}) * 0.01f;
+	radius.pre = radius.post = extent[3] * 0.01f;
 	sample_rate = 1e3f / extent[3];
 }
 
@@ -221,7 +225,8 @@ void relation_vis::set_uniforms (
 ) const {
 	auto min = color_scale.domain[0], max = color_scale.domain[1];
 	if (min > max) std::swap(min, max);
-	p.set_uniform(c, "relation_radius",           radius                          );
+	auto const r = radius;
+	p.set_uniform(c, "relation_radius",           cgv::vec3{r.space, r.post, r.pre});
 	p.set_uniform(c, "relation_sample_rate",      sample_rate                     );
 	p.set_uniform(c, "relation_direction.value",  static_cast<uint32_t>(direction));
 	p.set_uniform(c, "relation_ref_traj",         reference_trajectory            );

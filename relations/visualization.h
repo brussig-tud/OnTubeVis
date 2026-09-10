@@ -110,9 +110,14 @@ public:
 		bool diverging {false};
 	} color_scale;
 
-	/// Relations are calculated between points no further apart than `radius[0]` in space and
-	/// `radius[1]` in time.
-	cgv::vec2 radius {1};
+	struct {
+		float space {}; /// Query radius in 3D Euclidean space.
+		float pre {}; /// Query radius into the past.
+		float post {}; /// Query radius into the future.
+	}
+	/// For each trajectory point, calculate its relation to samples of other trjectories within the
+	/// given distance.
+	radius;
 	/// Exponent of the cosine term optionally applied to the relation. Larger values reduce the
 	/// influence of samples further away from the surface normal on the relation value at any given
 	/// point.
