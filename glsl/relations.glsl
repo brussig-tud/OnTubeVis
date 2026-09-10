@@ -7,21 +7,18 @@ const Direction dir_ref_to_all = {0};
 const Direction dir_all_to_ref = {1};
 const Direction dir_all_to_all = {2};
 
-// The value to visualize.
-#define FN_NONE               0
-#define FN_PROXIMITY          1 + FN_NONE
-#define FN_ALIGNMENT          1 + FN_PROXIMITY
-#define FN_DBG_SEG_T          1 + FN_ALIGNMENT
-#define FN_DBG_VELOCITY       1 + FN_DBG_SEG_T
-#define FN_DBG_INDEX_XYZ      1 + FN_DBG_VELOCITY
-#define FN_DBG_INDEX_T        1 + FN_DBG_INDEX_XYZ
-#define FN_DBG_SIGNATURE      1 + FN_DBG_INDEX_T
-#define FN_DBG_BUCKET_LOAD    1 + FN_DBG_SIGNATURE
-#define FN_DBG_LOCAL_INTERVAL 1 + FN_DBG_BUCKET_LOAD
-#define FN_DBG_NUM_CELLS      1 + FN_DBG_LOCAL_INTERVAL
-#define FN_DBG_NUM_INTERVALS  1 + FN_DBG_NUM_CELLS
-#define FN_DBG_NUM_SAMPLES    1 + FN_DBG_NUM_INTERVALS
-#define FN_DBG_NUM_EVALS      1 + FN_DBG_NUM_SAMPLES
+// Data variables that can be visualized.
+#define DV_NONE               0
+#define DV_RELATION           (1 + DV_NONE)
+#define DV_DBG_SEG_T          (1 + DV_RELATION)
+#define DV_DBG_VELOCITY       (1 + DV_DBG_SEG_T)
+#define DV_DBG_INDEX_XYZ      (1 + DV_DBG_VELOCITY)
+#define DV_DBG_INDEX_T        (1 + DV_DBG_INDEX_XYZ)
+#define DV_DBG_SIGNATURE      (1 + DV_DBG_INDEX_T)
+#define DV_DBG_BUCKET_LOAD    (1 + DV_DBG_SIGNATURE)
+#define DV_DBG_LOCAL_INTERVAL (1 + DV_DBG_BUCKET_LOAD)
+#define DV_DBG_NUM_CELLS      (1 + DV_DBG_LOCAL_INTERVAL)
+#define DV_DBG_NUM_INTERVALS  (1 + DV_DBG_NUM_CELLS)
 
 // Describes which dimensions the hash grid indexes and how it is organized in memory.
 #define LAYOUT_XYZ   0
@@ -33,12 +30,6 @@ const Direction dir_all_to_all = {2};
 #define SIG_FN_XXHASH32 1
 #define SIG_FN_Z_ORDER  2
 
-// Functions used to map relation values to color.
-struct Transform {uint value;};
-const Transform transform_linear = {0};
-const Transform transform_log    = {1};
-const Transform transform_symlog = {2};
-
 // Static configuration ############################################################################
 // Default values are provided only for linting and must be replaced at runtime.
 #define HASH_GRID_BUFFER_BINDING   0
@@ -47,13 +38,8 @@ const Transform transform_symlog = {2};
 #define HASH_GRID_SLOTS_PER_BUCKET 0
 #define HASH_GRID_LAYOUT           0
 #define HASH_GRID_SIGNATURE_FN     0
-#define RELATION_FUNCTION          0
-#define RELATION_COLOR_SCALE_TEX   0
-#define RELATION_SCALE_BY_COS      1
-
-// Boolean expression determining whether or not the evaluated function depends on trajectories'
-// derivatives.
-#define FN_USES_DERIVATIVE (RELATION_FUNCTION == FN_ALIGNMENT)
+#define RELATION_DATA_VAR          0
+#define RELATION_COLOR_MAP_TEX     0
 
 // Index at which the SSBO containing the hash grid is bound.
 const uint buffer_binding = HASH_GRID_BUFFER_BINDING;
@@ -139,7 +125,7 @@ layout(std430, binding = 0) readonly buffer data_buffer {
 layout(binding = HASH_GRID_BUFFER_BINDING) readonly buffer hash_grid_buffer {
 	uint hash_grid_data[];
 };
-layout(binding = RELATION_COLOR_SCALE_TEX) uniform sampler2D color_scale_tex;
+layout(binding = RELATION_COLOR_MAP_TEX) uniform sampler2D color_map_tex;
 
 // Uniforms ########################################################################################
 uniform vec4      hash_grid_cell_size;
@@ -150,12 +136,11 @@ uniform float     relation_sample_rate;
 uniform Direction relation_direction;
 uniform uint      relation_ref_traj;
 uniform bool      relation_normalize;
-uniform int       relation_color_map;
 uniform vec2      relation_color_domain;
-uniform Transform relation_color_transform;
 uniform vec3      relation_highlight_color;
 uniform vec3      relation_background_color;
 uniform float     relation_cos_exp;
+
 // When evaluating relations, samples may be ignored if the cosine of the angle between the
 // direction from the base point to the sample point and the surface normal at the base point is
 // less than this value.
@@ -489,13 +474,13 @@ struct GridRange
 // Calculate the range of grid cells intersecting the relation query.
 GridRange query_range (vec4 center, vec3 normal)
 {
-#if !RELATION_SCALE_BY_COS
-	// Without a maximum angle, the query volume is simply a ball.
-	return GridRange(
-		cell_index(center - vec4(vec3(relation_radius[0]), relation_radius[1])),
-		cell_index(center + vec4(vec3(relation_radius[0]), relation_radius[1]))
-	);
-#else
+	if (relation_min_cos <= -1)
+		// Without a maximum angle, the query volume is simply a ball.
+		return GridRange(
+			cell_index(center - vec4(vec3(relation_radius[0]), relation_radius[1])),
+			cell_index(center + vec4(vec3(relation_radius[0]), relation_radius[1]))
+		);
+
 	// Limits of the query's AABB in world space.
 	vec4 pmin, pmax;
 
@@ -522,7 +507,6 @@ GridRange query_range (vec4 center, vec3 normal)
 	pmin[3] = center[3] - relation_radius[1];
 	pmax[3] = center[3] + relation_radius[1];
 	return GridRange(cell_index(pmin), cell_index(pmax));
-#endif
 }
 
 // "A Simple Method for Box-Sphere Intersection Testing", by Jim Arvo, in "Graphics Gems",
@@ -537,7 +521,6 @@ bool isect_aabb_sphere (vec3 bmin, vec3 bmax, vec3 center, float radius2)
 	return dmin <= radius2;
 }
 
-#if RELATION_SCALE_BY_COS
 // The following two functions are adapted from David Eberly, Geometric Tools, “Intersection of a
 // Box and a Cone or Cone Frustum”,
 // online: https://www.geometrictools.com/Documentation/IntersectionBoxCone.pdf
@@ -554,6 +537,8 @@ bool isect_aabb_sphere (vec3 bmin, vec3 bmax, vec3 center, float radius2)
 bool aabb_outside_query (
 	/*AABB*/ vec3 center, vec3 halfext, /*query*/ vec3 origin, vec3 dir, out float proj_max
 ) {
+	if (relation_min_cos <= -1) return false;
+
 	const vec3 c = center - origin;
 	proj_max = dot(c, dir) + dot(halfext, abs(dir));
 	return proj_max < min(0, relation_radius[0] * relation_min_cos);
@@ -567,6 +552,8 @@ bool aabb_outside_query (
 bool isect_aabb_query (
 	/*AABB*/ vec3 center, vec3 halfext, /*query*/ vec3 origin, vec3 dir, out float proj_max
 ) {
+	if (relation_min_cos <= -1) return true;
+
 	// Projections onto the query direction must intersect.
 	if (aabb_outside_query(center, halfext, origin, dir, proj_max)) return false;
 
@@ -625,9 +612,8 @@ bool isect_aabb_query (
 	}
 	return false;
 }
-#endif // SCALE_BY_COS
 
-// Shading =========================================================================================
+// Visualization ===================================================================================
 
 // Map a trajectory relation value using the precalculated color scale.
 vec3 relation_to_color (float value)
@@ -637,22 +623,63 @@ vec3 relation_to_color (float value)
 	value = (value - domain[0]) / (domain[1] - domain[0]);
 
 	// Sample the color scale texture.
-	const float N     = textureSize(color_scale_tex, 0).x;
-	const vec3  color = texture(color_scale_tex, vec2(0.5/N + (N - 1)/N * value, 0.5)).rgb;
+	const float N     = textureSize(color_map_tex, 0).x;
+	const vec3  color = texture(color_map_tex, vec2(0.5/N + (N - 1)/N * value, 0.5)).rgb;
 
 	// Apply gamma correction.
 	return pow(color, vec3(2.2));
 }
 
-// Calculate the trajectory relation selected by `RELATION_FUNCTION` from a fixed starting point to
-// one or more sampled points on a given interval, provided the samples lie within the query radius.
-float eval_relation (
-	vec4 base_point,
-#if FN_USES_DERIVATIVE
-	vec3 base_derivative,
+// Basic trajectory attributes defined for every dataset.
+struct TrajPoint {
+	vec3 position;
+	float time;
+	vec3 derivative;
+};
+// Factors to adjust the influence each sampled trajectory point has on the final relation value.
+// Each relation definition chooses which weights to apply to what values.
+struct SampleWeights {
+	// Duration represented by the sample point.
+	float time;
+	// Cosine term dependent on the angle between the base point's surface normal and the direction
+	// to the sample point.
+	float angle;
+};
+
+#if RELATION_DATA_VAR == DV_RELATION
+// User defined relation:
+//$cgv::relation_def
 #endif
+#ifndef RELATION_REDUCE_T
+// Placeholder relation that simply counts samples.
+
+#define RELATION_REDUCE_T float
+
+RELATION_REDUCE_T init_relation (TrajPoint base)
+{
+	return 0;
+}
+void eval_relation (
+	TrajPoint base_point,
+	TrajPoint sample_point,
+	SampleWeights weight,
+	inout RELATION_REDUCE_T reduction
+) {
+	reduction += relation_normalize ? weight.time * weight.angle : 1;
+}
+vec3 color_relation (TrajPoint base, RELATION_REDUCE_T reduction)
+{
+	return relation_to_color(reduction);
+}
+
+#endif
+
+// Evaluate the relation between the base point and one or more samples on the interval.
+void sample_interval (
+	Interval interval,
+	TrajPoint base_point,
 	vec3 base_normal, // world-space normal at the base point
-	Interval interval
+	inout RELATION_REDUCE_T reduction
 ) {
 	// Load node data.
 	const Node n0 = nodes[interval.start_node];
@@ -660,10 +687,10 @@ float eval_relation (
 	const vec2 time = unpack_interval_range(interval) * n0.duration + n0.time;
 
 	// Intersect trajectory interval and evaluated time frame.
-	const float start    = max(time[0], base_point[3] - relation_radius[1]);
-	const float end      = min(time[1], base_point[3] + relation_radius[1]);
+	const float start    = max(time[0], base_point.time - relation_radius[1]);
+	const float end      = min(time[1], base_point.time + relation_radius[1]);
 	const float timespan = end - start;
-	if (timespan <= 0) return 0;
+	if (timespan <= 0) return;
 
 	// Determine how often the interval should be sampled.
 	const float num_samples = max(ceil(timespan * relation_sample_rate), 1);
@@ -679,9 +706,7 @@ float eval_relation (
 
 	// Calculate spline coefficients.
 	const mat4x3 coeffs = position_coeffs(n0, n1);
-#if FN_USES_DERIVATIVE
 	const mat3 coeffs_dt = derive_coeffs(coeffs);
-#endif
 
 	const float radius2 = sqr(relation_radius[0]);
 	const vec4 p1 = n0.pos_rad + (1/3.)*n0.tangent;
@@ -690,60 +715,45 @@ float eval_relation (
 	// Skip segments fully outside the query.
 	const vec3 aabb_min = min(n0.pos_rad, min(p1, min(p2, n1.pos_rad))).xyz;
 	const vec3 aabb_max = max(n0.pos_rad, max(p1, max(p2, n1.pos_rad))).xyz;
-	if (!isect_aabb_sphere(aabb_min, aabb_max, base_point.xyz, radius2)) return 0;
-#if RELATION_SCALE_BY_COS
-	// The exact intersection test is too expensive at this point, so only the quick exclusion check
-	// is performed.
+	if (!isect_aabb_sphere(aabb_min, aabb_max, base_point.position, radius2)) return;
+
+	// The exact intersection test is too expensive at this point, so we only do the quick
+	// exclusion check.
 	float proj_max;
 	if (aabb_outside_query(
 		mix(aabb_min, aabb_max, .5),
 		.5*(aabb_max - aabb_min),
-		base_point.xyz,
+		base_point.position,
 		base_normal,
 		proj_max
-	)) return 0;
-#endif
-	if (RELATION_FUNCTION == FN_DBG_NUM_SAMPLES) return num_samples;
+	)) return;
 
 	// Evaluate the relation at one or more sample points along the interval.
-	float result = 0.0;
 	for (float t = tmin + 0.5*sample_step; t < tmax; t += sample_step) {
 		// Evaluate the trajectory for the current curve parameter.
-		const vec3 sample_pos = eval_position(coeffs, t);
+		TrajPoint sample_point = {
+			eval_position(coeffs, t),
+			mix(n0.time, n1.time, t),
+			trajectory_derivative(coeffs_dt, t)
+		};
 
 		// Ignore points outside the evaluation radius.
-		const vec3 offset = sample_pos - base_point.xyz;
+		const vec3 offset = sample_point.position - base_point.position;
 		const float dist2 = dot(offset, offset);
 		if (dist2 > radius2) continue;
 
-		// Evaluate the relation.
-		#if RELATION_FUNCTION == FN_PROXIMITY
-			float value = relation_radius[0] - sqrt(dist2);
-		#elif RELATION_FUNCTION == FN_ALIGNMENT
-			float value = dot(base_derivative, normalize(trajectory_derivative(coeffs_dt, t)))
-				* exp(dist2 * (-6/radius2)); // Gaussian weight function.
-		#elif RELATION_FUNCTION == FN_DBG_NUM_EVALS
-			float value = 1;
-		#else
-			float value = 0;
-		#endif
+		SampleWeights weights = {sampling * timespan, 1};
+		if (relation_min_cos > -1) {
+			const float cosine = dot(base_normal, normalize(offset));
+			if (cosine < relation_min_cos) continue;
+			weights.angle = pow(.5 + .5*cosine, relation_cos_exp);
+		}
 
-		// Optionally focus the relation around the surface normal at the base point using a cosine
-		// term mapped to [0, 1] and exponentiated.
-		#if RELATION_SCALE_BY_COS
-			value *= pow(.5 + .5*dot(base_normal, normalize(offset)), relation_cos_exp);
-		#endif
-
-		result += value;
+		eval_relation(base_point, sample_point, weights, reduction);
 	}
-	if (RELATION_FUNCTION == FN_DBG_NUM_EVALS) return result;
-
-	// Average samples and weight by time.
-	return result * sampling * timespan;
 }
 
-// Evaluate the relation selected by `RELATION_FUNCTION` between one point of a segment and the
-// surrounding trajectories, then map it to a color.
+// Evaluate the configured relation visualization for the given point on a segment.
 vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 {
 	// Load node data.
@@ -758,9 +768,9 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		return relation_highlight_color;
 
 	// Color by local time.
-	#if RELATION_FUNCTION == FN_DBG_SEG_T
+	#if RELATION_DATA_VAR == DV_DBG_SEG_T
 		return relation_to_color(seg_t);
-	#elif RELATION_FUNCTION == FN_DBG_VELOCITY
+	#elif RELATION_DATA_VAR == DV_DBG_VELOCITY
 		// Derivative w.r.t. curve parameter, divide by duration to get physical velocity.
 		return relation_to_color(
 			length(trajectory_derivative(start, end, seg_t)) / start.duration
@@ -772,16 +782,16 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	const ivec4 local_index = cell_index(local_point);
 
 	// Color by grid cell (spatial).
-	#if RELATION_FUNCTION == FN_DBG_INDEX_XYZ
+	#if RELATION_DATA_VAR == DV_DBG_INDEX_XYZ
 		return vec3(local_point * hash_grid_scale - local_index + 0.5);
 	// Color by grid cell (temporal).
-	#elif RELATION_FUNCTION == FN_DBG_INDEX_T
+	#elif RELATION_DATA_VAR == DV_DBG_INDEX_T
 		return relation_to_color(local_point[3] * hash_grid_scale[3] - local_index[3] + 0.5);
 	// Color by cell hash.
-	#elif RELATION_FUNCTION == FN_DBG_SIGNATURE
+	#elif RELATION_DATA_VAR == DV_DBG_SIGNATURE
 		return relation_to_color(signature(Index(local_index)));
 	// Color by hash bucket load.
-	#elif RELATION_FUNCTION == FN_DBG_BUCKET_LOAD
+	#elif RELATION_DATA_VAR == DV_DBG_BUCKET_LOAD
 	{
 		// Find the bucket containing the local point.
 		const Span table = find_table(local_index[3]);
@@ -794,7 +804,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		return relation_to_color(float(fill) / slots_per_bucket);
 	}
 	// Color by local trajectory interval.
-	#elif RELATION_FUNCTION == FN_DBG_LOCAL_INTERVAL
+	#elif RELATION_DATA_VAR == DV_DBG_LOCAL_INTERVAL
 	{
 		// Load the bucket range for the local timestep.
 		const Span table = find_table(local_index[3]);
@@ -823,13 +833,14 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	// AABB of cells to include in the relation.
 	const GridRange qrange = query_range(local_point, world_normal);
 
-#if RELATION_FUNCTION == FN_ALIGNMENT
-	// Normalized trajectory direction for calculating angle to other trajectories.
-	const vec3 local_derivative = normalize(trajectory_derivative(start, end, seg_t));
-#endif
+	TrajPoint base_point = {
+		local_point.xyz,
+		local_point[3],
+		trajectory_derivative(start, end, seg_t)
+	};
 
 	// Value of the relation at the local point.
-	float result = 0;
+	RELATION_REDUCE_T reduction = init_relation(base_point);
 
 #if HASH_GRID_LAYOUT == LAYOUT_T_XYZ
 	// Iterate over the hash tables of all timesteps within the evaluated radius.
@@ -874,8 +885,8 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 			world_normal,
 			proj_max
 		)) if (entered_query_y) break; else continue;
-		entered_query_y = true;
 	#endif
+		entered_query_y = true;
 
 		const float rx_hi = y == y_max ? 0
 			: sqrt(ry - sqr((y + .5) * hash_grid_cell_size.y - local_point.y));
@@ -897,8 +908,8 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 			// We can only exit the loop early if the grid cell intersects the convex part of the
 			// query volume (above the plane defined by the query's origin and direction).
 			if (entered_query_x && proj_max >= 0) break; else continue;
-		entered_query_x = true;
 	#endif
+		entered_query_x = true;
 
 #if HASH_GRID_LAYOUT == LAYOUT_XYZT
 	// Iterate over the query's temporal extent.
@@ -913,11 +924,11 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		// Search the hash table for the current cell and return the intervals it contains.
 		const Span intervals = query(table, index);
 
-		#if RELATION_FUNCTION == FN_DBG_NUM_CELLS
-			++result;
+		#if RELATION_DATA_VAR == DV_DBG_NUM_CELLS
+			++reduction;
 			continue;
-		#elif RELATION_FUNCTION == FN_DBG_NUM_INTERVALS
-			result += intervals.len;
+		#elif RELATION_DATA_VAR == DV_DBG_NUM_INTERVALS
+			reduction += intervals.len;
 			continue;
 		#endif
 
@@ -930,14 +941,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 				? nodes[interval.start_node].traj_id == relation_ref_traj
 				// Evaluate all intervals on different trajectories.
 				: nodes[interval.start_node].traj_id != start.traj_id
-			) result += eval_relation(
-				local_point,
-			#if FN_USES_DERIVATIVE
-				local_derivative,
-			#endif
-				world_normal,
-				interval
-			);
+			) sample_interval(interval, base_point, world_normal, reduction);
 		}
 #if HASH_GRID_LAYOUT == LAYOUT_XYZT
 	} // for t
@@ -951,14 +955,5 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	} // for table
 #endif
 
-	// Normalize the relation value.
-	const float norm_time = relation_normalize ? 2*relation_radius[1] : 1;
-
-	#if RELATION_FUNCTION == FN_PROXIMITY
-		result /= (relation_radius[0] * norm_time);
-	#elif RELATION_FUNCTION == FN_ALIGNMENT
-		result /= norm_time;
-	#endif
-
-	return relation_to_color(result);
+	return color_relation(base_point, reduction);
 }

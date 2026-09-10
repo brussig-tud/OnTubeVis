@@ -10,8 +10,7 @@
 #define GRID_NORMAL_SETTINGS 0
 #define OUTLINE_INWARDS 0
 
-// Trajectory relation to evaluate.
-#define RELATION_FUNCTION 0
+#define RELATION_DATA_VAR 0
 
 #define CONSTANT_FLOAT_UNIFORM_COUNT 0
 #define CONSTANT_COLOR_UNIFORM_COUNT 0
@@ -1430,7 +1429,7 @@ void main()
 		texcoord_fs.y
 	);
 	uvec4 albedo_texcoord_seg = texture(albedo_tex, fb_uv);
-	vec3 color = RELATION_FUNCTION == 0 ? unpackUnorm4x8(albedo_texcoord_seg.x).rgb : vec3(0);
+	vec3 color = bool(RELATION_DATA_VAR) ? vec3(0) : unpackUnorm4x8(albedo_texcoord_seg.x).rgb;
 	vec2 texcoord = uintBitsToFloat(albedo_texcoord_seg.yz);
 	int segment_id = int(albedo_texcoord_seg.w);
 
@@ -1460,7 +1459,7 @@ void main()
 
 		//subp_color = vec4(uv.s, uv.t, 0.0, 1.0);
 
-	#if RELATION_FUNCTION != 0
+	#if RELATION_DATA_VAR != 0
 		color = color_by_relation(
 			node_ids[segment_id],
 			uintBitsToFloat(albedo_texcoord_seg[0]),

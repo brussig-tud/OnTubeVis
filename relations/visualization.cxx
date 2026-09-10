@@ -2,11 +2,14 @@
 	#define _USE_MATH_DEFINES
 #endif
 
+#include <filesystem>
 #include <format>
 
 #include <cgv/data/informed_ptr.h>
+#include <cgv/gui/file_dialog.h>
 #include <cgv/gui/provider.h>
 #include <cgv/render/shader_program.h>
+#include <cgv/utils/file.h>
 
 #include "color/color_map_manager.h"
 #include "render_layout.h"
@@ -15,10 +18,25 @@
 
 namespace {
 
-/// GUI descriptor for the dropdown to select the relation function.
-static auto const function_dropdown = []{
+/// Human-readable names of the data variables that can be visualized.
+static constexpr auto data_var_names = std::to_array<std::string_view>({
+	"Nothing",
+	"Relation",
+	"[debug] Curve parameter",
+	"[debug] Derivative magnitude",
+	"[debug] Spatial index",
+	"[debug] Temporal index",
+	"[debug] Index hash",
+	"[debug] Bucket load",
+	"[debug] Trajectory interval",
+	"[debug] Queried cells",
+	"[debug] Intervals found",
+});
+
+/// GUI descriptor for the dropdown to select the visualized data variable.
+static auto const data_var_dropdown = []{
 	std::string s = "enums='";
-	for (auto variant : relation_vis::function_names) {s += variant; s += ",";}
+	for (auto variant : data_var_names) {s += variant; s += ',';}
 	s.back() = '\'';
 	return s;
 }();
@@ -39,7 +57,26 @@ void relation_vis::build_gui (
 	std::vector<std::string> const& color_maps
 ) {
 	auto const b = dynamic_cast<cgv::base::base*>(&p);
-	p.add_member_control(b, "Function", function, "dropdown", function_dropdown);
+	p.add_member_control(b, "Show", data_var, "dropdown", data_var_dropdown);
+	connect_copy(
+		p.add_button("Load relation")->click,
+		[&](auto&& _) {
+			auto path = cgv::gui::file_open_dialog(
+				"Load relation definition", "*", "relations/def");
+			size_t size;
+			auto const data = cgv::utils::file::read(path, false, &size);
+			if (!data) return;
+
+			data_var = DataVar::relation;
+			p.update_member(&data_var);
+
+			relation = {
+				.name = std::filesystem::path{std::move(path)}.stem(),
+				.definition = {data, size},
+			};
+			dynamic_cast<cgv::base::base*>(&p)->on_set(&relation.definition);
+		}
+	);
 	p.add_member_control(b, "Normalize", normalize, "check");
 
 	// Evaluation.
@@ -113,6 +150,7 @@ auto relation_vis::on_set (void* member, cgv::render::context& ctx, color_map_ma
 	-> UpdateFlags
 {
 	auto const ptr = cgv::data::informed_ptr{member};
+	if (ptr.points_to_one_of(data_var, relation.definition)) return UpdateFlag::shader_opts;
 	if (ptr.points_to(direction)) return UpdateFlag::gui;
 	if (ptr.points_to(cos_exp)) {
 		if (scale_by_cos == (cos_exp > 0)) return 0;
@@ -154,7 +192,7 @@ void relation_vis::update_color_scale (cgv::render::context& ctx, color_map_mana
 	color_scale.texture.create(ctx, {&fmt, samples.data()}, 0);
 }
 
-void relation_vis::set_defaults (cgv::vec4 extent)
+void relation_vis::set_to_default (cgv::vec4 extent)
 {
 	radius[0]   = max_value(cgv::vec3{extent}) * 0.01f;
 	radius[1]   = extent[3] * 0.01f;
@@ -163,9 +201,11 @@ void relation_vis::set_defaults (cgv::vec4 extent)
 
 void relation_vis::set_shader_opts (cgv::render::shader_compile_options& opts) const
 {
-	opts.define_macro("RELATION_FUNCTION",        static_cast<uint32_t>(function));
-	opts.define_macro("RELATION_COLOR_SCALE_TEX", texture_idx::relation_color_map);
-	opts.define_macro("RELATION_SCALE_BY_COS",    scale_by_cos                   );
+	opts.define_macro("RELATION_DATA_VAR", static_cast<uint32_t>(data_var));
+	opts.define_macro("RELATION_COLOR_MAP_TEX", texture_idx::relation_color_map);
+	opts.define_macro("RELATION_SCALE_BY_COS", scale_by_cos);
+	if (data_var == DataVar::relation && !relation.definition.empty())
+		opts.define_snippet("relation_def", relation.definition);
 }
 
 void relation_vis::set_uniforms (
@@ -186,8 +226,14 @@ void relation_vis::set_uniforms (
 	p.set_uniform(c, "relation_min_cos", scale_by_cos ? 2*pow(cos_cutoff, 1/cos_exp) - 1 : 0);
 }
 
-auto get_reflection_traits(enum relation_vis::Function const&)
-	-> cgv::reflect::enum_reflection_traits<enum relation_vis::Function>
+auto relation_vis::data_var_name () const -> std::string_view
+{
+	if (data_var == DataVar::relation) return relation.name;
+	return data_var_names[static_cast<size_t>(data_var)];
+}
+
+auto get_reflection_traits (enum relation_vis::DataVar const&)
+	-> cgv::reflect::enum_reflection_traits<enum relation_vis::DataVar>
 {
 	return {
 		"none,"
@@ -203,6 +249,5 @@ auto get_reflection_traits(enum relation_vis::Function const&)
 		"dbg_num_cells,"
 		"dbg_num_intervals,"
 		"dbg_num_samples,"
-		"dbg_num_evals,"
 	};
 }

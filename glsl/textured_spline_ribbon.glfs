@@ -14,8 +14,7 @@
    3: Attribute-less (except segment and sub-curve ids) */
 #define ATTRIB_MODE 0
 
-/// Trajectory relation to evaluate.
-#define RELATION_FUNCTION 0
+#define RELATION_DATA_VAR 0
 
 #define FLT_EPS 1.19209290e-07
 #define POS_INF 3e+37
@@ -329,7 +328,7 @@ void main()
 	float v = texcoords_fs.y;
 
 	frag_albedo = uvec4(
-		RELATION_FUNCTION == 0 ? packUnorm4x8(col) : floatBitsToUint(spline_t),
+		bool(RELATION_DATA_VAR) ? floatBitsToUint(spline_t) : packUnorm4x8(col),
 		floatBitsToUint(alen(spline_t)),
 		floatBitsToUint(v),
 		segment_id_fs

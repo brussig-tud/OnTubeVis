@@ -38,11 +38,11 @@ void color_legend_manager::compose (
 	int voffset = -1;
 
 	// Base color can be provided by a relation calculated on the fly.
-	if (bool(relvis.function)) {
+	if (bool(relvis.data_var)) {
 		auto& legend = legends[num_active];
 		legend->set_title(std::format(
 			"Color -- Relation \"{}\"",
-			relation_vis::function_names[static_cast<size_t>(relvis.function)]
+			relvis.data_var_name()
 		));
 		legend->set_color_scale(relvis.color_scale.scale);
 

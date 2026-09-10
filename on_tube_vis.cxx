@@ -357,7 +357,6 @@ bool on_tube_vis::init(context& ctx) {
 		vis.config = vis.manager.get_configuration();
 	}
 
-	set_relation_shader_opts(tstr.additional_options);
 	tube_shading_options = build_tube_shading_options();
 	shaders.reload(ctx, "tube_shading", tube_shading_options);
 
@@ -535,7 +534,6 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("layer_config_file", layer_config_file_helper.file_name) && // ToDo: figure out proper reflection name
 		rh.reflect_member("show_hidden_glyphs", debug.show_hidden_glyphs) &&
 		rh.reflect_member("render_style", render.style) &&
-		rh.reflect_member("trajectory_relation", relations.vis.function) &&
 		rh.reflect_member("attrib_mode", (unsigned&)render.style.attrib_mode) &&
 		rh.reflect_member("bounding_geometry", render.style.bounding_geometry) &&
 		rh.reflect_member("bounding_box_color", bbox_rd.style.surface_color) &&
@@ -976,7 +974,6 @@ void on_tube_vis::on_set(void* member_ptr) {
 		ah_mgr.set_dataset(traj_mgr.dataset(0));
 
 		context& ctx = *get_context();
-		set_relation_shader_opts(ref_textured_spline_tube_renderer(ctx).additional_options);
 		tube_shading_options = build_tube_shading_options();
 		shaders.reload(ctx, "tube_shading", tube_shading_options);
 
@@ -1018,11 +1015,8 @@ void on_tube_vis::on_set(void* member_ptr) {
 				grid_normal_settings,
 				grid_normal_inwards,
 				grid_normal_variant,
-				enable_fuzzy_grid,
-				relations.vis.function)) {
+				enable_fuzzy_grid)) {
 		context& ctx = *get_context();
-		if (ptr.points_to_member_of(relations.vis))
-			set_relation_shader_opts(ref_textured_spline_tube_renderer(ctx).additional_options);
 		tube_shading_options = build_tube_shading_options();
 		shaders.reload(ctx, "tube_shading", tube_shading_options);
 	}
@@ -1082,11 +1076,12 @@ void on_tube_vis::on_set(void* member_ptr) {
 		auto const update_flags = relations.vis.on_set(member_ptr, ctx, color_map_mgr);
 
 		do_full_gui_update |= update_flags & relation_vis::UpdateFlag::gui;
-		update_legends |= ptr.points_to(relations.vis.function)
+		update_legends |= ptr.points_to(relations.vis.data_var)
+			|| ptr.points_to_member_of(relations.vis.relation)
 			|| ptr.points_to_member_of(relations.vis.color_scale);
 
 		if (update_flags & relation_vis::UpdateFlag::shader_opts) {
-			relations.vis.set_shader_opts(tube_shading_options);
+			tube_shading_options = build_tube_shading_options();
 			shaders.reload(ctx, "tube_shading", tube_shading_options);
 		}
 	}
@@ -1100,7 +1095,6 @@ void on_tube_vis::on_set(void* member_ptr) {
 			glyph_layers_config = glyph_layer_mgr.get_configuration();
 
 			context& ctx = *get_context();
-			set_relation_shader_opts(ref_textured_spline_tube_renderer(ctx).additional_options);
 			tube_shading_options = build_tube_shading_options();
 			shaders.reload(ctx, "tube_shading", tube_shading_options);
 
@@ -2295,7 +2289,7 @@ void on_tube_vis::after_finish(context& ctx) {
 			//ss << "Sorted " << benchmark.num_sorts << " times with mean duration of " << (benchmark.sort_time_total / static_cast<double>(benchmark.num_sorts)) << "ms" << std::endl;
 
 			std::cout << ss.str() << std::endl;
-			if (bool(relations.vis.function)) save_relations_benchmark();
+			if (bool(relations.vis.data_var)) save_relations_benchmark();
 		}
 	}
 }
@@ -2335,8 +2329,8 @@ void on_tube_vis::save_relations_benchmark ()
 		relations.grid_params.cell_size[3],
 		relations.grid_params.sample_step[0],
 		relations.grid_params.sample_step[1],
-		get_reflection_traits(relations.vis.function)
-			.get_enum_name(static_cast<unsigned>(relations.vis.function)),
+		get_reflection_traits(relations.vis.data_var)
+			.get_enum_name(static_cast<unsigned>(relations.vis.data_var)),
 		relations.vis.radius[0],
 		relations.vis.radius[1],
 		relations.vis.sample_rate,
@@ -2841,11 +2835,8 @@ void on_tube_vis::update_attribute_bindings(void) {
 
 		// Initialize the trajectory hash grid. Cell size is chosen such that the number of segments
 		// per cell is approximately constant.
-		{
-		auto const extent = bbox.get_extent();
-		relations.vis.set_defaults({extent, tmax - tmin});
+		relations.vis.set_to_default({bbox.get_extent(), tmax - tmin});
 		default_hash_grid();
-		}
 	}
 
 	// reset the last sort pos and direction to zero when the render data changed to force a sorting step
@@ -2892,18 +2883,12 @@ void on_tube_vis::build_hash_grid () {
 
 	// Update shaders.
 	auto& ctx = *get_context();
-	set_relation_shader_opts(ref_textured_spline_tube_renderer(ctx).additional_options);
-	set_relation_shader_opts(tube_shading_options);
+	relations.grid.set_shader_opts(tube_shading_options);
 	shaders.reload(ctx, "tube_shading", tube_shading_options);
 
 	// Show new state.
 	taa.reset();
 	post_redraw();
-}
-
-void on_tube_vis::set_relation_shader_opts (cgv::render::shader_compile_options& opts) {
-	relations.grid.set_shader_opts(opts);
-	relations.vis.set_shader_opts(opts);
 }
 
 void on_tube_vis::update_debug_attribute_bindings() {
@@ -3331,7 +3316,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		if(ao_style.enable)
 			density_tex.enable(ctx, texture_idx::density);
 		color_map_mgr.ref_texture().enable(ctx, texture_idx::color_maps);
-		if (bool(relations.vis.function))
+		if (bool(relations.vis.data_var))
 			relations.vis.color_scale.texture.enable(ctx, texture_idx::relation_color_map);
 
 		// bind range attribute sbos of active glyph layers
@@ -3418,7 +3403,10 @@ shader_compile_options on_tube_vis::build_tube_shading_options() {
 		options.define_macro_if_not_default("L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
 	}
 
-	set_relation_shader_opts(options);
+	relations.grid.set_shader_opts(options);
+	relations.vis.set_shader_opts(options);
+	ref_textured_spline_tube_renderer(*get_context()).additional_options.define_macro(
+		"RELATION_DATA_VAR", relations.vis.data_var );
 
 	return options;
 }

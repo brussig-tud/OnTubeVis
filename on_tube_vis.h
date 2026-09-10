@@ -426,7 +426,6 @@ protected:
 	void default_hash_grid ();
 	/// Rebuild the hash grid according to `relations::grid_params`.
 	void build_hash_grid ();
-	void set_relation_shader_opts (cgv::render::shader_compile_options&);
 
 
 	/// attribute handle manager

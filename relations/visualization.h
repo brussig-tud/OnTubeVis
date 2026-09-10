@@ -24,17 +24,14 @@ class color_map_manager;
 
 /// Parameters for on-the-fly calculation and visualization of relations between trajectories.
 struct relation_vis {
-	using ColorTransform = cgv::media::ContinuousMappingTransform;
-
 	/// Wrapper class presented to the CGV framework as an enum to get proper dropdowns.
 	template <class T>
 	struct PseudoEnum {T value;};
 
-	/// Relations that can be evaluated.
-	enum class Function : uint32_t { // uint8_t causes problems with CGV GUI.
+	/// The data variable to compute and visualize.
+	enum class DataVar : uint32_t { // uint8_t causes problems with CGV GUI.
 		none,               /// No visualization.
-		proximity,          /// Euclidean spatial distance, from 1 (local point) to 0 (query radius).
-		alignment,          /// Dot product of trajectory directions.
+		relation,           /// Relation between trajectories calculated by `relation_def`.
 		dbg_seg_t,          /// Segment-local curve parameter.
 		dbg_velocity,       /// Length of the trajectory's spatial derivative w.r.t. time.
 		dbg_index_xyz,      /// Spatial grid index.
@@ -42,28 +39,9 @@ struct relation_vis {
 		dbg_signature,      /// Index hash signature.
 		dbg_bucket_load,    /// Hash bucket load factor.
 		dbg_local_interval, /// Curve parameter relative to local trajectory interval.
-		dbg_num_cells,      /// Number of cells within the query radius.
+		dbg_num_cells,      /// Number of cells within the query volume.
 		dbg_num_intervals,  /// Number of trajectory intervals within queried cells.
-		dbg_num_samples,    /// Number of sampled trajectory points.
-		dbg_num_evals,      /// Number of trajectory samples within the query radius.
 	};
-	/// Human-readable names of the supported relations.
-	static constexpr auto function_names = std::to_array<std::string_view>({
-		"None",
-		"Proximity",
-		"Alignment",
-		"[debug] Curve parameter",
-		"[debug] Velocity",
-		"[debug] Spatial index",
-		"[debug] Temporal index",
-		"[debug] Index hash",
-		"[debug] Bucket load",
-		"[debug] Trajectory interval",
-		"[debug] Queried cells",
-		"[debug] Intervals found",
-		"[debug] Sampled points",
-		"[debug] Contributing samples",
-	});
 
 	/// Describes for which pairs of trajectories the relation is evaluated.
 	enum class Direction : uint32_t { // uint8_t causes problems with CGV GUI.
@@ -72,6 +50,14 @@ struct relation_vis {
 		all_to_all, /// Evaluate the relation for every pair of trajectories.
 	};
 
+	struct {
+		std::string name {};
+
+		/// GLSL code defining the relation to evaluate (if `data_var == DataVar::relation`).
+		std::string definition {};
+	} relation;
+
+	using ColorTransform = cgv::media::ContinuousMappingTransform;
 	struct {
 		using Scale = cgv::media::continuous_color_scale;
 		/// Instance of the color scale used to visualize relations. Configured according to the
@@ -118,8 +104,8 @@ struct relation_vis {
 	/// Samples for which the cosine term is no larger than this value may be ignored. Larger values
 	/// may improve performance at the cost of accuracy. Range [0, 1].
 	float cos_cutoff {0.05};
-	/// The relation to evaluate.
-	Function function {};
+	/// The value to visualize.
+	DataVar data_var {};
 	/// Determines between which trajectories the relation is evaluated.
 	Direction direction {Direction::all_to_all};
 	/// ID of the "reference trajectory" whose meaning depends on `direction`.
@@ -135,7 +121,7 @@ struct relation_vis {
 	/// Generate GUI elements to control member variables.
 	void build_gui (
 		cgv::gui::provider&,
-		uint32_t  num_trajectories,
+		uint32_t num_trajectories,
 		cgv::vec4 data_extent,
 		std::vector<std::string> const& color_maps
 	);
@@ -154,18 +140,21 @@ struct relation_vis {
 	/// Regenerate the color scale object and texture according to the selected parameters.
 	void update_color_scale (cgv::render::context& ctx, color_map_manager const& colors);
 
-	/// Select sensible default values for a dataset of the given size.
-	void set_defaults (cgv::vec4 extent);
+	/// Choose evaluation settings appropriate for a dataset of the given size.
+	void set_to_default (cgv::vec4 extent);
 
 	/// Statically configure shaders through text substitution.
 	void set_shader_opts (cgv::render::shader_compile_options&) const;
 	/// Dynamically configure shaders through uniforms.
 	void set_uniforms (cgv::render::context&, cgv::render::shader_program&) const;
+
+	/// Label for the value being visualized.
+	auto data_var_name () const -> std::string_view;
 };
 
 // Reflect enum members so changes can be detected in `on_set`.
-auto get_reflection_traits (enum relation_vis::Function const&)
-	-> cgv::reflect::enum_reflection_traits<enum relation_vis::Function>;
+auto get_reflection_traits (enum relation_vis::DataVar const&)
+	-> cgv::reflect::enum_reflection_traits<enum relation_vis::DataVar>;
 
 /// Return the unqualified identifier for the given enum value.
 [[nodiscard]] constexpr auto enum_id (enum relation_vis::Direction dir) noexcept
