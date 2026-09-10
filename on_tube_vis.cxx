@@ -1073,7 +1073,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 	// visualization settings
 	if (ptr.points_to_member_of(relations.vis)) {
 		auto& ctx = *get_context();
-		auto const update_flags = relations.vis.on_set(member_ptr, ctx, color_map_mgr);
+		auto const update_flags = relations.vis.on_set(member_ptr, ctx, *this, color_map_mgr);
 
 		do_full_gui_update |= update_flags & relation_vis::UpdateFlag::gui;
 		update_legends |= ptr.points_to(relations.vis.data_var)

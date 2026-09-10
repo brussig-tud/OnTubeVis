@@ -50,6 +50,13 @@ struct relation_vis {
 		all_to_all, /// Evaluate the relation for every pair of trajectories.
 	};
 
+private:
+	auto min_cos () const -> float
+	{
+		return 2*pow(cos_cutoff, 1/cos_exp) - 1;
+	}
+
+public:
 	struct {
 		std::string name {};
 
@@ -104,6 +111,10 @@ struct relation_vis {
 	/// Samples for which the cosine term is no larger than this value may be ignored. Larger values
 	/// may improve performance at the cost of accuracy. Range [0, 1].
 	float cos_cutoff {0.05};
+	/// If the direction from a fragment's surface point to a sample point on another trajectory
+	/// deviates from the surface normal by more than this angle, the sample does not contribute to
+	/// the relation. The angle is derived from `cos_exp` and `cos_cutoff`.
+	float cutoff_angle {cgv::math::rad2deg(acos(min_cos()))};
 	/// The value to visualize.
 	DataVar data_var {};
 	/// Determines between which trajectories the relation is evaluated.
@@ -115,8 +126,6 @@ struct relation_vis {
 	/// Determines whether the relation is averaged (true) or accumulated (false) over time.
 	/// The exact meaning, howver, depends on the relation.
 	bool normalize {true};
-	/// True iff cos_exp != 0 the last time the shader was compiled.
-	bool scale_by_cos: 1 {true};
 
 	/// Generate GUI elements to control member variables.
 	void build_gui (
@@ -135,7 +144,12 @@ struct relation_vis {
 	};};
 	/// Must be called when a member variable has been changed. The return value indicates whether
 	/// the GUI needs to be updated.
-	auto on_set (void* member, cgv::render::context&, color_map_manager const&) -> UpdateFlags;
+	auto on_set (
+		void* member,
+		cgv::render::context&,
+		cgv::gui::provider&,
+		color_map_manager const&
+	) -> UpdateFlags;
 
 	/// Regenerate the color scale object and texture according to the selected parameters.
 	void update_color_scale (cgv::render::context& ctx, color_map_manager const& colors);
