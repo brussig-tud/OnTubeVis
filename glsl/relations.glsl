@@ -699,7 +699,7 @@ void sample_interval (
 	const float start    = max(time[0], base_point.time - relation_radius[1]);
 	const float end      = min(time[1], base_point.time + relation_radius[2]);
 	const float timespan = end - start;
-	if (timespan <= 0) return;
+	if (timespan < 0) return;
 
 	// Determine how often the interval should be sampled.
 	const float num_samples = max(ceil(timespan * relation_sample_rate), 1);
@@ -738,7 +738,7 @@ void sample_interval (
 	)) return;
 
 	// Evaluate the relation at one or more sample points along the interval.
-	for (float t = tmin + 0.5*sample_step; t < tmax; t += sample_step) {
+	for (float t = tmin + 0.5*sample_step; t <= tmax; t += max(sample_step, 1e-3)) {
 		// Evaluate the trajectory for the current curve parameter.
 		TrajPoint sample_point = {
 			eval_position(coeffs, t),
