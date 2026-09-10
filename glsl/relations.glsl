@@ -474,7 +474,7 @@ struct GridRange
 // Calculate the range of grid cells intersecting the relation query.
 GridRange query_range (vec4 center, vec3 normal)
 {
-	if (relation_min_cos <= -1)
+	if (relation_min_cos <= -1 + 1e-3)
 		// Without a maximum angle, the query volume is simply a ball.
 		return GridRange(
 			cell_index(center - vec4(vec3(relation_radius[0]), relation_radius[1])),
@@ -537,7 +537,7 @@ bool isect_aabb_sphere (vec3 bmin, vec3 bmax, vec3 center, float radius2)
 bool aabb_outside_query (
 	/*AABB*/ vec3 center, vec3 halfext, /*query*/ vec3 origin, vec3 dir, out float proj_max
 ) {
-	if (relation_min_cos <= -1) return false;
+	if (relation_min_cos <= -1 + 1e-3) return false;
 
 	const vec3 c = center - origin;
 	proj_max = dot(c, dir) + dot(halfext, abs(dir));
@@ -552,7 +552,7 @@ bool aabb_outside_query (
 bool isect_aabb_query (
 	/*AABB*/ vec3 center, vec3 halfext, /*query*/ vec3 origin, vec3 dir, out float proj_max
 ) {
-	if (relation_min_cos <= -1) return true;
+	if (relation_min_cos <= -1 + 1e-3) return true;
 
 	// Projections onto the query direction must intersect.
 	if (aabb_outside_query(center, halfext, origin, dir, proj_max)) return false;
@@ -873,7 +873,6 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		// they will not intersect the query either.
 		bool entered_query_y = false;
 	for (int y = y_min; y <= y_max; ++y) {
-	#if RELATION_SCALE_BY_COS
 		// Check if any grid cell with the current y and z index intersects the query volume.
 		float proj_max;
 		if (!isect_aabb_query(
@@ -883,18 +882,16 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 			world_normal,
 			proj_max
 		)) if (entered_query_y) break; else continue;
-	#endif
 		entered_query_y = true;
 
 		const float rx_hi = y == y_max ? 0
-			: sqrt(ry - sqr((y + .5) * hash_grid_cell_size.y - local_point.y));
+			: sqrt(sqr(ry) - sqr((y + .5) * hash_grid_cell_size.y - local_point.y));
 		const float rx = y == local_index.y ? ry : max(rx_lo, rx_hi);
 		const int x_min = max(qrange.min.x, index_coord(local_point.x - rx, 0));
 		const int x_max = min(qrange.max.x, index_coord(local_point.x + rx, 0));
 
 		bool entered_query_x = false;
 	for (int x = x_min; x <= x_max; ++x) {
-	#if RELATION_SCALE_BY_COS
 		// Skip cells outside the query volume.
 		if (!isect_aabb_query(
 			vec3(x, y, z) * hash_grid_cell_size.xyz,
@@ -906,7 +903,6 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 			// We can only exit the loop early if the grid cell intersects the convex part of the
 			// query volume (above the plane defined by the query's origin and direction).
 			if (entered_query_x && proj_max >= 0) break; else continue;
-	#endif
 		entered_query_x = true;
 
 #if HASH_GRID_LAYOUT == LAYOUT_XYZT
