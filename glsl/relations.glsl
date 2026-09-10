@@ -743,11 +743,9 @@ void sample_interval (
 		if (dist2 > radius2) continue;
 
 		SampleWeights weights = {sampling * timespan, 1};
-		if (relation_min_cos > -1) {
-			const float cosine = dot(base_normal, normalize(offset));
-			if (cosine < relation_min_cos) continue;
-			weights.angle = pow(.5 + .5*cosine, relation_cos_exp);
-		}
+		const float cosine = dot(base_normal, normalize(offset));
+		if (cosine < relation_min_cos) continue;
+		weights.angle = pow(.5 + .5*cosine, relation_cos_exp);
 
 		eval_relation(base_point, sample_point, weights, reduction);
 	}
