@@ -50,6 +50,15 @@ struct relation_vis {
 		all_to_all, /// Evaluate the relation for every pair of trajectories.
 	};
 
+	/// Determines how the relation shader checks whether an AABB intersects the query volume.
+	/// More precise tests are more expensive to perform, but may allow more grid cells to be
+	/// skipped entirely. The tradeoff depends on many factors, such as the dataset, the grid,
+	/// the relation, and the cutoff angle. No check should ever produce a false negative.
+	enum class QueryIntersectionTest : uint32_t {
+		fast,
+		exact, /// Can take noticeably longer to compile.
+	};
+
 private:
 	auto min_cos () const -> float
 	{
@@ -119,6 +128,7 @@ public:
 	DataVar data_var {};
 	/// Determines between which trajectories the relation is evaluated.
 	Direction direction {Direction::all_to_all};
+	QueryIntersectionTest query_isect_test {QueryIntersectionTest::exact};
 	/// ID of the "reference trajectory" whose meaning depends on `direction`.
 	uint32_t reference_trajectory {0};
 	/// Trajectory evaluations per unit of time to calculate relation.

@@ -30,6 +30,10 @@ const Direction dir_all_to_all = {2};
 #define SIG_FN_XXHASH32 1
 #define SIG_FN_Z_ORDER  2
 
+// QueryIntersectionTest
+#define QIT_FAST  0
+#define QIT_EXACT 1
+
 // Static configuration ############################################################################
 // Default values are provided only for linting and must be replaced at runtime.
 #define HASH_GRID_BUFFER_BINDING   0
@@ -40,6 +44,7 @@ const Direction dir_all_to_all = {2};
 #define HASH_GRID_SIGNATURE_FN     0
 #define RELATION_DATA_VAR          0
 #define RELATION_COLOR_MAP_TEX     0
+#define RELATION_QUERY_ISECT_TEST  0
 
 // Index at which the SSBO containing the hash grid is bound.
 const uint buffer_binding = HASH_GRID_BUFFER_BINDING;
@@ -560,6 +565,9 @@ bool isect_aabb_query (
 	// Inverse of Eberly's implementation, which places the box at the origin.
 	const vec3 c = center - origin;
 
+#if RELATION_QUERY_ISECT_TEST < QIT_EXACT
+	return true;
+#else
 	// If the ray at the query's center hits the box, they intersect.
 	if (
 		all(lessThanEqual(abs(c), halfext) || greaterThan(c * dir, vec3(0)))
@@ -611,6 +619,7 @@ bool isect_aabb_query (
 		if (dot(pmax, dir) >= length(pmax) * relation_min_cos) return true;
 	}
 	return false;
+#endif // QUERY_INTERSECTION_TEST
 }
 
 // Visualization ===================================================================================

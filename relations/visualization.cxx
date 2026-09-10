@@ -105,6 +105,9 @@ void relation_vis::build_gui (
 		"min=0;max=1;ticks=true"
 	);
 	p.add_view("Cutoff angle in °", cutoff_angle);
+	p.add_member_control(b, "Query intersection", query_isect_test, "dropdown",
+		"enums='fast,exact'"
+	);
 
 	if (p.begin_tree_node("Color scale", color_scale)) {
 		p.add_member_control(b, "Base", color_scale.base, "dropdown", p.concat_enum_def(color_maps));
@@ -154,7 +157,8 @@ auto relation_vis::on_set (
 	color_map_manager const& colors
 ) -> UpdateFlags {
 	auto const ptr = cgv::data::informed_ptr{member};
-	if (ptr.points_to_one_of(data_var, relation.definition)) return UpdateFlag::shader_opts;
+	if (ptr.points_to_one_of(data_var, relation.definition, query_isect_test))
+		return UpdateFlag::shader_opts;
 	if (ptr.points_to(direction)) return UpdateFlag::gui;
 	if (ptr.points_to_one_of(cos_exp, cos_cutoff)) {
 		cutoff_angle = cgv::math::rad2deg(acos(min_cos()));
@@ -206,6 +210,7 @@ void relation_vis::set_shader_opts (cgv::render::shader_compile_options& opts) c
 {
 	opts.define_macro("RELATION_DATA_VAR", static_cast<uint32_t>(data_var));
 	opts.define_macro("RELATION_COLOR_MAP_TEX", texture_idx::relation_color_map);
+	opts.define_macro("RELATION_QUERY_ISECT_TEST", query_isect_test);
 	if (data_var == DataVar::relation && !relation.definition.empty())
 		opts.define_snippet("relation_def", relation.definition);
 }
