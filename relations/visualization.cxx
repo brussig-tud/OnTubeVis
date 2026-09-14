@@ -23,7 +23,7 @@ static constexpr auto data_var_names = std::to_array<std::string_view>({
 	"Nothing",
 	"Relation",
 	"[debug] Curve parameter",
-	"[debug] Derivative magnitude",
+	"[debug] Curve velocity",
 	"[debug] Spatial index",
 	"[debug] Temporal index",
 	"[debug] Index hash",
@@ -41,6 +41,17 @@ static auto const data_var_dropdown = []{
 	return s;
 }();
 
+/// Minimum cosine term for a sample to contribute to the relation.
+[[nodiscard]] constexpr auto min_cos (float cutoff_angle) -> float
+{
+	return cos(cgv::math::deg2rad(cutoff_angle));
+}
+
+[[nodiscard]] constexpr auto cos_cutoff (float cutoff_angle, float cos_exp) -> float
+{
+	return pow(.5 + .5*min_cos(cutoff_angle), cos_exp);
+}
+
 } // namespace
 
 
@@ -49,6 +60,11 @@ struct cgv::type::info::type_name<relation_vis::PseudoEnum<T>> {
 	static const char* get_name() {return "enum";}
 };
 
+
+relation_vis::relation_vis()
+{
+	cos_cutoff = ::cos_cutoff(cutoff_angle, cos_exp);
+}
 
 void relation_vis::build_gui (
 	cgv::gui::provider&             p,
@@ -105,10 +121,10 @@ void relation_vis::build_gui (
 	p.add_member_control(b, "Directionality", cos_exp, "value_slider",
 		"min=0;max=100;ticks=true;log=true"
 	);
-	p.add_member_control(b, "Cutoff weight", cos_cutoff, "value_slider",
-		"min=0;max=1;ticks=true"
+	p.add_member_control(b, "Cutoff angle in °", cutoff_angle, "value_slider",
+		"min=0;max=180;ticks=true"
 	);
-	p.add_view("Cutoff angle in °", cutoff_angle);
+	p.add_view("Cutoff weight", cos_cutoff);
 	p.add_member_control(b, "Query intersection", query_isect_test, "dropdown",
 		"enums='fast,exact'"
 	);
@@ -164,9 +180,9 @@ auto relation_vis::on_set (
 	if (ptr.points_to_one_of(data_var, relation.definition, query_isect_test))
 		return UpdateFlag::shader_opts;
 	if (ptr.points_to(direction)) return UpdateFlag::gui;
-	if (ptr.points_to_one_of(cos_exp, cos_cutoff)) {
-		cutoff_angle = cgv::math::rad2deg(acos(min_cos()));
-		gui.update_member(&cutoff_angle);
+	if (ptr.points_to_one_of(cos_exp, cutoff_angle)) {
+		cos_cutoff = ::cos_cutoff(cutoff_angle, cos_exp);
+		gui.update_member(&cos_cutoff);
 	}
 	if (!ptr.points_to_member_of(color_scale)) return 0;
 
@@ -235,7 +251,7 @@ void relation_vis::set_uniforms (
 	p.set_uniform(c, "relation_highlight_color",  color_scale.highlight           );
 	p.set_uniform(c, "relation_background_color", color_scale.background          );
 	p.set_uniform(c, "relation_cos_exp",          cos_exp                         );
-	p.set_uniform(c, "relation_min_cos",          min_cos()                       );
+	p.set_uniform(c, "relation_min_cos",          min_cos(cutoff_angle)           );
 }
 
 auto relation_vis::data_var_name () const -> std::string_view

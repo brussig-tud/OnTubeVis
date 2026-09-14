@@ -59,13 +59,6 @@ struct relation_vis {
 		exact, /// Can take noticeably longer to compile.
 	};
 
-private:
-	auto min_cos () const -> float
-	{
-		return 2*pow(cos_cutoff, 1/cos_exp) - 1;
-	}
-
-public:
 	struct {
 		std::string name {};
 
@@ -122,13 +115,14 @@ public:
 	/// influence of samples further away from the surface normal on the relation value at any given
 	/// point.
 	float cos_exp {5};
-	/// Samples for which the cosine term is no larger than this value may be ignored. Larger values
-	/// may improve performance at the cost of accuracy. Range [0, 1].
-	float cos_cutoff {0.05};
 	/// If the direction from a fragment's surface point to a sample point on another trajectory
 	/// deviates from the surface normal by more than this angle, the sample does not contribute to
-	/// the relation. The angle is derived from `cos_exp` and `cos_cutoff`.
-	float cutoff_angle {cgv::math::rad2deg(acos(min_cos()))};
+	/// the relation. In degrees.
+	float cutoff_angle {90};
+	/// Samples for which the cosine term is no larger than this value may be ignored. Range [0, 1].
+	/// Not set directly, but calculated from `cos_exp` and `cutoff_angle`. Stored as a member
+	/// variable so it can be shown in a GUI view.
+	float cos_cutoff {};
 	/// The value to visualize.
 	DataVar data_var {};
 	/// Determines between which trajectories the relation is evaluated.
@@ -141,6 +135,8 @@ public:
 	/// Determines whether the relation is averaged (true) or accumulated (false) over time.
 	/// The exact meaning, howver, depends on the relation.
 	bool normalize {true};
+
+	[[nodiscard]] relation_vis();
 
 	/// Generate GUI elements to control member variables.
 	void build_gui (
