@@ -202,14 +202,14 @@ void hash_grid::add_segment (
 		// Assume a constant average speed.
 		min_value(_sample_step / vec2{arclen, duration})
 	);
-	// Check plausibility.
-	assert(min_step > 1e-6 && min_step < 1e6);
-
-	if constexpr (log_level > 3) std::clog << 
+	if constexpr (log_level > 3) std::clog <<
 		"\tArclength:    " << arclen          << "\n"
 		"\tDuration:     " << duration        << "\n"
 		"\tMin sampling: " << min_step        << "\n"
 		"\tMax sampling: ("<< max_step * 0.5f <<")\n";
+
+	// Check plausibility.
+	assert(min_step > 1e-6 && min_step < 1e6);
 
 	// Begin at the start node.
 	auto min_t      = 0.0f;
@@ -527,7 +527,7 @@ auto hash_grid::try_find_or_insert (Table& table, Index query, uint32_t new_cell
 				}
 				// Report signature hash collisions.
 				if constexpr (log_level > 1)
-					std::clog << LOG_TAG" Signature collision for indices ("<< cell.index <<")"
+					std::clog << LOG_TAG" Signature collision for indices ("<< cell.index <<") "
 						"and (" << query <<")\n";
 			}
 			++load;

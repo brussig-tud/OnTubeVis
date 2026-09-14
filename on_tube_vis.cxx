@@ -2848,7 +2848,11 @@ void on_tube_vis::update_attribute_bindings(void) {
 
 void on_tube_vis::default_hash_grid () {
 	auto const r = relations.vis.radius;
-	relations.grid_params.cell_size = vec4{vec3{r.space}, std::max(r.pre, r.post)} * 1.5f;
+	auto const [tmin, tmax] = render.data->t_minmax;
+	relations.grid_params.cell_size = max(
+		vec4{vec3{r.space} * 1.5, (r.pre + r.post) * .75},
+		vec4{bbox.get_extent(), tmax - tmin} * 1e-2
+	);
 	relations.grid_params.sample_step =
 		vec2{relations.grid_params.cell_size[0], relations.grid_params.cell_size[3]} * 0.05f;
 	post_recreate_gui();
