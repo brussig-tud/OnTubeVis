@@ -1082,7 +1082,10 @@ void on_tube_vis::on_set(void* member_ptr) {
 
 		if (update_flags & relation_vis::UpdateFlag::shader_opts) {
 			tube_shading_options = build_tube_shading_options();
-			shaders.reload(ctx, "tube_shading", tube_shading_options);
+			if (!shaders.reload(ctx, "tube_shading", tube_shading_options)) {
+				relations.vis.data_var = relation_vis::DataVar::none;
+				on_set(&relations.vis.data_var);
+			}
 		}
 	}
 
@@ -3243,6 +3246,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 	{
 		// perform the deferred shading pass and draw the image into the shading framebuffer when not using OptiX (for now)
 		shader_program& prog = shaders.get("tube_shading");
+		if (!prog.is_linked()) goto after_deferred;
+
 		prog.enable(ctx);
 		// set render parameters
 		prog.set_uniform(ctx, "use_gamma", true);
@@ -3356,10 +3361,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		prog.disable(ctx);
 
 		if (benchmark.running) benchmark.render_time_query.end_scope();
+	} after_deferred:
 
-		if(playback.active)
-			post_redraw();
-	}
+	if(playback.active)
+		post_redraw();
 }
 
 void on_tube_vis::draw_density_volume(context& ctx) {
