@@ -104,9 +104,9 @@ struct relation_vis {
 	} color_scale;
 
 	struct {
-		float space {}; /// Query radius in 3D Euclidean space.
-		float pre {}; /// Query radius into the past.
-		float post {}; /// Query radius into the future.
+		float space {}; // Query radius in 3D Euclidean space.
+		float pre {}; // Query radius into the past.
+		float post {}; // Query radius into the future.
 	}
 	/// For each trajectory point, calculate its relation to samples of other trjectories within the
 	/// given distance.

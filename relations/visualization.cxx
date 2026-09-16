@@ -242,7 +242,7 @@ void relation_vis::set_uniforms (
 	auto min = color_scale.domain[0], max = color_scale.domain[1];
 	if (min > max) std::swap(min, max);
 	auto const r = radius;
-	p.set_uniform(c, "relation_radius",           cgv::vec3{r.space, r.post, r.pre});
+	p.set_uniform(c, "relation_radius",           cgv::vec3{r.space, r.pre, r.post});
 	p.set_uniform(c, "relation_sample_rate",      sample_rate                     );
 	p.set_uniform(c, "relation_direction.value",  static_cast<uint32_t>(direction));
 	p.set_uniform(c, "relation_ref_traj",         reference_trajectory            );
