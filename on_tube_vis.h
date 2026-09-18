@@ -214,7 +214,7 @@ protected:
 	bool show_mapping_legend = true;
 	bool show_color_map_viewer = false;
 	bool show_navigator = true;
-	bool show_performance_monitor = true;
+	bool show_performance_monitor = false;
 
 	struct grid_parameters {
 		vec2 scaling;

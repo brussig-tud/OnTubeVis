@@ -55,8 +55,10 @@ struct relation_vis {
 	/// skipped entirely. The tradeoff depends on many factors, such as the dataset, the grid,
 	/// the relation, and the cutoff angle. No check should ever produce a false negative.
 	enum class QueryIntersectionTest : uint32_t {
+		none, // Iterate over the entire AABB. Only for validation.
+		sphere, // Account only for radius, not angle. Only for validation.
 		fast,
-		exact, /// Can take noticeably longer to compile.
+		exact, // Can take noticeably longer to compile.
 	};
 
 	struct {

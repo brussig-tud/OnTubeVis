@@ -126,7 +126,7 @@ void relation_vis::build_gui (
 	);
 	p.add_view("Cutoff weight", cos_cutoff);
 	p.add_member_control(b, "Query intersection", query_isect_test, "dropdown",
-		"enums='fast,exact'"
+		"enums='none,sphere,fast,exact'"
 	);
 
 	if (p.begin_tree_node("Color scale", color_scale)) {

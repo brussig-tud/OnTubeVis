@@ -31,8 +31,10 @@ const Direction dir_all_to_all = {2};
 #define SIG_FN_Z_ORDER  2
 
 // QueryIntersectionTest
-#define QIT_FAST  0
-#define QIT_EXACT 1
+#define QIT_NONE   0
+#define QIT_SPHERE 1
+#define QIT_FAST   2
+#define QIT_EXACT  3
 
 // Static configuration ############################################################################
 // Default values are provided only for linting and must be replaced at runtime.
@@ -479,7 +481,7 @@ struct GridRange
 // Calculate the range of grid cells intersecting the relation query.
 GridRange query_range (vec4 center, vec3 normal)
 {
-	if (relation_min_cos <= -1 + 1e-3)
+	if (RELATION_QUERY_ISECT_TEST <= QIT_SPHERE || relation_min_cos <= -1 + 1e-3)
 		// Without a maximum angle, the query volume is simply a ball.
 		return GridRange(
 			cell_index(center - vec4(vec3(relation_radius[0]), relation_radius[1])),
@@ -519,6 +521,8 @@ GridRange query_range (vec4 center, vec3 normal)
 // the sphere by its center and the square of its radius.
 bool isect_aabb_sphere (vec3 bmin, vec3 bmax, vec3 center, float radius2)
 {
+	if (RELATION_QUERY_ISECT_TEST < QIT_SPHERE) return true;
+
 	float dmin = 0;
 	for (uint d = 0; d < 3; ++d)
 		if (center[d] < bmin[d]) dmin += sqr(center[d] - bmin[d]);
@@ -542,7 +546,7 @@ bool isect_aabb_sphere (vec3 bmin, vec3 bmax, vec3 center, float radius2)
 bool aabb_outside_query (
 	/*AABB*/ vec3 center, vec3 halfext, /*query*/ vec3 origin, vec3 dir, out float proj_max
 ) {
-	if (relation_min_cos <= -1 + 1e-3) return false;
+	if (RELATION_QUERY_ISECT_TEST < QIT_FAST || relation_min_cos <= -1 + 1e-3) return false;
 
 	const vec3 c = center - origin;
 	proj_max = dot(c, dir) + dot(halfext, abs(dir));
@@ -557,7 +561,7 @@ bool aabb_outside_query (
 bool isect_aabb_query (
 	/*AABB*/ vec3 center, vec3 halfext, /*query*/ vec3 origin, vec3 dir, out float proj_max
 ) {
-	if (relation_min_cos <= -1 + 1e-3) return true;
+	if (RELATION_QUERY_ISECT_TEST < QIT_FAST || relation_min_cos <= -1 + 1e-3) return true;
 
 	// Projections onto the query direction must intersect.
 	if (aabb_outside_query(center, halfext, origin, dir, proj_max)) return false;
@@ -701,22 +705,7 @@ void sample_interval (
 	const float timespan = end - start;
 	if (timespan < 0) return;
 
-	// Determine how often the interval should be sampled.
-	const float num_samples = max(ceil(timespan * relation_sample_rate), 1);
-
-	// Divide the evaluated range into equal steps.
-	const float time_scale  = 1.0 / n0.duration;
-	const float sampling    = 1.0 / num_samples;
-	const float sample_step = timespan * time_scale * sampling;
-
-	// Map time to curve parameter.
-	const float tmin = (start - n0.time) * time_scale;
-	const float tmax = (end   - n0.time) * time_scale;
-
-	// Calculate spline coefficients.
-	const mat4x3 coeffs = position_coeffs(n0, n1);
-	const mat3 coeffs_dt = derive_coeffs(coeffs);
-
+	// Recurring spatial constants.
 	const float radius2 = sqr(relation_radius[0]);
 	const vec4 p1 = n0.pos_rad + (1/3.)*n0.tangent;
 	const vec4 p2 = n1.pos_rad - (1/3.)*n1.tangent;
@@ -737,8 +726,25 @@ void sample_interval (
 		proj_max
 	)) return;
 
+	// Calculate spline coefficients.
+	const mat4x3 coeffs = position_coeffs(n0, n1);
+	const mat3 coeffs_dt = derive_coeffs(coeffs);
+
+	// Determine how the interval should be sampled.
+	const float sampling = 1. / max(round(timespan * relation_sample_rate), 1);
+	float sample_step = timespan * sampling;
+	const float first_sample = start + .5 * sample_step;
+
+	// Map time to curve parameter.
+	const float time_scale  = 1.0 / n0.duration;
+	float t = (first_sample - n0.time) * time_scale;
+	const float tmax = (end - n0.time) * time_scale;
+
+	// Avoid zero weight when sampling only the base point's time.
+	if (timespan == 0) sample_step = 1;
+
 	// Evaluate the relation at one or more sample points along the interval.
-	for (float t = tmin + 0.5*sample_step; t <= tmax; t += max(sample_step, 1e-3)) {
+	for (; t <= tmax; t += sample_step * time_scale) {
 		// Evaluate the trajectory for the current curve parameter.
 		TrajPoint sample_point = {
 			eval_position(coeffs, t),
@@ -751,11 +757,10 @@ void sample_interval (
 		const float dist2 = dot(offset, offset);
 		if (dist2 > radius2) continue;
 
-		SampleWeights weights = {sampling * timespan, 1};
 		const float cosine = dot(base_normal, normalize(offset));
 		if (cosine < relation_min_cos) continue;
-		weights.angle = pow(.5 + .5*cosine, relation_cos_exp);
 
+		SampleWeights weights = {sample_step, pow(.5 + .5*cosine, relation_cos_exp)};
 		eval_relation(base_point, sample_point, weights, reduction);
 	}
 }
@@ -870,11 +875,17 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 			: sqrt(radius2 - sqr((z + .5) * hash_grid_cell_size.z - local_point.z));
 		// maximum y radius for the current z index, ignoring cosine cutoff
 		const float ry = z == local_index.z ? relation_radius[0] : max(ry_lo, ry_hi);
+
+	#if RELATION_QUERY_ISECT_TEST < QIT_SPHERE
+		const int y_min = qrange.min.y;
+		const int y_max = qrange.max.y;
+	#else
 		// Intersect the index range defined by the y radius, which is tight for the current z
 		// index, but ignores cosine cutoff, and the AABB which takes into account cosine cutoff,
 		// but contains the entire query, not just cells with this z index.
 		const int y_min = max(qrange.min.y, index_coord(local_point.y - ry, 1));
 		const int y_max = min(qrange.max.y, index_coord(local_point.y + ry, 1));
+	#endif
 
 		float rx_lo = 0; // analogous to the y radius
 		// The query volume's projection onto the yz-plane is convex, so if the y loop enters and
@@ -896,8 +907,14 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		const float rx_hi = y == y_max ? 0
 			: sqrt(sqr(ry) - sqr((y + .5) * hash_grid_cell_size.y - local_point.y));
 		const float rx = y == local_index.y ? ry : max(rx_lo, rx_hi);
+
+	#if RELATION_QUERY_ISECT_TEST < QIT_SPHERE
+		const int x_min = qrange.min.x;
+		const int x_max = qrange.max.x;
+	#else
 		const int x_min = max(qrange.min.x, index_coord(local_point.x - rx, 0));
 		const int x_max = min(qrange.max.x, index_coord(local_point.x + rx, 0));
+	#endif
 
 		bool entered_query_x = false;
 	for (int x = x_min; x <= x_max; ++x) {
