@@ -407,7 +407,7 @@ bool on_tube_vis::init(context& ctx) {
 	{
 	auto i = 0u;
 	for (auto const& name : color_map_mgr.ref_names()) {
-		if (name == "imola") {
+		if (name == "vik") {
 			relations.vis.color_scale.base = {i};
 			break;
 		}

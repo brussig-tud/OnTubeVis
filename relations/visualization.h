@@ -92,7 +92,7 @@ struct relation_vis {
 		cgv::rgb background {1.0f/3};
 
 		/// Relation values mapped onto the endpoints of the color scale.
-		cgv::vec2 domain {0, 1};
+		cgv::vec2 domain {-1, 1};
 		/// Percentage of the domain at which the scale diverges, if it does.
 		float midpoint {50};
 
