@@ -3,32 +3,30 @@ struct Reduction
 	float alignment;
 	float delay;
 };
-
 #define RELATION_REDUCE_T Reduction
 
-RELATION_REDUCE_T init_relation (TrajPoint base)
+RELATION_REDUCE_T init_relation (InitRelationArgs args)
 {
 	return Reduction(-1./0, 0);
 }
-void eval_relation (
-	TrajPoint base_point,
-	TrajPoint sample_point,
-	SampleWeights weight,
-	inout RELATION_REDUCE_T reduction
-) {
-	const vec3 offset = sample_point.position - base_point.position;
+void eval_relation (EvalRelationArgs args, inout RELATION_REDUCE_T reduction)
+{
 	const float alignment =
-		dot(normalize(base_point.derivative), normalize(sample_point.derivative))
-		* (sqr(relation_radius[0]) - dot(offset, offset));
+		  dot(normalize(args.base_point.derivative), normalize(args.sample_point.derivative))
+		* exp(dot(args.offset, args.offset) * (-5 / sqr(relation_radius[0])));
 
 	if (alignment > reduction.alignment) {
 		reduction.alignment = alignment;
-		reduction.delay = base_point.time - sample_point.time;
+		reduction.delay = args.base_point.time - args.sample_point.time;
 	}
 }
-vec3 color_relation (TrajPoint base, RELATION_REDUCE_T reduction)
+vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T reduction)
 {
-	float delay = sign(reduction.delay) * (relation_radius[1] - abs(reduction.delay));
-	if (relation_normalize) delay /= relation_radius[1];
-	return relation_to_color(delay);
+	if (isinf(reduction.alignment)) return relation_background_color;
+
+	if (relation_normalize) {
+		const float r = relation_radius[reduction.delay < 0 ? 1 : 2];
+		if (r != 0) reduction.delay /= r;
+	}
+	return relation_to_color(reduction.delay);
 }

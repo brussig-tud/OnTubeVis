@@ -1,22 +1,19 @@
 #define RELATION_REDUCE_T float
 
-RELATION_REDUCE_T init_relation (TrajPoint base)
+RELATION_REDUCE_T init_relation (InitRelationArgs args)
 {
 	return 0;
 }
-void eval_relation (
-	TrajPoint base_point,
-	TrajPoint sample_point,
-	SampleWeights weight,
-	inout RELATION_REDUCE_T reduction
-) {
-	const vec3 offset = sample_point.position - base_point.position;
-	reduction += dot(normalize(base_point.derivative), normalize(sample_point.derivative))
-		* exp(dot(offset, offset) * (-6 / sqr(relation_radius[0])))
-		* (weight.time * weight.angle);
-}
-vec3 color_relation (TrajPoint base, RELATION_REDUCE_T reduction)
+void eval_relation (EvalRelationArgs args, inout RELATION_REDUCE_T reduction)
 {
-	if (relation_normalize) reduction /= 2*relation_radius[1];
+	reduction +=
+		  dot(normalize(args.base_point.derivative), normalize(args.sample_point.derivative))
+		* exp(dot(args.offset, args.offset) * (-5 / sqr(relation_radius[0])))
+		* (args.time_weight * args.angle_weight);
+}
+vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T reduction)
+{
+	if (relation_normalize) reduction *=
+		1e3 / (relation_radius[0] * relation_radius[0] * relation_radius[0]  * time_weight());
 	return relation_to_color(reduction);
 }

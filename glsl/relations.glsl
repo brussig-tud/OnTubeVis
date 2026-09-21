@@ -643,20 +643,40 @@ vec3 relation_to_color (float value)
 	return pow(color, vec3(2.2));
 }
 
+// The total time radius (past + future), or a value of one if the radius is zero. Divide the final
+// relation value by this number to normalize it relative to the query's temporal extent.
+float time_weight ()
+{
+	const float r = relation_radius[1] + relation_radius[2];
+	return r == 0 ? 1 : r;
+}
+
 // Basic trajectory attributes defined for every dataset.
 struct TrajPoint {
 	vec3 position;
 	float time;
 	vec3 derivative;
 };
-// Factors to adjust the influence each sampled trajectory point has on the final relation value.
-// Each relation definition chooses which weights to apply to what values.
-struct SampleWeights {
+
+// Arguments passed to relation hooks, wrapped in a struct so new arguments can be added without
+// breaking existing relations.
+struct InitRelationArgs {
+	TrajPoint base_point;
+};
+struct EvalRelationArgs {
+	TrajPoint base_point;
+	TrajPoint sample_point;
+	vec3 offset; // sample_point.position - base_point.position
+	// Cosine of the angle between `offset` and the base point's surface normal.
+	float cos;
 	// Duration represented by the sample point.
-	float time;
+	float time_weight;
 	// Cosine term dependent on the angle between the base point's surface normal and the direction
 	// to the sample point.
-	float angle;
+	float angle_weight;
+};
+struct ColorRelationArgs {
+	TrajPoint base_point;
 };
 
 #if RELATION_DATA_VAR == DV_RELATION
@@ -668,20 +688,14 @@ struct SampleWeights {
 
 #define RELATION_REDUCE_T float
 
-RELATION_REDUCE_T init_relation (TrajPoint base)
+RELATION_REDUCE_T init_relation (InitRelationArgs args)
 {
 	return 0;
 }
-void eval_relation (
-	TrajPoint base_point,
-	TrajPoint sample_point,
-	SampleWeights weight,
-	inout RELATION_REDUCE_T reduction
-) {
-	reduction += relation_normalize ? weight.time * weight.angle : 1;
+void eval_relation (EvalRelationArgs args, RELATION_REDUCE_T reduction) {
+	reduction += relation_normalize ? args.time_weight * args.angle_weight : 1;
 }
-vec3 color_relation (TrajPoint base, RELATION_REDUCE_T reduction)
-{
+vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T reduction) {
 	return relation_to_color(reduction);
 }
 
@@ -760,8 +774,15 @@ void sample_interval (
 		const float cosine = dot(base_normal, normalize(offset));
 		if (cosine < relation_min_cos) continue;
 
-		SampleWeights weights = {sample_step, pow(.5 + .5*cosine, relation_cos_exp)};
-		eval_relation(base_point, sample_point, weights, reduction);
+		EvalRelationArgs args = {
+			base_point,
+			sample_point,
+			offset,
+			cosine,
+			sample_step, // time_weight
+			pow(.5 + .5*cosine, relation_cos_exp), // angle_weight
+		};
+		eval_relation(args, reduction);
 	}
 }
 
@@ -852,7 +873,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	};
 
 	// Value of the relation at the local point.
-	RELATION_REDUCE_T reduction = init_relation(base_point);
+	RELATION_REDUCE_T reduction = init_relation(InitRelationArgs(base_point));
 
 #if HASH_GRID_LAYOUT == LAYOUT_T_XYZ
 	// Iterate over the hash tables of all timesteps within the evaluated radius.
@@ -975,5 +996,5 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	} // for table
 #endif
 
-	return color_relation(base_point, reduction);
+	return color_relation(ColorRelationArgs(base_point), reduction);
 }
