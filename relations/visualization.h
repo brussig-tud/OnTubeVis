@@ -43,11 +43,12 @@ struct relation_vis {
 		dbg_num_intervals,  /// Number of trajectory intervals within queried cells.
 	};
 
-	/// Describes for which pairs of trajectories the relation is evaluated.
+	/// Determines for which trajectory's fragments the relation is evaluated and which trajectories
+	/// are samples for the evaluation.
 	enum class Direction : uint32_t { // uint8_t causes problems with CGV GUI.
-		ref_to_all, /// Only evaluate the relation for the reference trajectory.
-		all_to_ref, /// Evaluate the relation with the reference trajectory.
-		all_to_all, /// Evaluate the relation for every pair of trajectories.
+		ref_to_all, /// Color the reference trajectory, sample all others.
+		all_to_ref, /// Sample the reference trajectory to color all others.
+		all_to_all, /// Color every trajectory, sampling all others.
 	};
 
 	/// Determines how the relation shader checks whether an AABB intersects the query volume.
@@ -68,9 +69,10 @@ struct relation_vis {
 		std::string definition {};
 	} relation;
 
-	using ColorTransform = cgv::media::ContinuousMappingTransform;
-	struct {
+	struct ColorScale {
+		using Transform = cgv::media::ContinuousMappingTransform;
 		using Scale = cgv::media::continuous_color_scale;
+
 		/// Instance of the color scale used to visualize relations. Configured according to the
 		/// parameters in this struct.
 		std::shared_ptr<Scale> scale = std::make_shared<Scale>();
@@ -93,16 +95,22 @@ struct relation_vis {
 
 		/// Relation values mapped onto the endpoints of the color scale.
 		cgv::vec2 domain {-1, 1};
+		/// Color scale type. Determines how the domain is edited in the GUI and how it is mapped
+		/// onto the color scale.
+		enum class Layout : uint32_t {
+			monotonic, // A basic color scale, usually interpolating two colors.
+			diverging, // Color scale with a distinct midpoint, usually interpolates three colors.
+			symmetric, // A diverging scale that is symmetric around the midpoint.
+		} layout {Layout::symmetric};
 		/// Percentage of the domain at which the scale diverges, if it does.
-		float midpoint {50};
+		float midpoint {0};
+		float radius {1};
 
 		/// Parameter of the exponential transform.
 		float exponent {2};
 		/// Parameter of the logarithmic transform.
 		float log_base {10};
-		ColorTransform transform {ColorTransform::Linear};
-
-		bool diverging {false};
+		Transform transform {Transform::Linear};
 	} color_scale;
 
 	struct {
@@ -127,7 +135,6 @@ struct relation_vis {
 	float cos_cutoff {};
 	/// The value to visualize.
 	DataVar data_var {};
-	/// Determines between which trajectories the relation is evaluated.
 	Direction direction {Direction::all_to_all};
 	QueryIntersectionTest query_isect_test {QueryIntersectionTest::fast};
 	/// ID of the "reference trajectory" whose meaning depends on `direction`.
@@ -135,7 +142,7 @@ struct relation_vis {
 	/// Trajectory evaluations per unit of time to calculate relation.
 	float sample_rate {1};
 	/// Determines whether the relation is averaged (true) or accumulated (false) over time.
-	/// The exact meaning, howver, depends on the relation.
+	/// The exact meaning depends on the relation.
 	bool normalize {true};
 
 	[[nodiscard]] relation_vis();

@@ -134,33 +134,51 @@ void relation_vis::build_gui (
 		p.add_member_control(b, "Highlight", color_scale.highlight);
 		p.add_member_control(b, "Background", color_scale.background);
 
-		p.add_member_control(b, "Begin", color_scale.domain[0], "value_slider",
-			"ticks=true;min=-10;max=10;log=true"
-		);
-		p.add_member_control(b, "End", color_scale.domain[1], "value_slider",
-			"ticks=true;min=-10;max=10;log=true"
-		);
+		p.add_member_control(b, "Layout", color_scale.layout, "dropdown", std::format(
+			"enums='monotonic={},diverging={},symmetric={}'",
+			static_cast<uint32_t>(ColorScale::Layout::monotonic),
+			static_cast<uint32_t>(ColorScale::Layout::diverging),
+			static_cast<uint32_t>(ColorScale::Layout::symmetric)
+		));
 
-		p.add_member_control(b, "Diverging", color_scale.diverging, "check");
-		if (color_scale.diverging)
-			p.add_member_control(b, "Midpoint%", color_scale.midpoint, "value_slider",
-				"ticks=true;min=0;max=100;step=1"
+		switch (color_scale.layout) {
+		case ColorScale::Layout::monotonic:
+		case ColorScale::Layout::diverging:
+			p.add_member_control(b, "Begin", color_scale.domain[0], "value_slider",
+				"ticks=true;min=-10;max=10;log=true"
 			);
+			p.add_member_control(b, "End", color_scale.domain[1], "value_slider",
+				"ticks=true;min=-10;max=10;log=true"
+			);
+			if (color_scale.layout != ColorScale::Layout::diverging) break;
+			p.add_member_control(b, "Midpoint", color_scale.midpoint, "value_slider",
+				"ticks=true;min=-10;max=10;step=1"
+			);
+			break;
+		case ColorScale::Layout::symmetric:
+			p.add_member_control(b, "Midpoint", color_scale.midpoint, "value_slider",
+				"ticks=true;min=-10;max=10;log=true"
+			);
+			p.add_member_control(b, "Range", color_scale.radius, "value_slider",
+				"ticks=true;min=0;max=10;log=true"
+			);
+			break;
+		}
 
 		p.add_member_control(b, "Transform", color_scale.transform, "dropdown", std::format(
 			"enums='linear={},logarithmic={},exponential={}'",
-			static_cast<int>(ColorTransform::Linear),
-			static_cast<int>(ColorTransform::Log),
-			static_cast<int>(ColorTransform::Pow)
+			static_cast<int>(ColorScale::Transform::Linear),
+			static_cast<int>(ColorScale::Transform::Log),
+			static_cast<int>(ColorScale::Transform::Pow)
 		));
 		switch (color_scale.transform) {
-			case ColorTransform::Linear: break;
-			case ColorTransform::Log:
+			case ColorScale::Transform::Linear: break;
+			case ColorScale::Transform::Log:
 				p.add_member_control(b, "Base", color_scale.log_base, "value_slider",
 					"ticks=true;min=0.1;max=100;log=true"
 				);
 				break;
-			case ColorTransform::Pow:
+			case ColorScale::Transform::Pow:
 				p.add_member_control(b, "Exponent", color_scale.exponent, "value_slider",
 					"ticks=true;min=0.25;max=10;log=true"
 				);
@@ -191,7 +209,7 @@ auto relation_vis::on_set (
 		color_scale.scale->set_scheme(color_scale.scheme);
 	}
 	update_color_scale(ctx, colors);
-	return ptr.points_to_one_of(color_scale.diverging, color_scale.transform) ? UpdateFlag::gui : 0;
+	return ptr.points_to_one_of(color_scale.layout, color_scale.transform) ? UpdateFlag::gui : 0;
 }
 
 void relation_vis::update_color_scale (cgv::render::context& ctx, color_map_manager const& colors)
@@ -199,13 +217,23 @@ void relation_vis::update_color_scale (cgv::render::context& ctx, color_map_mana
 	// Configure color scale object.
 	auto& scale = color_scale.scale;
 
+	switch (color_scale.layout) {
+	case ColorScale::Layout::monotonic: break;
+	case ColorScale::Layout::symmetric:
+		color_scale.domain = {
+			color_scale.midpoint - color_scale.radius,
+			color_scale.midpoint + color_scale.radius};
+	case ColorScale::Layout::diverging:
+		scale->set_midpoint(color_scale.midpoint);
+		scale->set_diverging(true);
+		break;
+	}
+
 	auto min = color_scale.domain[0], max = color_scale.domain[1];
 	scale->set_reversed(min > max);
 	if (min > max) std::swap(min, max);
 	scale->set_domain({min, max});
 
-	scale->set_diverging(color_scale.diverging);
-	scale->set_midpoint(lerp(color_scale.domain[0], color_scale.domain[1], color_scale.midpoint * 0.01f));
 	scale->set_transform(color_scale.transform);
 	scale->set_pow_exponent(color_scale.exponent);
 	scale->set_log_base(color_scale.log_base);
