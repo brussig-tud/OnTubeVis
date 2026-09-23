@@ -30,11 +30,15 @@ const Direction dir_all_to_all = {2};
 #define SIG_FN_XXHASH32 1
 #define SIG_FN_Z_ORDER  2
 
-// QueryIntersectionTest
+// enum QueryIntersectionTest
 #define QIT_NONE   0
 #define QIT_SPHERE 1
 #define QIT_FAST   2
 #define QIT_EXACT  3
+
+// enum Sampling
+#define SAMPLING_ALIGNED 1
+#define SAMPLING_LOCAL   2
 
 // Static configuration ############################################################################
 // Default values are provided only for linting and must be replaced at runtime.
@@ -47,6 +51,7 @@ const Direction dir_all_to_all = {2};
 #define RELATION_DATA_VAR          0
 #define RELATION_COLOR_MAP_TEX     0
 #define RELATION_QUERY_ISECT_TEST  0
+#define RELATION_SAMPLING          0
 
 // Index at which the SSBO containing the hash grid is bound.
 const uint buffer_binding = HASH_GRID_BUFFER_BINDING;
@@ -692,14 +697,41 @@ RELATION_REDUCE_T init_relation (InitRelationArgs args)
 {
 	return 0;
 }
-void eval_relation (EvalRelationArgs args, RELATION_REDUCE_T reduction) {
+void eval_relation (EvalRelationArgs args, inout RELATION_REDUCE_T reduction)
+{
 	reduction += relation_normalize ? args.time_weight * args.angle_weight : 1;
 }
-vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T reduction) {
+vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T reduction)
+{
 	return relation_to_color(reduction);
 }
 
 #endif
+
+// Evaluate the relation for a given sample point if it is within the query volume.
+void sample_point (
+	TrajPoint base_point,
+	vec3 base_normal,
+	TrajPoint sample_point,
+	float time_weight,
+	inout RELATION_REDUCE_T reduction
+) {
+	const vec3 offset = sample_point.position - base_point.position;
+	if (dot(offset, offset) > sqr(relation_radius[0])) return;
+
+	const float cosine = dot(base_normal, normalize(offset));
+	if (cosine < relation_min_cos) return;
+
+	EvalRelationArgs args = {
+		base_point,
+		sample_point,
+		offset,
+		cosine,
+		time_weight,
+		pow(.5 + .5*cosine, relation_cos_exp), // angle_weight
+	};
+	eval_relation(args, reduction);
+}
 
 // Evaluate the relation between the base point and one or more samples on the interval.
 void sample_interval (
@@ -712,22 +744,35 @@ void sample_interval (
 	const Node n0 = nodes[interval.start_node];
 	const Node n1 = nodes[n0.next];
 	const vec2 time = unpack_interval_range(interval) * n0.duration + n0.time;
+	const float time_scale = 1.0 / n0.duration;
+
+	// Fast-path if sampling only at exactly the same time as the base point.
+	if (relation_radius.yz == 0) {
+		if (base_point.time < time[0] || time[1] < base_point.time) return;
+		const float t = (base_point.time - n0.time) * time_scale;
+		sample_point(base_point, base_normal, TrajPoint(
+			trajectory_point(n0, n1, t).xyz,
+			base_point.time,
+			trajectory_derivative(n0, n1, t)
+		), 1, reduction);
+		return;
+	}
 
 	// Intersect trajectory interval and evaluated time frame.
 	const float start    = max(time[0], base_point.time - relation_radius[1]);
 	const float end      = min(time[1], base_point.time + relation_radius[2]);
 	const float timespan = end - start;
-	if (timespan < 0) return;
+	if (timespan <= 0) return;
 
-	// Recurring spatial constants.
-	const float radius2 = sqr(relation_radius[0]);
+	// Tangent control points of the segment's spline.
 	const vec4 p1 = n0.pos_rad + (1/3.)*n0.tangent;
 	const vec4 p2 = n1.pos_rad - (1/3.)*n1.tangent;
 
 	// Skip segments fully outside the query.
 	const vec3 aabb_min = min(n0.pos_rad, min(p1, min(p2, n1.pos_rad))).xyz;
 	const vec3 aabb_max = max(n0.pos_rad, max(p1, max(p2, n1.pos_rad))).xyz;
-	if (!isect_aabb_sphere(aabb_min, aabb_max, base_point.position, radius2)) return;
+	if (!isect_aabb_sphere(aabb_min, aabb_max, base_point.position, sqr(relation_radius[0])))
+		return;
 
 	// The exact intersection test is too expensive at this point, so we only do the quick
 	// exclusion check.
@@ -745,45 +790,37 @@ void sample_interval (
 	const mat3 coeffs_dt = derive_coeffs(coeffs);
 
 	// Determine how the interval should be sampled.
-	const float sampling = 1. / max(round(timespan * relation_sample_rate), 1);
-	float sample_step = timespan * sampling;
-	const float first_sample = start + .5 * sample_step;
+	#if RELATION_SAMPLING & SAMPLING_LOCAL
+		const float sample_step = timespan / max(round(timespan * relation_sample_rate), 1);
+		const float first_sample =
+			#if RELATION_SAMPLING & SAMPLING_ALIGNED
+				start + mod(base_point.time - start, sample_step);
+			#else
+				start + .5 * sample_step;
+			#endif
+	#else // global sampling
+		const float sample_step = 1. / relation_sample_rate;
+		const float first_sample =
+			#if RELATION_SAMPLING & SAMPLING_ALIGNED
+				isinf(sample_step) ? base_point.time
+					: start + mod(base_point.time - start, sample_step);
+			#else
+				isinf(sample_step) ? 0 : ceil(start / sample_step) * sample_step;
+			#endif
+		if (first_sample < start) return;
+	#endif
 
 	// Map time to curve parameter.
-	const float time_scale  = 1.0 / n0.duration;
 	float t = (first_sample - n0.time) * time_scale;
 	const float tmax = (end - n0.time) * time_scale;
 
-	// Avoid zero weight when sampling only the base point's time.
-	if (timespan == 0) sample_step = 1;
-
 	// Evaluate the relation at one or more sample points along the interval.
-	for (; t <= tmax; t += sample_step * time_scale) {
-		// Evaluate the trajectory for the current curve parameter.
-		TrajPoint sample_point = {
+	for (; t <= tmax; t += sample_step * time_scale)
+		sample_point(base_point, base_normal, TrajPoint(
 			eval_position(coeffs, t),
 			mix(n0.time, n1.time, t),
 			trajectory_derivative(coeffs_dt, t)
-		};
-
-		// Ignore points outside the evaluation radius.
-		const vec3 offset = sample_point.position - base_point.position;
-		const float dist2 = dot(offset, offset);
-		if (dist2 > radius2) continue;
-
-		const float cosine = dot(base_normal, normalize(offset));
-		if (cosine < relation_min_cos) continue;
-
-		EvalRelationArgs args = {
-			base_point,
-			sample_point,
-			offset,
-			cosine,
-			sample_step, // time_weight
-			pow(.5 + .5*cosine, relation_cos_exp), // angle_weight
-		};
-		eval_relation(args, reduction);
-	}
+		), sample_step, reduction);
 }
 
 // Evaluate the configured relation visualization for the given point on a segment.

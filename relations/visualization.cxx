@@ -115,6 +115,9 @@ void relation_vis::build_gui (
 	p.add_member_control(b, "Future", radius.post, "value_slider",
 		std::format("min=0;max={};ticks=true;log=true", data_extent[3] * 0.1f)
 	);
+	p.add_member_control(b, "Sampling", sampling, "dropdown",
+		"enums='global,global aligned,local,local aligned'"
+	);
 	p.add_member_control(b, "Sample rate", sample_rate, "value_slider",
 		std::format("min=0;max={};ticks=true;log=true", 1e4 / data_extent[3])
 	);
@@ -195,7 +198,7 @@ auto relation_vis::on_set (
 	color_map_manager const& colors
 ) -> UpdateFlags {
 	auto const ptr = cgv::data::informed_ptr{member};
-	if (ptr.points_to_one_of(data_var, relation.definition, query_isect_test))
+	if (ptr.points_to_one_of(data_var, relation.definition, query_isect_test, sampling))
 		return UpdateFlag::shader_opts;
 	if (ptr.points_to(direction)) return UpdateFlag::gui;
 	if (ptr.points_to_one_of(cos_exp, cutoff_angle)) {
@@ -259,6 +262,7 @@ void relation_vis::set_shader_opts (cgv::render::shader_compile_options& opts) c
 	opts.define_macro("RELATION_DATA_VAR", static_cast<uint32_t>(data_var));
 	opts.define_macro("RELATION_COLOR_MAP_TEX", texture_idx::relation_color_map);
 	opts.define_macro("RELATION_QUERY_ISECT_TEST", query_isect_test);
+	opts.define_macro("RELATION_SAMPLING", sampling);
 	if (data_var == DataVar::relation && !relation.definition.empty())
 		opts.define_snippet("relation_def", relation.definition);
 }

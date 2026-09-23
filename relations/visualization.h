@@ -137,6 +137,15 @@ struct relation_vis {
 	DataVar data_var {};
 	Direction direction {Direction::all_to_all};
 	QueryIntersectionTest query_isect_test {QueryIntersectionTest::fast};
+	/// Determines how trajectories are sampled when evaluating relations. In all cases, each
+	/// interval is sampled according to some fixed time step. `global` strategies use the same
+	/// sample step for all base points and interval; as a result, short intervals may be skipped
+	/// entirely. `local` strategies, by contrast, produce at least one sample for every interval
+	/// that intersects a base point's query range. For `aligned` strategies, all samples times are
+	/// additionally offset such that one of them coincides with the base point's time.
+	enum class Sampling : uint32_t {
+		global, global_aligned, local, local_aligned,
+	} sampling {Sampling::local};
 	/// ID of the "reference trajectory" whose meaning depends on `direction`.
 	uint32_t reference_trajectory {0};
 	/// Trajectory evaluations per unit of time to calculate relation.
