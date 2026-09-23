@@ -645,6 +645,11 @@ bool on_tube_vis::handle(cgv::gui::event &e) {
 				on_set(&ao_style.enable);
 				handled = true;
 				break;
+			case '0':
+				relations.vis.data_var = relation_vis::DataVar::none;
+				on_set(&relations.vis.data_var);
+				handled = true;
+				break;
 			case 'A':
 				ao_style.enable = !ao_style.enable;
 				std::cout << "Ambient occlusion: " << (ao_style.enable ? "on" : "off") << std::endl;
