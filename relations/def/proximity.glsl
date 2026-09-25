@@ -10,7 +10,6 @@ void eval_relation (EvalRelationArgs args, inout RELATION_REDUCE_T reduction) {
 }
 vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T reduction)
 {
-	if (relation_normalize) reduction *=
-		1e3 / (relation_radius[0] * relation_radius[0] * relation_radius[0]  * time_weight());
+	if (relation_normalize) reduction *= 1e2 / (query_volume() * query_duration());
 	return relation_to_color(reduction);
 }

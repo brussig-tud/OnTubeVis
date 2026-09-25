@@ -648,9 +648,19 @@ vec3 relation_to_color (float value)
 	return pow(color, vec3(2.2));
 }
 
-// The total time radius (past + future), or a value of one if the radius is zero. Divide the final
-// relation value by this number to normalize it relative to the query's temporal extent.
-float time_weight ()
+// Calculate the volume of the spherical sector from which trajectory samples are taken when
+// evaluating relations. Divide the final relation value by this number to normalize it relative to
+// the query's spatial extent.
+float query_volume ()
+{
+	/// See https://en.wikipedia.org/wiki/Spherical_sector#Volume. The constant is 2/3 pi.
+	const float r = relation_radius[0];
+	return 2.094395102 * (r*r*r) * (1 - relation_min_cos);
+}
+// The amount of time covered by the sample query (past + future), or a value of one if both are
+// zero. Divide the final relation value by this number to normalize it relative to the query's
+// temporal extent.
+float query_duration ()
 {
 	const float r = relation_radius[1] + relation_radius[2];
 	return r == 0 ? 1 : r;
