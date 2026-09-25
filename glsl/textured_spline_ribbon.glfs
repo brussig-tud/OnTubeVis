@@ -331,7 +331,7 @@ void main()
 		bool(RELATION_DATA_VAR) ? floatBitsToUint(spline_t) : packUnorm4x8(col),
 		floatBitsToUint(alen(spline_t)),
 		floatBitsToUint(v),
-		segment_id_fs
+		uint(segment_id_fs)
 	);
 	frag_position = vec3(hit_pos_eye);
 	frag_normal = normal_fs;

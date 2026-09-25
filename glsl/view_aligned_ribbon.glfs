@@ -257,6 +257,8 @@ RCC    rcc_create_z (const vec3 orig, const vec3 dir);
 // 0 - off, 1 - visualize leaf-level bounding boxes
 #define DBG_VISUALIZE_LEAF_BBOXES 0
 
+#define RELATION_DATA_VAR 0
+
 
 uniform float radius_scale;
 uniform vec4 viewport;
@@ -875,7 +877,12 @@ void main()
 
 		// Output shading results
 		//finish_fragment(color, depth);
-		frag_albedo = uvec4(packUnorm4x8(color), floatBitsToUint(alen(t_seg)), floatBitsToUint(v), segment_id_fs);
+		frag_albedo = uvec4(
+			bool(RELATION_DATA_VAR) ? floatBitsToUint(t_seg) : packUnorm4x8(color),
+			floatBitsToUint(alen(t_seg)),
+			floatBitsToUint(v),
+			uint(segment_id_fs)
+		);
 		frag_position = vec3(pos_eye);
 		frag_normal = normal;
 		frag_tangent = tangent;
