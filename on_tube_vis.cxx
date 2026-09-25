@@ -2456,27 +2456,32 @@ void on_tube_vis::create_gui(void)
 		add_member_control(this, "Layout", relations.grid_params.layout, "dropdown",
 			"enums='3D,Strided 3D,4D'"
 		);
-		add_member_control(this, "Hash function", relations.grid_params.signature_fn, "dropdown",
+		add_member_control(this, "Hash fn.", relations.grid_params.signature_fn, "dropdown",
 			"enums='Multiply and XOR,xxHash32,Z-Order'"
 		);
-		add_member_control(this, "Cell size x", relations.grid_params.cell_size[0], "value_slider",
+
+		add_decorator("Cell size", "text");
+		add_member_control(this, "x", relations.grid_params.cell_size[0], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", extent[0] * 0.1f)
 		);
-		add_member_control(this, "Cell size y", relations.grid_params.cell_size[1], "value_slider",
+		add_member_control(this, "y", relations.grid_params.cell_size[1], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", extent[1] * 0.1f)
 		);
-		add_member_control(this, "Cell size z", relations.grid_params.cell_size[2], "value_slider",
+		add_member_control(this, "z", relations.grid_params.cell_size[2], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", extent[2] * 0.1f)
 		);
-		add_member_control(this, "Cell size t", relations.grid_params.cell_size[3], "value_slider",
+		add_member_control(this, "t", relations.grid_params.cell_size[3], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", extent[3] * 0.1f)
 		);
-		add_member_control(this, "Sample step space", relations.grid_params.sample_step[0], "value_slider",
+
+		add_decorator("Sample step", "text");
+		add_member_control(this, "Space", relations.grid_params.sample_step[0], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", min_value(relations.grid_params.cell_size) * 0.2f)
 		);
-		add_member_control(this, "Sample step time", relations.grid_params.sample_step[1], "value_slider",
+		add_member_control(this, "Time", relations.grid_params.sample_step[1], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", relations.grid_params.cell_size[3] * 0.2f)
 		);
+
 		connect_copy(
 			add_button("Rebuild")->click,
 			[this](auto const&) {build_hash_grid();}
