@@ -11,7 +11,7 @@ RELATION_REDUCE_T init_relation (InitRelationArgs args)
 void eval_relation (EvalRelationArgs args, inout RELATION_REDUCE_T reduction)
 {
 	reduction.jacobi += outerProduct(
-		(args.sample_point.derivative - args.base_point.derivative) * args.time_weight,
+		(args.sample_point.derivative - args.base_point.derivative) * args.duration,
 		1 / args.offset
 	);
 	++reduction.nsamples;

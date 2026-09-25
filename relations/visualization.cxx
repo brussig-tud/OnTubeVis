@@ -47,11 +47,6 @@ static auto const data_var_dropdown = []{
 	return cos(cgv::math::deg2rad(cutoff_angle));
 }
 
-[[nodiscard]] constexpr auto cos_cutoff (float cutoff_angle, float cos_exp) -> float
-{
-	return pow(.5 + .5*min_cos(cutoff_angle), cos_exp);
-}
-
 } // namespace
 
 
@@ -61,11 +56,6 @@ struct cgv::type::info::type_name<relation_vis::PseudoEnum<T>> {
 };
 
 
-relation_vis::relation_vis()
-{
-	cos_cutoff = ::cos_cutoff(cutoff_angle, cos_exp);
-}
-
 void relation_vis::build_gui (
 	cgv::gui::provider&             p,
 	uint32_t                        num_trajectories,
@@ -73,9 +63,8 @@ void relation_vis::build_gui (
 	std::vector<std::string> const& color_maps
 ) {
 	auto const b = dynamic_cast<cgv::base::base*>(&p);
-	p.add_member_control(b, "Show", data_var, "dropdown", data_var_dropdown);
 	connect_copy(
-		p.add_button("Load relation")->click,
+		p.add_button("Load")->click,
 		[&](auto&& _) {
 			auto path = cgv::gui::file_open_dialog(
 				"Load relation definition", "*", "relations/def");
@@ -93,6 +82,7 @@ void relation_vis::build_gui (
 			dynamic_cast<cgv::base::base*>(&p)->on_set(&relation.definition);
 		}
 	);
+	p.add_member_control(b, "Show", data_var, "dropdown", data_var_dropdown);
 	p.add_member_control(b, "Normalize", normalize, "check");
 
 	// Evaluation.
@@ -105,6 +95,7 @@ void relation_vis::build_gui (
 		p.add_member_control(b, "Reference traj.", reference_trajectory, "value_slider",
 			std::format("min=0;max={};step=1;ticks=true", num_trajectories - 1)
 		);
+
 	p.add_decorator("Query radius", "text");
 	p.add_member_control(b, "Spatial", radius.space, "value_slider",
 		std::format("min=0;max={};ticks=true;log=true", max_value(cgv::vec3{data_extent}) * 0.1f)
@@ -115,21 +106,30 @@ void relation_vis::build_gui (
 	p.add_member_control(b, "Future", radius.post, "value_slider",
 		std::format("min=0;max={};ticks=true;log=true", data_extent[3] * 0.1f)
 	);
-	p.add_member_control(b, "Sampling", sampling, "dropdown",
-		"enums='global,global aligned,local,local aligned'"
-	);
-	p.add_member_control(b, "Sample rate", sample_rate, "value_slider",
-		std::format("min=0;max={};ticks=true;log=true", 1e4 / data_extent[3])
-	);
-	p.add_member_control(b, "Directionality", cos_exp, "value_slider",
-		"min=0;max=100;ticks=true;log=true"
-	);
-	p.add_member_control(b, "Cutoff angle in °", cutoff_angle, "value_slider",
+	p.add_member_control(b, "Angle in °", cutoff_angle, "value_slider",
 		"min=0;max=180;ticks=true"
 	);
-	p.add_view("Cutoff weight", cos_cutoff);
-	p.add_member_control(b, "Query intersection", query_isect_test, "dropdown",
+	p.add_member_control(b, "Isect. test", query_isect_test, "dropdown",
 		"enums='none,sphere,fast,exact'"
+	);
+
+	p.add_decorator("Sampling", "text");
+	p.add_member_control(b, "Strategy", sampling, "dropdown",
+		"enums='global,global aligned,local,local aligned'"
+	);
+	p.add_member_control(b, "Frequency", sample_rate, "value_slider",
+		std::format("min=0;max={};ticks=true;log=true", 1e4 / data_extent[3])
+	);
+
+	p.add_decorator("Distance weight exponent", "text");
+	p.add_member_control(b, "Space", weight_exp.distance, "value_slider",
+		"min=0;max=10;ticks=true;log=true"
+	);
+	p.add_member_control(b, "Time", weight_exp.time_diff, "value_slider",
+		"min=0;max=10;ticks=true;log=true"
+	);
+	p.add_member_control(b, "Angle", weight_exp.angle, "value_slider",
+		"min=0;max=10;ticks=true;log=true"
 	);
 
 	if (p.begin_tree_node("Color scale", color_scale)) {
@@ -201,10 +201,6 @@ auto relation_vis::on_set (
 	if (ptr.points_to_one_of(data_var, relation.definition, query_isect_test, sampling))
 		return UpdateFlag::shader_opts;
 	if (ptr.points_to(direction)) return UpdateFlag::gui;
-	if (ptr.points_to_one_of(cos_exp, cutoff_angle)) {
-		cos_cutoff = ::cos_cutoff(cutoff_angle, cos_exp);
-		gui.update_member(&cos_cutoff);
-	}
 	if (!ptr.points_to_member_of(color_scale)) return 0;
 
 	if (ptr.points_to(color_scale.base)) {
@@ -271,19 +267,30 @@ void relation_vis::set_uniforms (
 	cgv::render::context&        c,
 	cgv::render::shader_program& p
 ) const {
-	auto min = color_scale.domain[0], max = color_scale.domain[1];
-	if (min > max) std::swap(min, max);
+	p.set_uniform(c, "relation_normalize", normalize);
+	p.set_uniform(c, "relation_direction.value", static_cast<uint32_t>(direction));
+	p.set_uniform(c, "relation_ref_traj", reference_trajectory);
+
 	auto const r = radius;
-	p.set_uniform(c, "relation_radius",           cgv::vec3{r.space, r.pre, r.post});
-	p.set_uniform(c, "relation_sample_rate",      sample_rate                     );
-	p.set_uniform(c, "relation_direction.value",  static_cast<uint32_t>(direction));
-	p.set_uniform(c, "relation_ref_traj",         reference_trajectory            );
-	p.set_uniform(c, "relation_normalize",        normalize                       );
-	p.set_uniform(c, "relation_color_domain",     cgv::vec2{min, max}             );
-	p.set_uniform(c, "relation_highlight_color",  color_scale.highlight           );
-	p.set_uniform(c, "relation_background_color", color_scale.background          );
-	p.set_uniform(c, "relation_cos_exp",          cos_exp                         );
-	p.set_uniform(c, "relation_min_cos",          min_cos(cutoff_angle)           );
+	auto const min_cos = ::min_cos(cutoff_angle);
+	p.set_uniform(c, "relation_radius", cgv::vec4{r.space, r.pre, r.post, min_cos});
+
+	p.set_uniform(c, "relation_sample_rate", sample_rate);
+
+	auto const w = weight_exp;
+	auto const sqr = [](auto x) {return x*x;};
+	p.set_uniform(c, "relation_weight_norm", cgv::vec3{
+		1 / (r.space*r.space),
+		1 / sqr(fmax(r.pre, r.post)),
+		1 / (1 - min_cos)
+	});
+	p.set_uniform(c, "relation_weight_exp", cgv::vec3{w.distance, w.time_diff, w.angle});
+
+	auto domain = color_scale.domain;
+	if (domain[0] > domain[1]) std::swap(domain[0], domain[1]);
+	p.set_uniform(c, "relation_color_domain", domain);
+	p.set_uniform(c, "relation_highlight_color", color_scale.highlight);
+	p.set_uniform(c, "relation_background_color", color_scale.background);
 }
 
 auto relation_vis::data_var_name () const -> std::string_view
@@ -297,8 +304,7 @@ auto get_reflection_traits (enum relation_vis::DataVar const&)
 {
 	return {
 		"none,"
-		"proximity,"
-		"alignment,"
+		"relation,"
 		"dbg_seg_t,"
 		"dbg_velocity,"
 		"dbg_index_xyz,"
@@ -308,6 +314,5 @@ auto get_reflection_traits (enum relation_vis::DataVar const&)
 		"dbg_local_interval,"
 		"dbg_num_cells,"
 		"dbg_num_intervals,"
-		"dbg_num_samples,"
 	};
 }

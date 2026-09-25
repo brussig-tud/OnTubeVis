@@ -121,18 +121,20 @@ struct relation_vis {
 	/// For each trajectory point, calculate its relation to samples of other trjectories within the
 	/// given distance.
 	radius;
-	/// Exponent of the cosine term optionally applied to the relation. Larger values reduce the
-	/// influence of samples further away from the surface normal on the relation value at any given
-	/// point.
-	float cos_exp {5};
+	struct {
+		float distance {1};
+		float time_diff {1};
+		float angle {1};
+	}
+	/// Relations may weight samples depending on their spatial, temporal, and angular distance from
+	/// the base point. The distances are normalized such that they have a value of one at the base
+	/// point (or, for the angle, directly above it), and a value of zero at the edge of the query
+	/// region. Each value is then taken to the power given in this struct.
+	weight_exp;
 	/// If the direction from a fragment's surface point to a sample point on another trajectory
 	/// deviates from the surface normal by more than this angle, the sample does not contribute to
 	/// the relation. In degrees.
 	float cutoff_angle {90};
-	/// Samples for which the cosine term is no larger than this value may be ignored. Range [0, 1].
-	/// Not set directly, but calculated from `cos_exp` and `cutoff_angle`. Stored as a member
-	/// variable so it can be shown in a GUI view.
-	float cos_cutoff {};
 	/// The value to visualize.
 	DataVar data_var {};
 	Direction direction {Direction::all_to_all};
@@ -153,8 +155,6 @@ struct relation_vis {
 	/// Determines whether the relation is averaged (true) or accumulated (false) over time.
 	/// The exact meaning depends on the relation.
 	bool normalize {true};
-
-	[[nodiscard]] relation_vis();
 
 	/// Generate GUI elements to control member variables.
 	void build_gui (

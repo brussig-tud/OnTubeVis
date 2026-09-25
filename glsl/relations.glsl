@@ -143,7 +143,7 @@ layout(binding = RELATION_COLOR_MAP_TEX) uniform sampler2D color_map_tex;
 uniform vec4      hash_grid_cell_size;
 uniform vec4      hash_grid_scale; // == 1 / hash_grid_cell_size
 uniform uint      hash_grid_data_len;
-uniform vec3      relation_radius;
+uniform vec4      relation_radius;
 uniform float     relation_sample_rate;
 uniform Direction relation_direction;
 uniform uint      relation_ref_traj;
@@ -151,12 +151,13 @@ uniform bool      relation_normalize;
 uniform vec2      relation_color_domain;
 uniform vec3      relation_highlight_color;
 uniform vec3      relation_background_color;
-uniform float     relation_cos_exp;
+uniform vec3      relation_weight_norm;
+uniform vec3      relation_weight_exp;
 
-// When evaluating relations, samples may be ignored if the cosine of the angle between the
-// direction from the base point to the sample point and the surface normal at the base point is
-// less than this value.
-uniform float relation_min_cos;
+#define R_SPACE relation_radius[0]
+#define R_PRE   relation_radius[1]
+#define R_POST  relation_radius[2]
+#define MIN_COS relation_radius[3]
 
 // Local functions #################################################################################
 // Memory ==========================================================================================
@@ -486,11 +487,11 @@ struct GridRange
 // Calculate the range of grid cells intersecting the relation query.
 GridRange query_range (vec4 center, vec3 normal)
 {
-	if (RELATION_QUERY_ISECT_TEST <= QIT_SPHERE || relation_min_cos <= -1 + 1e-3)
+	if (RELATION_QUERY_ISECT_TEST <= QIT_SPHERE || MIN_COS <= -1 + 1e-3)
 		// Without a maximum angle, the query volume is simply a ball.
 		return GridRange(
-			cell_index(center - vec4(vec3(relation_radius[0]), relation_radius[1])),
-			cell_index(center + vec4(vec3(relation_radius[0]), relation_radius[2]))
+			cell_index(center - vec4(vec3(R_SPACE), R_PRE)),
+			cell_index(center + vec4(vec3(R_SPACE), R_POST))
 		);
 
 	// Limits of the query's AABB in world space.
@@ -499,25 +500,24 @@ GridRange query_range (vec4 center, vec3 normal)
 	// In the three spatial dimensions, the query encompasses a spherical sector; its AABB is
 	// calculated according to https://stackoverflow.com/a/64689996
 	for (uint d = 0; d < 3; ++d) {
-		const float min_cos = relation_min_cos;
 		const float n = normal[d];
 		float lo = 0, hi = 0;
 
-		if (-n >= min_cos) lo = -1;
-		if (n >= min_cos) hi = 1;
+		if (-n >= MIN_COS) lo = -1;
+		if (n >= MIN_COS) hi = 1;
 
 		if (lo == 0 || hi == 0) {
-			const float a = n * min_cos;
-			const float b = sqrt((1 - sqr(min_cos)) / (1 - sqr(n))) * (1 - sqr(n));
+			const float a = n * MIN_COS;
+			const float b = sqrt((1 - sqr(MIN_COS)) / (1 - sqr(n))) * (1 - sqr(n));
 			lo = min(lo, a - b);
 			hi = max(hi, a + b);
 		}
-		pmin[d] = center[d] + relation_radius[0] * lo;
-		pmax[d] = center[d] + relation_radius[0] * hi;
+		pmin[d] = center[d] + R_SPACE * lo;
+		pmax[d] = center[d] + R_SPACE * hi;
 	}
 	// Temporally, the query is simply an interval.
-	pmin[3] = center[3] - relation_radius[1];
-	pmax[3] = center[3] + relation_radius[2];
+	pmin[3] = center[3] - R_PRE;
+	pmax[3] = center[3] + R_POST;
 	return GridRange(cell_index(pmin), cell_index(pmax));
 }
 
@@ -551,11 +551,10 @@ bool isect_aabb_sphere (vec3 bmin, vec3 bmax, vec3 center, float radius2)
 bool aabb_outside_query (
 	/*AABB*/ vec3 center, vec3 halfext, /*query*/ vec3 origin, vec3 dir, out float proj_max
 ) {
-	if (RELATION_QUERY_ISECT_TEST < QIT_FAST || relation_min_cos <= -1 + 1e-3) return false;
 
 	const vec3 c = center - origin;
 	proj_max = dot(c, dir) + dot(halfext, abs(dir));
-	return proj_max < min(0, relation_radius[0] * relation_min_cos);
+	return proj_max < min(0, R_SPACE * MIN_COS);
 }
 // Test whether a given AABB intersects the query volume, a spherical sector around the surface
 // normal, whose opening angle is defined by the cosine term's exponent and cutoff. The function
@@ -566,7 +565,7 @@ bool aabb_outside_query (
 bool isect_aabb_query (
 	/*AABB*/ vec3 center, vec3 halfext, /*query*/ vec3 origin, vec3 dir, out float proj_max
 ) {
-	if (RELATION_QUERY_ISECT_TEST < QIT_FAST || relation_min_cos <= -1 + 1e-3) return true;
+	if (RELATION_QUERY_ISECT_TEST < QIT_FAST || MIN_COS <= -1 + 1e-3) return true;
 
 	// Projections onto the query direction must intersect.
 	if (aabb_outside_query(center, halfext, origin, dir, proj_max)) return false;
@@ -608,8 +607,8 @@ bool isect_aabb_query (
 		const vec3 p1 = verts[edges[i][1]];
 
 		// Check whether either of the end points lies inside the query.
-		if (dot(p0, dir) > length(p0) * relation_min_cos) return true;
-		if (dot(p1, dir) > length(p1) * relation_min_cos) return true;
+		if (dot(p0, dir) > length(p0) * MIN_COS) return true;
+		if (dot(p1, dir) > length(p1) * MIN_COS) return true;
 
 		// If not, find the point on the edge with minimal angle to the query axis and check whether
 		// it lies inside the query.
@@ -625,7 +624,7 @@ bool isect_aabb_query (
 
 		const float t = d0 / (d0 - d1);
 		const vec3 pmax = p0 + t*e;
-		if (dot(pmax, dir) >= length(pmax) * relation_min_cos) return true;
+		if (dot(pmax, dir) >= length(pmax) * MIN_COS) return true;
 	}
 	return false;
 #endif // QUERY_INTERSECTION_TEST
@@ -654,15 +653,15 @@ vec3 relation_to_color (float value)
 float query_volume ()
 {
 	/// See https://en.wikipedia.org/wiki/Spherical_sector#Volume. The constant is 2/3 pi.
-	const float r = relation_radius[0];
-	return 2.094395102 * (r*r*r) * (1 - relation_min_cos);
+	const float r = R_SPACE;
+	return 2.094395102 * (r*r*r) * (1 - MIN_COS);
 }
 // The amount of time covered by the sample query (past + future), or a value of one if both are
 // zero. Divide the final relation value by this number to normalize it relative to the query's
 // temporal extent.
 float query_duration ()
 {
-	const float r = relation_radius[1] + relation_radius[2];
+	const float r = R_PRE + R_POST;
 	return r == 0 ? 1 : r;
 }
 
@@ -684,15 +683,42 @@ struct EvalRelationArgs {
 	vec3 offset; // sample_point.position - base_point.position
 	// Cosine of the angle between `offset` and the base point's surface normal.
 	float cos;
-	// Duration represented by the sample point.
-	float time_weight;
-	// Cosine term dependent on the angle between the base point's surface normal and the direction
-	// to the sample point.
-	float angle_weight;
+	// Duration represented by the sample point, or a value of one if the query's temporal extent
+	// is zero.
+	float duration;
 };
 struct ColorRelationArgs {
 	TrajPoint base_point;
 };
+
+// Weight the sample point by its distance from the base point, with a weight of one directly at the
+// base point and zero at the edge of the query.
+float weight_space (EvalRelationArgs args)
+{
+	return pow(
+		1 - dot(args.offset, args.offset) * relation_weight_norm[0],
+		relation_weight_exp[0]
+	);
+}
+float weight_time (EvalRelationArgs args)
+{
+	const float r = max(R_PRE, R_POST);
+	return pow(
+		1 - sqr(abs(args.base_point.time - args.sample_point.time)) * relation_weight_norm[1],
+		relation_weight_exp[1]
+	);
+}
+float weight_angle (EvalRelationArgs args)
+{
+	return pow(
+		(args.cos - MIN_COS) * relation_weight_norm[2],
+		relation_weight_exp[2]
+	);
+}
+float weight_all (EvalRelationArgs args)
+{
+	return weight_space(args) * weight_time(args) * weight_angle(args);
+}
 
 #if RELATION_DATA_VAR == DV_RELATION
 // User defined relation:
@@ -709,7 +735,7 @@ RELATION_REDUCE_T init_relation (InitRelationArgs args)
 }
 void eval_relation (EvalRelationArgs args, inout RELATION_REDUCE_T reduction)
 {
-	reduction += relation_normalize ? args.time_weight * args.angle_weight : 1;
+	reduction += relation_normalize ? args.duration * weight_all(args) : 1;
 }
 vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T reduction)
 {
@@ -723,22 +749,21 @@ void sample_point (
 	TrajPoint base_point,
 	vec3 base_normal,
 	TrajPoint sample_point,
-	float time_weight,
+	float duration,
 	inout RELATION_REDUCE_T reduction
 ) {
 	const vec3 offset = sample_point.position - base_point.position;
-	if (dot(offset, offset) > sqr(relation_radius[0])) return;
+	if (dot(offset, offset) > sqr(R_SPACE)) return;
 
 	const float cosine = dot(base_normal, normalize(offset));
-	if (cosine < relation_min_cos) return;
+	if (cosine < MIN_COS) return;
 
 	EvalRelationArgs args = {
 		base_point,
 		sample_point,
 		offset,
 		cosine,
-		time_weight,
-		pow(.5 + .5*cosine, relation_cos_exp), // angle_weight
+		duration,
 	};
 	eval_relation(args, reduction);
 }
@@ -769,8 +794,8 @@ void sample_interval (
 	}
 
 	// Intersect trajectory interval and evaluated time frame.
-	const float start    = max(time[0], base_point.time - relation_radius[1]);
-	const float end      = min(time[1], base_point.time + relation_radius[2]);
+	const float start    = max(time[0], base_point.time - R_PRE);
+	const float end      = min(time[1], base_point.time + R_POST);
 	const float timespan = end - start;
 	if (timespan <= 0) return;
 
@@ -781,7 +806,7 @@ void sample_interval (
 	// Skip segments fully outside the query.
 	const vec3 aabb_min = min(n0.pos_rad, min(p1, min(p2, n1.pos_rad))).xyz;
 	const vec3 aabb_max = max(n0.pos_rad, max(p1, max(p2, n1.pos_rad))).xyz;
-	if (!isect_aabb_sphere(aabb_min, aabb_max, base_point.position, sqr(relation_radius[0])))
+	if (!isect_aabb_sphere(aabb_min, aabb_max, base_point.position, sqr(R_SPACE)))
 		return;
 
 	// The exact intersection test is too expensive at this point, so we only do the quick
@@ -909,7 +934,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	#endif
 
 	// Square of the spatial query radius.
-	const float radius2 = sqr(relation_radius[0]);
+	const float radius2 = sqr(R_SPACE);
 	// AABB of cells to include in the relation.
 	const GridRange qrange = query_range(local_point, world_normal);
 
@@ -942,7 +967,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		const float ry_hi = z == qrange.max.z ? 0
 			: sqrt(radius2 - sqr((z + .5) * hash_grid_cell_size.z - local_point.z));
 		// maximum y radius for the current z index, ignoring cosine cutoff
-		const float ry = z == local_index.z ? relation_radius[0] : max(ry_lo, ry_hi);
+		const float ry = z == local_index.z ? R_SPACE : max(ry_lo, ry_hi);
 
 	#if RELATION_QUERY_ISECT_TEST < QIT_SPHERE
 		const int y_min = qrange.min.y;
@@ -965,7 +990,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		float proj_max;
 		if (!isect_aabb_query(
 			vec3(local_point.x, vec2(y, z) * hash_grid_cell_size.yz),
-			vec3(relation_radius[0], .5 * hash_grid_cell_size.yz),
+			vec3(R_SPACE, .5 * hash_grid_cell_size.yz),
 			local_point.xyz,
 			world_normal,
 			proj_max

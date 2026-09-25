@@ -6,10 +6,8 @@ RELATION_REDUCE_T init_relation (InitRelationArgs args)
 }
 void eval_relation (EvalRelationArgs args, inout RELATION_REDUCE_T reduction)
 {
-	reduction +=
-		  dot(normalize(args.base_point.derivative), normalize(args.sample_point.derivative))
-		* exp(dot(args.offset, args.offset) * (-5 / sqr(relation_radius[0])))
-		* (args.time_weight * args.angle_weight);
+	reduction += dot(normalize(args.base_point.derivative), normalize(args.sample_point.derivative))
+		* (args.duration * weight_all(args));
 }
 vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T reduction)
 {

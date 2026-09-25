@@ -13,7 +13,7 @@ void eval_relation (EvalRelationArgs args, inout RELATION_REDUCE_T reduction)
 {
 	const float alignment =
 		  dot(normalize(args.base_point.derivative), normalize(args.sample_point.derivative))
-		* exp(dot(args.offset, args.offset) * (-5 / sqr(relation_radius[0])));
+		* weight_space(args);
 
 	if (alignment > reduction.alignment) {
 		reduction.alignment = alignment;
