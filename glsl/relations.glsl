@@ -127,7 +127,7 @@ const uint sizeof_interval = 8; // in bytes
 // bound, both in range [0, 1], relative to the segment's duration.
 vec2 unpack_interval_range(Interval interval)
 {
-	return vec2(interval.range & 0xffff, interval.range >> 16) * (1.0/0xffff);
+	return vec2(interval.range & 0xffffu, interval.range >> 16) * (1.0/0xffff);
 }
 
 // Bindings ########################################################################################
@@ -324,7 +324,7 @@ uint signature (Index index)
 	uint sig = 0;
 	for (uint d = 0; d < index_dims; ++d)
 		for (uint b = 0; b <= (HASH_GRID_LAYOUT == LAYOUT_XYZT ? 0 : 8); b += 8)
-			sig |= bit_spread_lut[uidx[d]>>b & 0xff] << (b*index_dims + d);
+			sig |= bit_spread_lut[uidx[d]>>b & 0xffu] << (b*index_dims + d);
 	return sig;
 #endif
 }
@@ -782,7 +782,7 @@ void sample_interval (
 	const float time_scale = 1.0 / n0.duration;
 
 	// Fast-path if sampling only at exactly the same time as the base point.
-	if (relation_radius.yz == 0) {
+	if (relation_radius.yz == vec2(0)) {
 		if (base_point.time < time[0] || time[1] < base_point.time) return;
 		const float t = (base_point.time - n0.time) * time_scale;
 		sample_point(base_point, base_normal, TrajPoint(
