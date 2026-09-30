@@ -78,12 +78,15 @@ set(ADDITIONAL_INCLUDES
 	"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rd/fastgl>" "$<INSTALL_INTERFACE:3rd/fastgl>"
 	"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rd/peridetic>" "$<INSTALL_INTERFACE:3rd/peridetic>"
 	"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rd/wgs84mercator>" "$<INSTALL_INTERFACE:3rd/wgs84mercator>"
+	"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rd/ply>" "$<INSTALL_INTERFACE:3rd/ply>"
 )
 # - C/C++ sources
 set(SOURCES
 	# 3rd party code
 	# - FastGL library
 	3rd/fastgl/fastgl.cpp
+	# - PLY library
+	3rd/ply/ply.c
 
 	# arclength helpers
 	arclength/bezier.cpp
@@ -107,11 +110,14 @@ set(SOURCES
 	mapping_legend.cxx
 	obd_handler.cxx
 	on_tube_vis.cxx
+	ply_handler.cxx
 	regulargrid.cxx
 	sepia_handler.cxx
 	tasc_handler.cxx
+	tcs_handler.cxx
 	textured_spline_tube_renderer.cxx
 	tgen_handler.cxx
+	thick_line_data.cxx
 	traj_loader.cxx
 	tellocsv_handler.cxx
 	voxelizer.cxx
@@ -126,6 +132,8 @@ set(HEADERS
 	3rd/peridetic/peridetic.h
 	# - Wgs84mercator geoid utility header-only library
 	3rd/wgs84mercator/WGS84toCartesian.hpp
+	# - PLY library
+	3rd/ply/ply.h
 	
 	# arclength helpers
 	arclength/bezier.h
@@ -160,12 +168,15 @@ set(HEADERS
 	mapping_legend.h
 	obd_handler.h
 	on_tube_vis.h
+	ply_handler.h
 	quadratic_bezier_tube.h
 	regulargrid.h
 	sepia_handler.h
 	tasc_handler.h
+	tcs_handler.h
 	textured_spline_tube_renderer.h
 	tgen_handler.h
+	thick_line_data.h
 	traj_loader.h
 	tellocsv_handler.h
 	voxel_grid.h
