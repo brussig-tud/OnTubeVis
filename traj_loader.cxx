@@ -1885,12 +1885,12 @@ bool traj_manager<flt_type>::can_load (const std::string &path) const
 		return false;
 	}
 
-	// assume it's a file that can just be opened
-	std::ifstream file(path);
+	// PLY files may contain binary vertex data, which text mode changes on Windows.
+	// TODO: This is a dirty hack that will need a wider architectural change to fix properly, but for now this will do.
 	std::string ext = cgv::utils::to_lower(cgv::utils::file::get_extension(path));
-
-	if (!file.is_open())
-	{
+	const std::ios::openmode mode = ext == "ply" ? std::ios::in | std::ios::binary : std::ios::in;
+	std::ifstream file(path, mode);
+	if (!file.is_open()) {
 		std::cout << "traj_loader: cannot open file:" << std::endl << '"'<<path<<'"' << std::endl << std::endl;
 		return false;
 	}
@@ -1919,9 +1919,10 @@ unsigned traj_manager<flt_type>::load (const std::string &path)
 		return -1;
 	}
 
-	// assume it's a file that can just be opened
-	std::ifstream file(path);
 	std::string ext = cgv::utils::to_lower(cgv::utils::file::get_extension(path));
+	// Keep the byte stream intact for binary PLY data on Windows.
+	const std::ios::openmode mode = ext == "ply" ? std::ios::in | std::ios::binary : std::ios::in;
+	std::ifstream file(path, mode);
 
 	if (!file.is_open())
 	{
