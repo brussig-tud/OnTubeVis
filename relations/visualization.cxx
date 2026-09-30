@@ -280,7 +280,7 @@ void relation_vis::set_uniforms (
 	auto const w = weight_exp;
 	auto const sqr = [](auto x) {return x*x;};
 	p.set_uniform(c, "relation_weight_norm", cgv::vec3{
-		1 / (r.space*r.space),
+		1 / sqr(r.space),
 		1 / sqr(fmax(r.pre, r.post)),
 		1 / (1 - min_cos)
 	});

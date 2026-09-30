@@ -10,7 +10,7 @@ RELATION_REDUCE_T init_relation (InitRelationArgs args)
 }
 void eval_relation (EvalRelationArgs args, inout RELATION_REDUCE_T reduction)
 {
-	const float weight = (args.duration * weight_all(args));
+	const float weight = args.duration * weight_all(args);
 	reduction.speed += length(args.sample_point.derivative) * weight;
 	reduction.weight += weight;
 }

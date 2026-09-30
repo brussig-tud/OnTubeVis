@@ -1,6 +1,6 @@
 struct Reduction {
-	float dist2;
 	vec3 offset;
+	float dist2;
 };
 #define RELATION_REDUCE_T Reduction
 
