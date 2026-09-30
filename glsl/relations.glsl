@@ -741,7 +741,12 @@ vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T reduction)
 {
 	return relation_to_color(reduction);
 }
+#endif
 
+// Unless specifically requested in the relation definition, only points on different trajectories
+// than the base point will be sampled.
+#ifndef RELATION_SAMPLE_BASE_TRAJ
+	#define RELATION_SAMPLE_BASE_TRAJ 0
 #endif
 
 // Evaluate the relation for a given sample point if it is within the query volume.
@@ -1052,8 +1057,10 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 			if (relation_direction == dir_all_to_ref
 				// Only evaluate intervals of the reference trajectory.
 				? nodes[interval.start_node].traj_id == relation_ref_traj
-				// Evaluate all intervals on different trajectories.
-				: nodes[interval.start_node].traj_id != start.traj_id
+				// Evaluate only intervals on different trajectories, unless the relation
+				// explicitely requested to include the base point's trajectory as well.
+				: (nodes[interval.start_node].traj_id != start.traj_id
+					|| bool(RELATION_SAMPLE_BASE_TRAJ))
 			) sample_interval(interval, base_point, world_normal, reduction);
 		}
 #if HASH_GRID_LAYOUT == LAYOUT_XYZT
