@@ -303,7 +303,7 @@ uint signature (Index index)
 	const UIndex uidx = index;
 
 #if HASH_GRID_SIGNATURE_FN == SIG_FN_MULT_XOR
-	const uint[] c = {1u, 73856093u, 19349663u, 83492791u};
+	const uint[] c = {73856093u, 19349663u, 83492791u, 1u};
 
 	uint sig = 0;
 	for (uint d = 0; d < index_dims; ++d) sig ^= c[d]*uidx[d];
@@ -333,6 +333,10 @@ uint signature (Index index)
 Ptr bucket (Span table, uint signature, uint hash_fn)
 {
 	uint hash = signature;
+
+	#if HASH_GRID_SIGNATURE_FN == SIG_FN_Z_ORDER
+		hash /= slots_per_bucket;
+	#endif
 
 	if (hash_fn != 0) {
 		// PCG hash relation by O'Neill 2014, as implemented by Jarzynski and Olano 2020.

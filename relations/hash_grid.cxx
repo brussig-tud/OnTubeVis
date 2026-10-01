@@ -54,7 +54,7 @@ constexpr auto spread4 = bit_spread_lut(4);
 
 
 hash_grid::hash_grid(params const& params, uint32_t initial_buckets)
-	: _cell_size {params.layout == layout::xyz
+	: _cell_size {params.layout == Layout::xyz
 		// A 3D grid is equivalent to a 4D grid with infinite cell extent in time.
 		? vec4{vec3{params.cell_size}, std::numeric_limits<float>::infinity()}
 		: params.cell_size
@@ -65,7 +65,7 @@ hash_grid::hash_grid(params const& params, uint32_t initial_buckets)
 	, _signature_fn    {params.signature_fn}
 	, _initial_buckets {initial_buckets}
 {
-	if (_layout != layout::t_xyz) _tables.emplace_back(_initial_buckets, 0);
+	if (_layout != Layout::t_xyz) _tables.emplace_back(_initial_buckets, 0);
 
 	if constexpr (log_level > 0) {
 		using std::operator""sv;
@@ -104,9 +104,9 @@ void hash_grid::reorganize ()
 			sortdim = dim;
 		};
 
-		if (_layout != layout::xyzt) sort_by(3); // time
+		if (_layout != Layout::xyzt) sort_by(3); // time
 		for (auto dim : {2, 1, 0}) sort_by(dim); // z, y, x
-		if (_layout == layout::xyzt) sort_by(3); // time
+		if (_layout == Layout::xyzt) sort_by(3); // time
 
 		return lidx[sortdim] < ridx[sortdim];
 	});
@@ -258,7 +258,7 @@ void hash_grid::add_segment (
 			auto isect_count  = -1; // Number of grid intersections - 1.
 
 			// Indices differ in at least one component, maybe multiple.
-			for (auto d = 0u; d < (_layout == layout::xyz ? 3u : 4u); ++d) {
+			for (auto d = 0u; d < (_layout == Layout::xyz ? 3u : 4u); ++d) {
 				if (prev_index[d] == index[d]) continue;
 				/// Coordinate of the hyper-plane separating the the two cells in dimension d.
 				/// If the step size is small enough that there should only ever be one crossing per
@@ -302,7 +302,7 @@ auto hash_grid::upload () -> gl_buffer
 	auto       buckets = reinterpret_cast<Bucket*>(base);
 
 	// For a strided grid, store timestep, address, and size of each table.
-	if (_layout == layout::t_xyz) {
+	if (_layout == Layout::t_xyz) {
 		auto const timesteps  = reinterpret_cast<int32_t*>(base);
 		auto const tables     = reinterpret_cast<cgv::uvec2*>(timesteps + _tables.size());
 		           buckets    = reinterpret_cast<Bucket*>(tables + _tables.size());
@@ -371,7 +371,7 @@ void hash_grid::set_uniforms (cgv::render::context& c, cgv::render::shader_progr
 	p.set_uniform(c, "hash_grid_cell_size", _cell_size);
 	p.set_uniform(c, "hash_grid_scale",     _scale);
 	p.set_uniform(c, "hash_grid_data_len",
-		_layout == layout::t_xyz ? static_cast<uint32_t>(_tables.size()) : _tables[0].length);
+		_layout == Layout::t_xyz ? static_cast<uint32_t>(_tables.size()) : _tables[0].length);
 }
 
 auto hash_grid::num_buckets() const -> size_t
@@ -383,7 +383,7 @@ auto hash_grid::num_buckets() const -> size_t
 
 auto hash_grid::buffer_size () const -> size_t
 {
-	return (_layout == layout::t_xyz
+	return (_layout == Layout::t_xyz
 			? _tables.size() * 3 * sizeof(uint32_t) // address, size, timestep
 			: 0 // only one table, no additional info required
 		)
@@ -473,7 +473,7 @@ auto hash_grid::find_or_insert (Index index, float growth_factor, uint32_t new_c
 auto hash_grid::table (int32_t timestep) -> Table&
 {
 	// Only strided grids have more than one table.
-	if (_layout != layout::t_xyz) return _tables[0];
+	if (_layout != Layout::t_xyz) return _tables[0];
 
 	// Search for the requested timestep.
 	auto const table = std::ranges::lower_bound(_tables, timestep, {}, [](auto const& table) {
@@ -640,19 +640,19 @@ auto hash_grid::try_find_or_insert (Table& table, Index query, uint32_t new_cell
 
 auto hash_grid::signature (Index index) const noexcept -> Signature
 {
-	auto const dims = _layout == layout::xyzt ? 4u : 3u;
+	auto const dims = _layout == Layout::xyzt ? 4u : 3u;
 	/// Treat the indices as unsigned integers.
 	auto const uidx = *reinterpret_cast<cgv::uvec4 const*>(&index);
 
 	switch (_signature_fn) {
-	case signature_fn::mult_xor: {
-		/// Prime constants taken from Teschner et al., except for `c0 = 1` as in Müller et al.
-		auto const c = std::to_array<uint32_t>({1, 73856093, 19349663, 83492791});
+	case SignatureFn::mult_xor: {
+		/// Prime constants taken from Teschner et al., except for `c3 = 1` as in Müller et al.
+		auto const c = std::to_array<uint32_t>({73856093, 19349663, 83492791, 1});
 		auto sig     = uint32_t{};
 		for (auto d = 0u; d < dims; ++d) sig ^= c[d]*uidx[d];
 		return {sig};
 	}
-	case signature_fn::xxhash32: {
+	case SignatureFn::xxhash32: {
 		// Multibyte xxHash32 algorithm by Collet 2012, as implemented by Jarzynski and Olano 2020.
 
 		/// Prime constants.
@@ -670,13 +670,13 @@ auto hash_grid::signature (Index index) const noexcept -> Signature
 		sig = c3 * (sig ^ (sig >> 13));
 		return {sig ^ (sig >> 16)};
 	}
-	case signature_fn::z_order: {
+	case SignatureFn::z_order: {
 		/// Lookup table for spreading out bits to make room for other dimensions.
-		auto const& lut = _layout == layout::xyzt ? spread4 : spread3;
+		auto const& lut = _layout == Layout::xyzt ? spread4 : spread3;
 		auto sig        = uint32_t{};
 		for (auto d = 0u; d < dims; ++d)
 			// Only the least significant `32 / dims` bits affect the result.
-			for (auto b = 0u; b <= (_layout == layout::xyzt ? 0 : 8); b += 8)
+			for (auto b = 0u; b <= (_layout == Layout::xyzt ? 0 : 8); b += 8)
 				// Get byte, scatter bits, then offset by one bit per dimension and shift back to
 				// the byte's original offset.
 				sig |= lut[uidx[d]>>b & 0xff] << (b*dims + d);
@@ -689,6 +689,8 @@ auto hash_grid::bucket (std::span<Bucket> buckets, Signature signature, uint8_t 
 	noexcept -> Bucket&
 {
 	uint32_t hash = signature.value;
+
+	if (_signature_fn == SignatureFn::z_order) hash /= Bucket::num_slots;
 
 	// Signatures are already hashed, so for the first function we use it unchanged.
 	if (hash_fn != 0) {

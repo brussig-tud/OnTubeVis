@@ -45,13 +45,13 @@ class hash_grid {
 public:
 	/// Describes which dimensions a grid indexes and how it is organized in memory.
 	/// Regardless of layout, queries are always spatiotemporal 4D vectors (x, y, z, t).
-	enum class layout : uint32_t { // uint8_t causes problems with CGV GUI.
+	enum class Layout : uint32_t { // uint8_t causes problems with CGV GUI.
 		xyz,   // Single 3D spatial grid, time is ignored (infinite cell size).
 		t_xyz, // Separate 3D spatial grids for each time index.
 		xyzt,  // Single 4D spatiotemporal grid.
 	};
 	/// Hash function used to reduce cell indices to a 32 bit signature.
-	enum class signature_fn : uint32_t {
+	enum class SignatureFn : uint32_t {
 		mult_xor, // Prime multiplication, then XOR reduction following Teschner et al.
 		xxhash32, // xxHash32 as implemented by Jarzynski and Olano.
 		z_order,  // Z-order curve obtained by interleaving bits, see e.g. García et al.
@@ -68,9 +68,9 @@ public:
 		/// evaluation of relations due to more, smaller intervals.
 		vec2 sample_step {0.1};
 		/// Describes which dimensions the grid indexes and how it is organized in memory.
-		layout layout {layout::xyzt};
+		Layout layout {Layout::xyzt};
 		/// Determines how cell signatures are calculated.
-		signature_fn signature_fn {signature_fn::z_order};
+		SignatureFn signature_fn {SignatureFn::z_order};
 	};
 
 	[[nodiscard]] hash_grid() = default;
@@ -208,9 +208,9 @@ private:
 	/// Total number of segment intervals stored in all grid cells.
 	uint32_t _num_intervals {};
 	/// Describes which dimensions the grid indexes and how it is organized in memory.
-	layout _layout {};
+	Layout _layout {};
 	/// Determines the function used to calculate cell signatures.
-	signature_fn _signature_fn {};
+	SignatureFn _signature_fn {};
 
 	/// Find or create a cell by index, then insert a trajectory interval into that cell.
 	void add_interval (Index cell, uint32_t start_node, vec2 range);
@@ -236,14 +236,14 @@ private:
 };
 
 /// Return the unqualified identifier for the given enum value.
-[[nodiscard]] constexpr auto enum_id (hash_grid::layout layout) noexcept -> std::string_view
+[[nodiscard]] constexpr auto enum_id (hash_grid::Layout layout) noexcept -> std::string_view
 {
 	using std::operator""sv;
 	return std::array{"xyz", "t_xyz", "xyzt"}[static_cast<size_t>(layout)];
 }
 
 /// Return the unqualified identifier for the given enum value.
-[[nodiscard]] constexpr auto enum_id (hash_grid::signature_fn fn) noexcept -> std::string_view
+[[nodiscard]] constexpr auto enum_id (hash_grid::SignatureFn fn) noexcept -> std::string_view
 {
 	using std::operator""sv;
 	return std::array{"mult_xor", "xxhash32", "z_order"}[static_cast<size_t>(fn)];
