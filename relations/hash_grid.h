@@ -220,7 +220,7 @@ private:
 	/// given as `new_cell`, which will then be inserted into the appropriate table instead.
 	/// During insertion, hash tables may be resized if necessary, with capacity multiplied by
 	/// `growth_factor` each time. Therefore, `growth_factor` must be > 1.
-	[[nodiscard]] auto find_or_insert (Index, float growth_factor, uint32_t new_cell = no_cell)
+	auto find_or_insert (Index, float growth_factor, uint32_t new_cell = no_cell)
 		-> Cell&;
 	/// Access the hash buckets containing all cells for a given temporal index.
 	auto table (int32_t timestep) -> Table&;

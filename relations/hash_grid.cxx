@@ -61,9 +61,9 @@ hash_grid::hash_grid(params const& params, uint32_t initial_buckets)
 	}
 	, _scale           {vec4{1} / _cell_size} // index = round(point / _cell_size)
 	, _sample_step     {max(params.sample_step, vec2{0.001})}
+	, _initial_buckets {initial_buckets}
 	, _layout          {params.layout}
 	, _signature_fn    {params.signature_fn}
-	, _initial_buckets {initial_buckets}
 {
 	if (_layout != Layout::t_xyz) _tables.emplace_back(_initial_buckets, 0);
 
@@ -97,7 +97,7 @@ void hash_grid::reorganize ()
 		auto sortdim = 0u;
 		auto min_lzeroes = ~0u;
 		auto const sort_by = [&](unsigned dim) {
-			auto const lzeroes = std::countl_zero(
+			unsigned const lzeroes = std::countl_zero(
 				std::bit_cast<uint32_t>(lidx[dim]) ^ std::bit_cast<uint32_t>(ridx[dim]));
 			if (lzeroes >= min_lzeroes) return;
 			min_lzeroes = lzeroes;
@@ -456,7 +456,7 @@ auto hash_grid::find_or_insert (Index index, float growth_factor, uint32_t new_c
 			}
 		}
 
-		assert(num_cells = old_table.num_entries);
+		assert(num_cells == old_table.num_entries);
 
 #if OTV_HASH_GRID_VALIDATION > 1
 		// Check that no entries have been lost.
