@@ -2312,6 +2312,8 @@ void on_tube_vis::save_relations_benchmark ()
 
 	// Write parameters.
 	auto const& frame_buffer = fbc.ref_frame_buffer();
+	auto const& par = relations.grid.params();
+	auto const& vis = relations.vis;
 	std::format_to(std::ostreambuf_iterator{result_file},
 		"dataset\t{}\n"
 		"num_pixels\t{}\n"
@@ -2322,7 +2324,7 @@ void on_tube_vis::save_relations_benchmark ()
 		"cell_size_t\t{}\n"
 		"min_interval_space\t{}\n"
 		"min_interval_time\t{}\n"
-		"function\t{}\n"
+		"data_var\t{}\n"
 		"radius_space\t{}\n"
 		"radius_pre\t{}\n"
 		"radius_post\t{}\n"
@@ -2331,20 +2333,19 @@ void on_tube_vis::save_relations_benchmark ()
 		"memory\t{}\n",
 		traj_mgr.dataset(0).data_source(),
 		frame_buffer.get_width() * frame_buffer.get_height(),
-		enum_id(relations.grid_params.layout),
-		relations.grid_params.cell_size.x(),
-		relations.grid_params.cell_size.y(),
-		relations.grid_params.cell_size.z(),
-		relations.grid_params.cell_size[3],
-		relations.grid_params.min_interval[0],
-		relations.grid_params.min_interval[1],
-		get_reflection_traits(relations.vis.data_var)
-			.get_enum_name(static_cast<unsigned>(relations.vis.data_var)),
-		relations.vis.radius.space,
-		relations.vis.radius.pre,
-		relations.vis.radius.post,
-		relations.vis.sample_rate,
-		enum_id(relations.vis.direction),
+		enum_id(par.layout),
+		par.cell_size.x(),
+		par.cell_size.y(),
+		par.cell_size.z(),
+		par.cell_size[3],
+		par.min_interval[0],
+		par.min_interval[1],
+		vis.data_var_name(),
+		vis.radius.space,
+		vis.radius.pre,
+		vis.radius.post,
+		vis.sample_rate,
+		enum_id(vis.direction),
 		relations.grid.buffer_size()
 	);
 	// Write timings.
@@ -2451,36 +2452,34 @@ void on_tube_vis::create_gui(void)
 			color_map_mgr.ref_names()
 		);
 
-		if (begin_tree_node("Hash grid", relations.grid_params))
+		auto& par = relations.grid_params;
+		if (begin_tree_node("Hash grid", par))
 		{
-		add_member_control(this, "Layout", relations.grid_params.layout, "dropdown",
-			"enums='3D,Strided 3D,4D'"
-		);
-		add_member_control(this, "Hash fn.", relations.grid_params.signature_fn, "dropdown",
+		add_member_control(this, "Layout", par.layout, "dropdown", "enums='3D,Strided 3D,4D'");
+		add_member_control(this, "Hash fn.", par.signature_fn, "dropdown",
 			"enums='Multiply and XOR,xxHash32,Z-Order'"
 		);
 
 		add_decorator("Cell size", "text");
-		add_member_control(this, "x", relations.grid_params.cell_size[0], "value_slider",
+		add_member_control(this, "x", par.cell_size[0], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", extent[0] * 0.1f)
 		);
-		add_member_control(this, "y", relations.grid_params.cell_size[1], "value_slider",
+		add_member_control(this, "y", par.cell_size[1], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", extent[1] * 0.1f)
 		);
-		add_member_control(this, "z", relations.grid_params.cell_size[2], "value_slider",
+		add_member_control(this, "z", par.cell_size[2], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", extent[2] * 0.1f)
 		);
-		add_member_control(this, "t", relations.grid_params.cell_size[3], "value_slider",
+		add_member_control(this, "t", par.cell_size[3], "value_slider",
 			std::format("min=0;max={};log=true;ticks=true", extent[3] * 0.1f)
 		);
 
 		add_decorator("Min. interval length", "text");
-		add_member_control(this, "Space", relations.grid_params.min_interval[0], "value_slider",
-			std::format("min=0;max={};log=true;ticks=true",
-				min_value(vec3{relations.grid_params.cell_size}) )
+		add_member_control(this, "Space", par.min_interval[0], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true", min_value(vec3{par.cell_size}))
 		);
-		add_member_control(this, "Time", relations.grid_params.min_interval[1], "value_slider",
-			std::format("min=0;max={};log=true;ticks=true", relations.grid_params.cell_size[3])
+		add_member_control(this, "Time", par.min_interval[1], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true", par.cell_size[3])
 		);
 
 		connect_copy(
@@ -2491,7 +2490,7 @@ void on_tube_vis::create_gui(void)
 			add_button("Stats")->click,
 			[this](auto const&) {cgv::gui::message(relations.grid.stats());}
 		);
-		end_tree_node(relations.grid_params);
+		end_tree_node(par);
 		} // hash grid
 
 		connect_copy(

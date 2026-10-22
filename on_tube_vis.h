@@ -415,7 +415,7 @@ protected:
 
 	struct {
 		hash_grid         grid        {};
-		hash_grid::params grid_params {};
+		hash_grid::Params grid_params {};
 		relation_vis      vis         {};
 		gl_buffer         grid_sbo    {};
 	}

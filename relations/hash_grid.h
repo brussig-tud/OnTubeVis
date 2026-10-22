@@ -58,7 +58,7 @@ public:
 	};
 
 	/// Fundamental aspects of a grid's structure that cannot be changed after construction.
-	struct params {
+	struct Params {
 		/// The extent of each grid cell in the dimensions (x, y, z, t).
 		/// For 3D grids (`layout == xyz`) the time component is implicitely infinite.
 		vec4 cell_size {1};
@@ -73,7 +73,7 @@ public:
 	};
 
 	[[nodiscard]] hash_grid() = default;
-	[[nodiscard]] hash_grid(params const&, uint32_t initial_buckets);
+	[[nodiscard]] hash_grid(Params const&, uint32_t initial_buckets);
 
 	// Forbid copying.
 	hash_grid(hash_grid const&) = delete;
@@ -102,6 +102,8 @@ public:
 	/// cells along a Z-order curve and rebuilding tables to reduce empty slots. To be called after
 	/// all segments have been inserted.
 	void reorganize ();
+
+	[[nodiscard]] auto params () const -> Params const& {return _params;}
 
 	/// Return some metrics for evaluation in human-readable form.
 	[[nodiscard]] auto stats () const -> std::string;
@@ -195,21 +197,14 @@ private:
 	/// inserting a new cell.
 	std::minstd_rand _rng {std::random_device{}()};
 
-	/// Extent of each grid cell.
-	vec4 _cell_size {};
+	Params _params {};
 	/// Points are mapped to cell indices by `index = round(point * _scale)`.
 	/// Reciprocal of `_cell_size`.
 	vec4 _scale {};
-	/// Minimum length of a segment interval in terms of arclength and duration.
-	vec2 _min_interval {};
 	/// Number of buckets in a newly allocated table.
 	uint32_t _initial_buckets {};
 	/// Total number of segment intervals stored in all grid cells.
 	uint32_t _num_intervals {};
-	/// Describes which dimensions the grid indexes and how it is organized in memory.
-	Layout _layout {};
-	/// Determines the function used to calculate cell signatures.
-	SignatureFn _signature_fn {};
 
 	/// Find or create a cell by index, then insert a trajectory interval into that cell.
 	void add_interval (Index cell, uint32_t start_node, vec2 range);
