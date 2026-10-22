@@ -62,11 +62,10 @@ public:
 		/// The extent of each grid cell in the dimensions (x, y, z, t).
 		/// For 3D grids (`layout == xyz`) the time component is implicitely infinite.
 		vec4 cell_size {1};
-		/// Minimum distance in (arclength, time) between trajectory samples used to determine in
-		/// which grid cells a trajectory segment lies.
-		/// Smaller steps yield more accurate results at the expense of slower insertions and slower
-		/// evaluation of relations due to more, smaller intervals.
-		vec2 sample_step {0.1};
+		/// The grid splits segments into intervals where they cross a cell boundary.
+		/// This parameter imposes a minimum length on intervals in terms of arclength and duration.
+		/// Avoiding short segments may improve performance, but can reduce accuracy.
+		vec2 min_interval {};
 		/// Describes which dimensions the grid indexes and how it is organized in memory.
 		Layout layout {Layout::xyzt};
 		/// Determines how cell signatures are calculated.
@@ -95,8 +94,8 @@ public:
 	void add_segment (
 		node_attribs const& start,
 		node_attribs const& end,
-		cgv::uvec2          node_idcs,
-		cgv::mat4 const&    t_to_s
+		cgv::uvec2 node_idcs,
+		cgv::mat4 const& t_to_s
 	);
 
 	/// Adapt the grid to its content without changing parameters. Currently, this means sorting
@@ -201,8 +200,8 @@ private:
 	/// Points are mapped to cell indices by `index = round(point * _scale)`.
 	/// Reciprocal of `_cell_size`.
 	vec4 _scale {};
-	/// Minimum distance (arclength, time) between sample points when adding a segment to the grid.
-	vec2 _sample_step {};
+	/// Minimum length of a segment interval in terms of arclength and duration.
+	vec2 _min_interval {};
 	/// Number of buckets in a newly allocated table.
 	uint32_t _initial_buckets {};
 	/// Total number of segment intervals stored in all grid cells.

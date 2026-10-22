@@ -5,6 +5,7 @@
 #include <cgv/render/shader_program.h>
 
 #include "hash_grid.h"
+#include "3rd/cy/cyPolynomial.h"
 #include "render_layout.h"
 
 
@@ -60,7 +61,7 @@ hash_grid::hash_grid(params const& params, uint32_t initial_buckets)
 		: params.cell_size
 	}
 	, _scale           {vec4{1} / _cell_size} // index = round(point / _cell_size)
-	, _sample_step     {max(params.sample_step, vec2{0.001})}
+	, _min_interval    {max(params.min_interval, vec2{1e-6f})}
 	, _initial_buckets {initial_buckets}
 	, _layout          {params.layout}
 	, _signature_fn    {params.signature_fn}
@@ -77,8 +78,8 @@ hash_grid::hash_grid(params const& params, uint32_t initial_buckets)
 			"\tLayout:          " << layout_name      << "\n"
 			"\tSignature:       " << signature_fn     << "\n"
 			"\tCell size:       ("<< _cell_size       <<")\n"
-			"\tSample step:     " << _sample_step[0]  << " (space), "
-			                      << _sample_step[1]  << " (time)\n"
+			"\tMin. interval:   " << _min_interval[0] << " (space), "
+			                      << _min_interval[1] << " (time)\n"
 			"\tInitial buckets: " << _initial_buckets << "\n";
 	}
 }
@@ -156,8 +157,8 @@ auto hash_grid::stats () const -> std::string
 void hash_grid::add_segment (
 	node_attribs const& start,
 	node_attribs const& end,
-	cgv::uvec2         node_idcs,
-	cgv::mat4 const&   t_to_s
+	cgv::uvec2 node_idcs,
+	cgv::mat4 const& t_to_s
 ) {
 	// Check that the arclength parametrization is plausible.
 	assert(!isnan(t_to_s[0]) && t_to_s[0] <= t_to_s[15]);
@@ -178,6 +179,18 @@ void hash_grid::add_segment (
 		(  end.pos -   end.tangent*(1/3.0f)) * vec3{_scale},
 		end_point,
 	});
+	// Evaluate a cubic Bézier spline. Control points can be scalars or vectors.
+	auto const eval_spline = [&]<typename P>(P p0, P p1, P p2, P p3, float t) {
+		// Use de Casteljau's algorithm for numeric stability.
+		auto const p01 = lerp(p0, p1, t);
+		auto const p12 = lerp(p1, p2, t);
+		auto const p23 = lerp(p2, p3, t);
+
+		auto const p02 = lerp(p01, p12, t);
+		auto const p13 = lerp(p12, p23, t);
+
+		return lerp(p02, p13, t);
+	};
 	// If all control points lie in the same cell, that cell contains the entire segment.
 	if (
 		start_index == round(end_point)
@@ -188,108 +201,76 @@ void hash_grid::add_segment (
 		add_interval(start_index, node_idcs[0], {0, 1});
 		return;
 	}
+	// If the segment spans multiple cells, split it into intervals where it intersects the grid.
 
-	// TODO: Calculate intersections analytically instead of sampling.
+	// Coefficients of the cubic equation for each spatial component.
+	std::array<std::array<float, 4>, 3> coeffs;
+	{
+	// Calculate coefficients in order of increasing degree. Can be vectorized.
+	auto const coeff_vecs = std::array{
+		( b0),
+		(-b0 + b1) * 3,
+		( b0 - b1*2 + b2) * 3,
+		(-b0 + b1*3 - b2*3 + b3),
+	};
+	// Group by dimension.
+	for (auto d = 0; d < 3; ++d) for (auto i = 0; i < 4; ++i) coeffs[d][i] = coeff_vecs[i][d];
+	}
 
-	/// Spatial and temporal extent of the segment.
-	auto const arclen   = t_to_s[15] - t_to_s[0];
-	auto const duration = end.time - start.time;
-	/// Bounds on how much the curve parameter is increased with every sample.
-	// The actual maximum step size is max_step/2.
-	auto const max_step = _cell_size / vec4{vec3{arclen}, duration};
-	auto const min_step = std::min(
-		min_value(max_step),
-		// Assume a constant average speed.
-		min_value(_sample_step / vec2{arclen, duration})
-	);
-	if constexpr (log_level > 3) std::clog <<
-		"\tArclength:    " << arclen          << "\n"
-		"\tDuration:     " << duration        << "\n"
-		"\tMin sampling: " << min_step        << "\n"
-		"\tMax sampling: ("<< max_step * 0.5f <<")\n";
+	auto const space_min = _min_interval[0] / (t_to_s[15] - t_to_s[0]);
+	auto const time_min = _min_interval[1] / (end.time - start.time);
 
-	// Check plausibility.
-	assert(min_step > 1e-6 && min_step < 1e6);
+	auto t_prev = 0.f; // End of the previous interval, start of the next one.
+	auto t_next = std::array<float, 4>{}; // Next relevant grid intersection per dimension.
+	if (_layout == Layout::xyz) t_next[3] = 1; // A 3D grid never splits by time.
 
-	// Begin at the start node.
-	auto min_t      = 0.0f;
-	auto prev_t     = 0.0f;
-	auto prev_point = start_point;
-	auto prev_index = start_index;
-	// Sample the trajectory.
-	do {
-		/// Determine the next sample based on how close the last sample was to a grid plane.
-		auto const t = std::min(
-			prev_t + std::max(
-				// Bigger steps from samples near the center of their grid cell.
-				min_value(max_step * (vec4{0.5f} - abs(prev_point - prev_index))),
-				min_step // Ensure progress.
-			),
-			1.0f // Limit to segment.
-		);
+	while (true) {
+		auto min_next = 1.f; // Minimum entry of t_next; end of the next interval.
 
-		// Evaluate the segment for the current curve parameter using de Casteljau's algorithm.
-		vec4 point;
-		{
-		auto const p01 = lerp(b0, b1, t);
-		auto const p12 = lerp(b1, b2, t);
-		auto const p23 = lerp(b2, b3, t);
+		// If the rest of the segment is too short to split, add it as a single interval.
+		if (t_prev >= 1 - 2*space_min) goto add_interval;
 
-		auto const p02 = lerp(p01, p12, t);
-		auto const p13 = lerp(p12, p23, t);
+		// Otherwise find the next relevant grid intersection for each dimension:
+		for (auto d = 0; d < 3; ++d) { // Spatial dimensions:
+			auto t_min = t_prev + space_min; // Lower bound of the search range.
 
-		point = lerp(vec4{p02, start_point[3]}, {p13, end_point[3]}, t);
-		}
+			// Find a grid intersection distant enough to produce a sufficiently long interval.
+			if (t_next[d] < t_prev + space_min) {
+				// Cell in which the search range begins.
+				auto const idx = round(eval_spline(b0[d], b1[d], b2[d], b3[d], t_min));
+				t_next[d] = 1 - space_min; // Upper bound of the search range.
 
-		if constexpr (log_level > 3)
-			std::clog << std::format(
-				"{:5.1f}% {} ({}, {}, {}, {})\n",
-				t * 100, start.time + t*duration, point[0], point[1], point[2], point[3]
-			);
-
-		/// Grid cell containing the current sample.
-		auto const index = round(point);
-
-		// If the trajectory has crossed into another grid cell:
-		if (index != prev_index) {
-			/// Average difference in curve parameter between the previous sample and every inter-
-			/// section between trajectory and grid.
-			auto isect_offset = 0.0f;
-			auto isect_count  = -1; // Number of grid intersections - 1.
-
-			// Indices differ in at least one component, maybe multiple.
-			for (auto d = 0u; d < (_layout == Layout::xyz ? 3u : 4u); ++d) {
-				if (prev_index[d] == index[d]) continue;
-				/// Coordinate of the hyper-plane separating the the two cells in dimension d.
-				/// If the step size is small enough that there should only ever be one crossing per
-				/// component.
-				auto grid_plane = 0.5f*prev_index[d] + 0.5f*index[d];
-
-				if (log_level > 1 && abs(index[d] - prev_index[d]) > 1)
-					std::clog << LOG_WARNING LOG_TAG" Skipping cell between ("<< prev_index
-						<<") and ("<< index <<")\n";
-
-				// Linearly approximate the intersection between trajectory and grid.
-				isect_offset +=
-					(t - prev_t) * (grid_plane - prev_point[d])/(point[d] - prev_point[d]);
-				++isect_count;
+				// Find where the segment leaves the cell, if it does.
+				for (auto const offset : {-.5f, .5f}) {
+					coeffs[d][0] = b0[d] - (idx + offset);
+					assert(t_min < t_next[d]);
+					// Each intersection found becomes the new upper bound, so t_next[d] is minimal.
+					(void)cy::CubicFirstRoot(t_next[d], coeffs[d].data(), t_min, t_next[d]);
+				}
+				// If the segment does not leave the cell, extend the interval to the end node.
+				if (t_next[d] == 1 - space_min) t_next[d] = 1;
 			}
-			assert(isect_count >= 0 && isect_count < index.size());
-			/// End the interval at the average of all grid crossings.
-			auto const max_t =
-				prev_t + isect_offset*std::array{1.0f, 0.5f, 1.0f/3, 0.25f}[isect_count];
-			// Store the interval in the grid.
-			add_interval(prev_index, node_idcs[0], {min_t, max_t});
-			// The next interval begins where the previous one ends.
-			min_t = max_t;
+			min_next = std::min(min_next, t_next[d]);
 		}
-		// Remember the current sample for the next iteration.
-		prev_t     = t;
-		prev_point = point;
-		prev_index = index;
-	} while (prev_t < 1.0f);
-	// Create a final interval up to the end of the segment.
-	add_interval(prev_index, node_idcs[0], {min_t, 1});
+		if (t_next[3] < t_prev + time_min) {
+			// Time increases linearly, so we can unambiguously calculate the next intersection
+			// after the minimum interval length.
+			auto const idx = round(lerp(start_point[3], end_point[3], t_prev + time_min));
+			t_next[3] = (idx + .5f - start_point[3]) / (end_point[3] - start_point[3]);
+		}
+		min_next = std::min(min_next, t_next[3]);
+
+		add_interval: // Create a new interval and place it in the cell containing its midpoint.
+		auto const mid = (t_prev + min_next) * .5f;
+		auto const cell = round(vec4{
+			eval_spline(b0, b1, b2, b3, mid),
+			lerp(start_point[3], end_point[3], mid)
+		});
+		add_interval(cell, node_idcs[0], {t_prev, min_next});
+
+		if (min_next == 1) return; // Once we reach the end node, we are done.
+		t_prev = min_next; // Otherwise, begin a new interval where the previous one ended.
+	}
 }
 
 auto hash_grid::upload () -> gl_buffer

@@ -2320,8 +2320,8 @@ void on_tube_vis::save_relations_benchmark ()
 		"cell_size_y\t{}\n"
 		"cell_size_z\t{}\n"
 		"cell_size_t\t{}\n"
-		"sampling_space\t{}\n"
-		"sampling_time\t{}\n"
+		"min_interval_space\t{}\n"
+		"min_interval_time\t{}\n"
 		"function\t{}\n"
 		"radius_space\t{}\n"
 		"radius_pre\t{}\n"
@@ -2336,8 +2336,8 @@ void on_tube_vis::save_relations_benchmark ()
 		relations.grid_params.cell_size.y(),
 		relations.grid_params.cell_size.z(),
 		relations.grid_params.cell_size[3],
-		relations.grid_params.sample_step[0],
-		relations.grid_params.sample_step[1],
+		relations.grid_params.min_interval[0],
+		relations.grid_params.min_interval[1],
 		get_reflection_traits(relations.vis.data_var)
 			.get_enum_name(static_cast<unsigned>(relations.vis.data_var)),
 		relations.vis.radius.space,
@@ -2474,12 +2474,13 @@ void on_tube_vis::create_gui(void)
 			std::format("min=0;max={};log=true;ticks=true", extent[3] * 0.1f)
 		);
 
-		add_decorator("Sample step", "text");
-		add_member_control(this, "Space", relations.grid_params.sample_step[0], "value_slider",
-			std::format("min=0;max={};log=true;ticks=true", min_value(relations.grid_params.cell_size) * 0.2f)
+		add_decorator("Min. interval length", "text");
+		add_member_control(this, "Space", relations.grid_params.min_interval[0], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true",
+				min_value(vec3{relations.grid_params.cell_size}) )
 		);
-		add_member_control(this, "Time", relations.grid_params.sample_step[1], "value_slider",
-			std::format("min=0;max={};log=true;ticks=true", relations.grid_params.cell_size[3] * 0.2f)
+		add_member_control(this, "Time", relations.grid_params.min_interval[1], "value_slider",
+			std::format("min=0;max={};log=true;ticks=true", relations.grid_params.cell_size[3])
 		);
 
 		connect_copy(
@@ -2862,12 +2863,12 @@ void on_tube_vis::update_attribute_bindings(void) {
 void on_tube_vis::default_hash_grid () {
 	auto const r = relations.vis.radius;
 	auto const [tmin, tmax] = render.data->t_minmax;
-	relations.grid_params.cell_size = max(
+	auto& par = relations.grid_params;
+	par.cell_size = max(
 		vec4{vec3{r.space} * 1.5, (r.pre + r.post) * .75},
 		vec4{bbox.get_extent(), tmax - tmin} * 1e-2
 	);
-	relations.grid_params.sample_step =
-		vec2{relations.grid_params.cell_size[0], relations.grid_params.cell_size[3]} * 0.05f;
+	par.min_interval = vec2{min_value(vec3{par.cell_size}), par.cell_size[3]} * .05f;
 	post_recreate_gui();
 	build_hash_grid();
 }
