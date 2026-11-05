@@ -251,14 +251,15 @@ void hash_grid::add_segment (
 			min_next = std::min(min_next, t_next[d]);
 		}
 		if (t_next[3] < t_prev + time_min) {
-			// Time increases linearly, so we can unambiguously calculate the next intersection
-			// after the minimum interval length.
+			// Time increases linearly, so we can calculate the next intersection directly.
 			auto const idx = round(lerp(start_point[3], end_point[3], t_prev + time_min));
 			t_next[3] = (idx + .5f - start_point[3]) / (end_point[3] - start_point[3]);
+			if (t_next[3] > 1 - time_min) t_next[3] = 1;
 		}
 		min_next = std::min(min_next, t_next[3]);
 
 		add_interval: // Create a new interval and place it in the cell containing its midpoint.
+		assert(min_next - t_prev >= std::min(time_min, space_min));
 		auto const mid = (t_prev + min_next) * .5f;
 		auto const cell = round(vec4{
 			eval_spline(b0, b1, b2, b3, mid),
