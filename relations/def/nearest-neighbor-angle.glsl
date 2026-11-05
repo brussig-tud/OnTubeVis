@@ -6,7 +6,7 @@ struct Reduction {
 
 RELATION_REDUCE_T init_relation (InitRelationArgs args)
 {
-	return Reduction(1./0, vec3(0));
+	return Reduction(vec3(0), 1./0);
 }
 void eval_relation (EvalRelationArgs args, inout RELATION_REDUCE_T reduction)
 {
