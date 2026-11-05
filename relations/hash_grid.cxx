@@ -225,15 +225,12 @@ void hash_grid::add_segment (
 	while (true) {
 		auto min_next = 1.f; // Minimum entry of t_next; end of the next interval.
 
-		// If the rest of the segment is too short to split, add it as a single interval.
-		if (t_prev >= 1 - 2*space_min) goto add_interval;
-
 		// Otherwise find the next relevant grid intersection for each dimension:
-		for (auto d = 0; d < 3; ++d) { // Spatial dimensions:
-			auto t_min = t_prev + space_min; // Lower bound of the search range.
+		if (t_prev < 1 - 2*space_min) for (auto d = 0; d < 3; ++d) { // Spatial dimensions:
+			auto t_min = std::min(t_prev + space_min, 1.f); // Lower bound of the search range.
 
 			// Find a grid intersection distant enough to produce a sufficiently long interval.
-			if (t_next[d] < t_prev + space_min) {
+			if (t_next[d] < t_min) {
 				// Cell in which the search range begins.
 				auto const idx = round(eval_spline(b0[d], b1[d], b2[d], b3[d], t_min));
 				t_next[d] = 1 - space_min; // Upper bound of the search range.
@@ -258,8 +255,8 @@ void hash_grid::add_segment (
 		}
 		min_next = std::min(min_next, t_next[3]);
 
-		add_interval: // Create a new interval and place it in the cell containing its midpoint.
-		assert(min_next - t_prev >= std::min(time_min, space_min));
+		// Create a new interval and place it in the cell containing its midpoint.
+		assert(min_next - t_prev >= std::min(time_min, space_min) || t_prev == 0 && min_next == 1);
 		auto const mid = (t_prev + min_next) * .5f;
 		auto const cell = round(vec4{
 			eval_spline(b0, b1, b2, b3, mid),
