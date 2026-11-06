@@ -62,7 +62,7 @@ hash_grid::hash_grid(Params const& params, uint32_t initial_buckets)
 	if (_params.layout == Layout::xyz)
 		_params.cell_size[3] = std::numeric_limits<float>::infinity();
 	_scale = vec4{1} / _params.cell_size; // index = round(point / _cell_size)
-	_params.min_interval = max(_params.min_interval, vec2{1e-6f});
+	_params.min_interval = max(_params.min_interval, vec2{1e-5f});
 
 	if (_params.layout != Layout::t_xyz) _tables.emplace_back(_initial_buckets, 0);
 
@@ -238,7 +238,7 @@ void hash_grid::add_segment (
 				// Find where the segment leaves the cell, if it does.
 				for (auto const offset : {-.5f, .5f}) {
 					coeffs[d][0] = b0[d] - (idx + offset);
-					assert(t_min < t_next[d]);
+					assert(t_min <= t_next[d]);
 					// Each intersection found becomes the new upper bound, so t_next[d] is minimal.
 					(void)cy::CubicFirstRoot(t_next[d], coeffs[d].data(), t_min, t_next[d]);
 				}
