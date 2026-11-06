@@ -2867,7 +2867,7 @@ void on_tube_vis::default_hash_grid () {
 		vec4{vec3{r.space} * 1.5, (r.pre + r.post) * .75},
 		vec4{bbox.get_extent(), tmax - tmin} * 1e-2
 	);
-	par.min_interval = vec2{min_value(vec3{par.cell_size}), par.cell_size[3]} * .05f;
+	par.min_interval = vec2{min_value(vec3{par.cell_size}) * .01f, par.cell_size[3] * .02f};
 	post_recreate_gui();
 	build_hash_grid();
 }
