@@ -2782,35 +2782,34 @@ void on_tube_vis::update_attribute_bindings(void) {
 		render.render_sbo.destruct(ctx);
 		// - compile data
 		const size_t num_nodes = render.data->positions.size();
-		std::vector<node_attribs> render_attribs;
-		render_attribs.reserve(num_nodes);
-		// Global across all datasets.
-		auto traj_id  = 0u;
-		auto node_idx = 0u;
-		for (auto const& ds : render.data->datasets) {
-			for (auto const& traj : ds.trajs) {
-				auto const end = node_idx + traj.n/2;
-				for (; node_idx <= end; ++node_idx) {
-					// convenience shortcut
-					const auto& col = render.data->colors[node_idx];
-					// interleave and commit
-					render_attribs.emplace_back(node_attribs{
-						.pos_rad  = vec4(render.data->positions[node_idx], render.data->radii[node_idx]),
-						.color    = vec4(col.R(), col.G(), col.B(), 1),
-						.tangent  = render.data->tangents[node_idx],  // <- does already contain radius deriv. in w-component
-						.time     = render.data->timestamps[node_idx],
-						.duration = 0,
-						.traj_id  = traj_id,
-						.next     = ~0u,
-					});
-				}
-				++traj_id;
-			}
+		std::vector<node_attribs> render_attribs; render_attribs.reserve(num_nodes);
+		for(size_t i = 0; i < num_nodes; i++) {
+			// convenience shortcut
+			const auto& col = render.data->colors[i];
+			// interleave and commit
+			render_attribs.emplace_back(node_attribs{
+				.pos_rad  = vec4(render.data->positions[i], render.data->radii[i]),
+				.color    = vec4(col.R(), col.G(), col.B(), 1),
+				.tangent  = render.data->tangents[i],  // <- does already contain radius deriv. in w-component
+				.time     = render.data->timestamps[i],
+				.duration = 0,
+				.traj_id  = 0,
+				.next     = ~0u,
+			});
 		}
 		assert(render_attribs.size() == num_nodes);
 
-		// Set node attribs depending on the following segment.
+		// Assign trajectory IDs, unique across all datasets.
 		auto const& idcs = render.data->indices;
+		auto traj_id = 0u;
+		for (auto const& ds : render.data->datasets) for (auto const& traj : ds.trajs) {
+			render_attribs[idcs[traj.i0]].traj_id = traj_id;
+			for (auto i = traj.i0 + 1; i < traj.i0 + traj.n; i += 2)
+				render_attribs[idcs[i]].traj_id = traj_id;
+			++traj_id;
+		}
+
+		// Set attributes that depend on the following node.
 		for (auto i = 0u; i < idcs.size(); i += 2) {
 			auto& attrs = render_attribs[idcs[i]];
 			attrs.next = idcs[i + 1];
