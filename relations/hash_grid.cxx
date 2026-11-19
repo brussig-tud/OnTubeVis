@@ -292,40 +292,49 @@ auto hash_grid::upload () -> gl_buffer
 		}
 	}
 
-	// Store the cells after the tables and write table entries.
+	// Store cells after tables.
 	auto       head  = reinterpret_cast<std::byte*>(buckets + num_buckets());
 	auto const write = [&head]<class T>(T const* data, size_t count) {
 		head = reinterpret_cast<std::byte*>(std::uninitialized_copy_n(
 			data, count, reinterpret_cast<T*>(head)
 		));
 	};
+	auto const cell_offset = std::make_unique_for_overwrite<size_t[]>(_cells.size());
+
+	for (auto i = 0u; i < _cells.size(); ++i) {
+		// Store offset.
+		cell_offset[i] = head - base;
+
+		// Copy header.
+		write(&_cells[i].index, 1);
+		auto const num_intervals = static_cast<uint32_t>(_cells[i].intervals.size());
+		write(&num_intervals, 1);
+
+		// Copy intervals.
+		write(_cells[i].intervals.data(), num_intervals);
+	}
+	assert(head - base == buffer_size);
+
+	// Write tables.
 	for (auto const& table : _tables) {
 		for (auto bucket_idx = 0u; bucket_idx < table.length; ++bucket_idx) {
 			auto const& slots = table.buckets()[bucket_idx].slots;
 			auto& dest_slots = buckets[bucket_idx].slots;
-			uint32_t slot_idx {};
+			auto slot_idx = 0u;
 
 			// Filled slots.
 			for (; slot_idx < Bucket::num_slots && slots[slot_idx].cell != no_cell; ++slot_idx) {
 				// Write the slot, replacing the cell's host index with its offset in the buffer.
 				dest_slots[slot_idx] = {
 					slots[slot_idx].signature,
-					static_cast<uint32_t>((head - base) / address_unit)
+					static_cast<uint32_t>(cell_offset[slots[slot_idx].cell] / address_unit)
 				};
-				// Append the cell to the buffer. First write a header consisting of the cell's
-				// index and number of contained intervals, then copy the intervals themselves.
-				auto const& cell = _cells[slots[slot_idx].cell];
-				auto const num_intervals = static_cast<uint32_t>(cell.intervals.size());
-				write(&cell.index, 1);
-				write(&num_intervals, 1);
-				write(cell.intervals.data(), num_intervals);
 			}
 			/// Mark the remaining slots as empty.
 			for (; slot_idx < Bucket::num_slots;) dest_slots[slot_idx++] = {};
 		}
 		buckets += table.length;
 	}
-	assert(head - base == buffer_size);
 
 	// Create a GL buffer and upload the linearized data.
 	auto buffer = gl_buffer::create();
