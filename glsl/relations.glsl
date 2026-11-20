@@ -957,10 +957,8 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	RELATION_REDUCE_T reduction = init_relation(InitRelationArgs(base_point));
 
 #if HASH_GRID_LAYOUT == LAYOUT_T_XYZ
-	// Iterate over the hash tables of all timesteps within the evaluated radius.
+	// Find which tables lie within the query radius.
 	const uvec2 table_range = table_range(qrange.min[3], qrange.max[3]);
-	for (uint table_idx = table_range[0]; table_idx <= table_range[1]; ++table_idx) {
-		const Span table = load_table(table_idx);
 #else
 	// All layouts other than t_xyz have only one hash table.
 	const Span table = Span(Ptr(0), hash_grid_data_len);
@@ -1036,6 +1034,9 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 #if HASH_GRID_LAYOUT == LAYOUT_XYZT
 	// Iterate over the query's temporal extent.
 	for (int time = qrange.min[3]; time <= qrange.max[3]; ++time) {
+#elif HASH_GRID_LAYOUT == LAYOUT_T_XYZ
+	for (uint table_idx = table_range[0]; table_idx <= table_range[1]; ++table_idx) {
+		const Span table = load_table(table_idx);
 #endif
 		const Index index = {x, y, z
 			#if HASH_GRID_LAYOUT == LAYOUT_XYZT
@@ -1067,7 +1068,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 					|| bool(RELATION_SAMPLE_BASE_TRAJ))
 			) sample_interval(interval, base_point, world_normal, reduction);
 		}
-#if HASH_GRID_LAYOUT == LAYOUT_XYZT
+#if HASH_GRID_LAYOUT != LAYOUT_XYZ
 	} // for t
 #endif
 	} // for x
@@ -1075,9 +1076,6 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	} // for y
 		ry_lo = ry_hi;
 	} // for z
-#if HASH_GRID_LAYOUT == LAYOUT_T_XYZ
-	} // for table
-#endif
 
 	return color_relation(ColorRelationArgs(base_point), reduction);
 }
