@@ -143,7 +143,7 @@ layout(binding = RELATION_COLOR_MAP_TEX) uniform sampler2D color_map_tex;
 uniform vec4      hash_grid_cell_size;
 uniform vec4      hash_grid_scale; // == 1 / hash_grid_cell_size
 uniform uint      hash_grid_data_len;
-uniform vec4      relation_radius;
+uniform vec4      relation_radius; // space, pre, post, angle
 uniform float     relation_sample_rate;
 uniform Direction relation_direction;
 uniform uint      relation_ref_traj;
@@ -151,13 +151,21 @@ uniform bool      relation_normalize;
 uniform vec2      relation_color_domain;
 uniform vec3      relation_highlight_color;
 uniform vec3      relation_background_color;
-uniform vec3      relation_weight_norm;
-uniform vec3      relation_weight_exp;
+uniform vec3      relation_weight_norm; // space, time, angle
+uniform vec3      relation_weight_exp; // space, time, angle
 
 #define R_SPACE relation_radius[0]
 #define R_PRE   relation_radius[1]
 #define R_POST  relation_radius[2]
 #define MIN_COS relation_radius[3]
+
+#define WNORM_SPACE relation_weight_norm[0]
+#define WNORM_TIME  relation_weight_norm[1]
+#define WNORM_ANGLE relation_weight_norm[2]
+
+#define WEXP_SPACE relation_weight_exp[0]
+#define WEXP_TIME  relation_weight_exp[1]
+#define WEXP_ANGLE relation_weight_exp[2]
 
 // Local functions #################################################################################
 // Memory ==========================================================================================
@@ -693,31 +701,22 @@ struct EvalRelationArgs {
 };
 struct ColorRelationArgs {
 	TrajPoint base_point;
+	vec3 base_normal;
 };
 
 // Weight the sample point by its distance from the base point, with a weight of one directly at the
 // base point and zero at the edge of the query.
 float weight_space (EvalRelationArgs args)
 {
-	return pow(
-		1 - dot(args.offset, args.offset) * relation_weight_norm[0],
-		relation_weight_exp[0]
-	);
+	return pow(1 - dot(args.offset, args.offset) * WNORM_SPACE, WEXP_SPACE);
 }
 float weight_time (EvalRelationArgs args)
 {
-	const float r = max(R_PRE, R_POST);
-	return pow(
-		1 - sqr(abs(args.base_point.time - args.sample_point.time)) * relation_weight_norm[1],
-		relation_weight_exp[1]
-	);
+	return pow(1 - sqr(args.base_point.time - args.sample_point.time) * WNORM_TIME, WEXP_TIME);
 }
 float weight_angle (EvalRelationArgs args)
 {
-	return pow(
-		(args.cos - MIN_COS) * relation_weight_norm[2],
-		relation_weight_exp[2]
-	);
+	return pow((args.cos - MIN_COS) * WNORM_ANGLE, WEXP_ANGLE);
 }
 float weight_all (EvalRelationArgs args)
 {
@@ -815,8 +814,7 @@ void sample_interval (
 	// Skip segments fully outside the query.
 	const vec3 aabb_min = min(n0.pos_rad, min(p1, min(p2, n1.pos_rad))).xyz;
 	const vec3 aabb_max = max(n0.pos_rad, max(p1, max(p2, n1.pos_rad))).xyz;
-	if (!isect_aabb_sphere(aabb_min, aabb_max, base_point.position, sqr(R_SPACE)))
-		return;
+	if (!isect_aabb_sphere(aabb_min, aabb_max, base_point.position, sqr(R_SPACE))) return;
 
 	// The exact intersection test is too expensive at this point, so we only do the quick
 	// exclusion check.
@@ -1077,5 +1075,5 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		ry_lo = ry_hi;
 	} // for z
 
-	return color_relation(ColorRelationArgs(base_point), reduction);
+	return color_relation(ColorRelationArgs(base_point, world_normal), reduction);
 }
