@@ -30,25 +30,31 @@ struct relation_vis {
 
 	/// The data variable to compute and visualize.
 	enum class DataVar : uint32_t { // uint8_t causes problems with CGV GUI.
-		none,               /// No visualization.
-		relation,           /// Relation between trajectories calculated by `relation_def`.
-		dbg_seg_t,          /// Segment-local curve parameter.
-		dbg_velocity,       /// Length of the trajectory's spatial derivative w.r.t. time.
-		dbg_index_xyz,      /// Spatial grid index.
-		dbg_index_t,        /// Temporal grid index.
-		dbg_signature,      /// Index hash signature.
-		dbg_bucket_load,    /// Hash bucket load factor.
-		dbg_local_interval, /// Curve parameter relative to local trajectory interval.
-		dbg_num_cells,      /// Number of cells within the query volume.
-		dbg_num_intervals,  /// Number of trajectory intervals within queried cells.
+		none,               // No visualization.
+		relation,           // Relation between trajectories calculated by `relation_def`.
+		dbg_seg_t,          // Segment-local curve parameter.
+		dbg_velocity,       // Length of the trajectory's spatial derivative w.r.t. time.
+		dbg_index_xyz,      // Spatial grid index.
+		dbg_index_t,        // Temporal grid index.
+		dbg_signature,      // Index hash signature.
+		dbg_bucket_load,    // Hash bucket load factor.
+		dbg_local_interval, // Curve parameter relative to local trajectory interval.
+		dbg_num_cells,      // Number of cells within the query volume.
+		dbg_num_intervals,  // Number of trajectory intervals within queried cells.
 	};
 
-	/// Determines for which trajectory's fragments the relation is evaluated and which trajectories
-	/// are samples for the evaluation.
-	enum class Direction : uint32_t { // uint8_t causes problems with CGV GUI.
-		ref_to_all, /// Color the reference trajectory, sample all others.
-		all_to_ref, /// Sample the reference trajectory to color all others.
-		all_to_all, /// Color every trajectory, sampling all others.
+	/// Determines for which trajectories' fragments the relation is evaluated and which
+	/// trajectories are sampled for the evaluation.
+	enum class TrajFilter : uint32_t { // uint8_t causes problems with CGV GUI.
+		ref_to_all, // Color the reference trajectory, sample all others.
+		all_to_ref, // Sample the reference trajectory to color all others.
+		all_to_all, // Color every trajectory, sampling all others.
+	};
+
+	/// Determines the central axis of the query region.
+	enum class QueryDir : uint32_t {
+		normal, // Query around the fragment's surface normal.
+		movement, // Query around the derivative of the trajectory spline; the movement direction.
 	};
 
 	/// Determines how the relation shader checks whether an AABB intersects the query volume.
@@ -137,7 +143,8 @@ struct relation_vis {
 	float cutoff_angle {90};
 	/// The value to visualize.
 	DataVar data_var {};
-	Direction direction {Direction::all_to_all};
+	TrajFilter filter {TrajFilter::all_to_all};
+	QueryDir query_dir {QueryDir::normal};
 	QueryIntersectionTest query_isect_test {QueryIntersectionTest::fast};
 	/// Determines how trajectories are sampled when evaluating relations. In all cases, each
 	/// interval is sampled according to some fixed time step. `global` strategies use the same
@@ -155,6 +162,9 @@ struct relation_vis {
 	/// Determines whether the relation is averaged (true) or accumulated (false) over time.
 	/// The exact meaning depends on the relation.
 	bool normalize {true};
+	/// If true, the central axis of the query region determined by `query_dir` will point in the
+	/// opposite direction.
+	bool reverse_qdir {false};
 
 	/// Generate GUI elements to control member variables.
 	void build_gui (
@@ -200,9 +210,13 @@ auto get_reflection_traits (enum relation_vis::DataVar const&)
 	-> cgv::reflect::enum_reflection_traits<enum relation_vis::DataVar>;
 
 /// Return the unqualified identifier for the given enum value.
-[[nodiscard]] constexpr auto enum_id (enum relation_vis::Direction dir) noexcept
-	-> std::string_view
+[[nodiscard]] constexpr auto enum_id (relation_vis::TrajFilter filter) noexcept -> std::string_view
 {
 	using std::operator""sv;
-	return std::array{"ref_to_all"sv, "all_to_ref"sv, "all_to_all"sv}[static_cast<size_t>(dir)];
+	return std::array{"ref_to_all"sv, "all_to_ref"sv, "all_to_all"sv}[static_cast<size_t>(filter)];
+}
+[[nodiscard]] constexpr auto enum_id (relation_vis::QueryDir dir) noexcept -> std::string_view
+{
+	using std::operator""sv;
+	return std::array{"normal"sv, "movement"sv}[static_cast<size_t>(dir)];
 }

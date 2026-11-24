@@ -2325,11 +2325,13 @@ void on_tube_vis::save_relations_benchmark ()
 		"min_interval_space\t{}\n"
 		"min_interval_time\t{}\n"
 		"data_var\t{}\n"
+		"query_dir\t{}\n"
+		"reverse_qdir\t{}\n"
 		"radius_space\t{}\n"
 		"radius_pre\t{}\n"
 		"radius_post\t{}\n"
 		"sample_rate\t{}\n"
-		"direction\t{}\n"
+		"traj_filter\t{}\n"
 		"memory\t{}\n",
 		traj_mgr.dataset(0).data_source(),
 		frame_buffer.get_width() * frame_buffer.get_height(),
@@ -2341,11 +2343,13 @@ void on_tube_vis::save_relations_benchmark ()
 		par.min_interval[0],
 		par.min_interval[1],
 		vis.data_var_name(),
+		enum_id(vis.query_dir),
+		vis.reverse_qdir,
 		vis.radius.space,
 		vis.radius.pre,
 		vis.radius.post,
 		vis.sample_rate,
-		enum_id(vis.direction),
+		enum_id(vis.filter),
 		relations.grid.buffer_size()
 	);
 	// Write timings.

@@ -1,11 +1,15 @@
 #version 430 core
 
 // Constants #######################################################################################
-// Determines for which pairs of trajectories the relation is visualized.
-struct Direction {uint value;};
-const Direction dir_ref_to_all = {0};
-const Direction dir_all_to_ref = {1};
-const Direction dir_all_to_all = {2};
+// Determines for which pairs of trajectories the relation is evaluated.
+struct TrajFilter {uint value;};
+const TrajFilter filter_ref_to_all = {0};
+const TrajFilter filter_all_to_ref = {1};
+const TrajFilter filter_all_to_all = {2};
+
+// Determines the central axis of the query region.
+#define QDIR_NORMAL   0
+#define QDIR_MOVEMENT 1
 
 // Data variables that can be visualized.
 #define DV_NONE               0
@@ -140,24 +144,28 @@ layout(binding = HASH_GRID_BUFFER_BINDING) readonly buffer hash_grid_buffer {
 layout(binding = RELATION_COLOR_MAP_TEX) uniform sampler2D color_map_tex;
 
 // Uniforms ########################################################################################
-uniform vec4      hash_grid_cell_size;
-uniform vec4      hash_grid_scale; // == 1 / hash_grid_cell_size
-uniform uint      hash_grid_data_len;
-uniform vec4      relation_radius; // space, pre, post, angle
-uniform float     relation_sample_rate;
-uniform Direction relation_direction;
-uniform uint      relation_ref_traj;
-uniform bool      relation_normalize;
-uniform vec2      relation_color_domain;
-uniform vec3      relation_highlight_color;
-uniform vec3      relation_background_color;
-uniform vec3      relation_weight_norm; // space, time, angle
-uniform vec3      relation_weight_exp; // space, time, angle
+uniform vec4       hash_grid_cell_size;
+uniform vec4       hash_grid_scale; // == 1 / hash_grid_cell_size
+uniform uint       hash_grid_data_len;
+uniform vec4       relation_radius; // space, pre, post, angle
+uniform float      relation_sample_rate;
+uniform TrajFilter relation_filter;
+uniform uint       relation_query_dir; // MSB encodes reversal
+uniform uint       relation_ref_traj;
+uniform bool       relation_normalize;
+uniform vec2       relation_color_domain;
+uniform vec3       relation_highlight_color;
+uniform vec3       relation_background_color;
+uniform vec3       relation_weight_norm; // space, time, angle
+uniform vec3       relation_weight_exp; // space, time, angle
 
 #define R_SPACE relation_radius[0]
 #define R_PRE   relation_radius[1]
 #define R_POST  relation_radius[2]
 #define MIN_COS relation_radius[3]
+
+#define QDIR         (relation_query_dir & (~0u>>1))
+#define QDIR_REVERSE bool(relation_query_dir & (1<<31))
 
 #define WNORM_SPACE relation_weight_norm[0]
 #define WNORM_TIME  relation_weight_norm[1]
@@ -497,7 +505,7 @@ struct GridRange
 	ivec4 max;
 };
 // Calculate the range of grid cells intersecting the relation query.
-GridRange query_range (vec4 center, vec3 normal)
+GridRange query_range (vec4 center, vec3 dir)
 {
 	if (RELATION_QUERY_ISECT_TEST <= QIT_SPHERE || MIN_COS <= -1 + 1e-3)
 		// Without a maximum angle, the query volume is simply a ball.
@@ -511,21 +519,21 @@ GridRange query_range (vec4 center, vec3 normal)
 
 	// In the three spatial dimensions, the query encompasses a spherical sector; its AABB is
 	// calculated according to https://stackoverflow.com/a/64689996
-	for (uint d = 0; d < 3; ++d) {
-		const float n = normal[d];
+	for (uint i = 0; i < 3; ++i) {
+		const float d = dir[i];
 		float lo = 0, hi = 0;
 
-		if (-n >= MIN_COS) lo = -1;
-		if (n >= MIN_COS) hi = 1;
+		if (-d >= MIN_COS) lo = -1;
+		if (d >= MIN_COS) hi = 1;
 
 		if (lo == 0 || hi == 0) {
-			const float a = n * MIN_COS;
-			const float b = sqrt((1 - sqr(MIN_COS)) / (1 - sqr(n))) * (1 - sqr(n));
+			const float a = d * MIN_COS;
+			const float b = sqrt((1 - sqr(MIN_COS)) / (1 - sqr(d))) * (1 - sqr(d));
 			lo = min(lo, a - b);
 			hi = max(hi, a + b);
 		}
-		pmin[d] = center[d] + R_SPACE * lo;
-		pmax[d] = center[d] + R_SPACE * hi;
+		pmin[i] = center[i] + R_SPACE * lo;
+		pmax[i] = center[i] + R_SPACE * hi;
 	}
 	// Temporally, the query is simply an interval.
 	pmin[3] = center[3] - R_PRE;
@@ -551,7 +559,7 @@ bool isect_aabb_sphere (vec3 bmin, vec3 bmax, vec3 center, float radius2)
 // Box and a Cone or Cone Frustum”,
 // online: https://www.geometrictools.com/Documentation/IntersectionBoxCone.pdf
 
-// Project an AABB onto the query's central axis (the surface normal). The upper bound of the
+// Project an AABB onto the query's central axis (query direction). The upper bound of the
 // projection relative to the query's origin (the surface point) is returned and compared against
 // the lower bound of the query volume's projection. The other ends of each projection's interval
 // are not checked, since this function is only called with AABBs that are already known to lie
@@ -568,8 +576,8 @@ bool aabb_outside_query (
 	proj_max = dot(c, dir) + dot(halfext, abs(dir));
 	return proj_max < min(0, R_SPACE * MIN_COS);
 }
-// Test whether a given AABB intersects the query volume, a spherical sector around the surface
-// normal, whose opening angle is defined by the cosine term's exponent and cutoff. The function
+// Test whether a given AABB intersects the query volume, a spherical sector around the query
+// direction, whose opening angle is defined by the cosine term's exponent and cutoff. The function
 // assumes that the AABB is within the query radius and ignores the temporal dimension, these
 // conditions should be ensured separately.
 // The out parameter is the upper bound of the box's projection onto the query's central axis,
@@ -693,10 +701,9 @@ struct EvalRelationArgs {
 	TrajPoint base_point;
 	TrajPoint sample_point;
 	vec3 offset; // sample_point.position - base_point.position
-	// Cosine of the angle between `offset` and the base point's surface normal.
+	// Cosine of the angle between `offset` and the query direction.
 	float cos;
-	// Duration represented by the sample point, or a value of one if the query's temporal extent
-	// is zero.
+	// Duration represented by the sample point, or 1 if the query's temporal extent is zero.
 	float duration;
 };
 struct ColorRelationArgs {
@@ -728,7 +735,7 @@ float weight_all (EvalRelationArgs args)
 //$cgv::relation_def
 #endif
 #ifndef RELATION_REDUCE_T
-// Placeholder relation that simply counts samples.
+// Placeholder relation that simply adds sample weights.
 
 #define RELATION_REDUCE_T float
 
@@ -755,7 +762,7 @@ vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T reduction)
 // Evaluate the relation for a given sample point if it is within the query volume.
 void sample_point (
 	TrajPoint base_point,
-	vec3 base_normal,
+	vec3 query_dir,
 	TrajPoint sample_point,
 	float duration,
 	inout RELATION_REDUCE_T reduction
@@ -763,7 +770,7 @@ void sample_point (
 	const vec3 offset = sample_point.position - base_point.position;
 	if (dot(offset, offset) > sqr(R_SPACE)) return;
 
-	const float cosine = dot(base_normal, normalize(offset));
+	const float cosine = dot(normalize(query_dir), normalize(offset));
 	if (cosine < MIN_COS) return;
 
 	EvalRelationArgs args = {
@@ -780,7 +787,7 @@ void sample_point (
 void sample_interval (
 	Interval interval,
 	TrajPoint base_point,
-	vec3 base_normal, // world-space normal at the base point
+	vec3 query_dir,
 	inout RELATION_REDUCE_T reduction
 ) {
 	// Load node data.
@@ -793,7 +800,7 @@ void sample_interval (
 	if (relation_radius.yz == vec2(0)) {
 		if (base_point.time < time[0] || time[1] < base_point.time) return;
 		const float t = (base_point.time - n0.time) * time_scale;
-		sample_point(base_point, base_normal, TrajPoint(
+		sample_point(base_point, query_dir, TrajPoint(
 			trajectory_point(n0, n1, t).xyz,
 			base_point.time,
 			trajectory_derivative(n0, n1, t)
@@ -823,7 +830,7 @@ void sample_interval (
 		mix(aabb_min, aabb_max, .5),
 		.5*(aabb_max - aabb_min),
 		base_point.position,
-		base_normal,
+		query_dir,
 		proj_max
 	)) return;
 
@@ -858,7 +865,7 @@ void sample_interval (
 
 	// Evaluate the relation at one or more sample points along the interval.
 	for (; t <= tmax; t += sample_step * time_scale)
-		sample_point(base_point, base_normal, TrajPoint(
+		sample_point(base_point, query_dir, TrajPoint(
 			eval_position(coeffs, t),
 			mix(n0.time, n1.time, t),
 			trajectory_derivative(coeffs_dt, t)
@@ -873,10 +880,10 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	const Node end   = nodes[node_ids[1]];
 
 	// If only the reference trajectory is to be shaded, mark all others as background.
-	if (relation_direction == dir_ref_to_all && start.traj_id != relation_ref_traj)
+	if (relation_filter == filter_ref_to_all && start.traj_id != relation_ref_traj)
 		return relation_background_color;
 	// Mark the reference trajectory.
-	if (relation_direction == dir_all_to_ref && start.traj_id == relation_ref_traj)
+	if (relation_filter == filter_all_to_ref && start.traj_id == relation_ref_traj)
 		return relation_highlight_color;
 
 	// Color by local time.
@@ -940,16 +947,25 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 	}
 	#endif
 
-	// Square of the spatial query radius.
-	const float radius2 = sqr(R_SPACE);
-	// AABB of cells to include in the relation.
-	const GridRange qrange = query_range(local_point, world_normal);
-
 	TrajPoint base_point = {
 		local_point.xyz,
 		local_point[3],
 		trajectory_derivative(start, end, seg_t)
 	};
+
+	// Central axis of the query region.
+	vec3 query_dir;
+	switch (QDIR) {
+		case QDIR_NORMAL: query_dir = world_normal; break;
+		case QDIR_MOVEMENT: query_dir = normalize(base_point.derivative); break;
+		default: return relation_highlight_color; // undefined enum value
+	}
+	if (QDIR_REVERSE) query_dir = -query_dir;
+
+	// Square of the spatial query radius.
+	const float radius2 = sqr(R_SPACE);
+	// AABB of cells to include in the relation.
+	const GridRange qrange = query_range(local_point, query_dir);
 
 	// Value of the relation at the local point.
 	RELATION_REDUCE_T reduction = init_relation(InitRelationArgs(base_point));
@@ -997,7 +1013,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 			vec3(local_point.x, vec2(y, z) * hash_grid_cell_size.yz),
 			vec3(R_SPACE, .5 * hash_grid_cell_size.yz),
 			local_point.xyz,
-			world_normal,
+			query_dir,
 			proj_max
 		)) if (entered_query_y) break; else continue;
 		entered_query_y = true;
@@ -1021,7 +1037,7 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 			vec3(x, y, z) * hash_grid_cell_size.xyz,
 			.5 * hash_grid_cell_size.xyz,
 			local_point.xyz,
-			world_normal,
+			query_dir,
 			proj_max
 		))
 			// We can only exit the loop early if the grid cell intersects the convex part of the
@@ -1057,14 +1073,14 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		for (uint i = 0; i < intervals.len; ++i) {
 			const Interval interval = load_interval(intervals, i);
 
-			if (relation_direction == dir_all_to_ref
+			if (relation_filter == filter_all_to_ref
 				// Only evaluate intervals of the reference trajectory.
 				? nodes[interval.start_node].traj_id == relation_ref_traj
 				// Evaluate only intervals on different trajectories, unless the relation
 				// explicitely requested to include the base point's trajectory as well.
 				: (nodes[interval.start_node].traj_id != start.traj_id
 					|| bool(RELATION_SAMPLE_BASE_TRAJ))
-			) sample_interval(interval, base_point, world_normal, reduction);
+			) sample_interval(interval, base_point, query_dir, reduction);
 		}
 #if HASH_GRID_LAYOUT != LAYOUT_XYZ
 	} // for t

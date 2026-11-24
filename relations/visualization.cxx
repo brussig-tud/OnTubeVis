@@ -83,19 +83,19 @@ void relation_vis::build_gui (
 		}
 	);
 	p.add_member_control(b, "Show", data_var, "dropdown", data_var_dropdown);
-	p.add_member_control(b, "Normalize", normalize, "check");
-
-	// Evaluation.
-	p.add_member_control(b, "Direction", direction, "dropdown", "enums='"
-		"reference to all,"
-		"all to reference,"
-		"all to all'"
+	p.add_member_control(b, "", filter, "dropdown", "enums='"
+		"reference to all,all to reference,all to all'"
 	);
-	if (direction != Direction::all_to_all)
+	if (filter != TrajFilter::all_to_all)
 		p.add_member_control(b, "Reference traj.", reference_trajectory, "value_slider",
 			std::format("min=0;max={};step=1;ticks=true", num_trajectories - 1)
 		);
+	p.add_member_control(b, "Normalize", normalize, "check");
 
+	p.add_member_control(b, "Query dir.", query_dir, "dropdown",
+		"enums='surface normal,movement direction'"
+	);
+	p.add_member_control(b, "Reverse", reverse_qdir, "check");
 	p.add_decorator("Query radius", "text");
 	p.add_member_control(b, "Spatial", radius.space, "value_slider",
 		std::format("min=0;max={};ticks=true;log=true", max_value(cgv::vec3{data_extent}) * 0.1f)
@@ -200,7 +200,7 @@ auto relation_vis::on_set (
 	auto const ptr = cgv::data::informed_ptr{member};
 	if (ptr.points_to_one_of(data_var, relation.definition, query_isect_test, sampling))
 		return UpdateFlag::shader_opts;
-	if (ptr.points_to(direction)) return UpdateFlag::gui;
+	if (ptr.points_to(filter)) return UpdateFlag::gui;
 	if (!ptr.points_to_member_of(color_scale)) return 0;
 
 	if (ptr.points_to(color_scale.base)) {
@@ -267,8 +267,11 @@ void relation_vis::set_uniforms (
 	cgv::render::context&        c,
 	cgv::render::shader_program& p
 ) const {
+	auto qdir = static_cast<uint32_t>(query_dir);
+	if (reverse_qdir) qdir |= 1<<31;
+	p.set_uniform(c, "relation_query_dir", qdir);
 	p.set_uniform(c, "relation_normalize", normalize);
-	p.set_uniform(c, "relation_direction.value", static_cast<uint32_t>(direction));
+	p.set_uniform(c, "relation_filter.value", static_cast<uint32_t>(filter));
 	p.set_uniform(c, "relation_ref_traj", reference_trajectory);
 
 	auto const r = radius;
