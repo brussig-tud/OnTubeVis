@@ -224,3 +224,15 @@ auto get_reflection_traits (enum relation_vis::DataVar const&)
 	using std::operator""sv;
 	return std::array{"normal"sv, "movement"sv}[static_cast<size_t>(dir)];
 }
+[[nodiscard]] constexpr auto enum_id (relation_vis::QueryIntersectionTest qit) noexcept
+	-> std::string_view
+{
+	using std::operator""sv;
+	return std::array{"none"sv, "sphere"sv, "fast"sv, "exact"sv}[static_cast<size_t>(qit)];
+}
+[[nodiscard]] constexpr auto enum_id (relation_vis::Sampling s) noexcept -> std::string_view
+{
+	using std::operator""sv;
+	return std::array{"global"sv, "global_aligned"sv, "local"sv, "local_aligned"sv}
+		[static_cast<size_t>(s)];
+}
