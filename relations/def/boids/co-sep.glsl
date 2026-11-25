@@ -28,10 +28,10 @@ vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T accum)
 	return relation_to_color(dot(attract, reject));
 
 	return vec3(
-		max(dot(attract, args.base_normal), 0),
+		max(dot(attract, args.query_dir), 0),
 		//.5 * length(attract + reject),
 		0,
-		max(dot(reject, args.base_normal), 0)
+		max(dot(reject, args.query_dir), 0)
 	);
 
 	const vec3 delta = attract + reject;

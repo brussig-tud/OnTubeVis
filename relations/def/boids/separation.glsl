@@ -15,6 +15,5 @@ vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T accum)
 	if (accum == 0) return relation_background_color;
 	const vec3 reject = normalize(accum);
 
-	return relation_to_color(dot(reject, args.base_normal));
-	return relation_to_color(dot(reject, normalize(args.base_point.derivative)));
+	return relation_to_color(dot(reject, args.query_dir));
 }

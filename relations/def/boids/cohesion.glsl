@@ -22,6 +22,5 @@ vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T accum)
 	accum.centr /= accum.count;
 	const vec3 attract = normalize(accum.centr - args.base_point.position);
 
-	return relation_to_color(dot(attract, args.base_normal));
-	return relation_to_color(dot(attract, normalize(args.base_point.derivative)));
+	return relation_to_color(dot(attract, args.query_dir));
 }

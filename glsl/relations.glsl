@@ -709,6 +709,7 @@ struct EvalRelationArgs {
 struct ColorRelationArgs {
 	TrajPoint base_point;
 	vec3 base_normal;
+	vec3 query_dir;
 };
 
 // Weight the sample point by its distance from the base point, with a weight of one directly at the
@@ -1095,5 +1096,5 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 		ry_lo = ry_hi;
 	} // for z
 
-	return color_relation(ColorRelationArgs(base_point, world_normal), reduction);
+	return color_relation(ColorRelationArgs(base_point, world_normal, query_dir), reduction);
 }

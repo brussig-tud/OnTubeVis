@@ -19,5 +19,5 @@ vec3 color_relation (ColorRelationArgs args, RELATION_REDUCE_T reduction)
 {
 	if (isinf(reduction.dist2)) return relation_background_color;
 	const float cosine = dot(normalize(args.base_point.derivative), normalize(reduction.offset));
-	return relation_to_color(.5 - acos(cosine) / 3.1415926535);
+	return relation_to_color(1 - acos(cosine)*.636619772);
 }
