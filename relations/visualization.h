@@ -128,14 +128,18 @@ struct relation_vis {
 	/// given distance.
 	radius;
 	struct {
-		float distance {1};
-		float time_diff {1};
+		float space {1};
+		float time {1};
 		float angle {1};
+		bool use_space {true};
+		bool use_time {true};
+		bool use_angle {true};
 	}
 	/// Relations may weight samples depending on their spatial, temporal, and angular distance from
 	/// the base point. The distances are normalized such that they have a value of one at the base
-	/// point (or, for the angle, directly above it), and a value of zero at the edge of the query
-	/// region. Each value is then taken to the power given in this struct.
+	/// point (or, for the angle, directly on the query's central axis), and a value of zero at the
+	/// edge of the query region. If the corresponding use-flag is `true`, the weight is taken to
+	/// the selected power, otherwise it is linearized.
 	weight_exp;
 	/// If the direction from a fragment's surface point to a sample point on another trajectory
 	/// deviates from the surface normal by more than this angle, the sample does not contribute to

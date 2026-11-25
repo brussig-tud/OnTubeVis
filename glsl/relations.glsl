@@ -715,14 +715,18 @@ struct ColorRelationArgs {
 // base point and zero at the edge of the query.
 float weight_space (EvalRelationArgs args)
 {
+	if (isnan(WEXP_SPACE)) return 1 - length(args.offset) * WNORM_SPACE;
 	return pow(1 - dot(args.offset, args.offset) * WNORM_SPACE, WEXP_SPACE);
 }
 float weight_time (EvalRelationArgs args)
 {
-	return pow(1 - sqr(args.base_point.time - args.sample_point.time) * WNORM_TIME, WEXP_TIME);
+	const float diff = args.base_point.time - args.sample_point.time;
+	if (isnan(WEXP_TIME)) return 1 - abs(diff) * WNORM_TIME;
+	return pow(1 - sqr(diff) * WNORM_TIME, WEXP_TIME);
 }
 float weight_angle (EvalRelationArgs args)
 {
+	if (isnan(WEXP_ANGLE)) return 1 - acos(args.cos) * WNORM_ANGLE;
 	return pow((args.cos - MIN_COS) * WNORM_ANGLE, WEXP_ANGLE);
 }
 float weight_all (EvalRelationArgs args)

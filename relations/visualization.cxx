@@ -1,5 +1,6 @@
 #ifndef _USE_MATH_DEFINES
 	#define _USE_MATH_DEFINES
+#include "cgv/math/functions.h"
 #endif
 
 #include <filesystem>
@@ -121,16 +122,21 @@ void relation_vis::build_gui (
 		std::format("min=0;max={};ticks=true;log=true", 1e4 / data_extent[3])
 	);
 
-	p.add_decorator("Distance weight exponent", "text");
-	p.add_member_control(b, "Space", weight_exp.distance, "value_slider",
-		"min=0;max=10;ticks=true;log=true"
+	p.add_decorator("Distance weight exponent\n(uncheck for linear weight)", "text");
+	p.add_member_control(b, "Space", weight_exp.space, "value_slider",
+		"min=0;max=10;ticks=true;log=true;w=180", ""
 	);
-	p.add_member_control(b, "Time", weight_exp.time_diff, "value_slider",
-		"min=0;max=10;ticks=true;log=true"
+	p.add_member_control(b, "", weight_exp.use_space, "check", "w=20");
+
+	p.add_member_control(b, "Time", weight_exp.time, "value_slider",
+		"min=0;max=10;ticks=true;log=true;w=180", ""
 	);
+	p.add_member_control(b, "", weight_exp.use_time, "check", "w=20");
+
 	p.add_member_control(b, "Angle", weight_exp.angle, "value_slider",
-		"min=0;max=10;ticks=true;log=true"
+		"min=0;max=10;ticks=true;log=true;w=180", ""
 	);
+	p.add_member_control(b, "", weight_exp.use_angle, "check", "w=20");
 
 	if (p.begin_tree_node("Color scale", color_scale)) {
 		p.add_member_control(b, "Base", color_scale.base, "dropdown", p.concat_enum_def(color_maps));
@@ -239,7 +245,7 @@ void relation_vis::update_color_scale (cgv::render::context& ctx, color_map_mana
 
 	// Generate texture.
 	std::array<cgv::rgb8, 256> samples;
-	for (auto i = 0; i < samples.size(); ++i) samples[i] = scale->map_value(
+	for (auto i = 0u; i < samples.size(); ++i) samples[i] = scale->map_value(
 		min + 1.f/(samples.size() - 1) * (max - min) * i
 	);
 	cgv::data::data_format fmt {samples.size(), 1, cgv::type::info::TI_UINT8, cgv::data::CF_RGB};
@@ -280,14 +286,20 @@ void relation_vis::set_uniforms (
 
 	p.set_uniform(c, "relation_sample_rate", sample_rate);
 
-	auto const w = weight_exp;
+	auto const wx = weight_exp;
 	auto const sqr = [](auto x) {return x*x;};
+	auto const r_time = fmax(r.pre, r.post);
 	p.set_uniform(c, "relation_weight_norm", cgv::vec3{
-		1 / sqr(r.space),
-		1 / sqr(fmax(r.pre, r.post)),
-		1 / (1 - min_cos)
+		1 / (wx.use_space ? sqr(r.space) : r.space),
+		1 / (wx.use_time ? sqr(r_time) : r_time),
+		1 / (wx.use_angle ? 1 - min_cos : cgv::math::deg2rad(cutoff_angle))
 	});
-	p.set_uniform(c, "relation_weight_exp", cgv::vec3{w.distance, w.time_diff, w.angle});
+	auto constexpr lin_weight = std::numeric_limits<float>::quiet_NaN();
+	p.set_uniform(c, "relation_weight_exp", cgv::vec3{
+		wx.use_space ? wx.space : lin_weight,
+		wx.use_time ? wx.time : lin_weight,
+		wx.use_angle ? wx.angle : lin_weight
+	});
 
 	auto domain = color_scale.domain;
 	if (domain[0] > domain[1]) std::swap(domain[0], domain[1]);
