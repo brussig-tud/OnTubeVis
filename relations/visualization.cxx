@@ -223,7 +223,9 @@ void relation_vis::update_color_scale (cgv::render::context& ctx, color_map_mana
 	auto& scale = color_scale.scale;
 
 	switch (color_scale.layout) {
-	case ColorScale::Layout::monotonic: break;
+	case ColorScale::Layout::monotonic:
+		scale->set_diverging(false);
+		break;
 	case ColorScale::Layout::symmetric:
 		color_scale.domain = {
 			color_scale.midpoint - color_scale.radius,
