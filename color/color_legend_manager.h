@@ -64,6 +64,8 @@ public:
 	// the destructor
 	~color_legend_manager() {}
 
+	void set_visibility (bool);
+
 	/// disable / un-use all managed color map legends in the pool
 	void clear (void);
 

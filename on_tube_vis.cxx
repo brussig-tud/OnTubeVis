@@ -1027,7 +1027,7 @@ void on_tube_vis::on_set(void* member_ptr) {
 	}
 
 	if (ptr.points_to(benchmark.set_render_style)) {
-		misc_cfg.instant_redraw_proxy = true;
+		misc_cfg.instant_redraw_proxy = benchmark.set_render_style;
 		on_set(&misc_cfg.instant_redraw_proxy);
 		misc_cfg.vsync_proxy = false;
 		on_set(&misc_cfg.vsync_proxy);
@@ -1036,11 +1036,13 @@ void on_tube_vis::on_set(void* member_ptr) {
 		show_wireframe_bbox = false;
 		update_member(&show_wireframe_bbox);
 		cm_viewer_ptr->set_visibility(false);
-		navigator_ptr->set_visibility(false);
-		perfmon_ptr->set_visibility(false);
+		navigator_ptr->set_visibility(!benchmark.set_render_style);
+		perfmon_ptr->set_visibility(!benchmark.set_render_style);
+		mapping_legend_ptr->set_visibility(!benchmark.set_render_style);
+		color_legend_mgr.set_visibility(!benchmark.set_render_style);
 		debug.far_extent_factor = 0.4;
 		debug.near_extent_factor = 0.333333*debug.far_extent_factor;
-		set_view();
+		//set_view();
 	}
 
 	// - debug render setting
@@ -1977,16 +1979,10 @@ void on_tube_vis::init_frame (context &ctx)
 	}
 
 	if(benchmark.requested) {
-		if(!misc_cfg.instant_redraw_proxy) {
-			misc_cfg.instant_redraw_proxy = true;
-			on_set(&misc_cfg.instant_redraw_proxy);
-		}
-		if(misc_cfg.vsync_proxy) {
-			misc_cfg.vsync_proxy = false;
-			on_set(&misc_cfg.vsync_proxy);
-		}
-
 		if(!benchmark.running) {
+			benchmark.set_render_style = true;
+			on_set(&benchmark.set_render_style);
+
 			benchmark.running = true;
 			benchmark.timer.restart();
 
@@ -2277,7 +2273,7 @@ void on_tube_vis::after_finish(context& ctx) {
 
 		double depth = cgv::math::length(view_ptr->get_eye() - view_ptr->get_focus());
 
-		view_ptr->rotate(0.0, cgv::math::deg2rad(360.0 * alpha), depth);
+		//view_ptr->rotate(0.0, cgv::math::deg2rad(360.0 * alpha), depth);
 
 		benchmark.render_times.emplace_back(benchmark.render_time_query.collect());
 
@@ -2298,6 +2294,9 @@ void on_tube_vis::after_finish(context& ctx) {
 
 			std::cout << ss.str() << std::endl;
 			if (bool(relations.vis.data_var)) save_relations_benchmark();
+
+			benchmark.set_render_style = false;
+			on_set(&benchmark.set_render_style);
 		}
 	}
 }
@@ -2315,16 +2314,17 @@ void on_tube_vis::save_relations_benchmark ()
 	auto const& par = relations.grid.params();
 	auto const& vis = relations.vis;
 	std::format_to(std::ostreambuf_iterator{result_file},
-		"dataset\t{}\n"
+		"dataset\t'{}'\n"
 		"num_pixels\t{}\n"
 		"grid_layout\t{}\n"
+		"signature_fn\t{}\n"
 		"cell_size_x\t{}\n"
 		"cell_size_y\t{}\n"
 		"cell_size_z\t{}\n"
 		"cell_size_t\t{}\n"
 		"min_interval_space\t{}\n"
 		"min_interval_time\t{}\n"
-		"data_var\t{}\n"
+		"data_var\t'{}'\n"
 		"traj_filter\t{}\n"
 		"query_dir\t{}\n"
 		"reverse_qdir\t{}\n"
@@ -2334,10 +2334,12 @@ void on_tube_vis::save_relations_benchmark ()
 		"cutoff_angle\t{}\n"
 		"query_isect_test\t{}\n"
 		"sampling\t{}\n"
-		"sample_rate\t{}\n",
+		"sample_rate\t{}\n"
+		"memory\t{}\n",
 		traj_mgr.dataset(0).data_source(),
 		frame_buffer.get_width() * frame_buffer.get_height(),
 		enum_id(par.layout),
+		enum_id(par.signature_fn),
 		par.cell_size.x(),
 		par.cell_size.y(),
 		par.cell_size.z(),
@@ -2354,7 +2356,8 @@ void on_tube_vis::save_relations_benchmark ()
 		vis.cutoff_angle,
 		enum_id(vis.query_isect_test),
 		enum_id(vis.sampling),
-		vis.sample_rate
+		vis.sample_rate,
+		relations.grid.buffer_size()
 	);
 	// Write timings.
 	for (auto const t : benchmark.render_times) result_file << "time\t" << t.count() << "\n";

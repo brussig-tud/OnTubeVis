@@ -21,6 +21,10 @@ color_legend_manager::color_legend_manager(cgv::base::group &owner) : owner(owne
 	std::cout.flush();
 }
 
+void color_legend_manager::set_visibility (bool vis) {
+	for (auto i = 0u; i < num_active; ++i) legends[i]->set_visibility(vis);
+}
+
 void color_legend_manager::clear() {
 	for (auto &l : legends)
 		l->set_visibility(false);
