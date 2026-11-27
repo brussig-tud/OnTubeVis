@@ -804,6 +804,12 @@ void sample_interval (
 	// Fast-path if sampling only at exactly the same time as the base point.
 	if (relation_radius.yz == vec2(0)) {
 		if (base_point.time < time[0] || time[1] < base_point.time) return;
+
+		#if RELATION_DATA_VAR == DV_DBG_NUM_INTERVALS
+			++reduction;
+			return;
+		#endif
+
 		const float t = (base_point.time - n0.time) * time_scale;
 		sample_point(base_point, query_dir, TrajPoint(
 			trajectory_point(n0, n1, t).xyz,
@@ -838,6 +844,11 @@ void sample_interval (
 		query_dir,
 		proj_max
 	)) return;
+
+		#if RELATION_DATA_VAR == DV_DBG_NUM_INTERVALS
+			++reduction;
+			return;
+		#endif
 
 	// Calculate spline coefficients.
 	const mat4x3 coeffs = position_coeffs(n0, n1);
@@ -1068,9 +1079,6 @@ vec3 color_by_relation (uvec2 node_ids, float seg_t, vec3 world_normal)
 
 		#if RELATION_DATA_VAR == DV_DBG_NUM_CELLS
 			++reduction;
-			continue;
-		#elif RELATION_DATA_VAR == DV_DBG_NUM_INTERVALS
-			reduction += intervals.len;
 			continue;
 		#endif
 

@@ -31,7 +31,7 @@ static constexpr auto data_var_names = std::to_array<std::string_view>({
 	"[debug] Bucket load",
 	"[debug] Trajectory interval",
 	"[debug] Queried cells",
-	"[debug] Intervals found",
+	"[debug] Queried intervals",
 });
 
 /// GUI descriptor for the dropdown to select the visualized data variable.

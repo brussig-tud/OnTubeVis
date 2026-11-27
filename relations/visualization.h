@@ -40,7 +40,7 @@ struct relation_vis {
 		dbg_bucket_load,    // Hash bucket load factor.
 		dbg_local_interval, // Curve parameter relative to local trajectory interval.
 		dbg_num_cells,      // Number of cells within the query volume.
-		dbg_num_intervals,  // Number of trajectory intervals within queried cells.
+		dbg_num_intervals,  // Number of trajectory intervals intersecting the query.
 	};
 
 	/// Determines for which trajectories' fragments the relation is evaluated and which
