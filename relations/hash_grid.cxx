@@ -20,7 +20,7 @@ namespace {
 
 /// Controls the amount of debug messages produced by the grid.
 /// Ranges from 0 (no output) to 4 (full output).
-constexpr auto log_level = 2u;
+constexpr auto log_level = OTV_HASH_GRID_VALIDATION > 1 ? 2u : 1u;
 
 
 /// In the shader, pointers are emulated with offsets into the grid buffer.
